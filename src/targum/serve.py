@@ -13396,26 +13396,59 @@ class Handler(BaseHTTPRequestHandler):
             )
         self._json({"signedIn": True, "texts": texts, "more": more})
 
-    @staticmethod
-    def _met_href(line: Any, homes: list[Path]) -> str:
+    def _met_href(self, line: Any, homes: list[Path]) -> str:
         """The address of the reader page that holds `line`, at its sentence and naming
         its word, or "" where the text is under none of `homes` (`_serve_reader`'s
-        roots, in its order)."""
+        roots, in its order).
+
+        A Torah book is read as its portions (targum-internal#446), so a line in one is
+        sent to `/torah/<book>.<c>.<v>`, which opens the portion at that verse; the
+        verse's row answers to `#c:v`, and the reader marks the word there
+        (targum-internal#506). Its own page would forward by chapter alone, and lose both.
+        """
         reader = line.folder / "reader"
         page = f"sec-{line.section:04d}.html"
         if not (reader / page).is_file():
             page = "index.html"
-        for root in homes:
+        for number, root in enumerate(homes):
             try:
                 relative = line.folder.resolve().relative_to(root.resolve())
             except (OSError, ValueError):
                 continue
+            # The weekly's readers are served as built, as `_serve_reader` serves them.
+            book = self._torah_book(reader / page) if number < 2 else None
+            verse = self._verse_of(line.folder, line.segment) if book else ""
+            if book and verse:
+                chapter, _, at = verse.partition(":")
+                return f"/torah/{quote(book)}.{chapter}.{at}?met={quote(line.lemma)}"
             return (
                 "/reader/"
                 + "/".join(quote(part) for part in relative.parts)
                 + f"/reader/{page}?met={quote(line.lemma)}#{quote(line.segment)}"
             )
         return ""
+
+    def _verse_of(self, folder: Path, segment: str) -> str:
+        """The "12:5" a segment of a built text is, off its `segments.json`, or ""."""
+        from .render.builder import verse_address
+
+        path = folder / "segments.json"
+
+        def work() -> dict[str, str]:
+            try:
+                rows = json.loads(path.read_text(encoding="utf-8")).get("segments") or []
+            except (OSError, ValueError, AttributeError):
+                return {}
+            found: dict[str, str] = {}
+            for row in rows:
+                if isinstance(row, dict) and row.get("kind") == "verse":
+                    address = verse_address(str(row.get("ref") or ""))
+                    if address:
+                        found[str(row.get("id"))] = address
+            return found
+
+        verses = self.library.remembered.get(folder, "verses", [path], work)
+        return str((verses or {}).get(segment) or "")
 
     def _practice_page(self, query: dict[str, list[str]]) -> None:
         """What the Grammar tab draws for one language (targum-internal#440, design.md
