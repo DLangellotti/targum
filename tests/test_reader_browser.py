@@ -98,12 +98,15 @@ def chapter(
     taamim: bool = False,
     parts: int = 1,
     beyond: dict[str, dict[str, str]] | None = None,
+    verses: str = "",
 ) -> Path:
     """A built reader with everything the bar can change: words, vowels, translation.
 
     With `taamim`, the pointed text also carries accents, which is what gives the switch
     its third position — the form a Masoretic edition publishes. With two `parts`, a
     heading halfway opens a second chapter file, so the first has somewhere to go on to.
+    With `verses` naming a book, each sentence is a verse of its first chapter, so its row
+    answers to `#1:<n>`.
     """
     segments, pointed, tokens, minted = [], {}, {}, 0
     for n in range(VERSES):
@@ -125,7 +128,13 @@ def chapter(
         minted += len(words)
         text = " ".join(words)
         segment = Segment(
-            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=n, text=text
+            id=f"{n:04d}.000-aaaaaa",
+            block_id=f"b{n:04d}",
+            block_index=n,
+            index=n,
+            text=text,
+            kind=BlockKind.verse if verses else BlockKind.paragraph,
+            ref=f"{verses} 1:{n + 1}" if verses else "",
         )
         segments.append(segment)
         last = QAMATS + ZAQEF if taamim else QAMATS

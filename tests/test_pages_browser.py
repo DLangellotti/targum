@@ -39,6 +39,7 @@ from targum.render.builder import (
     carried,
     chat_page,
     holding_page,
+    legal_page,
     library_page,
     list_page,
     not_found_page,
@@ -2326,8 +2327,8 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     page.wait_for_timeout(400)
     italian = field.get_attribute("placeholder")
     context.close()
-    assert hebrew == "Write in Hebrew or English", hebrew
-    assert italian == "Write in Italian or English", italian
+    assert hebrew == "Hebrew or English", hebrew
+    assert italian == "Italian or English", italian
     # Learn asks for its own chips without a language; the drawer asks in the page's.
     assert [code for code in asked if code] == ["he", "it"], asked
 
@@ -3554,3 +3555,46 @@ def test_the_grammar_tab_works_one_example_then_asks_and_says_why(browser, width
     assert posted[0] == {"spot": "tense", "key": "a:s2", "right": False, "language": "he"}
     assert posted[1] == {"spot": "tense", "done": [0, 1], "language": "he"}
     assert len(posted) == 2
+
+
+@pytest.mark.parametrize("which", ["privacy", "terms", "retention", "deletion"])
+def test_the_legal_pages_sign_in_keeps_the_buttons_colours(browser, which: str) -> None:
+    """targum-internal#516: the documents' link rule outranked the corner's call to action,
+    so on the four legal pages Sign in was ink text on its ink fill, about 1.1:1. §9: a
+    call to action is ink-filled with paper text. The document's own links stay ink."""
+    html = legal_page(which)
+
+    def answer(route, request):
+        if urlparse(request.url).path == f"/{which}":
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    page.route("http://legal.test/**", answer)
+    page.goto(f"http://legal.test/{which}")
+    page.wait_for_selector(".corner .enter")
+    got = page.evaluate(
+        """() => {
+          const style = getComputedStyle(document.querySelector('.corner .enter'));
+          const link = document.querySelector('.legal .changed a');
+          const linked = getComputedStyle(link);
+          return {
+            color: style.color,
+            fill: style.backgroundColor,
+            weight: style.fontWeight,
+            border: style.borderBottomStyle,
+            link: linked.color,
+            underline: linked.borderBottomStyle,
+          };
+        }"""
+    )
+    context.close()
+
+    assert got["color"] == "rgb(255, 253, 249)", got
+    assert got["fill"] == "rgb(18, 17, 16)", got
+    assert got["weight"] == "600", got
+    assert got["border"] == "none", "the document's underline does not reach the button"
+    assert got["underline"] == "solid", "the document's links keep their rule"
+    assert got["link"] != got["color"], got

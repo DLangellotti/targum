@@ -24,6 +24,15 @@ DOMAIN="${DOMAIN:-targum.page}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The box side runs as the service account, never as root (targum-internal#515). The
+# folders are targum's, so anything in them, a symlink included, may have been put there
+# by the service, and root following one writes wherever it points; a symlinked parent
+# redirects a root command the same way. The receiving rsync is started as targum
+# (--rsync-path), the mkdir, mv and rm run as targum, and so the files arrive as
+# targum's and no chown -R is needed after. Only what is root's stays root: the env file
+# in /etc/targum and the restart.
+AS_TARGUM="runuser -u targum --"
+
 LOCAL="${TARGUM_DAILY_DIR:-$ROOT/targum-out/parasha/daily}"
 INDEX="$LOCAL/index.json"
 [ -f "$INDEX" ] || { echo "no index at $INDEX — run targum daily build" >&2; exit 1; }
@@ -41,7 +50,7 @@ PY
 [ "$DAYS" -gt 0 ] || { echo "the index lists no days" >&2; exit 1; }
 echo "== $DAYS days =="
 
-ssh "$HOST" "mkdir -p '$REMOTE/read'"
+ssh "$HOST" "$AS_TARGUM mkdir -p '$REMOTE/read'"
 
 # rsync, and `--delete`, for the reason at the top: the window rolls and the days that
 # have left it must leave the box too. rsync writes each file to a temporary name and
@@ -51,23 +60,21 @@ ssh "$HOST" "mkdir -p '$REMOTE/read'"
 # predates --info by a decade and exits 1 on it. This runs from a laptop, so 2.6.9 is the
 # floor, and every flag here has to exist in it.
 echo "== copying =="
-rsync -a --delete --stats "$LOCAL/read/" "$HOST:$REMOTE/read/" | tail -4
+rsync -a --delete --stats --rsync-path="$AS_TARGUM rsync" "$LOCAL/read/" "$HOST:$REMOTE/read/" | tail -4
 
 # The index last, always: it is what makes a day exist as far as the server is concerned.
 # Written to a neighbouring name and renamed, so the server never reads a half-written one.
 echo "== index =="
-scp -q "$INDEX" "$HOST:$REMOTE/index.json.new"
-ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json'"
+rsync -q --rsync-path="$AS_TARGUM rsync" "$INDEX" "$HOST:$REMOTE/index.json.new"
+ssh "$HOST" "$AS_TARGUM mv '$REMOTE/index.json.new' '$REMOTE/index.json'"
 
 # The learning calendar, so a box that cannot reach Hebcal still knows what day it is on.
 if [ -d "$LOCAL/../daily" ] && ls "$LOCAL"/*.json >/dev/null 2>&1; then
-  rsync -a "$LOCAL"/*.json "$HOST:$REMOTE/" 2>/dev/null || true
+  rsync -a --rsync-path="$AS_TARGUM rsync" "$LOCAL"/*.json "$HOST:$REMOTE/" 2>/dev/null || true
 fi
 
-# Handed to the service: everything above arrived as root, and the service reads it as
-# targum. The daily corpus sits inside the parasha's directory on purpose — `daily/build`
-# roots itself there — so this is the same tree the parasha's ship already chowns.
-ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+# Everything above arrived as targum's, so nothing is handed over: the restart is the one
+# root step left.
 ssh "$HOST" "systemctl restart targum"
 
 echo "== check =="

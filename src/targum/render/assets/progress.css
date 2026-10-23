@@ -86,8 +86,15 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .spent-amount { font-family: var(--reading); font-size: 1.9375rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .spent-label { font-family: var(--chrome); font-size: 0.875rem; color: var(--ink-soft); }
 .spent .note { margin-block-start: 1rem; }
-/* Under the totals, in the paper: the ledger alone inverts (§9). */
-.progress .ledger-note { margin: 0.5rem 0 0; }
+/* The ledger's quiet last line, on its own ground at the meta size and in the muted mix
+   its labels use: it sat under the ledger on the desk ground, outside any card
+   (targum-internal#522; §9, §13). */
+.progress .ledger-note {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
+}
 /* The period as three tinted pills, the chosen one filled teal (the board's, over §4's
    quiet ink for a chosen filter, on this page). */
 .progress .spent .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-block-end: 1rem; }
@@ -335,6 +342,15 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .story-failed[hidden] { display: none; }
 /* Polish 6: a time figure on one line at 390. */
 .spent-amount { white-space: nowrap; }
+/* ...and so, under 40rem, the figures wrap rather than hold three columns: words read
+   across the whole width, the times beside each other where they fit and under each
+   other where they do not. Three columns of 91px at 390 ran "9 ч 28 мин" into the next
+   figure and pushed the page sideways (targum-internal#522, §14.2). */
+@media (max-width: 40rem) {
+  .spent-figures { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; }
+  .spent-figure { flex: 1 1 auto; }
+  .spent-figure:first-child { flex-basis: 100%; }
+}
 
 /* First visit (polish 8, targum-internal#471): the line and the one filled press, in a
    card on the desk rather than text on the desk ground. */

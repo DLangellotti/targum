@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-22
+A podcast episode carries the artwork of its show as its picture.
+A Hebrew verb's card names the binyan it takes on that line, and shows that binyan's table.
+News in the Library lists eight topics, each with Subscribe beside it.
+
 2026-10-21
 Your Words plays the sound of each word from the list, and the Anki deck it exports carries the sounds too.
 Met in on Your Words lists the texts a word came from, and opens each at the line where it first appeared.

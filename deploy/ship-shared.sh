@@ -19,6 +19,15 @@ HOST="${TARGUM_HOST:?set TARGUM_HOST=user@box}"
 REMOTE="${TARGUM_REMOTE_SHARED:-/var/lib/targum/targums/shared}"
 DOMAIN="${DOMAIN:-targum.page}"
 
+# The box side runs as the service account, never as root (targum-internal#515). The
+# folders are targum's, so anything in them, a symlink included, may have been put there
+# by the service, and root following one writes wherever it points; a symlinked parent
+# redirects a root command the same way. The receiving rsync is started as targum
+# (--rsync-path), the mkdir, mv and rm run as targum, and so the files arrive as
+# targum's and no chown -R is needed after. Only what is root's stays root: the env file
+# in /etc/targum and the restart.
+AS_TARGUM="runuser -u targum --"
+
 [ "$#" -gt 0 ] || { echo "usage: ship-shared.sh <built-reader-folder> [folder…]" >&2; exit 1; }
 
 # A folder without a rendered reader is a build that started and did not finish, and
@@ -35,11 +44,10 @@ du -sh "$@" | sed 's/^/   /'
 echo "== ship =="
 # --delay-updates so a page being read mid-copy is the old one whole rather than the new
 # one half-written; a truncated sidecar is a reader whose video stops.
-ssh "$HOST" "mkdir -p '$REMOTE'"
-rsync -a --delay-updates --stats "$@" "$HOST:$REMOTE/" | tail -4
+ssh "$HOST" "$AS_TARGUM mkdir -p '$REMOTE'"
+rsync -a --delay-updates --stats --rsync-path="$AS_TARGUM rsync" "$@" "$HOST:$REMOTE/" | tail -4
 
-# Everything above arrived as root, and the service reads and rewrites it as targum.
-ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+# Everything above arrived as targum's, so nothing is handed over.
 ssh "$HOST" "systemctl restart targum"
 
 echo "== check =="

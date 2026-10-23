@@ -17,6 +17,15 @@ DOMAIN="${DOMAIN:-targum.page}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The box side runs as the service account, never as root (targum-internal#515). The
+# folders are targum's, so anything in them, a symlink included, may have been put there
+# by the service, and root following one writes wherever it points; a symlinked parent
+# redirects a root command the same way. The receiving rsync is started as targum
+# (--rsync-path), the mkdir, mv and rm run as targum, and so the files arrive as
+# targum's and no chown -R is needed after. Only what is root's stays root: the env file
+# in /etc/targum and the restart.
+AS_TARGUM="runuser -u targum --"
+
 LOCAL="${TARGUM_WEEKLY_DIR:-$ROOT/targum-out/weekly}"
 INDEX="$LOCAL/index.json"
 [ -f "$INDEX" ] || { echo "no index at $INDEX — nothing has been drafted here" >&2; exit 1; }
@@ -61,11 +70,11 @@ done
 # half has not arrived. Rename is atomic within a filesystem, so an edition is either
 # the old one or the new one and never a mixture.
 echo "== copying =="
-ssh "$HOST" "mkdir -p '$REMOTE/.staging'"
+ssh "$HOST" "$AS_TARGUM mkdir -p '$REMOTE/.staging'"
 for folder in $FOLDERS; do
   echo "   $folder"
-  ssh "$HOST" "rm -rf '$REMOTE/.staging/$folder'"
-  scp -qr "$LOCAL/$folder" "$HOST:$REMOTE/.staging/$folder"
+  ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/.staging/$folder'"
+  rsync -rL -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$folder/" "$HOST:$REMOTE/.staging/$folder/"
 done
 
 # The issue's own sources ride along — the markdown the editions were composed as, and
@@ -73,27 +82,28 @@ done
 # the markdown, and shipping the readers without it left every library-row build failing
 # with "No such file or directory: …-aleph.md" the first time somebody pressed one.
 echo "   $WEEK (sources)"
-ssh "$HOST" "rm -rf '$REMOTE/.staging/$WEEK'"
-scp -qr "$LOCAL/$WEEK" "$HOST:$REMOTE/.staging/$WEEK"
+ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/.staging/$WEEK'"
+rsync -rL -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$WEEK/" "$HOST:$REMOTE/.staging/$WEEK/"
 
 echo "== putting in place =="
-ssh "$HOST" "rm -rf '$REMOTE/$WEEK' && mv '$REMOTE/.staging/$WEEK' '$REMOTE/$WEEK'"
+ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/$WEEK' && $AS_TARGUM mv '$REMOTE/.staging/$WEEK' '$REMOTE/$WEEK'"
 for folder in $FOLDERS; do
-  ssh "$HOST" "rm -rf '$REMOTE/$folder' && mv '$REMOTE/.staging/$folder' '$REMOTE/$folder'"
+  ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/$folder' && $AS_TARGUM mv '$REMOTE/.staging/$folder' '$REMOTE/$folder'"
 done
 
 # The index last, always. It is what makes an issue exist as far as the server is
 # concerned, so writing it before its readers have landed is the one ordering that can
 # serve a 404 from the front page.
 echo "== index =="
-scp -q "$INDEX" "$HOST:$REMOTE/index.json.new"
-ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json' && rmdir '$REMOTE/.staging' 2>/dev/null || true"
+rsync -q --rsync-path="$AS_TARGUM rsync" "$INDEX" "$HOST:$REMOTE/index.json.new"
+ssh "$HOST" "$AS_TARGUM mv '$REMOTE/index.json.new' '$REMOTE/index.json' && $AS_TARGUM rmdir '$REMOTE/.staging' 2>/dev/null || true"
 
-# Handed to the service. Everything above arrived as root, and the service — which
-# rebuilds every targum on the next deploy and writes a chapter when somebody reads —
-# could not touch what root had put there: the deploy after a shipped issue died on
-# `.annotation.json.tmp: Permission denied` inside the issue's own folder.
-ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+# Everything above arrived as targum's. It used to arrive as root, and the service —
+# which rebuilds every targum on the next deploy and writes a chapter when somebody
+# reads — could not touch it: the deploy after a shipped issue died on
+# `.annotation.json.tmp: Permission denied` inside the issue's own folder. A root
+# chown -R fixed that and opened the symlink hole (targum-internal#515); writing as
+# targum fixes both.
 
 # The path a standalone build reads the issue from. The server works it out from its own
 # --out, but `targum build weekly:…` run for one person's shelf does not — it fell back

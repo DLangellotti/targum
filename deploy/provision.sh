@@ -77,8 +77,13 @@ fi
 install -d -o targum -g targum -m 0750 /var/lib/targum/cache/deno
 
 YTDLP_PY=/srv/targum/.local/share/uv/tools/yt-dlp/bin/python
+# Asked as targum, like everything else that runs inside the tool. The environment's
+# python run as root writes root-owned __pycache__ into it (its _virtualenv.pth imports a
+# module at every start), and the nightly upgrade, as targum, then cannot take the old
+# environment apart: it stopped on exactly that for 18 hours on 2026-10-22, with
+# bin/yt-dlp already gone (targum-internal#513).
 has_plugin() {
-  [ -x "$YTDLP_PY" ] && "$YTDLP_PY" -c \
+  [ -x "$YTDLP_PY" ] && runuser -u targum -- "$YTDLP_PY" -c \
     'import importlib.util,sys; sys.exit(0 if importlib.util.find_spec("yt_dlp_plugins") else 1)' \
     2>/dev/null
 }
@@ -88,7 +93,7 @@ BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
 if ! has_plugin; then
   # --force because the tool is usually already installed without the plugin, and `uv
   # tool install` is otherwise a no-op that would leave it that way.
-  sudo -u targum -H env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
+  runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --quiet --force yt-dlp \
     --with "bgutil-ytdlp-pot-provider==$BGUTIL_VERSION"
   ln -sfn /srv/targum/.local/bin/yt-dlp /usr/local/bin/yt-dlp
