@@ -315,6 +315,8 @@ function pairsDrawn() {
           return w ? { text: w.textContent, hidden: w.hidden } : null;
         })(),
         recast: String(node.className).split(" ").includes("recast"),
+        // The label over a recast, from the catalogue (#472): CSS draws `attr(data-said)`.
+        said: node.attrs["data-said"] === undefined ? null : node.attrs["data-said"],
         // The words the line was drawn with, each with its state on the ledger.
         words: he.children
           .filter((c) => String(c.className).split(" ")[0] === "chat-w")

@@ -2327,8 +2327,8 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     page.wait_for_timeout(400)
     italian = field.get_attribute("placeholder")
     context.close()
-    assert hebrew == "Write in Hebrew or English", hebrew
-    assert italian == "Write in Italian or English", italian
+    assert hebrew == "Hebrew or English", hebrew
+    assert italian == "Italian or English", italian
     # Learn asks for its own chips without a language; the drawer asks in the page's.
     assert [code for code in asked if code] == ["he", "it"], asked
 

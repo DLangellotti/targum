@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
+  "you said" and "corrected", came from the stylesheet in English. They are catalogue
+  keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
+  Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
+  it fits a phone's one-row field. Hear and the quote card's source link and More options
+  are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
 - A shared link to /about shows the picture and says what the page is (targum-internal#518).
   It was the one page in the sitemap with no public head: no description, no `og:` tags,
   no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
