@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Russian says "known" one way and names the cantillation marks one way (David,
+  2026-10-23; targum-internal#476): 91 strings. A word's stage is «знаю», marking one is
+  «отметить как «знаю»», and a share or count you know reads «вы знаете» («Вы знаете
+  80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
+  marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
+  unchanged.
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
