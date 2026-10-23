@@ -20,6 +20,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
   which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
   each. English is unchanged.
+- Your Progress no longer scrolls sideways on a phone (targum-internal#522, the last
+  blocker on #471). Under 40rem the time figures wrap instead of holding three 91px
+  columns, so "9 ч 28 мин" no longer runs into the next figure: words read take the whole
+  width and the times sit beside or under each other. On an Aramaic page in Russian the
+  bar's long badge pushed the account 25px off the edge; the badge now ends in an
+  ellipsis instead. "Learned on targum" is the ledger's quiet last line rather than text
+  on the desk ground under it, and when the story fails to load What next's two halves
+  each say so instead of standing empty. A browser test loads Progress in Russian at 390
+  and 320 for Hebrew, Aramaic and Yiddish and holds the page to its width with no figure
+  overlapping another.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
