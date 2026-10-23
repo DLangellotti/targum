@@ -28,6 +28,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   rule in `public.css` was more specific than the corner's call to action and painted it
   ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
   browser test holds the button to paper on ink at weight 600 on all four pages.
+- Every Hebrew run on the front door and /aliyah says it is Hebrew (targum-internal#517).
+  None of the 68 carried `lang`, so a screen reader read them in the page's English or
+  Russian voice. The templates, the shared band and what `landing.js` draws (the word
+  card, the film's lines and caption, the Genesis verses, with Onkelos as `arc`) now
+  carry `lang` and `dir`. A brand test reads the rendered pages for Hebrew with no
+  language around it, and a browser test presses every word and walks the Torah demo.
 - A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
   door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
   than a cap: a host sending a byte every half second held a 2-second read for fifty
