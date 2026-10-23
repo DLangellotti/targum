@@ -3556,6 +3556,67 @@ WEEKLY_LEVELS: dict[str, str] = {
 }
 
 
+#: The three parts of the Tanakh as a catalogue byline spells them ("Ketuvim · Ruth"), and
+#: the key each is said by on the Tanakh page.
+_TANAKH_PARTS = {
+    "Torah": "tanakh.page.torah",
+    "Nevi'im": "tanakh.page.prophets",
+    "Ketuvim": "tanakh.page.writings",
+}
+
+
+def _place_in(byline: str, language: str) -> str:
+    """A byline that is a book's place ("Ketuvim · Ruth") in the page's language, with
+    the book names David chose for Russian on 2026-10-21 (`reference.*`); anything else,
+    and any place a part of which has no key, exactly as the catalogue wrote it."""
+    from ..strings import SOURCE
+    from ..strings import catalogue as strings_in
+
+    part, dot, book = byline.partition(" · ")
+    if not dot or language == SOURCE or part not in _TANAKH_PARTS:
+        return byline
+    key = "reference." + book.lower().replace(" ", "-")
+    said = strings_in(language)
+    if not said.get(key) or not said.get(_TANAKH_PARTS[part]):
+        return byline
+    return f"{said[_TANAKH_PARTS[part]]} · {said[key]}"
+
+
+class _ShelfRow(NamedTuple):
+    """One row of the public shelf, already in the page's language (targum-internal#520).
+
+    Worked out here, once per render from the catalogue in memory, rather than in the
+    template: the template only draws. `named_lang` and `blurb_lang` are the language of
+    what is drawn, so a row that fell back to English still says it is English.
+    """
+
+    entry: Entry
+    named: str
+    named_lang: str
+    byline: str
+    blurb: str
+    blurb_lang: str
+
+
+def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
+    code = _page_language(language)
+    rows = []
+    for entry in entries:
+        named = entry.name_in(code)
+        blurb = entry.blurb_in(code)
+        rows.append(
+            _ShelfRow(
+                entry=entry,
+                named=named,
+                named_lang=code if entry.named.get(code) else "en",
+                byline=_place_in(entry.author, code),
+                blurb=blurb,
+                blurb_lang=code if entry.blurbs.get(code) else "en",
+            )
+        )
+    return rows
+
+
 def shelf_page(address: str = "", language: str = "en") -> str:
     """The catalogue, for somebody who has not signed in.
 
@@ -3581,7 +3642,7 @@ def shelf_page(address: str = "", language: str = "en") -> str:
             alternates=_shelf_at[1],
             shelf_name=name,
             shelf_blurb=blurb,
-            entries=everything(),
+            rows=_shelf_rows(everything(), language),
         )
     )
 

@@ -27,18 +27,23 @@
   <h1>{{ shelf_name }}</h1>
   <p class="lede">{{ shelf_blurb }}</p>
 
-  {%- if entries %}
+  {%- if rows %}
   <ul class="texts">
-    {%- for entry in entries %}
+    {%- for row in rows %}
+    {#- The name, the place and the blurb in the page's language where the catalogue has
+        them, the way the text page draws them, and English where it has not
+        (targum-internal#520). `lang` says which one is drawn. #}
+    {%- set entry = row.entry %}
+    {%- set script = entry.language if entry.language in ('arc', 'yi') else 'he' %}
     <li>
       <a href="/library/{{ entry.id }}">
         <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
-        {% if entry.english %}<span class="english" lang="en" dir="ltr">{{ entry.english }}</span>{% endif %}
+        {% if row.named %}<span class="english" lang="{{ row.named_lang }}" dir="ltr">{{ row.named }}</span>{% endif %}
       </a>
       {#- A byline or a blurb in Hebrew letters says so, with its own direction (design.md
           §14, line 3; Library QA, 2026-10-20): "אברהם מאפו, 1853" stood in an English run. -#}
-      <span class="byline"{% if entry.author and 'א' <= entry.author[:1] <= 'ת' %} lang="{{ entry.language if entry.language in ('arc', 'yi') else 'he' }}" dir="auto"{% endif %}>{{ entry.author }}</span>
-      <span class="blurb"{% if entry.blurb and 'א' <= entry.blurb[:1] <= 'ת' %} lang="{{ entry.language if entry.language in ('arc', 'yi') else 'he' }}" dir="auto"{% endif %}>{{ entry.blurb }}</span>
+      <span class="byline"{% if row.byline and 'א' <= row.byline[:1] <= 'ת' %} lang="{{ script }}" dir="auto"{% endif %}>{{ row.byline }}</span>
+      <span class="blurb"{% if row.blurb and 'א' <= row.blurb[:1] <= 'ת' %} lang="{{ script }}" dir="auto"{% elif row.blurb and row.blurb_lang != page_language %} lang="{{ row.blurb_lang }}"{% endif %}>{{ row.blurb }}</span>
     </li>
     {%- endfor %}
   </ul>
