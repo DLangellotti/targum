@@ -577,6 +577,32 @@
     else later();
   }
 
+  /* The foot's line under the name, for the language being learned (targum-internal#523,
+   * 2026-10-23). The foot draws two, the Hebrew one and the motto: somebody learning
+   * Italian was told to learn modern and biblical Hebrew on every desk page. The language
+   * as this browser holds it, and again whenever it changes. */
+  function footLine(code) {
+    if (typeof document === "undefined" || !document.querySelectorAll) return;
+    var hebrew = String(code || stored(NAME) || HOME).split("-")[0].toLowerCase() === HOME;
+    var lines = document.querySelectorAll("[data-foot-line]");
+    for (var i = 0; i < lines.length; i++) {
+      var mine = lines[i].getAttribute("data-foot-line") === HOME;
+      lines[i].hidden = hebrew ? !mine : mine;
+    }
+  }
+  if (typeof document !== "undefined" && document.addEventListener) {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", function () {
+        footLine();
+      });
+    } else footLine();
+    if (window.addEventListener) {
+      window.addEventListener("targum:language", function (event) {
+        footLine(event && event.detail);
+      });
+    }
+  }
+
   /* --- EN · RU, the interface's language -------------------------------------------- */
 
   /* David, 2026-10-12: "a more logical and obvious way for Russian L1 speakers to switch to

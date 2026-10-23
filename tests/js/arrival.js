@@ -273,6 +273,11 @@ function report() {
       step: at("arrival").hidden || at("arrival-step").hidden ? "" : at("arrival-step").textContent,
       subjectsUp: !at("arrival").hidden && !at("arrival-subjects").hidden,
       done: at("arrival").hidden ? null : !at("arrival-done").disabled,
+      // Why Continue is asleep (targum-internal#523): the line, and the button's tie to it.
+      why: at("arrival").hidden || at("arrival-why").hidden ? "" : "shown",
+      describedBy: at("arrival-done").getAttribute
+        ? at("arrival-done").getAttribute("aria-describedby") || ""
+        : "",
       nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
       learningUp: !at("arrival").hidden && !at("arrival-learning").hidden,
       levelUp: !at("arrival").hidden && !at("arrival-level").hidden,

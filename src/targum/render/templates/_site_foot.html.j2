@@ -26,7 +26,13 @@
         </svg>
         targum
       </a>
-      <p class="sf-tag">{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</p>
+      {#- What targum is, said to the language being learned (targum-internal#523,
+          2026-10-23): the Hebrew line to somebody learning Hebrew, and the motto (David,
+          2026-09-30) to somebody learning anything else, who was being told to learn
+          Hebrew. Both are drawn; `lang.js` shows the one for the desk's language, so a
+          public page, which runs no `lang.js`, keeps the Hebrew line. -#}
+      <p class="sf-tag" data-foot-line="he">{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</p>
+      <p class="sf-tag" data-foot-line="other" hidden>{{ t("foot.motto", "Learn languages from anything.") }}</p>
       {%- if public and front_door_is_open() %}
       <a class="sf-join" href="/#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }} <span aria-hidden="true">→</span></a>
       {%- endif %}

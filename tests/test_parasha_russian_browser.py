@@ -158,3 +158,40 @@ def test_a_slow_sheet_says_it_is_still_being_made_and_offline_says_so(
         assert said == "Вы не в сети. PDF готовится в targum, поэтому нужно подключение.", said
     finally:
         context.close()
+
+
+IGNORE_FITS = """() => {
+  const card = document.getElementById('gloss-card');
+  const ignore = card.querySelector('.card-stage .level');
+  const legend = card.querySelector('.level-legend');
+  const edge = card.getBoundingClientRect().right - parseFloat(getComputedStyle(card).paddingRight);
+  const box = ignore.getBoundingClientRect();
+  const range = document.createRange();
+  range.selectNodeContents(ignore);
+  const ink = range.getBoundingClientRect();
+  return {word: ignore.textContent, inkStart: ink.left, inkEnd: ink.right,
+          start: box.left, right: box.right, edge, legend: legend.textContent,
+          page: document.documentElement.scrollWidth};
+}"""
+
+
+def test_the_russian_card_keeps_ignore_whole_at_390(browser, serving: int) -> None:  # noqa: F811
+    """targum-internal#523 (design's #476 polish 2): the legend beside ignore grew by
+    "Ignore is for names and numbers." and squeezed «пропустить» to 50px inside a 71px
+    word, which ran past the sheet's edge. The legend wraps; ignore keeps its word."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    page = context.new_page()
+    try:
+        page.goto(f"http://127.0.0.1:{serving}/parasha/read/{SLUG}-ru/reader/sec-0001.html")
+        page.locator(".pair .w").nth(1).tap()
+        page.wait_for_selector("#gloss-card:not([hidden]) .card-stage .level")
+        got = page.evaluate(IGNORE_FITS)
+        assert "Пропустить" in got["legend"], got
+        assert got["start"] - 0.5 <= got["inkStart"], f"the word fits its press: {got}"
+        assert got["inkEnd"] <= got["right"] + 0.5, f"the word fits its press: {got}"
+        assert got["right"] <= got["edge"] + 0.5, f"inside the sheet: {got}"
+        assert got["page"] <= 390, got
+    finally:
+        context.close()
