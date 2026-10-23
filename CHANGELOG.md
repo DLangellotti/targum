@@ -89,6 +89,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   root-owned `__pycache__` that stops the nightly upgrade, as it did for 18 hours on
   2026-10-22. Pinned by `tests/test_deploy_backup.py`. Reaches the box with the next deploy
   or rollback; provision.sh only on its next run.
+- The ship scripts no longer write as root inside the service's own folders
+  (targum-internal#515). `ship-parasha`, `ship-daily`, `ship-weekly`, `ship-shared` and
+  `ship-audio` receive with `--rsync-path="runuser -u targum -- rsync"`, run their remote
+  `mkdir`, `mv`, `rm` and `install -d` as targum, and drop the root `chown -R` after, as
+  `deploy.sh` does for the covers since targum#889: a symlink the service planted, or a
+  symlinked parent, can no longer lead a root write or chown out of `/var/lib/targum`.
+  The index files and the weekly's folders go by rsync rather than scp, which cannot run
+  its far end as anyone else. Writing `/etc/targum/targum.env`, the catalogue and the
+  restart stay root. The output and the checks are unchanged. Pinned by
+  `tests/test_ship_as_targum.py`.
 - `deploy/ROLLBACK.md` and `deploy/INCIDENT.md` after their first drill (2026-10-22,
   targum-internal#482): both say when they were first run; `rollback.sh` is the first way
   back for a kept build and needs `--keep-catalogue` or `--catalogue` with no terminal;

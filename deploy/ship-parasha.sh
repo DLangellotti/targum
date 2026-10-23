@@ -20,6 +20,15 @@ DOMAIN="${DOMAIN:-targum.page}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
+# The box side runs as the service account, never as root (targum-internal#515). The
+# folders are targum's, so anything in them, a symlink included, may have been put there
+# by the service, and root following one writes wherever it points; a symlinked parent
+# redirects a root command the same way. The receiving rsync is started as targum
+# (--rsync-path), the mkdir, mv and rm run as targum, and so the files arrive as
+# targum's and no chown -R is needed after. Only what is root's stays root: the env file
+# in /etc/targum and the restart.
+AS_TARGUM="runuser -u targum --"
+
 LOCAL="${TARGUM_PARASHA_DIR:-$ROOT/targum-out/parasha}"
 INDEX="$LOCAL/index.json"
 [ -f "$INDEX" ] || { echo "no index at $INDEX — run targum parasha build" >&2; exit 1; }
@@ -65,7 +74,7 @@ CATALOGUE="${TARGUM_CATALOGUE:-$HOME/.targum/catalogue.json}"
 echo "== shelf =="
 TARGUM_PARASHA_DIR="$LOCAL" TARGUM_CATALOGUE="$CATALOGUE" uv run targum parasha entries --write
 
-ssh "$HOST" "mkdir -p '$REMOTE/read' '$REMOTE/calendar'"
+ssh "$HOST" "$AS_TARGUM mkdir -p '$REMOTE/read' '$REMOTE/calendar'"
 
 # rsync rather than scp, and directly rather than through a staging directory. The
 # corpus is 63 readers and does not change from one week to the next — only the pointer
@@ -79,19 +88,15 @@ ssh "$HOST" "mkdir -p '$REMOTE/read' '$REMOTE/calendar'"
 # predates --info by a decade and exits 1 on it. This runs from a laptop, so 2.6.9 is the
 # floor, and every flag here has to exist in it.
 echo "== copying =="
-rsync -a --delete --stats "$LOCAL/read/" "$HOST:$REMOTE/read/" | tail -4
-rsync -a --stats "$LOCAL/calendar/" "$HOST:$REMOTE/calendar/" | tail -3
+rsync -a --delete --stats --rsync-path="$AS_TARGUM rsync" "$LOCAL/read/" "$HOST:$REMOTE/read/" | tail -4
+rsync -a --stats --rsync-path="$AS_TARGUM rsync" "$LOCAL/calendar/" "$HOST:$REMOTE/calendar/" | tail -3
 
 # The index last, always: it is what makes a portion exist as far as the server is
 # concerned, and it also carries the pointer at this week's reading. Written to a
 # neighbouring name and renamed, so the server never reads a half-written index.
 echo "== index =="
-scp -q "$INDEX" "$HOST:$REMOTE/index.json.new"
-ssh "$HOST" "mv '$REMOTE/index.json.new' '$REMOTE/index.json'"
-
-# Handed to the service, for the reason the weekly's copy records: everything above
-# arrived as root, and the service reads and rewrites it as targum.
-ssh "$HOST" "chown -R targum:targum '$REMOTE'"
+rsync -q --rsync-path="$AS_TARGUM rsync" "$INDEX" "$HOST:$REMOTE/index.json.new"
+ssh "$HOST" "$AS_TARGUM mv '$REMOTE/index.json.new' '$REMOTE/index.json'"
 
 # The catalogue with the portions in it, placed the way deploy.sh places it. The service
 # reads it as targum, from a directory only root writes.

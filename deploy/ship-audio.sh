@@ -33,6 +33,15 @@ REMOTE_RECORDINGS="${TARGUM_REMOTE_RECORDINGS:-/var/lib/targum/recordings}"
 REMOTE_DIALOGUES="${TARGUM_REMOTE_DIALOGUES:-/var/lib/targum/dialogues}"
 REMOTE_VIDEOS="${TARGUM_REMOTE_VIDEOS:-/var/lib/targum/videos}"
 
+# The box side runs as the service account, never as root (targum-internal#515). The
+# folders are targum's, so anything in them, a symlink included, may have been put there
+# by the service, and root following one writes wherever it points; a symlinked parent
+# redirects a root command the same way. The receiving rsync is started as targum
+# (--rsync-path), the mkdir, mv and rm run as targum, and so the files arrive as
+# targum's and no chown -R is needed after. Only what is root's stays root: the env file
+# in /etc/targum and the restart.
+AS_TARGUM="runuser -u targum --"
+
 [ -d "$RECORDINGS" ] || { echo "no recordings at $RECORDINGS" >&2; exit 1; }
 [ -d "$DIALOGUES" ] || { echo "no dialogues at $DIALOGUES" >&2; exit 1; }
 # Not fatal: a machine that has curated no video still ships its recordings.
@@ -72,7 +81,7 @@ echo "== ship =="
 # `--info=stats1` cost a deploy, because rsync answered with a usage message, the
 # script stopped on it, and the box was left looking for a shelf that never arrived.
 command -v rsync >/dev/null || { echo "rsync is not installed here" >&2; exit 1; }
-ssh "$HOST" "install -d -o targum -g targum -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'"
+ssh "$HOST" "$AS_TARGUM install -d -m 0755 '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'"
 
 # Every rsync below runs with --delete, so the box ends up holding exactly what this
 # machine holds. That is right only when this machine holds everything the box does.
@@ -105,18 +114,17 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 
-rsync -a --delete --delay-updates --stats \
+rsync -a --delete --delay-updates --stats --rsync-path="$AS_TARGUM rsync" \
   "$RECORDINGS/" "$HOST:$REMOTE_RECORDINGS/" | sed 's/^/   /'
-rsync -a --delete --delay-updates --stats \
+rsync -a --delete --delay-updates --stats --rsync-path="$AS_TARGUM rsync" \
   "$DIALOGUES/" "$HOST:$REMOTE_DIALOGUES/" | sed 's/^/   /'
 if [ -n "$VIDEOS" ]; then
-  rsync -a --delete --delay-updates --stats \
+  rsync -a --delete --delay-updates --stats --rsync-path="$AS_TARGUM rsync" \
     "$VIDEOS/" "$HOST:$REMOTE_VIDEOS/" | sed 's/^/   /'
 fi
 
 echo "== point the service at it =="
 ssh "$HOST" "bash -euo pipefail -s" <<EOF
-  chown -R targum:targum '$REMOTE_RECORDINGS' '$REMOTE_DIALOGUES' '$REMOTE_VIDEOS'
   # Appended only when absent, and existing lines are never rewritten: this file holds
   # every secret the box has, and a script that edits it in place is one bad sed from
   # locking everybody out. These two are paths rather than secrets, which is the only
