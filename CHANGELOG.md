@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian interface after ling-ru's read-through of the whole catalogue
+  (targum-internal#476): 93 strings. A language name no longer sits capitalised
+  mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that
+  broke after 1–4 or 21–24 say the number after a colon or use «ч»; «Играть» became
+  «Включить»; Continue is a block («в блоке «Продолжить»»); a queued text says «В очереди
+  перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
+  which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
+  each. English is unchanged.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in

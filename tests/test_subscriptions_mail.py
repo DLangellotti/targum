@@ -127,7 +127,7 @@ def test_a_reader_hears_once_that_something_waits(tmp_path: Path) -> None:
     )
     (mail,) = box.sent
     assert (
-        "мы подготовим это 1 ноября" in mail["text"]
+        "мы подготовим его 1 ноября" in mail["text"]
         and f"/subscriptions/{kan}#sub-cap" in mail["text"]
     )
     # The name isolated as well as the title (targum-internal#470, polish 4).
