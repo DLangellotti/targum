@@ -415,10 +415,16 @@ def two_shelves_html() -> str:
 
 
 def shelf_asked(page: Any) -> list[str]:
+    """The shelf's files the page asked for, less the order, which is asked after the
+    first draw (and so may or may not have gone yet)."""
     return [
-        re.sub(r"\.[0-9a-f]{16}\.json$", "", url.split("/assets/")[1])
-        for url in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
-        if "/assets/catalogue" in url
+        name
+        for name in (
+            re.sub(r"\.[0-9a-f]{16}\.json$", "", url.split("/assets/")[1])
+            for url in page.evaluate("performance.getEntriesByType('resource').map(e => e.name)")
+            if "/assets/catalogue" in url
+        )
+        if name != "catalogue-order"
     ]
 
 
@@ -444,7 +450,9 @@ def test_the_library_asks_for_its_own_languages_shelf_only(
     page.goto(url)
     page.locator("#catalogue > li").first.wait_for()
     asked = shelf_asked(page)
-    assert sorted(asked) == sorted(["catalogue", f"catalogue-{language}"]), asked
+    assert sorted(asked) == sorted(
+        ["catalogue", f"catalogue-{language}", f"catalogue-{language}-en"]
+    ), asked
     drawn = page.locator("#catalogue").inner_text()
     assert ("Один рассказ" in drawn) == (language == "ru")
     assert not thrown
@@ -473,7 +481,7 @@ def test_a_fresh_browser_asks_for_the_account_s_language_first(browser, two_shel
     context, page, thrown, _, url = library(browser, html, answers, hash="#see", stored=False)
     page.goto(url)
     page.locator("#catalogue > li").first.wait_for()
-    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-ru"]
+    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-ru", "catalogue-ru-en"]
     assert "Один рассказ" in page.locator("#catalogue").inner_text()
     assert page.evaluate("localStorage.getItem('targum:language')") == "ru"
     assert page.evaluate("localStorage.getItem('targum:learning')") == '["he","ru"]'
@@ -504,7 +512,7 @@ def test_moving_offline_to_a_language_not_fetched_keeps_the_shelf_and_the_langua
     page.goto(url)
     page.locator("#catalogue > li").first.wait_for()
     before = page.locator("#catalogue").inner_text()
-    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-he"]
+    assert sorted(shelf_asked(page)) == ["catalogue", "catalogue-he", "catalogue-he-en"]
 
     context.set_offline(True)
     page.locator("#langs .lang-open").click()
@@ -524,5 +532,93 @@ def test_moving_offline_to_a_language_not_fetched_keeps_the_shelf_and_the_langua
         "document.getElementById('catalogue').innerText.indexOf('Один рассказ') >= 0"
     )
     assert held.is_hidden()
+    assert not thrown
+    context.close()
+
+
+# -- asked from the head, faces after the draw (#484, 2026-10-23) ----------------------
+
+
+def test_the_head_asks_for_the_shelf_and_library_js_takes_each_answer_once(
+    browser, page_html
+) -> None:
+    """The shelf's files, `/readers`, `/jobs` and `/portions` waited for the whole page
+    when `library.js` asked for them from the foot; `library-early.js` asks from the
+    head. Each is asked once, `library.js` takes every answer it was handed, and the
+    catalogue's order follows the first draw."""
+    asked: list[str] = []
+    context, page, thrown, _, url = library(browser, page_html, {}, hash="#see")
+    page.on("request", lambda request: asked.append(request.url[len(SITE) :].split("?")[0]))
+    with page.expect_request(re.compile(r"/assets/catalogue-order\.[0-9a-f]{16}\.json$")):
+        page.goto(url)
+        page.locator("#catalogue > li").first.wait_for()
+    assert page.evaluate("Object.keys(window.TARGUM_SHELF_ASKED)") == [], "every answer taken"
+    for path in ("/readers", "/portions"):
+        assert asked.count(path) == 1, (path, asked)
+    files = [name for name in asked if name.startswith("/assets/catalogue")]
+    assert len(files) == len(set(files)), files
+    early = re.search(r"/assets/library-early\.[0-9a-f]{16}\.js", page_html)
+    assert early and early.start() < page_html.index("</head>"), "asked from the head"
+    assert not thrown
+    context.close()
+
+
+def _faces_on(page: Any) -> int:
+    return page.evaluate("document.head.querySelectorAll('link[href*=\"/assets/face-\"]').length")
+
+
+def test_a_library_sent_whole_puts_its_faces_on_after_the_shelf_is_drawn(
+    browser, page_html
+) -> None:
+    """A first visit's faces wait in an inert template, and on the Library until its
+    shelf is drawn, so their 67 kB never stand in front of the shelf's (#484)."""
+    from targum.render.builder import first_visit
+
+    whole = first_visit(page_html)
+    assert '<template id="late-faces">' in whole
+    context, page, thrown, held, url = library(browser, whole, {"/readers": "hold"}, hash="#see")
+    page.goto(url)
+    page.wait_for_load_state("load")
+    page.wait_for_timeout(300)
+    assert _faces_on(page) == 0, "not while the shelf is still coming"
+    assert page.evaluate("document.fonts.check('16px \"Source Sans 3\"')") is not None
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"readers": [], "shared": [], "signedIn": True}),
+    )
+    page.locator("#catalogue > li").first.wait_for()
+    page.wait_for_function("document.head.querySelector('link[href*=\"/assets/face-\"]')")
+    assert _faces_on(page) >= 1
+    assert not thrown
+    context.close()
+
+
+def test_a_russian_page_draws_its_blurbs_from_their_own_file(browser) -> None:
+    """A row's blurbs are a file per page language (#484): a Russian page asks for
+    Hebrew's rows and their Russian blurbs, draws the Russian, and asks for the English
+    after them, for search."""
+    from targum import catalogue as catalogue_module
+
+    real = catalogue_module.everything
+    hebrew = [entry for entry in real() if entry.language == "he" and entry.blurb][0]
+    said = "Короткий рассказ о дороге домой."
+    rows = [dataclasses.replace(e, blurbs={"ru": said}) if e is hebrew else e for e in real()]
+    catalogue_module.everything = lambda: rows  # type: ignore[assignment]
+    try:
+        html = library_page("", "ru")
+    finally:
+        catalogue_module.everything = real  # type: ignore[assignment]
+    asked: list[str] = []
+    context, page, thrown, _, url = library(browser, html, {}, hash="#see", language="he")
+    page.on("request", lambda request: asked.append(request.url[len(SITE) :].split("?")[0]))
+    with page.expect_request(re.compile(r"/assets/catalogue-he-en\.[0-9a-f]{16}\.json$")):
+        page.goto(url)
+        page.locator("#catalogue > li").first.wait_for()
+    names = [re.sub(r"\.[0-9a-f]{16}\.json$", "", name) for name in asked]
+    assert names.index("/assets/catalogue-he-ru") < names.index("/assets/catalogue-he-en")
+    blurb = page.locator(".row-blurb", has_text=said).first
+    blurb.wait_for()
+    assert blurb.get_attribute("lang") == "ru"
     assert not thrown
     context.close()

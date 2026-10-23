@@ -18,6 +18,30 @@
   } catch (error) {
     return;
   }
+  /* The faces, which such a page does not carry in place (#484): they wait in an inert
+     `<template>` before this tag, and go on once the page is up, so their bytes never
+     stand in front of what it draws first. At `load`, or, on a page that names an event
+     in `TARGUM_FACES_AFTER` (the Library, whose shelf arrives after `load`), when it
+     fires; never later than `FACES_LATEST` after `load` whatever happens. */
+  var FACES_LATEST = 3000;
+  var faces = document.getElementById("late-faces");
+  function dress() {
+    if (!faces) return;
+    var sheets = faces.content ? faces.content.cloneNode(true) : null;
+    faces = null;
+    if (sheets) document.head.appendChild(sheets);
+  }
+  if (faces) {
+    var facesAfter = window.TARGUM_FACES_AFTER;
+    if (facesAfter) window.addEventListener(facesAfter, dress);
+    var onLoad = function () {
+      if (facesAfter) setTimeout(dress, FACES_LATEST);
+      else dress();
+    };
+    if (document.readyState === "complete") onLoad();
+    else window.addEventListener("load", onLoad);
+  }
+
   var kept = me.getAttribute("data-kept");
   var after = Number(me.getAttribute("data-after")) || 0;
   var lanes = Number(me.getAttribute("data-lanes")) || 1;

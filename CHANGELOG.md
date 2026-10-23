@@ -12,6 +12,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The Library draws its first card under a second and a half on a phone
+  (targum-internal#484). On qa-claude's profile (150 ms, 1.6 Mbps, 4x CPU, cold) it was
+  about 2.1 s in English and 2.2 s in Russian, and its shelf was asked only once the whole
+  page had arrived. `library-early.js` now asks for the shelf, `/readers`, `/jobs` and
+  `/portions` from the page's head. A row's blurbs are a file per page language
+  (`catalogue-he-en`, `catalogue-he-ru`), so an English page no longer takes the Russian
+  ones. The catalogue's order and the English blurbs a Russian page searches arrive after
+  the first card. A desk page sent whole (a first visit) keeps its faces, about 67 kB
+  gzipped, in an inert `<template>`, and `warm.js` puts them on at `load`, or on the
+  Library once the shelf is drawn; until then the page wears the platform's face. Your
+  targums goes from about 1.45 s to 1.1 s with it. `scripts/measure_pages.py` is the
+  profile as a script: it starts a keyless hosted-style serve on a scratch copy and
+  measures every main page, with no spend.
 - Russian names a language in its case mid-sentence (David, 2026-10-23;
   targum-internal#524): «На иврите пока ничего нет.», not «На языке «Иврит» пока ничего
   нет.». A translation asks for a form on the same blank, `{language:in}` («на иврите»),

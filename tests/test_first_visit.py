@@ -88,17 +88,41 @@ def _every_block_is_named(html: str, policy: str) -> None:
 def test_a_browser_with_no_cookie_is_sent_the_page_whole(served: tuple[int, str, Path]) -> None:
     status, headers, cookies, html = _get(served[0], DOOR)
     assert status == 200
-    assert not names_files(html), "a first visit names no file"
+    assert not names_files(_without_late_faces(html)), "a first visit names no file in place"
     assert 'data-kept="' + KEPT_ROUTE + "?set=" + asset_set() + '"' in html.replace("&amp;", "&")
     assert str(builder._asset("warm.js")) in html, "and it carries the warm-up"
     assert cookies == [], "the page itself gives no cookie; the warm-up's last fetch does"
     assert "Cookie" in headers["vary"]
     assert headers["cache-control"] == "no-store"
     policy = headers["content-security-policy"]
-    for directive in ("script-src", "style-src"):
-        assert "'self'" not in _sources(policy, directive), "nothing to load from here"
+    assert "'self'" not in _sources(policy, "script-src"), "no script to load from here"
+    assert "'self'" in _sources(policy, "style-src"), "only the faces, which `warm.js` puts on"
     assert "connect-src 'self'" in policy, "the warm-up's fetches"
     _every_block_is_named(html, policy)
+
+
+LATE = re.compile(r'<template id="late-faces">(.*?)</template>', re.S)
+
+
+def _without_late_faces(html: str) -> str:
+    return LATE.sub("", html)
+
+
+def test_a_page_sent_whole_puts_its_faces_on_late() -> None:
+    """#484, 2026-10-23: the faces (about 67 kB gzipped) stood in front of the page's own
+    script and, on the Library, of its shelf. A page sent whole carries them in an inert
+    `<template>` before `warm.js`, which nothing fetches until `warm.js` moves it into the
+    head; a page that names its files keeps them where they were."""
+    linked = list_page(TOKEN, "texts")
+    faces = re.findall(r'<link rel="stylesheet" href="(/assets/face-[^"]+)">', linked)
+    assert faces, "the desk page names its faces"
+    whole = first_visit(linked)
+    late = LATE.search(whole)
+    assert late is not None
+    assert re.findall(r'href="([^"]+)"', late.group(1)) == faces, "every face, and only faces"
+    assert "font/woff2;base64" not in _without_late_faces(whole), "no face carried in place"
+    assert late.start() < whole.index(str(builder._asset("warm.js")))
+    assert not names_files(_without_late_faces(whole))
 
 
 def test_the_warm_up_fetches_this_page_s_files_first_and_then_the_desk_s() -> None:
@@ -136,7 +160,7 @@ def test_a_cookie_from_an_older_set_is_a_first_visit_again(
     served: tuple[int, str, Path],
 ) -> None:
     _, _, _, html = _get(served[0], DOOR, cookie=f"{KEPT_COOKIE}=0000000000000000")
-    assert not names_files(html)
+    assert not names_files(_without_late_faces(html))
     assert "data-kept" in html
 
 
@@ -205,9 +229,9 @@ def test_the_library_shelf_is_files_named_by_what_they_say(
     html = library_page(TOKEN)
     assert "window.TARGUM_CATALOGUE" not in html, "the shelf is not written into the page"
     files = shelf_files(html)
-    assert "" in files and "he" in files, "the common file and Hebrew's"
+    assert {"", "order", "he", "he.en"} <= set(files), "common, order, Hebrew's and its blurbs"
     for code, address in files.items():
-        stem = "catalogue" + (f"-{code}" if code else "")
+        stem = "catalogue" + (f"-{code.replace('.', '-')}" if code else "")
         found = re.fullmatch(rf"/assets/{stem}\.([0-9a-f]{{16}})\.json", address)
         assert found is not None, address
         status, headers, _, body = _get(served[0], address, gzip_ok=True)
@@ -216,9 +240,30 @@ def test_the_library_shelf_is_files_named_by_what_they_say(
         assert headers["content-type"] == "application/json; charset=utf-8"
         assert hashlib.sha256(body.encode("utf-8")).hexdigest()[:16] == found.group(1)
         said = json.loads(body)
-        assert set(said) == ({"ids", "collections", "sets"} if not code else {"catalogue"})
+        assert set(said) == _keys_of(code), code
     # A wrong hash is not there.
     assert _get(served[0], f"{ASSET_ROUTE}catalogue.0000000000000000.json")[0] == 404
+
+
+def _keys_of(code: str) -> set[str]:
+    if not code:
+        return {"collections", "sets"}
+    if code == "order":
+        return {"ids"}
+    if code.endswith(".en"):
+        return {"blurb"}
+    if "." in code:
+        return {"blurbs", "blurb"}
+    return {"catalogue"}
+
+
+def _rows_of(files: dict[str, str]) -> dict[str, list[dict]]:
+    """Each language's rows, by language: the keys that are a language and nothing else."""
+    return {
+        code: json.loads(asset_files()[address][0])["catalogue"]
+        for code, address in files.items()
+        if re.fullmatch(r"[a-z]{2,3}", code)
+    }
 
 
 def test_a_first_visit_does_not_carry_the_shelf() -> None:
@@ -227,7 +272,7 @@ def test_a_first_visit_does_not_carry_the_shelf() -> None:
     files, which `library.js` asks for once the page is up, and carries none of them."""
     whole = first_visit(library_page(TOKEN))
     files = shelf_files(whole)
-    ids = json.loads(asset_files()[files[""]][0])["ids"]
+    ids = json.loads(asset_files()[files["order"]][0])["ids"]
     assert ids, "the fixture catalogue is on the shelf"
     for one in ids[:20]:
         assert json.dumps(one) not in whole, f"{one} rides in the page"
@@ -238,12 +283,9 @@ def test_each_language_file_is_its_rows_in_the_catalogues_order() -> None:
     """Hebrew's file is Hebrew's rows and the Aramaic door's, each with its place, so the
     page asks for one language and still sorts as the whole catalogue did."""
     files = shelf_files(library_page(TOKEN))
-    ids = json.loads(asset_files()[files[""]][0])["ids"]
+    ids = json.loads(asset_files()[files["order"]][0])["ids"]
     merged: dict[str, dict] = {}
-    for code, address in files.items():
-        if not code:
-            continue
-        rows = json.loads(asset_files()[address][0])["catalogue"]
+    for code, rows in _rows_of(files).items():
         places = [row["place"] for row in rows]
         assert places == sorted(places), code
         for row in rows:
@@ -252,6 +294,33 @@ def test_each_language_file_is_its_rows_in_the_catalogues_order() -> None:
             assert ids[row["place"] - 1] == row["id"]
             merged[row["id"]] = row
     assert sorted(merged, key=lambda one: merged[one]["place"]) == ids, "every row, once"
+
+
+def test_a_row_s_blurbs_are_a_file_per_page_language() -> None:
+    """#484, 2026-10-23: every page took every language's blurbs before its first card,
+    31 kB gzipped of Hebrew's 118 that no English page shows. A language's rows carry no
+    blurb; `<code>.en` holds the English, and another page language's file holds its own
+    with the English for the rows it has none for, so a page wants one file to draw."""
+    from targum.catalogue import everything
+
+    by_id = {entry.id: entry for entry in everything()}
+    files = shelf_files(library_page(TOKEN))
+    for code, rows in _rows_of(files).items():
+        assert not any("blurb" in row or "blurbs" in row for row in rows), code
+        english = json.loads(asset_files()[files[f"{code}.en"]][0])["blurb"]
+        assert english == {
+            row["id"]: by_id[row["id"]].blurb for row in rows if by_id[row["id"]].blurb
+        }
+        for key in [key for key in files if key.startswith(f"{code}.") and key != f"{code}.en"]:
+            other = key.split(".", 1)[1]
+            said = json.loads(asset_files()[files[key]][0])
+            for row in rows:
+                theirs = by_id[row["id"]].blurbs.get(other, "")
+                assert said["blurbs"].get(row["id"], "") == theirs, (key, row["id"])
+                if not theirs and by_id[row["id"]].blurb:
+                    assert said["blurb"][row["id"]] == by_id[row["id"]].blurb
+                else:
+                    assert row["id"] not in said["blurb"]
 
 
 def test_a_different_shelf_is_a_different_file(monkeypatch: pytest.MonkeyPatch) -> None:
