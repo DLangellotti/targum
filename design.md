@@ -380,6 +380,24 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A first visit wears the platform's face for a moment — 2026-10-23
+
+David, 2026-10-23 (targum-internal#484, targum#920). A desk page sent whole (a first
+visit, or the first after a deploy changes the files) no longer carries its faces in
+place. They wait in an inert template and go on at `load`, and on the Library once its
+shelf is drawn. Until then the chrome and the Hebrew are set in the platform's face, then
+they swap in place. This is the reader's 2026-10-21 trade made on the desk: 67 kB gzipped
+stood in front of every desk page's script and of the Library's shelf. A page that names
+its files, which is every later visit, keeps its faces in the head as before. Readers are
+unchanged.
+
+- **How.** `first_visit` puts the face `<link>`s in `<template id="late-faces">`, which
+  nothing fetches, and `warm.js` moves them into the head. A page that names an event in
+  `TARGUM_FACES_AFTER` (the Library, `targum:drawn`) waits for it, and never longer than
+  3 s after `load`.
+- **Measured** with `scripts/measure_pages.py`: every desk page's first paint went from
+  about 0.7 s to 0.4 s on the phone profile.
+
 ### A series page's picture is a file of ours — 2026-10-22
 
 Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): /parasha was the one
@@ -405,8 +423,9 @@ page whole (2026-10-19), and whole it carried the shelf inside it: 303 kB gzippe
 479 kB page, all of it in front of the first card.
 
 - **The shelf is JSON files, one per language** (`shelf_files` in `render/builder.py`):
-  `/assets/catalogue.<hash>.json` holds what every shelf needs (the collections, the
-  sets, and every row's id in the catalogue's order), and `/assets/catalogue-<code>.<hash>.json`
+  `/assets/catalogue.<hash>.json` holds what every shelf needs (the collections and the
+  sets; every row's id in the catalogue's order moved to a file of its own on
+  2026-10-23, below), and `/assets/catalogue-<code>.<hash>.json`
   each language's rows, each carrying its `place` in that order. A row in two languages
   is in both files. Hebrew's file carries the Aramaic door's rows too, because they stand
   on the Hebrew shelf. Each file is named by what it says and kept a year like the desk's
@@ -431,6 +450,17 @@ page whole (2026-10-19), and whole it carried the shelf inside it: 303 kB gzippe
   back; otherwise "We couldn't open Italian." with Try again.
 - **Offline is otherwise unchanged.** The worker never kept the Library. A Library opened
   offline says so and points at Saved, before and after.
+- **Asked from the head, and less of it in front of the first card** (David, 2026-10-23;
+  targum#920). The Library was still 2.08 s, and 2.31 s in Russian, because the shelf was
+  asked only once the whole page had arrived. `library-early.js` now asks for the shelf,
+  `/readers`, `/jobs` and `/portions` from the page's head, making the same choice of
+  language, and `library.js` takes each answer once from `TARGUM_SHELF_ASKED`. A row's
+  blurbs are a file per page language (`catalogue-<code>-en`, and `catalogue-<code>-ru`
+  with the English for the rows it has none for), so an English page no longer takes the
+  Russian ones. The catalogue's order (`"order"`), what a Build press sends
+  (`catalogue-<code>-build`, which a press that comes first waits for) and the English a
+  Russian page searches are asked after the first draw. `""` no longer carries `ids`.
+  The Library is now 1.36 s, and 1.48 s in Russian.
 
 ### Russian wears Alpha while its read-through is done — 2026-10-21
 
