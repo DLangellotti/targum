@@ -35,11 +35,13 @@
       the bright set is legal on: --leaf-bright does not reach 3:1 against paper. -#}
   <section class="ledger" id="ledger" aria-label="{{ t("progress.page.what-you-have-built", "Your totals") }}">
     <div class="counts" id="counts"></div>
+    {#- What "learned on targum" counts, said under the totals wherever the figure is: it sat
+        in part 2's time and words, which is hidden signed out, with recording stopped or
+        with no record, while the figure always shows (qa on #858; targum-internal#471, B1).
+        Inside the ledger as its quiet last line, not on the desk ground under it
+        (targum-internal#522). -#}
+    <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you saved as new and have since marked known.") }}</p>
   </section>
-  {#- What "learned on targum" counts, said under the totals wherever the figure is: it sat
-      in part 2's time and words, which is hidden signed out, with recording stopped or
-      with no record, while the figure always shows (qa on #858; targum-internal#471, B1). -#}
-  <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you saved as new and have since marked known.") }}</p>
 
   {#- 1 · Where you are: the touchstones, a ladder of kinds of text from the language's
       own library, each a link to its shelf; then what you knew of what you read. -#}
