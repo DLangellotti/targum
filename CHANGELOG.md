@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
   it fits a phone's one-row field. Hear and the quote card's source link and More options
   are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
+  unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
+  comes here." instead of promising new ones. A Resume the door refuses with 409 (a
+  channel or podcast unsubscribed meanwhile in another tab) goes to the confirm page the
+  door names, on the subscription's page and on the tab's row, instead of "We couldn't do
+  that". And the Library's News says Subscribed on a topic you follow already, going to
+  its own page rather than the confirm page again.
+- Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
+  The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
+  nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
+  are chmodded straight after. Every restore step reads a copy as root, so nothing that
+  reads them changes. Copies already on the box keep their old mode until chmodded once.
 - "Met in" from a Torah book opens the portion at the verse, with the word marked
   (targum-internal#506). A Torah book is read as its portions, and its own page forwarded
   by chapter alone, so the link landed on the chapter's first verse with nothing marked.
