@@ -14,6 +14,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   перед ним {n} текст» as the other queue lines do; «Экспериментальный» became «Пробный»,
   which fits the badge; and plan, prompts, waitlist and the AI assistant have one word
   each. English is unchanged.
+- The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
+  "you said" and "corrected", came from the stylesheet in English. They are catalogue
+  keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
+  Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
+  it fits a phone's one-row field. Hear and the quote card's source link and More options
+  are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
 - Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
   unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
   comes here." instead of promising new ones. A Resume the door refuses with 409 (a
