@@ -10,6 +10,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   It was the one page in the sitemap with no public head: no description, no `og:` tags,
   no `twitter:card`. It now includes `_public_head.html.j2` like the others, keeps its one
   address for every language, and a test holds the tags in English and Russian.
+- Sign in reads again on the four legal pages (targum-internal#516). The documents' link
+  rule in `public.css` was more specific than the corner's call to action and painted it
+  ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
+  browser test holds the button to paper on ink at weight 600 on all four pages.
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
+- Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
+  unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
+  comes here." instead of promising new ones. A Resume the door refuses with 409 (a
+  channel or podcast unsubscribed meanwhile in another tab) goes to the confirm page the
+  door names, on the subscription's page and on the tab's row, instead of "We couldn't do
+  that". And the Library's News says Subscribed on a topic you follow already, going to
+  its own page rather than the confirm page again.
 - Database copies on the box are `0600 targum` rather than `0644` (targum-internal#514).
   The copy `deploy.sh` takes before an install runs under `UMask=0077`, and so does the
   nightly `targum-backup.service`; the two copies `deploy/ROLLBACK.md` has you take by hand
