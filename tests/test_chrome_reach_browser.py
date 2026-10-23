@@ -247,3 +247,35 @@ def test_news_lists_the_topics_to_follow_and_reaches_44px(browser, library_html)
     assert page.locator("#see-topics").is_hidden(), "signed out, there is nothing to follow"
     assert not thrown
     context.close()
+
+
+def test_a_topic_you_follow_says_subscribed_in_news(browser, library_html) -> None:
+    """A topic the reader follows already says Subscribed and goes to its own page, not
+    to the confirm page again; one they unsubscribed from offers Subscribe as before
+    (#475, qa-claude after #890)."""
+    signed_in = {
+        "/readers": {"readers": [], "shared": [], "signedIn": True},
+        "/subscriptions.json": {
+            "signedIn": True,
+            "subscriptions": [
+                {"kind": "topic", "key": "sport", "state": "on", "page": "/subscriptions/3"},
+                {"kind": "topic", "key": "world", "state": "off", "page": "/subscriptions/5"},
+                {"kind": "channel", "key": "health", "state": "on", "page": "/subscriptions/6"},
+            ],
+        },
+    }
+    context, page, thrown = phone(browser, library_html, signed_in)
+    page.goto(f"{SITE}/library#see/kind/article")
+    page.locator('#see-topics a[data-topic="sport"].is-on').wait_for(state="visible")
+    rows = page.eval_on_selector_all(
+        "#see-topics a[data-topic]",
+        """all => Object.fromEntries(all.map((a) => [a.dataset.topic,
+             [a.textContent, a.getAttribute('href'), a.getAttribute('aria-label')]]))""",
+    )
+    assert rows["sport"] == ["Subscribed", "/subscriptions/3", "Subscribed to Sport"], rows
+    assert rows["world"][0] == "Subscribe", rows
+    assert rows["world"][1].startswith("/subscribe?kind=topic&key=world"), rows
+    assert rows["health"][0] == "Subscribe", "a channel is not a topic"
+    assert reaches_44(reach(page, '#see-topics a[data-topic="sport"]'))
+    assert not thrown
+    context.close()
