@@ -706,9 +706,12 @@ def test_while_the_story_is_asked_nothing_false_is_said() -> None:
 
 
 def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
+    """Part 1 says it with Try again, and What next's two halves each say it under their
+    heading rather than standing empty (targum-internal#522, §14.1)."""
     drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_fails=True)
     assert drawn["next"]["failed"] and not drawn["next"]["waiting"]
-    assert drawn["next"]["metEmpty"] == ""
+    assert drawn["next"]["metEmpty"] == "We couldn't load this part."
+    assert drawn["next"]["levelEmpty"] == "We couldn't load this part."
 
 
 def test_nothing_to_practise_offers_no_practise_press() -> None:
