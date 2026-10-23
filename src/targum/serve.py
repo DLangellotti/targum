@@ -304,11 +304,15 @@ def said_in(ui: str, key: str, english: str, **fill: object) -> str:
     """A sentence the server writes — into an answer, or onto a job a thread finishes
     later — in the language `ui` names, and `english` where its catalogue has not said it
     (targum-internal#184). `tests/test_strings.py` holds every call to `en.json`."""
-    from .strings import SOURCE, catalogue
+    from .strings import SOURCE, cased, catalogue
 
     code = (ui or SOURCE).split("-")[0].lower()
     text = catalogue(code).get(key, english) if code != SOURCE else english
-    return text.format(**fill) if fill else text
+    if not fill:
+        return text
+    # A language's name in the case the sentence asks for (targum-internal#524).
+    text, filled = cased(text, code, fill)
+    return text.format(**filled)
 
 
 def refused_in(ui: str, error: TargumError) -> str:

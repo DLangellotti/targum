@@ -196,9 +196,12 @@ rm -f /etc/cron.d/targum-backup
 # and a day with no new release is a no-op. As targum, for the reason the install above
 # gives; through systemd-run for the backup's reason — `journalctl -u targum-ytdlp`.
 # Not inside targum.service, whose ProtectHome would refuse the write to /srv/targum.
+# A failed night mails TARGUM_ALERT_TO through `targum ytdlp-stopped`: MAILTO=root reaches
+# nobody on a box with no mail transfer agent, and an install that stops halfway has
+# already deleted bin/yt-dlp (2026-10-22, targum-internal#513).
 cat > /etc/cron.d/targum-ytdlp <<CRON
 MAILTO=root
-30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION
+30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION || systemd-run --quiet --wait --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum ytdlp-stopped
 CRON
 chmod 0644 /etc/cron.d/targum-ytdlp
 

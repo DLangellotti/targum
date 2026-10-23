@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from datetime import date
 from functools import cache
 from pathlib import Path
@@ -56,7 +57,85 @@ def text(key: str, language: str = SOURCE, **fill: str) -> str:
     if key not in english:
         raise KeyError(f"no string {key!r} in the English catalogue")
     said = catalogue(language).get(key) or english[key]
-    return said.format(**fill) if fill else said
+    if not fill:
+        return said
+    said, filled = cased(said, language, fill)
+    return said.format(**filled)
+
+
+# -- a language's name inside a sentence (targum-internal#524) ---------------------------
+#
+# `language.he` is the name as a menu writes it: «Иврит». A Russian sentence cannot use
+# that form — quoting it gave «На языке «Иврит» пока ничего нет» — because Russian puts
+# the name in a case: «на иврите», «по-русски», «распознаётся иврит». So a translation
+# asks for the form it wants with a format spec on the same blank, `{language:in}`. The
+# field is still `{language}`, so the rule that every language uses English's blanks
+# holds unchanged, and the code that fills it still hands over a name. English never
+# asks, so English is untouched.
+#
+#   in   the name after the preposition it takes: «на иврите», «на латыни»
+#   adv  how one speaks it: «по-русски», and «на иврите» where Russian has no adverb
+#   nom  the name as a sentence's subject, in lower case: «иврит»
+#
+# A capital, `{language:In}`, starts a sentence with the form: «На иврите». A name with no
+# forms in the catalogue — a language targum does not offer, guessed off a page — is said
+# through `language-in.any` and `language-nom.any`, which quote it the way the sentences
+# did before: «на языке «Swahili»».
+
+#: The forms a sentence can ask for, each with the one that stands in where it is missing.
+CASES = {"in": "in", "adv": "in", "nom": "nom"}
+
+#: A blank that asks for a form: `{language:in}`.
+CASED = re.compile(r"\{(\w+):(" + "|".join(sorted({*CASES, *map(str.title, CASES)})) + r")\}")
+
+
+@cache
+def language_codes(language: str) -> dict[str, str]:
+    """Every way a page names a language — its name in `language`, its English name and
+    its code — mapped to the code. The scripts and the server fill a sentence with a name,
+    the reader's own where the page has it and English where not, so both are found."""
+    code = (language or SOURCE).split("-")[0].lower()
+    found: dict[str, str] = {}
+    for book in (catalogue(SOURCE), catalogue(code)):
+        for key, name in book.items():
+            if key.startswith("language.") and key.count(".") == 1:
+                found[name] = key.split(".", 1)[1]
+    for tag in list(found.values()):
+        found.setdefault(tag, tag)
+    return found
+
+
+def case_form(name: str, case: str, language: str) -> str:
+    """`name` in the form `case` asks for, as `language` writes it (see `CASES`)."""
+    code = (language or SOURCE).split("-")[0].lower()
+    asked = case.lower()
+    said = catalogue(code)
+    tag = language_codes(code).get(name)
+    form = ""
+    if tag:
+        form = said.get(f"language-{asked}.{tag}") or said.get(f"language-{CASES[asked]}.{tag}", "")
+    if not form:
+        quoted = f"language-{CASES[asked]}.any"
+        form = (said.get(quoted) or catalogue(SOURCE)[quoted]).replace("{language}", name)
+    return form[:1].upper() + form[1:] if case[:1].isupper() else form
+
+
+def cased(said: str, language: str, fill: Mapping[str, object]) -> tuple[str, dict[str, object]]:
+    """`said` with each `{field:case}` made a blank of its own, and `fill` with that blank
+    filled by the case's form: what `str.format` and `Markup.format` then fill as they
+    always do, escaping included. A sentence that asks for no form comes back as it was."""
+    filled = dict(fill)
+
+    def swap(found: re.Match[str]) -> str:
+        field, case = found.group(1), found.group(2)
+        value = fill.get(field)
+        if not isinstance(value, str):
+            return "{" + field + "}"
+        blank = f"{field}__{case}"
+        filled[blank] = case_form(value, case, language)
+        return "{" + blank + "}"
+
+    return CASED.sub(swap, said), filled
 
 
 def plural_form(count: int, language: str = SOURCE) -> str:

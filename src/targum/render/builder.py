@@ -479,7 +479,7 @@ def _with_called_strings(html: str) -> str:
     said = given.get("strings") if isinstance(given, dict) else None
     if not code or not isinstance(said, dict):
         return html
-    from ..strings import catalogue
+    from ..strings import CASED, catalogue, language_codes
 
     known = catalogue(code)
     missing = {
@@ -489,9 +489,16 @@ def _with_called_strings(html: str) -> str:
         for key in dict.fromkeys(_CALLED.findall(html + linked_scripts(html)))
         if key in known and key not in said
     }
-    if not missing:
-        return html
     filled = {**given, "strings": {**said, **missing}}
+    if any(CASED.search(text) for text in filled["strings"].values()):
+        # A sentence that names a language in a case (targum-internal#524) needs the
+        # forms, and the names the page fills it with mapped to their codes.
+        filled["strings"].update(
+            {key: text for key, text in known.items() if key.startswith("language-")}
+        )
+        filled["names"] = language_codes(code)
+    if filled == given:
+        return html
     return html[: at.end()] + str(htmlsafe_json_dumps(filled, sort_keys=True)) + html[end:]
 
 
@@ -699,15 +706,18 @@ def page_words(language: str) -> Callable[..., Markup]:
     English apostrophe into an entity and change every page that has one. The catalogue
     test keeps these strings free of quotes and angle brackets, so one can stand in an
     attribute."""
-    from ..strings import SOURCE, catalogue
+    from ..strings import SOURCE, cased, catalogue
 
     code = (language or SOURCE).split("-")[0].lower()
     said = catalogue(code) if code != SOURCE else {}
 
     def t(key: str, english: str, **fill: object) -> Markup:
         # A blank is filled escaped, since what fills it can come from anywhere.
-        text = Markup(said.get(key, english))
-        return text.format(**fill) if fill else text
+        if not fill:
+            return Markup(said.get(key, english))
+        # A language's name in the case the sentence asks for (targum-internal#524).
+        text, filled = cased(said.get(key, english), code, fill)
+        return Markup(text).format(**filled)
 
     return t
 
@@ -724,11 +734,12 @@ def page_counts(language: str) -> Callable[..., Markup]:
     The English written at the call is the fallback, the same promise `t` makes, and `{n}`
     is filled for free because every counted string wants it.
     """
-    from ..strings import counted
+    from ..strings import cased, counted
 
     def tn(key: str, n: int, one: str, other: str, **fill: object) -> Markup:
         said = counted(key, n, language, {"one": one, "other": other})
-        return Markup(said).format(n=n, **fill)
+        text, filled = cased(said, language, fill)
+        return Markup(text).format(n=n, **filled)
 
     return tn
 
@@ -3556,6 +3567,67 @@ WEEKLY_LEVELS: dict[str, str] = {
 }
 
 
+#: The three parts of the Tanakh as a catalogue byline spells them ("Ketuvim · Ruth"), and
+#: the key each is said by on the Tanakh page.
+_TANAKH_PARTS = {
+    "Torah": "tanakh.page.torah",
+    "Nevi'im": "tanakh.page.prophets",
+    "Ketuvim": "tanakh.page.writings",
+}
+
+
+def _place_in(byline: str, language: str) -> str:
+    """A byline that is a book's place ("Ketuvim · Ruth") in the page's language, with
+    the book names David chose for Russian on 2026-10-21 (`reference.*`); anything else,
+    and any place a part of which has no key, exactly as the catalogue wrote it."""
+    from ..strings import SOURCE
+    from ..strings import catalogue as strings_in
+
+    part, dot, book = byline.partition(" · ")
+    if not dot or language == SOURCE or part not in _TANAKH_PARTS:
+        return byline
+    key = "reference." + book.lower().replace(" ", "-")
+    said = strings_in(language)
+    if not said.get(key) or not said.get(_TANAKH_PARTS[part]):
+        return byline
+    return f"{said[_TANAKH_PARTS[part]]} · {said[key]}"
+
+
+class _ShelfRow(NamedTuple):
+    """One row of the public shelf, already in the page's language (targum-internal#520).
+
+    Worked out here, once per render from the catalogue in memory, rather than in the
+    template: the template only draws. `named_lang` and `blurb_lang` are the language of
+    what is drawn, so a row that fell back to English still says it is English.
+    """
+
+    entry: Entry
+    named: str
+    named_lang: str
+    byline: str
+    blurb: str
+    blurb_lang: str
+
+
+def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
+    code = _page_language(language)
+    rows = []
+    for entry in entries:
+        named = entry.name_in(code)
+        blurb = entry.blurb_in(code)
+        rows.append(
+            _ShelfRow(
+                entry=entry,
+                named=named,
+                named_lang=code if entry.named.get(code) else "en",
+                byline=_place_in(entry.author, code),
+                blurb=blurb,
+                blurb_lang=code if entry.blurbs.get(code) else "en",
+            )
+        )
+    return rows
+
+
 def shelf_page(address: str = "", language: str = "en") -> str:
     """The catalogue, for somebody who has not signed in.
 
@@ -3581,7 +3653,7 @@ def shelf_page(address: str = "", language: str = "en") -> str:
             alternates=_shelf_at[1],
             shelf_name=name,
             shelf_blurb=blurb,
-            entries=everything(),
+            rows=_shelf_rows(everything(), language),
         )
     )
 

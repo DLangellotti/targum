@@ -51,6 +51,79 @@ def test_an_empty_catalogue_says_so_rather_than_pretending(
     assert "Nothing here yet" in shelf_page(ADDRESS)
 
 
+def _shelf_of_two(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ruth drafted in Russian, and a text nobody has drafted yet."""
+    from targum.catalogue import Entry
+
+    monkeypatch.setattr(
+        "targum.catalogue.CATALOGUE",
+        [
+            Entry(
+                id="ruth",
+                title="רות",
+                author="Ketuvim · Ruth",
+                language="he",
+                source="sefaria:he:Ruth",
+                blurb="Four chapters, the shortest way in.",
+                words=100,
+                english="Ruth",
+                named={"ru": "Рут (Руфь)"},
+                blurbs={"ru": "Четыре главы — самый короткий путь внутрь."},
+            ),
+            Entry(
+                id="undrafted",
+                title="ספר",
+                author="Somebody, 1990",
+                language="he",
+                source="s",
+                blurb="Nobody has said this in Russian yet.",
+                words=100,
+                english="A Book",
+            ),
+        ],
+    )
+
+
+def _row(html: str, entry_id: str) -> str:
+    start = html.index(f'href="/library/{entry_id}"')
+    return html[start : html.index("</li>", start)]
+
+
+def test_a_russian_shelf_row_is_in_russian_where_the_text_page_is(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The shelf ignored what the catalogue knew: 1,306 of 1,315 rows drew English under
+    a Russian chrome while each text page said the Russian (targum-internal#520)."""
+    _shelf_of_two(monkeypatch)
+    ruth = _row(shelf_page(ADDRESS, language="ru"), "ruth")
+    assert '<span class="english" lang="ru" dir="ltr">Рут (Руфь)</span>' in ruth
+    assert '<span class="blurb">Четыре главы — самый короткий путь внутрь.</span>' in ruth
+    assert "Ruth" not in ruth and "shortest" not in ruth
+    # The place takes the book names David chose on 2026-10-21.
+    assert '<span class="byline">Писания · Рут</span>' in ruth
+
+
+def test_a_row_with_no_russian_falls_back_to_english_and_says_so(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never wrong, only foreign — and marked English, so a screen reader reads it as
+    English rather than as Russian."""
+    _shelf_of_two(monkeypatch)
+    row = _row(shelf_page(ADDRESS, language="ru"), "undrafted")
+    assert '<span class="english" lang="en" dir="ltr">A Book</span>' in row
+    assert '<span class="blurb" lang="en">Nobody has said this in Russian yet.</span>' in row
+    assert '<span class="byline">Somebody, 1990</span>' in row
+
+
+def test_an_english_shelf_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    _shelf_of_two(monkeypatch)
+    ruth = _row(shelf_page(ADDRESS), "ruth")
+    assert '<span class="english" lang="en" dir="ltr">Ruth</span>' in ruth
+    assert '<span class="blurb">Four chapters, the shortest way in.</span>' in ruth
+    assert '<span class="byline">Ketuvim · Ruth</span>' in ruth
+    assert not re.search("[А-Яа-я]", ruth)
+
+
 # -- what a text is -----------------------------------------------------------
 
 
