@@ -39,6 +39,17 @@
   var UNREACHED = t("subs.unreached", "We can't reach targum. Try again in a moment.");
   var FAILED = t("subs.failed", "We couldn't do that. Try again.");
 
+  /* A Resume the door refuses with 409 is a channel or a podcast that was unsubscribed
+     in the meantime (another tab, another device): it spends again only from the confirm
+     page, where its cap is chosen beside the press (design.md §12, "A monthly cap is the
+     second press that lasts"). The door says where that page is; the press goes there
+     rather than saying it failed (#475, qa-claude after #883). */
+  function toConfirm(got) {
+    if (!got || got.status !== 409 || typeof got.confirm !== "string" || got.confirm.charAt(0) !== "/") return false;
+    window.location.assign(keyed(got.confirm));
+    return true;
+  }
+
   function ask(path, body) {
     var head = { "Content-Type": "application/json" };
     if (key) head["X-Targum-Key"] = key;
@@ -306,7 +317,8 @@
       resume.type = "button";
       resume.onclick = function () {
         resume.disabled = true;
-        ask("/subscriptions/" + one.id, { action: "resume" }).then(function () {
+        ask("/subscriptions/" + one.id, { action: "resume" }).then(function (got) {
+          if (toConfirm(got)) return;
           drawTab(lastHost, true);
         });
       };
@@ -866,6 +878,7 @@
             }
             return;
           }
+          if (toConfirm(got)) return;
           press.disabled = false;
           if (got.status === 0) unreachedSaid(null);
           else sayUnderHead(FAILED);
@@ -980,7 +993,16 @@
     else {
       var none = el("section", "card sub-items");
       none.appendChild(el("h2", "section-title", itemsHead(one)));
-      none.appendChild(el("p", "note sub-none", t("subs.items.none", "Nothing yet. New ones appear here as they come out.")));
+      // Off, nothing more comes, so the page doesn't promise any (#475, qa-claude).
+      none.appendChild(
+        el(
+          "p",
+          "note sub-none",
+          off
+            ? t("subs.items.none-off", "You're unsubscribed, so nothing new comes here.")
+            : t("subs.items.none", "Nothing yet. New ones appear here as they come out.")
+        )
+      );
       main.appendChild(none);
     }
     var meanwhile = section(t("subs.paused.head", "Out while it was paused"), t("subs.not-by-itself", "Gets ready only when you choose"), paused, one, back);
