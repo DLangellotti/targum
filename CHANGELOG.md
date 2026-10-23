@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
+  "you said" and "corrected", came from the stylesheet in English. They are catalogue
+  keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
+  Russian. The box's placeholder is shorter ("Hebrew or English", «Иврит или русский»), so
+  it fits a phone's one-row field. Hear and the quote card's source link and More options
+  are in `test_brand.py`'s 44px registry, which keeps their reach from drifting.
 - "Met in" from a Torah book opens the portion at the verse, with the word marked
   (targum-internal#506). A Torah book is read as its portions, and its own page forwarded
   by chapter alone, so the link landed on the chapter's first verse with nothing marked.

@@ -6185,7 +6185,7 @@ def test_the_conversation_page_is_said_in_the_language_asked(
     from targum.render.builder import chat_page
 
     plain = chat_page("k")
-    assert 'placeholder="Write in Hebrew or English"' in plain
+    assert 'placeholder="Hebrew or English"' in plain
     real = strings.catalogue
     said = {
         "chat.page.write-in-hebrew-or-english": "Пишите на иврите или по-английски",
