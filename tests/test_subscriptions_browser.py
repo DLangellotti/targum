@@ -144,8 +144,10 @@ def serve(page, routes: dict[str, Any], posted: list[tuple[str, Any]]) -> None:
             posted.append((path, body))
             found = routes.get(("POST", path), {})
             reply = found(body) if callable(found) else found
+            # A refusal: (status, body), as the door answers a 409.
+            status, reply = reply if isinstance(reply, tuple) else (200, reply)
             return route.fulfill(
-                status=200, content_type="application/json", body=json.dumps(reply)
+                status=status, content_type="application/json", body=json.dumps(reply)
             )
         if isinstance(routes.get(path), tuple):
             # A fault: (status, body), the body an HTML page as a proxy in front sends.
@@ -463,6 +465,7 @@ def test_an_unsubscribed_channel_starts_again_only_on_the_confirm_page(browser) 
           cap: document.querySelectorAll('#sub-cap').length,
           mail: document.querySelectorAll('.sub-mail').length,
           meta: document.querySelector('.sub-meta').textContent,
+          none: document.querySelector('.sub-none').textContent,
         })"""
     )
     page.click(".sub-head .sub-resume")
@@ -473,8 +476,50 @@ def test_an_unsubscribed_channel_starts_again_only_on_the_confirm_page(browser) 
     assert all(href == one["again"] for _, href in got["again"]), got
     assert got["cap"] == 0 and got["mail"] == 0, got
     assert "You unsubscribed on" in got["meta"] and "subscribed since" not in got["meta"], got
+    # Off, nothing more comes, so the page promises nothing (#475, qa-claude after #890).
+    assert got["none"] == "You're unsubscribed, so nothing new comes here.", got
     assert landed.startswith(f"{SITE}/subscribe?kind=channel&") and "cap=60" in landed
     assert not posted, "nothing was posted: the confirm page is the press"
+    assert not thrown, thrown
+
+
+CONFIRM_AGAIN = "/subscribe?kind=podcast&source=https%3A%2F%2Ffeed.example%2Frss&cap=30"
+REFUSED_AGAIN = (
+    409,
+    {"error": "Choose the monthly cap again to subscribe.", "confirm": CONFIRM_AGAIN},
+)
+
+
+def test_a_resume_the_door_refuses_goes_to_the_confirm_page(browser) -> None:
+    """A paused podcast unsubscribed meanwhile, in another tab: Resume meets the door's
+    409, which names the confirm page, and the press goes there rather than saying it
+    failed (#475, qa-claude after #883). On its own page and on the tab's row alike."""
+    context = browser.new_context(viewport={"width": 1280, "height": 2000})
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    posted: list[tuple[str, Any]] = []
+    one = dict(ROWS[3], caps=[30, 60, 120, 240], items=[])
+    answer = {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "November 1"}}
+    routes = {
+        "/subscriptions/4": subscription_page(""),
+        "/subscriptions/4.json": answer,
+        ("POST", "/subscriptions/4"): REFUSED_AGAIN,
+        "/subscribe": "<!doctype html><title>confirm</title><p id=confirm>confirm</p>",
+        **_tab_routes({"signedIn": True, "subscriptions": ROWS, "series": SERIES}),
+    }
+    serve(page, routes, posted)
+    page.goto(f"{SITE}/subscriptions/4")
+    page.click(".sub-head .sub-resume")
+    page.wait_for_selector("#confirm")
+    assert page.url == f"{SITE}{CONFIRM_AGAIN}", page.url
+
+    page.goto(f"{SITE}/?show=subscriptions")
+    page.click('#subs-rows .sub-row[data-kind="podcast"] .sub-resume')
+    page.wait_for_selector("#confirm")
+    assert page.url == f"{SITE}{CONFIRM_AGAIN}", page.url
+    context.close()
+    assert posted == [("/subscriptions/4", {"action": "resume"})] * 2, posted
     assert not thrown, thrown
 
 
