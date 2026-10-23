@@ -36,6 +36,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the release's checksums and keeps it in the Actions cache, keyed on the version and the
   runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
   when the download fails or BtbN drops the 8.1 branch.
+- The signed-out Library in Russian draws its rows in Russian (targum-internal#520). Each
+  row's name and blurb come from the catalogue's `named`/`blurbs`, the same fields the
+  text page reads, and a book's place takes the Russian book names («Писания · Рут» for
+  "Ketuvim · Ruth"). Rows with no Russian yet (162 of 1,306) show the English, marked
+  `lang="en"`. Nothing new is fetched or stored; the English page is byte-for-byte as it
+  was, and the Russian one grows by its Cyrillic, about 20 KB gzipped.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
