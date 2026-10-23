@@ -10,6 +10,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   rule in `public.css` was more specific than the corner's call to action and painted it
   ink on its own ink fill, about 1.1:1; it now reaches the document's links only, and a
   browser test holds the button to paper on ink at weight 600 on all four pages.
+- A host that trickles bytes can no longer hold a build (targum-internal#511). The fetch
+  door's 30-second timeout is, on a streamed response, a floor of one byte a second rather
+  than a cap: a host sending a byte every half second held a 2-second read for fifty
+  seconds. Every fetch through `ingest.url` (pages, openings and downloads, direct or
+  through the proxy) now has a deadline from first knock to last byte, redirects
+  included: 90 seconds for a page or an opening, 30 minutes for a download. Past it the
+  door says it couldn't open the page, as it does for a timeout, and a half-written
+  download is removed.
 - Subscriptions' last three loose ends after #883 and #890 (targum-internal#475). An
   unsubscribed subscription with nothing listed says "You're unsubscribed, so nothing new
   comes here." instead of promising new ones. A Resume the door refuses with 409 (a
