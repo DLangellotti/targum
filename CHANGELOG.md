@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- CI no longer installs ffmpeg from the apt mirror, which still failed several times a
+  day after the timeouts and retries below (run 39907694995 on master, 02a6c102). It
+  takes BtbN's static 8.1 build of `ffmpeg` and `ffprobe` from GitHub, checks it against
+  the release's checksums and keeps it in the Actions cache, keyed on the version and the
+  runner, so a run with the cache warm fetches nothing. apt is the fallback only, for
+  when the download fails or BtbN drops the 8.1 branch.
 - The chat's last loose ends after #884 (targum-internal#472). The labels over a recast,
   "you said" and "corrected", came from the stylesheet in English. They are catalogue
   keys now (`chat.recast.*`), put on the pair as `data-said`, so Russian says them in
