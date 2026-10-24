@@ -301,7 +301,9 @@ def from_the_tagging(annotation: Annotation) -> dict[str, Sense]:
                 # holds particles and nouns alike and claims no part of speech for either.
                 said = aramaic.sense(token.lexeme)
             elif token.pos in CONTENT_WORDS and token.lexeme:
-                said = oshb.sense(token.lexeme)
+                # STEP Bible's brief gloss first, and Strong's where it has none or the
+                # box has not fetched it yet (targum-internal#510).
+                said = oshb.brief(token.lexeme) or oshb.sense(token.lexeme)
             else:
                 # The closed class, written by hand because the lexicon is worst exactly
                 # where a reader taps most. Asked for every word the lexicon is not asked
@@ -310,6 +312,26 @@ def from_the_tagging(annotation: Annotation) -> dict[str, Sense]:
             if said:
                 found[key] = Sense(gloss=said, part=_SAID_AS.get(token.pos or "", ""))
     return found
+
+
+def from_step_bible(annotation: Annotation | None, entries: Mapping[str, str]) -> bool:
+    """Whether a glossary shows at least one of STEP Bible's brief glosses.
+
+    What the reader's credit keys on: CC BY asks for the naming where the work is used,
+    and a glossary that bought or grounded every meaning it shows used none of it. So
+    this asks the glossary, not the text: a content word whose entry is the brief gloss
+    its number has.
+    """
+    if annotation is None or not entries:
+        return False
+    for tokens in annotation.tokens.values():
+        for token in tokens:
+            if token.pos not in CONTENT_WORDS or not token.lexeme:
+                continue
+            said = oshb.brief(token.lexeme)
+            if said and entries.get(token.glossed_as) == said:
+                return True
+    return False
 
 
 def unique_lemmas(

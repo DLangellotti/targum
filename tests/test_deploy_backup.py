@@ -261,3 +261,28 @@ def test_root_writes_nothing_inside_the_uv_tools() -> None:
         "    /usr/local/bin/uv tool install --quiet --force yt-dlp"
     ) in provision, "the yt-dlp install as targum"
     assert f"YTDLP_PY={TOOLS}/yt-dlp/bin/python" in provision
+
+
+def test_a_step_bible_that_cannot_be_reached_does_not_stop_the_deploy(tmp_path: Path) -> None:
+    """targum-internal#510: the glosses are optional (a card falls back to Strong's), and
+    the fetch runs after the restart, inside the unit's `bash -euo pipefail`. A failed
+    fetch there would leave the new code live with no rebuild behind it, so it warns and
+    the deploy goes on. Cut out and run with a `systemd-run` that fails."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    fetch = script.index("/usr/local/bin/targum models fetch scripture")
+    assert fetch < script.index("/usr/local/bin/targum rebuild --words --gloss")
+    start = script.rindex("systemd-run", 0, fetch)
+    end = script.index("\n", script.index("|| echo", fetch))
+    step = script[start:end].replace("'\"'\"'", "'")
+    fake = tmp_path / "systemd-run"
+    fake.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    fake.chmod(0o755)
+    ran = subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", step + "\necho went on"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+    )
+    assert ran.returncode == 0, ran.stderr
+    assert "went on" in ran.stdout
+    assert "STEP Bible glosses not fetched; cards keep Strong's" in ran.stderr

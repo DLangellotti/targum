@@ -18,6 +18,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   So parasha-bereshit came back with no `lines` and no `how_to_read`, and Claude fetched
   the page instead. It now reads them from `print/`. The connector eval has a portion
   scenario. Daily cycles are not library rows and never came through this tool.
+- A Tanakh word's card says what it means in a word or two, from STEP Bible's brief
+  lexicon, where it read Strong's King James thickets, typos included ("by
+  extenssion"; targum-internal#510, David 2026-10-24, licence and spec by ling-he).
+  בָּרָא is "to create", רוּחַ "spirit", עֶבֶד "servant; slave". Only the Gloss column of
+  TBESH is read (Tyndale House, CC BY 4.0); its Meaning column is Online Bible's and is
+  never read, stored or shipped, and a test fails if any reaches the table. The file is
+  fetched at a pinned commit by `targum models fetch scripture`, which `deploy.sh` now
+  runs before the rebuild, and never vendored. One gloss per Strong's number, the letter
+  the Tanakh uses most, so every עָשָׂה is "to make" and none "to press". A name never
+  stands for the word: דֶּרֶךְ is "way", not "Way", סוּס "horse", not "Horse (Gate)",
+  and צָבָא "army", not "Hosts". A deploy that cannot reach STEP Bible warns and goes on.
+  `annotate/tbesh_changes.tsv` is both the change note the licence asks for and the hand
+  fixes (רע "bad", כֵּן "so", פֶּה "mouth", טוֹב "good"). Where TBESH has nothing, Strong's stays. Reader pages whose
+  meanings show one, and the How page, say "Meanings from STEP Bible · CC BY 4.0 ·
+  shortened by targum", linked. No annotator rename and no spend; parasha and daily need
+  a re-cut after the deploy.
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a

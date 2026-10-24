@@ -1248,7 +1248,7 @@
     last page where the pager is. Left to right whatever the text: they are the chrome's
     sentences, and an English paragraph laid out right to left put its full stop at the
     start of its last line (known issues 2026-10-12, 1.7). -#}
-{% if speech_credit or words_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
+{% if speech_credit or words_credit or glosses_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
 <aside class="credits" id="credits" dir="ltr" aria-label="{{ t("reader.page.credits", "Credits") }}">
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
@@ -1274,6 +1274,12 @@
       file nobody opens is the same non-naming the reading credit above refuses. -#}
   {% if words_credit %}
   <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>
+  {% endif %}
+  {#- STEP Bible's brief glosses, CC BY 4.0, where the page's meanings show one: the
+      licence asks for "STEP Bible" linked, the licence named, and the changes noted, and
+      the note is the file the changes are made from (targum-internal#510). -#}
+  {% if glosses_credit %}
+  <p class="credit">{{ t("reader.page.meanings-from", "Meanings from") }} <a href="https://www.STEPBible.org" rel="noopener">STEP Bible</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a> · <a href="https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/tbesh_changes.tsv" rel="noopener">{{ t("reader.page.shortened-by-targum", "shortened by targum") }}</a></p>
   {% endif %}
   {#- Russian's words, where they were read here rather than by the model (LICENSING.md,
       "Russian"): the three things that read them, and OpenCorpora's dictionary under the

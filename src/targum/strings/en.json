@@ -4031,5 +4031,7 @@
   "progress.where.loading": "We're working out where you are.",
   "progress.next.loading": "We're finding the words and texts for you.",
   "progress.next.texts-arc": "We don't place Aramaic texts by difficulty, so none are listed here.",
-  "progress.page.open-the-library": "Open the Library"
+  "progress.page.open-the-library": "Open the Library",
+  "reader.page.meanings-from": "Meanings from",
+  "reader.page.shortened-by-targum": "shortened by targum"
 }

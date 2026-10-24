@@ -1,0 +1,24 @@
+﻿TBESH - Translators Brief lexicon of Extended Strongs for Hebrew - STEPBible.org CC BY
+A test fixture for targum-internal#510: the first seven columns of 16 rows the tests read, from
+github.com/STEPBible/STEPBible-Data at 48b7cfbda441adb6445ea565b4ed23dd98dfdf2e (CC BY 4.0, Tyndale House
+Cambridge / STEP Bible). Kept to a handful, as STEP Bible asks that the file not be redistributed. The
+Meaning column is Online Bible's and is not copied: every cell of it here is a sentinel, and the tests
+fail if one reaches the table.
+
+eStrong#	dStrong	uStrong	Hebrew	Transliteration	Morph	Gloss	Meaning
+H1254a	H1254A =	H1254A	בָּרָא	ba.ra	H:V	to create	ONLINE-BIBLE-MEANING-SENTINEL-001
+H1254b	H1254B =	H1254B	בָּרָא	ba.ra	H:V	to fatten	ONLINE-BIBLE-MEANING-SENTINEL-002
+H1697	H1697G =	H1697G	דָּבָר	da.var	H:N-M	word	ONLINE-BIBLE-MEANING-SENTINEL-003
+H1697	H1697H = a Meaning of	H1697G	דָּבָר	da.var	H:N-M	word: speaking	ONLINE-BIBLE-MEANING-SENTINEL-004
+H0430	H0430G = a Name of	H3068G	אֱלֹהִים	e.lo.him	H:N-M	God	ONLINE-BIBLE-MEANING-SENTINEL-005
+H6213b	H6213B =	H6213B	עָשָׂה	a.sah	H:V	to press	ONLINE-BIBLE-MEANING-SENTINEL-006
+H6213a	H6213H =	H6213H	עָשָׂה	a.sah	H:V	to make	ONLINE-BIBLE-MEANING-SENTINEL-007
+H6213a	H6213I = a Meaning of	H6213H	עָשָׂה	a.sah	H:V	to make: offer	ONLINE-BIBLE-MEANING-SENTINEL-008
+H1870	H1870H =	H1870H	דֶּ֫רֶךְ	de.rekh	H:N-M	Way	ONLINE-BIBLE-MEANING-SENTINEL-009
+H1870	H1870J = a Meaning of	H1870K	דֶּ֫רֶךְ	de.rekh	H:N-M	way: direction	ONLINE-BIBLE-MEANING-SENTINEL-010
+H1870	H1870K =	H1870K	דֶּ֫רֶךְ	de.rekh	H:N-M	way: road	ONLINE-BIBLE-MEANING-SENTINEL-011
+H5650	H5650 =	H5650	עֶ֫בֶד	e.ved	H:N-M	servant/slave	ONLINE-BIBLE-MEANING-SENTINEL-012
+H6635a	H6635A =	H6635A	צָבָא	tsa.va	H:N-M	army	ONLINE-BIBLE-MEANING-SENTINEL-013
+H6635b	H6635B = a Name of	H3068G	צָבָא	tsa.va	N:N-M-T	Hosts	ONLINE-BIBLE-MEANING-SENTINEL-014
+H7451a	H7451A =	H7451A	רַע	ra	H:A	bad: harmful	ONLINE-BIBLE-MEANING-SENTINEL-015
+H7451c	H7451C = a Spelling of	H7451A	רָעָה	ra.ah	H:N-F	distress: harm	ONLINE-BIBLE-MEANING-SENTINEL-016
