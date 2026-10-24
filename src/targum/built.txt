@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-23
+Met in from a Torah book opens the portion at the verse, with the word marked.
+The Library in Russian gives the name and description of each text in Russian.
+News in the Library says Subscribed on a topic you follow, and opens that subscription.
+
 2026-10-22
 A podcast episode carries the artwork of its show as its picture.
 A Hebrew verb's card names the binyan it takes on that line, and shows that binyan's table.
