@@ -43,6 +43,9 @@
 .lib-row .byline { font-size: 0.8125rem; color: var(--muted); }
 .lib-row .blurb { font-size: 0.875rem; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .lib-row .byline:empty, .lib-row .blurb:empty { display: none; }
+/* A Hebrew byline or blurb reads right to left, and stands at the card's start edge with
+   the title above it rather than across the card from it. */
+.lib-row .byline[dir="auto"], .lib-row .blurb[dir="auto"] { justify-self: start; max-inline-size: 100%; }
 
 @media (hover: none) and (pointer: coarse) {
   .lib-all, .lib-back { display: inline-flex; align-items: center; min-block-size: 44px; }
