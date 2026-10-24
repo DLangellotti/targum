@@ -12,7 +12,10 @@ body.public {
   padding: 0 1.5rem 4rem;
   background: var(--paper);
   color: var(--ink);
-  font-family: system-ui, sans-serif;
+  /* The chrome's face, which the page carries (`chrome_face`), as the front door does:
+     the platform's face was SF on a Mac beside the landing's Source Sans 3, two faces across the
+     public pages (#477, polish 5). */
+  font-family: var(--chrome);
 }
 
 .public .corner {

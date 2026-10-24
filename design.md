@@ -400,6 +400,14 @@ David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-inte
   Ki Tavo's sixth 1.77 s → 1.44–1.53 s, Bereshit's first 1.39 s → 1.19–1.22 s. The
   longest aliyah is still at the second and a half, not under it.
 
+### The signed-out Library wears the landing's desk look — 2026-10-24
+
+David, 2026-10-24 (targum-internal#519). The signed-out Library wears the landing's desk
+look (ground, face, sans titles) so the public front reads as one place. It takes the
+front door's bar, ground, cards and Source Sans 3, with its titles in the sans at 600 as
+the landing sets them, not the desk page's serif title (2026-10-09). The text and legal
+pages keep their sheet, in the chrome's face.
+
 ### A first visit wears the platform's face for a moment — 2026-10-23
 
 David, 2026-10-23 (targum-internal#484, targum#920). A desk page sent whole (a first
@@ -4898,7 +4906,10 @@ Now they are drawn as the landing is, from the landing's own parts:
 
 - **The bar is the landing's** (`_front_bar.html.j2`, which the landing includes too):
   glass, sticky, the lockup, the landing's places, EN / RU, Sign in, and **Join the
-  waitlist** as the one ink call to action (§9).
+  waitlist** as the one ink call to action (§9). **On a phone it keeps Sign in**
+  (targum-internal#528, 2026-10-24): under 30rem the places go, the gaps tighten and the
+  language shows only the code you can press, and under 23.25rem the language goes to the
+  foot. Sign in and the waitlist stay on the one line at 320, each with its 44px reach.
 - **The hero is the landing's**, on the desk's ground (§13): the chrome's sans at the
   landing display step (§5), the lede under it, and the waitlist's form
   (`_join_form.html.j2`) with the line that says what happens next. Reading is the second

@@ -236,6 +236,13 @@ MORPHALOU = (
     "https://repository.ortolang.fr/api/content/morphalou/5/licenceLGPLLR.txt",
     "https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/morphalou_corrections.tsv",
 )
+#: STEP Bible, whose brief glosses a Tanakh card shows, the licence and targum's note of
+#: what it changed, named at the foot of a page whose glossary shows one
+#: (targum-internal#510). Case as STEP Bible writes its own address.
+STEP_BIBLE = (
+    "https://www.STEPBible.org",
+    "https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/tbesh_changes.tsv",
+)
 OUTBOUND = (
     PEALIM,
     LICENCE,
@@ -247,6 +254,7 @@ OUTBOUND = (
     OPENRUSSIAN,
     *RUSSIAN_WORDS,
     *MORPHALOU,
+    *STEP_BIBLE,
 )
 
 
@@ -5131,6 +5139,65 @@ def test_a_reader_dicta_read_names_dicta_and_one_that_stanza_read_does_not(
         assert link in read_here
     assert "https://creativecommons.org/licenses/by-sa/3.0/" in read_here
     assert "spacy.io" not in read_by_dicta
+
+
+def test_a_page_showing_a_step_bible_gloss_names_step_bible(
+    tmp_path: Path,
+    segmented: SegmentedDocument,
+    translation: Translation,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CC BY 4.0 and STEP Bible's README ask for "STEP Bible" linked, the licence named
+    and the changes noted wherever the glosses are used (targum-internal#510). Keyed to
+    the glossary: a page whose meanings were all bought shows none of them."""
+    from targum.annotate import oshb
+    from targum.models import Annotation, Glossary, Token
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path / "models"))
+    (tmp_path / "models" / "oshb").mkdir(parents=True)
+    (tmp_path / "models" / "oshb" / oshb.TBESH_FILE).write_text(
+        json.dumps({"4430": "king"}), encoding="utf-8"
+    )
+    oshb.forget()
+    document = Document(
+        source="memory", title="Daniel", language="he", blocks=[], content_hash="abc123"
+    )
+    king = Token(start=0, end=4, surface="מלכא", lemma="מלך", band=1, pos="NOUN", lexeme="4430")
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="oshb/7",
+        method="frequency",
+        method_note="note",
+        tokens={segmented.segments[0].id: [king]},
+    )
+
+    def page(gloss: str, out: str) -> str:
+        glossary = Glossary(
+            source_language="he", target_language="en", provider="p", entries={"מלך": gloss}
+        )
+        return render(
+            document,
+            segmented,
+            [translation],
+            tmp_path / out,
+            annotation=annotation,
+            glossaries={"en": glossary},
+        )[0].read_text(encoding="utf-8")
+
+    shown = page("king", "shown")
+    assert "Meanings from" in shown
+    for link in (*STEP_BIBLE, "https://creativecommons.org/licenses/by/4.0/"):
+        assert link in shown
+    assert "shortened by targum" in shown
+    # And through the allowlist in the same run, so the entries above are exercised:
+    # without them this page's own credit would fail it.
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", shown):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+    bought = page("a monarch", "bought")
+    assert "STEPBible" not in bought and "Meanings from" not in bought
+    oshb.forget()
 
 
 def test_two_words_with_one_spelling_are_two_rows_with_one_lemma(tmp_path: Path) -> None:

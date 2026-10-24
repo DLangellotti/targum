@@ -1864,6 +1864,34 @@ def test_the_catalogue_opens_when_the_deployment_says_so(
         server.shutdown()
 
 
+def test_a_kind_page_is_public_and_kept_out_of_search_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A kind's "All N →" on the public Library (targum-internal#519) answers anybody,
+    says noindex, and says it only for itself: one connection kept alive is one handler,
+    and the header used to ride on to every page after it."""
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    port, _, server = hosted(tmp_path)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    try:
+        from targum.catalogue import CATALOGUE
+
+        one = CATALOGUE[0]
+        connection.request("GET", f"/library/k/{one.language}/{one.kind.value}")
+        first = connection.getresponse()
+        assert first.status == 200 and b'class="lib-row"' in first.read()
+        assert first.getheader("X-Robots-Tag") == "noindex"
+        connection.request("GET", "/library")
+        second = connection.getresponse()
+        second.read()
+        assert second.status == 200 and second.getheader("X-Robots-Tag") is None
+        assert call(port, "GET", "/library/k/he/nothing")[0] == 404
+        assert "/library/k/" not in call(port, "GET", "/sitemap.xml")[1].decode("utf-8")
+    finally:
+        connection.close()
+        server.shutdown()
+
+
 def test_the_holding_page_offers_one_thing_to_press(tmp_path: Path) -> None:
     """ "Coming soon" was a pill first and read as a button on a page with nothing else
     to press, which is a promise the page cannot keep."""

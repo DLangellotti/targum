@@ -12,12 +12,65 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- "Learned on targum" counts a word marked anything other than known that later became
+  known (David, 2026-10-24). The count already took new, still learning and almost
+  known; it now takes ignored too, and the note under it says what it counts in plain
+  words, in English and in Russian (a draft for David's read). A word first marked known,
+  or claimed on "Words you may already know", still does not count. Undo after an
+  ignore hands back a known word without counting it. The store keeps a word's current
+  stage and a flag written when it crosses to known, not a history of its stages, so
+  words that crossed from ignored before this change are not counted.
+- A conjugation table for the hollow, geminate and I-nun verbs Open Scriptures files under
+  their root (grammar/8 part (a); targum-internal#509 and #307). בוא in hif'il now draws
+  הֵבִיא, נגש draws הִגִּישׁ and תמם draws תַּם: the table indexes each such verb under the
+  roots its pointed lemma allows, and a qal's hollow letter is the one its own forms spell,
+  so Job's שׁוּר "behold" never gets שָׁר "sang". Strong's שום is looked up as שים. Render
+  time only, with no annotator rename: measured over the library's 114,291 verb tokens,
+  coverage goes from 83.8% to 86.5% and "no candidate" from 14,768 to 11,694, with nothing
+  new refused. The card's stored root waits for the grammar/8 re-read.
 - The connector hands a Torah portion's lines to a host (targum-internal#527).
   `open_library_text` read a portion's sentences from `read/<folder>/`, but a portion's
   build is in `read/<folder>/print/`, beside its readers, as `ship-parasha.sh` leaves it.
   So parasha-bereshit came back with no `lines` and no `how_to_read`, and Claude fetched
   the page instead. It now reads them from `print/`. The connector eval has a portion
   scenario. Daily cycles are not library rows and never came through this tool.
+- A Tanakh word's card says what it means in a word or two, from STEP Bible's brief
+  lexicon, where it read Strong's King James thickets, typos included ("by
+  extenssion"; targum-internal#510, David 2026-10-24, licence and spec by ling-he).
+  בָּרָא is "to create", רוּחַ "spirit", עֶבֶד "servant; slave". Only the Gloss column of
+  TBESH is read (Tyndale House, CC BY 4.0); its Meaning column is Online Bible's and is
+  never read, stored or shipped, and a test fails if any reaches the table. The file is
+  fetched at a pinned commit by `targum models fetch scripture`, which `deploy.sh` now
+  runs before the rebuild, and never vendored. One gloss per Strong's number, the letter
+  the Tanakh uses most, so every עָשָׂה is "to make" and none "to press". A name never
+  stands for the word: דֶּרֶךְ is "way", not "Way", סוּס "horse", not "Horse (Gate)",
+  and צָבָא "army", not "Hosts". A deploy that cannot reach STEP Bible warns and goes on.
+  `annotate/tbesh_changes.tsv` is both the change note the licence asks for and the hand
+  fixes (רע "bad", כֵּן "so", פֶּה "mouth", טוֹב "good"). Where TBESH has nothing, Strong's stays. Reader pages whose
+  meanings show one, and the How page, say "Meanings from STEP Bible · CC BY 4.0 ·
+  shortened by targum", linked. No annotator rename and no spend; parasha and daily need
+  a re-cut after the deploy.
+- The signed-out Library stands by language and kind (targum-internal#519). It was one
+  list of 1,315 texts in five languages under a line about Hebrew, about 237,000px tall
+  at 1440, with the waitlist under all of it. Now Hebrew comes first, then each other
+  language by its size, each headed with its count, and inside each the signed-in
+  Library's kinds, six texts apiece with "All N →" to a page of that kind
+  (`/library/k/<language>/<kind>`, noindex for now). Under the lede, "Free to read once
+  you're in." and Join the waitlist. It wears the front door's bar, ground, cards and
+  face (David, 2026-10-24) and carries no script and no reader stylesheet: 806 kB became
+  201 kB (84 kB gzipped) in English. The text and legal pages speak in the chrome's face
+  too, not the platform's (#477, polish 5), and a Hebrew word inside a Latin byline says
+  it is Hebrew (#477, polish 10). A noindex no longer rides on to the next page of a
+  kept-alive connection. A language the visitor pressed (`?lang=ru`) goes on every link
+  the page draws, and a kind of videos counts videos.
+- The public bar keeps Sign in on a phone (targum-internal#528). Under 30rem it used to
+  drop it, so a reader coming back with an account had no way in from the top of the
+  landing, the olim's page, the signed-out Library or a kind page: the foot's Sign in
+  was 8,100px down on the landing and about 26,000px on the Library. It stays now, on
+  the bar's one line beside Join the waitlist at 320 and 390 in English and Russian,
+  44px across and up under touch, carrying a pressed `?lang=`. To make room the phone
+  bar tightens its gaps and shows only the language you can press; under 23.25rem the
+  language waits in the foot, as it did under 22.5rem.
 - A word on the longest aliyah answers its first tap about a quarter of a second sooner
   on a phone (targum-internal#503). Phone profile with recordings, across builder's and
   qa's runs: Ki Tavo's sixth 1.77 s → 1.44–1.53 s, Bereshit's first 1.39 s →

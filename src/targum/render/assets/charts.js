@@ -315,6 +315,15 @@
    * own row of tiles under the ledger, which meant the same words were counted twice on
    * one page in two different shapes — and said twice, since "phrases saved" was in both.
    */
+  /* Whether a change of stage makes a word one learned on targum (David, 2026-10-24):
+   * it is arriving at known from any stage it held here other than known — new, still
+   * learning, almost known, or ignored. A word that was never on the list, or was known
+   * already, is one the reader had. Asked before the change lands, because the answer is
+   * in the stage it is leaving; the reader asks the same thing in its own `learnedNow`. */
+  function learnedBy(was, now) {
+    return now === KNOWN && was !== undefined && was !== null && was !== KNOWN;
+  }
+
   function totals(entry) {
     var words = kept(entry.words);
     var known = 0;
@@ -325,10 +334,10 @@
     words.forEach(function (word) {
       if (word.status === KNOWN) known += 1;
       else if (word.status >= 1 && word.status <= 3) learning += 1;
-      // Saved at a level below known and now known: a word targum taught somebody, rather
-      // than one they opened a text already having and ticked off. The flag is written
-      // when the word crosses, because nothing in a finished record can say afterwards
-      // which of the two it was.
+      // Held at any stage other than known and now known: a word targum taught somebody,
+      // rather than one they opened a text already having and ticked off. The flag is
+      // written when the word crosses (`learnedBy`), because nothing in a finished record
+      // can say afterwards which of the two it was.
       if (word.status === KNOWN && word.learned) learned += 1;
       if (word.at > weekAgo && word.at > EARLIEST) recent += 1;
     });
@@ -799,6 +808,7 @@
     tipFor: tipFor,
     growth: drawGrowth,
     totals: totals,
+    learnedBy: learnedBy,
     collect: collect,
     days: days,
     longest: longest,

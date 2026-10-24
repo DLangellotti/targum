@@ -43,6 +43,7 @@ from ..annotate.base import (
     kind_of,
     method_label,
 )
+from ..annotate.gloss import from_step_bible
 from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed, qatan
 from ..models import (
@@ -115,19 +116,24 @@ def verse_address(ref: str) -> str:
     return f"{found[1]}:{found[2]}" if found else ""
 
 
-def isolate(text: str, direction: str) -> Markup:
+def isolate(text: str, direction: str, lang: str = "") -> Markup:
     """Wrap opposite-direction runs in <bdi>.
 
     Without this, a year or a Latin name inside a Hebrew sentence drags its punctuation
     to the wrong end of the line. The browser's own bidi algorithm is correct and still
     produces this, because it has no way to know where the embedded run ends.
+
+    `lang` names the language of the runs it wraps, where the caller knows it: a Hebrew
+    word inside a Latin byline ("Omid Memarian, תרגם Gallia Hoz") was read with the
+    page's English voice (design's #477 pass, polish 10).
     """
     pattern = _LATIN_RUN if direction == "rtl" else _RTL_RUN
+    named = f' lang="{escape(lang)}"' if lang else ""
     parts: list[str] = []
     position = 0
     for match in pattern.finditer(text):
         parts.append(str(escape(text[position : match.start()])))
-        parts.append(f"<bdi>{escape(match.group())}</bdi>")
+        parts.append(f"<bdi{named}>{escape(match.group())}</bdi>")
         position = match.end()
     parts.append(str(escape(text[position:])))
     return Markup("".join(parts))
@@ -3644,11 +3650,122 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
     return rows
 
 
-def shelf_page(address: str = "", language: str = "en") -> str:
+#: The kinds the public shelf stands its texts under, in the order the signed-in
+#: Library's chips stand them (`KINDS` in `library.js`), and the words each is called by
+#: there. One list for every language: a kind with nothing in a language is not drawn.
+_SHELF_KINDS: tuple[tuple[str, str], ...] = (
+    ("dialogue", "Dialogues"),
+    ("story", "Stories"),
+    ("article", "News"),
+    ("novel", "Novels"),
+    ("essay", "Essays"),
+    ("talk", "Videos"),
+    ("prose", "Tanakh"),
+    ("poetry", "Poetry"),
+    ("document", "Documents"),
+    ("play", "Plays"),
+    ("liturgy", "Prayer"),
+)
+
+#: How many texts a kind shows on the Library before its "All N →" (targum-internal#519):
+#: two rows of three on a wide screen, and few enough that no page draws 1,315 rows.
+SHELF_ROWS = 6
+
+
+class _ShelfKind(NamedTuple):
+    """One kind of text in one language: what it is called, how many there are, the
+    rows it shows, and the address of all of them."""
+
+    kind: str
+    name: str
+    size: int
+    rows: list[_ShelfRow]
+    at: str
+
+
+class _ShelfLanguage(NamedTuple):
+    code: str
+    name: str
+    size: int
+    kinds: list[_ShelfKind]
+
+
+def _first_rows(entries: Sequence[Entry], held: Mapping[str, str]) -> list[Entry]:
+    """A kind's first `SHELF_ROWS`, one from each collection before a second from any:
+    thirty-nine of Berdichevsky's stories are one place to start, and a kind that showed
+    six of them would say the shelf has one author. Kept in the catalogue's order."""
+    picked: list[Entry] = []
+    seen: set[str] = set()
+    for entry in entries:
+        group = held.get(entry.id, "")
+        if group and group in seen:
+            continue
+        if group:
+            seen.add(group)
+        picked.append(entry)
+        if len(picked) == SHELF_ROWS:
+            break
+    if len(picked) < SHELF_ROWS:
+        chosen = {entry.id for entry in picked}
+        picked += [entry for entry in entries if entry.id not in chosen][: SHELF_ROWS - len(picked)]
+    order = {entry.id: n for n, entry in enumerate(entries)}
+    return sorted(picked, key=lambda entry: order[entry.id])
+
+
+def _shelf_languages(
+    entries: Sequence[Entry], language: str, *, every: bool = False
+) -> list[_ShelfLanguage]:
+    """The catalogue as the public Library stands it (targum-internal#519): Hebrew first,
+    then each other language by how much it has, and inside each the kinds in the
+    signed-in Library's order. `every` keeps all of a kind's rows, for its own page."""
+    from ..catalogue import collections
+
+    say = page_words(language)
+    names = dict(_language_names(language))
+    held = {member: c.id for c in collections() for member in c.members}
+    by_language: dict[str, list[Entry]] = {}
+    for entry in entries:
+        by_language.setdefault(entry.language, []).append(entry)
+    order = sorted(by_language, key=lambda code: (code != "he", -len(by_language[code]), code))
+    shelves = []
+    for code in order:
+        kinds = []
+        for kind, english in _SHELF_KINDS:
+            these = [entry for entry in by_language[code] if entry.kind.value == kind]
+            if not these:
+                continue
+            shown = these if every else _first_rows(these, held)
+            kinds.append(
+                _ShelfKind(
+                    kind=kind,
+                    name=str(say(f"library.kind.{kind}", english)),
+                    size=len(these),
+                    rows=_shelf_rows(shown, language),
+                    at=kind_address(code, kind),
+                )
+            )
+        listed = sum(one.size for one in kinds)
+        if listed:
+            shelves.append(_ShelfLanguage(code, names.get(code, code), listed, kinds))
+    return shelves
+
+
+def kind_address(language: str, kind: str) -> str:
+    """Where all of one language's texts of one kind are: `/library/k/he/story`."""
+    return f"/library/k/{language}/{kind}"
+
+
+def shelf_page(address: str = "", language: str = "en", asked: str = "") -> str:
     """The catalogue, for somebody who has not signed in.
 
     Public on purpose. It is the shop window, and until it exists there is nothing for a
     search engine to find but a page saying "Coming soon".
+
+    Since targum-internal#519 it stands the catalogue by language and kind, the way the
+    signed-in Library does, and shows each kind's first rows with a way to all of them:
+    one list of 1,315 texts in five languages was 237,000px tall at 1440. It wears the
+    front door's desk, its bar and its face (David, 2026-10-24), so the public front reads
+    as one place.
     """
     from ..catalogue import everything
     from ..strings import text
@@ -3657,19 +3774,81 @@ def shelf_page(address: str = "", language: str = "en") -> str:
     # and the description a search result shows (targum-internal#188).
     name, blurb = text("nav.library", language), text("library.head.description", language)
     _shelf_at = _addressed_in(f"{address}/library" if address else "", language)
+    shelves = _shelf_languages(everything(), language)
     return (
         _environment()
         .get_template("shelf.html.j2")
         .render(
             t=page_words(language),
+            tn=page_counts(language),
             page_language=_page_language(language),
             title=f"{name} — targum",
             description=blurb,
             canonical=_shelf_at[0],
             alternates=_shelf_at[1],
             shelf_name=name,
-            shelf_blurb=blurb,
-            rows=_shelf_rows(everything(), language),
+            total=_grouped(sum(one.size for one in shelves), language),
+            total_n=sum(one.size for one in shelves),
+            shelves=shelves,
+            here="/library",
+            asked=asked,
+        )
+    )
+
+
+def kind_page(
+    code: str, kind: str, address: str = "", language: str = "en", asked: str = ""
+) -> str | None:
+    """Every text of one kind in one language, for somebody who has not signed in: what
+    a kind's "All N →" on the public Library opens (targum-internal#519). None where the
+    shelf has no such texts, so the route can answer 404.
+
+    Not indexed for now (`robots`): whether these pages should be is David's call, and a
+    noindex page's links are still followed to the texts, which are."""
+    from ..catalogue import everything
+    from ..strings import text
+
+    mine = [entry for entry in everything() if entry.language == code]
+    shelves = _shelf_languages(mine, language, every=True)
+    found = next((one for shelf in shelves for one in shelf.kinds if one.kind == kind), None)
+    if found is None:
+        return None
+    shelf = shelves[0]
+    library = text("nav.library", language)
+    heading = f"{shelf.name} · {found.name}"
+    at = kind_address(code, kind)
+    _kind_at = _addressed_in(f"{address}{at}" if address else "", language)
+    counts = page_counts(language)
+    # Videos are counted as videos: "178 texts" headed Russian · Videos (design, #925).
+    noun = ("videos", "{count} video", "{count} videos") if kind == "talk" else None
+    count_line = counts(
+        f"shelf.page.{noun[0] if noun else 'texts'}",
+        found.size,
+        noun[1] if noun else "{count} text",
+        noun[2] if noun else "{count} texts",
+        count=_grouped(found.size, language),
+    )
+    return (
+        _environment()
+        .get_template("shelf.html.j2")
+        .render(
+            t=page_words(language),
+            tn=counts,
+            page_language=_page_language(language),
+            title=f"{heading} — {library} — targum",
+            description=str(count_line),
+            canonical=_kind_at[0],
+            alternates=_kind_at[1],
+            robots="noindex",
+            shelf_name=heading,
+            library=library,
+            total=_grouped(found.size, language),
+            total_n=found.size,
+            shelves=[shelf._replace(kinds=[found], size=found.size)],
+            kind_page=True,
+            count_line=count_line,
+            here=at,
+            asked=asked,
         )
     )
 
@@ -5501,6 +5680,13 @@ def render(
     # A commentary's own words come before their translation: Rashi, then Rashi in
     # English, the way the Metsudah page sets them.
     own_language = segmented.language.split("-")[0]
+    # STEP Bible's brief glosses, named where a glossary shows one (targum-internal#510).
+    # Asked once of the whole text: the tables of meanings ride every page of it.
+    glosses_credit = any(
+        from_step_bible(annotation, book.entries)
+        for code, book in (glossaries or {}).items()
+        if code.split("-")[0] == "en"
+    )
 
     def beside_order(t: Translation) -> tuple[int, int]:
         if not with_companions:
@@ -6386,6 +6572,7 @@ def render(
             # the reader. Keyed off what actually ran: a text annotated before the swap
             # carries Stanza's name and gets no DICTA credit it did not earn.
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
+            glosses_credit=glosses_credit,
             # Russian's words read here (annotate/russian.py), named the same way and on the
             # same key: the carve-out in LICENSING.md promised it, and OpenCorpora's
             # CC BY-SA asks it.
