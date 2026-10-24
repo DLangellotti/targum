@@ -41,6 +41,16 @@
     return head;
   }
 
+  /* What the page's head already asked for, by address, each taken once
+     (`TARGUM_SHELF_ASKED`, #484): the shelf's files, `/readers`, `/jobs` and `/portions`,
+     which waited for the whole page to arrive when they were asked from here. */
+  var askedEarly = window.TARGUM_SHELF_ASKED || {};
+  function early(address) {
+    var going = askedEarly[address];
+    delete askedEarly[address];
+    return going;
+  }
+
   var names = window.TARGUM_LANGUAGES || {};
   /* The shelf: the catalogue, its collections and targum's own playlists. A file of its
      own the page asks for once it is up (`TARGUM_SHELF_FILE`, targum-internal#484), so
@@ -190,11 +200,15 @@
   }
 
   function ask(path, body) {
-    return fetch(keyed(path), {
-      method: body ? "POST" : "GET",
-      headers: keyHeaders({ "Content-Type": "application/json" }),
-      body: body ? JSON.stringify(body) : undefined,
-    }).then(function (response) {
+    var going = !body && early(path);
+    return (
+      going ||
+      fetch(keyed(path), {
+        method: body ? "POST" : "GET",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: body ? JSON.stringify(body) : undefined,
+      })
+    ).then(function (response) {
       return response.json();
     });
   }
@@ -204,7 +218,8 @@
      drawn as a first visit's. `ask` stays as it is for the presses, whose refusals carry
      the sentence to show in their `error`. */
   function askShelf(path) {
-    return fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) }).then(
+    var going = early(path);
+    return (going || fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) })).then(
       function (response) {
         if (!response.ok) throw new Error(String(response.status));
         return response.json();
@@ -536,14 +551,16 @@
   /* Where a text sits inside its own collection, so an ordered one keeps its order. */
   var PLACE_IN = {};
 
-  /* Every row's id in the catalogue's order, from the shelf's common file: what is in
-     the catalogue at all, whichever languages' rows have arrived. */
+  /* Every row's id in the catalogue's order, from the shelf's `order` file once the page
+     has drawn: what is in the catalogue at all, whichever languages' rows have arrived.
+     Until then the rows that have arrived stand in, which for the one line that reads it,
+     under a language with no shelf, is the same answer. */
   var listedIds = null;
 
   /* The shelf's common file has arrived: collections and sets, and the ids. */
   function shelved(shelf) {
     if (shelf && shelf.catalogue) catalogue = shelf.catalogue;
-    listedIds = (shelf && shelf.ids) || null;
+    listedIds = (shelf && shelf.ids) || listedIds;
     collections = (shelf && shelf.collections) || [];
     sets = (shelf && shelf.sets) || [];
     collections.forEach(function (group) {
@@ -2018,21 +2035,24 @@
     var state = open.querySelector(".row-state");
     open.disabled = true;
     tell(state, t("library.build.getting-ready", "We're getting it ready…"));
-    ask("/prepare", {
-      source: entry.source,
-      // The language this reader reads into, not English by assumption. They read in
-      // two; a button that always bought one of them would be a button that reads their
-      // mind wrong half the time. Clamped to what the account is offered, so a
-      // remembered choice that no longer stands asks for English rather than a refusal.
-      to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
-      from: entry.language,
-      words: true,
-      gloss: false,
-      // Every published translation this text has. The reader switches between them.
-      translations: entry.translations.map(function (t) {
-        return t.source;
-      }),
-    })
+    buildReady(entry)
+      .then(function () {
+        return ask("/prepare", {
+          source: entry.source,
+          // The language this reader reads into, not English by assumption. They read in
+          // two; a button that always bought one of them would be a button that reads their
+          // mind wrong half the time. Clamped to what the account is offered, so a
+          // remembered choice that no longer stands asks for English rather than a refusal.
+          to: window.TargumSync ? window.TargumSync.into(lang.into()) : lang.into() || "en",
+          from: entry.language,
+          words: true,
+          gloss: false,
+          // Every published translation this text has. The reader switches between them.
+          translations: (entry.translations || []).map(function (t) {
+            return t.source;
+          }),
+        });
+      })
       .then(function (job) {
         if (job.error) throw new Error(job.error);
         if (job.blocked) throw new Error(job.blocked);
@@ -2433,7 +2453,8 @@
   var shelfIn = {};
 
   function askShelfFile(address) {
-    return fetch(address, { credentials: "same-origin" }).then(function (answer) {
+    var going = early(address);
+    return (going || fetch(address, { credentials: "same-origin" })).then(function (answer) {
       if (!answer.ok) throw new Error(String(answer.status));
       return answer.json();
     });
@@ -2444,8 +2465,17 @@
     code = base(code);
     if (!shelfFiles || !shelfFiles[code] || shelfIn[code]) return Promise.resolve();
     if (!shelfAsked[code]) {
-      shelfAsked[code] = askShelfFile(shelfFiles[code]).then(
-        function (got) {
+      // The rows' blurbs are files of their own, one per page language (`shelf_files`):
+      // this page's, asked beside the rows, and the English after them where this page is
+      // in another language, for search.
+      var english = shelfFiles[code + ".en"];
+      var saidHere = shelfFiles[code + "." + uiLanguage] || english;
+      shelfAsked[code] = Promise.all([
+        askShelfFile(shelfFiles[code]),
+        saidHere ? askShelfFile(saidHere) : null,
+      ]).then(
+        function (both) {
+          var got = both[0];
           var have = {};
           catalogue.forEach(function (entry) {
             have[entry.id] = true;
@@ -2454,6 +2484,18 @@
             if (!have[entry.id]) catalogue.push(entry);
             have[entry.id] = true;
           });
+          sayOn(both[1]);
+          if (shelfFiles[code + ".build"]) {
+            buildCodes[code] = true;
+            onceDrawn(function () {
+              askBuild(code).catch(function () {});
+            });
+          }
+          if (english && english !== saidHere) {
+            onceDrawn(function () {
+              askShelfFile(english).then(sayOn, function () {});
+            });
+          }
           catalogue.sort(function (a, b) {
             return (a.place || 0) - (b.place || 0);
           });
@@ -2466,6 +2508,67 @@
       );
     }
     return shelfAsked[code];
+  }
+
+  /* What a Build press sends, a row's source and its published translations: a file per
+     language (`"<code>.build"`), asked after the first draw. A press that comes first
+     waits for it; one after it failed asks again; and a press is never sent without a
+     source: when the file still does not arrive, the row says it could not start. */
+  var buildCodes = {};
+  var buildAsked = {};
+  function askBuild(code) {
+    if (!buildAsked[code]) {
+      buildAsked[code] = askShelfFile(shelfFiles[code + ".build"]).then(buildOn, function (why) {
+        delete buildAsked[code];
+        throw why;
+      });
+    }
+    return buildAsked[code];
+  }
+  function buildOn(got) {
+    var by = (got && got.build) || {};
+    catalogue.forEach(function (entry) {
+      var one = by[entry.id];
+      if (one && entry.source === undefined) {
+        entry.source = one.source;
+        entry.translations = one.translations || [];
+      }
+    });
+  }
+  function buildReady(entry) {
+    if (entry.source !== undefined) return Promise.resolve();
+    return Promise.all(
+      Object.keys(buildCodes).map(function (code) {
+        return askBuild(code).catch(function () {});
+      })
+    ).then(function () {
+      if (!entry.source) {
+        throw new Error(t("library.build.could-not-start", "We couldn't start this one. Try again."));
+      }
+    });
+  }
+
+  /* After the first draw, or now if it is past: what the first card does not need. */
+  var drawnYet = false;
+  function onceDrawn(then) {
+    if (drawnYet) return then();
+    window.addEventListener("targum:drawn", function () {
+      then();
+    }, { once: true });
+  }
+
+  /* A blurbs file onto the rows it names: the page language's, and the English where a
+     row has none in it (or, from the English file, for every row). */
+  function sayOn(said) {
+    var theirs = (said && said.blurbs) || {};
+    var english = (said && said.blurb) || {};
+    catalogue.forEach(function (entry) {
+      if (theirs[entry.id]) {
+        entry.blurbs = entry.blurbs || {};
+        entry.blurbs[uiLanguage] = theirs[entry.id];
+      }
+      if (english[entry.id] && !entry.blurb) entry.blurb = english[entry.id];
+    });
   }
 
   function shelfReady(code) {
@@ -2493,12 +2596,23 @@
     // account's, else Hebrew.
     var likely = lang.current(
       Object.keys(shelfFiles)
-        .filter(Boolean)
+        .filter(function (key) {
+          // A language's rows: not the common file, the order or a language's blurbs.
+          return /^[a-z]{2,3}$/.test(key);
+        })
         .concat([lang.HOME])
     );
     shelfHere = Promise.all([askShelfFile(shelfFiles[""]), shelfFor(likely)]).then(function (both) {
       shelved(both[0]);
     });
+    // The catalogue's whole order, which the first card does not need.
+    if (shelfFiles.order) {
+      onceDrawn(function () {
+        askShelfFile(shelfFiles.order).then(function (got) {
+          if (got && got.ids) listedIds = got.ids;
+        }, function () {});
+      });
+    }
   } else if (window.TARGUM_CATALOGUE) {
     shelved({
       catalogue: window.TARGUM_CATALOGUE,
@@ -3358,5 +3472,16 @@
     // Nothing to list, because nothing could be asked: said, with the press that asks
     // again (Library QA, 2026-10-20). It was swallowed, and the page stood empty under
     // its search box with nothing to say why.
-    .catch(couldNot);
+    .catch(couldNot)
+    // Drawn, or said why not: a page sent whole puts its faces on now, not before, so
+    // their bytes never stand in front of the shelf's (`warm.js`, #484).
+    .then(function () {
+      drawnYet = true;
+      // Said before the event too: `warm.js` at the foot may start listening only after
+      // a shelf asked from the head has already been drawn.
+      window.TARGUM_DRAWN = true;
+      try {
+        window.dispatchEvent(new CustomEvent("targum:drawn"));
+      } catch (e) {}
+    });
 })();
