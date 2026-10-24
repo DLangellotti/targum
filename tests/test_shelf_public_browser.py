@@ -88,14 +88,16 @@ READ = """() => {
   const first = rows.slice(0, 3).map((row) => Math.round(row.getBoundingClientRect().top));
   const reach = Math.min(...rows.slice(0, 12).map((row) => {
     const link = row.querySelector('a');
-    // On screen first: elementFromPoint answers only inside the viewport.
-    row.scrollIntoView({ block: 'center' });
+    // On screen first, at once (the front door scrolls smoothly): elementFromPoint
+    // answers only inside the viewport.
+    row.scrollIntoView({ block: 'center', behavior: 'instant' });
     const box = row.getBoundingClientRect();
-    // What a tap in the card's corner lands on: the row's own link, through ::after.
-    const hit = document.elementFromPoint(box.left + 6, box.bottom - 6);
+    // What a tap on the blurb, low in the card, lands on: the row's own link, through
+    // its ::after. Not the very corner, which the card's radius rounds away.
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.bottom - 10);
     return hit && (hit === link || link.contains(hit)) ? box.height : 0;
   }));
-  window.scrollTo(0, 0);
+  window.scrollTo({ top: 0, behavior: 'instant' });
   const hebrew = /[\\u0590-\\u05FF]/;
   const loose = [];
   const walker = document.createTreeWalker(document.querySelector('main'), NodeFilter.SHOW_TEXT);
