@@ -64,8 +64,15 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
 
     monkeypatch.setattr(mcp_http, "handle", watched)
     path, rows = ec.run(ec.DryHost(), into=tmp_path)
-    assert seen == ["how_to_talk", "suggest_next", "check_job", "quote_build", "search_sources"]
-    assert [row["scenario"] for row in rows] == ["talk", "next", "done", "ready", "news"]
+    assert seen == [
+        "how_to_talk",
+        "suggest_next",
+        "check_job",
+        "quote_build",
+        "search_sources",
+        "open_library_text",
+    ]
+    assert [row["scenario"] for row in rows] == ["talk", "next", "done", "ready", "news", "read"]
     for row in rows:
         assert row["passed"], (row["scenario"], row["checks"])
         assert row["result_bytes"] > 0 and row["tool_calls"] == 1
@@ -79,8 +86,17 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
     assert by["talk"]["first_hebrew_s"] is not None
     # The culture item off the fabricated Russian feed, held to the topic.
     assert "https://news.example.org/ru/culture/101" in by["news"]["turns"][0]["reply"]
+    # Read with me reads the fixture's own lines, which only the tool could have given.
+    assert "Say when you want the next lines." in by["read"]["turns"][0]["reply"]
     written = rows_in(path)
-    assert [row["scenario"] for row in written] == ["talk", "next", "done", "ready", "news"]
+    assert [row["scenario"] for row in written] == [
+        "talk",
+        "next",
+        "done",
+        "ready",
+        "news",
+        "read",
+    ]
     assert all("_results" not in turn for row in written for turn in row["turns"])
 
 
@@ -167,9 +183,9 @@ def test_nothing_leaves_the_machine_for_a_pasted_link(ec: Any, tmp_path: Path) -
     with ec.isolated(tmp_path), ec.stubbed():
         world = ec.build_world(tmp_path)
         text, failed = ec.call_tool(world, 1, "describe_source", {"url": ec.LINK})
-        assert not failed and json.loads(text)["kind"] == "article"
+        assert not failed and ec.json_of(text)["kind"] == "article"
         text, failed = ec.call_tool(world, 2, "quote_build", {"source": ec.LINK})
-    quoted = json.loads(text)["quote"]
+    quoted = ec.json_of(text)["quote"]
     assert not failed and quoted["credits"] == 9 and quoted["open"].startswith(ec.ADDRESS)
 
 
@@ -186,10 +202,40 @@ def test_nikkud_ratio(ec: Any) -> None:
 def test_links_alone(ec: Any) -> None:
     link = "https://targum.page/r/abcdefgh"
     assert ec.links_alone(f"Esther is gentle.\n{link}")
-    assert ec.links_alone(f"- {link}\n<{link}>\n[Esther]({link})")
+    assert ec.links_alone(f"<{link}>\n[{link}]({link})\n**{link}**")
+    # Claude, 2026-10-23: a link inside a sentence (targum-internal#527).
     assert not ec.links_alone(f"Read it here: {link}")
+    assert not ec.links_alone(f"It isn't on your shelf yet: {link}")
     assert not ec.links_alone(f"{link} {link}")
+    # ChatGPT, the same day: behind a title, and in a list item.
+    assert not ec.links_alone(f"[Esther]({link})")
+    assert not ec.links_alone(f"[Open in targum]({link})")
+    assert not ec.links_alone(f"- {link}")
+    assert not ec.links_alone(f"1. [Esther]({link})")
     assert ec.links_alone("no links at all")
+
+
+def test_the_name_is_lowercase(ec: Any) -> None:
+    """ChatGPT, 2026-10-23: "Targum" with a capital (targum-internal#527)."""
+    assert ec.lowercase_name("targum has three for you.\nhttps://targum.page/r/abcdefgh")
+    assert not ec.lowercase_name("Targum has three for you.")
+    assert not ec.lowercase_name("Open it in Targum.")
+    assert ec.lowercase_name("https://Targum.page/r/x"), "a link is not the name written"
+
+
+def test_a_press_link_goes_with_its_credits(ec: Any) -> None:
+    """ChatGPT's third what-next pick, 2026-10-23: a /build link with no cost
+    (targum-internal#527)."""
+    build = "https://targum.page/build/abc"
+    assert ec.press_links_costed(f"Esther needs getting ready, and uses 4 credits.\n{build}")
+    assert ec.press_links_costed(f"It uses 0 credits.\n{build}")
+    assert ec.press_links_costed("Esther.\nhttps://targum.page/r/abcdefgh"), "not a press"
+    assert not ec.press_links_costed(f"Esther needs getting ready.\n{build}")
+    assert not ec.press_links_costed(f"It uses 4 credits.\nKohelet is longer.\n{build}")
+    for press in ("/set/7", "/subscribe?kind=channel", "/r/abcdefgh?hear=1"):
+        assert not ec.press_links_costed(f"Here.\nhttps://targum.page{press}"), press
+    next_turn = turn(f"Esther.\n{build}", [], [("find_text", {}, "{}")])
+    assert not ec.check_next([next_turn])["press_links_costed"]
 
 
 def test_money_and_presses(ec: Any) -> None:
@@ -283,6 +329,66 @@ def test_ready_wants_the_link_alone_credits_and_no_quote(ec: Any) -> None:
     checks = ec.check_ready([bad])
     assert not checks["links_alone"] and not checks["no_money_or_quote"]
     assert not checks["nothing_to_press"] and not checks["says_credits"]
+    # 0 credits is still a cost to say (targum-internal#527).
+    free = json.dumps({"quote": {"open": "https://targum.page/build/abc", "credits": 0}})
+    build = "https://targum.page/build/abc"
+    silent = turn(f"A short article.\n{build}", [], [("quote_build", {}, free)])
+    assert not ec.check_ready([silent])["says_credits"]
+    said = turn(
+        "A short article. It uses 0 credits.\nhttps://targum.page/build/abc",
+        [],
+        [("quote_build", {}, free)],
+    )
+    assert all(ec.check_ready([said]).values()), ec.check_ready([said])
+
+
+def test_read_wants_targum_s_lines_not_memory(ec: Any) -> None:
+    """Claude, 2026-10-23: "Locating the opening verse of Genesis from memory"
+    (targum-internal#527). The text is opened before the first line, and a line read
+    out is one the tool handed over, compared without vowels."""
+    opened = (
+        json.dumps(
+            {"id": "genesis", "lines": [{"n": 1, "text": "בראשית ברא אלהים את השמים ואת הארץ."}]},
+            ensure_ascii=False,
+        )
+        + "\nWrite targum in lowercase."
+    )
+    reply = "בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ\nSay when you want more."
+    good = turn(
+        reply,
+        [["tool", "open_library_text"], ["text", True]],
+        [("open_library_text", {"id": "genesis"}, opened)],
+    )
+    assert all(ec.check_read([good]).values()), ec.check_read([good])
+    remembered = turn(
+        "From memory: בְּרֵאשִׁית בָּרָא אֱלֹהִים",
+        [["text", True], ["tool", "find_text"]],
+        [("find_text", {"query": "Genesis"}, "{}")],
+    )
+    checks = ec.check_read([remembered])
+    assert not checks["opened_before_reading"] and not checks["reads_targum_s_lines"]
+    assert not checks["not_from_memory"]
+
+
+def test_the_read_scenario_says_the_prompt_as_a_host_drops_it_in(ec: Any) -> None:
+    from targum import mcp_http
+
+    said = mcp_http._prompt("read-with-me", arguments={"text": "אסתר"})
+    assert said["messages"][0]["content"]["text"] == ec.READ
+    assert "never from memory" in ec.READ
+
+
+def test_a_result_reaches_the_host_with_its_note(ec: Any, tmp_path: Path) -> None:
+    """`call_tool` hands the model every block, so the eval's host reads the note a real
+    host reads, and the checks still read the tool's own JSON."""
+    with ec.isolated(tmp_path):
+        world = ec.build_world(tmp_path)
+        text, failed = ec.call_tool(world, 1, "open_library_text", {"id": "esther"})
+    assert not failed
+    assert text.splitlines()[-1].startswith(f"{ec.ADDRESS}/r/"), "the link is the last line"
+    assert "Write targum in lowercase." in text
+    got = ec.json_of(text)
+    assert got["lines"] and got["lines"][0]["n"] == 1
 
 
 def test_only_the_news_scenario_follows_publishers(ec: Any, tmp_path: Path) -> None:
@@ -298,7 +404,7 @@ def test_only_the_news_scenario_follows_publishers(ec: Any, tmp_path: Path) -> N
         outside = {shape["name"] for shape in ec.host_tools(world)}
     assert "search_sources" in inside and "search_sources" not in outside
     assert not failed
-    assert [row["link"] for row in json.loads(text)["items"]] == [
+    assert [row["link"] for row in ec.json_of(text)["items"]] == [
         "https://news.example.org/ru/culture/101"
     ]
 

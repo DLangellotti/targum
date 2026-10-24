@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -151,8 +152,9 @@ INSTRUCTIONS = (
     "they ask. Nothing you call gets a text ready or charges the reader: quote_build and "
     "quote_set return a link, and the reader confirms on targum's own page. Don't describe "
     "the page or tell them to press anything, and don't call it a quote or a price. Every "
-    "link a tool returns goes on a line of its own, never inside a sentence or a list "
-    "item. A cost is in credits, never money. For several texts at once, use quote_set. "
+    "link a tool returns goes on a line of its own, never inside a sentence, a list item "
+    "or behind a title. A cost is in credits, never money, and a link the reader confirms "
+    "on always goes with its credits. For several texts at once, use quote_set. "
     "When a tool returns an error, tell the reader in one plain sentence what happened and "
     "what they can do, and don't retry the same call. Where check_job shows a card, the "
     "card follows the build itself: call it once, with wait_seconds, and don't call it "
@@ -212,15 +214,103 @@ PROMPTS: tuple[dict[str, Any], ...] = (
         "name": "read-with-me",
         "description": "Read a text line by line, with the grammar explained as you go.",
         "arguments": [{"name": "text", "description": "What to read", "required": False}],
-        "needs": ("find_text",),
+        # open_library_text too, for the lines: read from memory, Genesis came out as
+        # Claude remembered it rather than as targum has it (targum-internal#527).
+        "needs": ("find_text", "open_library_text"),
         "says": (
-            "Find {text} on targum and read it with me a few lines at a time. Give me the "
-            "Hebrew, what it means and anything worth noticing in the grammar. Let me set "
-            "the pace."
+            "Find {text} on targum, open it there and read it with me a few lines at a "
+            "time, from targum's own text and never from memory. Give me the Hebrew, what "
+            "it means and anything worth noticing in the grammar. Let me set the pace."
         ),
         "unnamed": "a text I'd like",
     },
 )
+
+
+#: What every tool result ends with over the connector (targum-internal#527). The
+#: instructions above say all of it once, at `initialize`, and on 2026-10-23 neither
+#: host kept to it: Claude put links inside sentences, ChatGPT wrote "Targum" and hid
+#: links behind titles, and a /build link went out with no credits beside it. A rule
+#: read beside the link it is about is kept more often than one read at the start, so
+#: the result says it again, tersely, with the links on their own lines last.
+LOWERCASE = "Write targum in lowercase."
+ALONE = "never inside a sentence, a list item or behind a title"
+
+#: Links that open a page where the reader confirms something that spends: a build, a
+#: set or playlist, a subscription, a section read aloud. Each goes out with its credits.
+_PRESSES = re.compile(r"/(?:build/|set/|subscribe\?)|[?&]hear=1")
+
+#: Where a result keeps the links a reader is handed.
+_LINK_KEYS = ("open", "reader", "link")
+
+
+def _links(found: Any) -> list[str]:
+    """Every link a result hands the reader, in order, once each."""
+    out: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _LINK_KEYS and isinstance(value, str) and value.startswith("http"):
+                    out.append(value)
+                elif key == "how_to_open" and isinstance(value, str):
+                    out.extend(re.findall(r"https?://\S+", value))
+                else:
+                    walk(value)
+        elif isinstance(node, list):
+            for one in node:
+                walk(one)
+
+    walk(found)
+    return list(dict.fromkeys(out))
+
+
+def _credits(found: Any) -> str:
+    """What a result that offers a press says it uses, nearest the top first: a set's
+    total before each of its texts', a subscription's per item. "" where it says none."""
+    level: list[Any] = [found]
+    while level:
+        for node in level:
+            if isinstance(node, dict) and isinstance(node.get("credits"), int):
+                count = int(node["credits"])
+                return f"{count} credit" if count == 1 else f"{count} credits"
+            if isinstance(node, dict) and isinstance(node.get("credits_each"), int):
+                return f"about {node['credits_each']} credits each"
+        level = [
+            child
+            for node in level
+            for child in (node.values() if isinstance(node, dict) else node)
+            if isinstance(node, (dict, list)) and isinstance(child, (dict, list))
+        ]
+    return ""
+
+
+def follow(text: str) -> str:
+    """The short note a tool result ends with over the connector, read by the model.
+
+    Every result says how to write the name. One that hands the reader links says to
+    put each on a line of its own and ends with them, one a line; a link to a page where
+    the reader confirms a spend says the credits it uses beside it, "0 credits" included,
+    so a host never offers a press without its cost."""
+    try:
+        found = json.loads(text)
+    except ValueError:
+        return LOWERCASE
+    links = _links(found)
+    if not links:
+        return LOWERCASE
+    cost = _credits(found) if any(_PRESSES.search(link) for link in links) else ""
+    if len(links) == 1:
+        said = f"Put this link on a line of its own, {ALONE}"
+        if cost:
+            said = f"Say it uses {cost}, and put this link on a line of its own, {ALONE}"
+        return f"{LOWERCASE} {said}:\n{links[0]}"
+    lines = [f"{LOWERCASE} Put each link on a line of its own, {ALONE}:"]
+    for link in links:
+        if cost and _PRESSES.search(link):
+            lines.append(f"Uses {cost}:")
+        lines.append(link)
+    return "\n".join(lines)
 
 
 class RpcError(Exception):
@@ -577,7 +667,12 @@ def _call(
     # hundred and fifty (`tools.shorten`, 2026-10-06).
     long = text
     text = tools_module.shorten(text, address)
-    answered: dict[str, Any] = {"content": [{"type": "text", "text": text}], "isError": failed}
+    # The note after the tool's own text, in a block of its own, so the text stays the
+    # JSON it always was and the last line the model reads is the link (#527).
+    answered: dict[str, Any] = {
+        "content": [{"type": "text", "text": text}, {"type": "text", "text": follow(text)}],
+        "isError": failed,
+    }
     tool = tools_module.BY_NAME.get(name)
     if tool is not None and tool.card:
         # The card's rows, in the field the MCP Apps extension hands a card. Exactly the
@@ -806,6 +901,7 @@ __all__ = [
     "card_meta",
     "card_read",
     "card_shapes",
+    "follow",
     "handle",
     "prompt_shapes",
     "tool_shapes",

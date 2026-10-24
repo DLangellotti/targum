@@ -1464,19 +1464,30 @@ body .site-footer { max-inline-size: var(--column); }
    the end edge instead, where the pill is. The pill says "Talk", as the boards draw it,
    so at 1440 it stands in the margin outside the column and nothing moves; narrower, the
    page gives up what the pill reaches (`--talk-room`, measured by talk.js) less the
-   column's own padding, at the end edge only. The bar keeps the whole width. */
+   column's own padding. The bar keeps the whole width.
+
+   And the column stays centred where the window has room to spare (targum-internal#523,
+   2026-10-23). The pill says "AI Assistant" now, wider than the boards' "Talk", so it no
+   longer stands in the margin at 1440: the room was kept at the end edge only, and the
+   column slid towards the start by however wide the pill's words are, to 25px off the
+   edge in English and 6px in Russian, whose words are longer. Now the start edge keeps
+   the same room as the end once the window is wider than the column by that much, so
+   the column narrows in the middle instead of sliding. Narrower than that (a tablet, a
+   small laptop) the start edge gives only what the window spares, and the two meet
+   without a jump. */
 @media (min-width: 40.0625rem) {
   :root {
-    --talk-clear: max(
-      0px,
-      min(
-        var(--talk-room, 0px) - 0.5rem,
-        2 * (var(--talk-room, 0px) - 0.5rem) - (100vw - var(--column))
-      )
-    );
+    --talk-clear: max(0px, var(--talk-room, 0px) - 0.5rem);
+    --talk-clear-start: clamp(0px, 100vw - var(--column), var(--talk-clear));
   }
-  body { padding-inline-end: var(--talk-clear); }
-  body > .site-head { margin-inline-end: calc(-1 * var(--talk-clear)); }
+  body {
+    padding-inline-start: max(env(safe-area-inset-left, 0px), var(--talk-clear-start));
+    padding-inline-end: var(--talk-clear);
+  }
+  body > .site-head {
+    margin-inline-start: calc(-1 * var(--talk-clear-start));
+    margin-inline-end: calc(-1 * var(--talk-clear));
+  }
 }
 @media (min-width: 48.0625rem) {
   .talk-cta { inset-inline-end: 0.75rem; padding-inline: 1rem; }

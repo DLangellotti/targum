@@ -3844,6 +3844,9 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             og_type="book",
             structured=text_schema(entry, address, language),
             entry=entry,
+            # A book's place ("Ketuvim · Ruth") in the page's language, as the shelf says
+            # it (targum-internal#523, from #477's polish).
+            byline=_place_in(entry.author, _page_language(language)),
             credit=credit,
             shelf_name=name,
             direction=direction_for(entry.language),

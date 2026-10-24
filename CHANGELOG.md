@@ -12,6 +12,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The connector's results say what the model must follow beside the links they carry
+  (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
+  Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
+  /build link with no cost. Every tool result over `/mcp` now ends with a short note in
+  a second block: write targum in lowercase, and where there are links, each on a line
+  of its own and the links last; a link the reader confirms on (a build, set,
+  subscription or reading aloud) goes with its credits, 0 included. `open_library_text`
+  hands over a text's lines, eight at a time from `from_line`, where it opens now, and
+  read-with-me asks the host to open the text on targum and read from it, never from
+  memory. The connector eval checks all four. Nothing costs more and nothing spends
+  sooner.
+- design.md §12 records the connector handing a host a text's lines (David, 2026-10-23;
+  targum-internal#527): eight at a time, so a host reads targum's text and not its
+  memory; a reader's own copy only where they shared their record, the shared shelf and
+  the portions kept for everybody for anyone; beside `sentences_with`; spends nothing.
+- The other languages' polish left from #476 (targum-internal#523). A desk page's column
+  stays centred: the room kept for the AI Assistant's pill went on the end edge only, so
+  the column slid 25px off centre in English and 6px off the edge in Russian; now both
+  edges keep it once the window has room. The foot tells somebody learning Italian,
+  French, Russian, Yiddish or Aramaic "Learn languages from anything." instead of to
+  learn Hebrew; Hebrew keeps its own line. The arrival's level step says why Continue is
+  asleep ("Choose a level to continue."), tied to it with `aria-describedby`. On a phone
+  the Russian word card's «пропустить» keeps its whole word instead of running past the
+  sheet's edge. A text page says its place in the page's language («Писания · Рут»).
 - The Library draws its first card under a second and a half on a phone
   (targum-internal#484). On qa-claude's profile (150 ms, 1.6 Mbps, 4x CPU, cold) it was
   about 2.1 s in English and 2.2 s in Russian, and its shelf was asked only once the whole
@@ -44,6 +68,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on it. A row with a bought translation and no rendering says "We translated this
   text." A text in Russian shows its English opening on a Russian page, not a model's
   Russian of its own English original. The heading is keyed («Перевод» / «Переводы»).
+- `test_a_refused_answer_is_not_kept_for_the_page` no longer fails on about a quarter of
+  CI's browser jobs (targum-internal#526). The page was right: `building.js` asks
+  `/account/me` as it runs and `sync.js` only at DOMContentLoaded, they share the question
+  while it is out, and a refusal is forgotten once it is back. On a slow runner the 502
+  came back before the rest of the page had run, so the later scripts asked again, as
+  they should. The test now holds the first answer until the page has loaded.
 - The Russian interface after ling-ru's read-through of the whole catalogue
   (targum-internal#476): 93 strings. A language name no longer sits capitalised
   mid-sentence («На языке «Иврит» пока ничего нет.», not «На языке Иврит…»); counts that

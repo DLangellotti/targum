@@ -74,6 +74,10 @@
     <p class="arrival-foot">
       <span class="arrival-foot-note" id="arrival-foot-note"></span>
       <button type="button" class="arrival-back" id="arrival-back" hidden>{{ t("welcome.back", "← Back") }}</button>
+      {#- Why Continue is asleep on the level step, said to the eye and, through
+          `aria-describedby`, to a screen reader (targum-internal#523): it said nothing,
+          and a press that does nothing reads as broken. `arrival.js` shows it. -#}
+      <span class="arrival-why" id="arrival-why" hidden>{{ t("learn.arrival.choose-level", "Choose a level to continue.") }}</span>
       <button type="button" class="arrival-done" id="arrival-done" disabled>{{ t("learn.arrival.continue", "Continue") }}</button>
     </p>
   </section>

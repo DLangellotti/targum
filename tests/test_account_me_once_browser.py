@@ -85,9 +85,18 @@ def test_a_desk_page_asks_who_is_signed_in_once(chromium, name: str) -> None:
 
 def open_account(chromium, answers: list[Any]):
     """Your account, with `/account/me` answered from `answers` in turn (an int is a bare
-    status), the last one again once they run out. Returns what was asked."""
+    status), the last one again once they run out. Returns what was asked.
+
+    The first answer is held until the page has loaded (targum-internal#526). The page's
+    scripts ask at different moments of the load: `building.js` as it runs, mid-body, and
+    `sync.js` only at DOMContentLoaded. They share one question only while it is still out,
+    and a refusal is forgotten as soon as it is back, by design. So on a slow runner a 502
+    answered before the rest of the page had run was asked again by the scripts after it:
+    correct behaviour, and a failure here on about a quarter of CI's browser jobs. Held
+    until `load`, every script that asks on the way in has asked while it is still out."""
     html = you_page("")
     asked: list[str] = []
+    held: list[Callable[[], Any]] = []
 
     def answer(route: Any, request: Any) -> Any:
         where = request.url[len(SITE) :].split("?")[0]
@@ -96,16 +105,24 @@ def open_account(chromium, answers: list[Any]):
         if where == "/account/me":
             said = answers[min(len(asked), len(answers) - 1)]
             asked.append(request.url)
-            if isinstance(said, int):
-                return route.fulfill(status=said, content_type="application/json", body="{}")
-            return route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+            status, body = (said, "{}") if isinstance(said, int) else (200, json.dumps(said))
+
+            def reply() -> Any:
+                return route.fulfill(status=status, content_type="application/json", body=body)
+
+            if len(asked) == 1:
+                held.append(reply)
+                return None
+            return reply()
         route.fulfill(status=200, content_type="application/json", body="{}")
 
     context = chromium.browser().new_context(viewport={"width": 390, "height": 844})
     context.add_init_script("localStorage.setItem('targum:welcomed', '1');")
     page = context.new_page()
     page.route(f"{SITE}/**", answer)
-    page.goto(SITE + "/you")
+    page.goto(SITE + "/you")  # returns at `load`: every script on the page has run
+    for reply in held:
+        reply()
     page.wait_for_load_state("networkidle")
     page.wait_for_timeout(300)
     return context, page, asked

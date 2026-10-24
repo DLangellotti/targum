@@ -5855,6 +5855,10 @@ body.list-ended .list-end .list-end-over {
   text-underline-offset: 0.2em;
 }
 #gloss-card .card-stage .level.on { color: var(--ink); font-weight: 600; }
+/* Ignore keeps its whole word, and the legend beside it wraps instead: «пропустить»
+   was squeezed to 50px inside a 71px word and ran past the sheet's edge at 390
+   (targum-internal#523). */
+#gloss-card .card-stage .level { flex: none; white-space: nowrap; }
 
 @media (max-width: 60rem) {
   /* The sheet from the foot on a dimmed page (board WordCardPhone): the card's white, the

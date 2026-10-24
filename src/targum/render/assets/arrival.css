@@ -270,6 +270,10 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
 .arrival-done[hidden] { display: none; }
 .arrival-done:disabled { opacity: 0.4; cursor: default; }
 .arrival-done:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Why Continue is asleep (targum-internal#523): a quiet line beside it, at its end. */
+.arrival-why { margin-inline-start: auto; font-size: 0.8125rem; color: var(--ink-soft); }
+.arrival-why[hidden] { display: none; }
+.arrival-why:not([hidden]) + .arrival-done { margin-inline-start: 0; }
 
 /* --- a phone ----------------------------------------------------------------- */
 
@@ -342,5 +346,9 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
     margin: 0;
   }
   .arrival-done { inline-size: 100%; padding: 12px 22px; font-size: 1em; }
+  /* On a phone the foot is one wide press, and the reason stands over it. */
+  .arrival-foot { flex-wrap: wrap; row-gap: 8px; }
+  .arrival-why { flex: 1 0 100%; margin: 0; padding-block: 4px; text-align: center; background: var(--paper); border-radius: var(--radius-control); }
+  body[data-step="level"] .arrival { padding-block-end: 136px; }
 }
 .arrival-door[hidden] { display: none; }

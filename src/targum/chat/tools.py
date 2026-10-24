@@ -686,7 +686,70 @@ def _torah_verse(ctx: Ctx, query: str) -> dict[str, Any] | None:
     return row
 
 
+#: How many lines of a text `open_library_text` hands a connector at once: a few
+#: lines at a time is how read-with-me reads, and a page of them is a reply's worth.
+LINES_AT_ONCE = 8
+
+#: Said beside `lines` (targum-internal#527): on 2026-10-23 Claude, asked to read
+#: Genesis with the reader, said it was "locating the opening verse of Genesis from
+#: memory" and read its own, though targum's text was one call away.
+READ_FROM_LINES = "Read from `lines`, never from memory. Ask with from_line for more."
+
+
+def _lines(folder: Path, start: int) -> dict[str, Any]:
+    """`LINES_AT_ONCE` of a built text's sentences from line `start`, as its
+    `segments.json` has them, each pointed where the text was built with vowels, and
+    `next_line` while there are more. Nothing where the folder has no sentences."""
+    from ..vocalize.base import supports as vocalize_supports
+
+    segments = _json(folder / "segments.json").get("segments") or []
+    if not isinstance(segments, list) or not segments:
+        return {}
+    vocalized = _json(folder / "vocalization.json")
+    pointing: dict[str, Any] = {}
+    if vocalize_supports(str(vocalized.get("language") or "")):
+        pointing = vocalized.get("segments") or {}
+    start = max(1, min(start, len(segments)))
+    out: list[dict[str, Any]] = []
+    for n, segment in enumerate(segments[start - 1 : start - 1 + LINES_AT_ONCE], start=start):
+        text = str(segment.get("text") or "") if isinstance(segment, dict) else ""
+        one: dict[str, Any] = {"n": n, "text": text}
+        pointed = _pointed(text, pointing.get(str(segment.get("id") or "")), len(text))
+        if pointed:
+            one["pointed"] = pointed
+        out.append(one)
+    said: dict[str, Any] = {"lines": out, "how_to_read": READ_FROM_LINES}
+    if start - 1 + LINES_AT_ONCE < len(segments):
+        said["next_line"] = start + LINES_AT_ONCE
+    return said
+
+
+def _everybody_folder(entry: catalogue_module.Entry) -> Path | None:
+    """The built folder of a portion the box keeps for everybody, or None."""
+    from ..parasha import build as corpus
+    from ..parasha.calendar import root
+
+    if not entry.id.startswith("parasha-"):
+        return None
+    portion = corpus.load().portions.get(entry.id.removeprefix("parasha-"))
+    return root() / "read" / portion.folder if portion is not None else None
+
+
+def _start(args: dict[str, Any]) -> int:
+    try:
+        return int(args.get("from_line") or 1)
+    except (TypeError, ValueError):
+        return 1
+
+
 def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """One library text by id, and its lines where it opens now.
+
+    The lines are for read-with-me (targum-internal#527): a host that has nothing of
+    targum's to read from reads from memory. `sentences_with` already hands a host
+    sentences of the same texts; this hands them in order, a few at a time. The
+    reader's own copy is read only where they shared their record.
+    """
     entry = catalogue_module.by_id(str(args.get("id") or ""))
     if entry is None:
         return {"error": "No text in the library has that id."}
@@ -695,6 +758,9 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         row = _entry_row(entry, None)
         row.update(on_shelf=True, reader=everybody, blurb=entry.blurb)
         row["how_to_open"] = "Give the reader the link in `reader`."
+        folder = _everybody_folder(entry)
+        if folder is not None:
+            row.update(_lines(folder, _start(args)))
         return row
     mine, shared = _shelf(ctx)
     built = _by_source([*mine, *shared]).get(catalogue_module._key(entry.source))
@@ -703,6 +769,15 @@ def open_library_text(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     row["how_to_open"] = (
         "Give the reader the link in `reader`." if built else _not_ready_yet(ctx, entry.id)
     )
+    if built:
+        homes = (ctx.home, ctx.library.shared) if ctx.sees_record else (ctx.library.shared,)
+        name = str(built.get("name") or "")
+        folder = next(
+            (home / name for home in homes if name and (home / name / "segments.json").is_file()),
+            None,
+        )
+        if folder is not None:
+            row.update(_lines(folder, _start(args)))
     return row
 
 
@@ -3563,8 +3638,12 @@ REGISTRY: tuple[Tool, ...] = (
     Tool(
         "open_library_text",
         "One library text by id: what it is, whether it is on the reader's shelf, the "
-        "link to open it if it is, and how to get it if it isn't. Read only.",
-        _schema({"id": {"type": "string"}}, ("id",)),
+        "link to open it if it is, and how to get it if it isn't. Where it opens now, "
+        "also its `lines`, a few at a time from from_line: read the text with the reader "
+        "from these, never from memory. Read only.",
+        _schema(
+            {"id": {"type": "string"}, "from_line": {"type": "integer", "minimum": 1}}, ("id",)
+        ),
         open_library_text,
         title="Look at a library text",
         card=TEXT_CARD,
