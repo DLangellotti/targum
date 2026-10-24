@@ -380,6 +380,26 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### What a first tap does not need waits after the faces — 2026-10-24
+
+David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-internal#503).
+
+- **The rest of the reader is its own file, after the faces.** The lenses and the case
+  lens, export and the Anki deck, shnayim mikra, the bar's panels and the keys card, full
+  screen, the keyboard and keeping a phrase are in `reader-rest.js`. A word answers once
+  `reader.js` has run, and the rest joins about half a second after the first tap could
+  be answered. A press on the bar before then does nothing, and a walk in progress is
+  laid out again, in place, when it comes. Readers still fetch nothing: the file is in
+  the page, later.
+- **The conjugation tables and a text's renames ride with the commentaries.** The card
+  draws a verb's fold from the first tap and fills it when the tables arrive. Renames are
+  carried across once per browser, so they wait too, and a mark they move is drawn when
+  they come.
+- **The page measures once while it is set up.**
+- Measured on the page as shipped, with its recordings, across builder's and qa's runs:
+  Ki Tavo's sixth 1.77 s → 1.44–1.53 s, Bereshit's first 1.39 s → 1.19–1.22 s. The
+  longest aliyah is still at the second and a half, not under it.
+
 ### The signed-out Library wears the landing's desk look — 2026-10-24
 
 David, 2026-10-24 (targum-internal#519). The signed-out Library wears the landing's desk
@@ -4886,7 +4906,10 @@ Now they are drawn as the landing is, from the landing's own parts:
 
 - **The bar is the landing's** (`_front_bar.html.j2`, which the landing includes too):
   glass, sticky, the lockup, the landing's places, EN / RU, Sign in, and **Join the
-  waitlist** as the one ink call to action (§9).
+  waitlist** as the one ink call to action (§9). **On a phone it keeps Sign in**
+  (targum-internal#528, 2026-10-24): under 30rem the places go, the gaps tighten and the
+  language shows only the code you can press, and under 23.25rem the language goes to the
+  foot. Sign in and the waitlist stay on the one line at 320, each with its 44px reach.
 - **The hero is the landing's**, on the desk's ground (§13): the chrome's sans at the
   landing display step (§5), the lede under it, and the waitlist's form
   (`_join_form.html.j2`) with the line that says what happens next. Reading is the second

@@ -1451,6 +1451,12 @@
 {#- The chrome's face, upright only, for the reader's own menus (design.md §12,
     2026-10-09, "The reader's menus are the board's"). -#}
 {{ chrome_face(false) }}
+{#- The rest of the reader (targum-internal#503): the lenses, export and the Anki deck,
+    shnayim mikra, the bar's panels, full screen, the keyboard and keeping a phrase. All
+    of `reader.js` stood in front of a word's first tap; what the tap needs stayed there
+    and this comes after the faces, so they arrive when they always did. `reader.js` runs
+    it at its foot, or it runs itself on arrival where the reader got there first. -#}
+{{ script('reader-rest.js') }}
 {#- After `reader.js`, since 2026-10-20 (reader QA): a word answers a tap once `reader.js` has
     run, and the page reads its scripts in order as they arrive, so what a first tap does not
     need comes after it. Saving for offline and the worker that answers it (design.md §12,

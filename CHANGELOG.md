@@ -81,6 +81,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   it is Hebrew (#477, polish 10). A noindex no longer rides on to the next page of a
   kept-alive connection. A language the visitor pressed (`?lang=ru`) goes on every link
   the page draws, and a kind of videos counts videos.
+- The public bar keeps Sign in on a phone (targum-internal#528). Under 30rem it used to
+  drop it, so a reader coming back with an account had no way in from the top of the
+  landing, the olim's page, the signed-out Library or a kind page: the foot's Sign in
+  was 8,100px down on the landing and about 26,000px on the Library. It stays now, on
+  the bar's one line beside Join the waitlist at 320 and 390 in English and Russian,
+  44px across and up under touch, carrying a pressed `?lang=`. To make room the phone
+  bar tightens its gaps and shows only the language you can press; under 23.25rem the
+  language waits in the foot, as it did under 22.5rem.
+- A word on the longest aliyah answers its first tap about a quarter of a second sooner
+  on a phone (targum-internal#503). Phone profile with recordings, across builder's and
+  qa's runs: Ki Tavo's sixth 1.77 s → 1.44–1.53 s, Bereshit's first 1.39 s →
+  1.19–1.22 s. What a tap does not need left `reader.js` for `reader-rest.js`, after the
+  faces: the lenses and the case lens, export and the Anki deck, shnayim mikra, the
+  bar's panels and the keys card, full screen, the keyboard and keeping a phrase (70.5 →
+  57.6 kB gzipped). The closures for where to go next and the unpaid chapter joined
+  `reader-after.js`. The conjugation tables and a text's lemma renames ride in the block
+  after `reader.js`; the card draws its fold from the first tap and fills it when they
+  come. The page is laid out once while it is set up, not three times. The rest joins
+  about half a second after the first tap could be answered, and a press of the bar
+  before then does nothing, and a shnayim mikra walk in progress is laid out as it
+  arrives. The parasha and daily pages need a re-cut to carry it. design.md §12, "What a
+  first tap does not need waits after the faces".
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
