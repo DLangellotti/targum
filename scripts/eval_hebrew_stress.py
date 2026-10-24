@@ -73,7 +73,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import evals  # noqa: E402
-from targum.annotate import oshb  # noqa: E402
+from targum.annotate import oshb, segolate  # noqa: E402
 from targum.annotate.pronounce import (  # noqa: E402
     HATAMA,
     METEG,
@@ -242,6 +242,31 @@ def collect(books: tuple[str, ...]) -> list[Item]:
     return out
 
 
+def _from_end(marked: str) -> int | None:
+    """Which syllable from the end carries `HATAMA` in a pointed word, 0 for the last:
+    a holam or shuruq vav is the vowel of the letter before it (`segolate._nuclei`), and
+    a furtive patah is no syllable, since phonikud says it with the vowel before."""
+    letters = segolate._clusters(marked)
+    nuclei = segolate._nuclei(letters)
+    stressed = [
+        at
+        for at, (letter, vowel, mark) in enumerate(nuclei)
+        if HATAMA in letters[letter][1] or HATAMA in letters[mark][1]
+    ]
+    if not stressed:
+        return None
+    count = len(nuclei)
+    last_letter, last_marks = letters[-1]
+    if (
+        count > 1
+        and nuclei[-1][0] == len(letters) - 1
+        and nuclei[-1][1] == segolate.PATAH
+        and (last_letter in "חע" or (last_letter == "ה" and segolate.DAGESH in last_marks))
+    ):
+        count -= 1
+    return count - 1 - stressed[-1]
+
+
 def pausal(books: tuple[str, ...]) -> tuple[int, int, int, list[tuple[str, str, str, str]]]:
     """The verse's last words that carry silluq alone: how many have a reading, how many
     of those the reading stresses where the silluq is, and how many the pause changed,
@@ -267,13 +292,9 @@ def pausal(books: tuple[str, ...]) -> tuple[int, int, int, list[tuple[str, str, 
             continue
         said += 1
         at = word.rfind(METEG)
-        marked = word[:at] + HATAMA + word[at + 1 :]
-        vowels = sum(1 for char in marked if ord(char) in VOWELS)
-        mark = marked.find(HATAMA)
-        before = sum(1 for char in marked[:mark] if ord(char) in VOWELS)
-        gold = before if _holam_after(marked, mark) else before - 1
-        from_end = said_syllables(reading[reading.find("ˈ") :]) - 1
-        agreed += from_end == vowels - 1 - gold
+        agreed += _from_end(word[:at] + HATAMA + word[at + 1 :]) == (
+            said_syllables(reading[reading.find("ˈ") :]) - 1
+        )
         if plain.get(key, "") != reading:
             changed.append((ref, word, plain.get(key, ""), reading))
     return said, agreed, len(changed), changed

@@ -346,6 +346,7 @@ def sayable(surface: str) -> bool:
 _POINTED = frozenset(chr(cp) for cp in range(0x05B0, 0x05BC)) | {"\u05c7"}
 _DAGESH = "\u05bc"
 _HOLAMS = frozenset("\u05b9\u05ba")
+_SHIN_DOT = "\u05c1"
 # Letters that may stand silent after a pointed one: a quiescent א, a mater.
 _QUIESCENT = frozenset("אהוי")
 
@@ -354,18 +355,29 @@ def covered(surface: str) -> bool:
     """Whether the marks cover every letter but the last.
 
     A letter is covered by its own vowel, shva or hataf; by a holam or shuruq on the vav
-    after it (שׁוֹ, רוּ); or by being an א, ה, ו or י after a pointed letter (לֵאמֹר,
-    וַיֹּאמֶר, בֵּית). A shuruq vav is pointed. Anything else is a letter the source left
-    bare, and phonikud would say it from its consonant alone.
+    after it (שׁוֹ, רוּ), or by a holam written as the dot of the shin after it (משֶׁה); or
+    by being an א, ה, ו or י after a letter so covered (לֵאמֹר, וַיֹּאמֶר, בֵּית, שְׂמֹאול).
+    A shuruq vav is pointed. Anything else is a letter the source left bare, and phonikud
+    would say it from its consonant alone.
     """
     letters = _clusters(surface)
+    # Whether the letter before was covered by a vowel of its own or as a silent letter,
+    # so a second silent letter may follow it: שְׂמֹאול, חַטֹּאות, לַיהוָה.
+    voiced = False
     for at, (letter, marks) in enumerate(letters[:-1]):
+        quiet, voiced = voiced, False
         if _vowelled(letter, marks):
+            voiced = True
             continue
         after_letter, after = letters[at + 1]
         if after_letter == "ו" and (_HOLAMS & set(after) or after == _DAGESH):
             continue
-        if letter in _QUIESCENT and at and _vowelled(*letters[at - 1]):
+        if after_letter == "ש" and _SHIN_DOT in after:
+            # A holam before a shin is written as the shin's own dot: מֹשֶׁה as משֶׁה,
+            # שְׁלֹשָׁה as שְׁלשָׁה. The letter is pointed; the dot is shared.
+            continue
+        if letter in _QUIESCENT and at and (_vowelled(*letters[at - 1]) or quiet):
+            voiced = True
             continue
         return False
     return True

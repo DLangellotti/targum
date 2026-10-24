@@ -91,6 +91,26 @@ def test_a_hollow_verb_now_has_a_family_root() -> None:
     assert ("הֵקִים", "הפעיל") in _families().get("קום", ())
 
 
+@pytest.mark.parametrize(
+    ("word", "lex", "binyan"),
+    [
+        ("מביא", "הביא", "הפעיל"),
+        ("להביא", "הביא", "הפעיל"),
+        ("יביא", "הביא", "הפעיל"),
+        # The qal, which DICTA files under the hif'il: no confident הפעיל on it.
+        ("בא", "הביא", None),
+        ("כולל", "הכיל", None),
+    ],
+)
+def test_a_listed_hifil_is_taken_only_where_the_word_spells_one(
+    word: str, lex: str, binyan: str | None
+) -> None:
+    from targum.annotate.dicta import _tokens
+
+    (token,) = _tokens(_said((word, lex, "VERB", (word,))))
+    assert token.binyan == binyan
+
+
 # --- Fix 2: the qal of a III-he root, filed under its hif'il --------------------------
 
 
@@ -142,6 +162,10 @@ def test_halakha_is_not_on_the_list() -> None:
         # A ה first is a hif'il past, a נ first a nif'al past.
         ("הודה", "הוֹדָה", "הודה"),
         ("נולד", "נוֹלַד", "נולד"),
+        # "Before" and "darkness", which DICTA tags verbs.
+        ("קודם", "קוֹדֶם", "קודם"),
+        ("חושך", "חוֹשֶׁךְ", "חושך"),
+        ("אופי", "אוֹפִי", "אופי"),
     ],
 )
 def test_a_pointed_present_is_filed_under_its_past(lemma: str, pointed: str, said: str) -> None:
@@ -163,6 +187,10 @@ def test_a_pointed_present_is_filed_under_its_past(lemma: str, pointed: str, sai
         ("חולצה", "חולצה"),
         # A ה first without a plural ending is a past: הוצגה "was presented".
         ("הוצגה", "הוצגה"),
+        # A plural's ו is not a root letter, nor a ו or י in the root's last places.
+        ("דוחות", "דוחות"),
+        ("רומו", "רומו"),
+        ("שוין", "שוין"),
     ],
 )
 def test_a_present_dicta_stood_its_surface_in_for(word: str, lemma: str) -> None:
@@ -405,6 +433,9 @@ def test_a_mishnah_meteg_is_not_a_silluq() -> None:
         ("יְרוּשָׁלַיִם", True),
         ("שׁוּב", True),
         ("דְּבָרָיו", True),
+        # The holam written as the shin's dot.
+        ("משֶׁה", True),
+        ("שְׁלשָׁה", True),
     ],
 )
 def test_a_partly_pointed_word_is_not_said(word: str, ok: bool) -> None:

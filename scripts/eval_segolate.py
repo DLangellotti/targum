@@ -46,6 +46,22 @@ from targum.vocalize.base import has_taamim, strip_taamim  # noqa: E402
 
 STAGE = "stress"
 CORPUS = "tanakh-taamim-v2"
+
+
+def furtive(bare: str) -> bool:
+    """Whether a word ends in a furtive patah: a last ח, ע or הּ carrying a patah, after
+    a vowel. phonikud says it before its letter and in one breath with the vowel before
+    (מִזְבֵּחַ, `mizbˈeaχ`), so a reading's runs of vowels count it with that vowel, and a
+    stress on the syllable before it reads as the last. Counted apart here, since the
+    segolate rule's fifth case (grammar/8) is exactly that stress."""
+    letters = segolate._clusters(bare)
+    if len(letters) < 2:
+        return False
+    letter, marks = letters[-1]
+    guttural = letter in "חע" or (letter == "ה" and segolate.DAGESH in marks)
+    return guttural and marks.replace(segolate.DAGESH, "") == segolate.PATAH
+
+
 SYSTEM = "stress-rule/2"
 SUFFIX_SYSTEM = "stress-rule/3"
 MODERN = "modern-stress-handread"
@@ -102,11 +118,12 @@ def main(argv: list[str] | None = None) -> None:
                 at = said.find("ˈ")
                 if at < 0 or syllables(said) < 2:
                     continue
-                penult = syllables(said[at:]) == 2
                 bare = unicodedata.normalize(
                     "NFC",
                     strip_taamim(word.text).replace(METEG, "").replace("־", "").replace("/", ""),
                 )
+                tail = syllables(said[at:])
+                penult = tail == 2 or (tail == 1 and furtive(bare) and syllables(said) > 1)
                 fired = segolate.penult(bare) is not None
                 counts["words"] += 1
                 if fired:

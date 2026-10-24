@@ -637,7 +637,7 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         ):
             binyan = BINYANIM["NIFAL"]
         if pos == "VERB":
-            binyan, root = _shape(lemma, binyan)
+            binyan, root = _shape(lemma, binyan, seg[-1] if seg else surface)
         else:
             root = root_of(lemma, binyan)
         out.append(
@@ -710,9 +710,9 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
             # מוּצָג, and keeps DICTA's (targum-internal#490).
             return lemma[0] + lemma[2:], pos
         if (
-            len(letters) == 4
-            and letters[1] == "ו"
-            and letters[0] not in "ומנה"
+            _qal_present_shape(letters)
+            and letters[0] != "ה"
+            and letters not in NOT_PARTICIPLE_POINTED
             and _holam_on_vav(pointed, letters[0])
         ):
             # A qal present with no Tense, where the marks say qal: pointed Mishnah's
@@ -966,7 +966,23 @@ def _opens_on(word: str, first: str) -> bool:
 # which are something else unpointed: אוכל is also "I can", קודם usually "before", and
 # חולצה a blouse. Pointed, `mend_pointed` reads the holam instead, and אוֹכֵל still passes.
 NOT_PARTICIPLE = frozenset({"אוכל", "קודמ", "חולצה", "חולצת"})
+# And pointed, where the holam is there all the same: קוֹדֶם "before" and חוֹשֶׁךְ
+# "darkness", which DICTA tags verbs (the laptop's shelf, 2026-10-25).
+NOT_PARTICIPLE_POINTED = frozenset({"קודמ", "חושכ"})
 PRESENT_ENDINGS = ("", "ימ", "ות", "ת", "ה")
+
+
+def _qal_present_shape(stem: str) -> bool:
+    """C + ו + C + C, the qal participle, final forms folded: not a ו, מ or נ first (the
+    conjunction, the hof'al's or pi'el's present, a nif'al past), and no ו or י in the
+    last two places, which a participle never has there (רומו, אופי, שוין)."""
+    return (
+        len(stem) == 4
+        and stem[1] == "ו"
+        and stem[0] not in "ומנ"
+        and stem[2] not in "וי"
+        and stem[3] not in "וי"
+    )
 
 
 def _surface_present(letters: str, word: str) -> str | None:
@@ -980,10 +996,11 @@ def _surface_present(letters: str, word: str) -> str | None:
     if letters != word or word in NOT_PARTICIPLE:
         return None
     for ending in PRESENT_ENDINGS:
-        if not word.endswith(ending):
+        if not word.endswith(ending) or (ending == "ת" and word.endswith("ות")):
+            # A lone ת off -ות would leave the plural's ו: דוחות is not דחו.
             continue
         stem = word[: len(word) - len(ending)]
-        if len(stem) != 4 or stem[1] != "ו" or stem[0] in "ומנ":
+        if not _qal_present_shape(stem):
             continue
         if stem[0] == "ה" and ending not in ("ימ", "ות"):
             continue
@@ -1098,20 +1115,39 @@ PASSIVE_PARTICIPLES = {
 }
 
 
-def _shape(lemma: str, binyan: str | None) -> tuple[str | None, str | None]:
+def _shape(
+    lemma: str, binyan: str | None, word: str | None = None
+) -> tuple[str | None, str | None]:
     """A verb's binyan and root, from its lemma and the binyan worked out so far.
 
     A qal passive participle is listed (`PASSIVE_PARTICIPLES`), whatever the spelling
     said; and a lemma that spelled no binyan takes the one the reviewed weak-root list
-    gives it (`hebrew.WEAK_ROOTS`): מת is פעל of מ־ו־ת, הביא הפעיל of ב־ו־א."""
+    gives it (`hebrew.WEAK_ROOTS`): מת is פעל of מ־ו־ת, הביא הפעיל of ב־ו־א.
+
+    A hif'il from the list only where `word`, the word under its prefixes, spells one
+    (`_hifil_shown`): DICTA files the qal בא under הביא and כולל under הכיל, and the
+    list's binyan would put a confident הפעיל on them (IAHLT, 2026-10-25)."""
     passive = PASSIVE_PARTICIPLES.get(lemma.translate(FINALS))
     if passive:
         return BINYANIM["PAAL"], passive
     if binyan is None:
         listed = weak_root(lemma)
-        if listed:
+        if listed and (
+            listed[0] != BINYANIM["HIFIL"] or word is None or _hifil_shown(word, listed[1])
+        ):
             binyan = listed[0]
     return binyan, root_of(lemma, binyan)
+
+
+def _hifil_shown(word: str, root: str) -> bool:
+    """Whether a word spells a hif'il of a weak root: its ה (הביא, הבאתי, להביא), its
+    present's מ (מביא), or the hiriq-yod before the root's last letter that a future
+    carries (יביא, תכיל) and a qal does not (יבוא, כולל)."""
+    letters = word.translate(FINALS)
+    if letters.startswith(("ה", "מ", "לה")):
+        return True
+    last = letters.rfind(root[-1].translate(FINALS))
+    return last > 1 and letters[last - 1] == "י"
 
 
 def _man_or_woman(lemma: str, base: str) -> str:
