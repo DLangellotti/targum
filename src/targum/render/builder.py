@@ -6150,6 +6150,20 @@ def render(
             )
             if any(table)
         }
+        # The conjugation tables and the feature names they point into ride after
+        # `reader.js` (targum-internal#503): a card draws them folded shut, and they were
+        # twelve kilobytes gzipped in front of Ki Tavo's first tap. Which verb has a table
+        # (`paradigms`) stays in front, so the fold is on the card from the first one.
+        late_tables = {
+            name: extensions.pop(name)
+            for name in ("conjugations", "features")
+            if name in extensions
+        }
+        # Only where a word actually moved. A rebuild that changed no name ships nothing,
+        # which is every rebuild after the first. An added key rather than a changed one,
+        # so `PAYLOAD_VERSION` stays where it is — a reader that predates this passes over
+        # what it does not know, and migrates when it is next rebuilt.
+        carried_moves = bool(moves and (moves.get("lemmas") or moves.get("surfaces")))
         # Who speaks each line and where it is said, for a dialogue. Empty for every
         # other text, and computed per section so a scene split across pages carries only
         # the spans its own page needs.
@@ -6426,10 +6440,17 @@ def render(
                         key: entry
                         for key, entry in payload.items()
                         if _rides_late(entry, key, drawn_at)
-                    }
+                    },
+                    **({"extensions": late_tables} if late_tables else {}),
+                    # This text's lemma renames, in the first block until targum-internal#503:
+                    # a browser carries its marks across once, and every page after
+                    # that had them in front of its first tap for nothing.
+                    **({"moves": moves} if carried_moves else {}),
                 }
             )
-            if any(_rides_late(entry, key, drawn_at) for key, entry in payload.items())
+            if late_tables
+            or carried_moves
+            or any(_rides_late(entry, key, drawn_at) for key, entry in payload.items())
             else "",
             data=embed_json(
                 {
@@ -6442,16 +6463,6 @@ def render(
                     "words": words,
                     "lemmas": lemmas,
                     **({"heads": heads} if any(heads) else {}),
-                    # Only where a word actually moved. A rebuild that changed no name
-                    # ships nothing, which is every rebuild after the first. An added key
-                    # rather than a changed one, so `PAYLOAD_VERSION` stays where it is —
-                    # a reader that predates this passes over what it does not know, and
-                    # migrates when it is next rebuilt.
-                    **(
-                        {"moves": moves}
-                        if moves and (moves.get("lemmas") or moves.get("surfaces"))
-                        else {}
-                    ),
                     # Facts a language knows about its dictionary forms and the format
                     # does not: a Hebrew verb's root and binyan today; an Arabic root, a
                     # Japanese reading and its pitch, tomorrow. Each is a table parallel

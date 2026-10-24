@@ -1061,7 +1061,6 @@ def test_interlinear_shows_the_translation_not_the_words(tmp_path: Path) -> None
     noisier one. Because it is the translation, it needs no glossary and is offered
     on every reader.
     """
-    from targum.render.builder import ASSETS
 
     segments = [paragraph(0)]
     segmented = make_segmented(segments)
@@ -1090,7 +1089,7 @@ def test_interlinear_shows_the_translation_not_the_words(tmp_path: Path) -> None
     assert ".mode-inter .tr { display: none; }" not in css
     # And nothing prints a meaning under a word any more.
     assert ".wg" not in css
-    assert ".wg" not in (ASSETS / "reader.js").read_text(encoding="utf-8")
+    assert ".wg" not in _reader_script()
 
 
 def test_words_and_phrases_are_two_lists_with_two_counts(tmp_path: Path) -> None:
@@ -1101,7 +1100,6 @@ def test_words_and_phrases_are_two_lists_with_two_counts(tmp_path: Path) -> None
     wording beside a thing kept because you did not know it.
     """
     from targum.models import Annotation, Token
-    from targum.render.builder import ASSETS
 
     segments = [paragraph(0)]
     segmented = make_segmented(segments)
@@ -1143,7 +1141,7 @@ def test_words_and_phrases_are_two_lists_with_two_counts(tmp_path: Path) -> None
     assert 'id="words-empty"' in html
     assert 'id="phrases-empty"' in html
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "function wordEntries()" in script
     assert "function phraseEntries()" in script
     # Nothing builds one merged list any more.
@@ -1160,7 +1158,6 @@ def test_the_list_offers_an_anki_deck_beside_the_spreadsheet(tmp_path: Path) -> 
     are drilling in Anki, and a deck wants what a column does not carry: the pointed
     word, the sentence it was met in, a verb's root (targum-internal#39)."""
     from targum.models import Annotation, Token
-    from targum.render.builder import ASSETS
 
     segments = [paragraph(0)]
     segmented = make_segmented(segments)
@@ -1190,7 +1187,7 @@ def test_the_list_offers_an_anki_deck_beside_the_spreadsheet(tmp_path: Path) -> 
     assert 'id="anki-button"' in html
     assert ">Anki deck<" in html
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "function exportAnki()" in script
     assert "function ankiText(name, cards)" in script
     # The same offer as the CSV's: nothing to hand over is not worth offering.
@@ -1321,9 +1318,8 @@ def test_the_reader_draws_words_and_phrases_in_one_pass() -> None:
     A source-level guard rather than a behavioural test; the parse check below is the
     other half of what stands in for real coverage of the reader's JavaScript.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "function markSegment(cell)" in script
     # Saved words and saved phrases are drawn in one pass, because a phrase can start
     # mid-word and cover several, which the DOM will not nest.
@@ -1346,21 +1342,22 @@ def test_the_reader_script_parses() -> None:
     if not node:
         pytest.skip("node not installed")
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    result = subprocess.run(
-        [
-            node,
-            "--input-type=module",
-            "-e",
-            "const fs = await import('node:fs');"
-            "new Function(fs.readFileSync(process.argv[1], 'utf8'))",
-            "--",
-            str(ASSETS / "reader.js"),
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr
+    script = _reader_script()
+    for name in ("reader.js", "reader-rest.js"):
+        result = subprocess.run(
+            [
+                node,
+                "--input-type=module",
+                "-e",
+                "const fs = await import('node:fs');"
+                "new Function(fs.readFileSync(process.argv[1], 'utf8'))",
+                "--",
+                str(ASSETS / name),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, (name, result.stderr)
     assert "function markSegment" in script
 
 
@@ -1389,7 +1386,7 @@ def test_every_word_a_reader_meets_offers_to_copy_itself() -> None:
 
     css = _reader_css()
     assert ".copy {" in css and ".gloss-card .copy-line {" in css
-    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    reader = _reader_script()
     assert reader.count("window.TargumVocab.copyButton(") == 5, (
         "the word, its meaning, the phrase, its reading, a row"
     )
@@ -1411,9 +1408,8 @@ def test_pressing_a_card_does_not_cancel_the_selection_behind_it() -> None:
     """Mousedown on the card collapses the selection, the mouseup handler then hides
     the card, and the click never reaches the button under the cursor. Which reads as
     the button doing nothing at all."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "chip.contains(event.target)" in script
     assert 'chip.addEventListener("mousedown"' in script
 
@@ -1680,7 +1676,6 @@ def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> Non
     the paging tests in `test_reader_browser.py` caught, and which this records so the
     two halves of the fix are not quietly separated later.
     """
-    from targum.render.builder import ASSETS
 
     segment = hebrew(0, TROPE_TEXT)
     html = render_with_vocalization(
@@ -1690,7 +1685,7 @@ def test_the_page_is_measured_again_when_the_face_arrives(tmp_path: Path) -> Non
     assert "font-display:block" in html
     assert "font-display:swap" not in html
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "document.fonts.ready" in script, "the page never measures itself again"
 
 
@@ -2522,6 +2517,14 @@ def test_the_way_back_goes_home(tmp_path: Path) -> None:
 ASSETS = Path(__file__).resolve().parents[1] / "src/targum/render/assets"
 
 
+def _reader_script() -> str:
+    """The reader's own script as these tests read it: `reader.js` and the rest of it,
+    which rides after the faces since targum-internal#503."""
+    return "\n".join(
+        (ASSETS / name).read_text(encoding="utf-8") for name in ("reader.js", "reader-rest.js")
+    )
+
+
 def test_the_exports_cannot_carry_a_formula() -> None:
     """A spreadsheet runs a cell opening with =, +, - or @ as a formula.
 
@@ -2531,7 +2534,7 @@ def test_the_exports_cannot_carry_a_formula() -> None:
     """
     import re
 
-    for name in ("reader.js", "lists.js"):
+    for name in ("reader-rest.js", "lists.js"):
         source = (ASSETS / name).read_text(encoding="utf-8")
         match = re.search(r"function csvCell\(value\) \{(.*?)\n  \}", source, re.S)
         assert match, f"{name} has no csvCell to check"
@@ -2958,7 +2961,7 @@ def test_the_scripts_take_a_verse_link_the_rest_of_the_way() -> None:
     another page is not rendered — and the contents page has to pick the file."""
     from targum.render.builder import ASSETS
 
-    reader = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    reader = _reader_script()
     assert 'window.addEventListener("hashchange", arrive);' in reader
     boot = reader[reader.index("  resume();\n") :]
     assert "arrive();" in boot[: boot.index("took(")], "after the layout, like resume"
@@ -2989,9 +2992,8 @@ def test_marking_is_what_a_text_opens_in() -> None:
     A reader who has to find a key before the product does its one distinctive thing has
     to know the key is there; the quiet page is one keystroke away and the choice sticks.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     prefs = script[script.index("var prefs = {") : script.index("try {", script.index("var prefs"))]
     assert re.search(r"\bmarking:\s*true\b", prefs), "marking is the default"
     assert "mark: true" not in prefs, "the old half-measure is gone"
@@ -3001,9 +3003,8 @@ def test_the_marking_class_is_not_one_applymode_eats() -> None:
     """`applyMode()` strips every `mode-*` token off body.className to swap the reading
     mode. A marking class named `mode-…` would vanish the first time somebody pressed
     p, o or i — silently, and only for people who use those keys."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert 'classList.toggle("marking"' in script
     assert 'classList.toggle("mode-marking"' not in script
     stripper = re.search(r"body\.className\.replace\((/[^)]+/g)", script)
@@ -3043,9 +3044,7 @@ def test_a_word_is_markable_in_both_modes() -> None:
     assert ".w { border-radius: 4px; cursor: pointer; }" in css, "tappable either way"
     assert "body.marking .w { cursor" not in css
 
-    from targum.render.builder import ASSETS
-
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     handler = script[script.index("/* --- clicks ---") : script.index("/* --- keyboard ---")]
     assert "prefs.marking &&" not in handler, "a tap opens the card in either mode"
     picking = script[script.index('document.addEventListener("mouseup"') :][:600]
@@ -3097,9 +3096,8 @@ def test_the_words_are_wrapped_in_both_modes_so_copying_is_the_same() -> None:
     reading mode is CSS. If it ever became a re-render, the copied string would differ
     between modes and nothing would say so.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     body = script[script.index("function markSegment(cell)") : script.index("function redraw()")]
     assert "prefs.marking" not in body, "marking up must not depend on the mode"
 
@@ -3118,9 +3116,8 @@ def test_the_header_counts_the_words_here_and_the_knowing_everywhere() -> None:
     """Words are kept per language, so a word first met in another text already counts
     the moment you open this one. That is what makes the number answer "how hard is this
     for me" rather than "how far through this text am I"."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     stats = script[script.index("function renderStats()") : script.index("function countInto(")]
     # coverage() walks lemmasHere() — this text — and asks statusOf(), which reads the
     # language-wide store. Both halves come from that one call.
@@ -3133,9 +3130,8 @@ def test_ignored_words_leave_the_total_rather_than_counting_as_known() -> None:
     language. Counting it as known would make the figure one you could raise by ignoring
     things, which is not what the label claims.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "var scored = counts.total - counts.ignored;" in script
     stats = script[script.index("function renderStats()") : script.index("function countInto(")]
     assert "counts.known + counts.ignored" not in stats
@@ -3143,9 +3139,8 @@ def test_ignored_words_leave_the_total_rather_than_counting_as_known() -> None:
 
 def test_a_text_with_no_words_shows_no_count() -> None:
     """ "0 of 0 known" is worse than saying nothing. Some builds carry no annotation."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "headerKnown.hidden = !scored;" in script
     template = _reader_template()
     assert '<span class="known" id="known" hidden></span>' in template
@@ -3164,9 +3159,8 @@ def test_a_word_card_opens_beside_its_word() -> None:
     """It was pinned to the foot of the window wherever you tapped, so marking a word in
     the first line meant crossing the page to press a button about it and crossing back.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     # Through `seatNear`, which is `placeNear` on a wide window and the band at the foot
     # on a narrow one — see the phone rules at the foot of reader.css.
     assert "seatNear(card, word.getBoundingClientRect());" in script
@@ -3191,9 +3185,8 @@ def test_the_level_keys_are_the_letters_outright() -> None:
     an answer you already had — the card is a question you have to ask for, and needing
     it open first would have made every decision two keypresses.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
     # The word the arrows are on, or failing that the one a pointer opened a card about.
     assert "var word = standing || (lookedUp && card && !card.hidden ? lookedUp : null);" in script
@@ -3234,9 +3227,8 @@ def test_taking_a_mark_off_is_asked_for_rather_than_inferred() -> None:
     written itself. Typing a definition and then saying "just met it" deleted the word and
     the definition together, which is the one combination a reader is most likely to use.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     body = script[script.index("function setStatus(index, surface, band, status) {") :]
     body = body[: body.index("\n  }\n")]
     assert "var current = statusOf(lemma);" not in body, "nothing is inferred from the store"
@@ -3264,9 +3256,8 @@ def test_the_phrase_card_lets_its_own_field_take_focus() -> None:
     Safe to exempt: the mouseup handler already ignores everything inside the chip, so
     the card does not close when the selection collapses under the caret.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     down = script[script.index('chip.addEventListener("mousedown"') :]
     down = down[: down.index("});")]
     assert "/^(INPUT|SELECT|TEXTAREA)$/.test(to.tagName)) return;" in down
@@ -3286,9 +3277,8 @@ def test_no_name_in_the_reader_is_both_a_function_and_a_variable() -> None:
     chip. `placeNear` is the only thing that takes the chip out of `hidden`, so dragging
     a phrase stopped working outright and nothing said so.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     # Per IIFE, not per file: this reader is several, and a name in one says nothing
     # about the same name in another. Two spaces inside one of them is its own scope.
     for part in script.split("\n})();"):
@@ -3327,10 +3317,11 @@ def test_dragging_a_phrase_shows_the_chip() -> None:
     """Filling the chip and showing it are two different calls, and only the second one
     puts it on the screen — `pickCard` writes the content into an element that is still
     `hidden`."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
-    body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    script = _reader_script()
+    body = script[
+        script.index("function showPick(picked)") : script.index("// What `reader.js` passes on to")
+    ]
     # Both branches: a drag over one word, and a drag over several.
     assert body.count("placeChip(picked.rect);") == 2
     assert 'function placeChip(rect) {\n    occupy("chip");\n    seatNear(chip, rect);' in script
@@ -3346,11 +3337,12 @@ def test_a_phrase_takes_the_same_keys_as_a_word() -> None:
     state once, when it is built — without that, the level would be saved and the button
     would go on looking unpressed.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "function showPick(picked)" in script, "rebuildable, so the card can restate"
-    body = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    body = script[
+        script.index("function showPick(picked)") : script.index("// What `reader.js` passes on to")
+    ]
     assert body.count("pickLevel = function (status)") == 2, "both branches of the card"
     # Each branch redraws it, and so does Keep: the card comes back with the scale on.
     # And a phrase's meaning arriving from the server redraws it once more, so the card
@@ -3372,9 +3364,8 @@ def test_a_phrase_asks_only_where_the_page_can() -> None:
     translation, so the card can quote the parallel text instead of stringing glosses
     together. Same origin, and only behind `canAsk()`: a page opened off the disk fetches
     nothing, and `test_loads_nothing_from_the_network` stays true of it."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     ask = script[script.index("function askPhrase(picked") : script.index("function statusOf(")]
     assert ask.index("canAsk()") < ask.index('fetch(keyed("/phrase")'), "asked before it can"
     assert "translation: translationFor(picked.segmentId)" in ask, "the parallel text goes too"
@@ -3385,7 +3376,9 @@ def test_a_phrase_asks_only_where_the_page_can() -> None:
     # The caption says only what is still owed or standing in — never provenance:
     # "in the parallel text" and "as it is used here" told the reader where an answer
     # came from, which nobody could act on. Removed 2026-08-31.
-    chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    chip = script[
+        script.index("function showPick(picked)") : script.index("// What `reader.js` passes on to")
+    ]
     for caption in (
         "word by word — looking…",
         "word by word — the line's translation has the whole sentence",
@@ -3405,14 +3398,15 @@ def test_a_quoted_phrase_is_marked_in_the_parallel_text() -> None:
     piece of the translation, that piece is marked in the translation cell, in the
     phrase hue as a flat wash (§4), and unmarked the moment the card goes or another
     one opens."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     sheet = _reader_css()
     rule = sheet[sheet.index(".tr .echo {") : sheet.index("}", sheet.index(".tr .echo {"))]
     assert re.search(r"var\(--iris\) (1[2-9]|2[0-2])%", rule), "the wash is iris, 12–22%"
     assert "transition" not in rule and "gradient" not in rule, "flat"
-    chip = script[script.index("function showPick(picked)") : script.index("/* --- export ---")]
+    chip = script[
+        script.index("function showPick(picked)") : script.index("// What `reader.js` passes on to")
+    ]
     assert "if (held && held.quoted) echoIn(picked.segmentId, held.meaning);" in chip
     assert chip.index("unecho();") < chip.index("var touching"), "the last mark goes first"
     hide = script[
@@ -3433,9 +3427,8 @@ def test_the_page_marks_what_you_are_looking_at_first() -> None:
     Measured on a 400-pair chapter: marks on screen at 60ms, against 330ms to mark the
     page — and the 330ms is a headless browser with no fonts to shape and no display.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
     assert "ordered.slice(0, AHEAD).forEach(markPair);" in redraw, "a screenful, now"
     assert "markVisible();" in redraw, "the rest of the screen once it is laid out"
@@ -3449,9 +3442,8 @@ def test_the_marking_pass_cannot_run_twice_over_itself() -> None:
     Marking rebuilds the cell from scratch, so doing it twice is wasted work and doing it
     from two passes at once would interleave them.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "if (generation !== pending) return;" in script, "an old fill abandons itself"
     assert "if (pair.__targumDrawn === pending) return;" in script, "and a pair is done once"
 
@@ -3459,9 +3451,8 @@ def test_the_marking_pass_cannot_run_twice_over_itself() -> None:
 def test_lazy_marking_degrades_rather_than_breaks() -> None:
     """The reader's standing rule. With no requestAnimationFrame the whole page is marked
     at once, which is what it always did."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     redraw = script[script.index("function redraw()") : script.index("/* --- the list ---")]
     assert "if (!window.requestAnimationFrame) {" in redraw
     assert "ordered.forEach(markPair);" in redraw, "everything, immediately, as before"
@@ -3470,9 +3461,8 @@ def test_lazy_marking_degrades_rather_than_breaks() -> None:
 def test_no_count_on_the_page_reads_the_dom() -> None:
     """What makes lazy marking safe. If any figure were counted from the spans, drawing
     fewer of them would quietly change what the reader is told."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     for name in (
         "function lemmasHere(everything)",
         "function coverage()",
@@ -3487,9 +3477,8 @@ def test_no_count_on_the_page_reads_the_dom() -> None:
 def test_a_reader_can_be_asked_where_the_time_went() -> None:
     """A page that felt slow measured fast everywhere it could be measured. Guessing at
     that is how the wrong thing gets optimised."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     # Matched on the raw address, not parsed: a reader already carries a key in its
     # query, so `?debug=timing` appended to it makes a second `?` and a parser reads the
     # whole lot as the key. The switch then does nothing, silently.
@@ -3501,7 +3490,7 @@ def test_a_reader_can_be_asked_where_the_time_went() -> None:
     # second `?`. A diagnostic whose address must be hand-edited is one that does not
     # work when it is needed.
     assert 'case "t":' in script
-    assert "showTimings(!readout || readout.hidden)" in script
+    assert "showTimings(!R.readout || R.readout.hidden)" in script
     # And not written down: what the page took to draw is for whoever is building targum,
     # not for whoever is reading, so the card a reader opens does not offer it.
     template = _reader_template()
@@ -3525,9 +3514,8 @@ def test_a_changed_default_reaches_a_browser_that_already_has_one() -> None:
     Marking was shipped off, then changed to on, and the second change reached no one who
     had already opened a reader. The generation stamp is what makes a default changeable.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "var DEFAULTS = 4;" in script
     # 3: pages, for every browser that had a preference from before there were pages.
     # Decided 2026-08-28 — the first alpha reader is the target reader and asked twice.
@@ -3553,9 +3541,8 @@ def test_the_page_is_never_marked_further_than_it_is_read() -> None:
 
     What is on screen is marked; scrolling marks what it reaches; the rest is never done.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "function markOnward" not in script, "no background fill"
     assert "PER_FRAME" not in script
     # Scrolling and resizing are the two ways a pair arrives on screen.
@@ -3757,9 +3744,7 @@ def test_the_vowel_control_is_one_switch_not_two_choices(tmp_path: Path) -> None
     # One press in the bar since 2026-10-08, pressed or not: one thing, on or off.
     assert 'class="bar-tool marks"' in vowels.group(0)
 
-    from targum.render.builder import ASSETS
-
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "prefs.nikkud = !prefs.nikkud;" in script, "it toggles rather than being set"
     assert 'aria-pressed", prefs.nikkud ? "true" : "false"' in script
 
@@ -3773,9 +3758,7 @@ def test_the_mark_is_the_way_back(tmp_path: Path) -> None:
     assert 'id="home-plain"' in controls, "the unlinked one, for a page off the disk"
     assert ">Learn</a>" not in controls, "the word beside it said it twice"
 
-    from targum.render.builder import ASSETS
-
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "if (homePlain) homePlain.hidden = true;" in script
     # A link wherever there is a Learn page, which hosted means without a key: there the
     # cookie identifies the reader and `keyed` is the identity.
@@ -3990,9 +3973,8 @@ def test_a_cover_is_never_something_the_page_goes_and_gets(tmp_path: Path) -> No
 def test_the_arrows_are_the_whole_of_the_navigation() -> None:
     """A word at a time, and nothing else. Stepping sentences was a second way through the
     text that shared `k` and `i` with the levels, so neither key meant one thing."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     keys = script[script.index("switch (key) {") :]
     assert 'case "ArrowRight":\n        if (!walk(!rtl)) return;' in keys
     assert 'case "ArrowLeft":\n        if (!walk(rtl)) return;' in keys
@@ -4009,9 +3991,8 @@ def test_no_key_does_two_things() -> None:
     """`k` is known and `i` is ignore, on a word, and neither can also be something else.
     Interlinear moved to `l` — the translation under each line — because `i` was spoken
     for."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     keys = script[script.index("switch (key) {") :]
     # The level keys are read before the switch and never reach it.
     assert "var KEYED_STATUS = { 1: 1, 2: 2, 3: 3, 4: KNOWN, k: KNOWN, i: IGNORED };" in script
@@ -4024,9 +4005,8 @@ def test_the_queue_never_reads_the_page() -> None:
     """Most of a chapter's word spans do not exist — `markSegment` draws a screenful and
     leaves the rest until it is scrolled to — so a queue built by asking the document
     which words are on it would stop at the bottom of the first screen."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     body = script[script.index("function buildQueue() {") : script.index("var segmentAt")]
     assert "querySelector" not in body and "document." not in body
     assert "Object.keys(wordData)" in body
@@ -4091,9 +4071,7 @@ def test_the_count_of_what_is_left_is_not_the_colour_of_an_achievement() -> None
     # And the one moment it is an achievement.
     assert ".bar-title .known.done { color: var(--leaf); }" in css
 
-    from targum.render.builder import ASSETS
-
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     # The same rule the queue is built from, so the two cannot disagree.
     assert "var left = counts.fresh + counts.learning;" in script
     assert '"nothing left to mark here"' in script
@@ -4105,7 +4083,7 @@ def test_the_card_carries_no_key_legend() -> None:
     perfected middle road, 2026-08-31."""
     from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert '" next · k known · 1 2 3 · i ignore · "' not in script
     assert 'className = "legend"' not in script
     css = _reader_css()
@@ -4155,9 +4133,8 @@ def test_a_sentence_scrolled_to_clears_the_bar() -> None:
 def test_nothing_scrolls_for_a_reader_who_asked_it_not_to() -> None:
     """`scrollIntoView` took a hard-coded `smooth`, which is the one animation on the
     page that prefers-reduced-motion could not switch off."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert 'window.matchMedia("(prefers-reduced-motion: reduce)")' in script
     assert 'behavior: "smooth"' not in script
     # The rule is that nothing hard-codes the answer, which the line above is. It used
@@ -4172,25 +4149,23 @@ def test_walking_the_page_opens_no_windows() -> None:
     walking, forty times in a row. Standing on a word is the ring and the keyboard;
     Enter is what asks the question — and asks the card's own question, the look-up,
     when it is offering one — and pressing it once more puts the answer away."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     stand = script[script.index("function focusQueued(") : script.index("function goTo(")]
     # The only opening in there is the one carried from a card already up.
     assert "showCard" not in stand, "standing on a word must not open anything"
     assert "if (open) openCard();" in stand
 
     keys = script[script.index("switch (key) {") :]
-    assert 'case "Enter":\n        if (!standing) return;' in keys
+    assert 'case "Enter":\n        if (!R.standing) return;' in keys
     assert "if (!asking()) openCard();\n        else if (!askMeaning()) hideCard();" in keys
 
 
 def test_escape_puts_the_card_away_before_it_puts_you_out() -> None:
     """One key that did both would cost a reader their place in the chapter to close a
     window they had opened on one word."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     escape = script[script.index('case "Escape": {') : script.index("      default:")]
     assert escape.index("hideCard();") < escape.index("leaveQueue();")
 
@@ -4200,9 +4175,8 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     translation, then the queue. It used to close the two windows and then drop you out
     of the queue while leaving the saved-words panel — the one thing still covering the
     text — exactly where it was."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     escape = script[script.index('case "Escape": {') : script.index("      default:")]
     assert escape.index("showKeys(false);") < escape.index("hideCard();")
     assert escape.index("hideCard();") < escape.index("showList(false);")
@@ -4229,12 +4203,11 @@ def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
     ring, the card and `standing` all stayed behind. The next `k` then marked that word,
     silently, on a word out of sight. The bar is the exception: sticky, the word still in
     front of you, and Shift+Tab straight back to it."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     guard = script[script.index('document.addEventListener("focusin"') :]
     guard = guard[: guard.index("});")]
-    assert "if (!standing || event.target === standing) return;" in guard
+    assert "if (!R.standing || event.target === R.standing) return;" in guard
     # The card's own level buttons and note field are reached by Tab from the word, and
     # reaching them is not leaving.
     assert "card.contains(event.target)" in guard
@@ -4247,9 +4220,8 @@ def test_a_key_is_the_letter_printed_on_it_whatever_the_layout() -> None:
     answers to was dead — for the reader this page is for. A Latin letter is taken as
     typed, so a Dvorak keyboard keeps its mnemonics; anything else falls back to the key
     it sits on. Digits and `?` are the same on both layouts and are left alone."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert 'if (!/^[a-z0-9?]$/.test(key) && /^Key[A-Z]$/.test(event.code || "")) {' in script
     assert "key = event.code.charAt(3).toLowerCase();" in script
 
@@ -4258,9 +4230,8 @@ def test_enter_asks_the_question_the_card_is_offering() -> None:
     """Enter opens the card; on a card offering a look-up, Enter presses it; once there is
     nothing left to ask, Enter closes the card. `g` had the look-up once — for the gloss,
     which is what the code calls it and nothing a reader ever sees."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     keys = script[script.index("switch (key) {") :]
     assert 'case "g":' not in keys
     # A question already asked and still waiting is not "nothing to ask": Enter must not
@@ -4274,9 +4245,8 @@ def test_enter_asks_the_question_the_card_is_offering() -> None:
 def test_a_key_is_the_letter_on_it_whatever_the_shift_was() -> None:
     """Read literally, `event.key` is "K" with caps lock down — and every letter the
     reader answers to is dead, on a state nothing on the page shows."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert 'if (typeof key === "string" && key.length === 1) key = key.toLowerCase();' in script
     assert "switch (event.key) {" not in script, "the switch reads the normalised key"
     assert "markLookedUp(key)" in script
@@ -4287,9 +4257,8 @@ def test_the_word_list_does_not_open_itself(tmp_path: Path) -> None:
     card being typed into away on a phone (targum-internal#155). Since 2026-10-09 it never
     opens itself: it starts closed (design.md §12, "The reader's chrome is the desk's"),
     and keeping a word or a phrase leaves it where it is. Only a press opens it."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     assert "showList(prefs.list === null ? false : prefs.list" in script
     assert "if (listBox && listBox.hidden) showList(true);" not in script
     assert "isLearning(status) && !standing" not in script
@@ -4317,9 +4286,8 @@ def test_a_card_a_pointer_opened_survives_the_key_that_marks_it() -> None:
     once the page is redrawn and has no ancestors left to search. The sentence was being
     read off the word *after* that, which answers null — so the card shut itself on every
     word marked with a pointer, which is the one path that is supposed to keep it."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     body = script[script.index("function markLookedUp(") : script.index("function statusRow(")]
     # `.film-pair` too since #422: the line under a video is a copy of its transcript's
     # line, held in a `film-pair` so nothing that walks the transcript counts it.
@@ -4333,9 +4301,8 @@ def test_the_word_decides_whether_to_scroll_and_the_sentence_moves() -> None:
     verse ran past the fold, with the word you were standing on in plain sight the whole
     time. Centring the word alone is the opposite mistake: it puts the line it belongs to
     at the very edge of the window."""
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     body = script[
         script.index("function bring(word, pair) {") : script.index("function focusQueued(")
     ]
@@ -4354,9 +4321,8 @@ def test_the_arrows_stop_at_the_end_rather_than_coming_round() -> None:
     away from you. The words earlier are still reachable by the other arrow and by tapping
     one, so what went is a shortcut.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     onward = script[script.index("  function onward(from, forward) {") :]
     onward = onward[: onward.index("\n  }\n")]
     assert onward.startswith(
@@ -4401,9 +4367,8 @@ def test_a_card_goes_once_the_level_it_asked_for_has_been_said() -> None:
     window blinking forty times. It holds the answer for a beat, then fades — and §8, so a
     reader who asked for stillness gets the beat and nothing moving.
     """
-    from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     css = _reader_css()
 
     assert "if (open) spendCard();" in script, "a level said on an open card spends it"
@@ -4571,9 +4536,8 @@ def test_comments_are_stripped_from_what_the_page_carries(
     A reader inlines its whole stylesheet and script, so a comment is paid for once per
     page and a book of 151 chapters pays 151 times.
     """
-    from targum.render.builder import ASSETS
 
-    source = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    source = _reader_script()
     # A line of prose from the file itself, so this cannot pass against a stub.
     landmark = "/* --- keeping your place"
     assert landmark in source
@@ -4720,7 +4684,7 @@ def test_the_foot_of_a_narrow_window_is_one_band() -> None:
     assert "42svh + " not in css, "nothing is lifted by a ceiling"
     assert "--sheet" not in css
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     for told in ("--occupant", "--strip", "--tab", "--foot"):
         assert f'"{told}"' in script, told
     room = script[script.index("  function room() {") :]
@@ -5609,12 +5573,14 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
     assert html.index("@font-face") > script_at, "the faces come after reader.js"
 
 
-#: What a portion page may carry, gzipped, before `reader.js` (targum-internal#409): its
-#: stylesheet, the small scripts a tap needs, and this two-verse page's markup and data,
-#: 55.7 kB at 2026-10-21, with a margin. A face (about 30 kB each) back in front of
-#: `reader.js` breaks it; this page's Rashi is too small to, so the order test above is
-#: what guards the commentaries, and the player's has its own.
-BEFORE_READER_GZ = 60_000
+#: What a word on a portion page waits for, gzipped: everything up to the end of
+#: `reader.js`, which has to arrive whole before it runs. On this two-verse page that is
+#: its stylesheet, the small scripts a tap needs, its markup and data and `reader.js`
+#: itself: 127.1 kB before targum-internal#503 and 114.0 kB once the rest of the reader
+#: went after the faces (2026-10-24), with a margin. A face (about 30 kB each) or the
+#: rest back in front of a tap breaks it; this page's Rashi is too small to, and it has
+#: no verb with a table, so the order tests guard the commentaries and the tables.
+A_WORD_WAITS_GZ = 117_000
 
 
 def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
@@ -5622,8 +5588,72 @@ def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
 
     html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
     start = html.index("<script>var targumReader = function")
-    before = len(gzip.compress(html[:start].encode("utf-8"), 6))
-    assert before <= BEFORE_READER_GZ, f"{before} bytes gzipped before reader.js"
+    end = html.index("</script>", start) + len("</script>")
+    waited = len(gzip.compress(html[:end].encode("utf-8"), 6))
+    assert waited <= A_WORD_WAITS_GZ, f"{waited} bytes gzipped up to the end of reader.js"
+
+
+def test_the_rest_of_the_reader_comes_after_the_faces(tmp_path: Path) -> None:
+    """targum-internal#503: the lenses, export, shnayim mikra, the bar's panels and the
+    keyboard ride in `reader-rest.js`, after the faces and before the faults, so they no
+    longer stand in front of a word's first tap and the faces arrive when they did."""
+    html = _genesis(tmp_path, [_english(), _onkelos(), _rashi_beside("he", "פירוש")])
+    reader = html.index("<script>var targumReader = function")
+    rest = html.index("<script>window.targumReaderRest = function (R) {")
+    faces = html.rindex("@font-face")
+    faults = html.index("window.TargumFault =")
+    assert reader < faces < rest < faults
+    script = html[reader : html.index("</script>", reader)]
+    for elsewhere in ("function csvCell(", "function placePop(", "function applyPractice("):
+        assert elsewhere not in script and elsewhere in html, elsewhere
+
+
+def test_the_conjugations_and_the_renames_ride_after_reader_js(
+    tmp_path: Path, read_as_said: None
+) -> None:
+    """targum-internal#503: a verb's table is drawn folded shut, and a text's lemma
+    renames are needed once per browser, so both wait in the block after `reader.js`.
+    Which verb has a table stays in front of it, so the fold is on the first card."""
+    from targum.models import Annotation, Token
+
+    segments = [paragraph(0)]
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segments[0].id: "tr"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segments[0].id: [
+                Token(start=0, end=1, surface="אוֹמֵר", lemma="אומר", band=1, pos="VERB")
+            ]
+        },
+    )
+    html = render(
+        document,
+        make_segmented(segments),
+        [translation],
+        tmp_path / "r",
+        annotation=annotation,
+        moves={"id": "m1", "lemmas": {"אמר": "אומר"}},
+    )[0].read_text(encoding="utf-8")
+    early = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    late_at = html.index('id="targum-data-late"')
+    late = json.loads(re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S).group(1))
+    assert html.index("<script>var targumReader = function") < late_at
+    assert early["extensions"]["paradigms"] == [1]
+    assert "conjugations" not in early["extensions"] and "features" not in early["extensions"]
+    assert late["extensions"]["conjugations"][1] and late["extensions"]["features"]
+    assert "moves" not in early and late["moves"]["lemmas"] == {"אמר": "אומר"}
 
 
 def test_a_text_without_a_commentary_has_no_late_block(tmp_path: Path) -> None:
@@ -6048,7 +6078,7 @@ def test_the_word_order_lens_is_one_lens_among_the_others() -> None:
     on turns the rest off (design.md §12, "Lenses wait for a second read")."""
     from targum.render.builder import ASSETS
 
-    script = (ASSETS / "reader.js").read_text(encoding="utf-8")
+    script = _reader_script()
     keys = script[script.index("switch (key) {") :]
     assert 'case "w":\n        if (!toggleOrder()) return;' in keys
     toggle = script[script.index("function toggleOrder() {") :]
@@ -6302,6 +6332,18 @@ def read_as_said(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(paradigms, "table", lambda: shelf)
 
 
+def _held(html: str) -> dict[str, Any]:
+    """The page's data as `reader.js` holds it once the block after it is in: the
+    conjugation tables ride there since targum-internal#503."""
+    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
+    late = re.search(r'id="targum-data-late"[^>]*>(.*?)</script>', html, re.S)
+    if late:
+        tables = json.loads(late.group(1)).get("extensions") or {}
+        if tables:
+            data["extensions"] = {**data.get("extensions", {}), **tables}
+    return dict(data)
+
+
 def _conjugated(tmp_path: Path, surfaces: list[str]) -> dict[str, Any]:
     """A page whose only verb is `אומר`, untagged, written in each of these forms."""
     from targum.models import Annotation, Token
@@ -6333,8 +6375,7 @@ def _conjugated(tmp_path: Path, surfaces: list[str]) -> dict[str, Any]:
     html = render(document, segmented, [translation], tmp_path / "r", annotation=annotation)[
         0
     ].read_text(encoding="utf-8")
-    data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
-    return dict(data.get("extensions") or {})
+    return dict(_held(html).get("extensions") or {})
 
 
 def test_a_verb_with_no_binyan_takes_the_table_the_shelf_reads_it_as(
@@ -6413,8 +6454,7 @@ def test_a_participle_takes_the_table_of_the_verb_whose_present_it_is(
             tmp_path / where,
             annotation=annotation,
         )[0].read_text(encoding="utf-8")
-        data = json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1))
-        return dict(data.get("extensions") or {})
+        return dict(_held(html).get("extensions") or {})
 
     extensions = drawn("UPOS=VERB|Person=1,2,3|Gender=Masc|Number=Sing", "present")
     assert extensions["paradigms"] == [1]
@@ -6466,7 +6506,7 @@ def _pointed_page(
     html = render(
         document, make_segmented(segments), [translation], tmp_path, annotation=annotation
     )[0].read_text(encoding="utf-8")
-    return dict(json.loads(re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S).group(1)))
+    return _held(html)
 
 
 def test_an_occurrence_s_own_pointing_draws_its_table(
