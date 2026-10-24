@@ -1469,6 +1469,12 @@ are the desk" the column runs to that corner too. It covered the Library's secon
   reach less the column's own padding. The bar keeps the whole width. A control clear of
   the pill across the window is clear of it at every scroll position.
   `test_at_a_desk_the_talk_pill_covers_nothing` holds this at 1024, 1280 and 1440.
+- *(Since 2026-10-23, targum-internal#523 and targum#919: the start edge keeps the same
+  room as the end once the window spares it, so the column stays centred and narrows in
+  the middle instead of sliding: 1198px at 1440 in English, less in Russian, whose pill
+  says more. So a page asks its own width whether two things fit side by side, never
+  the window's (2026-10-24, after Your Words ran its table under Practise these at 1440);
+  `test_desk_fit_browser.py` holds each page it fixed from 360 to 1920.)*
 
 ### A drawer left open comes back undimmed — 2026-10-09
 

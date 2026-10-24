@@ -12,6 +12,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Your Words keeps its table inside its card at every width (David, 2026-10-24: "design
+  seems to be broken"). Since targum#919 kept the AI Assistant's room on both edges of
+  the column, the column is 1198px at 1440 in English, and the page still asked the
+  window whether the practice card fitted beside the table: the table ran 41px past its
+  card at 1440, 64px at 1280 and 115px at 768, and ignore sat under Practise these. The
+  card now stands beside the table only while the table's narrowest fits beside it, and
+  goes above it otherwise; the list takes the phone's rows wherever it is narrower than
+  its table; a stage's name may take two lines; and a Hebrew word's dictionary form
+  stands under the word instead of at the cell's other edge. The same shoot, every
+  signed-in desk page at 360 to 1920 in English and Russian, found one more: Your
+  targums' Subscriptions tab at 768 broke «Недельный» mid-word and ran «Каждый
+  понедельник» into the next column; its table takes the phone's rows wherever it is
+  narrower than its columns need. `test_desk_fit_browser.py` holds both.
 - "Learned on targum" counts a word marked anything other than known that later became
   known (David, 2026-10-24). The count already took new, still learning and almost
   known; it now takes ignored too, and the note under it says what it counts in plain
