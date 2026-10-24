@@ -627,9 +627,13 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # STEP Bible'"'"'s brief glosses for the Tanakh (targum-internal#510), beside the
       # books the box already has, before the rebuild that writes them into glossaries.
       # The books are on disk, so this fetches the one file and is a no-op after.
+      # Optional by design: a card without it says Strong'"'"'s, so a STEP Bible that
+      # cannot be reached warns and the rebuild goes on, rather than leaving the new
+      # code live with no rebuild behind it.
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-        /usr/local/bin/targum models fetch scripture
+        /usr/local/bin/targum models fetch scripture \
+        || echo "   STEP Bible glosses not fetched; cards keep Strong'"'"'s until the next deploy" >&2
 
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \

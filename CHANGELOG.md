@@ -20,9 +20,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   never read, stored or shipped, and a test fails if any reaches the table. The file is
   fetched at a pinned commit by `targum models fetch scripture`, which `deploy.sh` now
   runs before the rebuild, and never vendored. One gloss per Strong's number, the letter
-  the Tanakh uses most, so every עָשָׂה is "to make" and none "to press".
+  the Tanakh uses most, so every עָשָׂה is "to make" and none "to press". A name never
+  stands for the word: דֶּרֶךְ is "way", not "Way", סוּס "horse", not "Horse (Gate)",
+  and צָבָא "army", not "Hosts". A deploy that cannot reach STEP Bible warns and goes on.
   `annotate/tbesh_changes.tsv` is both the change note the licence asks for and the hand
-  fixes (רע "bad", כֵּן "so"). Where TBESH has nothing, Strong's stays. Reader pages whose
+  fixes (רע "bad", כֵּן "so", פֶּה "mouth", טוֹב "good"). Where TBESH has nothing, Strong's stays. Reader pages whose
   meanings show one, and the How page, say "Meanings from STEP Bible · CC BY 4.0 ·
   shortened by targum", linked. No annotator rename and no spend; parasha and daily need
   a re-cut after the deploy.

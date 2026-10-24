@@ -535,28 +535,108 @@ def parse_tbesh(text: str) -> dict[str, list[TbeshRow]]:
     return out
 
 
+def _own(row: TbeshRow) -> bool:
+    """Whether a row is an entry of its own: its dStrong is its uStrong with nothing after
+    the `=` (`H1697G =`, against `H1697H = a Meaning of`)."""
+    left, _, relation = row.dstrong.partition("=")
+    return not relation.strip() and left.strip() == row.ustrong.strip()
+
+
+def is_name(row: TbeshRow) -> bool:
+    """Whether a row is a proper or place name rather than the common word.
+
+    TBESH capitalises a name's gloss, and that is the mark this reads. Its morph is no
+    help on its own: the many common nouns that also name a place carry the noun's morph
+    on the name row (דֶּרֶךְ has "Way" beside "way: road", סוּס "Horse (Gate)" beside
+    "horse"), and some common words carry a name's `N:` morph ("stream" beside "Nile",
+    "plain" beside "Arabah"). The first letter decides, past any bracket.
+
+    A gentilic is not a name here (the morph's last field ends in `G`, as in `N:N--LG`).
+    "Canaanite" is the word a learner meets, and letting it sit out would hand כְּנַעֲנִי
+    the gloss of its rare twin, "merchant".
+    """
+    first = next((ch for ch in row.gloss if ch.isalpha()), "")
+    if not first.isupper():
+        return False
+    return not row.morph.rsplit("-", 1)[-1].endswith("G")
+
+
 def _head(rows: list[TbeshRow]) -> TbeshRow:
     """The row that is the word itself rather than one of its senses or names.
 
-    The first whose dStrong is its own uStrong with nothing after the `=` (`H1697G =`,
-    against `H1697H = a Meaning of`); else the first that is not a name, because a name
-    is how אֱלֹהִים would otherwise come out "(LORD)-Elohe"; else the first.
+    In order (targum-internal#510, after ling-he's review):
+
+    1. The entry's own row that its "a Meaning of" rows point to, and that is not a
+       name. דֶּרֶךְ's senses all point to H1870K "way: road", not to H1870H "Way".
+    2. Else its first own row that is not a name: שָׁבוּעַ is "week", not "Weeks".
+    3. Else its first row of any kind that is not a name.
+    4. Else, where every row is a name, its first own row: a person is his own name.
+    5. Else its first row whose morph is not `N:`, because אֱלֹהִים has no own row and
+       no lowercase one, and is "God", not "(LORD)-Elohe".
+    6. Else its first row.
     """
-    for row in rows:
-        left, _, relation = row.dstrong.partition("=")
-        if not relation.strip() and left.strip() == row.ustrong.strip():
-            return row
-    return next((row for row in rows if not row.morph.startswith("N:")), rows[0])
+    pointed = [
+        row.ustrong.split(",")[0].strip()
+        for row in rows
+        if row.dstrong.partition("=")[2].strip().startswith("a Meaning of")
+    ]
+    for target in pointed:
+        for row in rows:
+            if _own(row) and row.ustrong.strip() == target and not is_name(row):
+                return row
+    for candidates in (
+        (row for row in rows if _own(row) and not is_name(row)),
+        (row for row in rows if not is_name(row)),
+        (row for row in rows if _own(row)),
+        (row for row in rows if not row.morph.startswith("N:")),
+    ):
+        found = next(candidates, None)
+        if found is not None:
+            return found
+    return rows[0]
+
+
+#: Words that finish a phrasal verb. Where everything after a "/" is one of these, the
+#: slash stays: "to cut down/off" is one verb two ways, and "to cut down; off" reads as
+#: two meanings, the second of them not a word.
+_PARTICLES = frozenset(
+    {
+        "up",
+        "down",
+        "off",
+        "out",
+        "over",
+        "away",
+        "open",
+        "in",
+        "on",
+        "back",
+        "aside",
+        "through",
+        "together",
+        "forth",
+        "about",
+        "around",
+        "apart",
+        "under",
+        "by",
+    }
+)
 
 
 def shorten(gloss: str) -> str:
     """A TBESH Gloss as a card says it. Each rule is a line of `tbesh_changes.tsv`.
 
     The head before the first `": "` (`to go: walk` is *to go*), `/` as `; `
-    (`servant/slave`), and the backticks and a closing `!` taken off.
+    (`servant/slave`) except between the particles of one phrasal verb
+    (`to cut down/off`), and the backticks and a closing `!` taken off.
     """
     head = gloss.split(": ")[0].replace("`", "").strip()
-    head = re.sub(r"\s*/\s*", "; ", head)
+    parts = [part.strip() for part in head.split("/")]
+    if len(parts) > 1 and not all(part.lower() in _PARTICLES for part in parts[1:]):
+        head = "; ".join(parts)
+    else:
+        head = "/".join(parts)
     return head.rstrip("!").strip()
 
 
@@ -567,22 +647,29 @@ def briefs_from(rows: dict[str, list[TbeshRow]], counts: dict[str, int]) -> dict
     the Tanakh. A lettered key (`1254 a`) gets its own variant's gloss. A bare key gets
     the gloss of the variant with the most tokens, because the bare number is what a
     meaning is filed under: עָשָׂה is *to make* (6213 a, 2,624 tokens), never *to press*
-    (6213 b, 3).
+    (6213 b, 3). A variant that is a name sits the count out wherever a common-word
+    variant exists: צָבָא is *army* (199 tokens), not *Hosts* (287, the name in "LORD of
+    Hosts").
     """
     out: dict[str, str] = {}
-    # Per number, the best candidate so far: (tokens, letter rank) and its gloss. A bare
-    # row outranks a letter at a tie, and `a` outranks `b`, so a number the tagging never
-    # writes falls to TBESH's own bare row or its first letter.
-    best: dict[str, tuple[tuple[int, int], str]] = {}
+    # Per number, the best candidate so far: (not a name, tokens, letter rank) and its
+    # gloss. A bare row outranks a letter at a tie, and `a` outranks `b`, so a number the
+    # tagging never writes falls to TBESH's own bare row or its first letter.
+    best: dict[str, tuple[tuple[int, int, int], str]] = {}
     for estrong, found in rows.items():
         key = _key(estrong)
-        said = shorten(_head(found).gloss)
+        head = _head(found)
+        said = shorten(head.gloss)
         if not key or not said:
             continue
         number, _, letter = key.partition(" ")
         if letter:
             out[key] = said
-        score = (counts.get(key, 0), -ord(letter) if letter else 0)
+        score = (
+            0 if is_name(head) else 1,
+            counts.get(key, 0),
+            -ord(letter) if letter else 0,
+        )
         if number not in best or score > best[number][0]:
             best[number] = (score, said)
     for number, (_score, said) in best.items():

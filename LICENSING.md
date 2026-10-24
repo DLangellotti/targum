@@ -915,7 +915,7 @@ public-domain Strong's definition stays.
 Online Bible, carved out of STEP Bible's grant ("Permission should be gained from Online
 Bible before these are applied in any project"). The parser splits each row no further
 than the Gloss, so the Meaning is never held, stored, shown or shipped, and
-`tests/test_oshb.py` fails if any of it reaches the table.
+`tests/test_tbesh.py` fails if any of it reaches the table.
 
 We shorten the glosses (the head before the first ": ", and "/" written "; ") and fix a
 few by hand. The licence asks for a note of the changes. `src/targum/annotate/tbesh_changes.tsv`

@@ -5220,6 +5220,10 @@ def test_a_page_showing_a_step_bible_gloss_names_step_bible(
     for link in (*STEP_BIBLE, "https://creativecommons.org/licenses/by/4.0/"):
         assert link in shown
     assert "shortened by targum" in shown
+    # And through the allowlist in the same run, so the entries above are exercised:
+    # without them this page's own credit would fail it.
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", shown):
+        assert match.group(0).startswith(OUTBOUND), match.group(0)
 
     bought = page("a monarch", "bought")
     assert "STEPBible" not in bought and "Meanings from" not in bought

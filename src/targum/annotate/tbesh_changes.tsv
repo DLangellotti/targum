@@ -9,15 +9,27 @@
 #
 # Applied to every gloss, by rule (annotate/oshb.py, `shorten` and `briefs_from`):
 # - Only the head is kept: the gloss up to its first ": ", so "to go: walk" is "to go".
-# - "/" is written "; ", our gloss style, so "servant/slave" is "servant; slave".
+# - "/" is written "; ", our gloss style, so "servant/slave" is "servant; slave", except
+#   between the particles of one phrasal verb: "to cut down/off" keeps its slash.
 # - Backticks and a closing "!" are taken off.
+# - A row whose gloss is capitalised is a proper or place name, unless it is a gentilic
+#   (its morph ends in G, "Canaanite"). TBESH gives many common nouns a name row too:
+#   "Way" beside "way: road", "Horse (Gate)" beside "horse".
+# - The head of an entry is its own row (its dStrong is its uStrong with nothing after
+#   the "=") that its "a Meaning of" rows point to and that is not a name; else its first
+#   own row that is not a name; else its first row that is not a name; else, where every
+#   row is a name, its first own row; else its first row not marked N:, which is how
+#   430 is "God".
 # - One gloss per Strong's number, as a card files it: where TBESH splits a number by
 #   letter, the number takes the letter the Tanakh uses most, counted over the Open
-#   Scriptures tagging, so 6213 is "to make" (6213a) and never "to press" (6213b).
-# - The head of an entry is its row whose dStrong is its own uStrong with nothing after
-#   the "=", else its first row that is not a name, else its first row.
+#   Scriptures tagging, so 6213 is "to make" (6213a) and never "to press" (6213b). A
+#   variant that is a name sits the count out wherever a variant that is a word exists,
+#   so 6635 is "army" (6635a) and not "Hosts" (6635b, the name in "LORD of Hosts").
 #
-# Changed by hand, one row each below. Columns: the eStrong number (a bare number is the
+# Changed by hand, one row each below, in the wording of targum's Hebrew reviewer where a
+# head gloss is TBESH's own but misleads a learner. Columns: the eStrong number (a bare number is the
 # one-gloss-per-number entry), the gloss the rules above give, the gloss we show, and why.
 H7451	distress	bad	the tagging files רָעָה as 7451c, so the count picks "distress", but the card is filed under רע and most of its tokens are the adjective
 H3651	so	so	the tagging writes 3651 bare as well as by letter; pinned so a recount can never fall to 3651a "right"
+H6310	lip	mouth	TBESH's own head gloss; פֶּה is "mouth" for a learner, 498 tokens
+H2896	pleasant	good	the adjective variant wins the count and TBESH glosses it "pleasant"; a learner needs "good"
