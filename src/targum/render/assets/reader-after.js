@@ -3,8 +3,480 @@
  * steps back. They stood at the foot of `reader.js` and ran right after it, and still
  * do, from the script after it — split off so that a word answers a tap as soon as
  * `reader.js` has arrived, rather than when these have too (reader QA,
- * targum-internal#464, 2026-10-20).
+ * targum-internal#464, 2026-10-20). Where to go next, the next chapter bought ahead and
+ * the chapter nobody has paid for yet followed them (targum-internal#503): each was its
+ * own scope already, and none reads the store `reader.js` waits for.
  */
+
+/* Where to go next, shown only where there is somewhere to go.
+ *
+ * The address is the library's, so it means nothing to a reader opened from a disk —
+ * which is a real way to read one of these and the reason nothing here is fetched. The
+ * suggestion is written into the page either way and revealed only when the page arrived
+ * over a connection, rather than offering a link that leads nowhere.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+  var next = document.getElementById("next-up");
+  // The near one is the next section of this same folder, on a relative address that
+  // works off a disk — it is not waiting to find out how the page was opened, and it is
+  // waiting for something else entirely: the section being finished.
+  if (next && !next.classList.contains("here")) next.hidden = false;
+
+  /* And a way to disagree with it (targum-internal#233).
+   *
+   * One offer, and a link beside it that draws again. No state, no preference, nothing
+   * sent anywhere: the alternatives are written into the page, because the page fetches
+   * nothing, and a refusal the server remembered would turn a door into a profile
+   * nobody asked to build. The point of the offer is that saying yes costs nothing, and
+   * this is what makes saying no cost nothing too.
+   *
+   * Each pick carries its own reason, so the second is "a step up, in a different
+   * Hebrew" or "easier than this one" and never "another one". The list runs out rather
+   * than looping: a control that offers for ever is offering nothing.
+   */
+  var elsewhere = document.getElementById("next-up-else");
+  if (!next || !elsewhere) return;
+  var more;
+  try {
+    more = JSON.parse(elsewhere.getAttribute("data-more") || "[]");
+  } catch (error) {
+    return;
+  }
+  if (!more.length) return;
+  elsewhere.hidden = false;
+
+  var link = next.querySelector(".next-up-link");
+  var lead = next.querySelector(".next-up-lead");
+  var why = next.querySelector(".next-up-why");
+
+  elsewhere.addEventListener("click", function () {
+    var pick = more.shift();
+    if (!pick) return;
+    if (link) {
+      // The same door the first offer uses: straight to the text where it is built, to
+      // its row with the offer up where it is not (targum-internal#313).
+      link.href = "/open/" + encodeURIComponent(pick.id);
+      link.textContent = "";
+      var named = document.createElement("bdi");
+      named.lang = document.documentElement.getAttribute("data-language") || "";
+      named.dir = "auto";
+      named.textContent = pick.title;
+      link.appendChild(named);
+      if (pick.english) {
+        var english = document.createElement("span");
+        english.className = "next-up-english";
+        english.lang = "en";
+        english.textContent = "· " + pick.english;
+        link.appendChild(document.createTextNode(" "));
+        link.appendChild(english);
+      }
+    }
+    var say = window.TargumStrings || { t: function (key, english) { return english; } };
+    if (lead) lead.textContent = say.t("reader.next.lead", "Up next");
+    if (why) {
+      why.textContent =
+        pick.because +
+        (pick.minutes ? " · " + say.t("reader.next.minutes", "{n} min").replace("{n}", pick.minutes) : "");
+      why.hidden = !pick.because;
+    }
+    // The count of words known was about the first offer, and this is another.
+    var known = next.querySelector(".next-up-known");
+    if (known) known.hidden = true;
+    // Nothing left to draw, so the control goes rather than sitting there inert.
+    if (!more.length) elsewhere.hidden = true;
+  });
+})();
+
+/* --- the next chapter, bought before it is needed ---------------------------
+ *
+ * A book is paid for a chapter at a time. Waiting until somebody finishes one puts a
+ * minute of dead time at every boundary — translating a chapter takes well under a
+ * minute and reading one takes ten — so the next is started once they are most of the
+ * way through this one. Nothing is bought from a reader who leaves early, and nobody
+ * waits at the turn of a page.
+ */
+(function () {
+  "use strict";
+  if (location.protocol === "file:") return;
+
+  var pager = document.querySelector(".pager[data-chapter]");
+  var link = pager && pager.querySelector("[data-next]");
+  if (!link) return;
+  // Not from a part still waiting to be heard. Its page is a clock and nothing else, so
+  // it is "most of the way through" the moment it opens, and every waiting part a reader
+  // looked at bought the one after it — ahead of the part they came to press for.
+  if (document.querySelector("#waiting-note[data-audio]")) return;
+  // Its own, because this is its own scope: it read `passKey` and called `keyed` across
+  // the boundary, and neither was ever in reach. No key hosted, where the session cookie
+  // identifies the reader; a key locally. This used to stop when there was no key — so
+  // on the live site the next chapter was never bought, and the first alpha reader
+  // followed the arrow into a page of blank translations.
+  var key = new URLSearchParams(location.search).get("k") || "";
+
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+
+  // The path is /reader/<folder>/reader/<file>: the route prefix and the folder inside
+  // the build are both called "reader", so it is the *last* one the name sits before.
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  // Far enough in that they are reading it rather than glancing at it.
+  var ENOUGH = 0.6;
+  var asked = false;
+
+  function through() {
+    // Paged, the page says; otherwise the scroll does. Its own scope, so it asks the
+    // reader above it through the one seam that scope leaves open.
+    var reader = window.TargumReader;
+    if (reader && reader.through) {
+      var far = reader.through();
+      if (far !== null && far !== undefined) return far;
+    }
+    var height = document.documentElement.scrollHeight - window.innerHeight;
+    return height > 0 ? window.scrollY / height : 1;
+  }
+
+  function maybe() {
+    if (asked || through() < ENOUGH) return;
+    asked = true;
+    window.removeEventListener("scroll", maybe);
+    // In the language this page is being read in. Its own scope, so it asks the page
+    // rather than the reader above it — and the page is kept honest by the picker, which
+    // restamps every cell it swaps. Without this the next chapter of a Russian book was
+    // bought in English, because the server's fallback was English and nothing said
+    // otherwise.
+    var reading = document.querySelector(".pair .tr");
+    var into = reading ? reading.getAttribute("lang") || "" : "";
+    fetch(keyed("/chapter"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        name: name,
+        number: Number(link.getAttribute("data-next")),
+        to: into,
+      }),
+    }).catch(function () {});
+  }
+
+  /* An imported recording is not a book (David, 2026-10-07; design.md §12, "One press
+     gets the whole video, a part at a time"): the press on its quote took every part's
+     credits, so the next part is asked for once, the moment this one is opened — the
+     reader is on it — and the box makes it if the part before it, this one, is ready.
+     Never further: the box refuses a part whose page before it is still waiting. And
+     the door under the picture says what became of it, from the answer and from the
+     job the waiting press already watches, so nothing new is fetched. */
+  if (pager.hasAttribute("data-by-part")) {
+    var S = window.TargumStrings || {
+      t: function (k, english) {
+        return english;
+      },
+    };
+    var door = document.getElementById("film-next");
+    var go = door && door.querySelector(".film-next-go");
+    var said = door && door.querySelector(".film-next-said");
+    var again = door && door.querySelector(".film-next-again");
+    var making = "";
+    var wanted = false;
+    var timer = 0;
+    var tell = function (state, text, job) {
+      if (door) door.setAttribute("data-state", state);
+      if (said) said.textContent = text || "";
+      if (again) again.hidden = state !== "failed";
+      // A refusal wears the clay mark, and one that was refused by a rail says what still
+      // works and draws its way on: Top up greyed, until there is somewhere to pay
+      // (design.md §12, 2026-10-09).
+      if (said) said.classList.toggle("fault-marked", state === "failed" || state === "refused");
+      var extra = door && door.querySelector(".film-next-extra");
+      if (extra) extra.parentNode.removeChild(extra);
+      if (state === "refused" && job && job.act === "plan" && said && window.TargumFault) {
+        // A free reader out of credits is offered the plan, as a panel of its own in
+        // place of the line (design.md §12, "A free reader meets the plan where they
+        // reach for it", 2026-10-09).
+        said.textContent = "";
+        said.classList.remove("fault-marked");
+        extra = window.TargumFault.upgrade(text || "", job.fact || "");
+        extra.classList.add("film-next-extra");
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      } else if (state === "refused" && job && (job.fact || job.act === "top-up") && said) {
+        extra = document.createElement("span");
+        extra.className = "film-next-extra fault-panel-row";
+        if (job.act === "top-up") {
+          var up = document.createElement("button");
+          up.type = "button";
+          up.className = "fault-go";
+          up.disabled = true;
+          up.textContent = S.t("fault.top-up", "Top up");
+          extra.appendChild(up);
+          var soon = document.createElement("span");
+          soon.className = "fault-fact";
+          soon.textContent = S.t("fault.payments-soon", "Payments open soon");
+          extra.appendChild(soon);
+        }
+        if (job.fact) {
+          var fact = document.createElement("span");
+          fact.className = "fault-fact";
+          fact.textContent = job.fact;
+          extra.appendChild(fact);
+        }
+        said.parentNode.insertBefore(extra, said.nextSibling);
+      }
+    };
+    var stop = function () {
+      clearInterval(timer);
+      timer = 0;
+      making = "";
+    };
+    var ready = function () {
+      stop();
+      tell("ready", "");
+      // Pressed while it was being made: the press was the reader's, so it opens now,
+      // through the door's own link rather than a second way out of the page.
+      if (wanted && go) go.click();
+    };
+    var failed = function (text) {
+      stop();
+      tell("failed", text || S.t("reader.film.next-part-trouble", "We couldn't get the next part ready."));
+    };
+    var refused = function (text, job) {
+      stop();
+      tell("refused", text, job);
+    };
+    // Looked at only while the door is on screen or was pressed: a part takes minutes
+    // and the reader is watching this one, so nobody needs a clock ticking under it.
+    var look = function () {
+      if (!making) return;
+      if (!wanted && !document.body.classList.contains("film-at-end")) return;
+      fetch(keyed("/job/" + making))
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (state) {
+          if (state.stage === "done") ready();
+          else if (state.stage === "blocked" || state.blocked) refused(state.blocked || state.error, state);
+          else if (state.stage === "failed" || (state.error && !state.stage)) failed(state.error);
+        })
+        .catch(function () {});
+    };
+    var watch = function (id) {
+      making = id;
+      tell(
+        "making",
+        wanted
+          ? S.t("reader.film.next-part-opening", "We'll open it when it's ready.")
+          : S.t("reader.film.next-part-making", "We're getting it ready.")
+      );
+      if (!timer) timer = setInterval(look, 4000);
+    };
+    var ask = function () {
+      var reading = document.querySelector(".pair .tr");
+      fetch(keyed("/chapter"), {
+        method: "POST",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          name: name,
+          number: Number(link.getAttribute("data-next")),
+          to: reading ? reading.getAttribute("lang") || "" : "",
+          ahead: true,
+        }),
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (job) {
+          if (job.ready || job.stage === "done") return ready();
+          if (job.blocked || job.stage === "blocked") return refused(job.blocked || job.error, job);
+          if (job.stage === "failed") return failed(job.error);
+          if (job.id) return watch(job.id);
+          // `waiting`: this part is not ready itself, so nothing is made ahead of it.
+        })
+        .catch(function () {});
+    };
+    // The door's press, and Next part in the row under the picture (David, 2026-10-11),
+    // which is the same press from the middle of a part: a part still being made is
+    // waited for, and pressed from the row the door comes up under the picture to say
+    // so, with its Try again, rather than a second way of saying it.
+    var pressed = function (event) {
+      if (!making) return;
+      event.preventDefault();
+      wanted = true;
+      document.body.classList.add("film-next-asked");
+      tell("making", S.t("reader.film.next-part-opening", "We'll open it when it's ready."));
+      look();
+    };
+    if (go) go.addEventListener("click", pressed);
+    var onward = document.querySelector(".film-part-next");
+    if (onward) onward.addEventListener("click", pressed);
+    // Within the consent the quote's press gave: the same ask, for the same part.
+    if (again) {
+      again.addEventListener("click", function () {
+        tell("making", S.t("reader.film.next-part-making", "We're getting it ready."));
+        ask();
+      });
+    }
+    ask();
+    return;
+  }
+
+  // Nothing to buy where the next chapter is already on the page's own say, and nothing
+  // that is not a reader's own: a portion is served from its own shelf, and a text off
+  // the shared one is complete. Asked anyway, each answered 404 in the console on every
+  // first text (known issues 2026-10-12, m6). A page built before `data-ready` asks as
+  // it always did, until it is rebuilt.
+  if (link.hasAttribute("data-ready")) return;
+  if (parts[1] !== "reader") return;
+
+  // Fetched ahead only for an account: signed out `/chapter` refuses, and the refusal
+  // was a console error at the foot of every chapter (QA 2026-10-11).
+  (window.TargumSync && window.TargumSync.mayAsk ? window.TargumSync.mayAsk() : Promise.resolve(true)).then(function (may) {
+    if (!may) return;
+    window.addEventListener("scroll", maybe, { passive: true });
+    document.addEventListener("targum:page", maybe);
+    maybe();
+  });
+})();
+
+/* --- a chapter nobody has paid for yet ----------------------------------------
+ *
+ * The page says so above the text, and this is the button on it. Its own scope, like
+ * the prefetch above: it needs the key helpers and the folder name and nothing else.
+ * Off a disk there is no server to ask, and the button stays hidden; the line above
+ * it still says what the page is.
+ */
+(function () {
+  "use strict";
+  var note = document.getElementById("waiting-note");
+  var press = document.getElementById("translate-chapter");
+  if (!note || !press || location.protocol === "file:") return;
+
+  var key = new URLSearchParams(location.search).get("k") || "";
+  var parts = location.pathname.split("/");
+  var name = decodeURIComponent(parts[parts.lastIndexOf("reader") - 1] || "");
+  if (!name) return;
+
+  function keyed(path) {
+    if (!key) return path;
+    return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
+  }
+
+  function keyHeaders(extra) {
+    var head = extra || {};
+    if (key) head["X-Targum-Key"] = key;
+    return head;
+  }
+
+  // The reader's own words (targum-internal#184), where the page is read in another language.
+  var said = window.TargumStrings || { t: function (key, english) { return english; } };
+  var trouble = said.t("reader.chapter.could-not-start", "We couldn't start that.");
+
+  // A part of an imported recording is not pressed for (David, 2026-10-07; design.md §12,
+  // "One press gets the whole video, a part at a time"): the press on the recording's
+  // quote was consent to every part, so opening the page is what starts it, and the page
+  // says it is being made and opens itself when it is. The button stands only to try
+  // again after a failure, under the same consent. A book's chapter keeps its press.
+  var hearing = note.hasAttribute("data-audio");
+  var status = document.getElementById("waiting-said");
+  press.hidden = hearing;
+  // Its cost beside it, where the page knows one; shown with the press it prices.
+  var costs = document.getElementById("waiting-cost");
+  if (costs) costs.hidden = false;
+  var pressWord = press.textContent;
+  // What went wrong is a line, and the press under it says Try again. A book's chapter
+  // used to put the sentence on the button itself, so the reason became the label of a
+  // press that only asked again (reader QA, 2026-10-19).
+  function fail(text) {
+    press.disabled = false;
+    if (status) {
+      status.textContent = text;
+      status.classList.add("fault-marked");
+    }
+    press.textContent = said.t("reader.film.next-part-again", "Try again");
+    press.hidden = false;
+  }
+  press.onclick = function () {
+    press.disabled = true;
+    if (status) status.classList.remove("fault-marked");
+    if (status && !hearing) status.textContent = "";
+    if (hearing) {
+      press.hidden = true;
+      if (status) status.textContent = said.t("reader.film.next-part-making", "We're getting it ready.");
+    }
+    // The page says which work is owed — a translation, or for an imported recording a
+    // transcript — and the working form keeps that promise. Read off the attribute, not
+    // the button's word, which is the reader's language.
+    press.textContent =
+      press.getAttribute("data-owed") === "transcript"
+        ? said.t("reader.chapter.transcribing", "Transcribing…")
+        : said.t("reader.chapter.translating", "Translating…");
+    fetch(keyed("/chapter"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      // In the language this page is being read in, as the prefetch asks: without it the
+      // server bought its most complete language, which in a folder holding English and
+      // Russian was English (targum-internal#287).
+      body: JSON.stringify({
+        name: name,
+        number: Number(note.getAttribute("data-chapter")),
+        to: (function () {
+          var reading = document.querySelector(".pair .tr");
+          return reading ? reading.getAttribute("lang") || "" : "";
+        })(),
+      }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (job) {
+        if (job.ready) return location.reload();
+        // Refused at the door — over the month's hours, or the day's — says so now. A
+        // refusal still carries an id, and polling a job that was never kept waited on
+        // "Translating…" for ever (2026-09-14).
+        if (job.blocked || job.stage === "blocked") throw new Error(job.blocked || job.error);
+        if (!job.id) throw new Error(job.error || job.blocked || trouble);
+        var timer = setInterval(function () {
+          fetch(keyed("/job/" + job.id))
+            .then(function (r) {
+              return r.json();
+            })
+            .then(function (state) {
+              if (state.stage === "done") {
+                clearInterval(timer);
+                location.reload();
+              } else if (state.stage === "failed" || state.blocked || (state.error && !state.stage)) {
+                clearInterval(timer);
+                fail(state.error || state.blocked || trouble);
+              }
+            })
+            .catch(function () {
+              clearInterval(timer);
+              if (!window.TargumFault) return fail(said.t("reader.chapter.could-not-reach", "We can't reach targum."));
+              // The connection's banner (design.md §12, 2026-10-09), whose Try again asks
+              // again; the server hands back the job already under way.
+              press.disabled = false;
+              press.textContent = pressWord;
+              window.TargumFault.unreachable(function () {
+                press.onclick();
+              });
+            });
+        }, 1500);
+      })
+      .catch(function (problem) {
+        fail(String(problem.message || problem));
+      });
+  };
+  if (hearing) press.onclick();
+})();
 
 /* --- hear a silent text ---------------------------------------------------------
  *

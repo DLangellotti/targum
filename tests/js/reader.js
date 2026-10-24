@@ -163,6 +163,9 @@ if (payload.ask !== undefined) {
   };
 }
 require(path.join(assets, "reader.js"));
+// And the rest of it, which the page carries after the faces (targum-internal#503): the
+// practice and the Anki file the hooks below ask for live there.
+require(path.join(assets, "reader-rest.js"));
 const reader = window.TargumReader;
 
 /** A queue entry as a test would say it: the word itself, not its index. */

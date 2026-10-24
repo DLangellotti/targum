@@ -8339,3 +8339,65 @@ def test_the_card_says_the_binyan_its_own_occurrence_is_in(browser, tmp_path: Pa
         assert said == ["פִּעֵל", "נִפְעַל"], said
     finally:
         context.close()
+
+
+def test_a_verb_s_forms_and_a_text_s_renames_ride_after_reader_js(browser, tmp_path: Path) -> None:
+    """targum-internal#503. The conjugation tables and the text's lemma renames wait in
+    the block after `reader.js`, out of the way of the first tap. The card still draws
+    the fold for a verb with a table, and its forms are there to open; and a word a
+    reader kept under the name it used to have is marked under its new one, with the
+    store saying so, once the block is in."""
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0", block_index=0, index=0, text="אמר")
+    document = Document(source="m", title="T", language="he", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "said"},
+    )
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={
+            segment.id: [
+                Token(start=0, end=3, surface="אמר", lemma="אמר", band=1, pos="VERB", binyan="פעל")
+            ]
+        },
+    )
+    out = tmp_path / "said"
+    render(
+        document,
+        SegmentedDocument(document_hash="h", language="he", segmenter="f/1", segments=[segment]),
+        [translation],
+        out,
+        annotation=annotation,
+        moves={"id": "m1", "lemmas": {"אומר": "אמר"}},
+    )
+    context = opened(browser)
+    # Kept under the old name, by a browser that has made every other move already.
+    context.add_init_script(
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({'אומר': "
+        "{status: 2, surface: 'אמר', meaning: '', band: '', at: 1}}));"
+        "localStorage.setItem('targum:migrated', JSON.stringify({vocab: 1, meanings: 1}));"
+    )
+    page = context.new_page()
+    try:
+        page.goto(address(out / "index.html"))
+        page.wait_for_selector(".pair .src .w[data-status]")
+        kept = page.evaluate(
+            "() => Object.keys(JSON.parse(localStorage.getItem('targum:vocab:he')))"
+        )
+        assert kept == ["אמר"], kept
+        page.click(".pair:not([hidden]) .src .w")
+        page.wait_for_selector("#gloss-card .card-conj summary")
+        page.click("#gloss-card .card-conj summary")
+        forms = page.locator("#gloss-card .card-conj .conj-form")
+        assert forms.count() > 1
+        assert page.locator("#gloss-card .card-conj .conj-form.here").count() >= 1
+    finally:
+        context.close()
