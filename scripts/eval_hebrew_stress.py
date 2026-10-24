@@ -28,6 +28,12 @@ vowel:
   `*_nonpausal` and `*_nonpausal_kings` are each accuracy with those words left out.
   Silluq never appears: its mark is meteg's codepoint, which comes off before the gold
   is read, so the verse's last word is not in the gold at all.
+- `silluq_agreement` (`phonikud/4`, grammar/8, targum-internal#509): the verse's last
+  words, which carry silluq and no other accent, are scored apart. The gold is the
+  syllable the last U+05BD sits on; the pick is the reading the annotator gives the word
+  as a verse's last (`pronounce.PAUSE`), its stressed syllable counted from the end.
+  `silluq_changed` is the share of those readings the pause moved. `--pausal-sample`
+  writes the changed ones, for a hand-read.
 - `rule_accuracy`: `mil_el`, a binyan and mishkal rule — segolates, the dual, furtive
   patah, the suffixes and perfect endings that keep the stress back — reading OSHB's
   tagging; `rule_accuracy_vowels_only` is the half that reads nothing but the pointing.
@@ -68,7 +74,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from targum import evals  # noqa: E402
 from targum.annotate import oshb  # noqa: E402
-from targum.annotate.pronounce import HATAMA, METEG, stressed  # noqa: E402
+from targum.annotate.pronounce import (  # noqa: E402
+    HATAMA,
+    METEG,
+    PAUSE,
+    PhonikudPronouncer,
+    stressed,
+)
+from targum.annotate.pronounce import syllables as said_syllables  # noqa: E402
+from targum.annotate.suffix_stress import GATE  # noqa: E402
 from targum.vocalize import trope  # noqa: E402
 from targum.vocalize.base import LETTERS, has_taamim, strip_taamim  # noqa: E402
 
@@ -226,6 +240,43 @@ def collect(books: tuple[str, ...]) -> list[Item]:
                     )
                 )
     return out
+
+
+def pausal(books: tuple[str, ...]) -> tuple[int, int, int, list[tuple[str, str, str, str]]]:
+    """The verse's last words that carry silluq alone: how many have a reading, how many
+    of those the reading stresses where the silluq is, and how many the pause changed,
+    with the changed ones as (ref, word, reading in context, reading in pause)."""
+    words: dict[str, str] = {}
+    for code in books:
+        for ref, verse in oshb.verses(code):
+            if not verse:
+                continue
+            word = verse[-1].text
+            if METEG in word and not has_taamim(word):
+                words.setdefault(word, ref)
+    pronouncer = PhonikudPronouncer()
+    keys = [f"{word}{GATE}word" for word in words]
+    plain = pronouncer.say(keys)
+    paused = pronouncer.say([key + PAUSE for key in keys])
+    said = agreed = 0
+    changed: list[tuple[str, str, str, str]] = []
+    for word, ref in words.items():
+        key = f"{word}{GATE}word"
+        reading = paused.get(key + PAUSE, "")
+        if not reading or "ˈ" not in reading:
+            continue
+        said += 1
+        at = word.rfind(METEG)
+        marked = word[:at] + HATAMA + word[at + 1 :]
+        vowels = sum(1 for char in marked if ord(char) in VOWELS)
+        mark = marked.find(HATAMA)
+        before = sum(1 for char in marked[:mark] if ord(char) in VOWELS)
+        gold = before if _holam_after(marked, mark) else before - 1
+        from_end = said_syllables(reading[reading.find("ˈ") :]) - 1
+        agreed += from_end == vowels - 1 - gold
+        if plain.get(key, "") != reading:
+            changed.append((ref, word, plain.get(key, ""), reading))
+    return said, agreed, len(changed), changed
 
 
 #: The accents that put a word in pause (targum-internal#325). Silluq and etnachta end
@@ -497,10 +548,15 @@ FREE = {
     "rule_accuracy_nonpausal_kings": ("stress-rule/1", "the rule; all pausal out"),
     "rule_accuracy_vowels_only": ("stress-rule/1-vowels", "the rule from the pointing alone"),
 }
+#: And the verse's last words, scored apart (`pausal`): not in `measure`'s sample.
+SILLUQ = {
+    "silluq_agreement": ("phonikud/4", "verse-final words, stress against their silluq"),
+    "silluq_changed": ("phonikud/4", "verse-final words whose reading the pause moved"),
+}
 
 
 def free_row(today: str, metric: str, score: float, n: int, note: str) -> evals.Row:
-    system, said = FREE[metric]
+    system, said = {**FREE, **SILLUQ}[metric]
     return evals.Row(today, STAGE, system, system, metric, score, n, CORPUS, f"{note}; {said}")
 
 
@@ -513,6 +569,9 @@ def main() -> None:
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     parser.add_argument("--baseline-only", action="store_true")
     parser.add_argument("--dry", action="store_true")
+    parser.add_argument(
+        "--pausal-sample", type=Path, help="write the readings the pause changed, as TSV"
+    )
     args = parser.parse_args()
 
     if not oshb.available():
@@ -530,6 +589,15 @@ def main() -> None:
     )
     measured = measure(items)
     rows = [free_row(today, metric, *measured[metric], note) for metric in measured]
+    said, agreed, moved, changed = pausal(tuple(args.books))
+    rows += [
+        free_row(today, "silluq_agreement", round(agreed / max(1, said), 4), said, note),
+        free_row(today, "silluq_changed", round(moved / max(1, said), 4), said, note),
+    ]
+    if args.pausal_sample:
+        args.pausal_sample.write_text(
+            "".join("\t".join(row) + "\n" for row in changed), encoding="utf-8"
+        )
     if not args.baseline_only:
         key = os.environ.get(KEY, "")
         if not key:

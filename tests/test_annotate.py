@@ -701,15 +701,13 @@ def test_the_root_behind_a_regular_verb(lemma: str, binyan: str, root: str) -> N
 @pytest.mark.parametrize(
     ("lemma", "binyan"),
     [
-        # Hollow roots keep their middle letter nowhere in the written form: קם is
-        # ק־ו־ם and no rule recovers the ו.
-        ("קם", "פעל"),
-        ("בא", "פעל"),
-        # הקים is ק־ו־ם and הגיש is נ־ג־ש. The same three letters, two different
-        # roots, and nothing in the spelling to tell them apart.
-        ("הקים", "הפעיל"),
-        ("הגיש", "הפעיל"),
-        ("הבין", "הפעיל"),
+        # Since grammar/8 קם, בא, הקים, הגיש and הבין are known, from the reviewed list
+        # (`hebrew.WEAK_ROOTS`). These are the ones whose letters say two roots: רב is
+        # ריב or רבב, צר צור or צרר, מל מול or מלל, דן דין or דון. No list chooses.
+        ("רב", "פעל"),
+        ("צר", "פעל"),
+        ("מל", "פעל"),
+        ("דן", "פעל"),
     ],
 )
 def test_a_root_that_cannot_be_had_is_not_invented(lemma: str, binyan: str) -> None:

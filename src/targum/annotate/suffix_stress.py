@@ -114,6 +114,16 @@ def stressed_letter(clusters: list[list[str]]) -> int:
     return nuclei[-2] if len(nuclei) >= 2 else -1
 
 
+def _first_singular(clusters: list[list[str]]) -> bool:
+    """A past's -ְתִּי, -ִיתִי or -אתִי, by the pointing alone."""
+    if len(clusters) < 3 or not _ends(clusters, [("ת", {HIRIQ}), ("י", None)]):
+        return False
+    letter, marks = clusters[-3]
+    if SHVA in marks or letter == "א":
+        return True
+    return letter == "י" and len(clusters) > 3 and HIRIQ in clusters[-4][1]
+
+
 def fires(word: str, key: str) -> bool:
     """Whether the rule stresses `word`, of the class `key` (`gate`), on the penult."""
     clusters = _clusters(word)
@@ -127,6 +137,10 @@ def fires(word: str, key: str) -> bool:
     verb = pos in ("VERB", "AUX")
     if verb and feats.get("Tense") == "Past":
         person, number = feats.get("Person", ""), feats.get("Number", "")
+        if _first_singular(clusters):
+            # -ְתִּי, -ִיתִי or -אתִי on a past is the first person whatever the tag says: no
+            # third person ends that way, and שָׁתַלְתִּי came back Person=3 (grammar/8).
+            return True
         if (
             person == "1"
             and _ends(clusters, [("ת", None), ("י", None)])

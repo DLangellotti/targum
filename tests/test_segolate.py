@@ -114,7 +114,10 @@ ROWS = [
     ("trap", "מַעֲשֶׂה", 1),  # deed
     ("trap", "מִקְרֶה", 1),  # case
     ("trap", "כּוֹתֵב", 1),  # writes (holam-tsere)
-    ("trap", "יוֹדֵעַ", 1),  # knows (furtive patah)
+    # A furtive patah is no syllable of its own, so knows is stressed on its tsere since
+    # grammar/8 (rule 5, targum-internal#509): yodéa, not yodeá.
+    ("furtive", "יוֹדֵעַ", 2),  # knows
+    ("furtive", "לוֹקֵחַ", 2),  # takes
     ("trap", "זָקֵן", 1),  # old
     ("trap", "מֶרְכָּז", 1),  # centre (segol-qamats)
     ("trap", "אֶפְשָׁר", 1),  # possible

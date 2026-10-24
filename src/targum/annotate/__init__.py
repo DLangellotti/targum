@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 from ..errors import TargumError
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
-from ..vocalize.base import map_span, pointed_positions, strip_nikkud
+from ..vocalize.base import has_taamim, map_span, pointed_positions, strip_nikkud
 from . import register as register_module
 from .base import (
     BAND_COUNT,
@@ -37,7 +37,7 @@ from .frequency import available as frequency_available
 from .lemma import StanzaLemmatizer
 from .moves import letters as _letters
 from .moves import shared as _shared
-from .pronounce import PhonikudPronouncer, as_prefixed
+from .pronounce import PAUSE, PhonikudPronouncer, as_prefixed
 from .pronounce import supports as pronounceable
 from .suffix_stress import GATE, gate
 
@@ -436,8 +436,12 @@ class Annotator:
             # `splice` refuses anything else — so that is the way across.
             _, to_bare = strip_nikkud(source)
             to_pointed = pointed_positions(pointed)
+            # A verse's last word, where the source carries the accents: its U+05BD is
+            # silluq, the stress, and not a meteg (`pronounce.PAUSE`, grammar/8). Not in
+            # Mishnah or modern text, which carry no accents and where it is a meteg.
+            final = len(tokens) - 1 if has_taamim(source) else -1
             found: list[str] = []
-            for token in tokens:
+            for at, token in enumerate(tokens):
                 bare_start, bare_end = map_span(token.start, token.end, to_bare)
                 if bare_end >= len(to_pointed):
                     found.append("")
@@ -451,6 +455,8 @@ class Annotator:
                 # Asked per form and class, not per form: בָּנוּ "in us" and בָּנוּ "they
                 # built" are pointed the same and stressed apart (targum-internal#500).
                 word = f"{word}{GATE}{gate(token.pos, token.feats)}"
+                if at == final:
+                    word += PAUSE
                 found.append(word)
                 distinct.add(word)
             surfaces[segment_id] = found

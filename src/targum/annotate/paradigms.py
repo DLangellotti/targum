@@ -836,12 +836,14 @@ class Table:
         return tuple(out)
 
     def _root_index(self) -> dict[tuple[str, str], list[str]]:
-        from .hebrew import root_of, weak_roots
+        # The pattern alone, not the annotator's reviewed list (`hebrew.WEAK_ROOTS`):
+        # `weak_roots` below files those verbs from their own pointing and forms.
+        from .hebrew import pattern_root, weak_roots
 
         if not self._roots:
             for lid, paradigm in self.verbs.items():
                 named = self.binyan_of(lid)
-                root = root_of(bare(paradigm.lemma), named) if named else None
+                root = pattern_root(bare(paradigm.lemma), named) if named else None
                 # A hif'il whose ו carries a shva has a consonantal vav, not a yod-first
                 # root: הִוְרִיד "turned pink" is ורד's, and filed under ירד beside הוֹרִיד
                 # it made ירד in hif'il two candidates (ling-he on #841).
@@ -1414,12 +1416,15 @@ def fill(attested: Table) -> dict[str, Filled]:
     """
     from .conjugate import fill as fill_one
     from .conjugate import learn
-    from .hebrew import root_of
+
+    # On the pattern-only root (`hebrew.pattern_root`): a hollow root has no letter for
+    # a learner to substitute, so the reviewed weak roots teach nothing (grammar/8).
+    from .hebrew import pattern_root
 
     def taught() -> Iterable[tuple[str, str, str, list[tuple[str, tuple[str, ...]]]]]:
         for verb in attested.verbs.values():
             binyan = binyan_of(verb.lemma)
-            root = root_of(verb.lemma, binyan) if binyan else None
+            root = pattern_root(verb.lemma, binyan) if binyan else None
             if binyan and root:
                 yield verb.lemma, binyan, root, [(f.written, f.features) for f in verb.forms]
 

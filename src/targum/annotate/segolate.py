@@ -55,8 +55,12 @@ FINAL_ENDINGS = ("אחת", "אחר", "אחד", "מעל", "שעל")
 #: 2026-10-21). Always the last syllable.
 FINAL_STEMS = {"חג": PATAH, "חד": PATAH, "חמ": PATAH, "את": SEGOL}
 FINAL_PREFIXES = frozenset("ובכלמשה")
-#: And on the penult, by their letters, where the pointing is the listed one.
-PENULT_LETTERS = frozenset({"תשע"})
+#: And on the penult, by their letters, where the pointing is the listed one. לילה since
+#: grammar/8: the pointed list missed the pausal לָיְלָה.
+PENULT_LETTERS = frozenset({"תשע", "לילה"})
+#: A furtive patah's letters, and the full vowels it can follow (rule 5).
+FURTIVE = frozenset("חע")
+BEFORE_FURTIVE = frozenset({TSERE, HOLAM, HIRIQ, QUBUTS, QAMATS, "u"})
 PENULT_POINTED = frozenset(
     unicodedata.normalize("NFC", word) for word in ("אֵלֶּה", "הֵמָּה", "לַיְלָה", "הַלַּיְלָה")
 )
@@ -141,6 +145,20 @@ def penult(word: str) -> int | None:
         and SEGOL in clusters[last - 2][1]
     ):
         return stressed
+    # 5. A furtive patah (grammar/8, targum-internal#509): a last ח, ע or הּ with patah,
+    # after a full vowel, is said before its letter and is no syllable of its own, so the
+    # stress is on the vowel before: לוֹקֵחַ, יוֹדֵעַ, רוּחַ, פָּתוּחַ.
+    if (
+        last_at == last
+        and last_vowel == PATAH
+        and (
+            clusters[last][0] in FURTIVE
+            or (clusters[last][0] == "ה" and DAGESH in clusters[last][1])
+        )
+        and before_vowel in BEFORE_FURTIVE
+        and not any(v in clusters[last - 1][1] for v in HATAFS | {SHVA})
+    ):
+        return stressed
     bare_end = (
         not any(v in clusters[last][1] for v in _ANY_VOWEL | {HOLAM_VAV})
         and clusters[last][0] not in "יוה"
@@ -150,6 +168,9 @@ def penult(word: str) -> int | None:
         letter == "ו" and (HOLAM in marks or HOLAM_VAV in marks or marks == DAGESH)
         for letter, marks in between
     )
+    # One unmarked, quiescent א between the two vowels: וַיֹּאמֶר (grammar/8, #509). Rule 3
+    # only; rule 4 reads `adjacent`, and a quiescent א before its patah is not a segolate.
+    quiescent = [(letter, marks) for letter, marks in between] == [("א", "")]
     if DAGESH in clusters[last_at][1]:
         return None  # a doubled or hardened letter: not a segolate
     if any(letters.endswith(ending) for ending in FINAL_ENDINGS):
@@ -178,7 +199,7 @@ def penult(word: str) -> int | None:
         last_vowel == SEGOL
         and last_at == last - 1
         and bare_end
-        and adjacent
+        and (adjacent or quiescent)
         and (
             before_vowel in BEFORE_SEGOL - {QAMATS}
             or (

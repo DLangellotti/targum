@@ -310,8 +310,9 @@ def test_a_verb_spelled_like_its_own_sibling_keeps_it() -> None:
 
 def test_a_root_that_could_not_be_had_honestly_has_no_family() -> None:
     """The card already hides a root it could not work out, and a guessed family is
-    worse than none: a hollow root keeps its middle letter nowhere in קָם."""
-    assert family_of("קָם", "פעל") == ()
+    worse than none: רָב is ריב or רבב, and no list chooses. (קָם has a family since
+    grammar/8: its root is on the reviewed list, `hebrew.WEAK_ROOTS`.)"""
+    assert family_of("רָב", "פעל") == ()
     assert family_of("אוחזר", "הופעל") == (), "an unpointed lemma says no binyan"
     assert family_of("הָלַךְ", None) == (), "and no binyan is no root"
 
@@ -1252,10 +1253,17 @@ def test_weak_roots_reads_the_family_off_the_vowels() -> None:
     assert weak_roots("קָם", None) == ()
 
 
-def test_the_annotator_s_root_is_unchanged_by_the_index() -> None:
-    """Part (a) is render time only: `root_of` still refuses what it refused, until the
-    grammar/8 re-read (part (b)) is scheduled."""
-    from targum.annotate.hebrew import root_of
+def test_the_index_reads_the_pattern_and_the_annotator_the_list() -> None:
+    """Part (a) indexes these verbs from their own pointing (`weak_roots`) and still asks
+    the pattern-only `pattern_root` first; part (b), the grammar/8 re-read, gives the
+    annotation the reviewed root (`hebrew.WEAK_ROOTS`)."""
+    from targum.annotate.hebrew import pattern_root, root_of
 
-    for lemma, binyan in (("הביא", "הפעיל"), ("קם", "פעל"), ("הגיש", "הפעיל"), ("תם", "פעל")):
-        assert root_of(lemma, binyan) is None, lemma
+    for lemma, binyan, root in (
+        ("הביא", "הפעיל", "בוא"),
+        ("קם", "פעל", "קום"),
+        ("הגיש", "הפעיל", "נגש"),
+        ("תם", "פעל", "תמם"),
+    ):
+        assert pattern_root(lemma, binyan) is None, lemma
+        assert root_of(lemma, binyan) == root, lemma
