@@ -380,6 +380,14 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The signed-out Library wears the landing's desk look — 2026-10-24
+
+David, 2026-10-24 (targum-internal#519). The signed-out Library wears the landing's desk
+look (ground, face, sans titles) so the public front reads as one place. It takes the
+front door's bar, ground, cards and Source Sans 3, with its titles in the sans at 600 as
+the landing sets them, not the desk page's serif title (2026-10-09). The text and legal
+pages keep their sheet, in the chrome's face.
+
 ### A first visit wears the platform's face for a moment — 2026-10-23
 
 David, 2026-10-23 (targum-internal#484, targum#920). A desk page sent whole (a first
