@@ -387,16 +387,18 @@ David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-inte
 - **The rest of the reader is its own file, after the faces.** The lenses and the case
   lens, export and the Anki deck, shnayim mikra, the bar's panels and the keys card, full
   screen, the keyboard and keeping a phrase are in `reader-rest.js`. A word answers once
-  `reader.js` has run. A press on the bar in the moment before the rest arrives does
-  nothing, and a walk in progress is laid out again, in place, when it comes. Readers
-  still fetch nothing: the file is in the page, later.
+  `reader.js` has run, and the rest joins about half a second after the first tap could
+  be answered. A press on the bar before then does nothing, and a walk in progress is
+  laid out again, in place, when it comes. Readers still fetch nothing: the file is in
+  the page, later.
 - **The conjugation tables and a text's renames ride with the commentaries.** The card
   draws a verb's fold from the first tap and fills it when the tables arrive. Renames are
   carried across once per browser, so they wait too, and a mark they move is drawn when
   they come.
 - **The page measures once while it is set up.**
-- Measured on the page as shipped, with its recordings: Ki Tavo's sixth 1.77 s → 1.44 s,
-  Bereshit's first 1.39 s → 1.19 s.
+- Measured on the page as shipped, with its recordings, across builder's and qa's runs:
+  Ki Tavo's sixth 1.77 s → 1.44–1.53 s, Bereshit's first 1.39 s → 1.19–1.22 s. The
+  longest aliyah is still at the second and a half, not under it.
 
 ### A first visit wears the platform's face for a moment — 2026-10-23
 
