@@ -2485,13 +2485,10 @@
             have[entry.id] = true;
           });
           sayOn(both[1]);
-          if (shelfFiles[code + ".build"] && !buildAsked[code]) {
-            buildAsked[code] = new Promise(function (resolve) {
-              onceDrawn(function () {
-                askShelfFile(shelfFiles[code + ".build"]).then(buildOn, function () {
-                  delete buildAsked[code];
-                }).then(resolve);
-              });
+          if (shelfFiles[code + ".build"]) {
+            buildCodes[code] = true;
+            onceDrawn(function () {
+              askBuild(code).catch(function () {});
             });
           }
           if (english && english !== saidHere) {
@@ -2515,8 +2512,19 @@
 
   /* What a Build press sends, a row's source and its published translations: a file per
      language (`"<code>.build"`), asked after the first draw. A press that comes first
-     waits for it. */
+     waits for it; one after it failed asks again; and a press is never sent without a
+     source: when the file still does not arrive, the row says it could not start. */
+  var buildCodes = {};
   var buildAsked = {};
+  function askBuild(code) {
+    if (!buildAsked[code]) {
+      buildAsked[code] = askShelfFile(shelfFiles[code + ".build"]).then(buildOn, function (why) {
+        delete buildAsked[code];
+        throw why;
+      });
+    }
+    return buildAsked[code];
+  }
   function buildOn(got) {
     var by = (got && got.build) || {};
     catalogue.forEach(function (entry) {
@@ -2530,10 +2538,14 @@
   function buildReady(entry) {
     if (entry.source !== undefined) return Promise.resolve();
     return Promise.all(
-      Object.keys(buildAsked).map(function (code) {
-        return buildAsked[code];
+      Object.keys(buildCodes).map(function (code) {
+        return askBuild(code).catch(function () {});
       })
-    );
+    ).then(function () {
+      if (!entry.source) {
+        throw new Error(t("library.build.could-not-start", "We couldn't start this one. Try again."));
+      }
+    });
   }
 
   /* After the first draw, or now if it is past: what the first card does not need. */
@@ -3465,6 +3477,9 @@
     // their bytes never stand in front of the shelf's (`warm.js`, #484).
     .then(function () {
       drawnYet = true;
+      // Said before the event too: `warm.js` at the foot may start listening only after
+      // a shelf asked from the head has already been drawn.
+      window.TARGUM_DRAWN = true;
       try {
         window.dispatchEvent(new CustomEvent("targum:drawn"));
       } catch (e) {}

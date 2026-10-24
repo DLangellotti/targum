@@ -670,3 +670,87 @@ def test_a_build_press_before_its_file_waits_for_it_and_sends_the_source(
     assert sent[0]["source"]
     assert not thrown
     context.close()
+
+
+def test_faces_go_on_at_once_when_the_shelf_was_drawn_before_warm_js_ran(
+    browser, page_html
+) -> None:
+    """qa-claude on #920: with the shelf asked from the head, `targum:drawn` can fire
+    before `warm.js` at the foot listens, and the faces then waited for the fallback,
+    3 s after `load`. `library.js` says it has drawn in `TARGUM_DRAWN` too, and
+    `warm.js` dresses at once when it finds it. The clock is held, so the fallback
+    cannot be what put them on, and the shelf is held, so the event never comes."""
+    from targum.render.builder import first_visit
+
+    whole = first_visit(page_html).replace(
+        '<template id="late-faces">',
+        '<script>window.TARGUM_DRAWN = true;</script><template id="late-faces">',
+    )
+    context, page, thrown, _, url = library(browser, whole, {"/readers": "hold"}, hash="#see")
+    page.clock.install()
+    page.goto(url)
+    page.wait_for_load_state("domcontentloaded")
+    assert _faces_on(page) >= 1, "on at once, not 3 s after load"
+    assert not thrown
+    context.close()
+
+
+def test_a_build_file_that_failed_is_asked_again_and_no_press_goes_without_a_source(
+    browser, page_html
+) -> None:
+    """qa-claude on #920: when the build file failed, every press sent `/prepare` with
+    no `source`, and the file was never asked again. Now a press asks for it again, and
+    while it still does not arrive the row says it could not start and sends nothing.
+    `/prepare` is answered here, so nothing spends."""
+    from targum.render.builder import asset_files
+
+    found = re.search(r"/assets/catalogue-he-build\.[0-9a-f]{16}\.json", page_html)
+    assert found
+    body = asset_files()[found.group(0)][0]
+    elsewhere = "/assets/catalogue-he-build.0000000000000000.json"
+    html = page_html.replace(found.group(0), elsewhere)
+    asked: list[int] = []
+    sent: list[dict] = []
+    answers: dict[str, Any] = {
+        "/readers": {"readers": [], "shared": [], "signedIn": True},
+        "/prepare": {"error": "We can't open this one right now. Try another text."},
+    }
+    context, page, thrown, _, url = library(browser, html, answers, phone=True)
+
+    def build_file(route: Any) -> None:
+        asked.append(1)
+        if len(asked) <= 2:  # after the draw, and the first press
+            return route.abort("failed")
+        route.fulfill(status=200, content_type="application/json", body=body)
+
+    page.route(f"{SITE}{elsewhere}", build_file)
+    page.on(
+        "request",
+        lambda request: (
+            sent.append(json.loads(request.post_data or "{}"))
+            if "/prepare" in request.url
+            else None
+        ),
+    )
+    page.goto(url)
+    card = page.locator("#shelves button.band-card").first
+    card.wait_for()
+    page.wait_for_function("() => true")
+    card.click()
+    state = card.locator(".row-state")
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('#shelves .row-state')]"
+        '.some((e) => e.textContent === "We couldn\'t start this one. Try again.")'
+    )
+    assert sent == [], "no press without a source"
+    assert len(asked) == 2, "the press asked for the file again"
+    card.click()
+    page.wait_for_function(
+        "() => [...document.querySelectorAll('#shelves .row-state')]"
+        '.some((e) => e.textContent === "We can\'t open this one right now. Try another text.")'
+    )
+    assert len(asked) == 3
+    assert len(sent) == 1 and sent[0]["source"]
+    assert state.count() == 1
+    assert not thrown
+    context.close()
