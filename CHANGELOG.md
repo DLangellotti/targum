@@ -20,6 +20,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   ignore hands back a known word without counting it. The store keeps a word's current
   stage and a flag written when it crosses to known, not a history of its stages, so
   words that crossed from ignored before this change are not counted.
+- A conjugation table for the hollow, geminate and I-nun verbs Open Scriptures files under
+  their root (grammar/8 part (a); targum-internal#509 and #307). בוא in hif'il now draws
+  הֵבִיא, נגש draws הִגִּישׁ and תמם draws תַּם: the table indexes each such verb under the
+  roots its pointed lemma allows, and a qal's hollow letter is the one its own forms spell,
+  so Job's שׁוּר "behold" never gets שָׁר "sang". Strong's שום is looked up as שים. Render
+  time only, with no annotator rename: measured over the library's 114,291 verb tokens,
+  coverage goes from 83.8% to 86.5% and "no candidate" from 14,768 to 11,694, with nothing
+  new refused. The card's stored root waits for the grammar/8 re-read.
 - The connector hands a Torah portion's lines to a host (targum-internal#527).
   `open_library_text` read a portion's sentences from `read/<folder>/`, but a portion's
   build is in `read/<folder>/print/`, beside its readers, as `ship-parasha.sh` leaves it.

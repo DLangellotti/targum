@@ -100,7 +100,9 @@ def test_a_root_with_its_binyan_finds_its_verb(shipped: Table) -> None:
         found = shipped.of(root, binyan=binyan)
         assert found is not None and found.lemma == lemma, (root, binyan)
     assert shipped.of("שלך") is None, "a root without its binyan names no verb"
-    assert shipped.of("רום", binyan="הפעיל") is None, "a hollow root is not read"
+    # A hollow root is read off the pointed lemma since grammar/8 part (a) (#509).
+    raised = shipped.of("רום", binyan="הפעיל")
+    assert raised is not None and raised.lemma == "הֵרִים"
 
 
 def test_the_points_settle_a_verb_two_binyanim_share(shipped: Table) -> None:
@@ -1187,3 +1189,73 @@ def test_no_table_prints_a_wikidata_item_for_a_feature() -> None:
         if re.fullmatch(r"Q[0-9]+", feature)
     }
     assert not unnamed, unnamed
+
+
+def test_a_weak_root_s_verb_is_found_by_its_root(shipped: Table) -> None:
+    """grammar/8 part (a), targum-internal#509 and #307 (ling-he's gold): Open Scriptures
+    files a hollow, geminate or I-nun verb under its root, which `root_of` cannot read off
+    the lemma, so בוא in hif'il had no table. Each now names the one verb."""
+    for root, binyan, lemma in (
+        ("בוא", "הפעיל", "הֵבִיא"),
+        ("תמם", "פעל", "תַּם"),
+        ("נגש", "הפעיל", "הִגִּישׁ"),
+        ("קום", "פעל", "קָם"),
+        ("סבב", "הפעיל", "הֵסֵב"),
+        ("קום", "הופעל", "הוּקַם"),
+    ):
+        named = [shipped.verbs[lid].lemma for lid in shipped.candidates(root, binyan)]
+        assert named == [lemma], (root, binyan, named)
+        found = shipped.of(root, binyan=binyan)
+        assert found is not None and found.lemma == lemma, (root, binyan)
+
+
+def test_open_scriptures_sim_with_a_vav_is_the_table_s_sim_with_a_yod(shipped: Table) -> None:
+    """Strong's spells שׂים with a vav; the table and every dictionary use the yod. The
+    alias is in the lookup alone, so the Biblical card keeps OSHB's root."""
+    named = [shipped.verbs[lid].lemma for lid in shipped.candidates("שום", "פעל")]
+    assert named == ["שָׂם"]
+
+
+def test_job_s_shur_behold_never_gets_shar_sang_s_table(shipped: Table) -> None:
+    """Job's שׁוּר "behold" is not שׁיר "sing". A qal's hollow letter is the one its own
+    forms spell, יָשִׁיר, so שָׁר is filed under שיר alone; with both letters indexed,
+    ling-he's simulation gave שׁוּר שָׁר's table."""
+    sang = [shipped.verbs[lid].lemma for lid in shipped.candidates("שור", "פעל")]
+    assert "שָׁר" not in sang
+    behold = shipped.of("שור", binyan="פעל")
+    assert behold is None or behold.lemma != "שָׁר"
+    assert [shipped.verbs[lid].lemma for lid in shipped.candidates("שיר", "פעל")] == ["שָׁר"]
+
+
+def test_weak_roots_reads_the_family_off_the_vowels() -> None:
+    """Every row of the spec's table on #509, one lemma each."""
+    from targum.annotate.hebrew import weak_roots
+
+    assert weak_roots("קָם", "פעל", ["יקום", "קמה"]) == ("קום",)
+    assert weak_roots("שָׂם", "פעל", ["ישים"]) == ("שים",)
+    assert weak_roots("מֵת", "פעל", ["ימות"]) == ("מות",)
+    assert weak_roots("שָׁר", "פעל", ["ישיר", "שרה"]) == ("שיר",)
+    # Forms that spell neither letter: both, and two candidates is a refusal.
+    assert weak_roots("שָׁר", "פעל") == ("שור", "שיר")
+    assert weak_roots("תַּם", "פעל") == ("תמם",)
+    assert weak_roots("הֵקִים", "הפעיל") == ("קום", "קים")
+    assert weak_roots("הִגִּישׁ", "הפעיל") == ("נגש",)
+    assert weak_roots("הִפִּיל", "הפעיל") == ("נפל",)
+    assert weak_roots("הִכָּה", "הפעיל") == ("נכה",)
+    assert weak_roots("הֵסֵב", "הפעיל") == ("סבב",)
+    assert weak_roots("נִצַּב", "נפעל") == ("נצב",)
+    assert weak_roots("נָסַב", "נפעל") == ("סבב",)
+    assert weak_roots("הוּקַם", "הופעל") == ("קום", "יקם")
+    # Unpointed, a strong verb, or no binyan: nothing.
+    assert weak_roots("קם", "פעל") == ()
+    assert weak_roots("כָּתַב", "פעל") == ()
+    assert weak_roots("קָם", None) == ()
+
+
+def test_the_annotator_s_root_is_unchanged_by_the_index() -> None:
+    """Part (a) is render time only: `root_of` still refuses what it refused, until the
+    grammar/8 re-read (part (b)) is scheduled."""
+    from targum.annotate.hebrew import root_of
+
+    for lemma, binyan in (("הביא", "הפעיל"), ("קם", "פעל"), ("הגיש", "הפעיל"), ("תם", "פעל")):
+        assert root_of(lemma, binyan) is None, lemma

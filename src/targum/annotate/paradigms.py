@@ -635,6 +635,11 @@ class Paradigm:
     forms: tuple[Form, ...]
 
 
+#: A root Open Scriptures spells otherwise than the table and every modern dictionary:
+#: Strong's writes שׂים with a vav. Render time only, so the Biblical card keeps OSHB's
+#: root (grammar/8 part (a), targum-internal#509).
+_ALIASES = {"שום": "שים"}
+
 #: A hif'il lemma whose vav after the ה carries a shva: הִוְרִיד.
 _CONSONANT_VAV = re.compile("^ה[\u0591-\u05c7]*ו\u05b0")
 
@@ -779,7 +784,7 @@ class Table:
         spelling as written finds nothing, and only the pi'el among what the defective
         spelling finds, since דבר is also דֻּבַּר and קרב also קָרַב.
         """
-        letters = bare(word)
+        letters = _ALIASES.get(bare(word), bare(word))
         found = self._distinct(self.by_form.get(letters) or ())
         if found:
             # A root that is also a qal lemma, with another binyan beside it: עלה in
@@ -831,7 +836,7 @@ class Table:
         return tuple(out)
 
     def _root_index(self) -> dict[tuple[str, str], list[str]]:
-        from .hebrew import root_of
+        from .hebrew import root_of, weak_roots
 
         if not self._roots:
             for lid, paradigm in self.verbs.items():
@@ -842,8 +847,17 @@ class Table:
                 # it made ירד in hif'il two candidates (ling-he on #841).
                 if named == "הפעיל" and _CONSONANT_VAV.match(paradigm.lemma):
                     root = "".join(c for c in bare(paradigm.lemma)[1:] if c != "י")[:3]
-                if named and root:
+                if not named:
+                    continue
+                if root:
                     self._roots.setdefault((root, named), []).append(lid)
+                    continue
+                # A hollow, geminate or I-nun verb, whose lemma does not write a root
+                # letter: under every root its pointed lemma allows, so בוא in hif'il finds
+                # הֵבִיא, נגש הִגִּישׁ and תמם תַּם (grammar/8 part (a), targum-internal#509).
+                forms = (form.written for form in paradigm.forms)
+                for weak in weak_roots(paradigm.lemma, named, forms):
+                    self._roots.setdefault((weak, named), []).append(lid)
         return self._roots
 
     def dotted_otherwise(self, lid: str, seen: str) -> bool:
