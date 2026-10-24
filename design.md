@@ -380,6 +380,26 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The connector hands a host the text's own lines — 2026-10-23
+
+David, 2026-10-23. In qa-claude's live check of 399ceeea (targum-internal#527, on #473),
+Claude was asked to read the first chapter of Genesis with the reader and said it was
+"locating the opening verse of Genesis from memory". No connector tool returned a text's
+words, so a host that was told to read with the reader had only its memory to read from.
+
+- **`open_library_text` serves a text's lines, eight at a time** (`LINES_AT_ONCE`, paged
+  with `from_line`), pointed where the text was built with vowels, beside one note: "Read
+  from `lines`, never from memory." A host reads targum's text, never its memory of one.
+  The read-with-me prompt asks for the same in the reader's words, and still names no
+  tool.
+- **Whose lines a caller may read.** A reader's own copy is read only where they shared
+  their record (`Ctx.sees_record`). The shared shelf and the portions kept for everybody
+  are read for anyone, as they open for anyone.
+- **It sits beside `sentences_with`,** which already sent a host sentences from the same
+  shelves, found by a word. This sends them in order. It opens no shelf that was closed.
+- **It spends nothing.** Reading a text that is already built is free, and a text not yet
+  built has no lines: getting it ready is still a press on targum's own page.
+
 ### A series page's picture is a file of ours — 2026-10-22
 
 Page speed (targum-internal#484, qa-claude's audit of 2026-10-22): /parasha was the one

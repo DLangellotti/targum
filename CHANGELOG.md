@@ -23,6 +23,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   read-with-me asks the host to open the text on targum and read from it, never from
   memory. The connector eval checks all four. Nothing costs more and nothing spends
   sooner.
+- design.md §12 records the connector handing a host a text's lines (David, 2026-10-23;
+  targum-internal#527): eight at a time, so a host reads targum's text and not its
+  memory; a reader's own copy only where they shared their record, the shared shelf and
+  the portions kept for everybody for anyone; beside `sentences_with`; spends nothing.
 - The other languages' polish left from #476 (targum-internal#523). A desk page's column
   stays centred: the room kept for the AI Assistant's pill went on the end edge only, so
   the column slid 25px off centre in English and 6px off the edge in Russian; now both
