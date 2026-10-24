@@ -4886,7 +4886,10 @@ Now they are drawn as the landing is, from the landing's own parts:
 
 - **The bar is the landing's** (`_front_bar.html.j2`, which the landing includes too):
   glass, sticky, the lockup, the landing's places, EN / RU, Sign in, and **Join the
-  waitlist** as the one ink call to action (§9).
+  waitlist** as the one ink call to action (§9). **On a phone it keeps Sign in**
+  (targum-internal#528, 2026-10-24): under 30rem the places go, the gaps tighten and the
+  language shows only the code you can press, and under 23.25rem the language goes to the
+  foot. Sign in and the waitlist stay on the one line at 320, each with its 44px reach.
 - **The hero is the landing's**, on the desk's ground (§13): the chrome's sans at the
   landing display step (§5), the lede under it, and the waitlist's form
   (`_join_form.html.j2`) with the line that says what happens next. Reading is the second
