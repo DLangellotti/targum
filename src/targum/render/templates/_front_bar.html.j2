@@ -13,7 +13,9 @@
       places are anchors on the page) and "/" elsewhere.
     - `here` — this page's path, for the language links; the landing's is "/".
     - `asked` — a language the visitor chose, carried to sign-in as the landing does.
-    - `signed_in` — a reader with an account, who is not asked to join (§6). -#}
+    - `signed_in` — a reader with an account, who is not asked to join (§6).
+    - `join` — where the waitlist is, `#join` where the page has the form and `/#join`
+      where it does not (the public Library, targum-internal#519). -#}
 {%- set home = home|default('') %}
 {%- set here = here|default('/') %}
 <header class="{{ bar_class|default('front-bar') }}">
@@ -45,7 +47,7 @@
       <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
       {#- Not to somebody who has already chosen targum (§6; copy audit, 2026-09-28). -#}
       {%- if not signed_in|default(false) %}
-      <a class="btn cta small" href="#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+      <a class="btn cta small" href="{{ join|default('#join') }}">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
       {%- endif %}
     </div>
   </div>

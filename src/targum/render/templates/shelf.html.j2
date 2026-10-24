@@ -1,57 +1,99 @@
+{#- The Library, for somebody who has not signed in, and one kind of it (targum-internal#519).
+
+    The shop window a search result lands on. It was one list of 1,315 texts in five
+    languages, under a line about Hebrew, with the waitlist at the bottom of all of them.
+    Now it stands the catalogue the way the signed-in Library does: Hebrew first, then
+    each other language, and inside each the kinds, each with its first rows and a way to
+    all of them on a page of its own (`kind_page`), which is this template with one kind.
+
+    It wears the front door's desk (David, 2026-10-24): the bar, the ground, the cards and
+    the chrome's face, from `landing.css`, so the public front reads as one place. What is
+    the Library's own is in `shelf.css`. No script: every text is a plain link to its own
+    page, which is what a crawler follows.
+
+    Expects `shelves` (`_ShelfLanguage`s), `shelf_name`, `total` and `total_n`; a kind's
+    page also `kind_page`, `library` and `robots`. -#}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-{{ styles('tokens.css', 'shared.css', 'reader.css', 'public.css') }}
+{{ styles('landing.css', 'shelf.css') }}
 {{ hebrew_face() }}
-{{ script('keep.js') }}
+{#- Upright only: nothing on the Library is set in italic. -#}
+{{ chrome_face(italic=False) }}
 </head>
-<body class="public">
-<main class="sheet">
-  {#- One row on the sheet's own grid: the name at one corner, the door and the light
-      switch at the other. The corner used to be pinned to the window's edge, which on a
-      wide screen is nowhere near the page. -#}
-  <div class="masthead">
-    <a class="brand" href="/" aria-label="targum">
-      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-      </svg>
-      <span>targum</span>
-    </a>
-    <div class="corner">
-      <a class="enter" href="/account/signin">{{ t("shelf.page.sign-in", "Sign in") }}</a>
-    </div>
-  </div>
+<body class="landing">
+<a class="skip" href="#top">{{ t("landing.page.skip-to-the-page", "Skip to the page") }}</a>
+{% with bar_class = 'bar', home = '/', join = '/#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
-  <h1>{{ shelf_name }}</h1>
-  <p class="lede">{{ shelf_blurb }}</p>
+<main id="top" class="col lib">
+  <header class="lib-head">
+    {%- if kind_page|default(false) %}
+    <a class="lib-back" href="/library"><span aria-hidden="true">←</span> {{ library }}</a>
+    {%- endif %}
+    <h1>{{ shelf_name }}</h1>
+    {%- if shelves %}
+    <p class="lib-lede">
+      {%- if kind_page|default(false) %}{{ tn("shelf.page.texts", total_n, "{count} text", "{count} texts", count=total) }}
+      {%- else %}{{ tn("shelf.page.lede", total_n, "{count} text and video to learn from. Every one opens ready to read, with a translation beside it.", "{count} texts and videos to learn from. Every one opens ready to read, with a translation beside it.", count=total) }}{% endif -%}
+    </p>
+    {%- endif %}
+    {#- One line and the one press (§6, §9): the waitlist while the front door takes an
+        address, Sign in where it does not. The switch to Sign up comes with #485. -#}
+    <p class="lib-ask">
+      <span>{{ t("shelf.page.free-to-read-once-you-re-in", "Free to read once you’re in.") }}</span>
+      {%- if front_door_is_open() %}
+      <a class="btn cta" href="/#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+      {%- else %}
+      <a class="btn cta" href="/account/signin">{{ t("shelf.page.sign-in", "Sign in") }}</a>
+      {%- endif %}
+    </p>
+  </header>
 
-  {%- if rows %}
-  <ul class="texts">
-    {%- for row in rows %}
-    {#- The name, the place and the blurb in the page's language where the catalogue has
-        them, the way the text page draws them, and English where it has not
-        (targum-internal#520). `lang` says which one is drawn. #}
-    {%- set entry = row.entry %}
-    {%- set script = entry.language if entry.language in ('arc', 'yi') else 'he' %}
-    <li>
-      <a href="/library/{{ entry.id }}">
-        <bdi lang="{{ entry.language }}">{{ entry.title }}</bdi>
-        {% if row.named %}<span class="english" lang="{{ row.named_lang }}" dir="ltr">{{ row.named }}</span>{% endif %}
-      </a>
-      {#- A byline or a blurb in Hebrew letters says so, with its own direction (design.md
-          §14, line 3; Library QA, 2026-10-20): "אברהם מאפו, 1853" stood in an English run. -#}
-      <span class="byline"{% if row.byline and 'א' <= row.byline[:1] <= 'ת' %} lang="{{ script }}" dir="auto"{% endif %}>{{ row.byline }}</span>
-      <span class="blurb"{% if row.blurb and 'א' <= row.blurb[:1] <= 'ת' %} lang="{{ script }}" dir="auto"{% elif row.blurb and row.blurb_lang != page_language %} lang="{{ row.blurb_lang }}"{% endif %}>{{ row.blurb }}</span>
-    </li>
+  {%- for shelf in shelves %}
+  <section class="lib-lang" id="in-{{ shelf.code }}"{% if not kind_page|default(false) %} aria-labelledby="in-{{ shelf.code }}-head"{% endif %}>
+    {%- if not kind_page|default(false) %}
+    <h2 id="in-{{ shelf.code }}-head">{{ shelf.name }} <span class="lib-count">· {{ tn("shelf.page.texts", shelf.size, "{count} text", "{count} texts", count=shelf.size) }}</span></h2>
+    {%- endif %}
+    {%- for kind in shelf.kinds %}
+    <section class="lib-kind"{% if not kind_page|default(false) %} aria-labelledby="in-{{ shelf.code }}-{{ kind.kind }}"{% endif %}>
+      {%- if not kind_page|default(false) %}
+      <div class="lib-kind-head">
+        <h3 id="in-{{ shelf.code }}-{{ kind.kind }}">{{ kind.name }}</h3>
+        {%- if kind.size > kind.rows|length %}
+        <a class="lib-all" href="{{ kind.at }}">{{ t("shelf.page.all", "All {n}", n=kind.size) }} <span aria-hidden="true">→</span></a>
+        {%- endif %}
+      </div>
+      {%- endif %}
+      <ul class="texts lib-rows">
+        {%- for row in kind.rows %}
+        {#- The name, the place and the blurb in the page's language where the catalogue
+            has them, the way the text page draws them, and English where it has not
+            (targum-internal#520). `lang` says which one is drawn. #}
+        {%- set entry = row.entry %}
+        {%- set script = entry.language if entry.language in ('arc', 'yi') else 'he' %}
+        <li class="lib-row">
+          <a href="/library/{{ entry.id }}">
+            <bdi class="lib-title" lang="{{ entry.language }}">{{ entry.title }}</bdi>
+            {% if row.named %}<span class="english" lang="{{ row.named_lang }}" dir="ltr">{{ row.named }}</span>{% endif %}
+          </a>
+          {#- A byline or a blurb in Hebrew letters says so, with its own direction
+              (design.md §14, line 3; Library QA, 2026-10-20): "אברהם מאפו, 1853" stood in
+              an English run. One with a Hebrew word inside a Latin line marks the word
+              ("Omid Memarian, תרגם Gallia Hoz"; #477, polish 10). -#}
+          <span class="byline"{% if row.byline and 'א' <= row.byline[:1] <= 'ת' %} lang="{{ script }}" dir="auto">{{ row.byline }}{% else %}>{{ row.byline|isolate('ltr', script) }}{% endif %}</span>
+          <span class="blurb"{% if row.blurb and 'א' <= row.blurb[:1] <= 'ת' %} lang="{{ script }}" dir="auto">{{ row.blurb }}{% else %}{% if row.blurb and row.blurb_lang != page_language %} lang="{{ row.blurb_lang }}"{% endif %}>{{ row.blurb|isolate('ltr', script) }}{% endif %}</span>
+        </li>
+        {%- endfor %}
+      </ul>
+    </section>
     {%- endfor %}
-  </ul>
+  </section>
   {%- else %}
   {#- Said plainly rather than dressed up. An empty shelf that pretends otherwise is
       worse than one that admits it, and this one fills up shortly. -#}
   <p class="empty">{{ t("shelf.page.nothing-here-yet", "Nothing here yet.") }}</p>
-  {%- endif %}
+  {%- endfor %}
 </main>
 
 {% include '_public_foot.html.j2' %}

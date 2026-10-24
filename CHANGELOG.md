@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The signed-out Library stands by language and kind (targum-internal#519). It was one
+  list of 1,315 texts in five languages under a line about Hebrew, about 237,000px tall
+  at 1440, with the waitlist under all of it. Now Hebrew comes first, then each other
+  language by its size, each headed with its count, and inside each the signed-in
+  Library's kinds, six texts apiece with "All N →" to a page of that kind
+  (`/library/k/<language>/<kind>`, noindex for now). Under the lede, "Free to read once
+  you're in." and Join the waitlist. It wears the front door's bar, ground, cards and
+  face (David, 2026-10-24) and carries no script and no reader stylesheet: 806 kB became
+  201 kB (84 kB gzipped) in English. The text and legal pages speak in the chrome's face
+  too, not the platform's (#477, polish 5), and a Hebrew word inside a Latin byline says
+  it is Hebrew (#477, polish 10). A noindex no longer rides on to the next page of a
+  kept-alive connection.
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a

@@ -87,6 +87,7 @@ from .render.builder import (
     front_page,
     holding_page,
     how_page,
+    kind_page,
     legal_is_public,
     legal_page,
     names_files,
@@ -702,6 +703,9 @@ OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/o
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
 PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
+#: All of one language's texts of one kind, a kind's "All N →" on the public Library
+#: (targum-internal#519): `/library/k/he/story`. Two segments, so never a text's id.
+PUBLIC_KIND = re.compile(r"^/library/k/([a-z]{2,3})/([a-z]{1,16})$")
 
 #: What a stranger on a year-old Chrome is told instead of a text. Plain, because the one
 #: person who ever reads it is someone whose browser stopped updating.
@@ -8243,6 +8247,10 @@ class Handler(BaseHTTPRequestHandler):
         """
         # Whether this answer was chosen by the browser's language, asked afresh each time.
         self._said_by_browser = False
+        # And whether it is kept out of search, likewise: a kept-alive connection is one
+        # handler, so a noindex set for one page went out on every page after it on the
+        # same connection (found with the Library's kind pages, targum-internal#519).
+        self._robots_tag = ""
         try:
             route()
         except Exception as error:
@@ -8417,6 +8425,21 @@ class Handler(BaseHTTPRequestHandler):
         daily_cycle = DAILY_ROUTE.match(route) if shelves_are_public() else None
         if daily_cycle is not None:
             return self._serve_daily(daily_cycle.group(1), daily_cycle.group(2) or "")
+
+        kind_at = PUBLIC_KIND.match(route) if shelves_are_public() else None
+        if kind_at is not None:
+            # Not indexed until David says the kind pages should be (#519): the texts they
+            # link are, and a crawler still follows a noindex page's links to them.
+            self._robots_tag = "noindex"
+            kind_html = kind_page(
+                kind_at.group(1),
+                kind_at.group(2),
+                self.address,
+                language=self._public_language(),
+            )
+            if kind_html is None:
+                return self._send(404, b"not found", "text/plain")
+            return self._send(200, kind_html.encode("utf-8"), HTML)
 
         naming = PUBLIC_TEXT.match(route) if shelves_are_public() else None
         if naming is not None:

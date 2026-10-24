@@ -1,0 +1,53 @@
+/* The Library, for somebody who has not signed in (targum-internal#519).
+
+   Drawn on the front door's desk: `landing.css` comes first and gives the ground, the
+   bar, the press, the chrome's face and every colour, so this file is the Library's
+   layout and nothing else, and names no colour of its own. A row is the landing's own
+   library card (`.book`): a card on the ground at the card corner, resting. */
+
+.lib { padding-block: var(--space-7) var(--space-8); display: grid; gap: var(--space-8); }
+
+.lib-head { display: grid; gap: var(--space-4); max-inline-size: 40rem; }
+/* A desk page's title, on the desk under the bar (§12, 2026-10-09). */
+.lib-head h1 { font: 600 1.9375rem/1.15 var(--chrome); letter-spacing: -0.015em; }
+.lib-lede { font-size: 1.0625rem; line-height: 1.55; }
+.lib-ask { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); color: var(--muted); }
+.lib-back { justify-self: start; display: inline-flex; align-items: center; gap: var(--space-1); color: var(--muted); font-size: 0.875rem; }
+.lib-back:hover { color: var(--teal); }
+
+.lib-lang { display: grid; gap: var(--space-7); }
+.lib-lang h2 { font: 600 1.5rem/1.2 var(--chrome); letter-spacing: -0.01em; padding-block-end: var(--space-3); border-block-end: 1px solid var(--hairline); }
+.lib-count { color: var(--muted); font-weight: 400; }
+
+.lib-kind { display: grid; gap: var(--space-3); }
+.lib-kind-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+.lib-kind-head h3 { font: 600 1.0625rem/1.3 var(--chrome); }
+.lib-all { font-size: 0.875rem; font-weight: 600; white-space: nowrap; }
+
+.lib-rows { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+@media (max-width: 56rem) { .lib-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 40rem) { .lib-rows { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); } }
+
+/* The whole card answers, through its link: the title is the one link, and its reach is
+   the card (§8), so a row is one tab stop and one tap. */
+.lib-row { position: relative; background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-rest); padding: var(--space-4); display: grid; gap: var(--space-1); align-content: start; min-inline-size: 0; transition: box-shadow 160ms var(--ease); }
+.lib-row:hover { box-shadow: var(--shadow-raised); }
+.lib-row:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lib-row a { display: grid; gap: 0.1rem; color: var(--ink); }
+.lib-row a:hover { text-decoration: none; }
+.lib-row a:focus-visible { outline: none; }
+.lib-row a::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius-card); }
+.lib-title { font: 600 1.0625rem/1.4 var(--reading); overflow-wrap: anywhere; }
+.lib-title:lang(he), .lib-title:lang(arc), .lib-title:lang(yi) { justify-self: start; max-inline-size: 100%; font-family: var(--reading-hebrew); font-size: 1.25rem; font-weight: 400; line-height: 1.5; direction: rtl; unicode-bidi: isolate; }
+.lib-row .english { font: 600 0.9375rem/1.35 var(--chrome); overflow-wrap: anywhere; }
+.lib-row .byline { font-size: 0.8125rem; color: var(--muted); }
+.lib-row .blurb { font-size: 0.875rem; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.lib-row .byline:empty, .lib-row .blurb:empty { display: none; }
+
+@media (hover: none) and (pointer: coarse) {
+  .lib-all, .lib-back { display: inline-flex; align-items: center; min-block-size: 44px; }
+}
+
+.lib .empty { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { .lib-row { transition: none; } }
