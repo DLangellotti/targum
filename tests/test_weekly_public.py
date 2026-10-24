@@ -801,6 +801,9 @@ def test_the_library_holds_every_issue(open_shelves: tuple[int, Path]) -> None:
     """Six rows from two issues, so a reader can find the one they missed by looking
     rather than by knowing its address."""
     page = ask(open_shelves[0], "/library")[1].decode()
+    # A kind shows its first rows and links the rest from its own page (#519).
+    for kind in sorted(set(re.findall(r'href="(/library/k/[a-z]+/[a-z]+)"', page))):
+        page += ask(open_shelves[0], kind)[1].decode()
     rows = {row for row in re.findall(r"weekly-2026-w3[0-9]-[a-z]+", page)}
     assert len(rows) == 6, sorted(rows)
 

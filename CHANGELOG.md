@@ -12,6 +12,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- "Learned on targum" counts a word marked anything other than known that later became
+  known (David, 2026-10-24). The count already took new, still learning and almost
+  known; it now takes ignored too, and the note under it says what it counts in plain
+  words, in English and in Russian (a draft for David's read). A word first marked known,
+  or claimed on "Words you may already know", still does not count. Undo after an
+  ignore hands back a known word without counting it. The store keeps a word's current
+  stage and a flag written when it crosses to known, not a history of its stages, so
+  words that crossed from ignored before this change are not counted.
 - A conjugation table for the hollow, geminate and I-nun verbs Open Scriptures files under
   their root (grammar/8 part (a); targum-internal#509 and #307). בוא in hif'il now draws
   הֵבִיא, נגש draws הִגִּישׁ and תמם draws תַּם: the table indexes each such verb under the
@@ -42,6 +50,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   meanings show one, and the How page, say "Meanings from STEP Bible · CC BY 4.0 ·
   shortened by targum", linked. No annotator rename and no spend; parasha and daily need
   a re-cut after the deploy.
+- The signed-out Library stands by language and kind (targum-internal#519). It was one
+  list of 1,315 texts in five languages under a line about Hebrew, about 237,000px tall
+  at 1440, with the waitlist under all of it. Now Hebrew comes first, then each other
+  language by its size, each headed with its count, and inside each the signed-in
+  Library's kinds, six texts apiece with "All N →" to a page of that kind
+  (`/library/k/<language>/<kind>`, noindex for now). Under the lede, "Free to read once
+  you're in." and Join the waitlist. It wears the front door's bar, ground, cards and
+  face (David, 2026-10-24) and carries no script and no reader stylesheet: 806 kB became
+  201 kB (84 kB gzipped) in English. The text and legal pages speak in the chrome's face
+  too, not the platform's (#477, polish 5), and a Hebrew word inside a Latin byline says
+  it is Hebrew (#477, polish 10). A noindex no longer rides on to the next page of a
+  kept-alive connection. A language the visitor pressed (`?lang=ru`) goes on every link
+  the page draws, and a kind of videos counts videos.
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a

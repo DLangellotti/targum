@@ -2779,11 +2779,14 @@ var targumReader = function () {
   // its way past: a `setStatus` that re-read the store saw the level it had just written
   // itself and took a press of "1" for a second press. Typing a definition and then
   // saying "just met it" unmarked the word and threw the definition away with it.
-  // Whether this change is a word arriving at known from somewhere below it. Asked
-  // before the record is rewritten, because the answer is in the level it is leaving.
+  // Whether this change is a word arriving at known from any other stage it held here:
+  // new, still learning, almost known, or ignored (David, 2026-10-24). Asked before the
+  // record is rewritten, because the answer is in the stage it is leaving. The Words
+  // page asks the same through `TargumCharts.learnedBy`.
   function learnedNow(lemma, status) {
     if (vocab[lemma] && vocab[lemma].learned) return true;
-    return status === KNOWN && isLearning(statusOf(lemma));
+    var was = statusOf(lemma);
+    return status === KNOWN && was !== undefined && was !== null && was !== KNOWN;
   }
 
   // Words finished with on this page, so the list can keep showing them — see
@@ -2833,8 +2836,8 @@ var targumReader = function () {
         status: status,
         surface: vocab[lemma] ? vocab[lemma].surface || surface : surface,
         band: band || (vocab[lemma] ? vocab[lemma].band : "") || "",
-        // A word you carried up from a level below known is one you learned here; a word
-        // you opened a text and ticked off is one you already had. Sticky, because
+        // A word you carried up from any other stage to known is one you learned here; a
+        // word you opened a text and ticked off is one you already had. Sticky, because
         // having learned it is not undone by later changing your mind about the level.
         learned: learnedNow(lemma, status) ? 1 : 0,
         at: vocab[lemma] ? vocab[lemma].at || nextOrder() : nextOrder(),

@@ -78,6 +78,14 @@ global.fetch = global.window.fetch = (url) => {
 
 require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
+// The rule that writes the flag the "learned on targum" tile counts, asked of pairs of
+// stages with no page: [stage it held (null for never on the list), stage it went to].
+if (payload.learnedBy) {
+  process.stdout.write(
+    JSON.stringify(payload.learnedBy.map(([was, now]) => window.TargumCharts.learnedBy(was, now)))
+  );
+  process.exit(0);
+}
 require(path.join(assets, "progress.js"));
 
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };

@@ -13,7 +13,7 @@ from html import unescape
 import pytest
 
 from targum.catalogue import CATALOGUE, Kind, Tag, beit_midrash
-from targum.render.builder import shelf_page, text_page
+from targum.render.builder import SHELF_ROWS, kind_page, shelf_page, text_page
 
 ADDRESS = "https://targum.page"
 
@@ -32,13 +32,17 @@ def strip(markup: str) -> str:
 # -- the catalogue ------------------------------------------------------------
 
 
-def test_the_catalogue_page_names_itself_and_lists_every_text() -> None:
-    """One list. There were two — a Library and a Beit Midrash — and the split meant a
-    reader had to already know which room a text was in to find it."""
+def test_the_catalogue_page_names_itself_and_reaches_every_text() -> None:
+    """One catalogue. There were two — a Library and a Beit Midrash — and the split meant
+    a reader had to already know which room a text was in to find it. Since #519 a text
+    is on the Library or one press away on its kind's page, and every one is a link a
+    crawler follows."""
     html = shelf_page(ADDRESS)
     assert f'href="{ADDRESS}/library"' in html, "a canonical URL, or duplicates compete"
+    kinds = set(re.findall(r'href="(/library/k/[a-z]+/[a-z]+)"', html))
+    pages = [html] + [kind_page(*at.split("/")[3:], ADDRESS) or "" for at in sorted(kinds)]
     for entry in CATALOGUE:
-        assert f'href="/library/{entry.id}"' in html
+        assert any(f'href="/library/{entry.id}"' in page for page in pages), entry.id
 
 
 def test_an_empty_catalogue_says_so_rather_than_pretending(
@@ -144,6 +148,198 @@ def test_a_text_page_says_its_place_in_the_page_language() -> None:
 
 
 # -- what a text is -----------------------------------------------------------
+
+
+# -- the Library in sections (targum-internal#519) ------------------------------------
+
+
+def _entry(n: int, language: str, kind: Kind, author: str = "Somebody, 1990") -> object:
+    from targum.catalogue import Entry
+
+    return Entry(
+        id=f"{language}-{kind.value}-{n}",
+        title=f"ספר {n}" if language == "he" else f"Book {n}",
+        author=author,
+        language=language,
+        source=f"s:{language}:{n}",
+        blurb=f"Blurb {n}.",
+        words=100,
+        english=f"Book {n}",
+        kind=kind,
+    )
+
+
+def _a_wide_shelf(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Russian with more rows than Hebrew, so Hebrew first is the rule and not the count;
+    a kind longer than a kind shows, and a kind shorter."""
+    rows = [
+        *(_entry(n, "ru", Kind.talk) for n in range(20)),
+        *(_entry(n, "he", Kind.story) for n in range(9)),
+        *(_entry(n, "he", Kind.poetry) for n in range(2)),
+        *(_entry(n, "it", Kind.story) for n in range(3)),
+    ]
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    monkeypatch.setattr("targum.catalogue.COLLECTIONS", [])
+
+
+def _sections(html: str) -> list[str]:
+    return re.findall(r'<section class="lib-lang" id="in-([a-z]+)"', html)
+
+
+def test_the_library_stands_hebrew_first_then_each_language_by_its_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Chekhov and Italian picture books stood in Ruth's column, under a line about Hebrew
+    (#477, B4). Hebrew leads because Hebrew is what targum teaches, whoever has more."""
+    _a_wide_shelf(monkeypatch)
+    html = shelf_page(ADDRESS)
+    assert _sections(html) == ["he", "ru", "it"]
+    assert 'Hebrew <span class="lib-count">· 11 texts</span>' in html
+    assert 'Russian <span class="lib-count">· 20 texts</span>' in html
+    russian = shelf_page(ADDRESS, language="ru")
+    assert 'Иврит <span class="lib-count">· 11 текстов</span>' in russian
+    assert 'Итальянский <span class="lib-count">· 3 текста</span>' in russian
+
+
+def test_the_library_draws_a_few_rows_a_kind_and_a_way_to_all_of_them(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pin: 1,315 rows on one page was 237,000px at 1440. A kind shows its first rows
+    and says how many there are; one that fits shows them all and offers no more."""
+    _a_wide_shelf(monkeypatch)
+    html = shelf_page(ADDRESS)
+    kinds = re.findall(r'<section class="lib-kind"', html)
+    rows = html.count('<li class="lib-row">')
+    assert rows <= SHELF_ROWS * len(kinds)
+    assert rows == SHELF_ROWS + 2 + SHELF_ROWS + 3
+    assert '<a class="lib-all" href="/library/k/he/story">All 9 <span' in html
+    assert '<a class="lib-all" href="/library/k/ru/talk">All 20 <span' in html
+    assert "/library/k/he/poetry" not in html and "/library/k/it/story" not in html
+    # In the signed-in Library's order and its words: Stories before Poetry.
+    assert html.index(">Stories</h3>") < html.index(">Poetry</h3>")
+    assert "Все 9" in shelf_page(ADDRESS, language="ru")
+
+
+def test_the_library_asks_for_the_waitlist_under_its_lede(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The only ask was Sign in at the top and the waitlist under all 1,315 rows (§6)."""
+    _a_wide_shelf(monkeypatch)
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    html = shelf_page(ADDRESS)
+    head = html[
+        html.index('<header class="lib-head">') : html.index(
+            "</header>", html.index('<header class="lib-head">')
+        )
+    ]
+    assert "34 texts and videos to learn from." in head
+    assert "Free to read once you’re in." in head
+    assert '<a class="btn cta" href="/#join">Join the waitlist</a>' in head
+    assert html.index('class="lib-head"') < html.index('class="lib-lang"')
+
+
+def test_the_library_wears_the_front_door_and_carries_no_script(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One look across the public front (David, 2026-10-24): the landing's bar, ground
+    and face. Script-free, so every text is a link with nothing in front of it."""
+    _a_wide_shelf(monkeypatch)
+    html = shelf_page(ADDRESS)
+    assert '<body class="landing">' in html
+    assert '<header class="bar">' in html
+    assert "Source Sans 3" in html
+    assert "<script" not in html.replace('<script type="application/ld+json">', "")
+
+
+def test_a_kind_has_a_page_of_its_own_that_is_not_indexed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every text of the kind, and kept out of search until David decides it belongs
+    there; its links to the texts are still followed."""
+    _a_wide_shelf(monkeypatch)
+    page = kind_page("he", "story", ADDRESS)
+    assert page is not None
+    assert page.count('<li class="lib-row">') == 9
+    assert '<meta name="robots" content="noindex">' in page
+    assert "<title>Hebrew · Stories — Library — targum</title>" in page
+    assert f'<link rel="canonical" href="{ADDRESS}/library/k/he/story">' in page
+    assert '<a class="lib-back" href="/library">' in page
+    assert '<meta name="robots"' not in shelf_page(ADDRESS)
+    russian = kind_page("he", "story", ADDRESS, language="ru") or ""
+    assert "<title>Иврит · Рассказы — Библиотека — targum</title>" in russian
+    assert kind_page("he", "talk", ADDRESS) is None
+    assert kind_page("xx", "story", ADDRESS) is None
+
+
+#: What the public Library may weigh, with the faces it carries inside it. It was 806 kB
+#: (184 kB gzipped) with every row and the reader's stylesheet; a phone on 1.6 Mbps
+#: has §14's 1.5 s.
+SHELF_BUDGET = {"en": 240_000, "ru": 290_000}
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_library_weighs_the_same_however_long_the_catalogue_grows(
+    monkeypatch: pytest.MonkeyPatch, language: str
+) -> None:
+    """The payload check (#519): 1,320 texts in five languages draw a bounded page, and
+    the page carries no stylesheet but the front door's and its own."""
+    rows = [
+        _entry(n, code, kind)
+        for code, kinds in (("he", list(Kind)), ("ru", list(Kind)[:5]), ("it", [Kind.story]))
+        for kind in kinds
+        for n in range(1320 // 30)
+    ]
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", rows)
+    monkeypatch.setattr("targum.catalogue.COLLECTIONS", [])
+    html = shelf_page(ADDRESS, language=language)
+    kinds = html.count('<section class="lib-kind"')
+    assert html.count('<li class="lib-row">') <= SHELF_ROWS * kinds
+    assert len(html.encode("utf-8")) < SHELF_BUDGET[language], len(html.encode("utf-8"))
+    assert "body.public" not in html, "the sheet pages' stylesheet, and the reader's with it"
+
+
+def test_a_pressed_language_goes_on_every_link_the_library_draws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In an English browser, /library?lang=ru opened its kinds, its texts and the
+    waitlist in English (design's review of #925). A language the browser chose is not
+    carried: it is chosen again on the next page."""
+    _a_wide_shelf(monkeypatch)
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    html = shelf_page(ADDRESS, language="ru", asked="ru")
+    assert '<a class="lib-all" href="/library/k/he/story?lang=ru">' in html
+    assert 'href="/library/he-story-0?lang=ru"' in html
+    assert '<a class="btn cta" href="/?lang=ru#join">' in html
+    assert 'href="/account/signin?lang=ru"' in html
+    assert 'href="/?lang=ru#own"' in html
+    rows = re.findall(r'href="(/library/[^"]*)"', html)
+    assert rows and all(row.endswith("?lang=ru") for row in rows), rows
+    kind = kind_page("he", "story", ADDRESS, language="ru", asked="ru") or ""
+    assert '<a class="lib-back" href="/library?lang=ru">' in kind
+    assert "?lang=" not in shelf_page(ADDRESS, language="ru").split("<main")[1].split("</main>")[0]
+
+
+def test_a_kind_of_videos_counts_videos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ "178 texts" headed Russian · Videos (design's review of #925)."""
+    _a_wide_shelf(monkeypatch)
+    assert '<p class="lib-lede">20 videos</p>' in (kind_page("ru", "talk", ADDRESS) or "")
+    russian = kind_page("ru", "talk", ADDRESS, language="ru") or ""
+    assert '<p class="lib-lede">20 видео</p>' in russian
+    assert '<p class="lib-lede">9 texts</p>' in (kind_page("he", "story", ADDRESS) or "")
+
+
+def test_a_hebrew_word_inside_a_latin_byline_says_its_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ "Omid Memarian, תרגם Gallia Hoz, 2014" put a Hebrew word in an English run, read
+    with the English voice (#477, polish 10)."""
+    row = _entry(1, "he", Kind.essay, author="Omid Memarian, תרגם Gallia Hoz, 2014")
+    monkeypatch.setattr("targum.catalogue.CATALOGUE", [row])
+    html = _row(shelf_page(ADDRESS), "he-essay-1")
+    assert (
+        '<span class="byline">Omid Memarian, <bdi lang="he">תרגם</bdi> Gallia Hoz, 2014</span>'
+        in html
+    )
 
 
 def test_the_jewish_texts_are_tagged() -> None:

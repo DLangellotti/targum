@@ -13,6 +13,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ title }}</title>
 <meta name="description" content="{{ description }}">
+{%- if robots %}
+{#- A public page that is not to be indexed says so in the page as well as in the
+    response, so the page alone is enough to check (targum-internal#519). -#}
+<meta name="robots" content="{{ robots }}">
+{%- endif %}
 {%- if canonical %}
 <link rel="canonical" href="{{ canonical }}">
 {%- endif %}
