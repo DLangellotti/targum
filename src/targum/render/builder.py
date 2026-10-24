@@ -3738,7 +3738,7 @@ def kind_address(language: str, kind: str) -> str:
     return f"/library/k/{language}/{kind}"
 
 
-def shelf_page(address: str = "", language: str = "en") -> str:
+def shelf_page(address: str = "", language: str = "en", asked: str = "") -> str:
     """The catalogue, for somebody who has not signed in.
 
     Public on purpose. It is the shop window, and until it exists there is nothing for a
@@ -3774,11 +3774,14 @@ def shelf_page(address: str = "", language: str = "en") -> str:
             total_n=sum(one.size for one in shelves),
             shelves=shelves,
             here="/library",
+            asked=asked,
         )
     )
 
 
-def kind_page(code: str, kind: str, address: str = "", language: str = "en") -> str | None:
+def kind_page(
+    code: str, kind: str, address: str = "", language: str = "en", asked: str = ""
+) -> str | None:
     """Every text of one kind in one language, for somebody who has not signed in: what
     a kind's "All N →" on the public Library opens (targum-internal#519). None where the
     shelf has no such texts, so the route can answer 404.
@@ -3799,6 +3802,15 @@ def kind_page(code: str, kind: str, address: str = "", language: str = "en") -> 
     at = kind_address(code, kind)
     _kind_at = _addressed_in(f"{address}{at}" if address else "", language)
     counts = page_counts(language)
+    # Videos are counted as videos: "178 texts" headed Russian · Videos (design, #925).
+    noun = ("videos", "{count} video", "{count} videos") if kind == "talk" else None
+    count_line = counts(
+        f"shelf.page.{noun[0] if noun else 'texts'}",
+        found.size,
+        noun[1] if noun else "{count} text",
+        noun[2] if noun else "{count} texts",
+        count=_grouped(found.size, language),
+    )
     return (
         _environment()
         .get_template("shelf.html.j2")
@@ -3807,15 +3819,7 @@ def kind_page(code: str, kind: str, address: str = "", language: str = "en") -> 
             tn=counts,
             page_language=_page_language(language),
             title=f"{heading} — {library} — targum",
-            description=str(
-                counts(
-                    "shelf.page.texts",
-                    found.size,
-                    "{count} text",
-                    "{count} texts",
-                    count=_grouped(found.size, language),
-                )
-            ),
+            description=str(count_line),
             canonical=_kind_at[0],
             alternates=_kind_at[1],
             robots="noindex",
@@ -3825,7 +3829,9 @@ def kind_page(code: str, kind: str, address: str = "", language: str = "en") -> 
             total_n=found.size,
             shelves=[shelf._replace(kinds=[found], size=found.size)],
             kind_page=True,
+            count_line=count_line,
             here=at,
+            asked=asked,
         )
     )
 

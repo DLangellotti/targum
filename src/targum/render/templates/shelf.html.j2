@@ -24,17 +24,20 @@
 </head>
 <body class="landing">
 <a class="skip" href="#top">{{ t("landing.page.skip-to-the-page", "Skip to the page") }}</a>
-{% with bar_class = 'bar', home = '/', join = '/#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
+{#- A language the visitor pressed (`?lang=`) goes on every link the page draws, as the
+    front door carries it: in an English browser the next page was English (#925). -#}
+{%- set q = '?lang=' ~ asked if asked|default('') else '' %}
+{% with bar_class = 'bar', home = '/' ~ q, join = '/' ~ q ~ '#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top" class="col lib">
   <header class="lib-head">
     {%- if kind_page|default(false) %}
-    <a class="lib-back" href="/library"><span aria-hidden="true">←</span> {{ library }}</a>
+    <a class="lib-back" href="/library{{ q }}"><span aria-hidden="true">←</span> {{ library }}</a>
     {%- endif %}
     <h1>{{ shelf_name }}</h1>
     {%- if shelves %}
     <p class="lib-lede">
-      {%- if kind_page|default(false) %}{{ tn("shelf.page.texts", total_n, "{count} text", "{count} texts", count=total) }}
+      {%- if kind_page|default(false) %}{{ count_line }}
       {%- else %}{{ tn("shelf.page.lede", total_n, "{count} text and video to learn from. Every one opens ready to read, with a translation beside it.", "{count} texts and videos to learn from. Every one opens ready to read, with a translation beside it.", count=total) }}{% endif -%}
     </p>
     {%- endif %}
@@ -43,9 +46,9 @@
     <p class="lib-ask">
       <span>{{ t("shelf.page.free-to-read-once-you-re-in", "Free to read once you’re in.") }}</span>
       {%- if front_door_is_open() %}
-      <a class="btn cta" href="/#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+      <a class="btn cta" href="/{{ q }}#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
       {%- else %}
-      <a class="btn cta" href="/account/signin">{{ t("shelf.page.sign-in", "Sign in") }}</a>
+      <a class="btn cta" href="/account/signin{{ q }}">{{ t("shelf.page.sign-in", "Sign in") }}</a>
       {%- endif %}
     </p>
   </header>
@@ -61,7 +64,7 @@
       <div class="lib-kind-head">
         <h3 id="in-{{ shelf.code }}-{{ kind.kind }}">{{ kind.name }}</h3>
         {%- if kind.size > kind.rows|length %}
-        <a class="lib-all" href="{{ kind.at }}">{{ t("shelf.page.all", "All {n}", n=kind.size) }} <span aria-hidden="true">→</span></a>
+        <a class="lib-all" href="{{ kind.at }}{{ q }}">{{ t("shelf.page.all", "All {n}", n=kind.size) }} <span aria-hidden="true">→</span></a>
         {%- endif %}
       </div>
       {%- endif %}
@@ -73,7 +76,7 @@
         {%- set entry = row.entry %}
         {%- set script = entry.language if entry.language in ('arc', 'yi') else 'he' %}
         <li class="lib-row">
-          <a href="/library/{{ entry.id }}">
+          <a href="/library/{{ entry.id }}{{ q }}">
             <bdi class="lib-title" lang="{{ entry.language }}">{{ entry.title }}</bdi>
             {% if row.named %}<span class="english" lang="{{ row.named_lang }}" dir="ltr">{{ row.named }}</span>{% endif %}
           </a>

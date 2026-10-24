@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 from targum.catalogue import Entry, Kind
-from targum.render.builder import kind_page, shelf_page
+from targum.render.builder import kind_page, shelf_page, text_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -177,3 +177,45 @@ def test_a_kind_page_reads_on_a_phone(browser: Any, a_big_shelf: None, language:
     assert not fetched and got["overflow"] <= 0
     assert got["rows"] == 120
     assert not got["loose"], got["loose"]
+
+
+def test_a_pressed_russian_stays_russian_on_the_next_click(browser: Any, a_big_shelf: None) -> None:
+    """In an English browser, /library?lang=ru, then an All link, back, and a row: each
+    next page is Russian (design's review of #925). The route answers as the server
+    does: `?lang=` where it is given, the browser's English where it is not."""
+    from urllib.parse import parse_qs, urlparse
+
+    from targum.catalogue import by_id
+
+    def answer(route: Any, request: Any) -> None:
+        url = urlparse(request.url)
+        if url.hostname != "door.test":
+            route.abort()
+            return
+        asked = parse_qs(url.query).get("lang", [""])[0]
+        language = asked or "en"
+        parts = url.path.strip("/").split("/")
+        if url.path == "/library":
+            html = shelf_page("https://targum.page", language=language, asked=asked)
+        elif parts[:2] == ["library", "k"]:
+            html = kind_page(parts[2], parts[3], "https://targum.page", language, asked) or ""
+        else:
+            entry = by_id(parts[1])
+            assert entry is not None, url.path
+            html = text_page(entry, "https://targum.page", language=language)
+        route.fulfill(status=200, content_type="text/html; charset=utf-8", body=html)
+
+    context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="en-US")
+    page = context.new_page()
+    page.route("**/*", answer)
+    page.goto("http://door.test/library?lang=ru")
+    assert page.evaluate("document.documentElement.lang") == "ru"
+    page.click(".lib-all")
+    page.wait_for_url("**/library/k/**")
+    assert page.evaluate("document.documentElement.lang") == "ru", page.url
+    page.click(".lib-back")
+    page.wait_for_url("**/library?lang=ru")
+    page.click(".lib-row a")
+    page.wait_for_url("**/library/*-*")
+    assert page.evaluate("document.documentElement.lang") == "ru", page.url
+    context.close()

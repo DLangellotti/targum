@@ -8436,6 +8436,7 @@ class Handler(BaseHTTPRequestHandler):
                 kind_at.group(2),
                 self.address,
                 language=self._public_language(),
+                asked=self._asked(),
             )
             if kind_html is None:
                 return self._send(404, b"not found", "text/plain")
@@ -8474,7 +8475,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(
                         200, holding_page(language=self._page_language()).encode("utf-8"), HTML
                     )
-                page = shelf_page(self.address, language=self._public_language())
+                page = shelf_page(
+                    self.address, language=self._public_language(), asked=self._asked()
+                )
                 return self._send(200, page.encode("utf-8"), HTML)
 
         if self._needs_account(route):

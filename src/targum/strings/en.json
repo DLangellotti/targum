@@ -1058,6 +1058,8 @@
   "shelf.page.texts.other": "{count} texts",
   "shelf.page.free-to-read-once-you-re-in": "Free to read once you’re in.",
   "shelf.page.all": "All {n}",
+  "shelf.page.videos.one": "{count} video",
+  "shelf.page.videos.other": "{count} videos",
   "text.page.sign-in": "Sign in",
   "text.page.the-opening": "The opening",
   "text.page.read-it": "Read it",

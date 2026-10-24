@@ -298,6 +298,36 @@ def test_the_library_weighs_the_same_however_long_the_catalogue_grows(
     assert "body.public" not in html, "the sheet pages' stylesheet, and the reader's with it"
 
 
+def test_a_pressed_language_goes_on_every_link_the_library_draws(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """In an English browser, /library?lang=ru opened its kinds, its texts and the
+    waitlist in English (design's review of #925). A language the browser chose is not
+    carried: it is chosen again on the next page."""
+    _a_wide_shelf(monkeypatch)
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    html = shelf_page(ADDRESS, language="ru", asked="ru")
+    assert '<a class="lib-all" href="/library/k/he/story?lang=ru">' in html
+    assert 'href="/library/he-story-0?lang=ru"' in html
+    assert '<a class="btn cta" href="/?lang=ru#join">' in html
+    assert 'href="/account/signin?lang=ru"' in html
+    assert 'href="/?lang=ru#own"' in html
+    rows = re.findall(r'href="(/library/[^"]*)"', html)
+    assert rows and all(row.endswith("?lang=ru") for row in rows), rows
+    kind = kind_page("he", "story", ADDRESS, language="ru", asked="ru") or ""
+    assert '<a class="lib-back" href="/library?lang=ru">' in kind
+    assert "?lang=" not in shelf_page(ADDRESS, language="ru").split("<main")[1].split("</main>")[0]
+
+
+def test_a_kind_of_videos_counts_videos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ "178 texts" headed Russian · Videos (design's review of #925)."""
+    _a_wide_shelf(monkeypatch)
+    assert '<p class="lib-lede">20 videos</p>' in (kind_page("ru", "talk", ADDRESS) or "")
+    russian = kind_page("ru", "talk", ADDRESS, language="ru") or ""
+    assert '<p class="lib-lede">20 видео</p>' in russian
+    assert '<p class="lib-lede">9 texts</p>' in (kind_page("he", "story", ADDRESS) or "")
+
+
 def test_a_hebrew_word_inside_a_latin_byline_says_its_language(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

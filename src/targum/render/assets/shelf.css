@@ -8,7 +8,8 @@
 .lib { padding-block: var(--space-7) var(--space-8); display: grid; gap: var(--space-8); }
 
 .lib-head { display: grid; gap: var(--space-4); max-inline-size: 40rem; }
-/* A desk page's title, on the desk under the bar (§12, 2026-10-09). */
+/* The title in the landing's sans, not the desk page's serif (§12, "The signed-out
+   Library wears the landing's desk look", David, 2026-10-24). */
 .lib-head h1 { font: 600 1.9375rem/1.15 var(--chrome); letter-spacing: -0.015em; }
 .lib-lede { font-size: 1.0625rem; line-height: 1.55; }
 .lib-ask { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3) var(--space-4); color: var(--muted); }
@@ -32,7 +33,8 @@
    the card (§8), so a row is one tab stop and one tap. */
 .lib-row { position: relative; background: var(--card); border-radius: var(--radius-card); box-shadow: var(--shadow-rest); padding: var(--space-4); display: grid; gap: var(--space-1); align-content: start; min-inline-size: 0; transition: box-shadow 160ms var(--ease); }
 .lib-row:hover { box-shadow: var(--shadow-raised); }
-.lib-row:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* For the keyboard only, as the rest of the desk: a mouse click draws no ring. */
+.lib-row:has(a:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 .lib-row a { display: grid; gap: 0.1rem; color: var(--ink); }
 .lib-row a:hover { text-decoration: none; }
 .lib-row a:focus-visible { outline: none; }

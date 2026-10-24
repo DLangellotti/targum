@@ -23,7 +23,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   201 kB (84 kB gzipped) in English. The text and legal pages speak in the chrome's face
   too, not the platform's (#477, polish 5), and a Hebrew word inside a Latin byline says
   it is Hebrew (#477, polish 10). A noindex no longer rides on to the next page of a
-  kept-alive connection.
+  kept-alive connection. A language the visitor pressed (`?lang=ru`) goes on every link
+  the page draws, and a kind of videos counts videos.
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
