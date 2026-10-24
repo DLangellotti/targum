@@ -428,6 +428,71 @@ def followed(world: World) -> Iterator[None]:
             tools.FEEDS.clear()
 
 
+#: The opening of Bereshit, as a portion's build has it: what the portion scenario's host
+#: is handed to read (qa-claude on #527, live: a portion came back with no lines).
+BERESHIT_LINES = (
+    "בְּרֵאשִׁית בָּרָא אֱלֹהִים אֵת הַשָּׁמַיִם וְאֵת הָאָרֶץ.",
+    "וְהָאָרֶץ הָיְתָה תֹהוּ וָבֹהוּ וְחֹשֶׁךְ עַל פְּנֵי תְהוֹם.",
+    "וַיֹּאמֶר אֱלֹהִים יְהִי אוֹר וַיְהִי אוֹר.",
+)
+
+
+@contextlib.contextmanager
+def portion_cut(world: World) -> Iterator[None]:
+    """A corpus with Bereshit cut the way `ship-parasha.sh` leaves it on the box, for the
+    portion scenario alone: its readers in `read/bereshit/reader/` and its build, the
+    sentences included, in `read/bereshit/print/`. The catalogue's own row is used where
+    the catalogue has it, and one is added where a fixture catalogue does not."""
+    from targum.parasha import calendar as cal
+    from targum.parasha.build import Index, Portion
+
+    with tempfile.TemporaryDirectory(prefix="eval-connector-parasha-") as where:
+        here = Path(where)
+        index = Index()
+        index.portions["bereshit"] = Portion(
+            slug="bereshit",
+            name="Bereshit",
+            hebrew="בְּרֵאשִׁית",
+            kind=cal.ReadingKind.parasha,
+            numbers=[1],
+            summary="Genesis 1:1-6:8",
+            books=["Genesis"],
+            opening_ref="Genesis 1:1",
+            folder="bereshit",
+            aliyot=7,
+        )
+        reader = here / "read" / "bereshit" / "reader"
+        reader.mkdir(parents=True)
+        (reader / "index.html").write_text("<html></html>", encoding="utf-8")
+        built = here / "read" / "bereshit" / "print"
+        built.mkdir()
+        lines = [{"id": f"0001.{n:03d}-a", "text": t} for n, t in enumerate(BERESHIT_LINES, 1)]
+        (built / "segments.json").write_text(
+            json.dumps({"segments": lines}, ensure_ascii=False), encoding="utf-8"
+        )
+        (here / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+        real = catalogue_module.everything
+        rows = list(real())
+        if not any(row.id == "parasha-bereshit" for row in rows):
+            rows.append(
+                catalogue_module.Entry(
+                    id="parasha-bereshit",
+                    title="בְּרֵאשִׁית",
+                    author="",
+                    language="he",
+                    source="sefaria:Genesis 1:1-6:8",
+                    blurb="Genesis 1:1-6:8. A portion.",
+                    words=1,
+                    english="Bereshit",
+                )
+            )
+        with (
+            mock.patch.dict(os.environ, {"TARGUM_PARASHA_DIR": str(here)}),
+            mock.patch.object(catalogue_module, "everything", lambda: rows),
+        ):
+            yield
+
+
 @contextlib.contextmanager
 def isolated(root: Path) -> Iterator[None]:
     """The environment a run reads, pointed at the temporary folder.
@@ -1067,6 +1132,12 @@ READ = mcp_http._prompt("read-with-me", arguments={"text": "אסתר"})["message
 ]
 
 
+#: And for a Torah portion, which the box keeps for everybody: the portion scenario.
+READ_PORTION = mcp_http._prompt("read-with-me", arguments={"text": "Bereshit"})["messages"][0][
+    "content"
+]["text"]
+
+
 #: What the reader says in the news scenario, as David said it to ChatGPT on 2026-10-07
 #: in two turns, in one.
 NEWS = "Find me something to read in Russian from today's news, on culture."
@@ -1084,6 +1155,7 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario("ready", (f"Make this text ready for me: {LINK}",), check_ready),
     Scenario("news", (NEWS,), check_news, around=followed),
     Scenario("read", (READ,), check_read),
+    Scenario("portion", (READ_PORTION,), check_read, around=portion_cut),
 )
 
 
@@ -1200,6 +1272,8 @@ class DryHost:
             return [_tool("search_sources", {"language": "ru", "topic": "culture"}, at)]
         if said == READ:
             return [_tool("open_library_text", {"id": "esther"}, at)]
+        if said == READ_PORTION:
+            return [_tool("open_library_text", {"id": "parasha-bereshit"}, at)]
         if HEBREW.search(said):
             return [_text("> אֶתְמוֹל הָלַכְתִּי לַשּׁוּק וְקָנִיתִי פֵּרוֹת.\nאֵילוּ פֵּרוֹת קָנִיתָ?")]
         if "next" in said:

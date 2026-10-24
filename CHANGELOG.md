@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The connector hands a Torah portion's lines to a host (targum-internal#527).
+  `open_library_text` read a portion's sentences from `read/<folder>/`, but a portion's
+  build is in `read/<folder>/print/`, beside its readers, as `ship-parasha.sh` leaves it.
+  So parasha-bereshit came back with no `lines` and no `how_to_read`, and Claude fetched
+  the page instead. It now reads them from `print/`. The connector eval has a portion
+  scenario. Daily cycles are not library rows and never came through this tool.
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
