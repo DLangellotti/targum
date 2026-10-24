@@ -270,7 +270,7 @@ h1, h2, h3 { text-wrap: balance; }
 /* On a phone the bar holds the name, the other language, Sign in and the one thing it is
    asking for, on one line. Sign in used to give way here and stand only in the foot,
    which on the public Library is 26,000px down: a reader coming back on a phone had no
-   way in from the top (targum-internal#528). It stays now, and the bar makes room by
+   way in from the top (targum-internal card 528). It stays now, and the bar makes room by
    tightening its gaps and by drawing only the language you can press, since the one you
    are reading is the page you are on. Each press keeps its 44px reach (§8). */
 @media (max-width: 30rem) {
@@ -280,7 +280,7 @@ h1, h2, h3 { text-wrap: balance; }
   .bar .tongue b, .bar .tongue span { display: none; }
 }
 /* Under 23.25rem the bar holds the name, Sign in and the one thing it is asking for. With
-   the language beside them it ran past a 361px phone in English (and, before #528, 9px
+   the language beside them it ran past a 361px phone in English (and, before card 528, 9px
    past a 320px one on /connect: QA 2026-10-11). The language stays one tap away in the
    foot. */
 @media (max-width: 23.25rem) { .bar .tongue { display: none; } }
