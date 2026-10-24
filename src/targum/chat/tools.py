@@ -725,14 +725,20 @@ def _lines(folder: Path, start: int) -> dict[str, Any]:
 
 
 def _everybody_folder(entry: catalogue_module.Entry) -> Path | None:
-    """The built folder of a portion the box keeps for everybody, or None."""
+    """The built text of a portion the box keeps for everybody, or None.
+
+    A portion is cut into `read/<folder>/`, with its readers in `reader/` and
+    `reader-ru/` and the build itself, `segments.json` and its neighbours, in `print/`,
+    which is how `ship-parasha.sh` leaves it on the box. The folder above `print/` holds
+    no sentences, so pointing there gave a host no `lines` (qa-claude on #527).
+    """
     from ..parasha import build as corpus
     from ..parasha.calendar import root
 
     if not entry.id.startswith("parasha-"):
         return None
     portion = corpus.load().portions.get(entry.id.removeprefix("parasha-"))
-    return root() / "read" / portion.folder if portion is not None else None
+    return root() / "read" / portion.folder / "print" if portion is not None else None
 
 
 def _start(args: dict[str, Any]) -> int:

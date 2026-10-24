@@ -1132,6 +1132,13 @@ WARM_AFTER_MS = 1500
 WARM_LANES = 3
 
 
+#: A face's stylesheet, as a desk page names it: what a page sent whole puts on late.
+_FACE_TAG = re.compile(
+    r'<link rel="stylesheet" href="' + re.escape(ASSET_ROUTE) + r'face-[a-z-]+\.[0-9a-f]+\.css">'
+)
+#: The `<template>` they wait in, which `warm.js` looks for.
+LATE_FACES = "late-faces"
+
 _FILE_TAG_BYTES = re.compile(_FILE_TAG.pattern.encode("utf-8"))
 
 
@@ -1153,6 +1160,13 @@ def first_visit(html: str) -> str:
     named = (match.group(2) or match.group(3) for match in _FILE_TAG.finditer(html))
     own = list(dict.fromkeys(named))
     files = [*own, *(address for address in _DESK_NAMED if address not in own)]
+    # The faces are not carried in place: about 67 kB gzipped that stood in front of the
+    # page's own script and, on the Library, of its shelf (#484). They wait at the foot in
+    # an inert `<template>`, which nothing fetches, and `warm.js` puts them on once the
+    # page is up: at `load`, or where the page asks (`TARGUM_FACES_AFTER`), once it has
+    # drawn. Until then the page wears the platform's face (design.md §12, 2026-10-23).
+    faces = "".join(match.group(0) for match in _FACE_TAG.finditer(html))
+    html = _FACE_TAG.sub("", html)
     said = _attributes(
         {
             "data_files": json.dumps(files),
@@ -1162,6 +1176,8 @@ def first_visit(html: str) -> str:
         }
     )
     tag = f"<script{said}>{_asset('warm.js')}</script>"
+    if faces:
+        tag = f'<template id="{LATE_FACES}">{faces}</template>' + tag
     whole = carried(html)
     at = whole.rfind("</body>")
     return whole[:at] + tag + whole[at:] if at >= 0 else whole + tag
@@ -4994,6 +5010,11 @@ def read_as_portions(entry: Any) -> bool:
     return bool(corpus.readable())
 
 
+#: What a row on the shelf carries in a file of its own rather than in its language's
+#: rows, so the first card does not wait for it (#484): its blurbs, which are a file per
+#: page language, and what a Build press sends.
+AFTER_THE_CARD = frozenset({"blurb", "blurbs", "source", "translations"})
+
 #: The language whose shelf also carries another's rows: the Aramaic door stands on the
 #: Hebrew shelf (`BESIDE_HEBREW` in `library.js`).
 SHELF_BESIDE = {"arc": "he"}
@@ -5004,15 +5025,29 @@ def shelf_files(
 ) -> dict[str, str]:
     """The Library's shelf as files, by language: what `TARGUM_SHELF_FILES` names.
 
-    `""` is what every shelf needs: the collections, the sets, and every row's id in the
-    catalogue's order (where a row sits is the only evidence of arrival most rows have).
-    Each language's file is its rows, each carrying that `place`, so a row in two
+    `""` is what every shelf needs: the collections and the sets. `"order"` is every
+    row's id in the catalogue's order (where a row sits is the only evidence of arrival
+    most rows have), asked once the page has drawn. Each language's file is its rows,
+    each carrying its `place` in that order, so a row in two
     languages is in both files and the page merges them back into one order. The page
     asks for the shelf it opens on and another only when the reader moves to it
     (targum-internal#484): the whole shelf was 270 kB gzipped and the Hebrew is half.
+
+    A row's blurbs are not in its language's file but in one per page language,
+    `"<code>.<page language>"`, asked beside the rows by a page in that language (#484,
+    2026-10-23): a page shows the blurb in its own language or the English one and never
+    another, and every page took every language's before its first card. `"<code>.en"`
+    is `{"blurb": {id: text}}`; another page language's is `{"blurbs": {id: text}}`
+    with `"blurb"` for the rows it has none for, so the first card wants one file. A page
+    in another language asks for the English after it has drawn, for search.
+
+    What only a Build press reads, a row's `source` and `translations`, is
+    `"<code>.build"`, asked after the first draw too, and waited for by a press that
+    comes before it.
     """
     by_language: dict[str, list[dict[str, Any]]] = {}
-    for place, entry in enumerate(entries, start=1):
+    for place, whole in enumerate(entries, start=1):
+        entry = {key: value for key, value in whole.items() if key not in AFTER_THE_CARD}
         codes = {
             str(code).split("-")[0].lower()
             for code in (entry.get("languages") or [entry.get("language", "")])
@@ -5020,19 +5055,49 @@ def shelf_files(
         }
         codes |= {SHELF_BESIDE[code] for code in codes if code in SHELF_BESIDE}
         for code in codes:
-            by_language.setdefault(code, []).append({**entry, "place": place})
+            by_language.setdefault(code, []).append({**entry, "place": place, "said": whole})
     files = {
-        "": data_file(
-            "catalogue.json",
-            {
-                "ids": [entry["id"] for entry in entries],
-                "collections": groups,
-                "sets": sets,
-            },
-        )
+        "": data_file("catalogue.json", {"collections": groups, "sets": sets}),
+        # Every row's id in the catalogue's order, which only the line under a language
+        # with no shelf reads: asked after the first draw (11.6 kB gzipped, #484).
+        "order": data_file("catalogue-order.json", {"ids": [entry["id"] for entry in entries]}),
     }
     for code in sorted(by_language):
-        files[code] = data_file(f"catalogue-{code}.json", {"catalogue": by_language[code]})
+        rows = by_language[code]
+        files[code] = data_file(
+            f"catalogue-{code}.json",
+            {"catalogue": [{k: v for k, v in row.items() if k != "said"} for row in rows]},
+        )
+        english = {row["id"]: row["said"]["blurb"] for row in rows if row["said"].get("blurb")}
+        files[f"{code}.en"] = data_file(f"catalogue-{code}-en.json", {"blurb": english})
+        files[f"{code}.build"] = data_file(
+            f"catalogue-{code}-build.json",
+            {
+                "build": {
+                    row["id"]: {
+                        "source": row["said"].get("source", ""),
+                        "translations": row["said"].get("translations") or [],
+                    }
+                    for row in rows
+                }
+            },
+        )
+        others = sorted(
+            {key for row in rows for key, said in row["said"].get("blurbs", {}).items() if said}
+        )
+        for other in others:
+            theirs = {
+                row["id"]: row["said"]["blurbs"][other]
+                for row in rows
+                if row["said"].get("blurbs", {}).get(other)
+            }
+            files[f"{code}.{other}"] = data_file(
+                f"catalogue-{code}-{other}.json",
+                {
+                    "blurbs": theirs,
+                    "blurb": {key: said for key, said in english.items() if key not in theirs},
+                },
+            )
     return files
 
 

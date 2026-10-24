@@ -71,8 +71,17 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
         "quote_build",
         "search_sources",
         "open_library_text",
+        "open_library_text",
     ]
-    assert [row["scenario"] for row in rows] == ["talk", "next", "done", "ready", "news", "read"]
+    assert [row["scenario"] for row in rows] == [
+        "talk",
+        "next",
+        "done",
+        "ready",
+        "news",
+        "read",
+        "portion",
+    ]
     for row in rows:
         assert row["passed"], (row["scenario"], row["checks"])
         assert row["result_bytes"] > 0 and row["tool_calls"] == 1
@@ -88,6 +97,9 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
     assert "https://news.example.org/ru/culture/101" in by["news"]["turns"][0]["reply"]
     # Read with me reads the fixture's own lines, which only the tool could have given.
     assert "Say when you want the next lines." in by["read"]["turns"][0]["reply"]
+    # And a portion reads Bereshit's own first line, from where the portion is cut
+    # (qa-claude on #527: a portion came back with no lines).
+    assert ec.BERESHIT_LINES[0] in by["portion"]["turns"][0]["reply"]
     written = rows_in(path)
     assert [row["scenario"] for row in written] == [
         "talk",
@@ -96,6 +108,7 @@ def test_a_dry_run_goes_through_the_connector_and_passes(
         "ready",
         "news",
         "read",
+        "portion",
     ]
     assert all("_results" not in turn for row in written for turn in row["turns"])
 
