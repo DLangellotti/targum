@@ -135,7 +135,7 @@ REGISTRATIONS_PER_HOUR = 60
 #    lives in two places is a setting that can disagree with itself. They stay in the
 #    browser. A database that ran the old migration keeps two unused columns, which is
 #    cheaper than another migration to drop them.
-# 7: word.learned — whether a word was saved at a level below known and got there. It
+# 7: word.learned — whether a word held a stage other than known and got there. It
 #    is the difference between a word targum taught somebody and a word they already had
 #    and ticked off, and it cannot be worked out after the fact from status and dates.
 # 8: the meaning table — a meaning belongs to a language pair, a word to a language — and

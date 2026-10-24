@@ -12,6 +12,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- "Learned on targum" counts a word marked anything other than known that later became
+  known (David, 2026-10-24). The count already took new, still learning and almost
+  known; it now takes ignored too, and the note under it says what it counts in plain
+  words, in English and in Russian (a draft for David's read). A word first marked known,
+  or claimed on "Words you may already know", still does not count. Undo after an
+  ignore hands back a known word without counting it. The store keeps a word's current
+  stage and a flag written when it crosses to known, not a history of its stages, so
+  words that crossed from ignored before this change are not counted.
 - The connector hands a Torah portion's lines to a host (targum-internal#527).
   `open_library_text` read a portion's sentences from `read/<folder>/`, but a portion's
   build is in `read/<folder>/print/`, beside its readers, as `ship-parasha.sh` leaves it.

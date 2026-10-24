@@ -1967,3 +1967,45 @@ def test_a_hebrew_third_person_pronoun_says_nothing_bare() -> None:
     assert grammar("UPOS=PRON|Number=Plur|Person=3") == [""]
     assert grammar("UPOS=PRON|Gender=Masc|Number=Sing|Person=3") == [""]
     assert grammar("UPOS=PRON|Person=1|Number=Plur") == ["we"]
+
+
+# -- learned on targum -------------------------------------------------------------
+
+
+def learned_after(was: int | None, now: int) -> int:
+    """The flag the reader writes on a word that held `was` (None: never marked) when the
+    reader says `now`. The Progress tile counts known words that carry it."""
+    walked = walk(
+        ["a", "b"],
+        vocab={} if was is None else {"a": was},
+        levels=[{"word": "a", "status": now}],
+    )
+    return int(walked["stores"]["he"]["a"].get("learned", 0))
+
+
+def test_a_word_carried_from_learning_to_known_was_learned_here() -> None:
+    """David, 2026-10-24: any stage other than known that becomes known counts, not only
+    a word saved as new."""
+    assert learned_after(2, KNOWN) == 1
+    assert learned_after(3, KNOWN) == 1
+
+
+def test_a_word_carried_from_new_to_known_was_learned_here() -> None:
+    assert learned_after(1, KNOWN) == 1
+
+
+def test_a_word_carried_from_ignored_to_known_was_learned_here() -> None:
+    """Ignored is a stage it held on targum too, and "anything other than known" is
+    David's own phrase."""
+    assert learned_after(IGNORED, KNOWN) == 1
+
+
+def test_a_word_first_marked_known_was_not_learned_here() -> None:
+    """Opened in a text and said known at once: the reader had it already."""
+    assert learned_after(None, KNOWN) == 0
+
+
+def test_a_word_known_before_and_marked_again_was_not_learned_here() -> None:
+    """Known already — ticked off, or imported from "Words you may already know" — and
+    put to another stage keeps no flag on the way down."""
+    assert learned_after(KNOWN, 2) == 0
