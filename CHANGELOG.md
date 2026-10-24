@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The connector hands a Torah portion's lines to a host (targum-internal#527).
+  `open_library_text` read a portion's sentences from `read/<folder>/`, but a portion's
+  build is in `read/<folder>/print/`, beside its readers, as `ship-parasha.sh` leaves it.
+  So parasha-bereshit came back with no `lines` and no `how_to_read`, and Claude fetched
+  the page instead. It now reads them from `print/`. The connector eval has a portion
+  scenario. Daily cycles are not library rows and never came through this tool.
 - A word on the longest aliyah answers its first tap in under a second and a half on a
   phone (targum-internal#503). Phone profile with recordings, median of 7: Ki Tavo's sixth
   1.77 s → 1.44 s, Bereshit's first 1.39 s → 1.19 s. What a tap does not need left
@@ -23,7 +29,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the first tap and fills it when they come. The page is laid out once while it is set
   up, not three times. A press of the bar in the moment before the rest arrives does
   nothing, and a shnayim mikra walk in progress is laid out as it arrives. The parasha
-  and daily pages need a re-cut to carry it.
+  and daily pages need a re-cut to carry it. design.md §12, "What a first tap does not
+  need waits after the faces".
 - The connector's results say what the model must follow beside the links they carry
   (targum-internal#527). Live on 2026-10-23 Claude put links mid-sentence and read
   Genesis from memory, and ChatGPT wrote "Targum", hid links behind titles and gave a
@@ -35,6 +42,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   read-with-me asks the host to open the text on targum and read from it, never from
   memory. The connector eval checks all four. Nothing costs more and nothing spends
   sooner.
+- design.md §12 records the connector handing a host a text's lines (David, 2026-10-23;
+  targum-internal#527): eight at a time, so a host reads targum's text and not its
+  memory; a reader's own copy only where they shared their record, the shared shelf and
+  the portions kept for everybody for anyone; beside `sentences_with`; spends nothing.
 - The other languages' polish left from #476 (targum-internal#523). A desk page's column
   stays centred: the room kept for the AI Assistant's pill went on the end edge only, so
   the column slid 25px off centre in English and 6px off the edge in Russian; now both
@@ -44,6 +55,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   asleep ("Choose a level to continue."), tied to it with `aria-describedby`. On a phone
   the Russian word card's «пропустить» keeps its whole word instead of running past the
   sheet's edge. A text page says its place in the page's language («Писания · Рут»).
+- The Library draws its first card under a second and a half on a phone
+  (targum-internal#484). On qa-claude's profile (150 ms, 1.6 Mbps, 4x CPU, cold) it was
+  about 2.1 s in English and 2.2 s in Russian, and its shelf was asked only once the whole
+  page had arrived. `library-early.js` now asks for the shelf, `/readers`, `/jobs` and
+  `/portions` from the page's head. A row's blurbs are a file per page language
+  (`catalogue-he-en`, `catalogue-he-ru`), so an English page no longer takes the Russian
+  ones. The catalogue's order, what a Build press sends (`catalogue-he-build`; a press
+  that comes first waits for it) and the English blurbs a Russian page searches arrive
+  after the first card. A desk page sent whole (a first visit) keeps its faces, about 67 kB
+  gzipped, in an inert `<template>`, and `warm.js` puts them on at `load`, or on the
+  Library once the shelf is drawn; until then the page wears the platform's face. Every
+  desk page paints sooner with it (first paint about 0.7 s to 0.4 s), and Your targums
+  goes from about 1.45 s to 1.1–1.2 s. `scripts/measure_pages.py` is the
+  profile as a script: it starts a keyless hosted-style serve on a scratch copy and
+  measures every main page, with no spend.
 - Russian names a language in its case mid-sentence (David, 2026-10-23;
   targum-internal#524): «На иврите пока ничего нет.», not «На языке «Иврит» пока ничего
   нет.». A translation asks for a form on the same blank, `{language:in}` («на иврите»),

@@ -1988,16 +1988,21 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
     html = library_page("k")
     files = json.loads(html.split("window.TARGUM_SHELF_FILES = ", 1)[1].split(";\n", 1)[0])
     rows: dict[str, Any] = {}
+    # What a Build press sends is a file of its own per language, asked after the first
+    # card (#484, 2026-10-23); read beside the rows.
+    sends: dict[str, Any] = {}
     for code, address in files.items():
-        for row in json.loads(asset_files()[address][0]).get("catalogue", []) if code else []:
+        said = json.loads(asset_files()[address][0])
+        for row in said.get("catalogue", []) if code else []:
             rows[row["id"]] = row
+        sends.update(said.get("build", {}))
     shipped = sorted(rows.values(), key=lambda row: row["place"])
     assert [entry["id"] for entry in shipped] == [entry.id for entry in CATALOGUE]
     for sent, entry in zip(shipped, CATALOGUE, strict=True):
         assert sent["title"] == entry.title
         assert sent["english"] == entry.english, "the title a reader with no Hebrew reads"
         assert sent["language"] == entry.language
-        assert sent["translations"] == [
+        assert sends[entry.id]["translations"] == [
             {
                 "name": t.name,
                 "source": t.source,
@@ -2009,7 +2014,8 @@ def test_every_catalogue_text_is_free_to_build_and_says_why() -> None:
         ], entry.id
         # The model is not the browser's business, and asking for one would be a way to
         # spend somebody else's money. The server reads it back from the catalogue.
-        assert "model" not in sent, entry.id
+        assert sends[entry.id]["source"] == entry.source
+        assert "model" not in sent and "model" not in sends[entry.id], entry.id
 
 
 def test_a_catalogued_source_is_recognised_however_it_is_typed() -> None:
