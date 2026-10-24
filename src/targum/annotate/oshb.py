@@ -52,6 +52,28 @@ LEXICON_FILE = "strongs.json"
 #: still reads its headwords and simply has no senses.
 SENSES_FILE = "senses.json"
 
+#: What a lexeme means in a word or two, from STEP Bible's Translators Brief lexicon of
+#: Extended Strongs for Hebrew (targum-internal#510). Strong's own definitions are the
+#: King James translators' thickets, typos and all; these are the short glosses Tyndale
+#: House scholars wrote against the same numbers, under CC BY 4.0.
+#:
+#: **Only the Gloss column is read.** The file's Meaning column is the Abridged BDB, ©
+#: Online Bible, carved out of STEP Bible's grant, and it is never stored, shown or
+#: shipped. Pinned to a commit, because the file's alignment is "not yet completed" and
+#: moves, and fetched rather than vendored, because the file asks not to be redistributed.
+#: What targum changes is written down in `tbesh_changes.tsv`, as the licence asks.
+TBESH = (
+    "https://raw.githubusercontent.com/STEPBible/STEPBible-Data/"
+    "48b7cfbda441adb6445ea565b4ed23dd98dfdf2e/Lexicons/"
+    "TBESH%20-%20Translators%20Brief%20lexicon%20of%20Extended%20Strongs%20for%20Hebrew"
+    "%20-%20STEPBible.org%20CC%20BY.txt"
+)
+TBESH_FILE = "tbesh.json"
+TBESH_CREDIT = "STEP Bible"
+TBESH_LICENCE = "CC BY 4.0"
+#: The change note and the hand fixes, in one file beside this one.
+TBESH_CHANGES = Path(__file__).with_name("tbesh_changes.tsv")
+
 #: Named where the licence requires it, and here as well because a file that carries
 #: somebody's work should say whose it is at the top of the thing that reads it.
 CREDIT = "Open Scriptures Hebrew Bible Project"
@@ -283,6 +305,66 @@ def sense(lexeme: str) -> str:
     return _senses().get(number, "")
 
 
+_BRIEFS: dict[str, str] | None = None
+_CHANGES: dict[str, str] | None = None
+
+
+def _briefs() -> dict[str, str]:
+    global _BRIEFS
+    if _BRIEFS is None:
+        path = root() / TBESH_FILE
+        try:
+            _BRIEFS = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # A box that has not fetched it yet. Strong's answers, as it did before.
+            _BRIEFS = {}
+    return _BRIEFS
+
+
+def _key(estrong: str) -> str:
+    """`H6213a` as the tagging writes it, `6213 a`; `H0430` as `430`."""
+    found = re.match(r"^H(\d{4})([a-z]?)$", estrong.strip())
+    if not found:
+        return ""
+    number = str(int(found[1]))
+    return f"{number} {found[2]}" if found[2] else number
+
+
+def changes() -> dict[str, str]:
+    """targum's hand fixes to the brief glosses, by key, from `tbesh_changes.tsv`.
+
+    Read from the file the licence's change note is, so the note and the fixes cannot
+    drift apart: a fix made anywhere else would be a change nobody was told about.
+    """
+    global _CHANGES
+    if _CHANGES is None:
+        found: dict[str, str] = {}
+        for line in TBESH_CHANGES.read_text(encoding="utf-8").splitlines():
+            if not line.strip() or line.startswith("#"):
+                continue
+            fields = line.split("\t")
+            key = _key(fields[0])
+            if key and len(fields) >= 3 and fields[2].strip():
+                found[key] = fields[2].strip()
+        _CHANGES = found
+    return _CHANGES
+
+
+def brief(lexeme: str) -> str:
+    """What a Strong's number means in a word or two, or "" where TBESH has nothing.
+
+    Keyed by the bare number, the way a meaning is filed (`glossed_as` drops the letter):
+    `1254 a` create and `1254 b` fatten are one card, so the card says what the number
+    means most often across the Tanakh — *to create*. A number written with a letter
+    finds the same answer as one written without. targum's fixes go on top.
+    """
+    number = (lexeme or "").strip().split(" ")[0].lstrip("H")
+    if not number.isdigit():
+        return ""
+    key = str(int(number))
+    return changes().get(key) or _briefs().get(key, "")
+
+
 def bare(text: str) -> str:
     """Letters only, with the space of a two-word headword kept."""
     stripped = "".join(
@@ -364,11 +446,11 @@ def sense_for(form: str) -> str:
     if not form:
         return ""
     if numbered(form):
-        return sense(numbered(form))
+        return brief(numbered(form)) or sense(numbered(form))
     numbers = _by_form().get(unicodedata.normalize("NFC", form)) or _by_form().get(bare(form))
     if not numbers:
         return ""
-    said = {sense(number) for number in numbers}
+    said = {brief(number) or sense(number) for number in numbers}
     said.discard("")
     return said.pop() if len(said) == 1 else ""
 
@@ -420,6 +502,193 @@ def parse_senses(xml: str) -> dict[str, str]:
         if said:
             out[name] = said
     return out
+
+
+#: A data row of the TBESH file: everything else in it is prose about the data.
+_TBESH_ROW = re.compile(r"^H\d{4}[a-z]?$")
+#: The columns read, and the only ones: eStrong, dStrong, uStrong, Hebrew,
+#: transliteration, morph, Gloss. The eighth, Meaning, is Online Bible's and is cut off
+#: at the split, never held, never written.
+_TBESH_READ = 7
+_GLOSS = 6
+
+
+class TbeshRow(NamedTuple):
+    estrong: str
+    dstrong: str
+    ustrong: str
+    morph: str
+    gloss: str
+
+
+def parse_tbesh(text: str) -> dict[str, list[TbeshRow]]:
+    """The TBESH file's data rows by eStrong, with the Gloss column and never Meaning."""
+    out: dict[str, list[TbeshRow]] = {}
+    for line in text.lstrip("﻿").splitlines():
+        # Split no further than the Gloss: the Meaning, if any, stays one unread string
+        # in the remainder and is dropped with it.
+        fields = line.split("\t", _TBESH_READ)[:_TBESH_READ]
+        if len(fields) < _TBESH_READ or not _TBESH_ROW.match(fields[0].strip()):
+            continue
+        estrong, dstrong, ustrong, _hebrew, _said, morph, gloss = (f.strip() for f in fields)
+        out.setdefault(estrong, []).append(TbeshRow(estrong, dstrong, ustrong, morph, gloss))
+    return out
+
+
+def _own(row: TbeshRow) -> bool:
+    """Whether a row is an entry of its own: its dStrong is its uStrong with nothing after
+    the `=` (`H1697G =`, against `H1697H = a Meaning of`)."""
+    left, _, relation = row.dstrong.partition("=")
+    return not relation.strip() and left.strip() == row.ustrong.strip()
+
+
+def is_name(row: TbeshRow) -> bool:
+    """Whether a row is a proper or place name rather than the common word.
+
+    TBESH capitalises a name's gloss, and that is the mark this reads. Its morph is no
+    help on its own: the many common nouns that also name a place carry the noun's morph
+    on the name row (דֶּרֶךְ has "Way" beside "way: road", סוּס "Horse (Gate)" beside
+    "horse"), and some common words carry a name's `N:` morph ("stream" beside "Nile",
+    "plain" beside "Arabah"). The first letter decides, past any bracket.
+
+    A gentilic is not a name here (the morph's last field ends in `G`, as in `N:N--LG`).
+    "Canaanite" is the word a learner meets, and letting it sit out would hand כְּנַעֲנִי
+    the gloss of its rare twin, "merchant".
+    """
+    first = next((ch for ch in row.gloss if ch.isalpha()), "")
+    if not first.isupper():
+        return False
+    return not row.morph.rsplit("-", 1)[-1].endswith("G")
+
+
+def _head(rows: list[TbeshRow]) -> TbeshRow:
+    """The row that is the word itself rather than one of its senses or names.
+
+    In order (targum-internal#510, after ling-he's review):
+
+    1. The entry's own row that its "a Meaning of" rows point to, and that is not a
+       name. דֶּרֶךְ's senses all point to H1870K "way: road", not to H1870H "Way".
+    2. Else its first own row that is not a name: שָׁבוּעַ is "week", not "Weeks".
+    3. Else its first row of any kind that is not a name.
+    4. Else, where every row is a name, its first own row: a person is his own name.
+    5. Else its first row whose morph is not `N:`, because אֱלֹהִים has no own row and
+       no lowercase one, and is "God", not "(LORD)-Elohe".
+    6. Else its first row.
+    """
+    pointed = [
+        row.ustrong.split(",")[0].strip()
+        for row in rows
+        if row.dstrong.partition("=")[2].strip().startswith("a Meaning of")
+    ]
+    for target in pointed:
+        for row in rows:
+            if _own(row) and row.ustrong.strip() == target and not is_name(row):
+                return row
+    for candidates in (
+        (row for row in rows if _own(row) and not is_name(row)),
+        (row for row in rows if not is_name(row)),
+        (row for row in rows if _own(row)),
+        (row for row in rows if not row.morph.startswith("N:")),
+    ):
+        found = next(candidates, None)
+        if found is not None:
+            return found
+    return rows[0]
+
+
+#: Words that finish a phrasal verb. Where everything after a "/" is one of these, the
+#: slash stays: "to cut down/off" is one verb two ways, and "to cut down; off" reads as
+#: two meanings, the second of them not a word.
+_PARTICLES = frozenset(
+    {
+        "up",
+        "down",
+        "off",
+        "out",
+        "over",
+        "away",
+        "open",
+        "in",
+        "on",
+        "back",
+        "aside",
+        "through",
+        "together",
+        "forth",
+        "about",
+        "around",
+        "apart",
+        "under",
+        "by",
+    }
+)
+
+
+def shorten(gloss: str) -> str:
+    """A TBESH Gloss as a card says it. Each rule is a line of `tbesh_changes.tsv`.
+
+    The head before the first `": "` (`to go: walk` is *to go*), `/` as `; `
+    (`servant/slave`) except between the particles of one phrasal verb
+    (`to cut down/off`), and the backticks and a closing `!` taken off.
+    """
+    head = gloss.split(": ")[0].replace("`", "").strip()
+    parts = [part.strip() for part in head.split("/")]
+    if len(parts) > 1 and not all(part.lower() in _PARTICLES for part in parts[1:]):
+        head = "; ".join(parts)
+    else:
+        head = "/".join(parts)
+    return head.rstrip("!").strip()
+
+
+def briefs_from(rows: dict[str, list[TbeshRow]], counts: dict[str, int]) -> dict[str, str]:
+    """Every key the tagging can write, into its brief gloss.
+
+    `counts` is how often each lexeme, as the tagging writes it (`6213 a`), occurs across
+    the Tanakh. A lettered key (`1254 a`) gets its own variant's gloss. A bare key gets
+    the gloss of the variant with the most tokens, because the bare number is what a
+    meaning is filed under: עָשָׂה is *to make* (6213 a, 2,624 tokens), never *to press*
+    (6213 b, 3). A variant that is a name sits the count out wherever a common-word
+    variant exists: צָבָא is *army* (199 tokens), not *Hosts* (287, the name in "LORD of
+    Hosts").
+    """
+    out: dict[str, str] = {}
+    # Per number, the best candidate so far: (not a name, tokens, letter rank) and its
+    # gloss. A bare row outranks a letter at a tie, and `a` outranks `b`, so a number the
+    # tagging never writes falls to TBESH's own bare row or its first letter.
+    best: dict[str, tuple[tuple[int, int, int], str]] = {}
+    for estrong, found in rows.items():
+        key = _key(estrong)
+        head = _head(found)
+        said = shorten(head.gloss)
+        if not key or not said:
+            continue
+        number, _, letter = key.partition(" ")
+        if letter:
+            out[key] = said
+        score = (
+            0 if is_name(head) else 1,
+            counts.get(key, 0),
+            -ord(letter) if letter else 0,
+        )
+        if number not in best or score > best[number][0]:
+            best[number] = (score, said)
+    for number, (_score, said) in best.items():
+        out[number] = said
+    return out
+
+
+def _counts() -> dict[str, int]:
+    """How often each lexeme occurs across the books on disk, as the tagging writes it."""
+    found: dict[str, int] = {}
+    for code in sorted(set(BOOKS.values())):
+        for _name, held in _book(code).items():
+            for word in held:
+                lexemes = word[2] if isinstance(word[2], list) else []
+                for written in lexemes:
+                    lexeme = str(written).strip()
+                    if _NUMBERED.match(lexeme):
+                        found[lexeme] = found.get(lexeme, 0) + 1
+    return found
 
 
 def _path(code: str) -> Path:
@@ -530,6 +799,27 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
         write_atomic(root() / LEXICON_FILE, json.dumps(headwords, ensure_ascii=False))
         # From the same download, parsed a second time rather than fetched again.
         write_atomic(root() / SENSES_FILE, json.dumps(senses, ensure_ascii=False))
+
+    # Gated on its own file, not on the lexicon's: a box that fetched the lexicon before
+    # this existed would otherwise never get it (targum-internal#510).
+    if not (root() / TBESH_FILE).exists():
+        say(f"Fetching the brief glosses from {TBESH_CREDIT}…")
+        try:
+            answer = httpx.get(TBESH, timeout=180.0, follow_redirects=True)
+            answer.raise_for_status()
+            rows = parse_tbesh(answer.text)
+            if not rows:
+                raise ValueError("no rows in the file")
+        except Exception as bad:  # noqa: BLE001 - network, HTTP and format all land here
+            raise TargumError("Could not fetch the brief Hebrew glosses.", str(bad)) from bad
+        # Counted from the books just fetched, so the bare number gets the variant the
+        # Tanakh uses most. Only the Gloss column is in `rows`; nothing else is written.
+        write_atomic(
+            root() / TBESH_FILE,
+            json.dumps(briefs_from(rows, _counts()), ensure_ascii=False, sort_keys=True),
+        )
+        global _BRIEFS
+        _BRIEFS = None
     return got
 
 
@@ -553,8 +843,10 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
-    global _HEADWORDS, _SPELLED, _MEANINGS, _BY_FORM
+    global _HEADWORDS, _SPELLED, _MEANINGS, _BY_FORM, _BRIEFS, _CHANGES
     _loaded.clear()
+    _BRIEFS = None
+    _CHANGES = None
     _HEADWORDS = None
     _SPELLED = None
     _MEANINGS = None

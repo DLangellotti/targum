@@ -14,6 +14,16 @@
     they held an empty key for the life of the page and the bell, the followed series and
     the chat list were refused. The hosted box has no key and was never affected. -#}
 <script>window.TARGUM_KEY = "{{ token }}";</script>
+{#- What the shelf needs, so `library-early.js` can ask for it from here rather than
+    `library.js` from the foot (targum-internal#484). `TARGUM_ACCOUNT` is filled in per
+    request by `serve.with_account` for a signed-in reader. On a page sent whole, the
+    faces wait until the shelf is drawn (`TARGUM_FACES_AFTER`, `warm.js`). -#}
+<script>
+window.TARGUM_SHELF_FILES = {{ shelf|tojson }};
+window.TARGUM_ACCOUNT = {};
+window.TARGUM_FACES_AFTER = "targum:drawn";
+</script>
+{{ script('library-early.js') }}
 </head>
 <body class="shelf">
 {% set here = 'library' %}{% set title = t("nav.library", "Library") %}
@@ -133,13 +143,8 @@
 </main>
 {% include '_foot.html.j2' %}
 
-{#- `TARGUM_ACCOUNT`: the account's language and what it learns, filled in per request by
-    `serve.with_account` for a signed-in reader, so a fresh browser asks for that
-    language's shelf first (#484). #}
 <script>
 window.TARGUM_KEY = "{{ token }}";
-window.TARGUM_SHELF_FILES = {{ shelf|tojson }};
-window.TARGUM_ACCOUNT = {};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>

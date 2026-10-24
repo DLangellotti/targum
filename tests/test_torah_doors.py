@@ -385,3 +385,25 @@ def test_a_portion_and_a_torah_book_open_without_a_build(
     assert portion["reader"] == "https://targum.test/parasha/read/lech-lecha/reader/index.html"
     book = tools.open_library_text(ctx, {"id": "genesis"})
     assert book["on_shelf"] is True and book["reader"] == "https://targum.test/torah/Genesis"
+
+
+def test_a_portion_hands_over_its_lines_from_where_it_is_cut(
+    root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on #527, live: `open_library_text` gave a portion no `lines`, so the host
+    fetched the page instead. A portion's build is in `read/<folder>/print/`, beside its
+    readers, as `ship-parasha.sh` leaves it, and that is where its lines are read."""
+    monkeypatch.setattr(
+        catalogue_module, "CATALOGUE", [portion_entry("lech-lecha", "Genesis 12:1-17:27")]
+    )
+    built = root / "read" / "lech-lecha" / "print"
+    built.mkdir()
+    said = [{"id": f"s{n}", "text": f"וַיֹּאמֶר {n}"} for n in range(1, 12)]
+    (built / "segments.json").write_text(json.dumps({"segments": said}), encoding="utf-8")
+    ctx = connector(tmp_path)
+    got = tools.open_library_text(ctx, {"id": "parasha-lech-lecha"})
+    assert [line["n"] for line in got["lines"]] == list(range(1, tools.LINES_AT_ONCE + 1))
+    assert got["lines"][0]["text"] == "וַיֹּאמֶר 1"
+    assert got["how_to_read"] == tools.READ_FROM_LINES
+    rest = tools.open_library_text(ctx, {"id": "parasha-lech-lecha", "from_line": got["next_line"]})
+    assert rest["lines"][-1]["text"] == "וַיֹּאמֶר 11" and "next_line" not in rest

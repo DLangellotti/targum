@@ -18,7 +18,9 @@ that cannot be rebuilt comes back from these files alone.**
   bought.
 
 It does **not** copy language models, and that is not an oversight: they are downloads.
-A restored box fetches them again with `targum models fetch scripture`. Expect
+A restored box fetches them again with `targum models fetch scripture`, which also
+brings STEP Bible's brief Tanakh glosses (`tbesh.json`; without it the cards fall back to
+Strong's long definitions). Expect
 `preflight` to warn about scripture until you do — that warning is the design, not a
 broken restore.
 

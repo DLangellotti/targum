@@ -1,0 +1,37 @@
+# Changes targum makes to STEP Bible's brief glosses (targum-internal#510).
+#
+# The glosses are the Gloss column of "TBESH - Translators Brief lexicon of Extended
+# Strongs for Hebrew", www.STEPBible.org, based on work at Tyndale House Cambridge,
+# CC BY 4.0, read at github.com/STEPBible/STEPBible-Data commit
+# 48b7cfbda441adb6445ea565b4ed23dd98dfdf2e. Its licence lets us change the data and asks
+# for a note of the changes that those who use it can see. This file is that note. The
+# Meaning column (Abridged BDB, (c) Online Bible) is never read.
+#
+# Applied to every gloss, by rule (annotate/oshb.py, `shorten` and `briefs_from`):
+# - Only the head is kept: the gloss up to its first ": ", so "to go: walk" is "to go".
+# - "/" is written "; ", our gloss style, so "servant/slave" is "servant; slave", except
+#   between the particles of one phrasal verb: "to cut down/off" keeps its slash.
+# - Backticks and a closing "!" are taken off.
+# - A row whose gloss is capitalised is a proper or place name, unless it is a gentilic
+#   (its morph ends in G, "Canaanite"). TBESH gives many common nouns a name row too:
+#   "Way" beside "way: road", "Horse (Gate)" beside "horse".
+# - The head of an entry is its own row (its dStrong is its uStrong with nothing after
+#   the "=") that its "a Meaning of" rows point to and that is not a name; else its first
+#   own row that is not a name; else its first row that is not a name; else, where every
+#   row is a name, its first own row; else its first row not marked N:, which is how
+#   430 is "God".
+# - One gloss per Strong's number, as a card files it: where TBESH splits a number by
+#   letter, the number takes the letter the Tanakh uses most, counted over the Open
+#   Scriptures tagging, so 6213 is "to make" (6213a) and never "to press" (6213b). A
+#   variant that is a name sits the count out wherever a variant that is a word exists,
+#   so 6635 is "army" (6635a) and not "Hosts" (6635b, the name in "LORD of Hosts").
+#
+# Changed by hand, one row each below, where the rules give a gloss that misleads a
+# learner. Columns: the eStrong number (a bare number is the one-gloss-per-number entry),
+# the gloss the rules above give, the gloss we show, and why.
+H7451	distress	bad	the tagging files רָעָה as 7451c, so the count picks "distress", but the card is filed under רע and most of its tokens are the adjective
+H3651	so	so	the tagging writes 3651 bare as well as by letter; pinned so a recount can never fall to 3651a "right"
+H6310	lip	mouth	TBESH's own head gloss; פֶּה is "mouth" for a learner, 498 tokens
+H2896	pleasant	good	the adjective variant wins the count and TBESH glosses it "pleasant"; a learner needs "good"
+H5945	high	upper; Most High	both variants are tagged as adjectives; "Most High" sits out the count as a name, but a learner meets עֶלְיוֹן as both
+H6924	front	east; of old	the head row is "front: east", but a learner meets קֶדֶם as the east and as time of old
