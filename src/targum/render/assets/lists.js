@@ -113,19 +113,17 @@
 
   /* --- writing back --------------------------------------------------------- */
 
-  function updateWord(word, changes) {
+  function updateWord(word, changes, restoring) {
     var name = "targum:vocab:" + code;
     var store = read(name, "{}");
     var item = store[word.lemma];
     if (!item) return;
-    // A word carried up to known from a level below it was learned here, wherever it was
-    // carried up. Asked before the change lands, because the answer is in the level it is
-    // leaving — and the same rule lives in the reader, which is the other way up.
-    if (
-      changes.status === KNOWN &&
-      item.status >= 1 &&
-      item.status <= 3
-    ) {
+    // A word carried up to known from any other stage it held here — ignored included —
+    // was learned here, wherever it was carried up (David, 2026-10-24). Asked before the
+    // change lands, because the answer is in the stage it is leaving. Not when an Undo
+    // is handing back a known the reader had before they ignored it by mistake: that is
+    // the old stage returning, not a word crossing.
+    if (!restoring && charts.learnedBy(item.status, changes.status)) {
       item.learned = 1;
     }
     Object.keys(changes).forEach(function (key) {
@@ -208,7 +206,7 @@
     var was = undoing.was;
     letGo();
     var word = lookup(lemma);
-    if (word && word.status === IGNORED) updateWord(word, { status: was });
+    if (word && word.status === IGNORED) updateWord(word, { status: was }, true);
     said();
     // Back on its row, which takes the keyboard Undo had.
     var rows = rowsBody && rowsBody.querySelectorAll ? rowsBody.querySelectorAll("tr") : [];

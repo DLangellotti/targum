@@ -226,6 +226,39 @@ def test_one_word_saved_or_learned_is_not_said_in_the_plural() -> None:
     assert tile(drawn, "learned on targum") == 1
 
 
+def learned_by(*pairs: tuple[int | None, int]) -> list[bool]:
+    """Ask the rule that writes the flag, as the Words page asks it, of (was, now) pairs."""
+    with tempfile.TemporaryDirectory() as where:
+        payload = Path(where) / "payload.json"
+        payload.write_text(json.dumps({"learnedBy": [list(pair) for pair in pairs]}))
+        done = subprocess.run(
+            ["node", str(HARNESS), str(payload)], capture_output=True, text=True, timeout=60
+        )
+    assert done.returncode == 0, done.stderr
+    return list(json.loads(done.stdout))
+
+
+def test_any_stage_other_than_known_carried_to_known_was_learned_here() -> None:
+    """David, 2026-10-24: "learned on targum should not just count words saved as new,
+    but any word marked as anything other than known, which becomes known." New, still
+    learning, almost known and ignored all count once they cross to known; a word that
+    arrives at known from nowhere, or was known already — ticked off, or imported from
+    "Words you may already know" — was one the reader had."""
+    assert learned_by((1, KNOWN), (2, KNOWN), (3, KNOWN), (0, KNOWN)) == [True] * 4
+    assert learned_by((None, KNOWN), (KNOWN, KNOWN)) == [False, False]
+    assert learned_by((1, 2), (2, 3), (KNOWN, 2), (2, 0)) == [False] * 4, "only known is the end"
+
+
+def test_an_imported_known_word_is_not_learned_on_targum() -> None:
+    """A word claimed on "Words you may already know" is written known with the flag at
+    nought (`claim.js`), and stays out of the figure however it is marked known again."""
+    words = marked(known=3)
+    for record in words.values():
+        record.update(source="claimed", learned=0)
+    assert tile(page(words), "learned on targum") == 0
+    assert learned_by((KNOWN, KNOWN)) == [False]
+
+
 def test_every_figure_is_said_once_on_the_page() -> None:
     """The tiles under the block counted the same words again in a different shape, and
     said "phrases saved" twice between them. One block, one count each."""

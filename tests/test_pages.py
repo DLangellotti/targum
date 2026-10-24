@@ -155,7 +155,7 @@ def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
     for said in (
         "We check each section you finish against the words",
         "We count a word as read when you turn past its page",
-        "counts the words you saved as new and have since marked known.",
+        "counts the words you marked here as anything other than known",
     ):
         assert said in progress, said
     spent = re.search(r'<div class="spent" id="spent" hidden>.*?\n    </div>', progress, re.S)
