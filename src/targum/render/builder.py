@@ -43,6 +43,7 @@ from ..annotate.base import (
     kind_of,
     method_label,
 )
+from ..annotate.gloss import from_step_bible
 from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed, qatan
 from ..models import (
@@ -5436,6 +5437,13 @@ def render(
     # A commentary's own words come before their translation: Rashi, then Rashi in
     # English, the way the Metsudah page sets them.
     own_language = segmented.language.split("-")[0]
+    # STEP Bible's brief glosses, named where a glossary shows one (targum-internal#510).
+    # Asked once of the whole text: the tables of meanings ride every page of it.
+    glosses_credit = any(
+        from_step_bible(annotation, book.entries)
+        for code, book in (glossaries or {}).items()
+        if code.split("-")[0] == "en"
+    )
 
     def beside_order(t: Translation) -> tuple[int, int]:
         if not with_companions:
@@ -6307,6 +6315,7 @@ def render(
             # the reader. Keyed off what actually ran: a text annotated before the swap
             # carries Stanza's name and gets no DICTA credit it did not earn.
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
+            glosses_credit=glosses_credit,
             # Russian's words read here (annotate/russian.py), named the same way and on the
             # same key: the carve-out in LICENSING.md promised it, and OpenCorpora's
             # CC BY-SA asks it.

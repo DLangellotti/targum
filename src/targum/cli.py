@@ -4228,12 +4228,15 @@ def models_fetch(
     if language in {"scripture", "tanakh", "oshb"}:
         from .annotate import oshb
 
-        if oshb.available():
+        # The brief glosses came later than the books (targum-internal#510), so a box
+        # with every book still fetches them: `fetch` skips what is already on disk.
+        if oshb.available() and (oshb.root() / oshb.TBESH_FILE).is_file():
             console.print("[dim]The Hebrew Bible morphology is already downloaded.[/dim]")
             return
         console.print(
             f"[dim]Fetching the Hebrew Bible morphology from the "
-            f"{oshb.CREDIT}, {oshb.LICENCE}. Thirty-nine books and a lexicon…[/dim]"
+            f"{oshb.CREDIT}, {oshb.LICENCE}. Thirty-nine books and a lexicon, and brief "
+            f"glosses from {oshb.TBESH_CREDIT}, {oshb.TBESH_LICENCE}…[/dim]"
         )
         try:
             got = oshb.fetch(notify=lambda message: console.print(f"[dim]  {message}[/dim]"))

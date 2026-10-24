@@ -1,0 +1,23 @@
+# Changes targum makes to STEP Bible's brief glosses (targum-internal#510).
+#
+# The glosses are the Gloss column of "TBESH - Translators Brief lexicon of Extended
+# Strongs for Hebrew", www.STEPBible.org, based on work at Tyndale House Cambridge,
+# CC BY 4.0, read at github.com/STEPBible/STEPBible-Data commit
+# 48b7cfbda441adb6445ea565b4ed23dd98dfdf2e. Its licence lets us change the data and asks
+# for a note of the changes that those who use it can see. This file is that note. The
+# Meaning column (Abridged BDB, (c) Online Bible) is never read.
+#
+# Applied to every gloss, by rule (annotate/oshb.py, `shorten` and `briefs_from`):
+# - Only the head is kept: the gloss up to its first ": ", so "to go: walk" is "to go".
+# - "/" is written "; ", our gloss style, so "servant/slave" is "servant; slave".
+# - Backticks and a closing "!" are taken off.
+# - One gloss per Strong's number, as a card files it: where TBESH splits a number by
+#   letter, the number takes the letter the Tanakh uses most, counted over the Open
+#   Scriptures tagging, so 6213 is "to make" (6213a) and never "to press" (6213b).
+# - The head of an entry is its row whose dStrong is its own uStrong with nothing after
+#   the "=", else its first row that is not a name, else its first row.
+#
+# Changed by hand, one row each below. Columns: the eStrong number (a bare number is the
+# one-gloss-per-number entry), the gloss the rules above give, the gloss we show, and why.
+H7451	distress	bad	the tagging files רָעָה as 7451c, so the count picks "distress", but the card is filed under רע and most of its tokens are the adjective
+H3651	so	so	the tagging writes 3651 bare as well as by letter; pinned so a recount can never fall to 3651a "right"

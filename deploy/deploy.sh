@@ -624,6 +624,13 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum models fetch embeddings
 
+      # STEP Bible'"'"'s brief glosses for the Tanakh (targum-internal#510), beside the
+      # books the box already has, before the rebuild that writes them into glossaries.
+      # The books are on disk, so this fetches the one file and is a no-op after.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum models fetch scripture
+
       systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum rebuild --words --gloss --out /var/lib/targum/targums

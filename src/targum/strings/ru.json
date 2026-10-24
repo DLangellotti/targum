@@ -4378,5 +4378,7 @@
   "account.plan.month.other": "{n} кредита в месяц, пока targum в раннем доступе",
   "plans.page.credits.other": "{n} кредита",
   "subscribe.page.plan-left.other": "Его видео можно открывать по одному: в этом месяце у вас осталось {n} кредита.",
-  "reader.listen.queued.other": "{n} в очереди"
+  "reader.listen.queued.other": "{n} в очереди",
+  "reader.page.meanings-from": "Значения из",
+  "reader.page.shortened-by-targum": "сокращено targum"
 }

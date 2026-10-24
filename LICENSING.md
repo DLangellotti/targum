@@ -902,6 +902,28 @@ for that reason, and ships in the wheel beside `annotate/tanakh.json`.
 It is fetched rather than vendored, into the model directory beside the language models,
 and converted once on arrival — so a reader build parses no XML and fetches nothing.
 
+**What a Tanakh word means** on its card comes from the **Gloss** column of STEP Bible's
+*Translators Brief lexicon of Extended Strongs for Hebrew* (TBESH), written by scholars at
+Tyndale House Cambridge and published by **STEP Bible** under **CC BY 4.0**
+(targum-internal#510, 2026-10-24). It is read at the pinned commit
+`48b7cfbda441adb6445ea565b4ed23dd98dfdf2e` of github.com/STEPBible/STEPBible-Data,
+fetched by `targum models fetch scripture` into the model directory, and never vendored,
+because the file asks not to be redistributed. Where TBESH has nothing for a number, the
+public-domain Strong's definition stays.
+
+**The file's Meaning column is never read.** It is the Abridged BDB, © Larry Pierce of
+Online Bible, carved out of STEP Bible's grant ("Permission should be gained from Online
+Bible before these are applied in any project"). The parser splits each row no further
+than the Gloss, so the Meaning is never held, stored, shown or shipped, and
+`tests/test_oshb.py` fails if any of it reaches the table.
+
+We shorten the glosses (the head before the first ": ", and "/" written "; ") and fix a
+few by hand. The licence asks for a note of the changes. `src/targum/annotate/tbesh_changes.tsv`
+is that note, and it is also the file the fixes are read from. The credit, "Meanings from
+STEP Bible · CC BY 4.0 · shortened by targum", linked to www.STEPBible.org, the licence and
+that note, is on every reader page whose glossary shows one of these glosses, and on the
+How page.
+
 ### The Russian Torah is targum's own reading of an 1875 page — 2026-09-22
 
 The five Torah rows carry a Russian translation beside the Hebrew: **Пятикнижие, пер.
