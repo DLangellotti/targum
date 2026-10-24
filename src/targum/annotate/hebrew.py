@@ -14,6 +14,7 @@ one is a lie told with confidence.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 # Stanza's values, in the order a learner meets them. The name is what the reader sees.
@@ -252,3 +253,80 @@ def _untangle(letters: list[str]) -> list[str]:
     if len(letters) > 1 and letters[0] in SIBILANTS and letters[1] in INFIXES:
         return [letters[0]] + letters[2:]
     return letters
+
+
+# The points `weak_roots` reads off a pointed lemma's prefix and first letter.
+_QAMATS, _TSERE, _PATAH, _HIRIQ, _DAGESH = "ָ", "ֵ", "ַ", "ִ", "ּ"
+
+
+def _pointed_letters(word: str) -> list[tuple[str, str]]:
+    """Each Hebrew letter, final forms folded, with the points that follow it."""
+    out: list[list[str]] = []
+    for ch in word:
+        if "א" <= ch <= "ת":
+            out.append([ch.translate(FINALS), ""])
+        elif "֑" <= ch <= "ׇ" and out:
+            out[-1][1] += ch
+    return [(letter, points) for letter, points in out]
+
+
+def weak_roots(lemma: str, binyan: str | None, forms: Iterable[str] = ()) -> tuple[str, ...]:
+    """Every root a *pointed* hollow, geminate or I-nun lemma allows, for the table's
+    index alone (targum-internal#307 and #509, grammar/8 part (a)).
+
+    `root_of` gives up on a verb whose root has a letter the lemma does not write: קָם,
+    הֵבִיא, הִגִּישׁ, הֵסֵב. Open Scriptures files those verbs under the root itself, so the
+    conjugation table found nothing for בוא in hif'il. The vowels say which family a
+    lemma is in, and that is all this reads; `forms` are the verb's own written forms,
+    which choose a qal's middle letter: יָקוּם is קום and יָשִׂים is שים, so שָׁר "sang" is
+    filed under שיר and never under Job's שׁוּר "behold".
+
+    Several roots where the letters allow several (הֵקִים under קום and קים): two verbs
+    under one root is two candidates, which the table refuses rather than guesses. Empty
+    for a lemma that is not one of these shapes, and for an unpointed one.
+
+    Render time only. The annotator's root stays `root_of`'s, and a table edit must never
+    change what an annotation says.
+    """
+    units = _pointed_letters(lemma)
+    letters = "".join(letter for letter, _ in units)
+    if not binyan or len(units) < 2:
+        return ()
+    opening, after = units[0][1], units[1][1]
+
+    def roots(*found: str) -> tuple[str, ...]:
+        return tuple(root[:2] + root[2].translate(ENDINGS) for root in found if len(root) == 3)
+
+    if binyan == "פעל" and len(letters) == 2:
+        first, last = letters[0], letters[1]
+        if _QAMATS in opening or _TSERE in opening:
+            spelled = [
+                "".join(c for c in form if "א" <= c <= "ת").translate(FINALS) for form in forms
+            ]
+            middles = [m for m in "וי" if any(first + m + last in form for form in spelled)]
+            return roots(*(first + m + last for m in middles or "וי"))
+        if _PATAH in opening:
+            return roots(first + last + last)
+        return ()
+    if binyan == "הפעיל" and letters[:1] == "ה":
+        rest = letters[1:]
+        hollow = len(rest) == 3 and rest[1] == "י"
+        if _TSERE in opening and hollow:
+            return roots(rest[0] + "ו" + rest[2], rest[0] + "י" + rest[2])
+        if _TSERE in opening and len(rest) == 2:
+            return roots(rest[0] + rest[1] + rest[1])
+        if _HIRIQ in opening and _DAGESH in after:
+            if hollow:
+                return roots("נ" + rest[0] + rest[2])
+            if len(rest) == 2:
+                return roots("נ" + rest)
+        return ()
+    if binyan == "נפעל" and letters[:1] == "נ" and len(letters) == 3:
+        if _HIRIQ in opening:
+            return roots(letters)
+        if _QAMATS in opening:
+            return roots(letters[1] + letters[2] + letters[2])
+        return ()
+    if binyan == "הופעל" and letters[:2] == "הו" and len(letters) == 4:
+        return roots(letters[2] + "ו" + letters[3], "י" + letters[2] + letters[3])
+    return ()
