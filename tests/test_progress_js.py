@@ -876,3 +876,31 @@ process.stdout.write(JSON.stringify({ low: low, high: drawn.style.top }));
     placed = json.loads(done.stdout)
     assert placed["low"] == "24px", "under a point near the top"
     assert placed["high"] == "50px", "above a point with room"
+
+
+def test_aramaic_rungs_are_said_without_a_link() -> None:
+    """Aramaic's rungs are bodies of Targum (design.md §12, 2026-10-25), and the Library has
+    no shelf for each yet: a rung is a chip, not a link to an empty list."""
+    drawn = draw(
+        {"targum:vocab:arc": vocab(known=40)},
+        chosen="arc",
+        story={
+            "library": True,
+            "known": 40,
+            "ladder": [
+                {"kind": "onkelos", "name": "onkelos", "state": "here", "share": 82},
+                {"kind": "jonathan-torah", "name": "jonathan-torah", "state": "next", "share": 60},
+            ],
+            "here": 0,
+            "said": "most",
+            "texts": [],
+            "words": [],
+        },
+    )
+    where = drawn["where"]
+    assert where["head"] == "You'd follow most of Onkelos"
+    assert [rung["tag"] for rung in where["rungs"]] == ["span", "span"]
+    assert [rung["state"] for rung in where["rungs"]] == ["here", "next"]
+    assert not any(rung.get("href") for rung in where["rungs"])
+    assert where["rungs"][1]["text"] == "Pseudo-Jonathan60%"
+    assert where["rungs"][0]["label"] == "Onkelos: you know 82% of its words."

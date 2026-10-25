@@ -326,12 +326,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   to 37, and the level map places them. `touchstones.aramaic_ladder` makes those families
   the rungs, Onkelos first, and Your Progress climbs them (design.md §12, "Aramaic gets a
   ladder, from our own counts"): each rung named in English and, as a draft for ling-ru,
-  in Russian. The line blaming a missing frequency list is gone; until the catalogue's
+  in Russian, Pseudo-Jonathan by its everyday name, each a chip without a link until the
+  Library has a shelf for each body of Targum (design.md §12 now lists these rungs until
+  the Talmud bridge and the daf have texts). The tables carry ling-arc's review: readings
+  reordered and added, five more abbreviations, six more terms, four moves changed. The
+  line blaming a missing frequency list is gone; until the catalogue's
   Aramaic rows are measured, part 1 says what any unmeasured language says. The card is
   untouched: a word of Onkelos still says it is not rated, and nothing is re-annotated.
-  **The Talmud's abbreviations** (`closed.TALMUD_ABBREVIATIONS`, 368 forms from
+  **The Talmud's abbreviations** (`closed.TALMUD_ABBREVIATIONS`, 373 forms from
   Mielziner's 1894 key, read off the page scans, with every full form and its sense) and
-  **its argument terms** (`closed.TALMUD_TERMS`, 70, each with the move it makes:
+  **its argument terms** (`closed.TALMUD_TERMS`, 76, each with the move it makes:
   source, question, objection, answer, verdict, frame), with `abbreviation` and
   `argument_term` to look them up. Data only, for ling-arc to check; no surface reads them
   yet. Nothing spent.

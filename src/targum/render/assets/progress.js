@@ -111,11 +111,11 @@
       start: t("progress.where.start.former-prophets", "Jonathan on Joshua to Kings is the place to start"),
     },
     "jonathan-torah": {
-      chip: t("progress.touch.jonathan-torah", "Jonathan on the Torah"),
-      follow: t("progress.where.follow.jonathan-torah", "You'd follow Jonathan on the Torah"),
-      nearly: t("progress.where.nearly.jonathan-torah", "You'd follow nearly all of Jonathan on the Torah"),
-      most: t("progress.where.most.jonathan-torah", "You'd follow most of Jonathan on the Torah"),
-      start: t("progress.where.start.jonathan-torah", "Jonathan on the Torah is the place to start"),
+      chip: t("progress.touch.jonathan-torah", "Pseudo-Jonathan"),
+      follow: t("progress.where.follow.jonathan-torah", "You'd follow Pseudo-Jonathan"),
+      nearly: t("progress.where.nearly.jonathan-torah", "You'd follow nearly all of Pseudo-Jonathan"),
+      most: t("progress.where.most.jonathan-torah", "You'd follow most of Pseudo-Jonathan"),
+      start: t("progress.where.start.jonathan-torah", "Pseudo-Jonathan is the place to start"),
     },
     "latter-prophets": {
       chip: t("progress.touch.latter-prophets", "Jonathan on the Prophets"),
@@ -334,16 +334,25 @@
         list.appendChild(gap);
       }
       var item = el("li", "touch");
-      var link = el("a", "touch-" + rung.state);
-      link.href = shelfHref(rung.kind);
+      // Aramaic's rungs are the Aramaic translations, and the Library has no shelf for
+      // each yet, so they are said without a link rather than opening an empty list.
+      var shelved = code !== "arc";
+      var link = el(shelved ? "a" : "span", "touch-chip touch-" + rung.state);
+      if (shelved) link.href = shelfHref(rung.kind);
       var named_ = (RUNGS[rung.name] || RUNGS[rung.kind] || { chip: rung.kind }).chip;
       if (rung.state === "passed") link.innerHTML = TICK;
       link.appendChild(el("span", "touch-name", named_));
       var shown = (rung.state === "here" || rung.state === "next") && typeof rung.share === "number";
       if (shown) link.appendChild(el("span", "touch-share", t("progress.touch.share", "{n}%", { n: rung.share })));
       if (rung.state === "here") link.setAttribute("aria-current", "step");
-      link.title =
-        typeof rung.share === "number"
+      link.title = !shelved
+        ? typeof rung.share === "number"
+          ? t("progress.touch.title-unshelved", "{kind}: you know {n}% of its words.", {
+              kind: named_,
+              n: rung.share,
+            })
+          : named_
+        : typeof rung.share === "number"
           ? t("progress.touch.title", "{kind}: you know {n}% of its words. Open this shelf in the Library.", {
               kind: named_,
               n: rung.share,

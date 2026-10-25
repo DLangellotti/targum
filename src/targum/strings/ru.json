@@ -4410,11 +4410,11 @@
   "progress.where.nearly.former-prophets": "Вы поймёте почти всего Йонатана к книгам от Иисуса Навина до Царств",
   "progress.where.most.former-prophets": "Вы поймёте большую часть Йонатана к книгам от Иисуса Навина до Царств",
   "progress.where.start.former-prophets": "Начните с Йонатана к книгам от Иисуса Навина до Царств",
-  "progress.touch.jonathan-torah": "Йонатан к Торе",
-  "progress.where.follow.jonathan-torah": "Вы поймёте Йонатана к Торе",
-  "progress.where.nearly.jonathan-torah": "Вы поймёте почти всего Йонатана к Торе",
-  "progress.where.most.jonathan-torah": "Вы поймёте большую часть Йонатана к Торе",
-  "progress.where.start.jonathan-torah": "Начните с Йонатана к Торе",
+  "progress.touch.jonathan-torah": "Псевдо-Йонатан",
+  "progress.where.follow.jonathan-torah": "Вы поймёте Псевдо-Йонатана",
+  "progress.where.nearly.jonathan-torah": "Вы поймёте почти всего Псевдо-Йонатана",
+  "progress.where.most.jonathan-torah": "Вы поймёте большую часть Псевдо-Йонатана",
+  "progress.where.start.jonathan-torah": "Начните с Псевдо-Йонатана",
   "progress.touch.latter-prophets": "Йонатан к Пророкам",
   "progress.where.follow.latter-prophets": "Вы поймёте Йонатана к Пророкам",
   "progress.where.nearly.latter-prophets": "Вы поймёте почти всего Йонатана к Пророкам",
@@ -4424,5 +4424,6 @@
   "progress.where.follow.writings": "Вы поймёте арамейский перевод Писаний",
   "progress.where.nearly.writings": "Вы поймёте почти весь арамейский перевод Писаний",
   "progress.where.most.writings": "Вы поймёте большую часть арамейского перевода Писаний",
-  "progress.where.start.writings": "Начните с арамейского перевода Писаний"
+  "progress.where.start.writings": "Начните с арамейского перевода Писаний",
+  "progress.touch.title-unshelved": "{kind}: вы знаете {n}% слов."
 }

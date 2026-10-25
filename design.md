@@ -403,6 +403,12 @@ change the research asked for, and each is written here:
   years ("A language with CEFR levels shows them", 2026-09-13, below). Until it is built,
   part 1 says how many Aramaic words are known, as it does today, and the line saying why
   there is no ladder goes the day the ladder comes.
+  Until the bridge and the daf have texts of their own, the rungs are the Targum families
+  the shelf holds, in the order the measure found: Onkelos, Jonathan on Joshua to Kings,
+  Jonathan on the Torah, Jonathan on the Prophets, and the Targums of the Writings
+  (builder-2, 2026-10-25, targum#936). The Talmud bridge and the daf join as rungs when
+  their texts land (#192; Margolis, G12). Onkelos splits into its narrative and the rest
+  when its passage rows exist.
 - **The card draws Aramaic's Hebrew counterpart, from an alignment.** It reverses
   "Aramaic's Hebrew counterpart is not drawn" (Your Words, 2026-10-09, below). An Onkelos
   verse renders its Hebrew almost word for word (1.036 Aramaic words to a Hebrew one), and

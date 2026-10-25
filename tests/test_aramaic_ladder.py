@@ -192,6 +192,6 @@ def test_a_phrase_wins_over_its_first_word_and_a_short_form_answers() -> None:
     assert closed.argument_term(["מאי", "דרבי"])[0] == "מאי"  # type: ignore[index]
     found = closed.argument_term(["ת״ש", "מהא"])
     assert found is not None and found[0] == "תא שמע" and found[2] == 1
-    assert closed.argument_term(["קמ״ל"])[1].move == "verdict"  # type: ignore[index]
+    assert closed.argument_term(["קמ״ל"])[1].move == "answer"  # type: ignore[index]
     assert closed.argument_term(["אברהם"]) is None
     assert closed.argument_term([]) is None
