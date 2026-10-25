@@ -4035,7 +4035,7 @@
   "mail.weekly.label": "Weekly News Digest",
   "mail.weekly.level-note": "If you know {figure} words",
   "progress.story.failed": "We couldn't load this part.",
-  "progress.count.learned.note": "“Learned on targum” counts the words you marked here as anything other than known and have since marked known. A word you marked known the first time doesn't count.",
+  "progress.count.learned.note": "“Learned on targum” counts the words you marked here as anything other than known and have since marked known.",
   "progress.where.loading": "We're working out where you are.",
   "progress.next.loading": "We're finding the words and texts for you.",
   "progress.next.texts-arc": "We don't place Aramaic texts by difficulty, so none are listed here.",

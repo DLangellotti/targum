@@ -12,6 +12,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The note under "Learned on targum" is one sentence now: it says what the count holds and stops (David, 2026-10-25).
 - Your Words keeps its table inside its card at every width (David, 2026-10-24: "design
   seems to be broken"). Since targum#919 kept the AI Assistant's room on both edges of
   the column, the column is 1198px at 1440 in English, and the page still asked the
