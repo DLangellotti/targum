@@ -35,12 +35,11 @@ from .coverage import IGNORED, KNOWN, Index
 #: these a language's ladder has, and in what order, is the catalogue's to say.
 KINDS = ("dialogue", "talk", "article", "story", "novel", "poetry")
 
-#: No ladder at all. wordfreq has no Aramaic list, so the difficulty measure said 0 of
-#: every Aramaic text, which is false (David, 2026-10-08): Aramaic shows known words only.
-#: The measure is true now — the shelf's own Aramaic is counted
-#: (`annotate.aramaic_frequency`, targum-internal G1) and `aramaic_ladder` below builds
-#: the rungs — but Aramaic stays here until design.md reverses "Aramaic gets no ladder".
-NO_LADDER = frozenset({"arc"})
+#: No ladder at all. Aramaic was here from 2026-10-08, when wordfreq's missing list made
+#: every Aramaic text measure 0; it climbs `aramaic_ladder` since the shelf's own Aramaic
+#: was counted (`annotate.aramaic_frequency`, targum-internal G1; design.md §12, "Aramaic
+#: gets a ladder, from our own counts", 2026-10-25).
+NO_LADDER: frozenset[str] = frozenset()
 
 #: Aramaic's rungs, in the order ling-arc's plan climbs them (2026-10-25): the shelf's
 #: Aramaic is all prose and poetry by the catalogue's kinds, so a rung is a body of Targum
@@ -156,11 +155,13 @@ def ladder(entries: Iterable[Any], language: str) -> list[Rung]:
     """A language's rungs, easiest first, by the median measured difficulty of each kind.
 
     A kind with no measured text in this language is not a rung: an unmeasured 0 would
-    put it at the bottom, which is a claim nobody made. Empty for Aramaic, and for a
-    language the library has nothing in.
+    put it at the bottom, which is a claim nobody made. Empty for a language the library
+    has nothing in. Aramaic's rungs are bodies of Targum, not kinds (`aramaic_ladder`).
     """
     if language in NO_LADDER:
         return []
+    if language == "arc":
+        return aramaic_ladder(entries)
     by_kind: dict[str, list[Any]] = {}
     for entry in entries:
         if str(getattr(entry, "language", "")) != language:

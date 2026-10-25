@@ -95,6 +95,42 @@
       most: t("progress.where.most.poetry", "You'd follow most of a poem"),
       start: t("progress.where.start.poetry", "A poem is the place to start"),
     },
+    // Aramaic's rungs are the Aramaic translations, the climb's own (design.md §12, 2026-10-25).
+    "onkelos": {
+      chip: t("progress.touch.onkelos", "Onkelos"),
+      follow: t("progress.where.follow.onkelos", "You'd follow Onkelos"),
+      nearly: t("progress.where.nearly.onkelos", "You'd follow nearly all of Onkelos"),
+      most: t("progress.where.most.onkelos", "You'd follow most of Onkelos"),
+      start: t("progress.where.start.onkelos", "Onkelos is the place to start"),
+    },
+    "former-prophets": {
+      chip: t("progress.touch.former-prophets", "Jonathan on Joshua to Kings"),
+      follow: t("progress.where.follow.former-prophets", "You'd follow Jonathan on Joshua to Kings"),
+      nearly: t("progress.where.nearly.former-prophets", "You'd follow nearly all of Jonathan on Joshua to Kings"),
+      most: t("progress.where.most.former-prophets", "You'd follow most of Jonathan on Joshua to Kings"),
+      start: t("progress.where.start.former-prophets", "Jonathan on Joshua to Kings is the place to start"),
+    },
+    "jonathan-torah": {
+      chip: t("progress.touch.jonathan-torah", "Jonathan on the Torah"),
+      follow: t("progress.where.follow.jonathan-torah", "You'd follow Jonathan on the Torah"),
+      nearly: t("progress.where.nearly.jonathan-torah", "You'd follow nearly all of Jonathan on the Torah"),
+      most: t("progress.where.most.jonathan-torah", "You'd follow most of Jonathan on the Torah"),
+      start: t("progress.where.start.jonathan-torah", "Jonathan on the Torah is the place to start"),
+    },
+    "latter-prophets": {
+      chip: t("progress.touch.latter-prophets", "Jonathan on the Prophets"),
+      follow: t("progress.where.follow.latter-prophets", "You'd follow Jonathan on the Prophets"),
+      nearly: t("progress.where.nearly.latter-prophets", "You'd follow nearly all of Jonathan on the Prophets"),
+      most: t("progress.where.most.latter-prophets", "You'd follow most of Jonathan on the Prophets"),
+      start: t("progress.where.start.latter-prophets", "Jonathan on the Prophets is the place to start"),
+    },
+    "writings": {
+      chip: t("progress.touch.writings", "The Aramaic of the Writings"),
+      follow: t("progress.where.follow.writings", "You'd follow the Aramaic of the Writings"),
+      nearly: t("progress.where.nearly.writings", "You'd follow nearly all of the Aramaic of the Writings"),
+      most: t("progress.where.most.writings", "You'd follow most of the Aramaic of the Writings"),
+      start: t("progress.where.start.writings", "The Aramaic of the Writings is the place to start"),
+    },
   };
 
   //: Languages with nobody's voice in them have no listening to count (§12, 2026-10-08).
@@ -271,21 +307,16 @@
     }
     var ladder = said.ladder || [];
     if (!ladder.length) {
-      // Aramaic has no ladder, Yiddish no library, and a box without the lemma index has
-      // measured nothing: each says so, with the one count it does have.
+      // Yiddish has no library, and a box without the lemma index (or a catalogue whose
+      // Aramaic is not measured yet) has measured nothing: each says so, with the one
+      // count it does have.
       var known = said.known || 0;
       head.textContent = tn("progress.where.known", known, "You know {n} word so far", "You know {n} words so far", {
         n: grouped(known),
       });
-      note.textContent =
-        code === "arc"
-          ? t(
-              "progress.where.no-ladder-arc",
-              "We can't place Aramaic texts by difficulty, because we have no list of how common its words are."
-            )
-          : !said.library
-            ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
-            : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
+      note.textContent = !said.library
+        ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
+        : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
       note.hidden = false;
       return;
     }

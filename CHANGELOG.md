@@ -324,8 +324,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   text no longer measures 0: Onkelos's books come out at 9 to 13, Jonathan on the Former
   Prophets 11 to 14, on the Torah 16 to 20, the Latter Prophets 11 to 28, the Writings 14
   to 37, and the level map places them. `touchstones.aramaic_ladder` makes those families
-  the rungs, Onkelos first; **the page is not given them yet**, because design.md still
-  says "Aramaic gets no ladder" until ling-arc's change to it merges. The card is
+  the rungs, Onkelos first, and Your Progress climbs them (design.md §12, "Aramaic gets a
+  ladder, from our own counts"): each rung named in English and, as a draft for ling-ru,
+  in Russian. The line blaming a missing frequency list is gone; until the catalogue's
+  Aramaic rows are measured, part 1 says what any unmeasured language says. The card is
   untouched: a word of Onkelos still says it is not rated, and nothing is re-annotated.
   **The Talmud's abbreviations** (`closed.TALMUD_ABBREVIATIONS`, 368 forms from
   Mielziner's 1894 key, read off the page scans, with every full form and its sense) and

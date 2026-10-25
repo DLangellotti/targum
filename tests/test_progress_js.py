@@ -601,8 +601,10 @@ def test_italian_childrens_books_are_called_so() -> None:
     assert drawn["rungs"][0]["href"].endswith("#see/kind/story")
 
 
-def test_aramaic_shows_known_words_and_no_ladder() -> None:
-    """wordfreq has no Aramaic list, so its texts cannot be measured (David, 2026-10-08)."""
+def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
+    """Aramaic climbs a ladder of Targums since 2026-10-25 (design.md §12); until the
+    catalogue's Aramaic is measured it has none to draw, and says so as any language does.
+    The line that blamed a missing frequency list is gone with the reason for it."""
     drawn = draw(
         {"targum:vocab:arc": vocab(known=12)},
         chosen="arc",
@@ -618,7 +620,7 @@ def test_aramaic_shows_known_words_and_no_ladder() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "We can't place Aramaic texts by difficulty" in drawn["where"]["note"]
+    assert "once we've measured the library's texts" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
 

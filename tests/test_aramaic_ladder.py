@@ -118,11 +118,30 @@ def test_every_aramaic_source_has_a_family() -> None:
     assert touchstones.aramaic_family("sefaria:Genesis") is None
 
 
-def test_the_ladder_stays_off_until_design_md_says_otherwise() -> None:
-    """design.md still says "Aramaic gets no ladder" (2026-10-08): the rungs are built
-    and the page is not given them until that entry is reversed."""
-    assert "arc" in touchstones.NO_LADDER
-    assert touchstones.ladder(MEASURED, "arc") == []
+def test_the_page_climbs_the_aramaic_ladder() -> None:
+    """design.md §12, "Aramaic gets a ladder, from our own counts" (2026-10-25), reverses
+    "Aramaic gets no ladder" (2026-10-08): `ladder` hands Aramaic its Targum rungs."""
+    assert "arc" not in touchstones.NO_LADDER
+    assert touchstones.ladder(MEASURED, "arc") == touchstones.aramaic_ladder(MEASURED)
+    assert touchstones.ladder(MEASURED, "arc")[0].kind == "onkelos"
+
+
+def test_every_aramaic_rung_has_its_words_on_the_page() -> None:
+    """Each rung's chip and its four headlines, in English and in Russian."""
+    import json
+    from pathlib import Path
+
+    import targum
+
+    page = (Path(targum.__file__).parent / "render" / "assets" / "progress.js").read_text()
+    strings = Path(targum.__file__).parent / "strings"
+    english = json.loads((strings / "en.json").read_text(encoding="utf-8"))
+    russian = json.loads((strings / "ru.json").read_text(encoding="utf-8"))
+    for family, _ in touchstones.ARAMAIC_FAMILIES:
+        assert f'"{family}": {{' in page, family
+        for key in ("touch", "where.follow", "where.nearly", "where.most", "where.start"):
+            name = f"progress.{key}.{family}"
+            assert english.get(name) and russian.get(name), name
 
 
 @pytest.mark.parametrize("form", sorted(closed.TALMUD_ABBREVIATIONS))
