@@ -4043,7 +4043,7 @@
   "progress.count.learned.note": "“Learned on targum” counts the words you marked here as anything other than known and have since marked known.",
   "progress.where.loading": "We're working out where you are.",
   "progress.next.loading": "We're finding the words and texts for you.",
-  "progress.next.texts-arc": "We don't place Aramaic texts by difficulty, so none are listed here.",
+  "progress.next.texts-arc": "We'll list Aramaic texts at your level once we've measured the library's Aramaic.",
   "progress.page.open-the-library": "Open the Library",
   "reader.page.meanings-from": "Meanings from",
   "reader.page.shortened-by-targum": "shortened by targum",

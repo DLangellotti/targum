@@ -4371,7 +4371,7 @@
   "progress.count.learned.note": "«Выучено с targum» — это слова, которые вы отметили здесь иначе, чем «знаю», а потом отметили как «знаю».",
   "progress.where.loading": "Определяем, где вы сейчас.",
   "progress.next.loading": "Подбираем для вас слова и тексты.",
-  "progress.next.texts-arc": "Мы не распределяем арамейские тексты по сложности, поэтому здесь их нет.",
+  "progress.next.texts-arc": "Арамейские тексты вашего уровня появятся здесь, когда мы измерим арамейскую часть библиотеки.",
   "progress.page.open-the-library": "Открыть Библиотеку",
   "serve.give-a-link": "Вставьте ссылку.",
   "reader.chapter.uses-credits.other": "Займёт {n} кредита",
