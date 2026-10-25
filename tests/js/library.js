@@ -225,6 +225,7 @@ setTimeout(() => {
       english: find("row-english").textContent,
       englishLang: find("row-english").attrs["lang"] || "",
       meta: find("row-meta").textContent,
+      era: find("row-era").textContent,
       by: find("row-by").textContent,
       blurb: find("row-blurb").textContent,
       blurbLang: find("row-blurb").attrs["lang"] || "",
@@ -317,6 +318,7 @@ setTimeout(() => {
               return {
                 id: item.getAttribute("data-row") || item.getAttribute("data-set") || "",
                 kind: part("band-kind"),
+                era: part("band-era"),
                 title: part("band-title"),
                 known: part("band-known"),
                 near: !!open.children.find((c) => String(c.className) === "band-known near"),

@@ -537,6 +537,13 @@ def _entry_row(
     if built is not None and "known" in built:
         row["known_share"] = built["known"]
         row["words_not_met"] = built["fresh"]
+    # Which older Hebrew, said, for a text in one (David, 2026-10-25; design.md §12, "An
+    # older Hebrew says which it is"): a host passes the label on, and the card draws it in
+    # the page's language from `era_of`. Left off every other row, which reads as before.
+    era = catalogue_module.era_of(entry)
+    if era is not None:
+        row["era"] = catalogue_module.era_said(entry)
+        row["era_of"] = {"register": era.value, "decade": catalogue_module.decade_of(entry)}
     return row
 
 

@@ -380,6 +380,46 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### An older Hebrew says which it is — 2026-10-25
+
+David, 2026-10-25, on content's count of the Hebrew shelf by era (159 revival texts, a
+third of everything outside the scenes, every one from Project Ben-Yehuda): **label only.**
+Revival, rabbinic and medieval Hebrew stay mixed into the Library and the arrival, with no
+door of their own and nothing hidden, and each says which Hebrew it is wherever it shows.
+
+- **The label is the register and the decade**: «Revival-era Hebrew, 1890s», «Rabbinic
+  Hebrew», «Medieval Hebrew, 1160s». The register is the catalogue's own field ("Which
+  Hebrew is five answers, not two", 2026-09-01); the decade is read off the year in the
+  byline, where the row has one, and left off where it has none. The Tanakh carries no
+  label: its map, its face and its name already say what it is. Modern Hebrew carries
+  none, and neither does any other language.
+- **Everywhere the text shows**: the card on a Library shelf, under its kind; the row in
+  See all, in the line that says what it is and whose, and on a phone beside its length;
+  the text's public page, under the byline; its contents page; the top of the reader,
+  which is where the arrival lands somebody; and the rows the connector's `find_text` and
+  `suggest_next` return (`era`, which a host repeats, and `era_of`, which the text card
+  says in the page's language). In ink, not the kind's grey, so it is read.
+- **Nothing else moves.** The shelves, the arrival's subjects (Hebrew's Stories and novels
+  is still answered by revival texts, now labelled) and what `find_text` returns are as
+  they were. Only the label is added.
+- A reader built before this carries the label from its next render; the contents page,
+  the public page, the Library and the connector say it from the deploy.
+
+### The floors count modern Hebrew — 2026-10-25
+
+David, 2026-10-25, the same decision. The stage standard's shelf floors ("A badge is a
+promise, checked") read the **modern ladder only**: modern Hebrew, and every other
+language, whose rows carry no register. Hebrew's Tanakh is counted as a row of its own;
+revival, rabbinic and medieval Hebrew are counted and printed by `targum stages` but held
+to no floor. The weekly's three editions are modern Hebrew and count on the ladder, once
+`targum stages --measure` can place them from their builds.
+
+Counted that way, Hebrew's B1 is 53 texts against a floor of 90 (A1 114, A2 96, B2+ 90;
+recordings clear at every level). Before, it was 155, of which 48 were revival and 54 the
+Tanakh. So Hebrew's Beta is **kept**, in `stages.KEPT` with this entry's name, from
+2026-10-25 and reviewed by 2026-12-31: the test prints what it owes on every run, and the
+entry comes out when the first generated modern B1 tranche lands and B1 clears 90.
+
 ### What a first tap does not need waits after the faces — 2026-10-24
 
 David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-internal#503).
@@ -3449,6 +3489,11 @@ entry makes the three words promises to the reader, in order, and makes a test k
 - **The second medium is video, counted** (2026-10-13). It had been read off recordings,
   which are mostly texts read aloud, the same text in another sense. `targum stages
   --measure` now writes each language's videos into the snapshot.
+- **The floors count the modern ladder** (David, 2026-10-25; "The floors count modern
+  Hebrew" above). A level's texts are modern texts: Hebrew's Tanakh is a row of its own,
+  and revival, rabbinic and medieval Hebrew are counted and reported but held to no floor.
+  Hebrew's B1 held 53 such texts against 90, so its Beta is **kept** again from that day,
+  under that entry's name, until the first generated modern B1 tranche lands.
 
 What it does not change: the badge's colours and placement above; the five word stages;
 what the chat may spend; the *into* languages' two words on the upload page, which are not

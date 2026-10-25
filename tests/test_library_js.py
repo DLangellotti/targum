@@ -1884,3 +1884,57 @@ def test_a_series_and_a_channel_are_subscribed_to_from_their_rows(tmp_path: Path
     stranger = browse(tmp_path, catalogue=catalogue, collections=groups, portions=portions)
     assert all(row["subscribe"] is None for row in stranger["rows"])
     assert "Subscribe" not in stranger["columns"]
+
+
+# -- which older Hebrew (David, 2026-10-25) -------------------------------------------
+
+
+#: The same shelf with three texts in an older Hebrew, as the server sends them: the era
+#: and the decade the byline dates it to, or none.
+ERAS = [
+    {**SHELF[0], "register": "revival", "era": "revival", "decade": 1890},
+    {**SHELF[3], "register": "rabbinic", "era": "rabbinic", "decade": 0},
+    {**SHELF[6], "register": "medieval", "era": "medieval", "decade": 1160},
+    *SHELF[1:3],
+    *SHELF[4:6],
+    *SHELF[7:],
+]
+
+
+def test_a_text_in_an_older_hebrew_says_which_on_its_card(tmp_path: Path) -> None:
+    """design.md §12, "An older Hebrew says which it is": each card under its kind,
+    modern ones say nothing."""
+    drawn = browse(tmp_path, catalogue=ERAS, shelves=True, catalogueKnown=BANDED)
+    cards = {card["id"]: card for one in drawn["shelves"] for card in one["cards"]}
+    assert cards["news-one"]["era"] == "Revival-era Hebrew, 1890s"
+    assert cards["league"]["era"] == "Rabbinic Hebrew", "no decade where the byline has no year"
+    assert cards["story-one"]["era"] == "Medieval Hebrew, 1160s"
+    labelled = {"news-one", "league", "story-one"}
+    assert all(card["era"] == "" for key, card in cards.items() if key not in labelled)
+
+
+def test_a_row_in_an_older_hebrew_says_which_in_its_line_and_beside_its_length(
+    tmp_path: Path,
+) -> None:
+    drawn = browse(tmp_path, catalogue=ERAS, hash="#see/hard", catalogueKnown=BANDED)
+    rows = {row["id"]: row for row in drawn["rows"]}
+    row = rows["story-one"]
+    assert row["era"] == "Medieval Hebrew, 1160s"
+    assert row["meta"].startswith("Essay · Medieval Hebrew, 1160s")
+    assert row["kind"] == "Essay · Medieval Hebrew, 1160s", "on a phone, beside the length"
+    assert all(one["era"] == "" for key, one in rows.items() if key != "story-one")
+
+
+def test_the_era_is_said_in_the_readers_language(tmp_path: Path) -> None:
+    drawn = browse(
+        tmp_path,
+        catalogue=ERAS,
+        shelves=True,
+        catalogueKnown=BANDED,
+        strings={
+            "language": "ru",
+            "strings": {"library.era.revival-dated": "Иврит эпохи Возрождения, {decade}-е"},
+        },
+    )
+    cards = {card["id"]: card for one in drawn["shelves"] for card in one["cards"]}
+    assert cards["news-one"]["era"] == "Иврит эпохи Возрождения, 1890-е"

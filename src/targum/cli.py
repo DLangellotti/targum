@@ -5317,25 +5317,39 @@ def stages(
 
     if measure:
         from . import levelmap, spoken
-        from .catalogue import CATALOGUE
+        from .catalogue import everything
         from .video import store as video_store
 
-        shelves = levelmap.tally(
-            CATALOGUE,
-            sentence=levelmap.Sentences(out, videos or video_store.root()),
-            spoken=spoken.is_spoken,
-            video=spoken.is_video,
-        )
-        counts = {
-            code: {
+        # The week's published issues too: modern Hebrew at three levels, which the
+        # catalogue alone never counted (David, 2026-10-25).
+        ladder, others = levelmap.split(everything())
+        sentence = levelmap.Sentences(out, videos or video_store.root())
+
+        def counted(entries: list[Any]) -> dict[str, levelmap.Shelf]:
+            return levelmap.tally(
+                entries, sentence=sentence, spoken=spoken.is_spoken, video=spoken.is_video
+            )
+
+        def floors(shelf: levelmap.Shelf) -> dict[str, Any]:
+            return {
                 level: standard.Floor(*pair) for level, pair in levelmap.cefr_rows(shelf).items()
             }
-            for code, shelf in shelves.items()
-        }
+
+        shelves = counted(ladder)
+        # The floors read the modern ladder; every other register is counted beside it and
+        # held to none (design.md §12, "The floors count modern Hebrew", 2026-10-25).
+        # A video is the second medium in any register, so the count of them is all of them.
+        registers: dict[str, dict[str, Any]] = {}
+        videos_by = {code: levelmap.videos(shelf) for code, shelf in shelves.items()}
+        for register, entries in others.items():
+            for code, shelf in counted(entries).items():
+                registers.setdefault(code, {})[register] = floors(shelf)
+                videos_by[code] = videos_by.get(code, 0) + levelmap.videos(shelf)
         standard.write_shelf(
-            counts,
+            {code: floors(shelf) for code, shelf in shelves.items()},
             measured=date.today(),
-            videos={code: levelmap.videos(shelf) for code, shelf in shelves.items()},
+            videos=videos_by,
+            registers=registers,
         )
         console.print(f"[dim]Shelf counted into {standard.SHELF_SNAPSHOT}[/dim]")
 
@@ -5353,6 +5367,25 @@ def stages(
         short = "\n".join(row["shortfall"]) if row["shortfall"] else "nothing"
         table.add_row(code, worn, earned, short)
     console.print(table)
+
+    # The registers off the modern ladder: counted, printed, and held to no floor
+    # (design.md §12, "The floors count modern Hebrew", 2026-10-25).
+    for code, row in rows.items():
+        if not row["registers"]:
+            continue
+        held = Table(
+            title=f"{code}: off the modern ladder (no floor; texts / recordings)",
+            title_justify="left",
+        )
+        held.add_column("Register")
+        for level in standard.CEFR_LEVELS:
+            held.add_column(level)
+        for register, levels in row["registers"].items():
+            held.add_row(
+                register,
+                *("{} / {}".format(*levels.get(level, [0, 0])) for level in standard.CEFR_LEVELS),
+            )
+        console.print(held)
 
     # Each language's hard spots, and the register each is claimed in: a spot may be
     # declared out of one with the reason beside it (design.md §12, "Past Beta, the badge

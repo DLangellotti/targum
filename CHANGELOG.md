@@ -316,6 +316,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- An older Hebrew says which it is, and the shelf floors count modern Hebrew (David,
+  2026-10-25: label only; design.md §12, "An older Hebrew says which it is" and "The
+  floors count modern Hebrew"). A revival, rabbinic or medieval Hebrew text is labelled
+  «Revival-era Hebrew, 1890s» (the decade from the year in its byline, where it has one)
+  on its Library card and See all row, its public page, its contents page, the top of
+  the reader the arrival opens, and the rows `find_text` and `suggest_next` return (`era`
+  and `era_of`), in English and Russian (the Russian is a draft for David's read). The
+  shelves, the arrival's subjects and what `find_text` returns are unchanged. The stage
+  floors and `targum stages` read the modern ladder only (`levelmap.split`); the Tanakh,
+  revival, rabbinic and medieval Hebrew are counted per register under `registers` in
+  `evals/shelf.json` and printed, held to no floor, and `--measure` counts the weekly's
+  published editions too. Modern B1 is 53 of 90, so Hebrew's Beta is kept in
+  `stages.KEPT`, reviewed by 2026-12-31, until the first generated modern B1 tranche
+  lands. A reader built before this shows its label from its next render.
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
   build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
   again from a worktree (the only way back until a second deploy with targum#876 has
