@@ -330,6 +330,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   published editions too. Modern B1 is 53 of 90, so Hebrew's Beta is kept in
   `stages.KEPT`, reviewed by 2026-12-31, until the first generated modern B1 tranche
   lands. A reader built before this shows its label from its next render.
+- design.md §12 carries David's Aramaic decisions of 2026-10-25, from ling-arc's research
+  into taking a reader from no Aramaic to Onkelos and the Gemara. The climb comes first
+  (Onkelos, its grammar, a bridge into the Talmud, then the daf). Aramaic gets a ladder
+  counted from our own shelf, a Hebrew counterpart on the card drawn only from an
+  alignment held to a floor, and a hard-spot list of seven. There are five lenses (state,
+  suffixes, ד־ and ית, abbreviations written out, the argument's moves), a section for the
+  daf laid out (targum-internal#194), and a new rule: "Aramaic is never written by a
+  model". The three rules this reverses are marked where they stand. Nothing is built
+  yet: Your Progress and the card are unchanged until each piece lands.
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
   build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
   again from a worktree (the only way back until a second deploy with targum#876 has
