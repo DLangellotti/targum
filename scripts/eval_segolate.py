@@ -123,7 +123,9 @@ def main(argv: list[str] | None = None) -> None:
                     strip_taamim(word.text).replace(METEG, "").replace("־", "").replace("/", ""),
                 )
                 tail = syllables(said[at:])
-                penult = tail == 2 or (tail == 1 and furtive(bare) and syllables(said) > 1)
+                # A furtive word's stress before its patah reads as the last run of
+                # vowels, and the run before that is not the rule's pick (qa-claude, #931).
+                penult = (tail == 1 and syllables(said) > 1) if furtive(bare) else tail == 2
                 fired = segolate.penult(bare) is not None
                 counts["words"] += 1
                 if fired:

@@ -48,7 +48,7 @@ HATAMA = "֫"
 # would lose the mark that separates a qamats gadol from a qamats qatan. Neither reading of
 # it is a sound, and phonikud says otherwise: fed בָּאָֽרֶץ it answers `baʔaeʁˈets`, with an
 # `e` that is nobody's vowel. It comes off here, on the way to the phonemizer only, where
-# # the text the reader sees is not what is being changed. What that cost was the stress on a
+# the text the reader sees is not what is being changed. What that cost was the stress on a
 # verse-final word, which silluq marks and no rule could tell from a meteg. Since
 # `phonikud/4` the annotator says which word is the verse's last (`PAUSE`), and there the
 # last U+05BD is the stress (grammar/8, targum-internal#509, finding 3).

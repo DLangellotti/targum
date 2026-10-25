@@ -467,3 +467,82 @@ def test_a_furtive_patah_is_the_segolate_rules_fifth() -> None:
     assert penult("לוֹקֵחַ") == 2
     # Not a furtive patah: the patah under the letter before, and a bare guttural.
     assert penult("פָּתַח") is None
+
+
+# --- Review of #931 (ling-he, qa-claude, 2026-10-25) -----------------------------------
+
+
+def test_a_hifil_whose_he_dicta_split_off_stays_a_hifil() -> None:
+    """Zevachim's הֶעֱלָה "offered up", which DICTA cut ה + עלה: its ה is the hif'il's."""
+    from targum.annotate.dicta import _tokens
+
+    (token,) = _tokens(_said(("העלה", "העלה", "VERB", ("ה", "עלה"))))
+    assert token.lemma == "העלה"
+    (token,) = _tokens(_said(("עלו", "העלה", "VERB", ("עלו",))))
+    assert token.lemma == "עלה", "without the split ה it is still the qal"
+
+
+def test_a_listed_hifil_refuses_where_dicta_split_off_its_he() -> None:
+    from targum.annotate.dicta import _tokens
+
+    (token,) = _tokens(_said(("הביא", "הביא", "VERB", ("ה", "ביא"))))
+    assert (token.binyan, token.root) == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pointed", "said"),
+    [
+        # The surface rule fired on the bare text; with no holam the marks undo it.
+        ("שבה", "שׁוּבָה", "שובה"),
+        ("חצה", "חוּצָה", "חוצה"),
+        ("חשה", "ח֖וּשָׁה", "חושה"),
+        ("כרת", "כַּוֶּרֶת", "כורת"),
+        ("ילד", "יִוָּלֵד", "יולד"),
+        ("סמא", "סוּמָא", "סומא"),
+        # A holam, but not a participle's vowel after it: the invented יפך and אפך.
+        ("יפך", "יוֹפַךְ", "יופך"),
+        ("אפך", "אוֹפָךְ", "אופך"),
+        # With a holam the participle stands, as grammar/7's present rule had it.
+        ("אמר", "אוֹמְרִים", "אמר"),
+        ("לקח", "לוֹקַחַת", "לקח"),
+        ("ידע", "יוֹדַעַת", "ידע"),
+        ("גלל", "גּוֹלֵל", "גלל"),
+        ("הלך", "הוֹלְכִים", "הלך"),
+    ],
+)
+def test_on_pointed_text_the_surface_rule_defers_to_the_marks(
+    lemma: str, pointed: str, said: str
+) -> None:
+    from targum.annotate.dicta import mend_pointed
+
+    assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pointed", "feats", "said"),
+    [
+        # A future, whatever its marks.
+        ("עורר", "יְעוֹרֵר", "UPOS=VERB|Tense=Fut", "עורר"),
+        # A doubled root: the polel past is spelled like the participle.
+        ("עורר", "עוֹרֵר", None, "עורר"),
+        # A patah or hiriq under C2 is not a participle's vowel.
+        ("יופך", "יוֹפַךְ", None, "יופך"),
+        ("תוסף", "תּוֹסִף", None, "תוסף"),
+        # A segol is: the feminine participle.
+        ("אומר", "אוֹמֶרֶת", None, "אמר"),
+    ],
+)
+def test_the_pointed_present_needs_a_participles_vowel_and_no_future(
+    lemma: str, pointed: str, feats: str | None, said: str
+) -> None:
+    from targum.annotate.dicta import mend_pointed
+
+    assert mend_pointed(lemma, "VERB", pointed, feats) == (said, "VERB")
+
+
+@phonikud
+def test_geresh_muqdam_is_believed_nowhere() -> None:
+    """With geresh muqdam unplaced, אָ֝נֹ֗כִי reads its revia, on the penult. Placed, it
+    would be a second accent, and the word would fall to the last syllable: neither the
+    segolate rule nor `PENULT_LETTERS` reaches this word to hide the difference."""
+    assert _say("אָ֝נֹ֗כִי") == "ʔanˈoχi"

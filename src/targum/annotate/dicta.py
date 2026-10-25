@@ -613,7 +613,9 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
         present = "Tense=Pres" in (feats or "") or "Person=1,2,3" in (feats or "")
         # And a word DICTA gave no tense at all, which a past always has (grammar/8).
         tenseless = present or "Tense=" not in (feats or "")
-        lemma = _lemma(lex, surface, seg[-1] if seg else surface, pos, present, tenseless)
+        lemma = _lemma(
+            lex, surface, seg[-1] if seg else surface, pos, present, tenseless, "".join(seg[:-1])
+        )
         offsets = word.get("offsets") or {}
         carried = _carried(seg, pos)
         if carried is not None:
@@ -690,13 +692,18 @@ SELLER_PREFIXES = frozenset("ובהכלמש")
 HOLAM_NOT_QAL = frozenset({"מורה", "מודה", "מועד", "מוסף", "מוקד", "מושב", "מולד"})
 
 
-def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | None]:
+def mend_pointed(
+    lemma: str, pos: str | None, pointed: str, feats: str | None = None
+) -> tuple[str, str | None]:
     """The lemma and pos of a Hebrew word, mended where its own pointing settles what the
     unpointed reading could not; else as given. `pointed` is the word as it stands in
-    the text, prefixes and marks and all."""
+    the text, prefixes and marks and all; `feats` the token's grammar line."""
     if pos == "VERB":
         lemma = _future(lemma, pointed)
         letters = lemma.translate(FINALS)
+        standing = _unsettled_present(letters, pointed, feats)
+        if standing:
+            return standing, pos
         if (
             len(letters) == 4
             and letters[:2] == "מו"
@@ -709,17 +716,9 @@ def mend_pointed(lemma: str, pos: str | None, pointed: str) -> tuple[str, str | 
             # and מוֹכֵר are מצא's and מכר's; a hof'al present is spelled with a shuruq,
             # מוּצָג, and keeps DICTA's (targum-internal#490).
             return lemma[0] + lemma[2:], pos
-        if (
-            _qal_present_shape(letters)
-            and letters[0] != "ה"
-            and letters not in NOT_PARTICIPLE_POINTED
-            and _holam_on_vav(pointed, letters[0])
-        ):
+        if _pointed_present(letters, pointed, feats):
             # A qal present with no Tense, where the marks say qal: pointed Mishnah's
-            # אוֹמֵר and אוֹמְרִים are אמר's, whatever the tense says (grammar/8, #509).
-            # Not an מ first (`HOLAM_NOT_QAL` and the branch above), a נ (נוֹלַד is a
-            # nif'al past), a ו, or a ה (הוֹדָה is a hif'il past). A shuruq (אוּכַל, מוּצָג)
-            # is not a holam.
+            # אוֹמֵר and אוֹמְרִים are אמר's (grammar/8, #509). See `_pointed_present`.
             return lemma[0] + lemma[2:], pos
     if lemma != MISREAD_SELLER or not HOLAM_AFTER_MEM.search(pointed):
         return lemma, pos
@@ -748,19 +747,97 @@ HIRIQ = "\u05b4"
 SEGOL = "\u05b6"
 
 
-def _holam_on_vav(pointed: str, first: str) -> bool:
-    """Whether the vav after `first` in the pointed word carries a holam: אוֹמֵר, not
-    אוּמַר. Searched past the word's prefixes, so וְהָאוֹמְרִים is asked too."""
+# The vowels a qal participle puts under its second root letter: אוֹמֵר, יוֹשֶׁבֶת, רוֹאֶה,
+# and a shva or hataf before an ending, אוֹמְרִים, בּוֹחֲרִים. A patah there only before a
+# guttural, in the feminine לוֹקַחַת, יוֹדַעַת. Otherwise a patah, hiriq or qamats is
+# something else: יוֹפַךְ, אוֹפָךְ, תּוֹסִף, נוֹלַד (ling-he on #931).
+PARTICIPLE_VOWELS = frozenset("\u05b5\u05b6\u05b0\u05b1\u05b2\u05b3")
+
+
+def _pointed_present(letters: str, pointed: str, feats: str | None = None) -> bool:
+    """Whether a pointed verb with a C + ו + C + C lemma is that qal participle, by its
+    marks: a holam on the vav after C1 and a participle's vowel under the next letter.
+
+    Not a ה first (הוֹדָה is a hif'il past), and none of `_qal_present_shape`'s. Not a
+    future, whatever its marks (יְעוֹרֵר), nor a doubled root, whose polel past is spelled
+    like the participle (עוֹרֵר, 1 Chr 11:20)."""
+    return (
+        _qal_present_shape(letters)
+        and letters[0] != "ה"
+        and letters[2] != letters[3]
+        and letters not in NOT_PARTICIPLE_POINTED
+        and "Tense=Fut" not in (feats or "")
+        and _holam_on_vav(pointed, letters[0])
+    )
+
+
+def _after_holam(pointed: str, first: str) -> str | None:
+    """What the vav after `first` says: None where there is no such vav with a holam
+    (אוּמַר, שׁוּבָה), "participle" where the letter after it carries a participle's
+    vowel, "not" where it carries a vowel no participle has there (יוֹפַךְ, אוֹפָךְ,
+    תּוֹסִף), and "" where it says neither. Searched past the word's prefixes, so
+    וְהָאוֹמְרִים is asked too.
+
+    A participle's vowel is a tsere, segol, shva or hataf (`PARTICIPLE_VOWELS`), a patah
+    before a guttural (the feminine לוֹקַחַת, יוֹדַעַת), or a qamats before ה (the III-he
+    feminine עוֹלָה, רוֹאָה)."""
     letters: list[tuple[str, str]] = []
     for char in pointed:
         if "א" <= char <= "ת":
             letters.append((char, ""))
         elif "\u0591" <= char <= "\u05c7" and letters:
             letters[-1] = (letters[-1][0], letters[-1][1] + char)
-    for (letter, _), (vav, marks) in zip(letters, letters[1:], strict=False):
-        if letter == first and vav == "ו" and ("\u05b9" in marks or "\u05ba" in marks):
-            return True
-    return False
+    for at in range(len(letters) - 2):
+        (letter, _), (vav, marks), (_, after) = letters[at : at + 3]
+        if letter != first or vav != "ו" or not ("\u05b9" in marks or "\u05ba" in marks):
+            continue
+        following = letters[at + 3][0] if at + 3 < len(letters) else ""
+        if PARTICIPLE_VOWELS & set(after):
+            return "participle"
+        if "\u05b7" in after:
+            return "participle" if following in "חע" else "not"
+        if "\u05b8" in after:
+            return "participle" if following == "ה" else "not"
+        if "\u05b4" in after:
+            return "not"
+        return ""
+    return None
+
+
+def _holam_on_vav(pointed: str, first: str) -> bool:
+    """Whether the vav after `first` carries a holam and the letter after it a
+    participle's vowel: אוֹמֵר, not אוּמַר or יוֹפַךְ. See `_after_holam`."""
+    return _after_holam(pointed, first) == "participle"
+
+
+def _unsettled_present(letters: str, pointed: str, feats: str | None) -> str | None:
+    """The word itself, where `_surface_present` made its lemma and the marks do not
+    show a participle: no holam on the vav after C1, or no participle's vowel after it
+    (`_holam_on_vav`); else None.
+
+    DICTA is handed the bare text, so the surface rule fires before any mark is seen:
+    pointed שׁוּבָה "return!" became שבה, חוּצָה "outside" got the root חצה, and כַּוֶּרֶת
+    "beehive" כרת, יוֹפַךְ the invented יפך. Every such word was wrong (ling-he on #931),
+    so there the lemma goes back to the surface DICTA gave. Where the marks show one,
+    the participle stands, as grammar/7's present rule had it (לוֹקַחַת). Not asked about
+    a future or a doubled root, which 3b reaches only without a tense, and whose qal
+    participles (גּוֹלֵל, סוֹבֵב) it gets right."""
+    bare, _ = strip_nikkud(pointed)
+    if bare == pointed:
+        return None
+    for cut in range(min(4, len(bare))):
+        head, base = bare[:cut], bare[cut:]
+        if not set(head) <= set(CLITIC_GLOSSES):
+            break
+        found = _present_stem(base.translate(FINALS))
+        if found is None:
+            continue
+        stem, ending = found
+        if stem[0] + stem[2] + stem[3] != letters.translate(FINALS):
+            continue
+        said = _after_holam(pointed, stem[0])
+        return base if said is None or said == "not" else None
+    return None
 
 
 def _hiriq_yod(pointed: str, last: str) -> bool:
@@ -819,9 +896,11 @@ def _lemma(
     pos: str | None = None,
     present: bool = False,
     tenseless: bool = False,
+    prefix: str = "",
 ) -> str:
     """The dictionary form, corrected where DICTA is reliably wrong or silent. `present`
-    is DICTA's own Tense=Pres on the word; `tenseless` that it said no past or future."""
+    is DICTA's own Tense=Pres on the word; `tenseless` that it said no past or future;
+    `prefix` the letters it split off in front of `base`."""
     lemma = (lex or "").strip()
     if pos == "NUM" and base in TWOS:
         # Before the decline: DICTA declines שתי as often as it misreads it.
@@ -842,7 +921,7 @@ def _lemma(
         # A gap on the card rather than the wrong word's meaning, said with confidence.
         return surface.lower()
     if pos == "VERB":
-        lemma = active(lemma, base, present, tenseless)
+        lemma = active(lemma, base, present, tenseless, prefix)
     if pos == "NOUN":
         lemma = _man_or_woman(lemma, base)
     return OVERRIDES.get(lemma, lemma).lower()
@@ -917,13 +996,21 @@ def _in_order(letters: str, word: str) -> bool:
 NIFAL_KEPT = frozenset("הוינ")
 
 
-def active(lemma: str, base: str, present: bool = False, tenseless: bool = False) -> str:
+def active(
+    lemma: str, base: str, present: bool = False, tenseless: bool = False, prefix: str = ""
+) -> str:
     """A verb's lemma with a nif'al taken off where the word itself shows none, and a
     participle's holam where DICTA filed a present under it."""
     letters = lemma.translate(FINALS)
     if present and _participle(letters, base.translate(FINALS)):
         return lemma[0] + lemma[2:]
-    if letters in HIFIL_LOOKALIKES and _opens_on(base.translate(FINALS), letters[1]):
+    if (
+        letters in HIFIL_LOOKALIKES
+        and _opens_on(base.translate(FINALS), letters[1])
+        # A ה DICTA split off as the article is the hif'il's own: Zevachim's הֶעֱלָה,
+        # cut ה + עלה, is "offered up" (ling-he on #931).
+        and not prefix.endswith("ה")
+    ):
         # The qal of a III-he root, filed under its hif'il: רָאִיתִי is ראה's.
         return lemma[1:]
     # Only where DICTA said no past: דובר and בוצע are pu'al pasts in the same letters,
@@ -993,7 +1080,16 @@ def _surface_present(letters: str, word: str) -> str | None:
     or the pi'el's present, and נ + ו + C + C a nif'al past (נולד). A ה first only with a
     plural ending: הולכים is הלך's, and a ה + ו + C + C with none or with ה or ת is a
     hof'al or hif'il past as often (הוצג, הוצגה, הודה)."""
-    if letters != word or word in NOT_PARTICIPLE:
+    if letters != word:
+        return None
+    found = _present_stem(word)
+    return found[0][0] + found[0][2] + found[0][3].translate(ENDINGS) if found else None
+
+
+def _present_stem(word: str) -> tuple[str, str] | None:
+    """The C + ו + C + C stem of a present and the ending taken off it, or None. See
+    `_surface_present`."""
+    if word in NOT_PARTICIPLE:
         return None
     for ending in PRESENT_ENDINGS:
         if not word.endswith(ending) or (ending == "ת" and word.endswith("ות")):
@@ -1004,7 +1100,7 @@ def _surface_present(letters: str, word: str) -> str | None:
             continue
         if stem[0] == "ה" and ending not in ("ימ", "ות"):
             continue
-        return stem[0] + stem[2] + stem[3].translate(ENDINGS)
+        return stem, ending
     return None
 
 
@@ -1146,8 +1242,9 @@ def _hifil_shown(word: str, root: str) -> bool:
     letters = word.translate(FINALS)
     if letters.startswith(("ה", "מ", "לה")):
         return True
+    # A future's prefix, then the yod: not ביא, a qal's letters with the ה cut off.
     last = letters.rfind(root[-1].translate(FINALS))
-    return last > 1 and letters[last - 1] == "י"
+    return letters[:1] in ("א", "י", "ת", "נ") and last > 1 and letters[last - 1] == "י"
 
 
 def _man_or_woman(lemma: str, base: str) -> str:
