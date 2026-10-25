@@ -26,6 +26,9 @@ not have a word for.
 
 from __future__ import annotations
 
+import re
+from typing import NamedTuple
+
 #: Hebrew, by Strong's number. Ordered as the corpus orders them, commonest first, so
 #: the top of this list is the part that matters and the bottom is the tail.
 HEBREW: dict[str, str] = {
@@ -1131,3 +1134,944 @@ def common_gloss(form: str, into: str = "en") -> str:
     if held is None:
         return ""
     return held[1] if into == "ru" else held[0] if into == "en" else ""
+
+
+#: The Talmud's abbreviations, written out (targum-internal G8, ling-arc's plan of
+#: 2026-10-25). About one running word in twenty of Berakhot is written short — א״ר 270
+#: times, א״ל 227, ת״ר 79, ק״ש 77, קמ״ל 23 — and a reader who cannot open them cannot read
+#: the line, however much Aramaic they know. The set is closed and small, which is what
+#: makes it a hand table.
+#:
+#: **From Mielziner's key** (M. Mielziner, *Introduction to the Talmud*, Cincinnati: Bloch,
+#: 1894, Appendix, "Key to the abbreviations used in the Talmud and its commentaries",
+#: pp. 287–293; archive.org `intrototalmud00miel`, not in copyright), read off the page
+#: scans because the OCR of its Hebrew is unusable. `page` is his page, and 0 marks a form
+#: his key does not have that Berakhot uses (ling-arc's counts). Left out of his key on
+#: purpose: what only Rashi, Tosafot, the later codes or a printer's margin abbreviate
+#: (גירסא אחרינא, שלחן ערוך, ברטנורה), and a form that is only another form with ו or ד
+#: before it, which `abbreviation` finds by taking the letter off. Margolis 1910 has no key
+#: of his own; his only rule is that a stroke marks a shortened word, which `_ABBREVIATED`
+#: follows.
+#:
+#: **The sense is ours**, in the house style of the tables above, and Mielziner gives the
+#: full form only. Where one short form stands for several full ones they are all listed,
+#: commonest in the Gemara first, and the sentence decides: ר״י is four different rabbis.
+#: `check` says why ling-arc has to look at an entry beyond reading it.
+class Abbreviation(NamedTuple):
+    """One short form: every full form it can stand for, with what each means."""
+
+    readings: tuple[tuple[str, str], ...]
+    #: The page of Mielziner's key it is on, or 0 where it is not in his key.
+    page: int
+    #: Why ling-arc must check it beyond reading it, or "".
+    check: str = ""
+
+    @property
+    def to_check(self) -> str:
+        """Every reason this entry needs ling-arc: its own, several readings, or no source."""
+        reasons = [self.check] if self.check else []
+        if len(self.readings) > 1:
+            reasons.append("several readings: the sentence decides")
+        if not self.page:
+            reasons.append("not in Mielziner's key")
+        return "; ".join(reasons)
+
+
+def _a(page: int, *readings: tuple[str, str], check: str = "") -> Abbreviation:
+    return Abbreviation(tuple(readings), page, check)
+
+
+TALMUD_ABBREVIATIONS: dict[str, Abbreviation] = {
+    # א
+    "א״א": _a(
+        287,
+        ("אי אפשר", "it is impossible"),
+        ("אי אמרת", "if you say"),
+        ("או אינו", "or perhaps it is not"),
+        ("אשת איש", "a married woman"),
+        ("אברהם אבינו", "Abraham our father"),
+    ),
+    "אא״ב": _a(287, ("אי אמרת בשלמא", "granted, if you say")),
+    "אא״כ": _a(287, ("אלא אם כן", "unless")),
+    "א״ב": _a(
+        287,
+        ("איכא בינייהו", "there is [a difference] between them"),
+        ("אין בו", "there is not in it"),
+    ),
+    "אב״א": _a(287, ("אי בעית אימא", "if you like, say [another answer]")),
+    "איב״א": _a(287, ("אי בעית אימא", "if you like, say [another answer]")),
+    "איבע״א": _a(287, ("אי בעית אימא", "if you like, say [another answer]")),
+    "אב״ד": _a(287, ("אב בית דין", "head of the court")),
+    "אב״ע": _a(287, ("אלעזר בן עזריה", "[R.] Elazar ben Azariah")),
+    "א״ד": _a(287, ("איכא דאמרי", "some say")),
+    "אדה״ר": _a(287, ("אדם הראשון", "the first man; Adam")),
+    "אדר׳": _a(287, ("אדרבה", "on the contrary")),
+    "א״ה": _a(
+        287,
+        ("אי הכי", "if so"),
+        ("אפילו הכי", "even so"),
+        ("אומות העולם", "the nations of the world"),
+    ),
+    "אה״נ": _a(287, ("אין הכי נמי", "yes, that is so [a concession]")),
+    "או״א": _a(
+        287,
+        ("אב ואם", "father and mother"),
+        ("אחד ואחד", "each one; both alike"),
+        check="Mielziner prints the form as א״וא; filed as או״א",
+    ),
+    "אוה״ע": _a(287, ("אומות העולם", "the nations of the world")),
+    "או״נ": _a(287, ("אוכל נפש", "food for a person [festival cooking]")),
+    "א״ז": _a(287, ("את זה", "this [as object]")),
+    "א״ח": _a(
+        287,
+        ("אינו חייב", "he is not liable"),
+        check="Mielziner also gives אורח חיים, the later code, left out",
+    ),
+    "אח״ז": _a(287, ("אחר זה", "after this")),
+    "אח״כ": _a(287, ("אחר כך", "afterwards")),
+    "א״י": _a(287, ("ארץ ישראל", "the Land of Israel")),
+    "א״כ": _a(287, ("אם כן", "if so")),
+    "אכה״ג": _a(287, ("אנשי כנסת הגדולה", "the men of the Great Assembly")),
+    "אכ״כ": _a(287, ("אין כתיב כאן", "it is not written here")),
+    "אכ״ע": _a(
+        287,
+        ("אכולי עלמא", "according to everyone"),
+        check="the scan reads אבולי עלמא, taken as a misprint for אכולי",
+    ),
+    "א״ל": _a(
+        287,
+        ("אמר ליה", "he said to him"),
+        ("אמרו ליה", "they said to him"),
+        ("אמר להו", "he said to them"),
+        ("אית ליה", "he holds"),
+        ("איכא למימר", "one can say"),
+        ("אי לימא", "if you say"),
+    ),
+    "אלת״ה": _a(287, ("אי לא תימא הכי", "if you do not say so")),
+    "א״מ": _a(287, ("אמר מר", "the master said [a quoted line taken up]")),
+    "אמ״ה": _a(
+        287,
+        ("אלהינו מלך העולם", "our God, king of the world"),
+        ("אבר מן החי", "a limb from a living animal"),
+    ),
+    "א״נ": _a(287, ("אי נמי", "or else; alternatively")),
+    "א״ע": _a(287, ("את עצמו", "himself")),
+    "אע״ג": _a(287, ("אף על גב", "although; even though")),
+    "אע״פ": _a(287, ("אף על פי", "although; even though")),
+    "אעפ״כ": _a(287, ("אף על פי כן", "nevertheless")),
+    "אפ״ה": _a(287, ("אפילו הכי", "even so")),
+    "אפי׳": _a(287, ("אפילו", "even")),
+    "א״צ": _a(287, ("אינו צריך", "he need not; it is unnecessary")),
+    "אצ״ל": _a(287, ("אין צריך לומר", "needless to say")),
+    "א״ק": _a(287, ("אמר קרא", "the verse says")),
+    "א״ר": _a(287, ("אמר רבי", "Rabbi [so-and-so] said"), ("אמר רב", "Rav said")),
+    "א״ש": _a(
+        287,
+        ("אתי שפיר", "it fits well"),
+        ("אמר שמואל", "Shmuel said"),
+    ),
+    "א״ת": _a(287, ("אם תאמר", "if you say")),
+    "את״ל": _a(287, ("אם תמצא לומר", "if you should say; granting that")),
+    # ב
+    "ב״א": _a(
+        287,
+        ("בני אדם", "people"),
+        ("בנין אב", "a prototype [a rule of interpretation]"),
+    ),
+    "בא״ד": _a(287, ("באותו דבר", "in the same matter")),
+    "בא״י": _a(
+        287,
+        ("בארץ ישראל", "in the Land of Israel"),
+        ("ברוך אתה ה׳", "blessed are You, LORD [a blessing's formula]"),
+    ),
+    "ב״ב": _a(
+        287,
+        ("בבא בתרא", "Bava Batra [the tractate]"),
+        ("בעל בית", "householder"),
+    ),
+    "בב״ח": _a(
+        287,
+        ("בר בר חנה", "bar bar Hana [Rabbah bar bar Hana]"),
+        ("בשר בחלב", "meat with milk"),
+    ),
+    "ב״ד": _a(287, ("בית דין", "court")),
+    "בד״א": _a(287, ("במה דברים אמורים", "when does this apply?")),
+    "ב״ה": _a(
+        287,
+        ("בית הלל", "the school of Hillel"),
+        ("ברוך הוא", "blessed be He"),
+        ("בעל הבית", "householder"),
+        ("בית המקדש", "the Temple"),
+    ),
+    "בה״א": _a(287, ("בית הלל אומרים", "the school of Hillel say")),
+    "בהכ״נ": _a(0, ("בית הכנסת", "synagogue")),
+    "בה״כ": _a(287, ("בית הכנסת", "synagogue")),
+    "בה״מ": _a(
+        287,
+        ("ברכת המזון", "grace after meals"),
+        ("בית המקדש", "the Temple"),
+        ("בית המדרש", "the house of study"),
+    ),
+    "בהמ״ד": _a(287, ("בית המדרש", "the house of study")),
+    "בהמ״ק": _a(287, ("בית המקדש", "the Temple")),
+    "ב״ו": _a(287, ("בשר ודם", "flesh and blood; a human being")),
+    "ב״ח": _a(
+        287,
+        ("בעל חוב", "creditor"),
+        ("בעלי חיים", "animals"),
+    ),
+    "בחש״מ": _a(287, ("בחולו של מועד", "on the intermediate days of a festival")),
+    "בכ״מ": _a(287, ("בכל מקום", "everywhere; in every case")),
+    "בלא״ה": _a(288, ("בלאו הכי", "anyway; even without that")),
+    "ב״מ": _a(288, ("בבא מציעא", "Bava Metzia [the tractate]")),
+    "במ״מ": _a(
+        288,
+        ("במה מצינו", "as we find [an inference from a like case]"),
+        ("בורא מיני מזונות", "who creates kinds of food [a blessing]"),
+    ),
+    "בנ״ד": _a(288, ("בנידון דידן", "in our case")),
+    "בע״ה": _a(288, ("בעל הבית", "householder")),
+    "בעה״ב": _a(0, ("בעל הבית", "householder")),
+    "בעה״ז": _a(288, ("בעולם הזה", "in this world")),
+    "בע״כ": _a(288, ("בעל כרחו", "against his will")),
+    "בע״פ": _a(288, ("בעל פה", "by heart; orally")),
+    "בפ״א": _a(288, ("בורא פרי האדמה", "who creates the fruit of the ground [a blessing]")),
+    "בפ״נ": _a(
+        288,
+        ("בפני נכתב ובפני נחתם", "it was written before me and signed before me [a get]"),
+    ),
+    "ב״ק": _a(288, ("בבא קמא", "Bava Kamma [the tractate]")),
+    "ב״ש": _a(288, ("בית שמאי", "the school of Shammai")),
+    "בש״א": _a(288, ("בית שמאי אומרים", "the school of Shammai say")),
+    "בש״ר": _a(288, ("בשם רבי", "in the name of Rabbi [so-and-so]")),
+    # ג
+    "ג״ד": _a(288, ("גזר דין", "verdict; sentence")),
+    "גה״נ": _a(288, ("גיד הנשה", "the sciatic nerve")),
+    "ג״ז": _a(288, ("גם זה", "this too")),
+    "גז״ש": _a(288, ("גזירה שוה", "an analogy from a shared word [a rule of interpretation]")),
+    "ג״ש": _a(288, ("גזירה שוה", "an analogy from a shared word [a rule of interpretation]")),
+    "ג״ח": _a(288, ("גמילות חסדים", "acts of kindness")),
+    "ג״כ": _a(288, ("גם כן", "also")),
+    "גמ׳": _a(288, ("גמרא", "the Gemara")),
+    "ג״ע": _a(
+        288,
+        ("גלוי עריות", "forbidden sexual relations"),
+        ("גן עדן", "the Garden of Eden; paradise"),
+    ),
+    "ג״פ": _a(288, ("ג׳ פעמים", "three times")),
+    # ד
+    "ד״א": _a(
+        288,
+        ("דבר אחר", "another interpretation"),
+        ("דרך ארץ", "proper conduct; worldly ways"),
+        check="דרך ארץ is not in Mielziner's key",
+    ),
+    "דא״א": _a(288, ("דאי אפשר", "for it is impossible")),
+    "דאל״כ": _a(288, ("דאם לא כן", "for if not so")),
+    "דאלת״ה": _a(288, ("דאי לא תימא הכי", "for if you do not say so")),
+    "דאת״ל": _a(288, ("דאם תמצא לומר", "for if you should say")),
+    "דה״א": _a(288, ("דהוה אמינא", "for I would have thought")),
+    "דה״ה": _a(288, ("דהוא הדין", "for the same applies")),
+    "דה״ל": _a(288, ("דהוה ליה", "for it is; for he had")),
+    "דהל״ל": _a(288, ("דהוה ליה למימר", "for he should have said")),
+    "דה״מ": _a(288, ("דהוה מצי", "for he could have")),
+    "דהמ״ל": _a(288, ("דהוה מצי למימר", "for he could have said")),
+    "דה״ק": _a(288, ("דהכי קאמר", "for this is what he means")),
+    "דכ״ע": _a(288, ("דכולי עלמא", "of everyone; all agree that")),
+    "ד״מ": _a(288, ("דיני ממונות", "monetary cases")),
+    "ד״נ": _a(288, ("דיני נפשות", "capital cases")),
+    "דמ״ד": _a(288, ("דמאן דאמר", "of the one who says")),
+    "דמה״ט": _a(288, ("דמהאי טעמא", "for this reason")),
+    "דמ״מ": _a(288, ("דמכל מקום", "for in any case")),
+    "דנ״מ": _a(288, ("דנפקא מיניה", "from which follows [a practical difference]")),
+    "ד״ס": _a(288, ("דברי סופרים", "a rabbinic rule [words of the scribes]")),
+    "דע״כ": _a(288, ("דעל כרחך", "for necessarily")),
+    "דעכ״פ": _a(288, ("דעל כל פנים", "for at any rate")),
+    "דקי״ל": _a(288, ("דקיימא לן", "for we hold")),
+    "דקס״ד": _a(288, ("דקא סלקא דעתך", "for you might have thought")),
+    "ד״ת": _a(
+        288,
+        ("דבר תורה", "Torah law; a word of Torah"),
+        ("דין תורה", "the law of the Torah"),
+    ),
+    "דת״ר": _a(288, ("דתנו רבנן", "as the rabbis taught")),
+    # ה
+    "ה׳": _a(0, ("השם", "the LORD [the divine name]")),
+    "ה״א": _a(288, ("הוה אמינא", "I would have thought")),
+    "הב״ע": _a(288, ("הכא במאי עסקינן", "what case are we dealing with here?")),
+    "הקב״ה": _a(289, ("הקדוש ברוך הוא", "the Holy One, blessed be He")),
+    "הב״ה": _a(288, ("הקדוש ברוך הוא", "the Holy One, blessed be He")),
+    "ה״ג": _a(
+        288,
+        ("האי גוונא", "a case like this"),
+        ("הכי גרסינן", "this is how we read [the text]"),
+        ("הלכות גדולות", "Halakhot Gedolot [the book]"),
+    ),
+    "ה״ד": _a(288, ("היכי דמי", "what is the case?; how so?")),
+    "ה״ה": _a(
+        288,
+        ("הוא הדין", "the same applies"),
+        ("הרי הוא", "behold, he is"),
+    ),
+    "הה״ד": _a(288, ("הדא הוא דכתיב", "this is what is written")),
+    "הו״מ": _a(288, ("הוה מצי", "he could have")),
+    "ה״ז": _a(288, ("הרי זה", "this is; he is")),
+    "הז״ג": _a(288, ("הזמן גרמא", "bound to a time [a commandment]")),
+    "ה״ט": _a(288, ("האי טעמא", "this reason")),
+    "ה״ל": _a(288, ("הוה ליה", "it is; it amounts to")),
+    "הל׳": _a(288, ("הלכה", "a law; the law")),
+    "הל״ל": _a(288, ("הוה ליה למימר", "he should have said")),
+    "הל״מ": _a(288, ("הלכה למשה מסיני", "a law given to Moses at Sinai")),
+    "ה״מ": _a(
+        288,
+        ("הני מילי", "these words [apply]; this holds"),
+        ("הוה מצי", "he could have"),
+    ),
+    "המ״ל": _a(288, ("הוה מצי למימר", "he could have said")),
+    "המד״א": _a(288, ("היך מה דאת אמר", "as it is said [elsewhere]")),
+    "המע״ה": _a(289, ("המוציא מחבירו עליו הראיה", "the claimant bears the burden of proof")),
+    "ה״נ": _a(
+        289,
+        ("הכי נמי", "so too"),
+        ("הכא נמי", "here too"),
+    ),
+    "הנ״מ": _a(
+        289,
+        ("הני מילי", "these words [apply]; this holds"),
+        ("הכי נמי מסתברא", "so too it stands to reason"),
+    ),
+    "העה״ב": _a(289, ("העולם הבא", "the world to come")),
+    "העוה״ב": _a(289, ("העולם הבא", "the world to come")),
+    "העוה״ז": _a(289, ("העולם הזה", "this world")),
+    "הפ״נ": _a(289, ("הפרת נדרים", "the annulment of vows")),
+    "ה״ק": _a(289, ("הכי קאמר", "this is what he means")),
+    # ו
+    "וגו׳": _a(289, ("וגומר", "and so on [the verse continues]")),
+    "וכו׳": _a(289, ("וכולו", "and so on")),
+    "וכ״ת": _a(289, ("וכי תימא", "and if you say")),
+    # ז
+    "ז״א": _a(
+        289,
+        ("זה אינו", "this is not so"),
+        ("זה אומר", "this one says"),
+    ),
+    "זא״ז": _a(
+        289,
+        ("זה אחר זה", "one after the other"),
+        ("זה את זה", "one another"),
+    ),
+    "זב״ז": _a(289, ("זה בזה", "one with the other; mixed together")),
+    "זו״ז": _a(289, ("זה וזה", "both")),
+    "זוז״ג": _a(289, ("זה וזה גורם", "both together cause it")),
+    "ז״ל": _a(
+        289,
+        ("זכרונו לברכה", "of blessed memory"),
+        ("זה לשונו", "this is his wording"),
+    ),
+    "זמ״ג": _a(289, ("זמן גרמא", "bound to a time [a commandment]")),
+    "זע״ז": _a(
+        289,
+        ("זה על זה", "one on the other"),
+        ("זה עם זה", "one with the other"),
+    ),
+    "זש״ה": _a(289, ("זה שאמר הכתוב", "this is what scripture says")),
+    # ח
+    "ח״א": _a(289, ("חד אמר", "one said")),
+    "חה״מ": _a(289, ("חול המועד", "the intermediate days of a festival")),
+    "חוש״מ": _a(289, ("חולו של מועד", "the intermediate days of a festival")),
+    "ח״ו": _a(289, ("חס ושלום", "heaven forbid")),
+    "חו״ל": _a(289, ("חוצה לארץ", "outside the Land [of Israel]")),
+    "חז״ל": _a(289, ("חכמינו זכרונם לברכה", "our sages of blessed memory")),
+    "חכ״א": _a(289, ("חכמים אומרים", "the sages say")),
+    "ח״ל": _a(
+        289,
+        ("חוץ לארץ", "outside the Land [of Israel]"),
+        ("חל להיות", "fell on [a date]"),
+    ),
+    "חמוה״ק": _a(
+        289, ("חסורי מחסרא והכי קתני", "something is missing, and this is what it teaches")
+    ),
+    "ח״נ": _a(289, ("חצי נזק", "half damages")),
+    "חש״ו": _a(289, ("חרש שוטה וקטן", "a deaf-mute, an imbecile and a minor")),
+    "חשו״ק": _a(289, ("חרש שוטה וקטן", "a deaf-mute, an imbecile and a minor")),
+    # ט
+    "ט״ב": _a(289, ("תשעה באב", "the Ninth of Av")),
+    "טב״י": _a(289, ("טבול יום", "one who immersed today [and awaits nightfall]")),
+    "ט״מ": _a(290, ("טעמא מאי", "what is the reason?")),
+    # י
+    "י״א": _a(290, ("יש אומרים", "some say")),
+    "י״ב": _a(290, ("יש בו", "there is in it")),
+    "י״ח": _a(290, ("ידי חובתו", "[fulfils] his obligation")),
+    "יד״ח": _a(290, ("ידי חובתו", "[fulfils] his obligation")),
+    "יד״ש": _a(290, ("ידי שמים", "[his duty] before Heaven")),
+    "יה״כ": _a(290, ("יום הכפורים", "the Day of Atonement")),
+    "יוה״כ": _a(290, ("יום הכפורים", "the Day of Atonement")),
+    "יהר״מ": _a(290, ("יהי רצון מלפניך", "may it be Your will")),
+    "י״ט": _a(290, ("יום טוב", "a festival day")),
+    "יו״ט": _a(290, ("יום טוב", "a festival day")),
+    "י״נ": _a(290, ("יין נסך", "libation wine [of idolaters]")),
+    "י״ל": _a(290, ("יש לומר", "one may say")),
+    "יצה״ר": _a(290, ("יצר הרע", "the evil inclination")),
+    "יצ״ט": _a(290, ("יצר טוב", "the good inclination")),
+    "יצ״מ": _a(290, ("יציאת מצרים", "the exodus from Egypt")),
+    "י״ש": _a(290, ("ירא שמים", "God-fearing"), ("יראת שמים", "fear of Heaven")),
+    "ית״ש": _a(290, ("יתברך שמו", "blessed be His name")),
+    # כ
+    "כ״א": _a(
+        290,
+        ("כל אחד", "each one"),
+        ("כי אם", "but only; except"),
+    ),
+    "כאו״א": _a(290, ("כל אחד ואחד", "each and every one")),
+    "כ״ג": _a(290, ("כהן גדול", "the high priest")),
+    "כה״ג": _a(
+        290,
+        ("כהאי גוונא", "in a case like this"),
+        ("כהן הגדול", "the high priest"),
+        ("כנסת הגדולה", "the Great Assembly"),
+    ),
+    "כו׳": _a(290, ("כולו", "and so on")),
+    "כ״ז": _a(
+        290,
+        ("כל זמן", "as long as"),
+        ("כל זה", "all this"),
+        ("כלאי זרעים", "forbidden mixtures of seeds"),
+    ),
+    "כיו״ב": _a(290, ("כיוצא בו", "the like; similarly")),
+    "כ״כ": _a(
+        290,
+        ("כל כך", "so much"),
+        ("כמו כן", "likewise"),
+        ("כלאי כרם", "forbidden mixtures in a vineyard"),
+    ),
+    "כ״מ": _a(290, ("כל מקום", "every place; wherever")),
+    "כמ״ד": _a(290, ("כמאן דאמר", "like the one who says")),
+    "כמ״ש": _a(290, ("כמו שכתוב", "as it is written")),
+    "כ״ע": _a(290, ("כולי עלמא", "everyone; all agree")),
+    "כעל״פ": _a(290, ("כולי עלמא לא פליגי", "nobody disagrees")),
+    "כ״פ": _a(
+        290,
+        ("כי פליגי", "where they disagree"),
+        ("כמה פעמים", "several times"),
+    ),
+    "כ״ש": _a(
+        290,
+        ("כל שכן", "all the more so"),
+        ("כל שהוא", "any amount at all"),
+    ),
+    # ל
+    "ל״א": _a(290, ("לישנא אחרינא", "another version")),
+    "להד״מ": _a(290, ("לא היו דברים מעולם", "it never happened [a denial]")),
+    "לכ״ע": _a(290, ("לכולי עלמא", "according to everyone")),
+    "לכ״ש": _a(290, ("לא כל שכן", "how much more so")),
+    "ל״ל": _a(
+        290,
+        ("למה לי", "why do I need [it]?"),
+        ("לית ליה", "he does not hold"),
+    ),
+    "ל״מ": _a(290, ("לא מיבעיא", "it goes without saying")),
+    "למ״ד": _a(290, ("למאן דאמר", "according to the one who says")),
+    "לעה״ב": _a(290, ("לעולם הבא", "to the world to come")),
+    "לע״ז": _a(290, ("לשון עם זר", "a foreign language [a vernacular gloss]")),
+    "לע״ל": _a(290, ("לעתיד לבא", "in the time to come")),
+    "ל״פ": _a(290, ("לא פליגי", "they do not disagree")),
+    "ל״ק": _a(290, ("לא קשיא", "it is no difficulty")),
+    "לק״מ": _a(290, ("לא קשיא מידי", "it is no difficulty at all")),
+    "ל״ש": _a(
+        290,
+        ("לא שנא", "it makes no difference"),
+        ("לא שמיה", "it is not called"),
+    ),
+    "לשה״ר": _a(290, ("לשון הרע", "slander")),
+    "לש״ש": _a(290, ("לשם שמים", "for the sake of Heaven")),
+    "ל״ת": _a(290, ("לא תעשה", "a prohibition [a negative commandment]")),
+    # מ
+    "מ׳": _a(291, ("משנה", "the Mishnah"), check="a single letter with a stroke: a number too"),
+    "מ״א": _a(291, ("מי אמרינן", "do we say?")),
+    "מא״ל": _a(291, ("מאי איכא למימר", "what is there to say?")),
+    "מבע״י": _a(291, ("מבעוד יום", "while it is still day")),
+    "מ״ד": _a(
+        291,
+        ("מאן דאמר", "the one who says"),
+        ("מאי דכתיב", "what is [meant by] what is written"),
+    ),
+    "מד״ס": _a(291, ("מדברי סופרים", "by rabbinic law")),
+    "מ״ה": _a(
+        291,
+        ("משום הכי", "therefore"),
+        ("מדינת הים", "overseas"),
+    ),
+    "מה״ד": _a(291, ("מדת הדין", "the attribute of justice")),
+    "מה״מ": _a(291, ("מנא הני מילי", "from where are these words [derived]?")),
+    "מה״ס": _a(291, ("מהר סיני", "from Mount Sinai")),
+    "מה״ש": _a(291, ("מלאכי השרת", "the ministering angels")),
+    "מה״ת": _a(291, ("מן התורה", "by Torah law")),
+    "מו״מ": _a(
+        291,
+        ("משא ומתן", "negotiation; dealings"),
+        ("מקח וממכר", "buying and selling"),
+    ),
+    "מח״ל": _a(291, ("מחוצה לארץ", "from outside the Land")),
+    "מ״ט": _a(291, ("מאי טעמא", "what is the reason?")),
+    "מ״מ": _a(0, ("מכל מקום", "in any case; nevertheless")),
+    "מ״ס": _a(291, ("מר סבר", "one master holds")),
+    "מ״ע": _a(291, ("מצות עשה", "a positive commandment")),
+    "מע״ל": _a(291, ("מעת לעת", "a full day [24 hours]")),
+    "מ״ק": _a(291, ("מועד קטן", "Moed Katan [the tractate]")),
+    "מ״ר": _a(291, ("מדת רחמים", "the attribute of mercy")),
+    "מרע״ה": _a(291, ("משה רבנו עליו השלום", "Moses our teacher, peace be upon him")),
+    "מ״ש": _a(
+        291,
+        ("מאי שנא", "why is it different?"),
+        ("מעשר שני", "the second tithe"),
+        ("מוצאי שבת", "the night after the Sabbath"),
+    ),
+    "מש״ה": _a(291, ("משום הכי", "therefore")),
+    "משו׳": _a(291, ("משום", "because of; in the name of")),
+    "מ״ת": _a(291, ("מתן תורה", "the giving of the Torah")),
+    "מתני׳": _a(291, ("מתניתין", "our Mishnah")),
+    # נ
+    "נ״ח": _a(291, ("נר חנוכה", "the Hanukkah lamp")),
+    "נ״ט": _a(291, ("נותן טעם", "imparts flavour")),
+    "נ״י": _a(291, ("נטילת ידים", "washing the hands")),
+    "נ״ל": _a(
+        291,
+        ("נראה לי", "it seems to me"),
+        ("נאמר למעלה", "said above"),
+    ),
+    "נ״מ": _a(291, ("נפקא מינה", "the practical difference")),
+    "נ״ש": _a(
+        291,
+        ("נזק שלם", "full damages"),
+        ("נר שבת", "the Sabbath lamp"),
+        ("נושא שכר", "a paid bailee"),
+    ),
+    # ס
+    "ס״ד": _a(291, ("סלקא דעתך", "you might think")),
+    "סד״א": _a(291, ("סלקא דעתך אמינא", "I might have thought")),
+    "סו״מ": _a(291, ("סורר ומורה", "the stubborn and rebellious son")),
+    "סי׳": _a(291, ("סימן", "a mnemonic; a sign")),
+    "ס״ל": _a(291, ("סבירא ליה", "he holds")),
+    "ס״נ": _a(291, ("ספק נפשות", "a possible danger to life")),
+    "ס״ס": _a(
+        291,
+        ("סוף סוף", "in the end; after all"),
+        ("ספק ספיקא", "a double doubt"),
+    ),
+    "ס״פ": _a(291, ("סוף פרק", "the end of the chapter")),
+    "ס״ת": _a(291, ("ספר תורה", "a Torah scroll")),
+    "סת״ם": _a(291, ("ספרים תפילין מזוזות", "scrolls, tefillin and mezuzot")),
+    # ע
+    "ע״א": _a(
+        291,
+        ("עבודת אלילים", "idolatry"),
+        ("עמוד א׳", "the first side of a folio"),
+    ),
+    "עאכ״ו": _a(291, ("על אחת כמה וכמה", "how much more so")),
+    "ע״ב": _a(291, ("עמוד ב׳", "the second side of a folio")),
+    "ע״ג": _a(291, ("על גב", "on top of")),
+    "ע״ה": _a(
+        291,
+        ("עם הארץ", "an unlearned person"),
+        ("עליו השלום", "peace be upon him"),
+    ),
+    "עה״ב": _a(291, ("עולם הבא", "the world to come")),
+    "עוה״ב": _a(291, ("עולם הבא", "the world to come")),
+    "עה״ז": _a(292, ("עולם הזה", "this world")),
+    "עוה״ז": _a(292, ("עולם הזה", "this world")),
+    "ע״ז": _a(
+        292,
+        ("עבודה זרה", "idolatry; Avodah Zarah [the tractate]"),
+        ("על זה", "on this"),
+    ),
+    "ע״ח": _a(292, ("ערובי חצרות", "joining of courtyards [an eruv]")),
+    "ע״י": _a(292, ("על ידי", "by means of; through")),
+    "עיו״ט": _a(292, ("ערב יום טוב", "the eve of a festival")),
+    "ע״כ": _a(
+        292,
+        ("על כרחך", "necessarily; perforce"),
+        ("עד כאן", "up to here"),
+        ("על כל", "on every"),
+        ("עבד כנעני", "a Canaanite slave"),
+    ),
+    "עכ״ד": _a(292, ("עד כאן דבריו", "here end his words")),
+    "עכו״ם": _a(292, ("עובד כוכבים ומזלות", "an idolater [worshipper of stars and planets]")),
+    "עכ״ל": _a(292, ("עד כאן לשונו", "here ends his wording")),
+    "עכ״פ": _a(292, ("על כל פנים", "at any rate")),
+    "ע״מ": _a(292, ("על מנת", "on condition that")),
+    "ע״ע": _a(292, ("עבד עברי", "a Hebrew slave")),
+    "ע״פ": _a(
+        292,
+        ("על פי", "according to; by"),
+        ("ערבי פסחים", "the eve of Passover; Arvei Pesahim [the chapter]"),
+    ),
+    "ער״ה": _a(292, ("ערב ראש השנה", "the eve of the New Year")),
+    "ער״ח": _a(292, ("ערב ראש חודש", "the eve of the new month")),
+    "ע״ש": _a(292, ("ערב שבת", "the eve of the Sabbath")),
+    "ע״ת": _a(292, ("ערובי תחומין", "joining of Sabbath limits [an eruv]")),
+    # פ
+    "פ׳": _a(
+        292,
+        ("פרק", "chapter"),
+        ("פרשה", "section; portion"),
+        check="a single letter with a stroke: a number too",
+    ),
+    "פ״א": _a(
+        292,
+        ("פעם אחת", "once"),
+        ("פרק א׳", "chapter one"),
+    ),
+    "פ״ב": _a(
+        292,
+        ("פרק ב׳", "chapter two"),
+        ("פרק בתרא", "the last chapter"),
+    ),
+    "פי׳": _a(292, ("פירוש", "explanation; he explained")),
+    "פס׳": _a(292, ("פסוק", "verse")),
+    "פס״ד": _a(292, ("פסק דין", "a ruling")),
+    "פ״ק": _a(292, ("פרק קמא", "the first chapter")),
+    # צ
+    "צב״ח": _a(292, ("צער בעלי חיים", "the suffering of animals")),
+    "צ״ה": _a(292, ("צד השוה", "the common feature [a rule of interpretation]")),
+    "צה״ש": _a(292, ("צד השוה שבהן", "the feature they share")),
+    "צ״ל": _a(
+        292,
+        ("צריך לומר", "one must say"),
+        ("צריך להיות", "it should read"),
+    ),
+    "צ״ע": _a(292, ("צריך עיון", "it needs study [left open]")),
+    # ק
+    "קה״ת": _a(292, ("קריאת התורה", "the reading of the Torah")),
+    "ק״ו": _a(292, ("קל וחומר", "an argument from minor to major")),
+    "קו״ח": _a(292, ("קל וחומר", "an argument from minor to major")),
+    "קי״ל": _a(292, ("קיימא לן", "we hold")),
+    "ק״ל": _a(
+        292,
+        ("קשיא ליה", "it is difficult for him"),
+        ("קל להבין", "easy to understand"),
+        check="Mielziner gives only קל להבין; קשיא ליה added as the Gemara's commoner use",
+    ),
+    "קמ״ל": _a(292, ("קא משמע לן", "it teaches us [something new]")),
+    "קס״ד": _a(292, ("קא סלקא דעתך", "you might have thought")),
+    "ק״ק": _a(292, ("קדשי קדשים", "most holy offerings")),
+    "ק״ש": _a(292, ("קריאת שמע", "the reading of the Shema")),
+    # ר
+    "ר׳": _a(
+        292,
+        ("רבי", "Rabbi"),
+        ("רב", "Rav"),
+        check="a single letter with a stroke: a number too",
+    ),
+    "ר״א": _a(
+        292,
+        ("רבי אליעזר", "R. Eliezer"),
+        ("רבי אלעזר", "R. Elazar"),
+    ),
+    "ראב״ע": _a(292, ("רבי אלעזר בן עזריה", "R. Elazar ben Azariah")),
+    "רבב״ח": _a(292, ("רבה בר בר חנה", "Rabbah bar bar Hana")),
+    "רבש״ע": _a(292, ("רבונו של עולם", "Master of the world")),
+    "ר״ג": _a(292, ("רבן גמליאל", "Rabban Gamliel")),
+    "ר״ה": _a(
+        292,
+        ("ראש השנה", "the New Year; Rosh Hashanah [the tractate]"),
+        ("רב הונא", "Rav Huna"),
+    ),
+    "רה״י": _a(292, ("רשות היחיד", "a private domain")),
+    "רה״ר": _a(292, ("רשות הרבים", "a public domain")),
+    "ר״ח": _a(
+        292,
+        ("ראש חדש", "the new month"),
+        ("רבי חייא", "R. Hiyya"),
+        ("רבי חנינא", "R. Hanina"),
+        ("רב חסדא", "Rav Hisda"),
+    ),
+    "רחב״א": _a(292, ("רבי חייא בר אבא", "R. Hiyya bar Abba")),
+    "ר״ט": _a(292, ("רבי טרפון", "R. Tarfon")),
+    "ר״י": _a(
+        292,
+        ("רבי יהודה", "R. Yehudah"),
+        ("רבי יוחנן", "R. Yohanan"),
+        ("רבי יהושע", "R. Yehoshua"),
+        ("רבי יצחק", "R. Yitzhak"),
+    ),
+    "ריב״ז": _a(293, ("רבי יוחנן בן זכאי", "R. Yohanan ben Zakkai")),
+    "ריב״ל": _a(293, ("רבי יהושע בן לוי", "R. Yehoshua ben Levi")),
+    "ר״כ": _a(293, ("רב כהנא", "Rav Kahana")),
+    "ר״ל": _a(293, ("ריש לקיש", "Resh Lakish")),
+    "ר״מ": _a(293, ("רבי מאיר", "R. Meir")),
+    "ר״נ": _a(
+        293,
+        ("רב נחמן", "Rav Nahman"),
+        ("רבי נתן", "R. Natan"),
+    ),
+    "ר״ע": _a(293, ("רבי עקיבא", "R. Akiva")),
+    "ר״פ": _a(
+        293,
+        ("רב פפא", "Rav Pappa"),
+        ("ריש פרק", "the beginning of the chapter"),
+    ),
+    "ר״ש": _a(293, ("רבי שמעון", "R. Shimon")),
+    "רשב״א": _a(293, ("רבי שמעון בן אלעזר", "R. Shimon ben Elazar")),
+    "רשב״י": _a(293, ("רבי שמעון בן יוחאי", "R. Shimon bar Yohai")),
+    "רשב״ג": _a(293, ("רבן שמעון בן גמליאל", "Rabban Shimon ben Gamliel")),
+    "רש״י": _a(293, ("רבנו שלמה יצחקי", "Rashi [the commentator]")),
+    "ר״ת": _a(
+        293,
+        ("ראשי תיבות", "an abbreviation [initial letters]"),
+        ("רבנו תם", "Rabbenu Tam [in Tosafot]"),
+    ),
+    # ש
+    "שא״א": _a(293, ("שאי אפשר", "that it is impossible")),
+    "שא״ב": _a(293, ("שאין בו", "that there is not in it")),
+    "שאל״כ": _a(293, ("שאם לא כן", "for if not so")),
+    "שבע״פ": _a(293, ("שבעל פה", "oral")),
+    "ש״ד": _a(
+        293,
+        ("שפיר דמי", "it is permitted; it is fine"),
+        ("שפיכת דמים", "bloodshed"),
+    ),
+    "שהז״ג": _a(293, ("שהזמן גרמא", "that is bound to a time")),
+    "שה״ש": _a(293, ("שיר השירים", "the Song of Songs")),
+    "ש״מ": _a(
+        293,
+        ("שמע מינה", "learn from it [a conclusion]"),
+        ("שכיב מרע", "a person on his deathbed"),
+    ),
+    "שמ״מ": _a(293, ("שמכל מקום", "that in any case")),
+    "שנא׳": _a(293, ("שנאמר", "as it is said")),
+    "שנ׳": _a(293, ("שנאמר", "as it is said")),
+    "ש״ס": _a(293, ("ששה סדרים", "the six orders; the Talmud")),
+    "ש״פ": _a(293, ("שוה פרוטה", "the value of a perutah [the smallest coin]")),
+    "ש״צ": _a(293, ("שליח ציבור", "the prayer leader")),
+    "ש״ש": _a(
+        293,
+        ("שם שמים", "the name of Heaven"),
+        ("שומר שכיר", "a paid bailee"),
+        ("שטר שחרור", "a deed of manumission"),
+    ),
+    "ש״ת": _a(293, ("שומע תפילה", "who hears prayer [a blessing]")),
+    # ת
+    "ת״א": _a(
+        293,
+        ("תניא אידך", "it was taught in another [baraita]"),
+        ("תרגום אונקלוס", "Targum Onkelos"),
+    ),
+    "ת״ב": _a(293, ("תשעה באב", "the Ninth of Av")),
+    "ת״ה": _a(
+        293,
+        ("תחיית המתים", "the resurrection of the dead"),
+        ("תפלת הדרך", "the traveller's prayer"),
+    ),
+    "תו״מ": _a(293, ("תרומה ומעשר", "priestly gifts and tithes")),
+    "תוס׳": _a(293, ("תוספות", "Tosafot")),
+    "ת״ח": _a(
+        293,
+        ("תלמיד חכם", "a Torah scholar"),
+        ("תני חדא", "one [baraita] teaches"),
+    ),
+    "ת״י": _a(293, ("תרגום יונתן", "Targum Jonathan")),
+    "ת״כ": _a(
+        293,
+        ("תורת כהנים", "Torat Kohanim [the Sifra]"),
+        ("תשלומי כפל", "double payment"),
+    ),
+    "תכ״ד": _a(293, ("תוך כדי דיבור", "within the time it takes to speak [a greeting]")),
+    "תנ״ך": _a(293, ("תורה נביאים כתובים", "the Bible [Torah, Prophets, Writings]")),
+    "ת״ל": _a(293, ("תלמוד לומר", "scripture teaches [saying]")),
+    "תנ״ה": _a(293, ("תניא נמי הכי", "it was also taught so [a baraita agrees]")),
+    "ת״ק": _a(293, ("תנא קמא", "the first tanna [the anonymous opening view]")),
+    "תק״ס": _a(293, ("תנא קמא סבר", "the first tanna holds")),
+    "ת״צ": _a(293, ("תענית צבור", "a public fast")),
+    "ת״ר": _a(293, ("תנו רבנן", "the rabbis taught [a baraita]")),
+    "ת״ש": _a(
+        293,
+        ("תא שמע", "come and hear [a source brought as proof]"),
+        ("תחום שבת", "the Sabbath limit"),
+    ),
+    "תשבע״פ": _a(293, ("תורה שבעל פה", "the Oral Torah")),
+    "ת״ת": _a(293, ("תלמוד תורה", "Torah study")),
+}
+
+#: Letters a Talmudic line writes onto an abbreviation, as onto any word: and, of or
+#: which, the, in, to, as, from, that. `וא״ר` is ו + `א״ר`; `דת״ר`, which the table has
+#: whole, is found whole first.
+ABBREVIATION_PREFIXES = "ודהבלכמש"
+
+#: The marks an abbreviation is written with, folded to the two the table uses: gershayim
+#: ״ inside, geresh ׳ at the end. Books, scans and keyboards write them every way.
+_GERSHAYIM = str.maketrans({'"': "״", "”": "״", "“": "״", "'": "׳", "’": "׳", "`": "׳"})
+_ABBREVIATED = re.compile(r"[א-ת]+(?:״[א-ת]+|׳)")
+
+
+def abbreviation(form: str) -> Abbreviation | None:
+    """What a written-short form stands for, or None where this table does not know it.
+
+    The marks are folded, points and trailing punctuation dropped, and then the form is
+    looked up whole, then with up to two of `ABBREVIATION_PREFIXES` taken off the front,
+    so `וא״ר` and `כדאמ״ר` find their entries and no row spells the prefixes out.
+    """
+    text = re.sub(r"[֑-ׇ]", "", (form or "").translate(_GERSHAYIM)).replace("״״", "״")
+    found = _ABBREVIATED.search(text.replace("׳׳", "״"))
+    if found is None:
+        return None
+    word = found.group(0)
+    for cut in range(3):
+        if cut and (len(word) <= cut or word[cut - 1] not in ABBREVIATION_PREFIXES):
+            break
+        held = TALMUD_ABBREVIATIONS.get(word[cut:])
+        if held is not None:
+            return held
+    return None
+
+
+#: The moves a Talmudic argument is made of, in the order a sugya usually makes them
+#: (targum-internal G9). A learner meets these terms as moves, not as words: מיתיבי says
+#: an objection is coming before a word of it is read. The order is the lens's legend.
+MOVES: dict[str, str] = {
+    "source": "brings a text: a Mishnah, a baraita, a verse, a ruling",
+    "question": "asks: what, why, from where, what is the case",
+    "objection": "challenges a statement with a source or a reason",
+    "answer": "resolves the difficulty or restates the claim",
+    "verdict": "closes the exchange: refuted, proven, undecided, the law",
+    "frame": "steers the discussion: who holds what, which version, back to the text",
+}
+
+
+class Term(NamedTuple):
+    """One argument term: the move it makes and what it says."""
+
+    move: str
+    gloss: str
+    #: Why ling-arc must check it beyond reading it, or "".
+    check: str = ""
+
+
+#: The Talmud's argument terms, about sixty, grouped by `MOVES` (targum-internal G9). The
+#: list is ling-arc's Berakhot count (אלא 541, מאי 306, קשיא 92, תניא 76 …) with the terms
+#: Mielziner's "Talmudical terminology" (1894, Part III) sets beside them. A term written
+#: short is also in `TALMUD_ABBREVIATIONS` (ת״ש, מ״ט, קמ״ל, ש״מ), and the lookup answers
+#: either spelling. Unpointed, as the Gemara is printed. Several terms change their move
+#: with the sentence — מאי is a question, and מאי קאמר a restatement; קשיא is a challenge
+#: when it is raised and a verdict when it is left standing — and `check` says so.
+TALMUD_TERMS: dict[str, Term] = {
+    # source
+    "תנן": Term("source", "we learned [in a Mishnah]"),
+    "תניא": Term("source", "it was taught [in a baraita]"),
+    "תנו רבנן": Term("source", "the rabbis taught [a baraita]"),
+    "תני": Term("source", "he taught; recite [a baraita]"),
+    "תנא": Term("source", "a tanna taught [a baraita]; the tanna"),
+    "איתמר": Term("source", "it was said [a ruling of amoraim]"),
+    "מתניתין": Term("source", "our Mishnah"),
+    "דכתיב": Term("source", "as it is written"),
+    "שנאמר": Term("source", "as it is said [a verse, in Hebrew]"),
+    "אמר מר": Term("source", "the master said [a line just quoted, taken up]"),
+    "גופא": Term("frame", "the matter itself [back to a source quoted in passing]"),
+    # question
+    "מאי": Term("question", "what?", check="also opens a restatement: מאי קאמר"),
+    "מהו": Term("question", "what is [the law]?"),
+    "מאי טעמא": Term("question", "what is the reason?"),
+    "היכי דמי": Term("question", "what is the case?; how so?"),
+    "איבעיא להו": Term("question", "they asked [a question left for an answer]"),
+    "בעי": Term("question", "he asked [a question of law]"),
+    "מנא הני מילי": Term("question", "from where are these words [derived]?"),
+    "מנלן": Term("question", "from where do we know it?"),
+    "מאי בינייהו": Term("question", "what is the difference between them?"),
+    "למאי נפקא מינה": Term("question", "what practical difference does it make?"),
+    "מאי שנא": Term("question", "why is it different?"),
+    "הכא במאי עסקינן": Term("question", "with what case are we dealing here?"),
+    "מאי קאמר": Term("question", "what is he saying?"),
+    # objection
+    "מיתיבי": Term("objection", "they objected [from a baraita]"),
+    "איתיביה": Term("objection", "he objected to him [from a source]"),
+    "והתניא": Term("objection", "but surely it was taught [a baraita that contradicts]"),
+    "והאמר": Term("objection", "but surely [so-and-so] said"),
+    "והא": Term("objection", "but surely"),
+    "ורמינהו": Term("objection", "and they set them against each other [a contradiction]"),
+    "קשיא": Term(
+        "objection",
+        "it is difficult; a contradiction",
+        check="a verdict when it closes the exchange unanswered",
+    ),
+    "אמאי": Term("objection", "why? [this ought not to be so]"),
+    "פשיטא": Term("objection", "it is obvious! [why state it?]"),
+    "לימא": Term("objection", "shall we say? [a suggestion usually rejected]"),
+    "השתא": Term("objection", "now if [an a fortiori challenge]"),
+    "אי הכי": Term("objection", "if so"),
+    "וליטעמיך": Term("objection", "and according to your reasoning [turned back on him]"),
+    "ותיפוק ליה": Term("objection", "derive it rather from [another source]"),
+    "תא שמע": Term(
+        "objection",
+        "come and hear [a source brought to settle the question]",
+        check="a proof as often as an objection: the sentence decides",
+    ),
+    # answer
+    "אלא": Term(
+        "answer",
+        "rather; but [the earlier view is withdrawn]",
+        check="also plain 'but' and 'only' inside a sentence",
+    ),
+    "הכי קאמר": Term("answer", "this is what he means"),
+    "לא קשיא": Term("answer", "it is no difficulty"),
+    "כאן": Term("answer", "here … there [two cases told apart]"),
+    "הא": Term(
+        "answer", "this … that [two cases told apart]", check="also plain 'this' and 'behold'"
+    ),
+    "לעולם": Term("answer", "in fact; really [the first reading kept]"),
+    "איבעית אימא": Term("answer", "if you like, say [a second answer]"),
+    "חסורי מחסרא": Term("answer", "something is missing [from the text, and is supplied]"),
+    "מהו דתימא": Term("answer", "you might have said [so it needed stating]"),
+    "צריכא": Term("answer", "it is necessary [to state each case]"),
+    "לא צריכא": Term("answer", "it is needed only [for the case where]"),
+    "שאני": Term("answer", "it is different"),
+    "אין הכי נמי": Term("answer", "yes, that is so [the challenge accepted]"),
+    "אמרי": Term("answer", "they say [an anonymous answer]"),
+    "תרגמה": Term("answer", "he explained it [as referring to]"),
+    # verdict
+    "תיובתא": Term("verdict", "a refutation [the view is refuted]"),
+    "שמע מינה": Term("verdict", "learn from it [the point is proven]"),
+    "תיקו": Term("verdict", "let it stand [the question stays undecided]"),
+    "קא משמע לן": Term("verdict", "it teaches us [the point of the statement]"),
+    "הלכתא": Term("verdict", "the law is"),
+    "והלכתא": Term("verdict", "and the law is"),
+    "קיימא לן": Term("verdict", "we hold"),
+    "מסתברא": Term("verdict", "it stands to reason"),
+    "דיקא נמי": Term("verdict", "it is precise too [the wording supports it]"),
+    "אלא מחוורתא": Term("verdict", "rather, it is clear [the first answer dropped]"),
+    # frame
+    "איכא דאמרי": Term("frame", "some say [another version follows]"),
+    "לישנא אחרינא": Term("frame", "another version"),
+    "במאי קמיפלגי": Term("frame", "about what do they disagree?"),
+    "מר סבר": Term("frame", "one master holds"),
+    "פליגי": Term("frame", "they disagree"),
+    "כולי עלמא": Term("frame", "everyone [all agree]"),
+}
+
+#: The terms by their first word, longest first, so the lookup can try a phrase before the
+#: word that opens it: תנו רבנן before תנו, מאי טעמא before מאי.
+_TERMS_BY_FIRST: dict[str, list[str]] = {}
+for _term in sorted(TALMUD_TERMS, key=lambda t: -len(t.split())):
+    _TERMS_BY_FIRST.setdefault(_term.split()[0], []).append(_term)
+
+
+def argument_term(words: list[str] | tuple[str, ...]) -> tuple[str, Term, int] | None:
+    """The argument term that opens a run of words, and how many words it takes.
+
+    `words` are the Gemara's words from here on, unpointed. The longest term that matches
+    wins (`תנו רבנן` over nothing, `מאי טעמא` over `מאי`). A written-short form answers
+    through its expansion: `ת״ש` is `תא שמע`. Returns the term as filed, its entry and how
+    many of `words` it took, or None where no term opens the run.
+    """
+    if not words:
+        return None
+    first = re.sub(r"[֑-ׇ]", "", words[0])
+    short = abbreviation(first)
+    if short is not None:
+        for full, _ in short.readings:
+            if full in TALMUD_TERMS:
+                return full, TALMUD_TERMS[full], 1
+    plain = [re.sub(r"[֑-ׇ]", "", word) for word in words]
+    for term in _TERMS_BY_FIRST.get(plain[0], []):
+        parts = term.split()
+        if plain[: len(parts)] == parts:
+            return term, TALMUD_TERMS[term], len(parts)
+    return None

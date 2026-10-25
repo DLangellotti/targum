@@ -316,6 +316,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
+  gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
+  (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
+  Targums of the Writings and the Aramaic of Daniel and Ezra, 448,177 words in 43 texts,
+  filed the way the annotator files them. The difficulty measure reads it, so an Aramaic
+  text no longer measures 0: Onkelos's books come out at 9 to 13, Jonathan on the Former
+  Prophets 11 to 14, on the Torah 16 to 20, the Latter Prophets 11 to 28, the Writings 14
+  to 37, and the level map places them. `touchstones.aramaic_ladder` makes those families
+  the rungs, Onkelos first; **the page is not given them yet**, because design.md still
+  says "Aramaic gets no ladder" until ling-arc's change to it merges. The card is
+  untouched: a word of Onkelos still says it is not rated, and nothing is re-annotated.
+  **The Talmud's abbreviations** (`closed.TALMUD_ABBREVIATIONS`, 368 forms from
+  Mielziner's 1894 key, read off the page scans, with every full form and its sense) and
+  **its argument terms** (`closed.TALMUD_TERMS`, 70, each with the move it makes:
+  source, question, objection, answer, verdict, frame), with `abbreviation` and
+  `argument_term` to look them up. Data only, for ling-arc to check; no surface reads them
+  yet. Nothing spent.
 - An older Hebrew says which it is, and the shelf floors count modern Hebrew (David,
   2026-10-25: label only; design.md §12, "An older Hebrew says which it is" and "The
   floors count modern Hebrew"). A revival, rabbinic or medieval Hebrew text is labelled
