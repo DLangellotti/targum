@@ -623,6 +623,33 @@ def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
     assert "once we've measured the library's texts" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
+    # Part 3 says the texts wait on the measuring, not that Aramaic is never placed.
+    assert drawn["next"]["levelEmpty"] == (
+        "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
+    )
+    assert drawn["next"]["level"] == []
+
+
+def test_aramaic_texts_at_your_level_are_listed_once_measured() -> None:
+    """Since targum#936 Aramaic has a ladder, so once its rows are measured part 3 lists
+    the texts at the reader's level as any language does, and no longer says it can't."""
+    drawn = draw(
+        {"targum:vocab:arc": vocab(known=40)},
+        chosen="arc",
+        story={
+            "library": True,
+            "known": 40,
+            "ladder": [{"kind": "onkelos", "name": "onkelos", "state": "here", "share": 92}],
+            "here": 0,
+            "said": "follow",
+            "texts": [{"id": "onkelos-genesis", "title": "אונקלוס בראשית", "known": 92}],
+            "words": [],
+        },
+    )["next"]
+    assert drawn["level"] == [
+        {"text": "אונקלוס בראשית | 92% known", "href": "/library?k=k#onkelos-genesis"}
+    ]
+    assert drawn["levelEmpty"] == ""
 
 
 def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:

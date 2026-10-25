@@ -12,6 +12,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Your Progress no longer says Aramaic texts aren't placed by difficulty (2026-10-25).
+  Since targum#936 Aramaic has a ladder, so part 3 now says it lists Aramaic texts at
+  your level once the library's Aramaic is measured. Once the 41 Aramaic rows are
+  measured, the texts at your level are listed as in any other language. The Russian line
+  is a draft for ling-ru.
 - The note under "Learned on targum" is one sentence now: it says what the count holds and stops (David, 2026-10-25).
 - Your Words keeps its table inside its card at every width (David, 2026-10-24: "design
   seems to be broken"). Since targum#919 kept the AI Assistant's room on both edges of

@@ -761,19 +761,20 @@
       return;
     }
 
-    // Aramaic texts are never placed by difficulty, so this half says that, once, and
-    // offers the Library (polish 10).
-    if (code === "arc") {
+    var texts = (said && said.texts) || [];
+    // Aramaic has a ladder since targum#936, but its texts are placed only once the
+    // catalogue's Aramaic rows are measured. Until then there is no ladder and nothing to
+    // list, and this half says so, once, and offers the Library (polish 10).
+    if (code === "arc" && !texts.length && !(said && said.ladder && said.ladder.length)) {
       if (answered) {
         levelEmpty.textContent = t(
           "progress.next.texts-arc",
-          "We don't place Aramaic texts by difficulty, so none are listed here."
+          "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
         );
         levelEmpty.hidden = false;
       }
       return;
     }
-    var texts = (said && said.texts) || [];
     // The title alone and how much of it is known, as the board has it.
     texts.forEach(function (one) {
       row(
