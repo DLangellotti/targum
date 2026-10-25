@@ -13,7 +13,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from .ids import content_hash
 from .paths import write_atomic
@@ -404,6 +404,11 @@ class Token(Artifact):
     # reads syntax; absent everywhere else, and on annotations written before it was
     # kept (targum-internal#134, annotator `…+smixut`).
     syntax: Syntax | None = None
+    #: The surface DICTA gave as this verb's lemma, where the annotator's present rule
+    #: replaced it (`dicta._surface_present`), so `dicta.mend_pointed` can take back what
+    #: that rule did and nothing else (grammar/8, #931). Private: never written to disk,
+    #: never part of the schema, and gone once the annotation is built.
+    _standing: str | None = PrivateAttr(default=None)
 
     @property
     def glossed_as(self) -> str:

@@ -642,23 +642,28 @@ def _tokens(said: dict[str, Any], tally: collections.Counter[str] | None = None)
             binyan, root = _shape(lemma, binyan, seg[-1] if seg else surface)
         else:
             root = root_of(lemma, binyan)
-        out.append(
-            Token(
-                start=int(offsets.get("start", 0)),
-                end=int(offsets.get("end", 0)),
-                surface=surface,
-                lemma=lemma,
-                band=0,
-                split=len(seg) > 1,
-                pos=pos,
-                binyan=binyan,
-                root=root,
-                built=_pieces_of(seg, lemma, suffix),
-                feats=kept_feats(feats, pos),
-                entity=entity,
-                syntax=_governed(word, kept),
-            )
+        base = seg[-1] if seg else surface
+        token = Token(
+            start=int(offsets.get("start", 0)),
+            end=int(offsets.get("end", 0)),
+            surface=surface,
+            lemma=lemma,
+            band=0,
+            split=len(seg) > 1,
+            pos=pos,
+            binyan=binyan,
+            root=root,
+            built=_pieces_of(seg, lemma, suffix),
+            feats=kept_feats(feats, pos),
+            entity=entity,
+            syntax=_governed(word, kept),
         )
+        if pos == "VERB" and tenseless and (lex or "").strip() == base and lemma != base:
+            if _surface_present(base.translate(FINALS), base.translate(FINALS)):
+                # DICTA's own surface, which the present rule replaced: marked, so the
+                # marks may take it back where they show no participle (`mend_pointed`).
+                token._standing = base
+        out.append(token)
     return out
 
 
@@ -693,17 +698,22 @@ HOLAM_NOT_QAL = frozenset({"מורה", "מודה", "מועד", "מוסף", "מו
 
 
 def mend_pointed(
-    lemma: str, pos: str | None, pointed: str, feats: str | None = None
+    lemma: str,
+    pos: str | None,
+    pointed: str,
+    feats: str | None = None,
+    standing: str | None = None,
 ) -> tuple[str, str | None]:
     """The lemma and pos of a Hebrew word, mended where its own pointing settles what the
     unpointed reading could not; else as given. `pointed` is the word as it stands in
-    the text, prefixes and marks and all; `feats` the token's grammar line."""
+    the text, prefixes and marks and all; `feats` the token's grammar line; `standing`
+    the surface DICTA gave, where the present rule replaced it (`Token._standing`)."""
     if pos == "VERB":
         lemma = _future(lemma, pointed)
         letters = lemma.translate(FINALS)
-        standing = _unsettled_present(letters, pointed, feats)
-        if standing:
-            return standing, pos
+        undone = _unsettled_present(standing, pointed)
+        if undone:
+            return undone, pos
         if (
             len(letters) == 4
             and letters[:2] == "מו"
@@ -780,7 +790,7 @@ def _after_holam(pointed: str, first: str) -> str | None:
 
     A participle's vowel is a tsere, segol, shva or hataf (`PARTICIPLE_VOWELS`), a patah
     before a guttural (the feminine לוֹקַחַת, יוֹדַעַת), or a qamats before ה (the III-he
-    feminine עוֹלָה, רוֹאָה)."""
+    feminine עוֹלָה, רוֹאָה, and in pause `_pausal_qamats`)."""
     letters: list[tuple[str, str]] = []
     for char in pointed:
         if "א" <= char <= "ת":
@@ -797,11 +807,28 @@ def _after_holam(pointed: str, first: str) -> str | None:
         if "\u05b7" in after:
             return "participle" if following in "חע" else "not"
         if "\u05b8" in after:
-            return "participle" if following == "ה" else "not"
+            return "participle" if _pausal_qamats(letters, at + 3) else "not"
         if "\u05b4" in after:
             return "not"
         return ""
     return None
+
+
+def _pausal_qamats(letters: list[tuple[str, str]], at: int) -> bool:
+    """Whether a qamats under a participle's C2, before the letter at `at`, is the
+    participle's: before ה (the III-he feminine עוֹלָה), before a final א (קוֹרָא, in pause),
+    or before a segol or patah and a last ת (the feminine in pause, יוֹרָדֶת, שׁוֹאָבֶת)."""
+    if at >= len(letters):
+        return False
+    letter, marks = letters[at]
+    last = at == len(letters) - 1
+    if letter == "ה" or (letter == "א" and last):
+        return True
+    return (
+        at + 1 == len(letters) - 1
+        and letters[at + 1][0] == "ת"
+        and ("\u05b6" in marks or "\u05b7" in marks)
+    )
 
 
 def _holam_on_vav(pointed: str, first: str) -> bool:
@@ -810,34 +837,23 @@ def _holam_on_vav(pointed: str, first: str) -> bool:
     return _after_holam(pointed, first) == "participle"
 
 
-def _unsettled_present(letters: str, pointed: str, feats: str | None) -> str | None:
-    """The word itself, where `_surface_present` made its lemma and the marks do not
-    show a participle: no holam on the vav after C1, or no participle's vowel after it
-    (`_holam_on_vav`); else None.
+def _unsettled_present(standing: str | None, pointed: str) -> str | None:
+    """`standing` again, where the present rule replaced that surface and the marks do
+    not show a participle: no holam on the vav after C1, or a vowel after it no
+    participle has there (`_after_holam`); else None.
 
-    DICTA is handed the bare text, so the surface rule fires before any mark is seen:
-    pointed שׁוּבָה "return!" became שבה, חוּצָה "outside" got the root חצה, and כַּוֶּרֶת
-    "beehive" כרת, יוֹפַךְ the invented יפך. Every such word was wrong (ling-he on #931),
-    so there the lemma goes back to the surface DICTA gave. Where the marks show one,
-    the participle stands, as grammar/7's present rule had it (לוֹקַחַת). Not asked about
-    a future or a doubled root, which 3b reaches only without a tense, and whose qal
-    participles (גּוֹלֵל, סוֹבֵב) it gets right."""
-    bare, _ = strip_nikkud(pointed)
-    if bare == pointed:
+    DICTA is handed the bare text, so the rule fires before any mark is seen: pointed
+    שׁוּבָה "return!" became שבה, חוּצָה "outside" got the root חצה, and יוֹפַךְ the invented
+    יפך (ling-he on #931). Only what the rule did is taken back, by the mark `_tokens`
+    leaves: a lemma DICTA chose itself stays, so יוּכַל is יכל and יִוָּדַע is ידע (ling-he
+    on #931, round 2)."""
+    if not standing:
         return None
-    for cut in range(min(4, len(bare))):
-        head, base = bare[:cut], bare[cut:]
-        if not set(head) <= set(CLITIC_GLOSSES):
-            break
-        found = _present_stem(base.translate(FINALS))
-        if found is None:
-            continue
-        stem, ending = found
-        if stem[0] + stem[2] + stem[3] != letters.translate(FINALS):
-            continue
-        said = _after_holam(pointed, stem[0])
-        return base if said is None or said == "not" else None
-    return None
+    found = _present_stem(standing.translate(FINALS))
+    if found is None:
+        return None
+    said = _after_holam(pointed, found[0][0])
+    return standing if said in (None, "not") else None
 
 
 def _hiriq_yod(pointed: str, last: str) -> bool:

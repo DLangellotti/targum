@@ -513,9 +513,49 @@ def test_a_listed_hifil_refuses_where_dicta_split_off_its_he() -> None:
 def test_on_pointed_text_the_surface_rule_defers_to_the_marks(
     lemma: str, pointed: str, said: str
 ) -> None:
+    """Where the present rule made the lemma (`standing`, the surface it replaced)."""
+    from targum.annotate.dicta import mend_pointed
+    from targum.vocalize.base import strip_nikkud
+
+    standing = strip_nikkud(pointed)[0]
+    assert mend_pointed(lemma, "VERB", pointed, standing=standing) == (said, "VERB")
+
+
+@pytest.mark.parametrize(
+    ("lemma", "pointed", "feats", "standing"),
+    [
+        # Lemmas DICTA chose itself, which the marks never take back (round 2's regression,
+        # ling-he on #931): the hof'al and nif'al futures, a future of אמר, a hif'il.
+        ("יכל", "יוּכַל", "UPOS=VERB|Tense=Fut", None),
+        ("ידע", "יִוָּדַע", "UPOS=VERB|Tense=Fut", None),
+        ("ידע", "שֶׁיִּוָּדַע", "UPOS=VERB|Tense=Fut", None),
+        ("אמר", "אוֹמַר", "UPOS=VERB|Tense=Fut", None),
+        ("יצא", "וַיּוֹצִא", "UPOS=VERB|Tense=Past", None),
+        # A pausal feminine: a qamats under C2 before a segol and a last ת is the
+        # participle's, so even what the present rule made stands.
+        ("ירד", "וְיוֹרָדֶת", None, None),
+        ("שאב", "שׁוֹאָבֶת", None, "שואבת"),
+        ("קרא", "קוֹרָא", None, "קורא"),
+    ],
+)
+def test_a_lemma_the_present_rule_did_not_make_is_never_taken_back(
+    lemma: str, pointed: str, feats: str | None, standing: str | None
+) -> None:
     from targum.annotate.dicta import mend_pointed
 
-    assert mend_pointed(lemma, "VERB", pointed) == (said, "VERB")
+    assert mend_pointed(lemma, "VERB", pointed, feats, standing) == (lemma, "VERB")
+
+
+def test_tokens_mark_only_what_the_present_rule_made() -> None:
+    from targum.annotate.dicta import _tokens
+
+    (made,) = _tokens(_said(("שובה", "שובה", "VERB", ("שובה",))))
+    assert (made.lemma, made._standing) == ("שבה", "שובה")
+    (own,) = _tokens(_said(("יוכל", "יכל", "VERB", ("יוכל",))))
+    assert (own.lemma, own._standing) == ("יכל", None)
+    # The mark survives a copy, as the annotator makes one before it mends.
+    assert made.model_copy(update={"band": 3})._standing == "שובה"
+    assert "_standing" not in made.model_dump(), "and is never written"
 
 
 @pytest.mark.parametrize(
@@ -523,6 +563,8 @@ def test_on_pointed_text_the_surface_rule_defers_to_the_marks(
     [
         # A future, whatever its marks.
         ("עורר", "יְעוֹרֵר", "UPOS=VERB|Tense=Fut", "עורר"),
+        # And one that is not a doubled root, so only the future guard holds it.
+        ("שומר", "שׁוֹמֵר", "UPOS=VERB|Tense=Fut", "שומר"),
         # A doubled root: the polel past is spelled like the participle.
         ("עורר", "עוֹרֵר", None, "עורר"),
         # A patah or hiriq under C2 is not a participle's vowel.

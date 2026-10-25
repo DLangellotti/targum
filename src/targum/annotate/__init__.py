@@ -264,7 +264,11 @@ class Annotator:
                     # asked of the lemma. See `dicta.mend_pointed`.
                     start, end = map_span(token.start, token.end, positions)
                     lemma, pos = mend_pointed(
-                        token.lemma, token.pos, source_text[segment_id][start:end], token.feats
+                        token.lemma,
+                        token.pos,
+                        source_text[segment_id][start:end],
+                        token.feats,
+                        token._standing,
                     )
                     if (lemma, pos) != (token.lemma, token.pos):
                         mended: dict[str, object] = {"lemma": lemma, "pos": pos}
