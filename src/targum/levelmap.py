@@ -214,6 +214,35 @@ def tally(
     return dict(sorted(shelves.items(), key=lambda item: (-item[1].total, item[0])))
 
 
+#: The ladder the stage standard's floors are held to (David, 2026-10-25; design.md §12, "A
+#: badge is a promise, checked"). Modern Hebrew, and every other language, whose rows carry
+#: no register. The Tanakh is counted as a row of its own, and revival, rabbinic and
+#: medieval Hebrew are counted and reported but held to no floor: before this a learner
+#: told Hebrew had ninety texts at B1 was being counted forty-eight of Berdyczewski and
+#: Brenner and fifty-four of the Tanakh, and fifty-three of modern Hebrew.
+MODERN = "modern"
+
+
+def ladder_of(entry: Entry) -> str:
+    """Which ladder a row is counted on: `MODERN`, or its register where it is an older
+    Hebrew. A row with no register is the modern ladder, which is every other language's."""
+    register = entry.register.value
+    return register if register and register != MODERN else MODERN
+
+
+def split(entries: Iterable[Entry]) -> tuple[list[Entry], dict[str, list[Entry]]]:
+    """The modern ladder's rows, and every other register's, each in the order given."""
+    modern: list[Entry] = []
+    others: dict[str, list[Entry]] = {}
+    for entry in entries:
+        ladder = ladder_of(entry)
+        if ladder == MODERN:
+            modern.append(entry)
+        else:
+            others.setdefault(ladder, []).append(entry)
+    return modern, others
+
+
 #: The media that count as a recording, for the stage standard's shelf floors.
 RECORDED: tuple[str, ...] = ("audio", "video")
 

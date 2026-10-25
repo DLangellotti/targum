@@ -724,6 +724,10 @@
      aria-label="{{ t("reader.film.split", "Video and transcript") }}" title="{{ t("reader.film.split-title", "Drag to give the video or the transcript more room. Double-click to put it back.") }}" hidden><span class="film-split-line" aria-hidden="true"></span></div>
 {% endif %}
 <main id="reader">
+{#- Which older Hebrew this is, over the text at every width, for a text in one (David,
+    2026-10-25; design.md §12, "An older Hebrew says which it is"): the reader the
+    arrival opens is where a learner who asked for Hebrew to read meets Brenner. -#}
+{% if era %}<p class="era-line" lang="{{ era_lang|default('en') }}" dir="ltr">{{ era }}</p>{% endif %}
 {#- No stamp of the cover over a chapter since 2026-10-09 (design.md §12, "The reader's
     chrome is the desk's"): the boards draw the page with its text alone, and the picture
     is the contents page's and the Library's. -#}

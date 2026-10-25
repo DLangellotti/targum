@@ -110,6 +110,8 @@
 }
 .parts-english { font-style: italic; color: var(--ink-soft); }
 .parts-author { color: var(--ink); }
+/* Which older Hebrew, on a line of its own under the names (David, 2026-10-25). */
+.parts-era { flex-basis: 100%; color: var(--ink); font-family: var(--chrome); font-size: 0.875rem; }
 .parts-facts {
   display: flex;
   flex-wrap: wrap;

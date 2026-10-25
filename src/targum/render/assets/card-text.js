@@ -42,6 +42,22 @@
   } catch (error) {
     KINDS = {};
   }
+  // Which older Hebrew a library text is in, plain and with its decade (David,
+  // 2026-10-25): the row's `era_of` says which, these say it in the page's language.
+  var ERAS = {};
+  try {
+    ERAS = JSON.parse(list.getAttribute("data-eras") || "{}");
+  } catch (error) {
+    ERAS = {};
+  }
+  function eraOf(row) {
+    var era = row.era_of || {};
+    var said = ERAS[era.register];
+    if (!said) return String(row.era || "");
+    var decade = Number(era.decade) || 0;
+    return decade ? said[1].split("{decade}").join(String(decade)) : said[0];
+  }
+
   // The colour a letter rests on, by what a text is: thumbs.py's `tone`, as covers.js
   // mirrors it on the desk.
   var TONES = { article: "news", talk: "spoken", video: "spoken", dialogue: "set", liturgy: "set" };
@@ -191,8 +207,10 @@
     var length = minutes(row);
     var share = known(row.known_share);
     var kindWord = found ? "" : String(KINDS[row.kind] || "");
+    var era = found ? "" : eraOf(row);
     [
       [".card-kind-word", kindWord],
+      [".card-era", era],
       [".card-from", from],
       [".card-minutes", length],
       [".card-known", share],
@@ -201,7 +219,7 @@
       part.textContent = pair[1];
       part.hidden = !pair[1];
     });
-    facts.hidden = !kindWord && !from && !length && !share;
+    facts.hidden = !kindWord && !era && !from && !length && !share;
     // A small leaf meter beside how much is known, as the board draws it: no number of
     // its own, the sentence says it.
     if (share) {

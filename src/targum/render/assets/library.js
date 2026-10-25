@@ -502,6 +502,9 @@
         languages: entry.languages || [entry.language],
         kind: entry.kind,
         register: entry.register,
+        // The older Hebrew it is in, and its decade, for the label (David, 2026-10-25).
+        era: entry.era || "",
+        decade: entry.decade || 0,
         difficulty: entry.difficulty,
         minutes: entry.minutes,
         spoken: !!entry.spoken,
@@ -595,6 +598,23 @@
     return real[Math.floor(real.length / 2)];
   }
 
+  /* Which older Hebrew a row is in, said (David, 2026-10-25; design.md §12, "An older
+     Hebrew says which it is"): "Revival-era Hebrew, 1890s", or with no decade where the
+     byline gives no year. Empty for modern Hebrew, the Tanakh and every other language,
+     which the server sends no era for. */
+  var ERA_SAID = {
+    rabbinic: ["Rabbinic Hebrew", "Rabbinic Hebrew, {decade}s"],
+    medieval: ["Medieval Hebrew", "Medieval Hebrew, {decade}s"],
+    revival: ["Revival-era Hebrew", "Revival-era Hebrew, {decade}s"],
+  };
+  function eraSaid(row) {
+    var said = row && ERA_SAID[row.era];
+    if (!said) return "";
+    var decade = Number(row.decade) || 0;
+    if (decade) return t("library.era." + row.era + "-dated", said[1], { decade: decade });
+    return t("library.era." + row.era, said[0]);
+  }
+
   /* What every row of a set agrees on, or "" where they do not. The Torah is all
      Biblical and says so; a collection of an author's essays and novels has no one kind
      and leaves the column empty rather than picking one of them. */
@@ -623,6 +643,9 @@
       language: rows[0].language,
       kind: shared(rows, "kind"),
       register: shared(rows, "register"),
+      // Berdyczewski's thirty-nine are one era; a decade only where every story has it.
+      era: shared(rows, "era"),
+      decade: shared(rows, "era") ? shared(rows, "decade") : 0,
       difficulty: middle(
         rows.map(function (row) {
           return row.difficulty || 0;
@@ -781,7 +804,9 @@
   function lengthCell(row) {
     var cell = el("span", "col see-length");
     var kind = row.group ? "" : named(KIND_ONE, row.kind);
-    if (kind) cell.appendChild(el("span", "see-length-kind", kind + " · "));
+    // And which older Hebrew, where the row's own line is not drawn (David, 2026-10-25).
+    var before = [kind, eraSaid(row)].filter(Boolean).join(" · ");
+    if (before) cell.appendChild(el("span", "see-length-kind", before + " · "));
     cell.appendChild(el("span", "see-length-said", lengthSaid(row)));
     return cell;
   }
@@ -981,8 +1006,13 @@
     // Spans rather than bare text, so the row can be searched by its attributes.
     var meta = el("span", "row-meta");
     meta.appendChild(el("span", null, named(KIND_ONE, row.kind)));
-    if (row.author) {
+    var era = eraSaid(row);
+    if (era) {
       meta.appendChild(el("span", null, named(KIND_ONE, row.kind) ? " · " : ""));
+      meta.appendChild(el("span", "row-era", era));
+    }
+    if (row.author) {
+      meta.appendChild(el("span", null, named(KIND_ONE, row.kind) || era ? " · " : ""));
       var who = el("bdi", "row-by", row.author);
       who.setAttribute("dir", "auto");
       hebrewRun(who, row.author, row.language);
@@ -1071,7 +1101,8 @@
     }
     var count = tn("library.group-texts", row.rows.length, "{n} text", "{n} texts");
     var kind = named(KIND_ONE, row.kind);
-    var meta = el("span", "row-meta", kind ? kind + " · " + count : count);
+    var era = eraSaid(row);
+    var meta = el("span", "row-meta", [kind, era, count].filter(Boolean).join(" · "));
     if (saidIn !== "en") meta.setAttribute("lang", saidIn);
     what.appendChild(meta);
     var blurb = blurbIn(group);
@@ -1469,6 +1500,12 @@
     var what = el("span", "band-kind", kind);
     what.setAttribute("lang", saidIn);
     open.appendChild(what);
+    var era = eraSaid(row);
+    if (era) {
+      var older = el("span", "band-era", era);
+      older.setAttribute("lang", saidIn);
+      open.appendChild(older);
+    }
     var title = el("bdi", "band-title", splitLevel(row.title).title);
     title.setAttribute("lang", row.language);
     title.setAttribute("dir", "auto");

@@ -2597,6 +2597,22 @@ def build_text_card(language: str = "en") -> str:
             # Each kind in one everyday word, the desk's own (design.md §12, "The boards
             # are the desk"), so a row says "Dialogue · 3 min" as the board draws it.
             kinds={kind: str(t(f"home.kind.{kind}", word)) for kind, word in CARD_KINDS},
+            # Which older Hebrew a row is in, plain and with its decade, in the page's
+            # language (David, 2026-10-25): the row brings `era_of`, the card says it.
+            eras={
+                "rabbinic": [
+                    str(t("library.era.rabbinic", "Rabbinic Hebrew")),
+                    str(t("library.era.rabbinic-dated", "Rabbinic Hebrew, {decade}s")),
+                ],
+                "medieval": [
+                    str(t("library.era.medieval", "Medieval Hebrew")),
+                    str(t("library.era.medieval-dated", "Medieval Hebrew, {decade}s")),
+                ],
+                "revival": [
+                    str(t("library.era.revival", "Revival-era Hebrew")),
+                    str(t("library.era.revival-dated", "Revival-era Hebrew, {decade}s")),
+                ],
+            },
         )
     )
 
@@ -3996,6 +4012,7 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     A page about the text rather than about targum: whoever arrives here searched for the
     book, and the sample is the reason the page is worth indexing at all.
     """
+    from ..catalogue import era_said
     from ..models import direction_for
     from ..strings import text
 
@@ -4026,6 +4043,7 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             # A book's place ("Ketuvim · Ruth") in the page's language, as the shelf says
             # it (targum-internal#523, from #477's polish).
             byline=_place_in(entry.author, _page_language(language)),
+            era=era_said(entry, language),
             credit=credit,
             shelf_name=name,
             direction=direction_for(entry.language),
@@ -5924,6 +5942,10 @@ def render(
         "siblings": siblings or [],
         "title": document.title or "targum",
         "english": english_title(document, chrome),
+        # Which older Hebrew, beside the title: the reader the arrival opens is where a
+        # learner who asked for Hebrew to read first meets Brenner (David, 2026-10-25).
+        "era": _era_of_source(document.source, chrome),
+        "era_lang": chrome.split("-")[0].lower(),
         # And the language it is in, for its `lang`: a reader built in Russian names the
         # text in Russian where the catalogue has the name, and in English where not.
         "english_lang": chrome.split("-")[0].lower()
@@ -7190,6 +7212,20 @@ def _grouped(n: int, language: str) -> str:
 _UNTITLED = re.compile(r"^Part (\d+)$")
 
 
+def _era_of_source(source: str, language: str) -> str:
+    """Which older Hebrew the catalogue text a build was made from is in, said
+    ("Revival-era Hebrew, 1890s"), or "" where it is modern, the Tanakh, another
+    language, or nobody's catalogue row (David, 2026-10-25; design.md §12, "An older
+    Hebrew says which it is"). Asked of the catalogue when the page is drawn, so a text
+    built before the label existed says it too."""
+    from ..catalogue import era_said, matching
+
+    if not source:
+        return ""
+    entry = matching(source)
+    return era_said(entry, language) if entry is not None else ""
+
+
 def contents_page(
     manifest: Mapping[str, Any],
     state: Mapping[str, Any],
@@ -7359,6 +7395,7 @@ def contents_page(
             go=go,
             go_href=go_href,
             kind=kind,
+            era=_era_of_source(str(manifest.get("source") or ""), language),
             mine=mine,
             picture=picture,
             hero_frame=hero_frame,

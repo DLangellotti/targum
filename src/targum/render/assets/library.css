@@ -1407,6 +1407,16 @@
 }
 .band-mosaic .thumb img { position: absolute; inset: 0; object-fit: cover; }
 .band-kind { font-size: 0.8125rem; color: var(--ink-soft); }
+/* Which older Hebrew a text is in, under its kind (David, 2026-10-25; design.md §12, "An
+   older Hebrew says which it is"): in ink, not the kind's soft grey, so it is read. */
+.band-era {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .band-title {
   display: block;
   font-family: var(--reading-hebrew);
@@ -1763,6 +1773,7 @@ body.is-seeing .page-head { display: none; }
 .see-rows .row-meta,
 .see-rows .row-blurb { flex: 1 1 100%; min-inline-size: 0; }
 .see-rows .row-meta { display: block; color: var(--ink-soft); font-family: var(--chrome); font-size: 0.8125rem; }
+.see-rows .row-era { color: var(--ink); }
 .see-rows .row-blurb {
   display: -webkit-box;
   -webkit-box-orient: vertical;

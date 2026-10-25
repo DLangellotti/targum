@@ -47,10 +47,13 @@
         {%- if mine %}<span class="parts-tag">{{ t("parts.page.uploaded-by-you", "Uploaded by you") }}</span>{% endif %}
       </p>
       <h1 class="parts-title" id="parts-title" lang="{{ source_language }}" dir="{{ source_direction }}">{{ manifest.title|isolate(source_direction) }}</h1>
-      {%- if manifest.english or manifest.author %}
+      {%- if manifest.english or manifest.author or era %}
       <p class="parts-byline">
         {%- if manifest.english %}<span class="parts-english">{{ manifest.english }}</span>{% endif %}
         {%- if manifest.author %}<span class="parts-author" dir="auto">{{ manifest.author }}</span>{% endif %}
+        {#- Which older Hebrew, at every width: the tags above it are a desk's alone
+            (David, 2026-10-25; design.md §12, "An older Hebrew says which it is"). -#}
+        {%- if era %}<span class="parts-era">{{ era }}</span>{% endif %}
       </p>
       {%- endif %}
       <p class="parts-facts">
