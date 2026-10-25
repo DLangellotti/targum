@@ -58,8 +58,9 @@ def test_the_ladder_is_the_kinds_by_their_median_measured_difficulty() -> None:
     assert "x1" not in {text for rung in rungs for text in rung.texts}
 
 
-def test_aramaic_and_an_empty_library_have_no_ladder() -> None:
-    """wordfreq has no Aramaic list, so every Aramaic text measures 0, which is false."""
+def test_aramaic_outside_the_targums_and_an_empty_library_have_no_ladder() -> None:
+    """Aramaic's rungs are bodies of Targum (design.md §12, 2026-10-25), so Aramaic rows
+    that are none of them make no rung, and Yiddish, with no library, has none."""
     arc = [Entry("o1", "arc", "prose", 0), Entry("o2", "arc", "poetry", 12)]
     assert touchstones.ladder(arc, "arc") == []
     assert touchstones.ladder(shelf(), "yi") == []

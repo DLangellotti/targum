@@ -55,7 +55,16 @@ NOT_SENTENCES = frozenset({BlockKind.heading, BlockKind.byline})
 
 @lru_cache(maxsize=200_000)
 def band_of(lemma: str, language: str) -> int:
-    if language.split("-")[0].lower() == "ru":
+    code = language.split("-")[0].lower()
+    if code == "arc":
+        # wordfreq has no Aramaic, so every Aramaic text measured 0. The shelf's own
+        # Aramaic is counted instead (targum-internal G1); without the list on disk a
+        # word is unrated, as before.
+        from . import aramaic_frequency
+
+        if aramaic_frequency.available():
+            return aramaic_frequency.band(lemma)
+    if code == "ru":
         summed = russian_zipf(lemma)
         if summed is not None:
             return band_for(summed)
