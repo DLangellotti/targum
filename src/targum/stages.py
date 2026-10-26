@@ -27,7 +27,9 @@ is a commit here; a regression anywhere in the pipeline fails CI.
 standard from 2026-10-12, while its measurements, its read-through record and its
 practices caught up, and the test printed its shortfall instead of failing on it. It
 earned Beta on 2026-10-14 and the entry came out. Russian is kept at Alpha from 2026-10-21,
-short only of its read-through (David). Nothing may be added to `KEPT` without a design.md
+short only of its read-through (David). Hebrew is kept at Beta again from 2026-10-25, when
+the floors came to count modern Hebrew alone and its B1 held 53 texts of 90, until the first
+generated modern B1 tranche lands (David). Nothing may be added to `KEPT` without a design.md
 entry first, and the entry's name is in its `why`.
 
 **The record is a fact here, its substance stays private** (`RECORDED`, 2026-10-13). The
@@ -45,7 +47,14 @@ three levels. CEFR is finer, and the floors are stated in CEFR by the mapping in
 B1 is Simplified, and Native is counted as one level, B2 and up, until there is a better
 ruler than a median nobody measured (David, 2026-10-12). The counts a test reads are the
 committed snapshot in `evals/shelf.json`, written by `targum stages --measure` from a
-catalogue and the builds on disk, the way the evals ledger is committed and re-run.
+catalogue, the week's published issues and the builds on disk, the way the evals ledger is
+committed and re-run.
+
+**The floors count the modern ladder** (David, 2026-10-25; `levelmap.ladder_of`). A
+language's row in the snapshot is its modern texts, which for every language but Hebrew is
+all of them. Hebrew's Tanakh, revival, rabbinic and medieval texts are counted beside it,
+per register, under `registers`, and printed by `targum stages`; none of them is held to a
+floor. The weekly's three editions are modern Hebrew and are counted on the ladder.
 """
 
 from __future__ import annotations
@@ -243,9 +252,20 @@ RECORDED: dict[str, Record] = {
 
 
 #: The exception the test tolerates, named and dated. Hebrew earned the Beta it had been
-#: kept at on 2026-10-14 (David, 2026-10-12); Russian is kept at Alpha from 2026-10-21
-#: while its read-through is done. See the module docstring.
+#: kept at on 2026-10-14 (David, 2026-10-12), and is kept at it again from 2026-10-25 while
+#: modern B1 is under the floor; Russian is kept at Alpha from 2026-10-21 while its
+#: read-through is done. See the module docstring.
 KEPT: dict[str, Kept] = {
+    "he": Kept(
+        stage=Stage.beta,
+        since=date(2026, 10, 25),
+        review=date(2026, 12, 31),
+        why=(
+            'design.md §12, "The floors count modern Hebrew" (David, 2026-10-25): '
+            "the shelf floors read the modern ladder alone, where B1 holds 53 texts of 90, "
+            "until the first generated modern B1 tranche lands."
+        ),
+    ),
     "ru": Kept(
         stage=Stage.alpha,
         since=date(2026, 10, 21),
@@ -578,25 +598,33 @@ def read_shelf(path: Path = SHELF_SNAPSHOT) -> dict[str, dict[str, Floor]]:
     return out
 
 
+def _levels(levels: Mapping[str, Floor]) -> dict[str, dict[str, int]]:
+    return {
+        level: {"texts": floor.texts, "recordings": floor.recordings}
+        for level, floor in levels.items()
+    }
+
+
 def write_shelf(
     counts: Mapping[str, Mapping[str, Floor]],
     *,
     measured: date,
     videos: Mapping[str, int] | None = None,
+    registers: Mapping[str, Mapping[str, Mapping[str, Floor]]] | None = None,
     path: Path = SHELF_SNAPSHOT,
 ) -> None:
-    """The snapshot `targum stages --measure` writes, dated, for the test to read."""
+    """The snapshot `targum stages --measure` writes, dated, for the test to read: the
+    modern ladder per language under `languages`, which the floors read, and every other
+    register per language under `registers`, which they do not (David, 2026-10-25)."""
     payload = {
         "measured": measured.isoformat(),
         "levels": list(CEFR_LEVELS),
-        "languages": {
-            language: {
-                level: {"texts": floor.texts, "recordings": floor.recordings}
-                for level, floor in levels.items()
-            }
-            for language, levels in sorted(counts.items())
-        },
+        "languages": {language: _levels(levels) for language, levels in sorted(counts.items())},
         "videos": dict(sorted((videos or {}).items())),
+        "registers": {
+            language: {register: _levels(levels) for register, levels in sorted(held.items())}
+            for language, held in sorted((registers or {}).items())
+        },
     }
     path.write_text(json.dumps(payload, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -608,6 +636,24 @@ def _practices(language: str) -> dict[str, bool]:
 
     registered = getattr(practices, "REGISTERED", {}).get(language, {})
     return {spot.name: bool(registered.get(spot.name)) for spot in HARD_SPOTS.get(language, ())}
+
+
+def read_registers(path: Path = SHELF_SNAPSHOT) -> dict[str, dict[str, dict[str, Floor]]]:
+    """The registers off the modern ladder, per language, from the committed snapshot:
+    language -> register -> CEFR level -> counts. Reported, never held to a floor."""
+    if not path.exists():
+        return {}
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        language: {
+            register: {
+                level: Floor(int(counts.get("texts", 0)), int(counts.get("recordings", 0)))
+                for level, counts in levels.items()
+            }
+            for register, levels in held.items()
+        }
+        for language, held in (raw.get("registers") or {}).items()
+    }
 
 
 def read_videos(path: Path = SHELF_SNAPSHOT) -> dict[str, int]:
@@ -788,6 +834,11 @@ def report(language: str, **over: Any) -> dict[str, Any]:
     got = earned(known)
     return {
         "language": known.language,
+        # The registers off the modern ladder, counted and held to no floor (2026-10-25).
+        "registers": {
+            register: {level: [floor.texts, floor.recordings] for level, floor in levels.items()}
+            for register, levels in read_registers().get(known.language, {}).items()
+        },
         "declared": worn.value if worn else "",
         "kept": held is not None,
         "review": held.review.isoformat() if held else "",

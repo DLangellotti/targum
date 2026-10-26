@@ -207,6 +207,47 @@ class Register(StrEnum):
     none = ""
 
 
+#: The Hebrew a text is labelled with wherever it shows: its Library card and row, the
+#: text's own page, the reader the arrival opens and the connector's rows (David,
+#: 2026-10-25; design.md §12, "An older Hebrew says which it is"). They stay on every
+#: shelf, mixed in with the modern; the label is what keeps a learner who asked for the
+#: Hebrew spoken today from opening Brenner without knowing it. Biblical is not here:
+#: the Tanakh has its own map and its own face, and says what it is already.
+ERAS: tuple[Register, ...] = (Register.rabbinic, Register.medieval, Register.revival)
+
+#: A year in a byline: "אברהם מאפו, 1853", "משה בן מימון, 1180 · ספר המדע". The catalogue
+#: has no date field; the year rides in the author line where anybody wrote one down.
+_YEAR = re.compile(r"(?<!\d)(1[0-9]{3})(?!\d)")
+
+
+def era_of(entry: Entry) -> Register | None:
+    """The older Hebrew a text is in, where it is one of `ERAS`; None for modern Hebrew,
+    the Tanakh and every other language."""
+    if entry.language.split("-")[0].lower() != "he":
+        return None
+    return entry.register if entry.register in ERAS else None
+
+
+def decade_of(entry: Entry) -> int:
+    """The decade the byline dates the text to, 1890 for 1896; 0 where it gives no year."""
+    found = _YEAR.search(entry.author or "")
+    return int(found.group(1)) // 10 * 10 if found else 0
+
+
+def era_said(entry: Entry, language: str = "en") -> str:
+    """The label, in the reader's language: "Revival-era Hebrew, 1890s", or without the
+    decade where the row has no date. Empty for a text that needs none."""
+    from .strings import text
+
+    era = era_of(entry)
+    if era is None:
+        return ""
+    decade = decade_of(entry)
+    if decade:
+        return text(f"library.era.{era.value}-dated", language, decade=str(decade))
+    return text(f"library.era.{era.value}", language)
+
+
 @dataclass(frozen=True)
 class Line:
     """One sentence of a text beside its translation.
@@ -590,6 +631,10 @@ class Entry:
             "minutes": self.minutes,
             "kind": self.kind.value,
             "register": self.register.value,
+            # The older Hebrew it is in and the decade it was written, for the label every
+            # surface draws (`ERAS`, David, 2026-10-25). "" and 0 where none is due.
+            "era": era.value if (era := era_of(self)) is not None else "",
+            "decade": decade_of(self) if era is not None else 0,
             "difficulty": self.difficulty,
             # Whether it can be listened to. Asked of the disk rather than stored here,
             # so an entry never claims a recording this machine has not got — see

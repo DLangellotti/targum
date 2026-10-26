@@ -35,6 +35,7 @@
   data-minutes="{{ t("library.minutes", "{n} min") }}"
   data-found="{{ t("card.text.found", "Today's news") }}"
   data-kinds='{{ kinds|tojson }}'
+  data-eras='{{ eras|tojson }}'
   data-tenths="{{ tenths }}"
   data-pace="{{ pace }}">
   <p class="card-said card-none" id="none" hidden>{{ t("card.text.none", "Nothing matched.") }}</p>
@@ -54,7 +55,7 @@
     <div class="card-body">
       <h2 class="card-title" dir="auto"></h2>
       <p class="card-english" hidden></p>
-      <p class="card-facts" hidden><span class="card-kind-word" hidden></span><span class="card-from" hidden></span><span class="card-minutes" hidden></span><span class="card-known" hidden></span></p>
+      <p class="card-facts" hidden><span class="card-kind-word" hidden></span><span class="card-era" hidden></span><span class="card-from" hidden></span><span class="card-minutes" hidden></span><span class="card-known" hidden></span></p>
       <span class="card-credit" hidden></span>
     </div>
     <div class="card-actions">

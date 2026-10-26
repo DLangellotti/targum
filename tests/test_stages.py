@@ -45,12 +45,12 @@ def test_declared_is_earned_for_every_language_not_kept() -> None:
 
 
 def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
-    """Hebrew kept its Beta by decision from 2026-10-12 and earned it on 2026-10-14;
-    Russian is kept at Alpha from 2026-10-21 while its read-through is done. An entry
-    has a date, a review date not yet passed, and a reason,
-    and this prints what the kept word still owes so it is seen on every run. Past the
-    review date the entry fails until renewed with a new date and a design.md line, or
-    removed."""
+    """Hebrew kept its Beta by decision from 2026-10-12, earned it on 2026-10-14, and is
+    kept at it again from 2026-10-25 while modern B1 is under the floor; Russian is kept
+    at Alpha from 2026-10-21 while its read-through is done. An entry has a date, a review
+    date not yet passed, and a reason, and this prints what the kept word still owes so it
+    is seen on every run. Past the review date the entry fails until renewed with a new
+    date and a design.md line, or removed."""
     design = (Path(__file__).parents[1] / "design.md").read_text(encoding="utf-8")
     for code, held in KEPT.items():
         # A kept language needs a design.md entry first, named in its reason.
@@ -72,11 +72,55 @@ def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
         )
 
 
-def test_hebrew_earns_the_beta_it_wears() -> None:
-    """The exception came out on 2026-10-14: the read-through of ten and the reading for
-    blockers went on record, and Hebrew is held to the facts like every other language."""
+def test_hebrew_is_kept_at_beta_while_modern_b1_is_under_the_floor() -> None:
+    """Hebrew earned Beta on 2026-10-14 and the exception came out. On 2026-10-25 the floors
+    came to count modern Hebrew alone (David; design.md §12, "The floors count modern
+    Hebrew"), its B1 held 53 texts of 90, and the Beta is kept again with a review date.
+    The kept word owes that and nothing else: the day modern B1 clears 90 this fails, and
+    the entry comes out."""
     assert DECLARED["he"] is Stage.beta
-    assert stages.earned(stages.facts("he")) is Stage.beta
+    held = KEPT["he"]
+    assert held.stage is Stage.beta and held.since == dt.date(2026, 10, 25)
+    assert "The floors count modern Hebrew" in held.why
+    known = stages.facts("he")
+    assert stages.shortfall(known, Stage.beta) == ["shelf at B1: 53 texts of 90"]
+    assert stages.earned(known) is Stage.alpha
+
+
+def test_the_floors_count_the_modern_ladder_and_the_registers_beside_it() -> None:
+    """The snapshot's Hebrew row is modern Hebrew; the Tanakh, revival, rabbinic and
+    medieval Hebrew are counted per register beside it and held to no floor."""
+    shelf = stages.read_shelf()["he"]
+    registers = stages.read_registers()["he"]
+    assert set(registers) == {"biblical", "revival", "rabbinic", "medieval"}
+    assert shelf["B1"] == Floor(53, 51)
+    # Together they are what the one ladder counted before (evals/shelf.json, 2026-10-14).
+    assert shelf["B1"].texts + sum(one["B1"].texts for one in registers.values()) == 155
+    assert shelf["B2+"].texts + sum(one["B2+"].texts for one in registers.values()) == 326
+    # Revival would have carried B1 over its floor; it is reported and held to nothing.
+    assert registers["revival"]["B1"].texts == 48
+    assert stages.report("he")["registers"]["revival"]["B1"] == [48, 1]
+
+
+def test_a_row_is_counted_on_the_modern_ladder_unless_it_is_an_older_hebrew() -> None:
+    from targum.catalogue import Entry, Register
+
+    def entry(register: Register, language: str = "he") -> Entry:
+        return Entry(
+            id=register.value or "x",
+            title="t",
+            author="",
+            language=language,
+            source="s",
+            blurb="",
+            words=1,
+            register=register,
+        )
+
+    rows = [entry(register) for register in Register] + [entry(Register.none, "ru")]
+    modern, others = levelmap.split(rows)
+    assert {one.id for one in modern} == {"modern", "x"}
+    assert set(others) == {"biblical", "rabbinic", "medieval", "revival"}
 
 
 def test_a_claim_that_outruns_the_facts_is_refused_with_the_criterion_named() -> None:
@@ -232,10 +276,18 @@ def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
 
 def test_the_shelf_snapshot_round_trips(tmp_path: Path) -> None:
     counts = {"he": {"A1": Floor(84, 84), "B2+": Floor(102, 22)}}
+    registers = {"he": {"revival": {"B1": Floor(48, 1)}}}
     path = tmp_path / "shelf.json"
-    stages.write_shelf(counts, measured=dt.date(2026, 10, 12), videos={"he": 88}, path=path)
+    stages.write_shelf(
+        counts,
+        measured=dt.date(2026, 10, 12),
+        videos={"he": 88},
+        registers=registers,
+        path=path,
+    )
     assert stages.read_shelf(path) == counts
     assert stages.read_videos(path) == {"he": 88}
+    assert stages.read_registers(path) == registers
     assert stages.read_videos(tmp_path / "none.json") == {}
     assert json.loads(path.read_text())["measured"] == "2026-10-12"
     assert stages.read_shelf(tmp_path / "none.json") == {}
@@ -278,7 +330,9 @@ def test_the_report_row_says_kept_and_review(monkeypatch: pytest.MonkeyPatch) ->
     assert row["declared"] == "beta" and row["kept"] is True and row["review"] == "2026-12-31"
     monkeypatch.delitem(stages.KEPT, "he")
     row = stages.report("he")
-    assert row["declared"] == "beta" and row["kept"] is False and row["shortfall"] == []
+    # Unkept, it owes what modern B1 lacks (David, 2026-10-25).
+    assert row["declared"] == "beta" and row["kept"] is False
+    assert row["shortfall"] == ["shelf at B1: 53 texts of 90"]
     row = stages.report("fr")
     assert row["declared"] == "experimental" and row["kept"] is False and row["shortfall"] == []
 

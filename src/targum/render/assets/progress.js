@@ -95,6 +95,42 @@
       most: t("progress.where.most.poetry", "You'd follow most of a poem"),
       start: t("progress.where.start.poetry", "A poem is the place to start"),
     },
+    // Aramaic's rungs are the Aramaic translations, the climb's own (design.md §12, 2026-10-25).
+    "onkelos": {
+      chip: t("progress.touch.onkelos", "Onkelos"),
+      follow: t("progress.where.follow.onkelos", "You'd follow Onkelos"),
+      nearly: t("progress.where.nearly.onkelos", "You'd follow nearly all of Onkelos"),
+      most: t("progress.where.most.onkelos", "You'd follow most of Onkelos"),
+      start: t("progress.where.start.onkelos", "Onkelos is the place to start"),
+    },
+    "former-prophets": {
+      chip: t("progress.touch.former-prophets", "Jonathan on Joshua to Kings"),
+      follow: t("progress.where.follow.former-prophets", "You'd follow Jonathan on Joshua to Kings"),
+      nearly: t("progress.where.nearly.former-prophets", "You'd follow nearly all of Jonathan on Joshua to Kings"),
+      most: t("progress.where.most.former-prophets", "You'd follow most of Jonathan on Joshua to Kings"),
+      start: t("progress.where.start.former-prophets", "Jonathan on Joshua to Kings is the place to start"),
+    },
+    "jonathan-torah": {
+      chip: t("progress.touch.jonathan-torah", "Pseudo-Jonathan"),
+      follow: t("progress.where.follow.jonathan-torah", "You'd follow Pseudo-Jonathan"),
+      nearly: t("progress.where.nearly.jonathan-torah", "You'd follow nearly all of Pseudo-Jonathan"),
+      most: t("progress.where.most.jonathan-torah", "You'd follow most of Pseudo-Jonathan"),
+      start: t("progress.where.start.jonathan-torah", "Pseudo-Jonathan is the place to start"),
+    },
+    "latter-prophets": {
+      chip: t("progress.touch.latter-prophets", "Jonathan on the Prophets"),
+      follow: t("progress.where.follow.latter-prophets", "You'd follow Jonathan on the Prophets"),
+      nearly: t("progress.where.nearly.latter-prophets", "You'd follow nearly all of Jonathan on the Prophets"),
+      most: t("progress.where.most.latter-prophets", "You'd follow most of Jonathan on the Prophets"),
+      start: t("progress.where.start.latter-prophets", "Jonathan on the Prophets is the place to start"),
+    },
+    "writings": {
+      chip: t("progress.touch.writings", "The Aramaic of the Writings"),
+      follow: t("progress.where.follow.writings", "You'd follow the Aramaic of the Writings"),
+      nearly: t("progress.where.nearly.writings", "You'd follow nearly all of the Aramaic of the Writings"),
+      most: t("progress.where.most.writings", "You'd follow most of the Aramaic of the Writings"),
+      start: t("progress.where.start.writings", "The Aramaic of the Writings is the place to start"),
+    },
   };
 
   //: Languages with nobody's voice in them have no listening to count (§12, 2026-10-08).
@@ -271,21 +307,16 @@
     }
     var ladder = said.ladder || [];
     if (!ladder.length) {
-      // Aramaic has no ladder, Yiddish no library, and a box without the lemma index has
-      // measured nothing: each says so, with the one count it does have.
+      // Yiddish has no library, and a box without the lemma index (or a catalogue whose
+      // Aramaic is not measured yet) has measured nothing: each says so, with the one
+      // count it does have.
       var known = said.known || 0;
       head.textContent = tn("progress.where.known", known, "You know {n} word so far", "You know {n} words so far", {
         n: grouped(known),
       });
-      note.textContent =
-        code === "arc"
-          ? t(
-              "progress.where.no-ladder-arc",
-              "We can't place Aramaic texts by difficulty, because we have no list of how common its words are."
-            )
-          : !said.library
-            ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
-            : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
+      note.textContent = !said.library
+        ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
+        : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
       note.hidden = false;
       return;
     }
@@ -303,16 +334,25 @@
         list.appendChild(gap);
       }
       var item = el("li", "touch");
-      var link = el("a", "touch-" + rung.state);
-      link.href = shelfHref(rung.kind);
+      // Aramaic's rungs are the Aramaic translations, and the Library has no shelf for
+      // each yet, so they are said without a link rather than opening an empty list.
+      var shelved = code !== "arc";
+      var link = el(shelved ? "a" : "span", "touch-chip touch-" + rung.state);
+      if (shelved) link.href = shelfHref(rung.kind);
       var named_ = (RUNGS[rung.name] || RUNGS[rung.kind] || { chip: rung.kind }).chip;
       if (rung.state === "passed") link.innerHTML = TICK;
       link.appendChild(el("span", "touch-name", named_));
       var shown = (rung.state === "here" || rung.state === "next") && typeof rung.share === "number";
       if (shown) link.appendChild(el("span", "touch-share", t("progress.touch.share", "{n}%", { n: rung.share })));
       if (rung.state === "here") link.setAttribute("aria-current", "step");
-      link.title =
-        typeof rung.share === "number"
+      link.title = !shelved
+        ? typeof rung.share === "number"
+          ? t("progress.touch.title-unshelved", "{kind}: you know {n}% of its words.", {
+              kind: named_,
+              n: rung.share,
+            })
+          : named_
+        : typeof rung.share === "number"
           ? t("progress.touch.title", "{kind}: you know {n}% of its words. Open this shelf in the Library.", {
               kind: named_,
               n: rung.share,
@@ -721,19 +761,20 @@
       return;
     }
 
-    // Aramaic texts are never placed by difficulty, so this half says that, once, and
-    // offers the Library (polish 10).
-    if (code === "arc") {
+    var texts = (said && said.texts) || [];
+    // Aramaic has a ladder since targum#936, but its texts are placed only once the
+    // catalogue's Aramaic rows are measured. Until then there is no ladder and nothing to
+    // list, and this half says so, once, and offers the Library (polish 10).
+    if (code === "arc" && !texts.length && !(said && said.ladder && said.ladder.length)) {
       if (answered) {
         levelEmpty.textContent = t(
           "progress.next.texts-arc",
-          "We don't place Aramaic texts by difficulty, so none are listed here."
+          "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
         );
         levelEmpty.hidden = false;
       }
       return;
     }
-    var texts = (said && said.texts) || [];
     // The title alone and how much of it is known, as the board has it.
     texts.forEach(function (one) {
       row(

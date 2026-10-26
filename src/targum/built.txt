@@ -5,6 +5,16 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-25
+Your Progress climbs an Aramaic ladder, from Onkelos up to the Aramaic of the Writings.
+A text in an older Hebrew says which it is, such as Revival-era Hebrew, on its card and in the reader.
+A word in the longest Torah reading answers its first tap in under one and a half seconds on a phone.
+
+2026-10-24
+The Library before signing in stands by language, then by kind, each with its count.
+The Library shows its first card in under one and a half seconds on a phone.
+Hebrew verbs with hollow, doubled or nun-first roots find their conjugation table.
+
 2026-10-23
 Met in from a Torah book opens the portion at the verse, with the word marked.
 The Library in Russian gives the name and description of each text in Russian.

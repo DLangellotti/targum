@@ -380,6 +380,205 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Aramaic climbs from Onkelos to the daf — 2026-10-25
+
+David, 2026-10-25, on ling-arc's research into taking a reader from no Aramaic to Onkelos
+and the Gemara (`zero-to-gemara-2026-10-25`, in ling-arc's keep). **The climb comes first:**
+Onkelos beside the verse the reader already knows, then the core grammar read through
+Onkelos, then a bridge into the Talmud's own Aramaic, and only then the daf. The daf is the
+top of the ladder, not the way in. Measured on the texts: only 36% of Berakhot's running
+words are spelled the way Onkelos spells anything, and the hand table answers 22% of them,
+so the bridge is a rung of its own and not a step to skip. David accepted every design
+change the research asked for, and each is written here:
+
+- **Aramaic gets a ladder, from our own counts.** It reverses "Aramaic gets no ladder"
+  (2026-10-08, Your Progress, below), which stood because wordfreq has no Aramaic list and
+  every text measured 0. The list is counted from our own public-domain shelf instead:
+  Onkelos and Jonathan now, the Gemara when #192 lands, by the hand table's headword where
+  it knows the word and by spelling where it does not. The rungs are the climb's own:
+  Onkelos's narrative, the rest of Onkelos, the Talmud bridge, the daf. Each is said in
+  everyday words, carries its share known, and opens its shelf, as every other language's
+  rungs do. It is a ladder and not a level: no CEFR letter is shown, because the CEFR is
+  tied to a language's everyday words and nobody has spoken this Aramaic for a thousand
+  years ("A language with CEFR levels shows them", 2026-09-13, below). Until it is built,
+  part 1 says how many Aramaic words are known, as it does today, and the line saying why
+  there is no ladder goes the day the ladder comes.
+  Until the bridge and the daf have texts of their own, the rungs are the Targum families
+  the shelf holds, in the order the measure found: Onkelos, Jonathan on Joshua to Kings,
+  Jonathan on the Torah, Jonathan on the Prophets, and the Targums of the Writings
+  (builder-2, 2026-10-25, targum#936). The Talmud bridge and the daf join as rungs when
+  their texts land (#192; Margolis, G12). Onkelos splits into its narrative and the rest
+  when its passage rows exist.
+- **The card draws Aramaic's Hebrew counterpart, from an alignment.** It reverses
+  "Aramaic's Hebrew counterpart is not drawn" (Your Words, 2026-10-09, below). An Onkelos
+  verse renders its Hebrew almost word for word (1.036 Aramaic words to a Hebrew one), and
+  at least three words in ten share a visible stem with a word of their verse. That
+  teaching move is the whole of the first rung: "this is the Hebrew word you already
+  know". The reason the old rule gave still holds as the bar. A counterpart guessed from
+  spelling would be a card that lies, so **it is drawn only from a build that aligns each
+  Onkelos word with the Hebrew word it renders**, measured against a 300-verse gold that
+  ling-arc reads by hand, with a floor in `evals/floors.json`. Where the alignment is
+  unsure, the line is left off. The poems and the renderings of God (מימרא, קדם יי) are
+  paraphrase, and are the first place a counterpart stays blank.
+- **Aramaic has a hard-spot list.** The rule that "a language nobody here can read
+  (Yiddish, Aramaic) has no list" ("A badge is a promise, checked", 2026-10-12, below) is
+  dropped. Aramaic has a reader now. `stages.HARD_SPOTS["arc"]` takes the research's
+  seven, ranked by how much each blocks a reader: the prefixed particles and ד־; emphatic,
+  absolute and construct state; pronoun suffixes on nouns, prepositions and ית; the
+  participle as present, with its enclitics and קא; the verb stems; abbreviations and
+  roshei teivot; the argument terms and the move each makes. Each is covered as every
+  language's spots are: computed per word, shown on a card or in a lens (next entry), and
+  held to a floor against gold. For Daniel and Ezra the gold is Open Scriptures'
+  morphology; for Onkelos and the Gemara it is read by hand by ling-arc. The list does
+  not move the badge. Aramaic stays Experimental: Alpha still asks for a voice and a
+  conversation, and Aramaic has neither: no conversation by decision (#284), and no
+  voice, since no reading tradition has been chosen.
+- **The daf has a section of its own**: "The daf is the Gemara, with its commentaries
+  beside it", below.
+
+### Aramaic's lenses — 2026-10-25
+
+David, 2026-10-25, the same decision. Aramaic's hard spots are shown in five lenses, under
+every rule of "Lenses wait for a second read" (2026-10-13): offered on a second read, one
+lens at a time, a cue the first time and the count after, never remembered. Each lights
+its words in the case lens's wash and dotted underline, and nothing else on the page. Where
+a lens has more than one thing to show, it shows one at a time, chosen as the case lens
+chooses its case, because colouring every class at once costs the reader the line. A key
+for each is chosen when it is built, and none takes `c`, `r`, `w` or the retired `g`.
+
+- **State.** One state at a time: emphatic (מלכא, מלכיא), absolute (מלך, מלכין) or
+  construct (מלך, מלכי־). Read off Onkelos's pointing by rule, and off Open Scriptures'
+  tags in Daniel and Ezra. The cue: "Each word lit is in the emphatic state." In Onkelos the
+  emphatic still mostly means "the"; in the Gemara it no longer does, and the cue says so
+  on a Gemara page.
+- **Suffixes.** A pronoun suffix on a noun, a preposition or ית (עלוהי, קדמוהי, יתהון):
+  the suffix is lit, and its stem is left plain. The cue: "Each ending lit says whose, or
+  whom."
+- **ד־ and ית.** The particle ד־ (of, which, that, because), and ית, which marks the object.
+  The cue: "Each word lit starts with ד־: of, which, that or because." (Or, for ית, "Each
+  word lit marks the object of its verb.")
+- **Abbreviations written out.** Each rosh teivot or shortened word (א״ר, ת״ש, קמ״ל, אע״ג)
+  is lit, and its full form is written beside it in the gloss's ink, while the print form
+  stays as printed. Where the context does not decide between two expansions (ר״ש, ב״ה),
+  both are written, and neither is chosen. The expansion comes from a hand table ling-arc
+  writes from Mielziner's key (1894, public domain) and Berakhot's own counts. The card
+  writes the same form out on a tap, without the lens.
+- **The argument's moves.** One move at a time, from five: where a source is quoted (תנן,
+  תניא, תנו רבנן, איתמר), a question (מאי, מהו, מאי טעמא, איבעיא להו), an objection
+  (מיתיבי, והתניא, והאמר, קשיא), a resolution (אלא, הכי קאמר, לא קשיא), and a verdict
+  (תיובתא, שמע מינה, תיקו, פשיטא, קא משמע לן). About sixty terms carry Berakhot's
+  argument, in a hand table that ling-arc writes. On an unpunctuated page this lens is
+  what stands in for the punctuation, so it shows the term and not the clause after it:
+  saying where an objection ends is a reading, and the lens does not claim it. The card
+  names the move for a tapped term too ("An objection: from a source").
+
+### Aramaic is never written by a model — 2026-10-25
+
+David, 2026-10-25. Nobody has written Jewish Aramaic as a living language for a thousand
+years. A model writing it would make pastiche: Onkelos, the Bavli, Syriac and Biblical
+Aramaic mixed into forms no text attests. And every line a learner reads is a form they
+will expect to meet in the Talmud. This file already ruled the parallel case for biblical
+Hebrew ("a model writing it graded to a ledger of biblical words would be pastiche on the
+one shelf where every line must be right", "The front door is a question", 2026-09-06),
+and #284 kept Aramaic out of talk on those grounds. This entry turns that habit into a rule
+for every surface, scenes and graded texts included, since a scene is studied and a chat
+line is passed over.
+
+- **No Aramaic text for reading comes from a model:** no scene, no dialogue, no graded
+  reader, no simplified sugya, no example sentence, and no conversation (#284 stands). A
+  model does not point Aramaic either. Onkelos keeps the pointing its edition came with
+  (`sefaria.ONKELOS`, never re-pointed), and the Gemara is shown as it was printed.
+- **Grading is done by choosing and by editing, never by writing.** Real Onkelos verses
+  and real Gemara passages are ranked by how much of them a reader knows, and the easiest
+  real lines come first. Writing out an abbreviation, or cutting a sugya at the end of its
+  first exchange, is an honest edit of a real text, and the page shows the edit the way
+  the reader shows any rendering. Margolis's chrestomathy (1910, public domain) is a
+  graded reader a scholar already made, and it goes on the shelf as written.
+- **What a model may do around the Aramaic, and who checks it.** It reads a scan: the
+  Vilna OCR of #192 transcribes what was printed, with a second read and a person on every
+  word where the reads disagree. It drafts an English gloss from Jastrow and three real
+  lines, and ling-arc reads every entry against the lines before it ships. It drafts a
+  practice's options and its explanation, which a person checks against a paradigm
+  written by hand. And it translates into the reader's language, as the pipeline does for
+  every text. None of these puts an Aramaic word on the page that a text did not already
+  have.
+
+### The daf is the Gemara, with its commentaries beside it — 2026-10-25
+
+David, 2026-10-25, for the daf laid out (#194), which until today had no section here,
+for the desk or for a phone. It is built after the climb's first rungs, as decided above,
+and its Gemara waits on #192. What is settled is written here. The rest is design's to
+draw, and design runs the §14 bar at both widths on the first build, before it ships.
+
+- **The amud is exact before anything else.** Daf Yomi is learned together, and a
+  learner following a shiur must be on the room's amud. Every block carries its daf and
+  amud, the amud is named where it begins (2a, 2b), and its boundaries are checked against
+  an independent source, never against the OCR's own guess. Line-for-line fidelity to
+  the Vilna page is not asked for. A wrong line break costs a learner nothing, and the
+  daf is not a facsimile.
+- **The desk is three regions, the way the printed page has them.** The Mishnah and the
+  Gemara run down the centre in reading order. Rashi is in the inner margin and Tosafot
+  in the outer one, each beside the passage it comments on (by the anchor its text
+  carries), not where it falls on the printed page. The commentaries are in Hebrew, and
+  read as Hebrew.
+- **The Mishnah reads apart from the Gemara without a legend, and not by colour alone.**
+  Each opens with its print head, מתני׳ or גמ׳, set larger at the start of its first line,
+  as the Vilna page sets it, with space above the Mishnah and below it.
+- **On a phone the Gemara is the spine.** One column, the centre's text. A passage that
+  Rashi or Tosafot comment on ends with a quiet mark, and a press opens that passage's
+  commentary in a sheet over the page ("A word's card covers the page on a phone; it does
+  not move it", 2026-09-03), where every word can still be tapped. Every word on the daf
+  can be reached on a phone. This is designed for a phone and not cut down from the desk,
+  because most learning happens on one.
+- **One page, two cards, no switch.** A Gemara word opens the Aramaic card. A Mishnah,
+  Rashi or Tosafot word opens the Hebrew card, and so does Hebrew inside the Gemara: a
+  verse matched to its source, and a baraita where its ends are sure. Nothing on the page
+  says which mode it is in.
+- **The Gemara is unpointed**, as it was printed ("Aramaic is never written by a model",
+  above). The lenses above are how a learner is helped through an unpunctuated page.
+- **It fetches nothing**, like every reader. Today's daf and the cycle are #196, and
+  tractates past Berakhot are later.
+
+### An older Hebrew says which it is — 2026-10-25
+
+David, 2026-10-25, on content's count of the Hebrew shelf by era (159 revival texts, a
+third of everything outside the scenes, every one from Project Ben-Yehuda): **label only.**
+Revival, rabbinic and medieval Hebrew stay mixed into the Library and the arrival, with no
+door of their own and nothing hidden, and each says which Hebrew it is wherever it shows.
+
+- **The label is the register and the decade**: «Revival-era Hebrew, 1890s», «Rabbinic
+  Hebrew», «Medieval Hebrew, 1160s». The register is the catalogue's own field ("Which
+  Hebrew is five answers, not two", 2026-09-01); the decade is read off the year in the
+  byline, where the row has one, and left off where it has none. The Tanakh carries no
+  label: its map, its face and its name already say what it is. Modern Hebrew carries
+  none, and neither does any other language.
+- **Everywhere the text shows**: the card on a Library shelf, under its kind; the row in
+  See all, in the line that says what it is and whose, and on a phone beside its length;
+  the text's public page, under the byline; its contents page; the top of the reader,
+  which is where the arrival lands somebody; and the rows the connector's `find_text` and
+  `suggest_next` return (`era`, which a host repeats, and `era_of`, which the text card
+  says in the page's language). In ink, not the kind's grey, so it is read.
+- **Nothing else moves.** The shelves, the arrival's subjects (Hebrew's Stories and novels
+  is still answered by revival texts, now labelled) and what `find_text` returns are as
+  they were. Only the label is added.
+- A reader built before this carries the label from its next render; the contents page,
+  the public page, the Library and the connector say it from the deploy.
+
+### The floors count modern Hebrew — 2026-10-25
+
+David, 2026-10-25, the same decision. The stage standard's shelf floors ("A badge is a
+promise, checked") read the **modern ladder only**: modern Hebrew, and every other
+language, whose rows carry no register. Hebrew's Tanakh is counted as a row of its own;
+revival, rabbinic and medieval Hebrew are counted and printed by `targum stages` but held
+to no floor. The weekly's three editions are modern Hebrew and count on the ladder, once
+`targum stages --measure` can place them from their builds.
+
+Counted that way, Hebrew's B1 is 53 texts against a floor of 90 (A1 114, A2 96, B2+ 90;
+recordings clear at every level). Before, it was 155, of which 48 were revival and 54 the
+Tanakh. So Hebrew's Beta is **kept**, in `stages.KEPT` with this entry's name, from
+2026-10-25 and reviewed by 2026-12-31: the test prints what it owes on every run, and the
+entry comes out when the first generated modern B1 tranche lands and B1 clears 90.
+
 ### What a first tap does not need waits after the faces — 2026-10-24
 
 David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-internal#503).
@@ -1489,6 +1688,12 @@ are the desk" the column runs to that corner too. It covered the Library's secon
   reach less the column's own padding. The bar keeps the whole width. A control clear of
   the pill across the window is clear of it at every scroll position.
   `test_at_a_desk_the_talk_pill_covers_nothing` holds this at 1024, 1280 and 1440.
+- *(Since 2026-10-23, targum-internal#523 and targum#919: the start edge keeps the same
+  room as the end once the window spares it, so the column stays centred and narrows in
+  the middle instead of sliding: 1198px at 1440 in English, less in Russian, whose pill
+  says more. So a page asks its own width whether two things fit side by side, never
+  the window's (2026-10-24, after Your Words ran its table under Practise these at 1440);
+  `test_desk_fit_browser.py` holds each page it fixed from 360 to 1920.)*
 
 ### A drawer left open comes back undimmed — 2026-10-09
 
@@ -2894,7 +3099,9 @@ menu's language, as everywhere):
   takes its case. A rung built on few texts stays a rung.
 - **Aramaic gets no ladder** (David, 2026-10-08): wordfreq has no Aramaic list, so every
   Aramaic text measures 0, which is false. Its part 1 says how many Aramaic words are known
-  and why there is no ladder. **Yiddish has no library**, so no ladder either, and its
+  and why there is no ladder. *(Reversed 2026-10-25, David: Aramaic gets a ladder counted
+  from our own shelf, and this line stands only until it is built. See "Aramaic climbs from
+  Onkelos to the daf", above.)* **Yiddish has no library**, so no ladder either, and its
   part 3 offers Upload and the reader's own texts instead of the Library's.
 - **2 · How you got here.** Time and words (2026-09-20), filtered by period only — Last 30
   days, Last 7 days, All time; the medium chips are gone, the three figures say the
@@ -3036,7 +3243,9 @@ beside a word. Now:
   instrumental: рукой", at least three meetings, one case at least half of them, never
   the nominative), and "Here: genitive" on the card. **Aramaic's Hebrew counterpart is
   not drawn**: no build aligns an Onkelos word with the Hebrew word it renders, and a
-  counterpart guessed from spelling would be a card that lies.
+  counterpart guessed from spelling would be a card that lies. *(Reversed 2026-10-25,
+  David: it is drawn from an alignment held to a floor, and never from spelling. See
+  "Aramaic climbs from Onkelos to the daf", above.)*
 
 Where this goes past the boards, or departs from them, deliberately:
 
@@ -3404,8 +3613,10 @@ entry makes the three words promises to the reader, in order, and makes a test k
   hard spot** in What to work on; and nothing a paying reader would call a blocker.
 - **The hard-spot lists are ranked by the research**, five to seven a language: Hebrew's
   root and binyan first, Russian's cases with their governing preposition, French's
-  gender, Italian's gender and agreement. A language nobody here can read (Yiddish,
-  Aramaic) has no list and stays Experimental.
+  gender, Italian's gender and agreement. Yiddish has no list yet and stays Experimental.
+  *(Until 2026-10-25 this said a language nobody here can read (Yiddish, Aramaic) has no
+  list. David dropped that rule the day Aramaic got a reader, and Aramaic's seven are in
+  "Aramaic climbs from Onkelos to the daf", above.)*
 - **The shelf is counted on the library's own ruler**, which places a text on three
   levels by hard-word share and sentence length, and the floors are stated in CEFR by a
   mapping said rather than measured: A1 is a text meeting the Easy spec in full, A2 the
@@ -3443,6 +3654,11 @@ entry makes the three words promises to the reader, in order, and makes a test k
 - **The second medium is video, counted** (2026-10-13). It had been read off recordings,
   which are mostly texts read aloud, the same text in another sense. `targum stages
   --measure` now writes each language's videos into the snapshot.
+- **The floors count the modern ladder** (David, 2026-10-25; "The floors count modern
+  Hebrew" above). A level's texts are modern texts: Hebrew's Tanakh is a row of its own,
+  and revival, rabbinic and medieval Hebrew are counted and reported but held to no floor.
+  Hebrew's B1 held 53 such texts against 90, so its Beta is **kept** again from that day,
+  under that entry's name, until the first generated modern B1 tranche lands.
 
 What it does not change: the badge's colours and placement above; the five word stages;
 what the chat may spend; the *into* languages' two words on the upload page, which are not
@@ -6848,7 +7064,9 @@ language got milestones only, on the ground that a ladder hung off a Russian wor
 a real ladder of its own: **French, Russian and Italian show a CEFR level, and Hebrew shows
 its ulpan rung with the CEFR equivalent beside it** ("ב+ bet plus · about A2+"). Yiddish and
 Aramaic keep the milestones, with one line saying why: there is no frequency table to
-measure a vocabulary in either against.
+measure a vocabulary in either against. *(Amended 2026-10-25, David: Aramaic gets a
+frequency list of our own counting, and with it a ladder, but still no CEFR level. See
+"Aramaic climbs from Onkelos to the daf", above.)*
 
 What makes it not a score with a letter on it is that the measure is the one the research
 ties the levels to, and the page still says it is a guide. The CEFR is climbed by known

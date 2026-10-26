@@ -36,6 +36,9 @@
       as English, which is the opposite of what this page is for (targum-internal#188). -#}
   {% if named %}<p class="english" lang="{{ page_language }}" dir="ltr">{{ named }}</p>{% endif %}
   <p class="byline">{{ byline }}</p>
+  {#- Which older Hebrew, for a text in one (David, 2026-10-25; design.md §12, "An older
+      Hebrew says which it is"). -#}
+  {% if era %}<p class="era" lang="{{ page_language }}">{{ era }}</p>{% endif %}
   <p class="lede" lang="{{ page_language }}" dir="ltr">{{ lede }}</p>
 
   {%- if sample %}

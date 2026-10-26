@@ -49,16 +49,16 @@
     "recordings": 114
    },
    "A2": {
-    "texts": 98,
-    "recordings": 97
+    "texts": 96,
+    "recordings": 96
    },
    "B1": {
-    "texts": 155,
-    "recordings": 102
+    "texts": 53,
+    "recordings": 51
    },
    "B2+": {
-    "texts": 326,
-    "recordings": 82
+    "texts": 90,
+    "recordings": 51
    }
   },
   "it": {
@@ -104,5 +104,81 @@
   "he": 88,
   "it": 78,
   "ru": 178
+ },
+ "registers": {
+  "he": {
+   "biblical": {
+    "A1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "A2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B1": {
+     "texts": 54,
+     "recordings": 50
+    },
+    "B2+": {
+     "texts": 30,
+     "recordings": 25
+    }
+   },
+   "medieval": {
+    "A1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "A2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B2+": {
+     "texts": 17,
+     "recordings": 0
+    }
+   },
+   "rabbinic": {
+    "A1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "A2": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "B2+": {
+     "texts": 80,
+     "recordings": 0
+    }
+   },
+   "revival": {
+    "A1": {
+     "texts": 0,
+     "recordings": 0
+    },
+    "A2": {
+     "texts": 2,
+     "recordings": 1
+    },
+    "B1": {
+     "texts": 48,
+     "recordings": 1
+    },
+    "B2+": {
+     "texts": 109,
+     "recordings": 6
+    }
+   }
+  }
  }
 }

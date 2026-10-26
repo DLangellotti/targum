@@ -30,7 +30,11 @@
 }
 .sub-languages { font-family: var(--chrome); cursor: pointer; }
 
-.sub-table { display: block; }
+/* The table is one column of rows wherever it is narrower than its five columns need
+   (2026-10-24), asked of its own width: on Your targums at 768 the tab's card is the
+   column less the AI Assistant's room, and the columns broke «Недельный» in the middle
+   and ran «Каждый понедельник» into the next one. A phone always meets it. */
+.sub-table { display: block; container: sub-table / inline-size; }  /* rows: below */
 .sub-head-row,
 .sub-row {
   display: grid;
@@ -371,6 +375,14 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 .sub-confirm-ways { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-block-start: 1rem; }
 .cap-left { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
 
+/* The table's rows when it is narrow (`.sub-table`, above). After the row's own rules,
+   which it overrides. */
+@container sub-table (max-width: 40rem) {
+  .sub-head-row { display: none; }
+  .sub-row { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .sub-every { display: none; }
+}
+
 /* --- a phone: one column; the cap first, Pause and Unsubscribe at the foot -------------- */
 
 @media (max-width: 52rem) {
@@ -391,9 +403,6 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 }
 @media (max-width: 40rem) {
   body.subs-page main { padding-inline: 1rem; }
-  .sub-head-row { display: none; }
-  .sub-row { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
-  .sub-every { display: none; }
   .sub-item { align-items: flex-start; flex-wrap: wrap; }
   .sub-item-pic.is-wide { inline-size: 6rem; block-size: 3.375rem; }
   .sub-item .sub-act { margin-inline-start: 7rem; }

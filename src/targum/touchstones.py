@@ -35,9 +35,83 @@ from .coverage import IGNORED, KNOWN, Index
 #: these a language's ladder has, and in what order, is the catalogue's to say.
 KINDS = ("dialogue", "talk", "article", "story", "novel", "poetry")
 
-#: No ladder at all. wordfreq has no Aramaic list, so the difficulty measure says 0 of
-#: every Aramaic text, which is false (David, 2026-10-08): Aramaic shows known words only.
-NO_LADDER = frozenset({"arc"})
+#: No ladder at all. Aramaic was here from 2026-10-08, when wordfreq's missing list made
+#: every Aramaic text measure 0; it climbs `aramaic_ladder` since the shelf's own Aramaic
+#: was counted (`annotate.aramaic_frequency`, targum-internal G1; design.md §12, "Aramaic
+#: gets a ladder, from our own counts", 2026-10-25).
+NO_LADDER: frozenset[str] = frozenset()
+
+#: Aramaic's rungs, in the order ling-arc's plan climbs them (2026-10-25): the shelf's
+#: Aramaic is all prose and poetry by the catalogue's kinds, so a rung is a body of Targum
+#: rather than a kind of text. Each is named by the test a source passes.
+ARAMAIC_FAMILIES: tuple[tuple[str, Callable[[str], bool]], ...] = (
+    ("onkelos", lambda book: "Targum" not in book),
+    (
+        "former-prophets",
+        lambda book: (
+            book.startswith("Targum Jonathan on ")
+            and book.removeprefix("Targum Jonathan on ")
+            in {"Joshua", "Judges", "I Samuel", "II Samuel", "I Kings", "II Kings"}
+        ),
+    ),
+    (
+        "jonathan-torah",
+        lambda book: (
+            book.startswith("Targum Jonathan on ")
+            and book.removeprefix("Targum Jonathan on ")
+            in {"Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy"}
+        ),
+    ),
+    ("latter-prophets", lambda book: book.startswith("Targum Jonathan on ")),
+    ("writings", lambda book: book.startswith(("Aramaic Targum to ", "Targum of "))),
+)
+
+
+def aramaic_family(source: str) -> str | None:
+    """Which body of Targum an Aramaic source belongs to, or None for anything else."""
+    if not source.startswith("sefaria:arc:"):
+        return None
+    book = source.removeprefix("sefaria:arc:")
+    for family, belongs in ARAMAIC_FAMILIES:
+        if belongs(book):
+            return family
+    return None
+
+
+def aramaic_ladder(entries: Iterable[Any]) -> list[Rung]:
+    """Aramaic's rungs, easiest first, by the median measured difficulty of each family.
+
+    The same rule as `ladder`: a family with no measured text is not a rung, and ties keep
+    the plan's order. Measured on 2026-10-25 off the counted list, Onkelos's five books
+    came out at 9 to 13, Jonathan on the Former Prophets 11 to 14, on the Torah 16 to 20,
+    the Latter Prophets 11 to 28 and the Writings 14 to 37 — the order ling-arc's plan
+    climbs, found rather than assumed.
+    """
+    order = [family for family, _ in ARAMAIC_FAMILIES]
+    by_family: dict[str, list[Any]] = {}
+    for entry in entries:
+        if str(getattr(entry, "language", "")) != "arc":
+            continue
+        family = aramaic_family(str(getattr(entry, "source", "")))
+        if family is not None:
+            by_family.setdefault(family, []).append(entry)
+    rungs: list[Rung] = []
+    for family, members in by_family.items():
+        measured = [int(getattr(m, "difficulty", 0) or 0) for m in members]
+        measured = [d for d in measured if d > 0]
+        if not measured:
+            continue
+        rungs.append(
+            Rung(
+                kind=family,
+                name=family,
+                difficulty=float(median(measured)),
+                texts=tuple(str(m.id) for m in members),
+            )
+        )
+    rungs.sort(key=lambda rung: (rung.difficulty, order.index(rung.kind)))
+    return rungs
+
 
 #: What a kind is called where the language's shelf of it is something more particular.
 #: Italian's stories are StoryWeaver's children's books, and a rung says so in everyday
@@ -81,11 +155,13 @@ def ladder(entries: Iterable[Any], language: str) -> list[Rung]:
     """A language's rungs, easiest first, by the median measured difficulty of each kind.
 
     A kind with no measured text in this language is not a rung: an unmeasured 0 would
-    put it at the bottom, which is a claim nobody made. Empty for Aramaic, and for a
-    language the library has nothing in.
+    put it at the bottom, which is a claim nobody made. Empty for a language the library
+    has nothing in. Aramaic's rungs are bodies of Targum, not kinds (`aramaic_ladder`).
     """
     if language in NO_LADDER:
         return []
+    if language == "arc":
+        return aramaic_ladder(entries)
     by_kind: dict[str, list[Any]] = {}
     for entry in entries:
         if str(getattr(entry, "language", "")) != language:

@@ -12,6 +12,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Your Progress no longer says Aramaic texts aren't placed by difficulty (2026-10-25).
+  Since targum#936 Aramaic has a ladder, so part 3 now says it lists Aramaic texts at
+  your level once the library's Aramaic is measured. Once the 41 Aramaic rows are
+  measured, the texts at your level are listed as in any other language. The Russian line
+  is a draft for ling-ru.
+- The note under "Learned on targum" is one sentence now: it says what the count holds and stops (David, 2026-10-25).
+- Your Words keeps its table inside its card at every width (David, 2026-10-24: "design
+  seems to be broken"). Since targum#919 kept the AI Assistant's room on both edges of
+  the column, the column is 1198px at 1440 in English, and the page still asked the
+  window whether the practice card fitted beside the table: the table ran 41px past its
+  card at 1440, 64px at 1280 and 115px at 768, and ignore sat under Practise these. The
+  card now stands beside the table only while the table's narrowest fits beside it, and
+  goes above it otherwise; the list takes the phone's rows wherever it is narrower than
+  its table; a stage's name may take two lines; and a Hebrew word's dictionary form
+  stands under the word instead of at the cell's other edge. The same shoot, every
+  signed-in desk page at 360 to 1920 in English and Russian, found one more: Your
+  targums' Subscriptions tab at 768 broke «Недельный» mid-word and ran «Каждый
+  понедельник» into the next column; its table takes the phone's rows wherever it is
+  narrower than its columns need. `test_desk_fit_browser.py` holds both.
 - The grammar/8 re-read (targum-internal#509 and #307, ling-he's spec; part (b), after
   #929's render-time index). A modern hollow, geminate or I-nun verb gets its root and
   binyan from a list ling-he reviewed: מת is פעל of מ־ו־ת, הביא is הפעיל of ב־ו־א, and
@@ -320,6 +339,52 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
+  gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
+  (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
+  Targums of the Writings and the Aramaic of Daniel and Ezra, 448,177 words in 43 texts,
+  filed the way the annotator files them. The difficulty measure reads it, so an Aramaic
+  text no longer measures 0: Onkelos's books come out at 9 to 13, Jonathan on the Former
+  Prophets 11 to 14, on the Torah 16 to 20, the Latter Prophets 11 to 28, the Writings 14
+  to 37, and the level map places them. `touchstones.aramaic_ladder` makes those families
+  the rungs, Onkelos first, and Your Progress climbs them (design.md §12, "Aramaic gets a
+  ladder, from our own counts"): each rung named in English and, as a draft for ling-ru,
+  in Russian, Pseudo-Jonathan by its everyday name, each a chip without a link until the
+  Library has a shelf for each body of Targum (design.md §12 now lists these rungs until
+  the Talmud bridge and the daf have texts). The tables carry ling-arc's review: readings
+  reordered and added, five more abbreviations, six more terms, four moves changed. The
+  line blaming a missing frequency list is gone; until the catalogue's
+  Aramaic rows are measured, part 1 says what any unmeasured language says. The card is
+  untouched: a word of Onkelos still says it is not rated, and nothing is re-annotated.
+  **The Talmud's abbreviations** (`closed.TALMUD_ABBREVIATIONS`, 373 forms from
+  Mielziner's 1894 key, read off the page scans, with every full form and its sense) and
+  **its argument terms** (`closed.TALMUD_TERMS`, 76, each with the move it makes:
+  source, question, objection, answer, verdict, frame), with `abbreviation` and
+  `argument_term` to look them up. Data only, for ling-arc to check; no surface reads them
+  yet. Nothing spent.
+- An older Hebrew says which it is, and the shelf floors count modern Hebrew (David,
+  2026-10-25: label only; design.md §12, "An older Hebrew says which it is" and "The
+  floors count modern Hebrew"). A revival, rabbinic or medieval Hebrew text is labelled
+  «Revival-era Hebrew, 1890s» (the decade from the year in its byline, where it has one)
+  on its Library card and See all row, its public page, its contents page, the top of
+  the reader the arrival opens, and the rows `find_text` and `suggest_next` return (`era`
+  and `era_of`), in English and Russian (the Russian is a draft for David's read). The
+  shelves, the arrival's subjects and what `find_text` returns are unchanged. The stage
+  floors and `targum stages` read the modern ladder only (`levelmap.split`); the Tanakh,
+  revival, rabbinic and medieval Hebrew are counted per register under `registers` in
+  `evals/shelf.json` and printed, held to no floor, and `--measure` counts the weekly's
+  published editions too. Modern B1 is 53 of 90, so Hebrew's Beta is kept in
+  `stages.KEPT`, reviewed by 2026-12-31, until the first generated modern B1 tranche
+  lands. A reader built before this shows its label from its next render.
+- design.md §12 carries David's Aramaic decisions of 2026-10-25, from ling-arc's research
+  into taking a reader from no Aramaic to Onkelos and the Gemara. The climb comes first
+  (Onkelos, its grammar, a bridge into the Talmud, then the daf). Aramaic gets a ladder
+  counted from our own shelf, a Hebrew counterpart on the card drawn only from an
+  alignment held to a floor, and a hard-spot list of seven. There are five lenses (state,
+  suffixes, ד־ and ית, abbreviations written out, the argument's moves), a section for the
+  daf laid out (targum-internal#194), and a new rule: "Aramaic is never written by a
+  model". The three rules this reverses are marked where they stand. Nothing is built
+  yet: Your Progress and the card are unchanged until each piece lands.
 - Two runbooks for the box (targum-internal#482). `deploy/ROLLBACK.md` puts the previous
   build back with `rollback.sh` when the box kept its wheel, or by deploying its commit
   again from a worktree (the only way back until a second deploy with targum#876 has

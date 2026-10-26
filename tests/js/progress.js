@@ -161,7 +161,8 @@ setImmediate(() => setImmediate(() => process.stdout.write(
           const link = item.children[0];
           return {
             text: link.textContent,
-            state: String(link.className).replace("touch-", ""),
+            state: String(link.className).split(" ").pop().replace("touch-", ""),
+            tag: String(link.tagName).toLowerCase(),
             href: link.href,
             current: link.getAttribute("aria-current") || "",
             label: link.getAttribute("aria-label") || "",

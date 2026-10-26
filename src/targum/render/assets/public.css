@@ -93,6 +93,9 @@ body.public {
   color: var(--ink-soft);
   font-size: 0.9375rem;
 }
+/* Which older Hebrew, under the byline, which gives up its space to it (David, 2026-10-25). */
+.public .byline:has(+ .era) { margin-block-end: 0.25rem; }
+.public .era { margin: 0 0 1.25rem; color: var(--ink); font-size: 0.9375rem; }
 /* The title in English under the Hebrew one, in ink. */
 .public .english { margin: 0.1rem 0 0; color: var(--ink); font-size: 0.9375rem; }
 .public .texts .english { display: block; font-size: 0.8125rem; }

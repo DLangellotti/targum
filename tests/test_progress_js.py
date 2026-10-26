@@ -601,8 +601,10 @@ def test_italian_childrens_books_are_called_so() -> None:
     assert drawn["rungs"][0]["href"].endswith("#see/kind/story")
 
 
-def test_aramaic_shows_known_words_and_no_ladder() -> None:
-    """wordfreq has no Aramaic list, so its texts cannot be measured (David, 2026-10-08)."""
+def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
+    """Aramaic climbs a ladder of Targums since 2026-10-25 (design.md §12); until the
+    catalogue's Aramaic is measured it has none to draw, and says so as any language does.
+    The line that blamed a missing frequency list is gone with the reason for it."""
     drawn = draw(
         {"targum:vocab:arc": vocab(known=12)},
         chosen="arc",
@@ -618,9 +620,36 @@ def test_aramaic_shows_known_words_and_no_ladder() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "We can't place Aramaic texts by difficulty" in drawn["where"]["note"]
+    assert "once we've measured the library's texts" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
+    # Part 3 says the texts wait on the measuring, not that Aramaic is never placed.
+    assert drawn["next"]["levelEmpty"] == (
+        "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
+    )
+    assert drawn["next"]["level"] == []
+
+
+def test_aramaic_texts_at_your_level_are_listed_once_measured() -> None:
+    """Since targum#936 Aramaic has a ladder, so once its rows are measured part 3 lists
+    the texts at the reader's level as any language does, and no longer says it can't."""
+    drawn = draw(
+        {"targum:vocab:arc": vocab(known=40)},
+        chosen="arc",
+        story={
+            "library": True,
+            "known": 40,
+            "ladder": [{"kind": "onkelos", "name": "onkelos", "state": "here", "share": 92}],
+            "here": 0,
+            "said": "follow",
+            "texts": [{"id": "onkelos-genesis", "title": "אונקלוס בראשית", "known": 92}],
+            "words": [],
+        },
+    )["next"]
+    assert drawn["level"] == [
+        {"text": "אונקלוס בראשית | 92% known", "href": "/library?k=k#onkelos-genesis"}
+    ]
+    assert drawn["levelEmpty"] == ""
 
 
 def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
@@ -874,3 +903,31 @@ process.stdout.write(JSON.stringify({ low: low, high: drawn.style.top }));
     placed = json.loads(done.stdout)
     assert placed["low"] == "24px", "under a point near the top"
     assert placed["high"] == "50px", "above a point with room"
+
+
+def test_aramaic_rungs_are_said_without_a_link() -> None:
+    """Aramaic's rungs are bodies of Targum (design.md §12, 2026-10-25), and the Library has
+    no shelf for each yet: a rung is a chip, not a link to an empty list."""
+    drawn = draw(
+        {"targum:vocab:arc": vocab(known=40)},
+        chosen="arc",
+        story={
+            "library": True,
+            "known": 40,
+            "ladder": [
+                {"kind": "onkelos", "name": "onkelos", "state": "here", "share": 82},
+                {"kind": "jonathan-torah", "name": "jonathan-torah", "state": "next", "share": 60},
+            ],
+            "here": 0,
+            "said": "most",
+            "texts": [],
+            "words": [],
+        },
+    )
+    where = drawn["where"]
+    assert where["head"] == "You'd follow most of Onkelos"
+    assert [rung["tag"] for rung in where["rungs"]] == ["span", "span"]
+    assert [rung["state"] for rung in where["rungs"]] == ["here", "next"]
+    assert not any(rung.get("href") for rung in where["rungs"])
+    assert where["rungs"][1]["text"] == "Pseudo-Jonathan60%"
+    assert where["rungs"][0]["label"] == "Onkelos: you know 82% of its words."
