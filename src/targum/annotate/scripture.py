@@ -303,7 +303,25 @@ def headword_of(word: oshb.Word) -> str:
     host = PREPOSITIONS.get(word.lexeme.strip())
     if host:
         return host
-    return _headword(oshb.headword(word.lexeme) or word.pieces[word.content])
+    return _headword(oshb.headword(lexeme_of(word)) or word.pieces[word.content])
+
+
+#: Lexemes Strong's numbers apart that are one verb to a learner (`oshb/8`, grammar/8,
+#: targum-internal#509, finding 6). H3212 ילך is the future and imperative stem of H1980
+#: הלך, so every לֶךְ and וַיֵּלֶךְ was filed under ילך with the root ילך, apart from הלך:
+#: 1,041 words of the Tanakh. Read before the headword, the root and the gloss, so all
+#: three are הלך's, and before `count_tanakh.py` counts the band table with
+#: `headword_of`, so the two counts are one.
+LEXEME_ALIASES = {"3212": "1980"}
+
+
+def lexeme_of(word: oshb.Word) -> str:
+    """The Strong's number a word is filed under: the tagging's, through
+    `LEXEME_ALIASES`."""
+    lexeme = word.lexeme
+    number, _, rest = lexeme.strip().partition(" ")
+    alias = LEXEME_ALIASES.get(number)
+    return f"{alias} {rest}".strip() if alias else lexeme
 
 
 #: The prepositions the tagging writes as a letter rather than a number, by that letter,
@@ -369,6 +387,10 @@ class ScriptureLemmatizer:
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
 
+        `oshb/8` (2026-10-24, targum-internal#509): Strong's H3212 ילך is read as H1980
+        הלך (`LEXEME_ALIASES`), so לֶךְ and וַיֵּלֶךְ are הלך's headword, root and gloss.
+        Rides the grammar/8 re-read.
+
         `oshb/7` (2026-10-21, targum-internal#454): a noun or adjective in the construct
         state says so, `Definite=Cons`, from the code's state letter (`features`), so the
         card's construct line reaches Biblical text. Rides the grammar/7 re-read, which
@@ -394,7 +416,7 @@ class ScriptureLemmatizer:
         in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
         never trails a Hebrew word.
         """
-        return f"oshb/7+{self.fallback.name}"
+        return f"oshb/8+{self.fallback.name}"
 
     def reads(self, segment: Segment) -> bool:
         """Whether this block can be looked up here rather than guessed at.
@@ -475,14 +497,15 @@ class ScriptureLemmatizer:
         out: list[Token] = []
         for (start, end, _), word in zip(spans, wanted, strict=True):
             code = word.code
-            pointed = oshb.headword(word.lexeme)
+            lexeme = lexeme_of(word)
+            pointed = oshb.headword(lexeme)
             # The dictionary form the binyan and the root are read off. Where the lexicon
             # has no entry — a handful of prefixes tagged as content — the bare word
             # stands in, the same fallback `headword_of` makes.
             dictionary = pointed or word.pieces[word.content]
             # The same function the band table is counted with, so the two cannot drift.
             lemma = headword_of(word)
-            filed = oshb.filed_as(word.lexeme) if pointed else ""
+            filed = oshb.filed_as(lexeme) if pointed else ""
             pointed = unicodedata.normalize("NFC", pointed)
             verb = part_of(code) == "VERB"
             out.append(
@@ -494,7 +517,7 @@ class ScriptureLemmatizer:
                     band=0,
                     split=len(word.pieces) > 1,
                     pos=part_of(code),
-                    lexeme=word.lexeme or None,
+                    lexeme=lexeme or None,
                     binyan=binyan_of(code) if verb else None,
                     root=root_of(dictionary) if verb else None,
                     feats=word_features(word),

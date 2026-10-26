@@ -210,7 +210,7 @@ def test_the_annotator_says_it_read_the_words() -> None:
         lemmatizer=OneWordPerToken(), bands=FlatBands(), pronouncer=PhonikudPronouncer()
     )
     assert speaking.name != plain.name
-    assert speaking.name.endswith("+phonikud/3")
+    assert speaking.name.endswith("+phonikud/4")
 
 
 def test_another_language_is_left_alone() -> None:

@@ -148,11 +148,77 @@ def binyan_of(feats: str | None) -> str | None:
     return None
 
 
+# The hollow, geminate and I-nun verbs whose root the lemma does not write: קָם, הֵבִיא,
+# הִגִּישׁ. No spelling rule recovers them, so they are a frozen list, generated from the
+# conjugation table and hand-checked by ling-he (grammar/8, targum-internal#509 and
+# #307, 2026-10-24). A literal here and never read from the table at annotation time: a
+# table edit must not change what an annotation says without a rename.
+#
+# Left out on purpose, because the letters say two roots: רב (ריב/רבב), דן (דין/דון),
+# צר (צור/צרר), מל (מול/מלל), שח, שש, פג, טח, עט, הזיע, התיש, הסיט, הסיח, הניב, הביס.
+# Each keeps no root, which is the house rule.
+_WEAK_PAAL = (
+    "מת מות · שב שוב · שם שים · קם קום · בא בוא · גר גור · נח נוח · סר סור · חש חוש · "
+    "נע נוע · דר דור · זז זוז · תר תור · חס חוס · צד צוד · נס נוס · שט שוט · שר שיר · "
+    "לן לון · בז בוז · טס טוס · אץ אוץ · עף עוף · דש דוש · צף צוף · קץ קוץ · צם צום · "
+    "סך סוך · זב זוב · לש לוש · מש מוש · זע זוע · גז גוז · דג דוג · חב חוב · תם תמם"
+)
+_WEAK_HIFIL = (
+    "הביא בוא · הגיד נגד · השיב שוב · הגיע נגע · הכיר נכר · הביט נבט · השיג נשג · "
+    "הסיר סור · הקים קום · התיר נתר · הפיל נפל · הגיש נגש · הציג יצג · הציע יצע · "
+    "הצית יצת · השיא נשא · הציץ ציץ · הניע נוע · הקיף נקף · הסיע נסע · הסיק נסק · "
+    "הקיש נקש · החיל חול · הטיף נטף · הדיר נדר · האיץ אוץ · הסיג נסג · הקיץ קוץ · "
+    "העיף עוף · הריץ רוץ · התיז נתז · השיק נשק · הציף צוף · החיש חוש · הבין בין · "
+    "העיד עוד · האיר אור · העיר עור · הרים רום · הגיב גוב · המיר מור · הקיא קיא · "
+    "הריע רוע · הניף נוף · הכיל כול · הפיח פוח · המיט מוט · הזין זון · הסית סות · "
+    "הציק צוק · הפיץ פוץ · העיק עוק · הגיח גיח · הטיח טיח · הריק ריק · הפיג פוג · "
+    "הניא נוא"
+)
+
+
+def _weak_table() -> dict[str, tuple[str, str]]:
+    out: dict[str, tuple[str, str]] = {}
+    for binyan, listed in (("פעל", _WEAK_PAAL), ("הפעיל", _WEAK_HIFIL)):
+        for pair in listed.split(" · "):
+            lemma, root = pair.split()
+            # Keyed with the final forms folded, the way `root_of` reads a lemma; the
+            # root is written with its own final form, the way `root_of` answers.
+            root = root.translate(FINALS)
+            out[lemma.translate(FINALS)] = (binyan, root[:2] + root[2].translate(ENDINGS))
+    return out
+
+
+#: {lemma, final forms folded: (binyan, root)}. See `_WEAK_PAAL`.
+WEAK_ROOTS: dict[str, tuple[str, str]] = _weak_table()
+
+
+def weak_root(lemma: str) -> tuple[str, str] | None:
+    """The (binyan, root) the reviewed list gives a bare verb lemma, or None."""
+    letters = "".join(c for c in (lemma or "").translate(FINALS) if "א" <= c <= "ת")
+    return WEAK_ROOTS.get(letters)
+
+
 def root_of(lemma: str, binyan: str | None) -> str | None:
     """The three-letter root behind a verb lemma, or None where it cannot be had.
 
+    The pattern the binyan spells, undone (`pattern_root`); and where that cannot be
+    done because the lemma does not write a root letter, the reviewed list of hollow,
+    geminate and I-nun verbs (`WEAK_ROOTS`, grammar/8), in the binyan it lists only.
+    """
+    found = pattern_root(lemma, binyan)
+    if found or not binyan:
+        return found
+    listed = weak_root(lemma)
+    return listed[1] if listed and listed[0] == binyan else None
+
+
+def pattern_root(lemma: str, binyan: str | None) -> str | None:
+    """The root the binyan's spelling gives up when it is undone, or None.
+
     The lemma is the third-person masculine singular past, which is the form each
-    binyan has its own spelling for, so undoing that spelling is the whole method.
+    binyan has its own spelling for, so undoing that spelling is the whole method. No
+    list: `paradigms.fill` learns its patterns from this alone, because a hollow root
+    has no letter for a learner to substitute.
     """
     if not binyan or not lemma:
         return None

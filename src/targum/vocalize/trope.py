@@ -142,6 +142,9 @@ PASHTA = _disjunctive("pashta", "pashta", "פַּשְׁטָא", Rank.DUKE, "post
 YETIV = _disjunctive("yetiv", "yetiv", "יְתִיב", Rank.DUKE, "prepositive")
 TEVIR = _disjunctive("tevir", "tevir", "תְּבִיר", Rank.DUKE)
 GERESH = _disjunctive("geresh", "geresh", "גֵּרֵשׁ", Rank.COUNT)
+#: The same accent written before the stress (U+059D, geresh muqdam): its mark says
+#: nothing about where the stress is, which `pronounce.UNPLACED` reads too (grammar/8).
+GERESH_MUQDAM = _disjunctive("geresh", "geresh", "גֵּרֵשׁ", Rank.COUNT, "prepositive")
 GERSHAYIM = _disjunctive("gershayim", "gershayim", "גֵּרְשַׁיִם", Rank.COUNT)
 PAZER = _disjunctive("pazer", "pazer", "פָּזֵר", Rank.COUNT)
 KARNEI_FARAH = _disjunctive("karnei-farah", "karnei farah", "קַרְנֵי פָרָה", Rank.COUNT)
@@ -180,7 +183,7 @@ ACCENTS: dict[int, Accent] = {
     0x059A: YETIV,
     0x059B: TEVIR,
     0x059C: GERESH,
-    0x059D: GERESH,
+    0x059D: GERESH_MUQDAM,
     0x059E: GERSHAYIM,
     0x059F: KARNEI_FARAH,
     0x05A0: TELISHA_GEDOLAH,

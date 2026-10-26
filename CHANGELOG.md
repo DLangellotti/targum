@@ -31,6 +31,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   targums' Subscriptions tab at 768 broke «Недельный» mid-word and ran «Каждый
   понедельник» into the next column; its table takes the phone's rows wherever it is
   narrower than its columns need. `test_desk_fit_browser.py` holds both.
+- The grammar/8 re-read (targum-internal#509 and #307, ling-he's spec; part (b), after
+  #929's render-time index). A modern hollow, geminate or I-nun verb gets its root and
+  binyan from a list ling-he reviewed: מת is פעל of מ־ו־ת, הביא is הפעיל of ב־ו־א, and
+  רב, דן, צר and מל, which could be two roots, still get none. רָאִיתִי is "saw" under
+  ראה, not "showed" under הראה, and eight more hif'il lookalikes go back to the qal. A
+  present with no tense is filed under its past: Mishnah's אוֹמֵר is אמר's, and הולכים
+  is הלך's where the model stood the word in. נָתוּן is root נ־ת־ן, not a nif'al of תון,
+  and ten more passive participles keep their word and get their root. Biblical ילך
+  (Strong's H3212) is הלך, headword, root and gloss, and the Tanakh band table counts the
+  two as one. Stress: a verse's last word is stressed where its silluq is (לָֽחֶם is
+  LAchem), geresh muqdam and ole-veyored are read, the segolate rule places an accent the
+  accents cannot, a furtive patah is no syllable (לוֹקֵחַ is loKEach), -תִּי is always the
+  first person, a quiescent א sits inside a segolate (וַיֹּאמֶר is vaYOmer), and לָאו is
+  lav. A word pointed only here and there (Brenner's פּתח) gets no sound rather than a
+  sound with no vowel. Renames `grammar/7` → `grammar/8`, `oshb/7` → `oshb/8` and
+  `phonikud/3` → `phonikud/4`, which re-reads every Hebrew text: held for a weeknight
+  deploy with the long box rebuild, the laptop rebuild and a parasha and daily re-cut. No
+  spend.
 - "Learned on targum" counts a word marked anything other than known that later became
   known (David, 2026-10-24). The count already took new, still learning and almost
   known; it now takes ignored too, and the note under it says what it counts in plain

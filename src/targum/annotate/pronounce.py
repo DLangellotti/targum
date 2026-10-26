@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 
 from ..vocalize.base import LETTERS, TAAMIM, has_nikkud, has_taamim, strip_taamim
 from . import segolate, suffix_stress
@@ -47,10 +48,16 @@ HATAMA = "֫"
 # would lose the mark that separates a qamats gadol from a qamats qatan. Neither reading of
 # it is a sound, and phonikud says otherwise: fed בָּאָֽרֶץ it answers `baʔaeʁˈets`, with an
 # `e` that is nobody's vowel. It comes off here, on the way to the phonemizer only, where
-# the text the reader sees is not what is being changed. What that costs is the stress on a
-# verse-final word — silluq marks it, and no rule can tell silluq from meteg — so those
-# words take the default like every unaccented one.
+# the text the reader sees is not what is being changed. What that cost was the stress on a
+# verse-final word, which silluq marks and no rule could tell from a meteg. Since
+# `phonikud/4` the annotator says which word is the verse's last (`PAUSE`), and there the
+# last U+05BD is the stress (grammar/8, targum-internal#509, finding 3).
 METEG = "ֽ"
+
+# What the annotator puts after a word's class, in the key it hands `say`, on the last word
+# of a segment whose source carries the accents: a verse's last word, where U+05BD is
+# silluq. Never on Mishnah or modern text, where U+05BD is a true meteg.
+PAUSE = "|pause"
 
 # And the same mark is how phonikud is told a shva is said: fed לְֽהוֹסִיף it answers
 # `lehosˈif`, and fed לְהוֹסִיף `lhosˈif`, which no Hebrew speaker says
@@ -109,12 +116,16 @@ UNPLACED = frozenset(
         0x0592,  # segolta, postpositive
         0x0599,  # pashta, postpositive
         0x059A,  # yetiv, prepositive
+        0x059D,  # geresh muqdam, prepositive: לַ֝֗יְלָה reads its revia (grammar/8)
         0x05A0,  # telisha gedola, prepositive
         0x05A9,  # telisha qetana, postpositive
         0x05AD,  # dehi, prepositive
         0x05AE,  # zinor, postpositive
     }
 )
+
+
+OLE, MERKHA = "\u05ab", "\u05a5"
 
 
 def stressed(word: str) -> str | None:
@@ -131,6 +142,9 @@ def stressed(word: str) -> str | None:
     """
     marks = [char for char in word if ord(char) in TAAMIM]
     placed = [char for char in marks if ord(char) not in UNPLACED]
+    if sorted(placed) == [MERKHA, OLE]:
+        # Ole-veyored on one word, מִ֫מֶּ֥ךָ: the merkha is the stress (grammar/8, #509).
+        placed = [MERKHA]
     if len(placed) != 1:
         return None
     out: list[str] = []
@@ -314,14 +328,68 @@ def supports(language: str) -> bool:
 def sayable(surface: str) -> bool:
     """Whether this word can be pronounced honestly.
 
-    Two conditions, and the second is the one that matters. It has to be Hebrew, because
-    phonikud returns Latin unchanged and would have the card claim `hello` is a
-    pronunciation. And it has to carry vowels, because without them phonikud answers
-    confidently and wrongly — bare בצל comes back `vˈtsl`, which is not a word. A word
+    Three conditions, and the last two are the ones that matter. It has to be Hebrew,
+    because phonikud returns Latin unchanged and would have the card claim `hello` is a
+    pronunciation. It has to carry vowels, because without them phonikud answers
+    confidently and wrongly — bare בצל comes back `vˈtsl`, which is not a word. And the
+    vowels have to cover it (`covered`): Brenner, Mapu and Mendele point a letter here and
+    there, and פּתח came back `pˈtχ` (grammar/8, targum-internal#509, finding 8). A word
     with no reading is a gap the reader can see past; a wrong one is a lie told with
     confidence, which is the rule the root derivation already follows.
     """
-    return has_nikkud(surface) and any(ord(char) in LETTERS for char in surface)
+    return (
+        has_nikkud(surface) and any(ord(char) in LETTERS for char in surface) and covered(surface)
+    )
+
+
+# What says a letter is pointed: a vowel, shva or hataf (U+05B0–U+05BB) or the qamats qatan.
+_POINTED = frozenset(chr(cp) for cp in range(0x05B0, 0x05BC)) | {"\u05c7"}
+_DAGESH = "\u05bc"
+_HOLAMS = frozenset("\u05b9\u05ba")
+_SHIN_DOT = "\u05c1"
+# Letters that may stand silent after a pointed one: a quiescent א, a mater.
+_QUIESCENT = frozenset("אהוי")
+
+
+def covered(surface: str) -> bool:
+    """Whether the marks cover every letter but the last.
+
+    A letter is covered by its own vowel, shva or hataf; by a holam or shuruq on the vav
+    after it (שׁוֹ, רוּ), or by a holam written as the dot of the shin after it (משֶׁה); or
+    by being an א, ה, ו or י after a letter so covered (לֵאמֹר, וַיֹּאמֶר, בֵּית, שְׂמֹאול).
+    A shuruq vav is pointed. Anything else is a letter the source left bare, and phonikud
+    would say it from its consonant alone.
+    """
+    letters = _clusters(surface)
+    # Whether the letter before was covered by a vowel of its own or as a silent letter,
+    # so a second silent letter may follow it: שְׂמֹאול, חַטֹּאות, לַיהוָה.
+    voiced = False
+    for at, (letter, marks) in enumerate(letters[:-1]):
+        quiet, voiced = voiced, False
+        if _vowelled(letter, marks):
+            voiced = True
+            continue
+        after_letter, after = letters[at + 1]
+        if after_letter == "ו" and (_HOLAMS & set(after) or after == _DAGESH):
+            continue
+        if after_letter == "ש" and _SHIN_DOT in after:
+            # A holam before a shin is written as the shin's own dot: מֹשֶׁה as משֶׁה,
+            # שְׁלֹשָׁה as שְׁלשָׁה. The letter is pointed; the dot is shared.
+            continue
+        if letter in _QUIESCENT and at and (_vowelled(*letters[at - 1]) or quiet):
+            voiced = True
+            continue
+        return False
+    return True
+
+
+def _vowelled(letter: str, marks: str) -> bool:
+    return bool(_POINTED & set(marks)) or (letter == "ו" and _DAGESH in marks)
+
+
+# Words said otherwise than they are written, whole (grammar/8, #509, finding 9): לָאו
+# came back `lˈaʔv`, with an א nobody says.
+SAID_AS = {unicodedata.normalize("NFC", "לָאו"): "לָו"}
 
 
 class PhonikudPronouncer:
@@ -348,7 +416,12 @@ class PhonikudPronouncer:
     # `phonikud/3` (2026-10-21, targum-internal#454, #500): a segolate's stress from its
     # pointing, and a suffix's that holds the stress back from the pointing and the word's
     # class, where no accent places it. Rides the grammar/7 re-read.
-    name = "phonikud/3"
+    #
+    # `phonikud/4` (2026-10-24, targum-internal#509): a verse's last word stressed where its
+    # silluq is, geresh muqdam unplaced, ole-veyored read off the merkha, the segolate rule
+    # where no accent places the stress, a partly pointed word left unsaid, a furtive
+    # patah, -תִּי on any past, a quiescent א inside a segolate, and לָאו. Rides grammar/8.
+    name = "phonikud/4"
 
     def available(self) -> tuple[bool, str]:
         try:
@@ -377,16 +450,27 @@ class PhonikudPronouncer:
             # A key may carry the word's class after `GATE` (`suffix_stress.gate`): the
             # same pointing reads differently as a verb and as a noun (בָּנוּ).
             plain, _, klass = surface.partition(suffix_stress.GATE)
+            pause = klass.endswith(PAUSE)
+            klass = klass.removesuffix(PAUSE)
             prefixed = PREFIX_MARK in plain
             word = plain.replace(PREFIX_MARK, "")
             if not sayable(word):
                 continue
+            if pause and not has_taamim(word) and METEG in word:
+                # A verse's last word, carrying silluq and no other accent: the silluq is
+                # the stress. The last one, because a word can carry a meteg before it.
+                at = word.rfind(METEG)
+                word = word[:at] + HATAMA + word[at + 1 :]
             # The chanting marks have to come off before phonikud sees them: fed
             # שְׁפֹ֣ט whole it answers `ʃˈftˈ`, having read the accents as letters and
             # lost the vowel between them. Taking the stress off them first is what makes
             # removing them a translation rather than a loss.
             if has_taamim(word):
-                word = stressed(word) or strip_taamim(word)
+                # Where no accent can place the stress, the segolate rule before the
+                # default, on the pointing alone; never the suffix rule, which the
+                # sequential perfect would break (grammar/8).
+                bare = strip_taamim(word)
+                word = stressed(word) or segolate.place(bare) or bare
             elif HATAMA not in word:
                 # No accent, so no Masoretic text: the pointing's own rules, where the
                 # vowels and the grammar settle it. A suffix that holds the stress back
@@ -399,6 +483,7 @@ class PhonikudPronouncer:
                 suffixed = None if METEG in word else suffix_stress.place(word, klass)
                 word = suffixed or segolate.place(word) or word
             word = vocal_shva(word.replace(METEG, ""), prefixed)
+            word = SAID_AS.get(unicodedata.normalize("NFC", word), word)
             try:
                 said = phonikud.phonemize(word)
             except Exception as error:  # noqa: BLE001 - a third-party rule table
