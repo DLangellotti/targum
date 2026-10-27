@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{ t("add.page.upload-targum", "Upload — targum") }}</title>
 {% include '_icons.html.j2' %}
+{% include '_manifest.html.j2' %}
 {{ styles('tokens.css', 'shared.css', 'chrome.css', 'add.css') }}
 {{ hebrew_face() }}
 {{ script('keep.js') }}
@@ -245,6 +246,9 @@
       <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.5 5h2.5l1.2-1.5h3.6L11 5h2.5v7.5h-11z"/><circle cx="8" cy="8.7" r="2.2"/></svg>{{ t("add.page.works-photos", "Photos of a page, up to 30 pages") }}</li>
       <li><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 2.5h8.5v11H3.5zM5.5 2.5v11"/></svg>{{ t("add.page.works-ebooks", "An e-book") }}</li>
     </ul>
+    {#- Shown only where the browser offers to install targum, which is where the Share
+        menu can then hold it (design.md §12, 2026-10-27). -#}
+    <p class="hint share-menu" id="share-menu" hidden>{{ t("add.page.share-menu", "Install targum to send it links from any app's Share menu.") }} <button type="button" id="share-install" class="btn text small">{{ t("add.page.share-install", "Install") }}</button></p>
   </section>
   </div>
 

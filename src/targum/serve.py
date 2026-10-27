@@ -531,6 +531,8 @@ POLICY = (
     # (design.md §12, 2026-10-09). A worker is named by address, never inline, so the
     # hashes below cannot cover it; `'self'` is that one file and nothing from elsewhere.
     "worker-src 'self'; "
+    # The manifest, which puts targum in a phone's Share menu (design.md §12, 2026-10-27).
+    "manifest-src 'self'; "
     "base-uri 'none'; "
     # 'self', not 'none'. The sign-in landing page posts a real form back to targum —
     # it has to work with no JavaScript, because it arrives from an email in whatever
@@ -1208,11 +1210,19 @@ document.getElementById("in").addEventListener("submit", function (event) {
 </html>"""
 
 
+BRAND = Path(__file__).parent / "render" / "assets" / "brand"
+
+
 @cache
 def _icon() -> bytes:
     """The tab icon for /favicon.ico, which only takes a raster."""
-    brand = Path(__file__).parent / "render" / "assets" / "brand"
-    return (brand / "favicon-32.png").read_bytes()
+    return (BRAND / "favicon-32.png").read_bytes()
+
+
+@cache
+def _app_icon(route: str) -> bytes:
+    """One of the manifest's two icons: the square the launcher masks."""
+    return (BRAND / route.lstrip("/")).read_bytes()
 
 
 def grounding_note(
@@ -5403,6 +5413,16 @@ SAVED_ROUTE = "/you/saved"
 #: The worker's own policy. It fetches nothing of its own accord, and when it does fetch —
 #: a page being opened, passed on — it is this origin it asks.
 WORKER_POLICY = "default-src 'none'; connect-src 'self'"
+#: The web app manifest, whose one reason to exist is the phone's Share menu (design.md
+#: §12, "Share > targum lands in Add", 2026-10-27), and the two icons it names.
+MANIFEST_ROUTE = "/manifest.webmanifest"
+APP_ICONS = {"/app-icon-192.png": 192, "/app-icon-512.png": 512}
+#: Where the phone posts what was shared. It answers with Add and nothing else.
+SHARE_ROUTE = "/share"
+#: A link inside shared text: Android puts a page's address in `text` as often as in `url`.
+SHARED_LINK = re.compile(r"https?://[^\s<>\"']+")
+#: What of a share is kept. Text past this is cut, never refused: Add takes the rest.
+SHARE_LIMIT = 65536
 #: A reader's files, by the address its page was opened at: a reader's own or the shared
 #: shelf's, a Torah portion's, and a day of a daily cycle's. The first group is the folder
 #: whose `reader/` holds the files, as the address spells it.
@@ -5415,6 +5435,62 @@ FILM_KINDS = frozenset({".mp4", ".m4v", ".webm"})
 #: One subscription's own page (design.md §12, "A subscription is the account's",
 #: 2026-10-09), `/subscriptions/<id>`.
 SUBSCRIPTION_PAGE = re.compile(r"/subscriptions/(\d+)")
+
+
+def web_manifest() -> dict[str, Any]:
+    """The manifest a phone installs targum from, so that targum is in its Share menu.
+
+    The share target posts, rather than asking by address, so that shared text never
+    rides in a query string and so never in an access log. Nothing here spends:
+    `/share` sends the reader on to Add, and the build still waits for Confirm there.
+    """
+    return {
+        "name": "targum",
+        "short_name": "targum",
+        "id": "/",
+        "start_url": "/",
+        "scope": "/",
+        "display": "standalone",
+        "background_color": "#fbf9f5",
+        "theme_color": "#fbf9f5",
+        # The mark sits well inside the square, so the same file serves a launcher that
+        # masks its icons into a circle as well as one that does not.
+        "icons": [
+            {"src": route, "sizes": f"{size}x{size}", "type": "image/png", "purpose": purpose}
+            for purpose in ("any", "maskable")
+            for route, size in APP_ICONS.items()
+        ],
+        "share_target": {
+            "action": SHARE_ROUTE,
+            "method": "POST",
+            "enctype": "application/x-www-form-urlencoded",
+            "params": {"title": "title", "text": "text", "url": "url"},
+        },
+    }
+
+
+def shared_to_add(fields: Mapping[str, str]) -> str:
+    """Where a share opens: Add, holding what was shared, and nothing pressed.
+
+    A link goes in `?source=`, the door Add already reads (the weekly's "Read the whole
+    thing"), which survives a sign-in on the way. Anything else is text, carried after
+    the `#`, which a browser never sends: the reader's words reach the server only when
+    they press Upload.
+    """
+    url = (fields.get("url") or "").strip()
+    text = (fields.get("text") or "").strip()
+    found = url if SHARED_LINK.fullmatch(url) else ""
+    if not found:
+        inside = SHARED_LINK.search(text)
+        # A link with a line around it ("Look at this https://…") is still the link: a
+        # page's own title and blurb are the app's, never what the reader meant to read.
+        if inside is not None and len(text) - len(inside.group(0)) < 200:
+            found = inside.group(0).rstrip(".,;:!?)»")
+    if found:
+        return "/add?source=" + quote(found, safe="")
+    if text:
+        return "/add#shared=" + quote(text[:SHARE_LIMIT], safe="")
+    return "/add"
 
 
 def playlist_answer(found: dict[str, Any]) -> dict[str, Any]:
@@ -8300,6 +8376,14 @@ class Handler(BaseHTTPRequestHandler):
         # to see whether it changed, and it holds nothing that is anybody's.
         if route == WORKER_ROUTE:
             return self._worker()
+        # The manifest and its icons (design.md §12, "Share > targum lands in Add",
+        # 2026-10-27). Before the account check: a browser asks for a manifest without
+        # its cookie, and none of the three holds anything of anybody's.
+        if route == MANIFEST_ROUTE:
+            body = json.dumps(web_manifest(), ensure_ascii=False).encode("utf-8")
+            return self._send(200, body, "application/manifest+json", cache="no-cache")
+        if route in APP_ICONS:
+            return self._send(200, _app_icon(route), "image/png", cache="public, max-age=86400")
         # A desk page's own stylesheets and scripts (design.md §12, "A desk page loads its
         # files once and keeps them", 2026-10-18). Before the account check: they are the
         # same files for everybody, the sign-in page names them too, and none holds
@@ -8965,6 +9049,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_post(route, self._form())
         if route == "/try" and front_door_is_open():
             return self._try_post(self._form())
+        # What the phone's Share menu posts. Before the account check: it only sends the
+        # reader on to Add, which asks for the sign-in itself and keeps the link through
+        # it. Nothing is read, priced or kept here.
+        if route == SHARE_ROUTE:
+            return self._shared()
         # Before the account check: a page breaks for strangers too (targum-internal#457).
         if route == "/errors":
             return self._fault_report()
@@ -15123,6 +15212,27 @@ class Handler(BaseHTTPRequestHandler):
         where, _, anchor = place.href(self._public_language()).partition("#")
         query = urlparse(self.path).query
         self._sent_on(where + (f"?{query}" if query else "") + f"#{anchor}")
+
+    def _shared(self) -> None:
+        """Share > targum: Add, holding what was shared (design.md §12, 2026-10-27).
+
+        A 303, so the browser opens Add with a GET and a reload never posts again.
+        """
+        if not self._host_is_ours():
+            return self._send(404, b"not found", "text/plain")
+        length = max(int(self.headers.get("Content-Length") or 0), 0)
+        if length > SHARE_LIMIT * 4:
+            # Not read, so the connection cannot be used again: Add opens empty.
+            self.close_connection = True
+            length = 0
+        body = self.rfile.read(length).decode("utf-8", errors="replace")
+        fields = {key: values[0] for key, values in parse_qs(body).items() if values}
+        self.send_response(303)
+        self.send_header("Location", shared_to_add(fields))
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
 
     def _worker(self) -> None:
         """targum's worker, from the root (design.md §12, 2026-10-09).

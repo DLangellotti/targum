@@ -1,0 +1,8 @@
+{
+  "name": { "message": "targum" },
+  "description": { "message": "Send the page you're on to targum's Add, and read it there. Nothing is used until you confirm." },
+  "action": { "message": "Send this page to targum" },
+  "page": { "message": "Send this page to targum" },
+  "link": { "message": "Send this link to targum" },
+  "selection": { "message": "Send this text to targum" }
+}
