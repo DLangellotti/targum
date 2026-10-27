@@ -28,12 +28,15 @@ Group=targum
 UMask=0077
 # --store, named. Without it `targum backup` falls back to ~/.targum/targum.db, an empty
 # leftover on this box, and copied that faithfully every night until 2026-09-04.
+# --ledger, named for the same reason: the corpus ledger (targum-internal#162), copied as
+# a SQLite snapshot. No file there yet is one line and exit 0; a copy that fails mails.
 # EnvironmentFile, so it sees TARGUM_CACHE_DIR and copies the cache, and so the remote's
 # credentials (RCLONE_CONFIG_*) and the settings above reach rclone and targum both.
 Environment=HOME=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
 ExecStart=/usr/local/bin/targum backup --keep 14 \
-  --store /var/lib/targum/targum.db --out /var/lib/targum/backups
+  --store /var/lib/targum/targum.db --out /var/lib/targum/backups \
+  --ledger /var/lib/targum/corpus.db
 # Out of the way of readers: a copy can take its time, a page cannot.
 Nice=10
 IOSchedulingClass=idle

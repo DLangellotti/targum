@@ -348,6 +348,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The nightly backup now copies the corpus ledger (`corpus.db`, targum-internal#162),
+  which the ledger-only step needs before any stage stops writing its cache file. It is
+  taken as a SQLite snapshot (never a file copy of the live WAL database), checked as it
+  is taken, kept fourteen nights beside the others, and sealed and sent with the rest as
+  `corpus-<stamp>.db.gz.age`. The backup unit names the ledger, `--ledger
+  /var/lib/targum/corpus.db`. A missing ledger is one line. A copy that fails mails the
+  operator while the rest of the night goes on. `deploy/restore-drill.sh` decrypts the
+  newest ledger copy after the database, checks it and counts its rows, and `targum
+  restore corpus-<stamp>.db --store …` puts one back. A snapshot that fails partway no
+  longer leaves a partial file for the sweep to count. Nothing changes on the box until
+  a deploy carries the new unit.
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
   string, whether it is a reader's private import, and two export bits computed from David's 2026-10-08 rule
