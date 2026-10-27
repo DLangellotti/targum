@@ -270,6 +270,22 @@ def test_not_sure_keeps_no_level_and_shows_a_page() -> None:
     assert "/reader/scene-1" in out["went"], out["went"]
 
 
+def test_a_new_hebrew_reader_starts_on_a1_scene_one_not_b1() -> None:
+    """Hebrew's B1 conversations are `scene-he-NN` and number from 1 too (2026-10-27).
+    `/readers` lists shared texts newest-built first, so B1's scene 1 arrived ahead of
+    A1's and a new account opened on it. The path is the unprefixed scenes only."""
+    shared = [
+        reader("b1-one", "שכירות", "scene-he-01-the-lease", kind="dialogue", built=9),
+        reader("b1-two", "בנק", "scene-he-02-the-bank", kind="dialogue", built=9),
+        reader("a1-two", "בבית קפה", "scene-02-in-a-cafe", kind="dialogue", built=1),
+        reader("a1-one", "נעים מאוד", "scene-01-nice-to-meet-you", kind="dialogue", built=1),
+        *seeded()[1:],
+    ]
+    out = draw([], shared=shared, do=[*HEBREW, {"press": "arrival-done"}, {"unsure": True}])
+    assert "/reader/a1-one" in out["went"], out["went"]
+    assert "/reader/b1-" not in out["went"], out["went"]
+
+
 def russian_shelf() -> list[dict[str, Any]]:
     return [
         reader("mumu", "Муму", "", language="ru", kind="story", difficulty=30),

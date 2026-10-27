@@ -1028,13 +1028,26 @@ def _key(source: str) -> str:
 #: than stored beside it — the id is the one key every page already has, and a second
 #: copy of the number would be a second thing to drift. `render/assets/scenes.js` is the
 #: same rule in the browser.
-SCENE = re.compile(r"^scene-(?:[a-z]{2,3}-)?(\d+)-")
+#:
+#: **The code after `scene-` names a series, not only a language.** The Hebrew B1
+#: conversations are `scene-he-01…` (2026-10-27), Hebrew like the A1 path's `scene-01…`
+#: and numbered from 1 again, so a number means nothing without its series: ordered by
+#: number alone, B1's scene 1 sat beside A1's and became a new reader's Start here. The
+#: series is `""` for the unprefixed A1 path and the code otherwise; order and "next"
+#: never cross one.
+SCENE = re.compile(r"^scene-(?:([a-z]{2,3})-)?(\d+)-")
 
 
 def scene_number(entry_id: str) -> int:
-    """Which scene an entry is, or 0 for anything that is not one."""
+    """Which scene an entry is within its series, or 0 for anything that is not one."""
     found = SCENE.match(entry_id or "")
-    return int(found.group(1)) if found else 0
+    return int(found.group(2)) if found else 0
+
+
+def scene_series(entry_id: str) -> str:
+    """The series a scene belongs to: `""` for the A1 path, its code otherwise."""
+    found = SCENE.match(entry_id or "")
+    return (found.group(1) or "") if found else ""
 
 
 def matching(source: str) -> Entry | None:

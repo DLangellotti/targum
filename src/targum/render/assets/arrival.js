@@ -998,8 +998,10 @@
     }
     var own = ofHere(readers);
     var pool = ofHere(shared);
+    // The language's path only: Hebrew's B1 scenes (`scene-he-NN`) number from 1 too,
+    // and a new account opens on A1's scene 1, never B1's (2026-10-27).
     var numbered = pool.filter(function (reader) {
-      return sceneOf(reader) > 0;
+      return sceneOf(reader) > 0 && scenes.onPath(reader.entry, code);
     });
     var sequence = pool;
     if (register === "modern" && numbered.length && scenes) {

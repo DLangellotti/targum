@@ -12,6 +12,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A new Hebrew reader starts on scene 1 of the A1 path again (2026-10-27, a regression
+  since aec01564). The 27 B1 conversations are `scene-he-01…` and number from 1 too, and
+  every page read the number alone: since `/readers` lists shared texts newest-built
+  first, B1's scene 1 became Start here in the Library and the arrival, the Scenes list
+  went 1, B1 1, 2, B1 2, and the reader offered A1's scene 2 after B1's scene 1. The code
+  after `scene-` now names a series (`""` for A1, `he` for B1, `ru` for Russian):
+  scenes sort by series then number, Hebrew's path and Start here are A1's alone, the
+  next scene stays inside its series, and the shelf shows one card per series. Ids are
+  unchanged.
 - Your Progress no longer says Aramaic texts aren't placed by difficulty (2026-10-25).
   Since targum#936 Aramaic has a ladder, so part 3 now says it lists Aramaic texts at
   your level once the library's Aramaic is measured. Once the 41 Aramaic rows are

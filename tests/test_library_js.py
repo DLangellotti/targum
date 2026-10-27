@@ -666,6 +666,20 @@ def test_the_next_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
     assert [row["state"] for row in later["rows"]] == ["finished", "", "", ""]
 
 
+def test_b1_scenes_newest_first_do_not_take_start_here(tmp_path: Path) -> None:
+    """Hebrew's B1 conversations (`scene-he-NN`, 2026-10-27) number from 1 too, and
+    `/readers` lists shared texts newest-built first, so B1's scene 1 took Start here
+    from A1's. A fresh Hebrew reader starts on A1's scene 1."""
+    b1 = [
+        seeded("scene-he-01-the-lease", "שכירות", kind="dialogue", difficulty=20),
+        seeded("scene-he-02-the-bank", "בנק", kind="dialogue", difficulty=22),
+    ]
+    drawn = draw(tmp_path, shared=b1 + SCENES, view={"kind": "dialogue"})
+    chips = {row["title"]: row["chip"] for row in drawn["rows"]}
+    assert chips["נעים מאוד"] == "Start here", chips
+    assert chips.get("שכירות", "") == "", chips
+
+
 def test_a_finished_text_says_so_in_its_state_column(tmp_path: Path) -> None:
     done = {"targum:docs": json.dumps({"h": {"done": 9}})}
     drawn = draw(tmp_path, readers=[shelf("esther", "אסתר")], stored=done, unfolded=True)

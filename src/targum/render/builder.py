@@ -1959,7 +1959,7 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     pretending to be a step up. A refusal that lied about what it was offering would be
     worse than no refusal.
     """
-    from ..catalogue import CATALOGUE, scene_number
+    from ..catalogue import CATALOGUE, scene_number, scene_series
 
     mine = next((entry for entry in CATALOGUE if entry.source == document.source), None)
     out: list[dict[str, str]] = []
@@ -1984,13 +1984,16 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     # A scene is one of a numbered sequence, and after scene 3 comes scene 4 — not the
     # nearest harder text, whose measured share is noise at twenty words. It leads; the
     # step-up below fills the rest, so drawing again after a scene still offers
-    # something. Past the last scene the step-up is all there is.
+    # something. Past the last scene the step-up is all there is. Within its series:
+    # after B1's scene-he-01 comes scene-he-02, never A1's scene-02 (2026-10-27).
     if mine is not None and scene_number(mine.id):
         following = next(
             (
                 e
                 for e in CATALOGUE
-                if scene_number(e.id) == scene_number(mine.id) + 1 and e.language == mine.language
+                if scene_number(e.id) == scene_number(mine.id) + 1
+                and scene_series(e.id) == scene_series(mine.id)
+                and e.language == mine.language
             ),
             None,
         )

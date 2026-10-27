@@ -54,6 +54,18 @@ def test_a_scene_knows_its_number_and_nothing_else_has_one() -> None:
     assert scene_number("scene-russian-01-x") == 0, "a language is a code, not a word"
 
 
+def test_a_scene_knows_its_series() -> None:
+    """Hebrew's B1 conversations number from 1 again (2026-10-27), so the series is
+    half of where a scene is: `""` for the A1 path, the code otherwise."""
+    from targum.catalogue import scene_number, scene_series
+
+    assert scene_series("scene-01-nice-to-meet-you") == ""
+    assert scene_series("scene-he-01-the-lease") == "he"
+    assert scene_number("scene-he-01-the-lease") == 1
+    assert scene_series("scene-ru-01-at-the-market") == "ru"
+    assert scene_series("ruth") == ""
+
+
 # -- collections --------------------------------------------------------------
 
 
