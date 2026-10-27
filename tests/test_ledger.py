@@ -209,7 +209,9 @@ class TestRoundTrip:
         book.record("vocalize", "k1", {**POINTED, "machine": []})
         assert len(book.history("vocalize", "k1")) == 2
         with sqlite3.connect(file) as db:
-            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("2",)
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == (
+                str(ledger.LEDGER_SCHEMA),
+            )
             assert db.execute("SELECT COUNT(*) FROM pointings").fetchone()[0] == 8
 
     def test_a_migration_that_died_part_way_is_finished_by_the_next_open(
@@ -239,7 +241,9 @@ class TestRoundTrip:
         assert book.get("vocalize", "k1") == POINTED
         book.record("vocalize", "k1", {**POINTED, "machine": []})
         with sqlite3.connect(file) as db:
-            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("2",)
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == (
+                str(ledger.LEDGER_SCHEMA),
+            )
             assert not db.execute(
                 "SELECT 1 FROM sqlite_master WHERE name = 'vocalizations_2'"
             ).fetchone()
@@ -494,3 +498,209 @@ class TestADepartedReader:
         monkeypatch.delenv(ledger.ENV, raising=False)
         assert ledger.forget({"a" * 64}) == 0
         assert ledger.documents_under(tmp_path / "nowhere") == set()
+
+
+class TestTexts:
+    """The `texts` table (2026-10-27): one row a source document, and the two export bits
+    every other row will copy, computed from the licence and never typed."""
+
+    def test_the_bits_come_from_the_licence_and_whether_it_is_private(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record_text(ledger.Text("a" * 64, "gutenberg:1", "Public Domain"))
+        book.record_text(ledger.Text("b" * 64, "https://x.example/a", "CC BY-NC 4.0"))
+        book.record_text(ledger.Text("c" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"})))
+        book.record_text(ledger.Text("d" * 64, "https://x.example/b", ""))
+        assert book.terms("a" * 64) == (True, True)
+        assert book.terms("b" * 64) == (False, True)
+        assert book.terms("c" * 64) == (False, False), "a private import, whatever its licence"
+        assert book.terms("d" * 64) == (False, False), "no licence exports nowhere"
+        assert book.terms("e" * 64) is None
+        with sqlite3.connect(book.file) as db:
+            exported = db.execute("SELECT COUNT(*) FROM texts WHERE exportable").fetchone()[0]
+        assert exported == 1
+
+    def test_a_corrected_licence_keeps_the_old_verdict_as_history(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        first = ledger.Text("a" * 64, "https://x.example/a", "")
+        assert book.record_text(first)
+        assert not book.record_text(first), "the same row again is not history"
+        assert book.record_text(ledger.Text("a" * 64, "https://x.example/a", "CC BY-SA 4.0"))
+        assert book.terms("a" * 64) == (True, True)
+        with sqlite3.connect(book.file) as db:
+            rows = db.execute(
+                "SELECT licence, exportable, superseded_at IS NULL FROM texts ORDER BY id"
+            ).fetchall()
+        assert rows == [("", 0, 0), ("CC BY-SA 4.0", 1, 1)]
+
+    def test_a_schema_2_ledger_gains_the_table_in_place(self, tmp_path: Path) -> None:
+        file = tmp_path / "corpus.db"
+        ledger.Ledger(file).record("vocalize", "k1", POINTED)
+        with sqlite3.connect(file) as db:
+            db.executescript("DROP TABLE texts; UPDATE meta SET value = '2' WHERE key = 'schema';")
+        book = ledger.Ledger(file)
+        assert book.get("vocalize", "k1") == POINTED
+        book.record_text(ledger.Text("a" * 64, "gutenberg:1", "Public Domain"))
+        with sqlite3.connect(file) as db:
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("3",)
+
+    @staticmethod
+    def _built(folder: Path, document_hash: str, source: str) -> None:
+        folder.mkdir(parents=True)
+        document = {
+            "schema_version": 4,
+            "source": source,
+            "language": "he",
+            "blocks": [],
+            "content_hash": document_hash,
+            "ingester": "markdown/1",
+        }
+        (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
+
+    def test_backfill_reads_the_shelf_and_marks_what_only_a_home_holds(
+        self, tmp_path: Path
+    ) -> None:
+        out = tmp_path / "out"
+        self._built(out / "shared" / "genesis", "a" * 64, "sefaria:Genesis")
+        self._built(out / "p7" / "genesis", "a" * 64, "sefaria:Genesis")
+        self._built(out / "p7" / "my-upload", "b" * 64, "upload.pdf")
+        self._built(out / "weekly" / "issue-1", "c" * 64, "weekly:1")
+        (out / "p7" / "broken").mkdir()
+        licences = {"sefaria:Genesis": "CC BY-SA 4.0", "upload.pdf": "Public Domain"}
+
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        recorded = ledger.backfill_texts(book, out, licence_of=lambda _f, s: licences.get(s, ""))
+        assert recorded == (3, 0)
+        assert ledger.backfill_texts(book, out, licence_of=lambda _f, s: licences.get(s, "")) == (
+            0,
+            3,
+        ), "run again, it adds nothing"
+        genesis = book.text("a" * 64)
+        assert genesis is not None and genesis.homes == frozenset(), "the shelf holds it: corpus"
+        assert genesis.ingester == "markdown/1" and genesis.schema_version == 4
+        upload = book.text("b" * 64)
+        assert upload is not None and upload.homes == {"p7"}
+        assert book.terms("b" * 64) == (False, False)
+        assert book.terms("a" * 64) == (True, True)
+        assert book.terms("c" * 64) == (False, False), "no licence recorded for it"
+
+    def test_a_departed_reader_s_text_row_goes_with_them(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record_text(ledger.Text("a" * 64, "upload.pdf", "", frozenset({"p7"})))
+        book.record_text(ledger.Text("a" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"})))
+        book.record_text(ledger.Text("b" * 64, "gutenberg:1", "Public Domain"))
+        ledger.forget({"a" * 64})
+        assert book.text("a" * 64) is None
+        with sqlite3.connect(book.file) as db:
+            left = db.execute("SELECT document_hash FROM texts").fetchall()
+        assert left == [("b" * 64,)], "history too, and nobody else's"
+
+    def test_a_departed_reader_leaves_no_trace_on_a_text_another_still_holds(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Clause 3.14 (qa-claude on #942): p3 and p7 both imported one article; p3
+        leaves. The text stays, as p7's, and no row and no history row names p3."""
+        from targum.accounts import Store
+        from targum.serve import Library
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        store = Store(tmp_path / "targum.db")
+        leaving, _ = store.finish_sign_in(store.start_sign_in("leaving@example.com"))  # type: ignore[misc]
+        staying, _ = store.finish_sign_in(store.start_sign_in("staying@example.com"))  # type: ignore[misc]
+        library = Library(tmp_path / "out", store=store)
+        gone, kept = library.home(leaving), library.home(staying)
+        for home in (gone, kept):
+            self._built(home / "article", "a" * 64, "https://x.example/a")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, tmp_path / "out", licence_of=lambda _f, _s: "") == (1, 0)
+        # And a history row written while both held it.
+        ledger.backfill_texts(book, tmp_path / "out", licence_of=lambda _f, _s: "CC BY 4.0")
+        assert book.text("a" * 64).homes == {gone.name, kept.name}  # type: ignore[union-attr]
+
+        with store.write() as db:
+            db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (leaving.id,))
+        assert library.purge_departed() == [leaving.id]
+
+        held = book.text("a" * 64)
+        assert held is not None and held.homes == {kept.name}
+        assert book.terms("a" * 64) == (False, False), "still private: p7's"
+        with sqlite3.connect(book.file) as db:
+            every = " ".join(
+                str(cell)
+                for table in ("texts", "text_homes")
+                for row in db.execute(f"SELECT * FROM {table}")  # noqa: S608
+                for cell in row
+            )
+            assert len(db.execute("SELECT * FROM texts").fetchall()) == 2
+        assert gone.name not in every.split()
+
+    def test_a_changed_rule_supersedes_a_row_whose_facts_did_not_change(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #942: rows written before David put our own writing in the
+        commercial export read (False, False) until the verdict is part of "unchanged"."""
+        from targum import licensing
+
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        text = ledger.Text("a" * 64, "dialogue:1", "targum")
+        monkeypatch.setattr(
+            licensing, "export_terms", lambda _l, private=False: licensing.ExportTerms(False, False)
+        )
+        assert book.record_text(text)
+        assert book.terms("a" * 64) == (False, False)
+        monkeypatch.undo()
+        assert book.record_text(text), "the rule moved, so the row is rewritten"
+        assert book.terms("a" * 64) == (True, True)
+        assert not book.record_text(text)
+        with sqlite3.connect(book.file) as db:
+            assert db.execute("SELECT COUNT(*) FROM texts").fetchone()[0] == 2
+
+    def test_only_a_reader_s_home_is_private(self, tmp_path: Path) -> None:
+        """The laptop's parasha, Russian shelf and dialogues are the library's own; only
+        `p<id>` and `local` are homes. A text built straight into the library is public."""
+        out = tmp_path / "out"
+        self._built(out / "parasha" / "noach", "a" * 64, "parasha:noach")
+        self._built(out / "russian" / "biryuk", "b" * 64, "wikisource:ru:Бирюк")
+        self._built(out / "local" / "mine", "c" * 64, "mine.md")
+        self._built(out / "declaration-he", "d" * 64, "declaration.md")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, out, licence_of=lambda _f, _s: "Public Domain") == (
+            4,
+            0,
+        )
+        assert [book.terms(c * 64) for c in "abcd"] == [
+            (True, True),
+            (True, True),
+            (False, False),
+            (True, True),
+        ]
+        assert ledger.is_home("p12") and ledger.is_home("local")
+        assert not ledger.is_home("parasha") and not ledger.is_home("pages")
+
+    def test_the_command_refuses_with_the_ledger_off(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from typer.testing import CliRunner
+
+        from targum.cli import app
+
+        monkeypatch.delenv(ledger.ENV, raising=False)
+        result = CliRunner().invoke(app, ["cache", "ledger-texts", "--out", str(tmp_path)])
+        assert result.exit_code != 0
+        assert "ledger is off" in result.output
+
+    def test_the_command_records_the_shelf(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from typer.testing import CliRunner
+
+        from targum.cli import app
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        self._built(tmp_path / "out" / "shared" / "one", "a" * 64, "gutenberg:1")
+        result = CliRunner().invoke(app, ["cache", "ledger-texts", "--out", str(tmp_path / "out")])
+        assert result.exit_code == 0, result.output
+        assert "Recorded 1 texts" in result.output
+        assert ledger.Ledger(tmp_path / "corpus.db").terms("a" * 64) == (True, True)

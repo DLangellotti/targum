@@ -189,3 +189,50 @@ def verdict(licence: str) -> Verdict:
 def exportable(licence: str) -> bool:
     """Whether derived data may leave targum inside a commercial offering."""
     return verdict(licence).exportable
+
+
+@dataclass(frozen=True)
+class ExportTerms:
+    """Which corpus export a text's rows may enter (David, 2026-10-08, targum-internal#162).
+
+    Two bits, and a commercial export never reads the second one. They are narrower than
+    `Verdict.exportable` on purpose: that answers "may it leave in a commercial offering",
+    and this answers "is it one of the licences David named for a dataset", which is a
+    list rather than a family. Anything not on the list stays out of both until it is.
+    """
+
+    #: The commercial export: public domain, CC0, CC BY, CC BY-SA, and targum's own
+    #: writing (David, 2026-10-27).
+    exportable: bool
+    #: The research export: everything above, and CC BY-NC and CC BY-NC-SA.
+    research: bool
+
+
+def export_terms(licence: str, *, private: bool = False) -> ExportTerms:
+    """The two export bits for one licence string.
+
+    Never either, whatever the licence: anything ND, a text with no licence string, and a
+    reader's private import (`private`).
+    """
+    flat = _flat(licence)
+    if private or not flat:
+        return ExportTerms(exportable=False, research=False)
+    parts = flat.split()
+    if re.search(r"\bnd\b|noderiv|no derivatives", flat):
+        return ExportTerms(exportable=False, research=False)
+    noncommercial = bool(re.search(r"\bnc\b|noncommercial|non commercial", flat))
+    creative = "cc" in parts or "creative commons" in flat
+    attribution = "by" in parts or "attribution" in flat
+    if noncommercial:
+        return ExportTerms(exportable=False, research=creative and attribution)
+    # Whole words, and only the names on David's list: "pd" inside "updated" is not
+    # public domain, and a "no known copyright" label or a PDM is not a licence he named.
+    if "public domain" in flat or "pd" in parts or "cc0" in parts:
+        return ExportTerms(exportable=True, research=True)
+    # targum's own writing — the dialogues, the weekly's prose — is ours to export
+    # (David, 2026-10-27).
+    if flat == _OWN or flat.startswith(_OWN + " "):
+        return ExportTerms(exportable=True, research=True)
+    if creative and attribution:
+        return ExportTerms(exportable=True, research=True)
+    return ExportTerms(exportable=False, research=False)

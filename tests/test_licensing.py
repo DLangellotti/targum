@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from targum.licensing import Standing, exportable, verdict
+from targum.licensing import ExportTerms, Standing, export_terms, exportable, verdict
 
 
 @pytest.mark.parametrize(
@@ -92,3 +92,54 @@ def test_derivatives_is_the_readers_question_and_export_is_the_corpus_one() -> N
     assert not verdict("CC BY-ND 4.0").derivatives
     assert not verdict("").derivatives
     assert verdict("CC BY-SA 4.0").derivatives and verdict("CC BY-SA 4.0").exportable
+
+
+@pytest.mark.parametrize(
+    ("licence", "commercial", "research"),
+    [
+        ("Public Domain", True, True),
+        ("CC0 1.0", True, True),
+        ("CC BY 3.0", True, True),
+        ("cc-by-sa-4.0", True, True),
+        ("Creative Commons Attribution-ShareAlike 4.0", True, True),
+        ("CC BY-NC 4.0", False, True),
+        ("CC BY-NC-SA 3.0", False, True),
+        ("CC BY-ND 4.0", False, False),
+        ("CC BY-NC-ND 4.0", False, False),
+        ("", False, False),
+        ("   ", False, False),
+        ("Ben-Yehuda Project terms of use", False, False),
+        # Our own writing goes in the commercial export (David, 2026-10-27).
+        ("targum", True, True),
+        # Not on David's list, so in neither until it is.
+        ("MPL-2.0", False, False),
+        # Whole words only (qa-claude on #942): "pd" inside "updated" is not public domain.
+        ("Copyright, updated 2020", False, False),
+        ("PD", True, True),
+        # Labels, not licences on David's list.
+        ("PDM", False, False),
+        ("no known copyright restrictions", False, False),
+        # Without "CC" or "Creative Commons" it is not read as one.
+        ("Attribution-ShareAlike 4.0 International", False, False),
+    ],
+)
+def test_the_export_rule_is_the_list_david_named(
+    licence: str, commercial: bool, research: bool
+) -> None:
+    """Decided 2026-10-08 (targum-internal#162): commercial export is PD, CC0, CC BY and
+    CC BY-SA, and since 2026-10-27 targum's own writing; research also admits CC BY-NC
+    and CC BY-NC-SA; ND, no licence and a private import are never exportable."""
+    terms = export_terms(licence)
+    assert (terms.exportable, terms.research) == (commercial, research)
+
+
+def test_a_private_import_exports_nowhere_whatever_its_licence() -> None:
+    assert export_terms("Public Domain", private=True) == ExportTerms(False, False)
+    assert export_terms("CC BY 4.0", private=True) == ExportTerms(False, False)
+
+
+def test_our_own_writing_is_in_the_commercial_export() -> None:
+    """David, 2026-10-27: the dialogues and the weekly, licensed "targum", may leave in a
+    commercial dataset; a private import is still out whatever it says."""
+    assert export_terms("targum") == ExportTerms(exportable=True, research=True)
+    assert export_terms("targum", private=True) == ExportTerms(False, False)

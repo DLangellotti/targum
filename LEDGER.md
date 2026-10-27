@@ -42,7 +42,7 @@ export is one `WHERE` with no join.
 
 | table | one row is | its own columns |
 |---|---|---|
-| `texts` | a source document | `document_hash` PK, `source`, `licence`, `reader_publishable`, `corpus_exportable`, `ingester`, `owner` (null when public) |
+| `texts` | a source document | `document_hash`, `source`, `licence`, `private`, `exportable`, `research`, `reader_publishable`; `tool` is the ingester — **built** (2026-10-27, schema 3). Which homes hold a private text is `text_homes (document_hash, home)`, current only, so no row or history row carries an account's home. The bits are computed by `licensing.export_terms` from the licence and `private`, never typed, and a rule that changed supersedes a row whose facts did not: commercial is PD, CC0, CC BY, CC BY-SA and targum's own writing (David, 2026-10-27); research adds CC BY-NC and CC BY-NC-SA; ND, no licence and a private import are in neither (David, 2026-10-08). Filled by `targum cache ledger-texts` from the built folders; not yet written at build time. |
 | `segmentations` + `segments` | a split of a text / one sentence | `document_hash`, `segmenter`; `segment_id`, `ord`, `text` |
 | `translations` + `pairs` | one rendering / one aligned pair | `document_hash`, `provider`, `model`, `style`, `target_language`; `segment_id`, `target`, `confidence`, `coarse` |
 | `alignments` + `links` | a human translation matched / one link | `document_hash`, `translation_hash`, `aligner`; `source[]`, `target[]`, `confidence` |
@@ -92,8 +92,14 @@ for 35 MB of JSON. It was not run on the box.
 
 Per stage, the order is: write the table, backfill, turn on dual-write, compare, then
 read-through. `texts` comes first, because `exportable` is copied from it. It is
-backfilled from the catalogue and from the licence string #115 writes at ingest. A text
-with no licence string gets `exportable = 0`.
+backfilled by `ledger.backfill_texts` (`targum cache ledger-texts`): the head of every
+built folder's `document.json` under the library, with the licence from the catalogue
+entry for the source (or the rendering's own, for a rendering), else the manifest beside
+the reader. Only a reader's home (`p<id>`, or `local`) is private; every other folder in
+the library — the shared shelf, the weekly, the laptop's parasha and Russian shelves — is
+public, and a document any public folder holds is public. A text with no licence string gets `exportable = 0`. The next step
+is writing the row at build time from the Library, which knows the home, and copying the
+bits onto `vocalizations` and `annotations`.
 
 ## `targum corpus export --exportable`
 
@@ -102,14 +108,16 @@ generated from the same rows. The datasheet lists the sources and licences, ever
 `(tool, tool_version)` with its row count, the counts per table, the date, and the ledger
 schema. Because the bit is copied onto every row, the per-table counts in the datasheet
 are exactly `SELECT COUNT(*) … WHERE exportable` (criterion 3), and an empty licence can
-never appear (criterion 4). The private bucket (#161) is `texts.owner IS NOT NULL`. Those
+never appear (criterion 4). The private bucket (#161) is `texts.private = 1`. Those
 rows are never exported, and they are deleted with the account.
 
 **Deletion is built ahead of `texts`** (2026-10-08). When `Library.purge_departed` removes
 a reader's home, `ledger.forget` first deletes every row, history included, for the
 documents named in that home and nowhere else — not on the shared shelf, the weekly, or
 another reader's home, since a text two people have is one document and one set of rows,
-and is corpus. The documents are read off the head of each artifact
+and is corpus. `ledger.disown` then takes the departed home out of `text_homes` for every
+text it held, so a text another reader still holds keeps no trace of the one who left
+(clause 3.14). The documents are read off the head of each artifact
 (`ledger.documents_under`), so no annotation is parsed whole. `scores` rows have no
 owner and survive the deletion (criterion 5).
 
