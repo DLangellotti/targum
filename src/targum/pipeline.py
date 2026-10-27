@@ -167,6 +167,10 @@ class Build:
         owner: str = "",
         out: Path | None = None,
         out_root: Path | None = None,
+        # The library this build writes into, for the corpus ledger's one question of it:
+        # is the folder a reader's home (targum-internal#162)? Only where `out_root` is not
+        # already the library — a command-line build names its own folder with `out`.
+        library: Path | None = None,
         force: bool = False,
         batch_size: int = 20,
         effort: str = "medium",
@@ -275,6 +279,7 @@ class Build:
         self._refiner_used: Any = None
         self._out = out
         self._out_root = out_root
+        self._library = library
         self._resolved_out: Path | None = None
         self.reused: list[str] = []
         # What this build's words used to be called, when it re-annotated a text that had
@@ -529,7 +534,7 @@ class Build:
             # the build's own pass below never sees it. Off unless `TARGUM_LEDGER` is set.
             from . import ledger as ledger_module
 
-            ledger_module.mirror_translations(self.resolved_out, self._out_root)
+            ledger_module.mirror_translations(self.resolved_out, self._library or self._out_root)
         return translation
 
     def _first_chapters(
@@ -2421,8 +2426,8 @@ class Build:
         # copy its export bits. Off unless `TARGUM_LEDGER` is set; never fails a build.
         from . import ledger as ledger_module
 
-        ledger_module.mirror_text(self.resolved_out, self._out_root)
-        ledger_module.mirror_translations(self.resolved_out, self._out_root)
+        ledger_module.mirror_text(self.resolved_out, self._library or self._out_root)
+        ledger_module.mirror_translations(self.resolved_out, self._library or self._out_root)
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.
