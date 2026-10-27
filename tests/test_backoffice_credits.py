@@ -17,6 +17,7 @@ from targum.accounts import Store
 from targum.backoffice import (
     ACCOUNT_SORTS,
     Listing,
+    account_id,
     credits,
     month_from,
     reader,
@@ -219,3 +220,22 @@ def test_credits_are_written_as_the_product_writes_them() -> None:
     assert credits(95) == "1.6"
     assert credits(60) == "1"
     assert credits(0) == "0"
+
+
+def test_a_typed_id_that_is_no_account_is_nobody(store: Store) -> None:
+    """qa on targum#956: "²" passed `isdigit` and failed `int`, and a 30-digit id failed
+    to bind; both raised out of the request. Each is nobody, as is anything not an id."""
+    assert account_id("1") == 1 and account_id(" 2 ") == 2
+    for odd in ("²", "1" * 30, str(2**63), "0", "-1", "1.5", "abc", ""):
+        assert account_id(odd) is None, odd
+    assert account_id(str(2**63 - 1)) == 2**63 - 1
+    assert reader(store.db, 2**63 - 1, today=TODAY) is None, "the largest id binds"
+
+
+def test_the_page_asks_through_account_id() -> None:
+    """The route turns `?who=` into an id through `account_id` and nothing else."""
+    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
+    text = served.read_text(encoding="utf-8")
+    route = text[text.index("def _back_office(") : text.index("def _open_the_door")]
+    assert "who = account_id(asked_for)" in route
+    assert "isdigit" not in route and "int(asked_for)" not in route

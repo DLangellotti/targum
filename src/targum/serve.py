@@ -8244,6 +8244,7 @@ class Handler(BaseHTTPRequestHandler):
             DAYS,
             WAITING_SORTS,
             Listing,
+            account_id,
             reader_store,
             survey_store,
         )
@@ -8281,14 +8282,15 @@ class Handler(BaseHTTPRequestHandler):
         one = None
         asked_for = query.get("who", [""])[0]
         if asked_for:
+            who = account_id(asked_for)
             one = (
                 reader_store(
                     self.store.path,
-                    int(asked_for),
+                    who,
                     allowance=self.library.allowance(paid_plan=False),
                     plan_allowance=self.library.allowance(paid_plan=True),
                 )
-                if asked_for.isdigit()
+                if who is not None
                 else None
             )
             if one is None:
