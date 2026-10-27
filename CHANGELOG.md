@@ -362,6 +362,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   mistake, it gives the restored file to the folder's owner. A snapshot that fails partway no
   longer leaves a partial file for the sweep to count. Nothing changes on the box until
   a deploy carries the new unit.
+- The corpus ledger's fill now finds texts at any depth (targum-internal#162). A laptop
+  check of 2026-10-27 found it reading one level down: it missed the parasha
+  (`parasha/read/<slug>/print`) and 604 texts three levels deep. Private or public is
+  still decided by the top folder, so `p3/local/…` and `local/videos/…` stay private,
+  and the build-time writer and account deletion use the same rule for nested folders.
+  A text found at two depths is one text. Symbolic links are not followed. A `weekly:`
+  source counts as `targum`, our own writing, in the catalogue or not (David,
+  2026-10-27). A translation held in two public copies of one text is recorded once,
+  the fullest, so a second fill adds no history. On the laptop library the fill went
+  from 343 texts to 943, and the commercial export from 269 texts to 552.
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
   string, whether it is a reader's private import, and two export bits computed from David's 2026-10-08 rule

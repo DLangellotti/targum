@@ -1304,3 +1304,145 @@ class TestReadThrough:
         engine = Named("fake/1")
         _build(source, tmp_path / "second", fake_segmenter, engine)
         assert engine.asked == 0
+
+
+class TestAnyDepth:
+    """The laptop check of 2026-10-27 found the fill one level deep: the parasha sits at
+    `parasha/read/<slug>/print` and 604 texts three levels down. A text is any folder
+    holding its files; private or public is the top folder's call."""
+
+    @staticmethod
+    def _built(folder: Path, document_hash: str, source: str) -> None:
+        folder.mkdir(parents=True)
+        document = {"source": source, "language": "he", "blocks": [], "content_hash": document_hash}
+        (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
+
+    def test_the_fill_finds_texts_at_any_depth_and_the_top_folder_decides(
+        self, tmp_path: Path
+    ) -> None:
+        out = tmp_path / "out"
+        self._built(out / "parasha" / "read" / "noach" / "print", "a" * 64, "parasha:noach")
+        self._built(out / "russian" / "globalvoices" / "story", "b" * 64, "https://gv/1")
+        self._built(out / "local" / "videos" / "clip", "c" * 64, "https://yt/1")
+        self._built(out / "p3" / "local" / "upload", "d" * 64, "upload.pdf")
+        self._built(out / "declaration-he", "e" * 64, "declaration.md")
+        # A built text's own pages are not walked for texts.
+        self._built(out / "library" / "ruth" / "reader" / "stray", "f" * 64, "stray")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, out, licence_of=lambda _f, _s: "Public Domain") == (
+            5,
+            0,
+        )
+        homes = {c: book.text(c * 64).homes for c in "abcde"}  # type: ignore[union-attr]
+        assert homes == {
+            "a": frozenset(),
+            "b": frozenset(),
+            "c": {"local"},
+            "d": {"p3"},
+            "e": frozenset(),
+        }, "p3/local is p3's, local/videos is local's"
+        assert book.text("f" * 64) is None
+
+    def test_a_text_found_at_two_depths_is_one_text(self, tmp_path: Path) -> None:
+        out = tmp_path / "out"
+        self._built(out / "shared" / "noach", "a" * 64, "parasha:noach")
+        self._built(out / "parasha" / "read" / "noach" / "print", "a" * 64, "parasha:noach")
+        self._built(out / "p1" / "deep" / "noach", "a" * 64, "parasha:noach")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, out, licence_of=lambda _f, _s: "Public Domain") == (
+            1,
+            0,
+        )
+        assert book.text("a" * 64).homes == frozenset()  # type: ignore[union-attr]
+
+    def test_a_link_back_up_the_tree_does_not_loop(self, tmp_path: Path) -> None:
+        out = tmp_path / "out"
+        self._built(out / "russian" / "story", "a" * 64, "https://gv/1")
+        (out / "russian" / "loop").symlink_to(out, target_is_directory=True)
+        (out / "linked").symlink_to(out / "russian" / "story", target_is_directory=True)
+        assert ledger.text_folders(out) == [out / "russian" / "story"]
+
+    def test_a_build_in_a_nested_home_is_private_to_the_top_home(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        out = tmp_path / "out"
+        cases = {
+            "a": (out / "local" / "videos" / "clip", {"local"}),
+            "b": (out / "p3" / "local" / "upload", {"p3"}),
+            "c": (out / "parasha" / "read" / "noach" / "print", set()),
+        }
+        for name, (folder, _homes) in cases.items():
+            self._built(folder, name * 64, f"source-{name}")
+            ledger.mirror_text(folder)
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        for name, (_folder, homes) in cases.items():
+            assert book.text(name * 64).homes == homes, name  # type: ignore[union-attr]
+
+    def test_an_old_weekly_issue_is_our_own_writing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """David, 2026-10-27: the weekly is licence `targum`, in the catalogue or not."""
+        from targum import catalogue
+
+        monkeypatch.setattr(catalogue, "matching", lambda _source: None)
+        assert ledger._licence_of(tmp_path, "weekly:2026-w35-aleph") == "targum"
+        assert ledger._licence_of(tmp_path, "https://example.com/a") == ""
+
+    def test_a_departed_reader_s_nested_texts_are_forgotten_too(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from targum.accounts import Store
+        from targum.serve import Library
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        store = Store(tmp_path / "targum.db")
+        person, _ = store.finish_sign_in(store.start_sign_in("leaving@example.com"))  # type: ignore[misc]
+        library = Library(tmp_path / "out", store=store)
+        home = library.home(person)
+        clip = home / "videos" / "clip"
+        clip.mkdir(parents=True)
+        (clip / "vocalization.json").write_text(
+            json.dumps({**POINTED, "document_hash": "a" * 64}, indent=2), encoding="utf-8"
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("vocalize", "k-a", {**POINTED, "document_hash": "a" * 64})
+        with store.write() as db:
+            db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (person.id,))
+        assert library.purge_departed() == [person.id]
+        assert book.history("vocalize", "k-a") == []
+
+    def test_a_text_the_shelf_holds_twice_keeps_one_rendering_and_no_churn(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Found re-running the laptop fill: `shared/<x>` and `parasha/read/<x>/print`
+        hold one text, and their files under one key differ. Each fill added both to the
+        history again. Now the fullest is recorded, once."""
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        out = tmp_path / "out"
+        whole = _rendering()
+        part = _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})
+        for folder, value in (
+            (out / "parasha" / "read" / "x" / "print", whole),
+            (out / "shared" / "x", part),
+        ):
+            TestTranslations._folder(folder, "parasha:x", ("claude.natural.en", value))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        ledger.backfill_texts(book, out)
+        for _ in range(3):
+            ledger.backfill_translations(book, out)
+        assert book.get("translations", "doc123:claude.natural.en") == whole
+        assert len(book.history("translations", "doc123:claude.natural.en")) == 1
+
+    def test_a_partial_copy_is_not_recorded_over_a_fuller_one(self, tmp_path: Path) -> None:
+        folder = tmp_path / "out" / "shared" / "x"
+        TestTranslations._folder(
+            folder,
+            "https://x.example/a",
+            ("claude.natural.en", _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})),
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("translations", "doc123:claude.natural.en", _rendering(), licence="")
+        ledger.record_translations(book, folder)
+        assert book.get("translations", "doc123:claude.natural.en") == _rendering()
