@@ -4999,6 +4999,21 @@ def test_the_next_scene_stays_in_its_series(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
 
+def test_a_gap_in_a_series_is_stepped_over(monkeypatch: pytest.MonkeyPatch) -> None:
+    """B1 has no scene 15, 25 or 29 and Russian skips six numbers: after scene-he-14
+    comes scene-he-16, and the next is never another series' number + 1."""
+    rows = catalogue_of(
+        ("scene-he-14-before", "dialogue:he-14-before", 20, "modern"),
+        ("scene-15-a1", "dialogue:15-a1", 1, "modern"),
+        ("scene-he-17-later", "dialogue:he-17-later", 26, "modern"),
+        ("scene-he-16-after", "dialogue:he-16-after", 30, "modern"),
+    )
+    drawn = offers(monkeypatch, "dialogue:he-14-before", rows)
+    assert drawn[0]["id"] == "scene-he-16-after"
+    assert drawn[0]["because"] == "Next in the sequence."
+    assert drawn[0]["scene"] == "Scene 16"
+
+
 def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = catalogue_of(
         ("scene-03-which-way", "dialogue:03-which-way", 2, "modern"),

@@ -21,6 +21,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   scenes sort by series then number, Hebrew's path and Start here are A1's alone, the
   next scene stays inside its series, and the shelf shows one card per series. Ids are
   unchanged.
+- A gap in a scene series no longer ends it (2026-10-27). B1 has no scene 15, 25 or 29
+  and Russian skips 4, 5, 16, 19, 48 and 64, and the reader looked only for number + 1,
+  so after scene-he-14 there was no next scene. It now offers the next higher number in
+  the same series. The English-title draft also drops the series code from a prefixed
+  scene's slug (`scene-he-07-the-lease` is "The lease").
 - Your Progress no longer says Aramaic texts aren't placed by difficulty (2026-10-25).
   Since targum#936 Aramaic has a ladder, so part 3 now says it lists Aramaic texts at
   your level once the library's Aramaic is measured. Once the 41 Aramaic rows are

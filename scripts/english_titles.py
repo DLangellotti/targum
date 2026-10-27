@@ -59,7 +59,8 @@ def from_scene(raw: dict[str, Any]) -> str:
             return english
     except Exception:
         pass
-    slug = re.sub(r"^scene-\d+-", "", str(raw["id"]))
+    # A series code may come first: `scene-he-07-slug`, `scene-ru-07-slug` (2026-10-27).
+    slug = re.sub(r"^scene-(?:[a-z]{2,3}-)?\d+-", "", str(raw["id"]))
     words = slug.replace("-", " ").strip()
     return words[:1].upper() + words[1:]
 
