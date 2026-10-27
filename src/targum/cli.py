@@ -52,6 +52,7 @@ daily_app = typer.Typer(no_args_is_help=True, help="The daily learning cycles.")
 cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
 export_app = typer.Typer(no_args_is_help=True, help="A text in another form.")
+corpus_app = typer.Typer(no_args_is_help=True, help="The corpus ledger as a dataset.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
@@ -59,6 +60,7 @@ app.add_typer(parasha_app, name="parasha")
 app.add_typer(daily_app, name="daily")
 app.add_typer(video_app, name="video")
 app.add_typer(export_app, name="export")
+app.add_typer(corpus_app, name="corpus")
 
 console = Console()
 err = Console(stderr=True)
@@ -4503,6 +4505,50 @@ def cache_ledger_texts(
     console.print(
         f"[green]Recorded[/green] {recorded} texts, {unchanged} unchanged [dim]{file}[/dim]"
     )
+
+
+@corpus_app.command("export")
+def corpus_export(
+    to: Annotated[Path, typer.Argument(help="An empty folder to write the dataset into.")],
+    exportable: Annotated[
+        bool, typer.Option("--exportable", help="The commercial export.")
+    ] = False,
+    research: Annotated[
+        bool, typer.Option("--research", help="The research export, which also admits NC.")
+    ] = False,
+) -> None:
+    """Write the corpus ledger as a dataset: one JSONL file per table and a datasheet
+    (targum-internal#162).
+
+    Exactly one of --exportable (public domain, CC0, CC BY, CC BY-SA, targum's own
+    writing) or --research (those, plus CC BY-NC and CC BY-NC-SA). A reader's private
+    import, a text with no licence and anything ND are in neither, and no account id
+    is written. Reads the file `TARGUM_LEDGER` names; spends nothing.
+    """
+    from . import corpus_export as corpus_module
+    from . import ledger as ledger_module
+
+    if exportable == research:
+        fail(
+            TargumError(
+                "Choose one export.",
+                "Pass --exportable for the commercial one or --research for the research one.",
+            )
+        )
+    file = ledger_module.path()
+    if file is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the ledger file, then run this again.",
+            )
+        )
+    try:
+        sheet = corpus_module.export(file, to, "exportable" if exportable else "research")
+    except ValueError as error:
+        fail(TargumError("The export was not written.", str(error)))
+    rows = ", ".join(f"{count} {table}" for table, count in sheet["rows"].items())
+    console.print(f"[green]Wrote[/green] {rows} [dim]{to}[/dim]")
 
 
 @export_app.command("pdf")

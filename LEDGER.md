@@ -107,7 +107,17 @@ even when it is unchanged, so rows from before schema 4 come up on the next back
 document with no `texts` row reads 0, so nothing exports by default. The columns are
 added in place on open, under the write lock.
 
-## `targum corpus export --exportable`
+## `targum corpus export --exportable` / `--research`
+
+**Built** (slice 3, 2026-10-27; `src/targum/corpus_export.py`). `targum corpus export
+<empty folder> --exportable` (or `--research`) writes `texts`, `vocalizations`,
+`pointings`, `annotations` and `tokens` as JSONL, plus `datasheet.json` and
+`DATASHEET.md`. Only current rows go out, no history; a unit row goes out with its head.
+A text leaves only if all four hold: its row carries the bit, it is marked public, no
+reader's home holds it (`text_homes`), and `licensing.export_terms` asked again now of
+its licence gives the bit. So a stale or wrong bit cannot export anything on its own. A
+text whose source is a path through a reader's home (`p<id>`) is not exported, so no
+account id can ride out in `source`; `private` and `text_homes` are never written.
 
 The command writes one JSONL file per table with `WHERE exportable = 1`, plus a datasheet
 generated from the same rows. The datasheet lists the sources and licences, every
