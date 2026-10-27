@@ -539,7 +539,7 @@ class Build:
             # the build's own pass below never sees it. Off unless `TARGUM_LEDGER` is set.
             from . import ledger as ledger_module
 
-            ledger_module.mirror_translations(self.resolved_out)
+            ledger_module.mirror_translations(self.resolved_out, self._out_root)
         return translation
 
     def _first_chapters(
@@ -2431,8 +2431,8 @@ class Build:
         # copy its export bits. Off unless `TARGUM_LEDGER` is set; never fails a build.
         from . import ledger as ledger_module
 
-        ledger_module.mirror_text(self.resolved_out)
-        ledger_module.mirror_translations(self.resolved_out)
+        ledger_module.mirror_text(self.resolved_out, self._out_root)
+        ledger_module.mirror_translations(self.resolved_out, self._out_root)
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.

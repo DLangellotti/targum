@@ -4073,6 +4073,8 @@
   "progress.where.most.writings": "You'd follow most of the Aramaic of the Writings",
   "progress.where.start.writings": "The Aramaic of the Writings is the place to start",
   "progress.touch.title-unshelved": "{kind}: you know {n}% of its words.",
+  "add.page.share-menu": "Install targum to send it links from any app's Share menu.",
+  "add.page.share-install": "Install",
   "reader.page.correct-the-text": "Correct the text",
   "reader.correct.tap-a-line": "Tap a line to correct it.",
   "reader.correct.done": "Done",

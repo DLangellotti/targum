@@ -1,0 +1,8 @@
+{
+  "name": { "message": "targum" },
+  "description": { "message": "Отправьте открытую страницу в раздел «Добавить» targum и читайте её там. Ничего не списывается, пока вы не подтвердите." },
+  "action": { "message": "Отправить страницу в targum" },
+  "page": { "message": "Отправить страницу в targum" },
+  "link": { "message": "Отправить ссылку в targum" },
+  "selection": { "message": "Отправить текст в targum" }
+}

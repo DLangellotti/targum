@@ -4426,6 +4426,8 @@
   "progress.where.most.writings": "Вы поймёте большую часть арамейского перевода Писаний",
   "progress.where.start.writings": "Начните с арамейского перевода Писаний",
   "progress.touch.title-unshelved": "{kind}: вы знаете {n}% слов.",
+  "add.page.share-menu": "Установите targum, чтобы отправлять ему ссылки из меню «Поделиться» любого приложения.",
+  "add.page.share-install": "Установить",
   "reader.page.correct-the-text": "Исправить текст",
   "reader.correct.tap-a-line": "Нажмите на строку, чтобы её исправить.",
   "reader.correct.done": "Готово",

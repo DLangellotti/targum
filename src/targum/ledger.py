@@ -554,7 +554,7 @@ def _add_bits(db: sqlite3.Connection) -> None:
 MIRROR_TIMEOUT = 2.0
 
 
-def mirror_text(folder: Path) -> None:
+def mirror_text(folder: Path, root: Path | None = None) -> None:
     """A build's `texts` row (targum-internal#162, slice 2): called once a build has
     written `document.json` and anything beside it a licence is read from. Does nothing
     with the flag off; never raises, because the reader matters more than the ledger.
@@ -575,7 +575,7 @@ def mirror_text(folder: Path) -> None:
             ingester=str(document.get("ingester") or ""),
             schema_version=int(document.get("schema_version") or 0),
         )
-        home = folder.parent.name if is_home(folder.parent.name) else None
+        home = home_of(folder, root)
         Ledger(file, timeout=MIRROR_TIMEOUT).hold(text, home)
     except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
         log.warning("corpus ledger: %s not recorded as a text: %s", folder.name, error)
@@ -661,14 +661,94 @@ _NAMED = re.compile(r'"(?:document_hash|content_hash)":\s*"([0-9a-f]{16,})"')
 _ARTIFACTS = ("document.json", "segments.json", "vocalization.json", "annotation.json")
 
 
-def documents_under(root: Path) -> set[str]:
-    """Every document hash a folder of built texts names, one level down."""
-    found: set[str] = set()
+#: Folders inside a built text that hold its pages and files, never another text: not
+#: walked, because a reader is thousands of pages.
+_NOT_TEXTS = frozenset({"reader", "translations", "alignments", "audio", "video", "thumbs"})
+
+
+def text_folders(root: Path) -> list[Path]:
+    """Every folder under `root`, at any depth, holding a built text's artifact.
+
+    A text is wherever its files are: one level down on the box, and on the laptop
+    `parasha/read/<slug>/print`, `russian/globalvoices/<slug>` or `local/videos/<slug>`.
+    Symbolic links are not followed, so a link back up the tree cannot loop, and the
+    pages inside a text (`_NOT_TEXTS`) are not walked.
+    """
+    found: list[Path] = []
     try:
-        folders = [one for one in root.iterdir() if one.is_dir()]
+        if not root.is_dir():
+            return found
     except OSError:
         return found
-    for folder in folders:
+    for here, dirs, files in os.walk(root, followlinks=False, onerror=lambda _error: None):
+        dirs[:] = sorted(
+            name for name in dirs if name not in _NOT_TEXTS and not name.startswith(".")
+        )
+        if any(name in files for name in _ARTIFACTS) and Path(here) != root:
+            found.append(Path(here))
+    return found
+
+
+def home_of(folder: Path, root: Path | None = None) -> str | None:
+    """The reader's home a built text's folder sits in, or None for a public one.
+
+    With the library root known — the one a `Library` registered (`use_library`), else
+    the `root` a caller passes, a build's `--out` — one rule, the fill's: the top folder
+    under it decides, whatever lies beneath, so `p3/local/<x>` is p3's,
+    `local/videos/<x>` is local's and `demos/olim/shelf/p1/<x>` is public. A root that is
+    itself a home (a server build's `out_root`) is that home.
+
+    With no root known it fails closed (qa-claude on #949): any `p<id>` or `local` folder
+    anywhere on the path makes the text private — the outermost `p<id>` if there is one,
+    else `local`. Nothing is guessed up the tree: on macOS `/Users/Shared` answers to
+    "shared", and a guessed root there read every laptop home as public. Names are
+    compared exactly, case and all.
+    """
+    library = _registered_for(folder) or root
+    if library is not None:
+        try:
+            parts = folder.resolve().relative_to(library.resolve()).parts
+        except (ValueError, OSError):
+            library = None
+        else:
+            if is_home(library.name):
+                return library.name
+            if len(parts) < 2:
+                return None
+            return parts[0] if is_home(parts[0]) else None
+    names = [above.name for above in reversed(folder.parents)]
+    homes = [name for name in names if is_home(name)]
+    numbered = [name for name in homes if name != "local"]
+    if numbered:
+        return numbered[0]
+    return "local" if homes else None
+
+
+#: The library a running server serves, registered by `Library` so a build there knows
+#: its root. A command-line build passes its own `--out` root instead.
+_LIBRARY: Path | None = None
+
+
+def use_library(out: Path) -> None:
+    """Name the library root builds in this process write under."""
+    global _LIBRARY
+    _LIBRARY = out
+
+
+def _registered_for(folder: Path) -> Path | None:
+    if _LIBRARY is None:
+        return None
+    try:
+        folder.resolve().relative_to(_LIBRARY.resolve())
+    except (ValueError, OSError):
+        return None
+    return _LIBRARY
+
+
+def documents_under(root: Path) -> set[str]:
+    """Every document hash a folder of built texts names, at any depth."""
+    found: set[str] = set()
+    for folder in text_folders(root):
         for name in _ARTIFACTS:
             try:
                 with (folder / name).open("rb") as handle:
@@ -812,18 +892,25 @@ def is_home(name: str) -> bool:
 def _built_folders(out: Path) -> list[tuple[Path, str | None]]:
     """Every built text's folder under the library, with the home it is in, or None for
     one of the library's own public folders (or a text built straight into `out`)."""
-    try:
-        roots = sorted(one for one in out.iterdir() if one.is_dir())
-    except OSError:
-        return []
     folders: list[tuple[Path, str | None]] = []
-    for root in roots:
-        home = root.name if is_home(root.name) else None
-        if home is None and (root / "document.json").is_file():
-            folders.append((root, None))
+    for folder in text_folders(out):
+        if _escapes(folder / "document.json", out):
+            log.warning("corpus ledger: %s links outside the library; skipped", folder)
             continue
-        folders += [(one, home) for one in sorted(root.iterdir()) if one.is_dir()]
+        # Decided by the top folder alone, whatever lies beneath: `p3/local/<x>` is p3's.
+        folders.append((folder, home_of(folder, out)))
     return folders
+
+
+def _escapes(path: Path, root: Path) -> bool:
+    """Whether a file is a link to somewhere outside the library (qa-claude on #949)."""
+    try:
+        if not path.is_symlink():
+            return False
+        path.resolve().relative_to(root.resolve())
+    except (ValueError, OSError, RuntimeError):
+        return True
+    return False
 
 
 def backfill_texts(
@@ -887,6 +974,11 @@ def _licence_of(folder: Path, source: str) -> str:
     """The catalogue's licence for a source, else the one recorded beside the reader."""
     from . import catalogue
     from .promote import licence_of
+
+    # The weekly is our own writing, an issue in the catalogue or not (David,
+    # 2026-10-27): only the recent issues are catalogue entries.
+    if source.startswith("weekly:"):
+        return "targum"
 
     try:
         entry = catalogue.matching(source)
@@ -1238,7 +1330,7 @@ def _read_translation(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
     return value
 
 
-def mirror_translations(folder: Path) -> None:
+def mirror_translations(folder: Path, root: Path | None = None) -> None:
     """A build's renderings, from its `translations/*.json` (slice 4): called once a build
     has written them, and after a chapter is bought. Reads files only; nothing is
     translated. Does nothing with the flag off; never raises."""
@@ -1246,23 +1338,26 @@ def mirror_translations(folder: Path) -> None:
     if file is None:
         return
     try:
-        record_translations(Ledger(file, timeout=MIRROR_TIMEOUT), folder)
+        record_translations(Ledger(file, timeout=MIRROR_TIMEOUT), folder, root=root)
     except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
         log.warning("corpus ledger: %s translations not recorded: %s", folder.name, error)
 
 
-def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
+def record_translations(
+    ledger: Ledger, folder: Path, *, only: set[str] | None = None, root: Path | None = None
+) -> tuple[int, int]:
     """Record every rendering one built folder holds. Returns (recorded, refused).
 
     Reads `document.json` for the text, `segments.json` for each pair's source sentence
     and `translations/*.json` for the renderings. A rendering targum made (`machine`,
     `authored`) is under the text's licence; a published one under its own, which only
     the catalogue knows; one it does not know is under none and exports nowhere.
+
+    `only` limits it to these file stems (the backfill's choice among copies). Outside a
+    fill a newer write replaces the row whatever its size, so a re-translation is never
+    stuck behind an older, fuller one.
     """
-    # `words.<lang>.json` is the glossary kept beside them, not a rendering.
-    translations = sorted(
-        one for one in (folder / "translations").glob("*.json") if not one.name.startswith("words.")
-    )
+    translations = [one for one in _rendering_files(folder) if only is None or one.stem in only]
     if not translations:
         return 0, 0
     document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
@@ -1272,7 +1367,7 @@ def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
     # and add a copy to the history at every build (qa-claude on #945). While a text is
     # public, only a public folder records its renderings; a home records only a text
     # that is private, which no public folder holds.
-    if is_home(folder.parent.name) and not ledger.is_private(
+    if home_of(folder, root) is not None and not ledger.is_private(
         str(document.get("content_hash") or "")
     ):
         return 0, 0
@@ -1290,9 +1385,10 @@ def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
                 licence = text_licence
             else:
                 licence = _rendering_licence(source, value)
+            key = f"{value.get('document_hash')}:{one.stem}"
             ledger.record(
                 "translations",
-                f"{value.get('document_hash')}:{one.stem}",
+                key,
                 value,
                 licence=licence,
                 sources=sources,
@@ -1303,6 +1399,13 @@ def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
         else:
             recorded += 1
     return recorded, refused
+
+
+def _rendering_files(folder: Path) -> list[Path]:
+    """A built folder's renderings: `translations/*.json` but the glossary beside them."""
+    return sorted(
+        one for one in (folder / "translations").glob("*.json") if not one.name.startswith("words.")
+    )
 
 
 def _segment_texts(folder: Path) -> dict[str, str]:
@@ -1345,12 +1448,41 @@ def backfill_translations(ledger: Ledger, out: Path) -> tuple[int, int]:
     """Read every built folder's renderings under the library into rows: the migration
     for `translations`, from what is already on disk. Nothing is translated or fetched.
     Returns (recorded, refused)."""
+    pairs = _built_folders(out)
+    folders = [folder for folder, _home in pairs]
+    # One copy per rendering, in this pass. A text the shelf holds in two folders
+    # (`shared/<x>` and `parasha/read/<x>/print`) has two files under one key; recorded
+    # in turn, each run would add both to the history again. The fullest wins, the first
+    # found on a tie — and only among the folders that may speak for the text: public
+    # ones for a public text, homes for a private one. A home's fuller copy of a public
+    # text would be refused there and leave the public one unrecorded (qa-claude on #949).
+    best: dict[tuple[str, str], tuple[int, Path]] = {}
+    for folder, home in pairs:
+        try:
+            document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        hash_ = str(document.get("content_hash") or "") if isinstance(document, Mapping) else ""
+        if (home is not None) != ledger.is_private(hash_):
+            continue
+        for one in _rendering_files(folder):
+            try:
+                segments = json.loads(one.read_text(encoding="utf-8")).get("segments")
+            except (OSError, ValueError, AttributeError):
+                continue
+            size = len(segments) if isinstance(segments, Mapping) else 0
+            held = best.get((hash_, one.stem))
+            if held is None or size > held[0]:
+                best[(hash_, one.stem)] = (size, folder)
+    chosen: dict[Path, set[str]] = {}
+    for (_hash, stem), (_size, folder) in best.items():
+        chosen.setdefault(folder, set()).add(stem)
     recorded = refused = 0
-    for folder, _home in _built_folders(out):
-        if not (folder / "document.json").is_file():
+    for folder in folders:
+        if folder not in chosen:
             continue
         try:
-            done, failed = record_translations(ledger, folder)
+            done, failed = record_translations(ledger, folder, only=chosen[folder], root=out)
         except (OSError, ValueError) as error:
             log.warning("corpus ledger: %s not read: %s", folder.name, error)
             continue
