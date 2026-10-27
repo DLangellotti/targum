@@ -8235,7 +8235,7 @@ class Handler(BaseHTTPRequestHandler):
         not the person you live with.
         """
         from . import visits
-        from .backoffice import DAYS, survey_store
+        from .backoffice import ACCOUNT_SORTS, DAYS, WAITING_SORTS, Listing, survey_store
 
         person = self._person()
         if person is None:
@@ -8252,8 +8252,16 @@ class Handler(BaseHTTPRequestHandler):
         # Read-only, and off the same file the service is writing to. `_send` already
         # answers `no-store`, which is what a page listing accounts wants: not in a
         # proxy, and not in the back button after the laptop is shut.
-        found = survey_store(self.store.path)
-        said = parse_qs(urlparse(self.path).query).get("said", [""])[0][:300]
+        # Which page of each list, searched and ordered how (targum-internal#542): a GET
+        # form and plain links, so the page still carries no script of its own for it.
+        query = parse_qs(urlparse(self.path).query)
+        found = survey_store(
+            self.store.path,
+            accounts=Listing.read(query, "q", "sort", "page", ACCOUNT_SORTS),
+            waitlist=Listing.read(query, "wq", "wsort", "wpage", WAITING_SORTS),
+            let_in=Listing.read(query, "wq", "wsort", "ipage", WAITING_SORTS),
+        )
+        said = query.get("said", [""])[0][:300]
         page = back_office_page(
             found,
             DAYS,

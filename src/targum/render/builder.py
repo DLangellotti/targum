@@ -2781,10 +2781,39 @@ def back_office_page(
     in the renderer should need the store.
     """
     from ..accounts import TOLD_STATES
+    from ..backoffice import ACCOUNT_SORTS, WAITING_SORTS, Listing
     from ..catalogue import Kind, Register
     from ..services import SAID_MAX, SERVICES
 
     read = balances or {}
+    # Where each list stands, so a link to the next page keeps the search and order of
+    # both lists (targum-internal#542). A default is left out of the address.
+    accounts = getattr(found, "account_listing", None) or Listing(sort="joined")
+    still = getattr(found, "waiting_listing", None) or Listing(sort="oldest")
+    let_in = getattr(found, "let_in_listing", None) or Listing(sort="oldest")
+    here = {
+        "q": accounts.q,
+        "sort": "" if accounts.sort == next(iter(ACCOUNT_SORTS)) else accounts.sort,
+        "page": accounts.page,
+        "wq": still.q,
+        "wsort": "" if still.sort == next(iter(WAITING_SORTS)) else still.sort,
+        "wpage": still.page,
+        "ipage": let_in.page,
+    }
+
+    def kept(**changes: object) -> list[tuple[str, str]]:
+        """The address's own settings, with `changes` made: what is default is dropped."""
+        merged = {**here, **changes}
+        return [
+            (key, str(value))
+            for key, value in merged.items()
+            if value not in ("", None) and not (key.endswith("page") and int(str(value)) <= 1)
+        ]
+
+    def bo_url(**changes: object) -> str:
+        pairs = kept(**changes)
+        return f"/back-office{'?' + urlencode(pairs) if pairs else ''}#people"
+
     services = [
         {
             "id": service.id,
@@ -2817,7 +2846,16 @@ def back_office_page(
             visits=visits,
             # Waitlist sign-ups by the day they asked, beside that day's visitors: the
             # one conversion the front door has.
-            asked=Counter(who.asked for who in getattr(found, "waiting_list", [])),
+            asked=getattr(found, "asked_by_day", None)
+            or Counter(who.asked for who in getattr(found, "waiting_list", [])),
+            # Paging, searching and ordering the lists (targum-internal#542).
+            accounts_listing=accounts,
+            waiting_listing=still,
+            let_in_listing=let_in,
+            account_sorts=ACCOUNT_SORTS,
+            waiting_sorts=WAITING_SORTS,
+            bo_url=bo_url,
+            bo_kept=kept,
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
