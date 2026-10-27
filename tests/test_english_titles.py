@@ -42,6 +42,15 @@ def test_a_scene_takes_its_english_from_its_slug_when_the_file_is_absent() -> No
     assert script.from_scene(scene) == "At the bank"
 
 
+def test_a_scene_in_a_series_drops_its_code_from_the_slug_too() -> None:
+    """`scene-he-NN` and `scene-ru-NN` (2026-10-27): the code is not part of the title."""
+    script = load_script()
+    b1 = entry(id="scene-he-07-the-lease", kind="dialogue", source="test:none")
+    ru = entry(id="scene-ru-12-at-the-market", kind="dialogue", source="test:none")
+    assert script.from_scene(b1) == "The lease"
+    assert script.from_scene(ru) == "At the market"
+
+
 def test_a_book_of_the_bible_is_named_in_its_byline() -> None:
     script = load_script()
     assert script.from_byline(entry(author="Ketuvim · Ruth", tags=["tanakh"])) == "Ruth"

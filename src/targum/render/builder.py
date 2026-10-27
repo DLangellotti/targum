@@ -2007,17 +2007,20 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     # nearest harder text, whose measured share is noise at twenty words. It leads; the
     # step-up below fills the rest, so drawing again after a scene still offers
     # something. Past the last scene the step-up is all there is. Within its series:
-    # after B1's scene-he-01 comes scene-he-02, never A1's scene-02 (2026-10-27).
+    # after B1's scene-he-01 comes scene-he-02, never A1's scene-02 (2026-10-27). The
+    # next is the next higher number, not number + 1: B1 skips 15, 25 and 29 and Russian
+    # skips six, and a gap is not the end of the path.
     if mine is not None and scene_number(mine.id):
-        following = next(
+        following = min(
             (
                 e
                 for e in CATALOGUE
-                if scene_number(e.id) == scene_number(mine.id) + 1
+                if scene_number(e.id) > scene_number(mine.id)
                 and scene_series(e.id) == scene_series(mine.id)
                 and e.language == mine.language
             ),
-            None,
+            key=lambda e: (scene_number(e.id), e.id),
+            default=None,
         )
         if following is not None:
             offer(following, "Next in the sequence.", f"Scene {scene_number(following.id)}")
