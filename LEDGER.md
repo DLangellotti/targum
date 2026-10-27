@@ -42,7 +42,7 @@ export is one `WHERE` with no join.
 
 | table | one row is | its own columns |
 |---|---|---|
-| `texts` | a source document | `document_hash`, `source`, `licence`, `private`, `exportable`, `research`, `reader_publishable`; `tool` is the ingester — **built** (2026-10-27, schema 3). Which homes hold a private text is `text_homes (document_hash, home)`, current only, so no row or history row carries an account's home. The bits are computed by `licensing.export_terms` from the licence and `private`, never typed, and a rule that changed supersedes a row whose facts did not: commercial is PD, CC0, CC BY, CC BY-SA and targum's own writing (David, 2026-10-27); research adds CC BY-NC and CC BY-NC-SA; ND, no licence and a private import are in neither (David, 2026-10-08). Filled by `targum cache ledger-texts` from the built folders; not yet written at build time. |
+| `texts` | a source document | `document_hash`, `source`, `licence`, `private`, `exportable`, `research`, `reader_publishable`; `tool` is the ingester — **built** (2026-10-27, schema 3). Which homes hold a private text is `text_homes (document_hash, home)`, current only, so no row or history row carries an account's home. The bits are computed by `licensing.export_terms` from the licence and `private`, never typed, and a rule that changed supersedes a row whose facts did not: commercial is PD, CC0, CC BY, CC BY-SA and targum's own writing (David, 2026-10-27); research adds CC BY-NC and CC BY-NC-SA; ND, no licence and a private import are in neither (David, 2026-10-08). Filled by `targum cache ledger-texts` from the built folders, and since slice 2 written by every build (`ledger.mirror_text`, from the pipeline once the audio manifest is down): a build in a reader's home adds that home, unless the text is already public; a build anywhere else makes it public. |
 | `segmentations` + `segments` | a split of a text / one sentence | `document_hash`, `segmenter`; `segment_id`, `ord`, `text` |
 | `translations` + `pairs` | one rendering / one aligned pair | `document_hash`, `provider`, `model`, `style`, `target_language`; `segment_id`, `target`, `confidence`, `coarse` |
 | `alignments` + `links` | a human translation matched / one link | `document_hash`, `translation_hash`, `aligner`; `source[]`, `target[]`, `confidence` |
@@ -97,9 +97,15 @@ built folder's `document.json` under the library, with the licence from the cata
 entry for the source (or the rendering's own, for a rendering), else the manifest beside
 the reader. Only a reader's home (`p<id>`, or `local`) is private; every other folder in
 the library — the shared shelf, the weekly, the laptop's parasha and Russian shelves — is
-public, and a document any public folder holds is public. A text with no licence string gets `exportable = 0`. The next step
-is writing the row at build time from the Library, which knows the home, and copying the
-bits onto `vocalizations` and `annotations`.
+public, and a document any public folder holds is public. A text with no licence string gets `exportable = 0`.
+
+**The bits travel** (slice 2, ledger schema 4, 2026-10-27). `vocalizations` and
+`annotations` carry `exportable` and `research`, copied from the text's current `texts`
+row whichever is written first: a stage row is stamped as it is written, and a `texts`
+row restamps every row of its document, history included, each time it is recorded —
+even when it is unchanged, so rows from before schema 4 come up on the next backfill. A
+document with no `texts` row reads 0, so nothing exports by default. The columns are
+added in place on open, under the write lock.
 
 ## `targum corpus export --exportable`
 

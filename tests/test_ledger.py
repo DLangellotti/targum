@@ -541,7 +541,9 @@ class TestTexts:
         assert book.get("vocalize", "k1") == POINTED
         book.record_text(ledger.Text("a" * 64, "gutenberg:1", "Public Domain"))
         with sqlite3.connect(file) as db:
-            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("3",)
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == (
+                str(ledger.LEDGER_SCHEMA),
+            )
 
     @staticmethod
     def _built(folder: Path, document_hash: str, source: str) -> None:
@@ -704,3 +706,157 @@ class TestTexts:
         assert result.exit_code == 0, result.output
         assert "Recorded 1 texts" in result.output
         assert ledger.Ledger(tmp_path / "corpus.db").terms("a" * 64) == (True, True)
+
+
+def _bits(file: Path, table: str) -> list[tuple[int, int]]:
+    with sqlite3.connect(file) as db:
+        return db.execute(f"SELECT exportable, research FROM {table} ORDER BY id").fetchall()  # noqa: S608
+
+
+class TestTheBitsTravel:
+    """Slice 2 (2026-10-27): every row made from a text carries the text's export bits,
+    copied from `texts`, so an export of any table is one `WHERE`; and a build writes its
+    text's row as it runs."""
+
+    def test_rows_copy_their_text_s_bits_whichever_is_written_first(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("vocalize", "k1", POINTED)
+        assert _bits(book.file, "vocalizations") == [(0, 0)], "no text row: exports nowhere"
+        book.record_text(ledger.Text("doc123", "gutenberg:1", "Public Domain"))
+        assert _bits(book.file, "vocalizations") == [(1, 1)]
+        book.record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        assert _bits(book.file, "annotations") == [(1, 1)], "written after: copied on write"
+        book.record("vocalize", "k1", {**POINTED, "machine": []})
+        book.record_text(ledger.Text("doc123", "gutenberg:1", "CC BY-NC 4.0"))
+        assert _bits(book.file, "vocalizations") == [(0, 1), (0, 1)], "history too"
+        assert _bits(book.file, "annotations") == [(0, 1)]
+        with sqlite3.connect(book.file) as db:
+            exportable = db.execute(
+                "SELECT COUNT(*) FROM vocalizations WHERE exportable"
+            ).fetchone()[0]
+        assert exportable == 0
+
+    def test_a_schema_3_ledger_gains_the_bits_in_place(self, tmp_path: Path) -> None:
+        file = tmp_path / "corpus.db"
+        ledger.Ledger(file).record("vocalize", "k1", POINTED)
+        ledger.Ledger(file).record("tokens", "doc123:grammar/2", _annotation("grammar/2"))
+        with sqlite3.connect(file) as db:
+            db.executescript(
+                "ALTER TABLE vocalizations DROP COLUMN exportable;"
+                " ALTER TABLE vocalizations DROP COLUMN research;"
+                " ALTER TABLE annotations DROP COLUMN exportable;"
+                " ALTER TABLE annotations DROP COLUMN research;"
+                " UPDATE meta SET value = '3' WHERE key = 'schema';"
+            )
+        book = ledger.Ledger(file)
+        assert book.get("vocalize", "k1") == POINTED
+        assert book.get("tokens", "doc123:grammar/2") == _annotation("grammar/2")
+        assert book.record_text(ledger.Text("doc123", "gutenberg:1", "Public Domain"))
+        assert _bits(file, "vocalizations") == [(1, 1)]
+        assert _bits(file, "annotations") == [(1, 1)]
+        with sqlite3.connect(file) as db:
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("4",)
+
+    def test_an_unchanged_text_still_stamps_rows_written_before_it(self, tmp_path: Path) -> None:
+        """A text recorded before its rows had the columns: running the backfill again
+        changes no text row, and still brings the rows' bits up to it."""
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        text = ledger.Text("doc123", "gutenberg:1", "Public Domain")
+        book.record_text(text)
+        book.record("vocalize", "k1", POINTED)
+        with sqlite3.connect(book.file) as db:
+            db.execute("UPDATE vocalizations SET exportable = 0, research = 0")
+        assert not book.record_text(text)
+        assert _bits(book.file, "vocalizations") == [(1, 1)]
+
+    def test_a_reader_s_copy_of_a_shelf_text_leaves_it_public(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        shelf = ledger.Text("a" * 64, "gutenberg:1", "Public Domain")
+        book.hold(shelf, None)
+        book.hold(shelf, "p3")
+        assert book.text("a" * 64).homes == frozenset()  # type: ignore[union-attr]
+        assert book.terms("a" * 64) == (True, True)
+
+    def test_homes_gather_until_the_shelf_takes_the_text(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        article = ledger.Text("a" * 64, "https://x.example/a", "CC BY 4.0")
+        book.hold(article, "p3")
+        book.hold(article, "p7")
+        assert book.text("a" * 64).homes == {"p3", "p7"}  # type: ignore[union-attr]
+        assert book.terms("a" * 64) == (False, False), "private, whatever its licence"
+        book.hold(article, None)
+        assert book.text("a" * 64).homes == frozenset()  # type: ignore[union-attr]
+        assert book.terms("a" * 64) == (True, True)
+
+    def test_a_build_records_its_text_and_its_rows_carry_the_bits(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        _build(source, tmp_path / "out" / "p5" / "text-he", fake_segmenter, Named("fake/1"))
+        document = json.loads(
+            (tmp_path / "out" / "p5" / "text-he" / "document.json").read_text(encoding="utf-8")
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        held = book.text(document["content_hash"])
+        assert held is not None and held.homes == {"p5"} and held.licence == "Public Domain"
+        assert _bits(book.file, "vocalizations") == [(0, 0)], "a reader's import"
+
+        _build(source, tmp_path / "out" / "shared" / "text-he", fake_segmenter, Named("fake/1"))
+        assert book.text(document["content_hash"]).homes == frozenset()  # type: ignore[union-attr]
+        assert _bits(book.file, "vocalizations") == [(1, 1)]
+
+    def test_a_text_that_cannot_be_recorded_costs_the_build_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        (tmp_path / "p1" / "empty").mkdir(parents=True)
+        ledger.mirror_text(tmp_path / "p1" / "empty")
+        (tmp_path / "p1" / "empty" / "document.json").write_text("[]", encoding="utf-8")
+        ledger.mirror_text(tmp_path / "p1" / "empty")
+
+    def test_with_the_flag_off_a_build_opens_no_ledger(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("the ledger opened a database with the flag off")
+
+        monkeypatch.delenv(ledger.ENV, raising=False)
+        monkeypatch.setattr(ledger.sqlite3, "connect", refuse)
+        ledger.mirror_text(tmp_path)
+
+    def test_a_held_lock_costs_a_build_at_most_the_short_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #943: another process holding the write lock made a reader's
+        build wait the full 30 s sqlite timeout before its vowels."""
+        import time
+
+        file = tmp_path / "corpus.db"
+        monkeypatch.setenv(ledger.ENV, str(file))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        monkeypatch.setattr(ledger, "MIRROR_TIMEOUT", 0.5)
+        ledger.Ledger(file).record_text(ledger.Text("b" * 64, "gutenberg:2", "Public Domain"))
+        folder = tmp_path / "p1" / "text-he"
+        folder.mkdir(parents=True)
+        (folder / "document.json").write_text(
+            json.dumps({"content_hash": "a" * 64, "source": "gutenberg:1"}), encoding="utf-8"
+        )
+        holder = sqlite3.connect(file, isolation_level=None)
+        try:
+            holder.execute("BEGIN IMMEDIATE")
+            began = time.monotonic()
+            ledger.mirror_text(folder)
+            waited = time.monotonic() - began
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+        assert waited < 5, f"waited {waited:.1f} s for the lock"
+        assert ledger.Ledger(file).text("a" * 64) is None, "gone on without the row"
+        ledger.mirror_text(folder)
+        assert ledger.Ledger(file).text("a" * 64) is not None

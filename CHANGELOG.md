@@ -361,6 +361,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and `local` folders count as homes. `targum cache ledger-texts`
   fills the table from the built folders and spends nothing. Ledger schema 3 only adds
   the table. Nothing reads it yet, so no reader sees a change.
+- The corpus ledger's export bits now travel (targum-internal#162, slice 2). Every
+  build writes its text's `texts` row as it runs. A build in a reader's home marks the
+  text private to that home, unless the shelf already holds it. A build anywhere else
+  marks it public. Each pointing and annotation row now carries its text's `exportable`
+  and `research` bits, and a licence that changes restamps every row of that text,
+  history included. A text with no row exports nowhere. Ledger schema 4 adds the two
+  columns in place. The ledger is still off unless `TARGUM_LEDGER` is set, it never
+  fails a build, and no reader sees a change. If another process holds the ledger's lock,
+  a build waits at most 2 seconds for it, then goes on without the row.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
