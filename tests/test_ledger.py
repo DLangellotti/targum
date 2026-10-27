@@ -1115,3 +1115,123 @@ class TestTranslations:
         (folder / "translations" / "words.en.json").write_text("{}", encoding="utf-8")
         book = ledger.Ledger(tmp_path / "corpus.db")
         assert ledger.record_translations(book, folder) == (1, 0), "not refused, skipped"
+
+
+class TestReadThrough:
+    """Slice 5 (2026-10-27): `Cache.get` asks the ledger first for a stage
+    `TARGUM_LEDGER_READ` names, and anything it cannot answer falls through to the file —
+    never to running the stage."""
+
+    KEY = "ab" + "0" * 62
+
+    def test_it_is_a_second_flag_and_off_by_default(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.delenv(ledger.READ_ENV, raising=False)
+        ledger.Ledger(tmp_path / "corpus.db").record("vocalize", self.KEY, POINTED)
+        cache = Cache(tmp_path / "cache")
+        assert cache.get("vocalize", self.KEY) is None, "the ledger is written, not read"
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize, translate")
+        assert ledger.read_stages() == {"vocalize"}, "only a stage the rows give back"
+        assert cache.get("vocalize", self.KEY) == POINTED
+
+    def test_a_miss_or_a_broken_ledger_reads_the_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize")
+        monkeypatch.delenv(ledger.ENV, raising=False)
+        cache = Cache(tmp_path / "cache")
+        cache.put("vocalize", self.KEY, POINTED)
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        assert cache.get("vocalize", self.KEY) == POINTED, "no ledger file: the cache's"
+        (tmp_path / "corpus.db").write_bytes(b"this is not a database")
+        assert cache.get("vocalize", self.KEY) == POINTED, "a broken ledger: the cache's"
+
+    def test_a_held_lock_costs_a_read_at_most_the_short_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        import time
+
+        file = tmp_path / "corpus.db"
+        monkeypatch.setenv(ledger.ENV, str(file))
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize")
+        monkeypatch.setattr(ledger, "MIRROR_TIMEOUT", 0.5)
+        cache = Cache(tmp_path / "cache")
+        cache.put("vocalize", self.KEY, POINTED)
+        holder = sqlite3.connect(file, isolation_level=None)
+        try:
+            holder.execute("BEGIN EXCLUSIVE")
+            began = time.monotonic()
+            assert cache.get("vocalize", self.KEY) == POINTED
+            waited = time.monotonic() - began
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+        assert waited < 5, f"waited {waited:.1f} s"
+
+    def test_a_write_the_ledger_refused_is_not_read_back_stale(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize")
+        cache = Cache(tmp_path / "cache")
+        cache.put("vocalize", self.KEY, POINTED)
+        newer = {**POINTED, "machine": []}
+
+        def refuse(*args: Any, **kwargs: Any) -> None:
+            raise ValueError("refused")
+
+        monkeypatch.setattr(ledger.Ledger, "record", refuse)
+        cache.put("vocalize", self.KEY, newer)
+        assert cache.get("vocalize", self.KEY) == newer, "the file's, not the old row"
+
+    def test_a_build_served_from_the_ledger_runs_nothing_and_spends_nothing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        """The vowels come from the rows with their blob files gone: the vocalizer is not
+        asked, and the build's `Usage` counts nothing."""
+        import shutil
+
+        from targum.pipeline import Build
+
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize")
+        _build(source, tmp_path / "first", fake_segmenter, Named("fake/1"))
+        shutil.rmtree(tmp_path / "cache" / "vocalize")
+        engine = Named("fake/1")
+        result = Build(
+            str(source),
+            provider_name="null",
+            out=tmp_path / "second",
+            segmenter=fake_segmenter,  # type: ignore[arg-type]
+            target_language="en",
+            vocalizer=engine,
+        ).run()
+        assert engine.asked == 0, "served from the ledger"
+        assert result.spent.calls == 0 and result.spent.input_tokens == 0
+        assert result.spent.output_tokens == 0 and not result.spent.by_model
+        assert (tmp_path / "second" / "vocalization.json").read_bytes() == (
+            tmp_path / "first" / "vocalization.json"
+        ).read_bytes()
+
+    def test_with_the_ledger_broken_a_build_reads_the_cache_and_runs_nothing(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.READ_ENV, "vocalize")
+        _build(source, tmp_path / "first", fake_segmenter, Named("fake/1"))
+        (tmp_path / "corpus.db").write_bytes(b"not a database")
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        engine = Named("fake/1")
+        _build(source, tmp_path / "second", fake_segmenter, engine)
+        assert engine.asked == 0

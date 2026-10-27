@@ -393,6 +393,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   partial copy cannot stand in for the shelf's.
   `targum corpus export` now writes `translations` and `pairs` too, asking each
   rendering's licence again.
+- The cache can read pointings from the corpus ledger first (targum-internal#162, slice
+  5), behind a second flag, `TARGUM_LEDGER_READ=vocalize`, which is off by default. A
+  ledger miss, a locked or broken ledger file, or a ledger that is off falls back to the
+  cache's own file, so a stage never runs because of the ledger. A build served from the
+  ledger asks the vocalizer nothing and spends nothing. A cache write the ledger refused
+  no longer leaves the old row to be read back.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the

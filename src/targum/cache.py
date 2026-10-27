@@ -26,6 +26,11 @@ class Cache:
         return self.root / stage / key[:2] / f"{key}.json"
 
     def get(self, stage: str, key: str) -> Any | None:
+        # The corpus ledger first, for a stage `TARGUM_LEDGER_READ` names (#162, slice
+        # 5); anything it cannot answer falls through to the file, as before.
+        held = ledger.mirror_get(stage, key)
+        if held is not None:
+            return held
         path = self._path(stage, key)
         if not path.exists():
             return None

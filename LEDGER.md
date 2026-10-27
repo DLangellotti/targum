@@ -70,6 +70,13 @@ These steps go in order, one stage at a time, and each step is a flag on its own
    is what clearing scratch means.
 2. **Read-through.** `Cache.get(stage, key)` asks the ledger first and falls back to the
    JSON. Every stage keeps its key, so nothing is a miss that was a hit before.
+   **Built for `vocalize`** (slice 5, 2026-10-27), behind a second flag,
+   `TARGUM_LEDGER_READ=vocalize`, so turning the ledger on does not turn on reading
+   from it. A miss, a locked file (2 s at most), a corrupt file or a ledger that is off
+   all fall through to the file, never to running the stage. When a `put`'s ledger write
+   is refused, the key's old row is stamped superseded, so it is never read back over
+   the newer file. `tokens` has no cache to read through (the build reads
+   `annotation.json`); `translations` are not keyed by the `translate` cache's key.
 3. **Ledger-only.** For a stage whose rows have matched its JSON over a full rebuild,
    `put` stops writing JSON. `Cache` stays as the interface the stages call; only the
    storage under it changes.
