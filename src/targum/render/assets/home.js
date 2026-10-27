@@ -779,11 +779,22 @@
     };
     host.appendChild(coverFor(reader, row.title, row.language));
     var what = el("div", "try-what");
-    what.appendChild(
-      el("p", "home-label", first ? t("home.try.first", "One to start with") : t("home.try.next", "One to try next"))
-    );
+    // A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27): the
+    // picture, the scene and one line, "Start here" until a scene is under way.
+    var scene = row.scene || null;
+    var label = scene
+      ? scene.first
+        ? t("home.try.scene.first", "Start here")
+        : t("home.try.scene.next", "Your next scene")
+      : first
+        ? t("home.try.first", "One to start with")
+        : t("home.try.next", "One to try next");
+    what.appendChild(el("p", "home-label", label));
+    if (scene) host.setAttribute("data-scene", scene.first ? "first" : "next");
+    else host.removeAttribute("data-scene");
     what.appendChild(titled(row.title, row.language || "he"));
     var facts = [];
+    if (scene) row = Object.assign({}, row, { because: "", minutes: 0 });
     if (row.because) facts.push(row.because);
     if (row.minutes) facts.push(t("home.minutes", "{n} min", { n: row.minutes }));
     if (facts.length) what.appendChild(el("p", "home-card-facts", facts.join(" · ")));

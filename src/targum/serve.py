@@ -10689,6 +10689,13 @@ class Handler(BaseHTTPRequestHandler):
         # the browser, and a finished suggestion makes way for the next (2026-09-11).
         skip = query.get("skip", [""])[0]
         done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
+        # A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27):
+        # the order is the scenes', not the ranking's, until their level is past them.
+        scene = None
+        if chat_tools.scene_reader(ctx.level):
+            scene = chat_tools.next_scene(ctx, done)
+        if scene is not None:
+            return self._json({"suggestion": scene, "library": True})
         rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
         if rows:
             # Said on Learn, in the page's language (targum-internal#287).

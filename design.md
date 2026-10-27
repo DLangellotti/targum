@@ -380,6 +380,15 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A Hebrew beginner's one card is their next scene (2026-10-27)
+- **The order:** Scenes 1–100, then 101–240, then the B1 Conversations, each its own series (targum#953), so numbers never cross.
+- **Who:** a Hebrew reader whose stored rung (`person.declared`) is aleph or below, or who has no measured level yet. Home's single suggestion card becomes their next unfinished scene, with its picture and one line ("Your next scene" / "Start here" on the first).
+- **Skip and move on:** it skips a scene they'd follow 95%+ of from their own known words. Once their measured level is past the scenes, the card goes back to the ordinary suggestion.
+- **Still one card** inside "Home is Continue and one card of rows": Continue leads, and nothing spends.
+- **Library:** a Start here shelf for the same order, scenes 101–240 put into a collection, and a **Dialogues** door among Browse by kind.
+
+It does not overturn: no streaks or counts to beat; the gap is never shown on welcome back; easiest-first lives in the Library.
+
 ### Sentences: dictation and fill the gap — 2026-10-27
 
 From the LingQ comparison the same day (targum-internal#534): LingQ reviews in five ways,

@@ -1655,11 +1655,47 @@
     hard: t("library.band.hard-note", "You know less than 75% of their words. The nearest come first."),
   };
 
-  /* The shelves, in order: Read it now, A stretch, targum's playlists, Hard for now. A
-     band with nothing in it is not drawn. Answers how many shelves stand. */
+  /* Hebrew's Start here shelf (design.md §12, "A Hebrew beginner's one card is their next
+     scene", 2026-10-27): the scenes in the order to meet them — 1 to 100, 101 to 240, then
+     the B1 conversations, each series on its own — from the first one not finished. The
+     same order home's one card follows; nothing here is ranked by how easy it reads. */
+  function startHere(pool, code) {
+    var scenes = window.TargumScenes;
+    if (code !== "he" || !scenes) return [];
+    var inOrder = scenes.ordered(
+      pool.filter(function (row) {
+        var series = scenes.seriesOf(row.id);
+        return scenes.numberOf(row.id) > 0 && (series === "" || series === "he");
+      })
+    );
+    var out = [];
+    for (var i = 0; i < inOrder.length && out.length < SHELF_MOST; i++) {
+      var built = inOrder[i].built;
+      var record = built && finishedDocs[built.document];
+      if (!(record && record.done)) out.push(inOrder[i]);
+    }
+    return out;
+  }
+
+  /* The shelves, in order: Start here (Hebrew), Read it now, A stretch, targum's playlists,
+     Hard for now. A band with nothing in it is not drawn. Answers how many shelves stand. */
   function drawShelves(host, pool, shared, code, onSee) {
     host.textContent = "";
     var drawn = [];
+    var starting = startHere(pool, code);
+    if (starting.length) {
+      drawn.push(
+        shelf(
+          "start",
+          t("library.band.start", "Start here"),
+          t("library.band.start-note", "Short conversations in the order to meet them, from the next one you haven’t finished."),
+          starting.map(function (row) {
+            return shelfCard(row, fitOf(row));
+          }),
+          null
+        )
+      );
+    }
     BANDS.forEach(function (band) {
       var found = shelfOf(pool, band[0]);
       if (found.rows.length) {
@@ -2837,6 +2873,8 @@
       var offered = [];
       if (hebrew) offered.push(["tanakh", keyed("/tanakh-map"), t("library.door.tanakh", "Tanakh"), "תנ״ך"]);
       [
+        // The scenes and the conversations, in their order (design.md §12, 2026-10-27).
+        ["dialogue", t("library.door.dialogues", "Dialogues")],
         ["article", t("library.door.news", "News")],
         ["talk", t("library.door.video", "Video")],
         ["books", t("library.door.books", "Books")],
