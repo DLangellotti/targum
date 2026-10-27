@@ -2802,6 +2802,7 @@ def back_office_page(
     visits: object | None = None,
     told: list[dict[str, Any]] | None = None,
     faults: list[dict[str, Any]] | None = None,
+    reader: object | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -2811,7 +2812,7 @@ def back_office_page(
     in the renderer should need the store.
     """
     from ..accounts import TOLD_STATES
-    from ..backoffice import ACCOUNT_SORTS, WAITING_SORTS, Listing
+    from ..backoffice import ACCOUNT_SORTS, WAITING_SORTS, Listing, credits
     from ..catalogue import Kind, Register
     from ..services import SAID_MAX, SERVICES
 
@@ -2886,6 +2887,10 @@ def back_office_page(
             waiting_sorts=WAITING_SORTS,
             bo_url=bo_url,
             bo_kept=kept,
+            # One account's credits, at `?who=<id>` (targum-internal#543): a
+            # `backoffice.Reader`, typed loosely for the reason `found` is.
+            reader=reader,
+            credits=credits,
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],

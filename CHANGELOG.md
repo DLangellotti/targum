@@ -362,6 +362,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
+  Accounts gain Credits this month, the same sum the allowance is held to, against the
+  reader's allowance (Plan's for an admin), with the month's model spend in dollars
+  beneath, and can be ordered by it. An address opens that account's page: this month and
+  all time by kind (build, subscription, voice, chat, gift) and its latest fifty jobs by
+  day, kind, credits, cost and stage, with no title or source. A job targum pays for now
+  says so (`job.gift`, schema 48, written at claim), and a gift turn of conversation no
+  longer settles its seconds onto the reader's month. Search ignores case in every script,
+  so «дина» finds «Дина».
 - The back office scales past a few hundred accounts (David, 2026-10-27;
   targum-internal#542). Accounts and the waitlist are pages of fifty with a search box,
   an order and Previous and Next, as a GET form and links, so the page still carries no

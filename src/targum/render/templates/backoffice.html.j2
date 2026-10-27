@@ -121,6 +121,47 @@
   </nav>
 
   <section class="tab-panel" id="tab-people" role="tabpanel" aria-label="People">
+  {#- One account's credits, at `?who=<id>` (targum-internal#543): this month and all
+      time by kind, and the latest jobs by date, kind, credits, cost and stage. Never a
+      title or a source (clause 3.14). A conversation is counted in seconds. -#}
+  {%- if reader %}
+  <h2>{{ reader.email }}{% if reader.name %} <span class="quiet">{{ reader.name }}</span>{% endif %}</h2>
+  <p class="taken">Joined {{ reader.joined }} &middot;
+    {{ credits(reader.used) }}{% if reader.allowance is not none %} of {{ credits(reader.allowance) }}{% endif %} credits this month &middot;
+    ${{ '%.2f'|format(reader.spent) }} this month &middot;
+    <a href="{{ bo_url() }}">Back to accounts</a></p>
+  {%- macro used(one) %}{% if one.kind == 'chat' %}{{ '%.0f'|format(one.seconds) }} s{% else %}{{ credits(one.seconds) }}{% endif %}{% endmacro %}
+  <div class="strip-wrap"><table class="credits">
+    <thead>
+      <tr><th>Kind</th><th class="n">Jobs this month</th><th class="n">Credits</th><th class="n">Cost</th>
+        <th class="n">Jobs, all time</th><th class="n">Credits</th><th class="n">Cost</th></tr>
+    </thead>
+    <tbody>
+      {%- for month in reader.month %}{% set ever = reader.ever[loop.index0] %}
+      <tr{% if not ever.jobs %} class="empty"{% endif %}>
+        <td>{{ month.kind }}</td>
+        <td class="n">{{ month.jobs }}</td><td class="n">{{ used(month) }}</td><td class="n">${{ '%.2f'|format(month.spent) }}</td>
+        <td class="n">{{ ever.jobs }}</td><td class="n">{{ used(ever) }}</td><td class="n">${{ '%.2f'|format(ever.spent) }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table></div>
+  <p class="quiet count">A gift is targum's to pay and takes none of the month: its credits are what it was quoted at.</p>
+  <h3>Latest jobs</h3>
+  {%- if reader.recent %}
+  <table class="credits">
+    <thead><tr><th>Day</th><th>Kind</th><th class="n">Credits</th><th class="n">Cost</th><th>Stage</th></tr></thead>
+    <tbody>
+      {%- for one in reader.recent %}
+      <tr><td class="quiet">{{ one.day or '—' }}</td><td>{{ one.kind }}</td><td class="n">{{ used(one) }}</td>
+        <td class="n">${{ '%.2f'|format(one.spent) }}</td><td class="quiet">{{ one.stage }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- else %}
+  <p class="quiet">No jobs yet.</p>
+  {%- endif %}
+  {%- endif %}
   {#- First what to do, then how the weeks went, then where readers get to (2026-10-15).
       The follow-up list names people, from what clause 3.2 already holds; the two
       tables below it name nobody. -#}
@@ -380,12 +421,13 @@
         <th>Account</th><th>Joined</th><th>Last active</th>
         <th class="n">Words</th><th class="n">Learned</th><th class="n">Phrases</th>
         <th class="n">Texts</th><th class="n">Finished</th><th class="n">Days</th>
+        <th class="n">Credits this month</th>
       </tr>
     </thead>
     <tbody>
       {% for who in survey.accounts %}
       <tr>
-        <td>{{ who.email }}{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}
+        <td><a href="{{ bo_url(who=who.id) }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}
           {%- if who.leaving %} <span class="quiet">leaving {{ who.leaving }}</span>{% endif %}</td>
         <td class="quiet">{{ who.joined }}</td>
         <td class="quiet">{{ who.last_active or '—' }}</td>
@@ -395,6 +437,9 @@
         <td class="n">{{ who.texts_opened }}</td>
         <td class="n">{{ who.targums_finished }}</td>
         <td class="n">{{ who.days_read }}</td>
+        {#- Of their month, and what it cost in model spend (targum-internal#543). -#}
+        <td class="n">{{ credits(who.used) }}{% if who.allowance is not none %} of {{ credits(who.allowance) }}{% endif %}
+          <br><span class="quiet">${{ '%.2f'|format(who.spent) }}</span></td>
       </tr>
       {% endfor %}
     </tbody>
