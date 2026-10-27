@@ -4425,5 +4425,7 @@
   "progress.where.nearly.writings": "Вы поймёте почти весь арамейский перевод Писаний",
   "progress.where.most.writings": "Вы поймёте большую часть арамейского перевода Писаний",
   "progress.where.start.writings": "Начните с арамейского перевода Писаний",
-  "progress.touch.title-unshelved": "{kind}: вы знаете {n}% слов."
+  "progress.touch.title-unshelved": "{kind}: вы знаете {n}% слов.",
+  "add.page.share-menu": "Установите targum, чтобы отправлять ему ссылки из меню «Поделиться» любого приложения.",
+  "add.page.share-install": "Установить"
 }

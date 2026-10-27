@@ -380,6 +380,37 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Share > targum lands in Add — 2026-10-27
+
+From the LingQ comparison the same day (targum-internal#532): LingQ's importer is the
+thing its readers praise most, and Android's Share menu kept them reading through an
+outage. targum had the Add box and a Telegram bot, and nothing in the Share menu. David
+decided it starts now, before Launch.
+
+- **A manifest, on Add alone.** A phone puts an app in its Share menu only once it is
+  installed, and only an app with a manifest can be. So the "no manifest" of 2026-10-08
+  gives way, as narrowly as it can: `/manifest.webmanifest` is linked from Add and from
+  no other page, because on any page that links it the browser may put up its own bar
+  asking to install. On Add that bar is held back too, and the page says it in one line
+  under What works — "Install targum to send it links from any app's Share menu." — with
+  **Install** beside it, shown only where the browser offers to install at all. Nothing
+  asks anywhere else, and an iPhone, whose Safari has no share target, is shown nothing.
+- **What is shared opens Add holding it, and nothing is pressed.** The share target posts
+  to `/share`, which answers with Add: a link in `?source=`, the door the weekly's "Read
+  the whole thing" already uses, so it survives a sign-in on the way; any other text
+  after the `#`, which a browser never sends, so the reader's words reach us only when
+  they press Upload. A link inside a line of text ("look at this https://…") is the
+  link. The build still waits for Confirm on the priced card; nothing spends on a share.
+- **The extension is the same door from a computer.** `extension/` is a Chrome extension
+  (Manifest V3) with one press: it opens Add with the tab's address in `?source=`, or
+  with the text the reader selected. It reads nothing else of the page, holds no key and
+  spends nothing. It is not part of any page targum serves, so a reader still fetches
+  nothing.
+
+The icons the manifest names, `/app-icon-192.png` and `/app-icon-512.png`, are the brand
+folder's full-bleed squares; the mark sits inside the area a launcher masks to a circle.
+The page policy gains `manifest-src 'self'`.
+
 ### Aramaic climbs from Onkelos to the daf — 2026-10-25
 
 David, 2026-10-25, on ling-arc's research into taking a reader from no Aramaic to Onkelos
@@ -3052,6 +3083,8 @@ network. targum now has a service worker, `/sw.js`.
   nothing.
 - **No manifest and no "Add to home screen"** (David, 2026-10-08). iOS drops a site's
   storage after seven days without a visit, and that is accepted and never mentioned.
+  *(Since 2026-10-27 Add carries a manifest and one line offering Install, for the
+  phone's Share menu; nothing else asks. See "Share > targum lands in Add".)*
 
 What it does not overturn: *readers must fetch nothing*. A reader opened off a disk
 registers nothing and fetches nothing, and `test_render.py` holds it to that unchanged. A

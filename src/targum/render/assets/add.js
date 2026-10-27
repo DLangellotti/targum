@@ -2449,6 +2449,57 @@
     settle();
   })();
 
+  /* --- arriving from a phone's Share menu -----------------------------------
+   *
+   * Share > targum posts to `/share`, which sends a link on as `?source=` above and any
+   * other text here, after the `#`, so the reader's words never reach the server until
+   * they press Upload (design.md §12, "Share > targum lands in Add", 2026-10-27). The
+   * box holds it and nothing is pressed: the build still waits for Confirm.
+   */
+  (function () {
+    if (!given) return;
+    var hash = window.location.hash;
+    if (hash.indexOf("#shared=") !== 0) return;
+    var text;
+    try {
+      text = decodeURIComponent(hash.slice("#shared=".length));
+    } catch (error) {
+      return;
+    }
+    // Off the address, so a reload or a copied link does not bring it back.
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    if (!text) return;
+    given.value = text;
+    settle();
+  })();
+
+  /* Install, where the browser offers it: once installed, targum is in the phone's Share
+     menu. The browser's own bar is held back, so the offer is this one line and only on
+     the page it is about. */
+  (function () {
+    var line = document.getElementById("share-menu");
+    var press = document.getElementById("share-install");
+    if (!line || !press) return;
+    var offered = null;
+    window.addEventListener("beforeinstallprompt", function (event) {
+      event.preventDefault();
+      offered = event;
+      line.hidden = false;
+    });
+    window.addEventListener("appinstalled", function () {
+      offered = null;
+      line.hidden = true;
+    });
+    press.addEventListener("click", function () {
+      if (!offered) return;
+      offered.prompt();
+      offered = null;
+      line.hidden = true;
+    });
+  })();
+
   // Change stays open for whoever opened it last; otherwise the box says what it holds.
   var wasOpen = false;
   try {

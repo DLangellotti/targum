@@ -4072,5 +4072,7 @@
   "progress.where.nearly.writings": "You'd follow nearly all of the Aramaic of the Writings",
   "progress.where.most.writings": "You'd follow most of the Aramaic of the Writings",
   "progress.where.start.writings": "The Aramaic of the Writings is the place to start",
-  "progress.touch.title-unshelved": "{kind}: you know {n}% of its words."
+  "progress.touch.title-unshelved": "{kind}: you know {n}% of its words.",
+  "add.page.share-menu": "Install targum to send it links from any app's Share menu.",
+  "add.page.share-install": "Install"
 }
