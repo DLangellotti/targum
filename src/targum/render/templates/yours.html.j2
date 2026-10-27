@@ -3,6 +3,7 @@
   "words": t("yours.page.your-words", "Your Words"),
   "phrases": t("yours.page.your-phrases", "Your Phrases"),
   "grammar": t("lists.work.grammar", "Grammar"),
+  "sentences": t("lists.work.sentences", "Sentences"),
 }[which] -%}
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
@@ -193,6 +194,7 @@
     <a class="tab" href="/words" data-back{% if which == 'words' %} aria-current="page"{% endif %}>{{ t("lists.work.words", "Words") }} <span class="tab-count" id="count-words"></span></a>
     <a class="tab" href="/phrases" data-back{% if which == 'phrases' %} aria-current="page"{% endif %}>{{ t("lists.work.phrases", "Phrases") }} <span class="tab-count" id="count-phrases"></span></a>
     <a class="tab" href="/grammar" data-back{% if which == 'grammar' %} aria-current="page"{% endif %}>{{ t("lists.work.grammar", "Grammar") }}</a>
+    <a class="tab" href="/sentences" data-back{% if which == 'sentences' %} aria-current="page"{% endif %}>{{ t("lists.work.sentences", "Sentences") }}</a>
   </nav>
   {%- endmacro %}
 
@@ -306,9 +308,35 @@
   </div>
   {%- endif %}
 
+  {#- Sentences, the fourth tab (targum-internal#534; design.md §12, "Sentences:
+      dictation and fill the gap", 2026-10-27): the two practices as a list, and a line
+      at a time beside it. Drawn by `sentences.js` from `/account/sentences`. -#}
+  {%- if which == 'sentences' %}
+  <div class="words-head">
+    <a class="words-back" href="/progress" data-back>← {{ t("you.page.your-progress", "Your Progress") }}</a>
+  </div>
+  <div class="words-grid">
+  <section class="card words-card" aria-label="{{ t("lists.work.sentences", "Sentences") }}">
+    <div class="words-card-head">
+      {{ list_tabs() }}
+    </div>
+    <p class="note">{{ t("sentences.page.note", "Lines from texts you've read, to write down or fill in.") }}</p>
+    <ul class="grammar-spots" id="sentence-kinds"></ul>
+    <p class="empty" id="sentences-empty" hidden></p>
+  </section>
+  <aside class="card practise sentence-round" id="sentence-round" aria-labelledby="sentence-round-heading" hidden>
+    <div class="practise-top">
+      <h2 class="section-title" id="sentence-round-heading"></h2>
+      <span class="practise-at" id="sentence-round-at"></span>
+    </div>
+    <div class="practise-body is-shown" id="sentence-round-body"></div>
+  </aside>
+  </div>
+  {%- endif %}
+
   {#- Your targums is a place in the nav since 2026-09-24; a way back to Learn at its foot
       was left from when it hung off Learn. The lists behind the account keep theirs. -#}
-  {%- if which not in ('texts', 'words', 'phrases', 'grammar') %}
+  {%- if which not in ('texts', 'words', 'phrases', 'grammar', 'sentences') %}
   <p><a class="back" href="/" data-back>{{ t("yours.page.your-targums", "Your targums") }}</a></p>
   {%- endif %}
 </main>
@@ -339,12 +367,14 @@
     nothing yet gets the page itself, with what fills it (`lists.js`). -#}
 <p class="learn-waiting" id="home-waiting" role="status">
   {%- if which == 'grammar' %}{{ t("practice.page.waiting", "Opening your practice…") }}
+  {%- elif which == 'sentences' %}{{ t("sentences.page.waiting", "Opening your sentences…") }}
   {%- elif which == 'phrases' %}{{ t("lists.waiting.phrases", "Opening your phrases…") }}
   {%- else %}{{ t("lists.waiting.words", "Opening your words…") }}{% endif -%}
 </p>
 <section class="fault-panel page-fault" id="nothing" role="alert" hidden>
   <p class="fault-panel-said" id="nothing-lede">
     {%- if which == 'grammar' %}{{ t("practice.page.failed", "We couldn't load your practice.") }}
+    {%- elif which == 'sentences' %}{{ t("sentences.page.failed", "We couldn't load your sentences.") }}
     {%- elif which == 'phrases' %}{{ t("lists.failed.phrases", "We couldn't load your phrases.") }}
     {%- else %}{{ t("lists.failed.words", "We couldn't load your words.") }}{% endif -%}
   </p>
@@ -384,6 +414,9 @@ window.TARGUM_LIST = "{{ which }}";
 {%- endif %}
 {%- if which == 'grammar' %}
 {{ script('grammar.js') }}
+{%- endif %}
+{%- if which == 'sentences' %}
+{{ script('sentences.js') }}
 {%- endif %}
 {%- if which == 'texts' %}
 {{ script('landed.js') }}

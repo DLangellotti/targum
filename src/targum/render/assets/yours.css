@@ -422,6 +422,37 @@ table.words-table .copy.copied { opacity: 1; }
   .grammar-options { grid-template-columns: 1fr; }
 }
 
+/* The Sentences tab (targum-internal#534): the Grammar tab's list and card, with a field to
+   write in. What the reader missed is marked as the practice card marks a word, in teal,
+   and what they wrote that the line does not have is struck, so neither rests on colour
+   alone (design.md §4). Nothing here is a verdict: no clay, no count. */
+.sentence-play { margin: 0 0 0.75rem; }
+.sentence-play:disabled { color: var(--ink-soft); cursor: default; }
+.sentence-field {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 2.75rem;
+  margin: 0 0 0.9rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--reading);
+  font-size: 1.25rem;
+}
+.sentence-field:lang(he),
+.sentence-field:lang(yi),
+.sentence-field:lang(arc) { font-family: var(--reading-hebrew); }
+.sentence-field:disabled { color: var(--ink-soft); }
+.sentence-gap {
+  display: inline-block;
+  border-block-end: 2px solid var(--teal);
+  line-height: 1.1;
+}
+.said-extra { text-decoration: line-through; color: var(--ink-soft); }
+.sentence-written { font-size: 1.0625rem; }
+
 /* A reader with no words: the line, and the way to where words are met, without stage
    tabs or column heads over nothing. */
 body.yours .stage-tabs[hidden],
