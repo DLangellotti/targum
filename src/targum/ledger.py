@@ -186,13 +186,15 @@ def path() -> Path | None:
 
 
 class Ledger:
-    def __init__(self, file: Path) -> None:
+    def __init__(self, file: Path, *, timeout: float = 30) -> None:
         self.file = file
+        #: How long to wait for another process's write lock before giving up.
+        self.timeout = timeout
 
     def _connect(self) -> sqlite3.Connection:
         self.file.parent.mkdir(parents=True, exist_ok=True)
         # Warm workers share the cache directory, so they share this file too.
-        db = sqlite3.connect(self.file, timeout=30)
+        db = sqlite3.connect(self.file, timeout=self.timeout)
         db.execute("PRAGMA journal_mode=WAL")
         _migrate(db)
         db.executescript(_SCHEMA)
@@ -469,6 +471,12 @@ def _add_bits(db: sqlite3.Connection) -> None:
         raise
 
 
+#: How long a build waits for the ledger's write lock before going on without the row
+#: (qa-claude on #943): another process holding it cost a reader's build the full 30 s
+#: before its vowels. The row is lost, not the build; the next backfill writes it.
+MIRROR_TIMEOUT = 2.0
+
+
 def mirror_text(folder: Path) -> None:
     """A build's `texts` row (targum-internal#162, slice 2): called once a build has
     written `document.json` and anything beside it a licence is read from. Does nothing
@@ -491,7 +499,7 @@ def mirror_text(folder: Path) -> None:
             schema_version=int(document.get("schema_version") or 0),
         )
         home = folder.parent.name if is_home(folder.parent.name) else None
-        Ledger(file).hold(text, home)
+        Ledger(file, timeout=MIRROR_TIMEOUT).hold(text, home)
     except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
         log.warning("corpus ledger: %s not recorded as a text: %s", folder.name, error)
 

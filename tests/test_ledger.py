@@ -829,3 +829,34 @@ class TestTheBitsTravel:
         monkeypatch.delenv(ledger.ENV, raising=False)
         monkeypatch.setattr(ledger.sqlite3, "connect", refuse)
         ledger.mirror_text(tmp_path)
+
+    def test_a_held_lock_costs_a_build_at_most_the_short_timeout(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #943: another process holding the write lock made a reader's
+        build wait the full 30 s sqlite timeout before its vowels."""
+        import time
+
+        file = tmp_path / "corpus.db"
+        monkeypatch.setenv(ledger.ENV, str(file))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        monkeypatch.setattr(ledger, "MIRROR_TIMEOUT", 0.5)
+        ledger.Ledger(file).record_text(ledger.Text("b" * 64, "gutenberg:2", "Public Domain"))
+        folder = tmp_path / "p1" / "text-he"
+        folder.mkdir(parents=True)
+        (folder / "document.json").write_text(
+            json.dumps({"content_hash": "a" * 64, "source": "gutenberg:1"}), encoding="utf-8"
+        )
+        holder = sqlite3.connect(file, isolation_level=None)
+        try:
+            holder.execute("BEGIN IMMEDIATE")
+            began = time.monotonic()
+            ledger.mirror_text(folder)
+            waited = time.monotonic() - began
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+        assert waited < 5, f"waited {waited:.1f} s for the lock"
+        assert ledger.Ledger(file).text("a" * 64) is None, "gone on without the row"
+        ledger.mirror_text(folder)
+        assert ledger.Ledger(file).text("a" * 64) is not None

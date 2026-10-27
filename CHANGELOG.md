@@ -368,7 +368,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and `research` bits, and a licence that changes restamps every row of that text,
   history included. A text with no row exports nowhere. Ledger schema 4 adds the two
   columns in place. The ledger is still off unless `TARGUM_LEDGER` is set, it never
-  fails a build, and no reader sees a change.
+  fails a build, and no reader sees a change. If another process holds the ledger's lock,
+  a build waits at most 2 seconds for it, then goes on without the row.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
