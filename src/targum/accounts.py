@@ -303,10 +303,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    that broke in a browser said about itself (targum-internal#456, #457; privacy notice
 #    clause 3.14, 2026-10-18). Two new tables, so they need no MIGRATIONS entry.
 #
+# 47→48: job.gift — whether targum paid for a job rather than the reader's month
+#    (targum-internal#543): the saved link built on being let in, a word said from its
+#    card, a deck's clips. A gift claims no `length`, so until this column it left no mark
+#    on its row and the back office could not count it. Written at claim. On a table every
+#    box has, so it is in MIGRATIONS; nought for every row before it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 47
+SCHEMA_VERSION = 48
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -675,6 +681,8 @@ MIGRATIONS: tuple[str, ...] = (
     # account's jobs, jobs in a window, the waitlist in the order it is let in, accounts
     # newest first, and the reach's events by kind. Indexes rather than columns, so the
     # schema's version stays where it is; `IF NOT EXISTS` makes every later open a no-op.
+    # Whether targum paid for a job (schema 48, targum-internal#543).
+    "ALTER TABLE job ADD COLUMN gift INTEGER NOT NULL DEFAULT 0",
     "CREATE INDEX IF NOT EXISTS job_owner ON job (owner)",
     "CREATE INDEX IF NOT EXISTS job_made ON job (made)",
     "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
@@ -952,7 +960,9 @@ CREATE TABLE IF NOT EXISTS job (
   reading       REAL    NOT NULL DEFAULT 0,
   -- When it stopped, however it stopped. Zero while it is still running, and zero for
   -- every row written before this column existed.
-  finished    INTEGER NOT NULL DEFAULT 0
+  finished    INTEGER NOT NULL DEFAULT 0,
+  -- 1 where targum paid rather than the reader's month (schema 48).
+  gift        INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -6246,6 +6256,7 @@ class Store:
         length: float = 0.0,
         per_month_length: float | None = None,
         kind: str | None = None,
+        gift: bool = False,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -6279,6 +6290,9 @@ class Store:
         `kind` narrows the per-account ceiling to rows of one kind: the chat's own rail
         counts only chat turns, while a build's rail counts everything the account spent.
         The box ceiling never narrows — it is the runaway guard, whatever is running.
+
+        `gift` marks the row as targum's to pay (targum-internal#543): the one place a
+        gift says so, since it claims no length.
         """
         with self.write() as db:
             if per_account is not None:
@@ -6311,7 +6325,8 @@ class Store:
             if float(row["spent"]) + amount > ceiling:
                 return "everyone"
             db.execute(
-                "UPDATE job SET claimed = ?, length = ? WHERE id = ?", (amount, length, job_id)
+                "UPDATE job SET claimed = ?, length = ?, gift = ? WHERE id = ?",
+                (amount, length, int(gift), job_id),
             )
             return ""
 

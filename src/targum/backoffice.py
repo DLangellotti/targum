@@ -96,6 +96,7 @@ ACCOUNT_SORTS = {
     "words": "Most words",
     "texts": "Most texts",
     "days": "Most days",
+    "credits": "Most credits",
 }
 #: How the waitlist may be ordered. Oldest first is the order the door lets people in.
 WAITING_SORTS = {"oldest": "Oldest first", "newest": "Newest first"}
@@ -153,6 +154,70 @@ class Account:
     #: When they asked to be forgotten, or "". The grace period is the only window in
     #: which that is undoable, so it belongs on the first screen rather than in a query.
     leaving: str = ""
+    #: Seconds of the month's allowance used, the same sum `Store.hours_used` reads and
+    #: `claim` holds them to; their allowance in seconds, None where nobody is held to a
+    #: month; and what their jobs cost in model spend this month, in dollars
+    #: (targum-internal#543, David 2026-10-27: "yes, show $").
+    used: float = 0.0
+    allowance: float | None = None
+    spent: float = 0.0
+
+
+def credits(seconds: float | None) -> str:
+    """Seconds as credits, the way the page writes them: a credit is a minute, whole from
+    ten up and to a tenth below, so a few seconds used does not read as nought."""
+    if seconds is None:
+        return "—"
+    count = seconds / SECONDS_A_CREDIT
+    said = f"{count:.0f}" if count >= 10 else f"{count:.1f}"
+    return said.removesuffix(".0")
+
+
+#: A credit is a minute of audio or video (2026-09-23), as `accounts.SECONDS_A_CREDIT`.
+SECONDS_A_CREDIT = 60
+
+#: The kinds a job is counted under on a reader's page, in this order. `gift` is not a
+#: kind of its own on the row: it is any job targum paid for (`job.gift`).
+KINDS = ("build", "subscription", "voice", "chat", "gift")
+
+
+@dataclass
+class Use:
+    """One kind of job over a span: how many, the seconds they took of the month (or, for
+    a gift, of targum's), and their model spend in dollars."""
+
+    kind: str
+    jobs: int = 0
+    seconds: float = 0.0
+    spent: float = 0.0
+
+
+@dataclass
+class Line:
+    """One job on a reader's page: never its title or its source (clause 3.14)."""
+
+    day: str
+    kind: str
+    seconds: float
+    spent: float
+    stage: str
+
+
+@dataclass
+class Reader:
+    """One account's credits (`?who=<id>`, targum-internal#543): this month and all
+    time by kind, and their latest jobs. Counts and stages only."""
+
+    id: int
+    email: str
+    name: str
+    joined: str
+    allowance: float | None
+    used: float
+    spent: float
+    month: list[Use] = field(default_factory=list)
+    ever: list[Use] = field(default_factory=list)
+    recent: list[Line] = field(default_factory=list)
 
 
 @dataclass
@@ -395,6 +460,9 @@ ACCOUNT_ORDERS = {
     "words": "(SELECT COUNT(*) FROM word w WHERE w.person = p.id AND w.gone = 0) DESC, p.id DESC",
     "texts": "(SELECT COUNT(*) FROM doc d WHERE d.person = p.id AND d.gone = 0) DESC, p.id DESC",
     "days": "(SELECT COUNT(*) FROM day y WHERE y.person = p.id AND y.gone = 0) DESC, p.id DESC",
+    # The month's credits: the sum `Store.hours_used` reads (targum-internal#543).
+    "credits": "(SELECT IFNULL(SUM(length), 0) FROM job j"
+    " WHERE j.owner = p.id AND j.length > 0 AND j.made >= :month) DESC, p.id DESC",
 }
 
 DAY_MS = 24 * 60 * 60 * 1000
@@ -402,9 +470,181 @@ DAY_MS = 24 * 60 * 60 * 1000
 
 def _like(said: str) -> str:
     """A search as a LIKE pattern that matches it anywhere, its own `%` and `_` meant
-    literally."""
-    escaped = said.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    literally, folded as `fold` folds what it is compared with."""
+    escaped = fold(said).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     return f"%{escaped}%"
+
+
+def fold(text: object) -> str:
+    """Text with its case taken off in every script. SQLite's LIKE folds ASCII alone, so
+    «Дина» never found «дина» and a Hebrew name with Latin capitals beside it half-matched
+    (qa on targum#952); the search compares this on both sides instead."""
+    return str(text or "").casefold()
+
+
+def month_from(today: date) -> int:
+    """Midnight UTC on the first of `today`'s month, in milliseconds: `Library._month_from`
+    for a day of the caller's choosing."""
+    return int(datetime(today.year, today.month, 1, tzinfo=UTC).timestamp() * 1000)
+
+
+def _functions(db: sqlite3.Connection) -> None:
+    """The two functions the page's SQL calls, registered on this connection."""
+    db.row_factory = sqlite3.Row
+    db.create_function("bare", 1, bare, deterministic=True)
+    db.create_function("fold", 1, fold, deterministic=True)
+
+
+def _admins(db: sqlite3.Connection) -> set[str]:
+    """The admins' addresses, as `Store.is_admin` compares them: an admin is on Plan
+    (`plans.paid`), so their month is the plan's."""
+    with contextlib.suppress(sqlite3.Error):
+        return {str(row[0]).strip().lower() for row in db.execute("SELECT email FROM admin")}
+    return set()
+
+
+#: Each job's seconds and kind, as a reader's page counts them: a gift is counted by the
+#: seconds it was quoted at, under `gift`, since it claimed none of the month; anything
+#: else by the `length` its claim took.
+JOB_SECONDS = "CASE WHEN gift = 1 THEN seconds ELSE length END"
+JOB_KIND = "CASE WHEN gift = 1 THEN 'gift' ELSE kind END"
+
+
+def _credits(
+    db: sqlite3.Connection,
+    found: Survey,
+    named: Mapping[str, object],
+    allowance: float | None,
+    plan_allowance: float | None,
+) -> None:
+    """Each account on the page's month: credits used of their allowance, and $ spent."""
+    if not found.accounts:
+        return
+    admins = _admins(db)
+    for who in found.accounts:
+        who.allowance = plan_allowance if who.email.strip().lower() in admins else allowance
+    among = ",".join(str(who.id) for who in found.accounts)
+    by_id = {who.id: who for who in found.accounts}
+    # A store from before job.gift has the same sums: length was all a claim wrote.
+    with contextlib.suppress(sqlite3.Error):
+        for row in db.execute(
+            "SELECT owner, SUM(CASE WHEN length > 0 THEN length ELSE 0 END) AS used,"  # noqa: S608 - ids are ints
+            " SUM(spent) AS spent FROM job"
+            f" WHERE made >= :month AND owner IN ({among}) GROUP BY owner",
+            named,
+        ):
+            each = by_id[int(row["owner"])]
+            each.used = float(row["used"] or 0)
+            each.spent = float(row["spent"] or 0)
+
+
+#: How many of a reader's latest jobs their page lists.
+RECENT_JOBS = 50
+
+
+def reader(
+    db: sqlite3.Connection,
+    who: int,
+    today: date | None = None,
+    operators: Iterable[str] = (),
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
+) -> Reader | None:
+    """One account's credits, by kind, this month and all time, and its latest jobs —
+    None for nobody, or for the operator, whom the page counts nowhere.
+
+    Never the job's title, source, options or message: the columns are not read, so
+    they cannot reach the page (clause 3.14).
+    """
+    _functions(db)
+    now = today or datetime.now(UTC).date()
+    mine = frozenset(bare(each) for each in operators)
+    row = db.execute(
+        "SELECT id, email, name, made FROM person p"  # noqa: S608
+        f" WHERE id = :who AND {NOT_MINE.format(column='p.email')}",
+        {"who": who, "mine": json.dumps(sorted(mine))},
+    ).fetchone()
+    if row is None:
+        return None
+    email = str(row["email"])
+    month = month_from(now)
+    found = Reader(
+        id=int(row["id"]),
+        email=email,
+        name=str(row["name"] or ""),
+        joined=_day(int(row["made"])),
+        allowance=plan_allowance if email.strip().lower() in _admins(db) else allowance,
+        used=0.0,
+        spent=0.0,
+    )
+
+    def uses(since: int) -> dict[str, Use]:
+        return {
+            str(each["kind"]): Use(
+                str(each["kind"]),
+                int(each["n"]),
+                float(each["seconds"] or 0),
+                float(each["spent"] or 0),
+            )
+            for each in db.execute(
+                f"SELECT {JOB_KIND} AS kind, COUNT(*) AS n, SUM({JOB_SECONDS}) AS seconds,"  # noqa: S608
+                " SUM(spent) AS spent FROM job WHERE owner = ? AND made >= ? GROUP BY 1",
+                (who, since),
+            )
+        }
+
+    # The same kinds in the same order in both spans, so they stand side by side.
+    ever, this_month = uses(0), uses(month)
+    kinds = list(KINDS) + sorted(set(ever) - set(KINDS))
+    found.ever = [ever.get(kind, Use(kind)) for kind in kinds]
+    found.month = [this_month.get(kind, Use(kind)) for kind in kinds]
+    # The month's figure is `Store.hours_used`'s own sum, and its money every job's.
+    found.used = float(
+        db.execute(
+            "SELECT COALESCE(SUM(length), 0) FROM job"
+            " WHERE length > 0 AND made >= ? AND owner IS ?",
+            (month, who),
+        ).fetchone()[0]
+    )
+    found.spent = sum(each.spent for each in found.month)
+    found.recent = [
+        Line(
+            day=_day(int(each["made"])) if each["made"] else "",
+            kind=str(each["kind"]),
+            seconds=float(each["seconds"] or 0),
+            spent=float(each["spent"] or 0),
+            stage=str(each["stage"]),
+        )
+        for each in db.execute(
+            f"SELECT made, {JOB_KIND} AS kind, {JOB_SECONDS} AS seconds, spent, stage"  # noqa: S608
+            " FROM job WHERE owner = ? ORDER BY made DESC, rowid DESC LIMIT ?",
+            (who, RECENT_JOBS),
+        )
+    ]
+    return found
+
+
+def reader_store(
+    store: Path,
+    who: int,
+    today: date | None = None,
+    operators: Iterable[str] | None = None,
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
+) -> Reader | None:
+    """`reader`, opening the database read-only, as `survey_store` does."""
+    db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    try:
+        return reader(
+            db,
+            who,
+            today=today,
+            operators=operators_from_env() if operators is None else operators,
+            allowance=allowance,
+            plan_allowance=plan_allowance,
+        )
+    finally:
+        db.close()
 
 
 def _one(db: sqlite3.Connection, sql: str, args: Mapping[str, object]) -> int:
@@ -428,8 +668,13 @@ def survey(
     accounts: Listing | None = None,
     waitlist: Listing | None = None,
     let_in: Listing | None = None,
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
 ) -> Survey:
     """Everything the page shows, asked of the store.
+
+    `allowance` is a reader's month in seconds and `plan_allowance` an admin's, as
+    `Library.allowance` gives them; None where nobody is held to a month.
 
     `accounts`, `waitlist` and `let_in` say which page of each list is wanted; each comes
     back with how many matched. Per-account figures are counted for the accounts on the
@@ -440,8 +685,7 @@ def survey(
     have, and counting it would make the page disagree with the reader's own list — the
     one number on this page a reader could check.
     """
-    db.row_factory = sqlite3.Row
-    db.create_function("bare", 1, bare, deterministic=True)
+    _functions(db)
     now = today or datetime.now(UTC).date()
     window = [(now - timedelta(days=n)).isoformat() for n in range(days)]
     since = int(
@@ -453,7 +697,7 @@ def survey(
     found = Survey(taken=datetime.now(UTC).isoformat(timespec="seconds"))
     # The operator's own addresses are nobody's data here, on any table (2026-10-15).
     mine = frozenset(bare(each) for each in operators)
-    named: dict[str, object] = {"mine": json.dumps(sorted(mine))}
+    named: dict[str, object] = {"mine": json.dumps(sorted(mine)), "month": month_from(now)}
 
     _waitlist(
         db,
@@ -464,6 +708,7 @@ def survey(
         let_in or Listing(sort=(waitlist.sort if waitlist else "oldest")),
     )
     ids = _accounts(db, found, named, accounts or Listing(sort="joined"))
+    _credits(db, found, named, allowance, plan_allowance)
 
     # The last thirty days, for the accounts on the page only.
     by_day = {when: Day(day=when) for when in window}
@@ -585,7 +830,7 @@ def _waitlist(
             clause = f"{mine} AND {which}"
             args = dict(named)
             if listing.q:
-                clause += " AND email LIKE :like ESCAPE '\\'"
+                clause += " AND fold(email) LIKE :like ESCAPE '\\'"
                 args["like"] = _like(listing.q)
             listing.matches = _one(db, f"SELECT COUNT(*) FROM waiting {clause}", args)  # noqa: S608
             listing.page = min(listing.page, listing.pages())
@@ -635,7 +880,9 @@ def _accounts(
     clause = mine
     args = dict(named)
     if listing.q:
-        clause += " AND (p.email LIKE :like ESCAPE '\\' OR p.name LIKE :like ESCAPE '\\')"
+        clause += (
+            " AND (fold(p.email) LIKE :like ESCAPE '\\' OR fold(p.name) LIKE :like ESCAPE '\\')"
+        )
         args["like"] = _like(listing.q)
     listing.matches = _one(db, f"SELECT COUNT(*) FROM person p WHERE {clause}", args)  # noqa: S608
     listing.page = min(listing.page, listing.pages())
@@ -980,6 +1227,8 @@ def survey_store(
     accounts: Listing | None = None,
     waitlist: Listing | None = None,
     let_in: Listing | None = None,
+    allowance: float | None = None,
+    plan_allowance: float | None = None,
 ) -> Survey:
     """`survey`, opening the database read-only.
 
@@ -996,6 +1245,8 @@ def survey_store(
             accounts=accounts,
             waitlist=waitlist,
             let_in=let_in,
+            allowance=allowance,
+            plan_allowance=plan_allowance,
         )
     finally:
         db.close()

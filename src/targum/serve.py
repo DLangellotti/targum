@@ -2203,8 +2203,10 @@ class Library:
         conversation, the seconds it was reserved at for the seconds it ran to."""
         if self.store is not None:
             # A turn of conversation and a voice made for a text both come out of the
-            # hours, so both settle their seconds (targum-internal#246).
-            metered = job.kind in ("chat", "voice")
+            # hours, so both settle their seconds (targum-internal#246). A gift does not:
+            # it claimed no length, and settling its seconds put them on the reader's
+            # month after all (found for targum-internal#543).
+            metered = job.kind in ("chat", "voice") and not job.gift
             self.store.settle(
                 job.id, job.spent, length=job.seconds if metered else None, cache=job.cached
             )
@@ -4337,6 +4339,7 @@ class Library:
                 # gift: targum pays for it, and their eight hours are theirs (#399).
                 length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.allowance(),
+                gift=job.gift,
             )
             if not refused:
                 return ""
@@ -4502,6 +4505,7 @@ class Library:
             # switch"): held by the daily rail above, not by the month's 60. Its seconds
             # still land in the one ledger. A voice is audio, and is held like any.
             per_month_length=None if admin or (kind == "chat" and plans.on()) else self.allowance(),
+            gift=job.gift,
         )
         if not refused:
             return ""
@@ -8235,7 +8239,14 @@ class Handler(BaseHTTPRequestHandler):
         not the person you live with.
         """
         from . import visits
-        from .backoffice import ACCOUNT_SORTS, DAYS, WAITING_SORTS, Listing, survey_store
+        from .backoffice import (
+            ACCOUNT_SORTS,
+            DAYS,
+            WAITING_SORTS,
+            Listing,
+            reader_store,
+            survey_store,
+        )
 
         person = self._person()
         if person is None:
@@ -8260,8 +8271,28 @@ class Handler(BaseHTTPRequestHandler):
             accounts=Listing.read(query, "q", "sort", "page", ACCOUNT_SORTS),
             waitlist=Listing.read(query, "wq", "wsort", "wpage", WAITING_SORTS),
             let_in=Listing.read(query, "wq", "wsort", "ipage", WAITING_SORTS),
+            # A reader's month and an admin's, which is Plan's (targum-internal#543).
+            allowance=self.library.allowance(paid_plan=False),
+            plan_allowance=self.library.allowance(paid_plan=True),
         )
         said = query.get("said", [""])[0][:300]
+        # One account's credits by kind, at `?who=<id>`: counts and stages, never a
+        # title or a source (clause 3.14).
+        one = None
+        asked_for = query.get("who", [""])[0]
+        if asked_for:
+            one = (
+                reader_store(
+                    self.store.path,
+                    int(asked_for),
+                    allowance=self.library.allowance(paid_plan=False),
+                    plan_allowance=self.library.allowance(paid_plan=True),
+                )
+                if asked_for.isdigit()
+                else None
+            )
+            if one is None:
+                said = said or "There is no such account."
         page = back_office_page(
             found,
             DAYS,
@@ -8275,6 +8306,7 @@ class Handler(BaseHTTPRequestHandler):
             # What readers wrote to us, and what broke in their browsers (#456, #457).
             told=self.store.told(),
             faults=self.store.faults(),
+            reader=one,
         )
         self._send(200, page.encode("utf-8"), HTML)
 

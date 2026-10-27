@@ -453,6 +453,19 @@ The icons the manifest names, `/app-icon-192.png` and `/app-icon-512.png`, are t
 folder's full-bleed squares; the mark sits inside the area a launcher masks to a circle.
 The page policy gains `manifest-src 'self'`.
 
+### The back office shows credits, and dollars beside them — 2026-10-27
+
+David wanted to see each reader's credit use in the back office (targum-internal#543) and
+said yes to money beside it. Accounts gain **Credits this month**, "32 of 480" over the
+month's model spend in dollars, and can be ordered by it. Each address opens that
+account's page at `?who=<id>`: this month and all time by kind (build, subscription,
+voice, chat, gift), and the latest fifty jobs by day, kind, credits, cost and stage. A
+conversation is counted in seconds. A gift is any job targum pays for, counted at what it
+was quoted and never against the month. Never a title or a source (clause 3.14).
+
+This is the one place outside `/plans` where money shows, and it is the operator's page,
+not a reader's: a reader is still told costs in credits only.
+
 ### The back office pages its lists — 2026-10-27
 
 David asked for the back office to scale to more users (targum-internal#542). Accounts
