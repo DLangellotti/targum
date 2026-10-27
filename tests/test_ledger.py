@@ -800,6 +800,7 @@ class TestTheBitsTravel:
         monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
         monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
         monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        (tmp_path / "out" / "shared").mkdir(parents=True)  # what makes it a library
         _build(source, tmp_path / "out" / "p5" / "text-he", fake_segmenter, Named("fake/1"))
         document = json.loads(
             (tmp_path / "out" / "p5" / "text-he" / "document.json").read_text(encoding="utf-8")
@@ -1368,10 +1369,15 @@ class TestAnyDepth:
         monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
         monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
         out = tmp_path / "out"
+        (out / "weekly").mkdir(parents=True)  # what makes it a library
         cases = {
             "a": (out / "local" / "videos" / "clip", {"local"}),
             "b": (out / "p3" / "local" / "upload", {"p3"}),
             "c": (out / "parasha" / "read" / "noach" / "print", set()),
+            # Deeper than four levels, and a home's name lower down in a public folder:
+            # the top folder decides both (qa-claude on #949).
+            "d": (out / "p3" / "a" / "b" / "c" / "d" / "x", {"p3"}),
+            "e": (out / "demos" / "olim" / "shelf" / "p1" / "x", set()),
         }
         for name, (folder, _homes) in cases.items():
             self._built(folder, name * 64, f"source-{name}")
@@ -1435,14 +1441,43 @@ class TestAnyDepth:
         assert book.get("translations", "doc123:claude.natural.en") == whole
         assert len(book.history("translations", "doc123:claude.natural.en")) == 1
 
-    def test_a_partial_copy_is_not_recorded_over_a_fuller_one(self, tmp_path: Path) -> None:
+    def test_a_newer_write_replaces_a_fuller_row_outside_a_fill(self, tmp_path: Path) -> None:
+        """Fullest-wins is only a fill's choice among copies: a build that writes a
+        re-translation with fewer sentences replaces the row (qa-claude on #949)."""
         folder = tmp_path / "out" / "shared" / "x"
-        TestTranslations._folder(
-            folder,
-            "https://x.example/a",
-            ("claude.natural.en", _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})),
-        )
+        shorter = _rendering(segments={"s0": "Hi."}, coarse=[], confidence={})
+        TestTranslations._folder(folder, "https://x.example/a", ("claude.natural.en", shorter))
         book = ledger.Ledger(tmp_path / "corpus.db")
         book.record("translations", "doc123:claude.natural.en", _rendering(), licence="")
         ledger.record_translations(book, folder)
-        assert book.get("translations", "doc123:claude.natural.en") == _rendering()
+        assert book.get("translations", "doc123:claude.natural.en") == shorter
+
+    def test_a_public_text_s_rendering_is_chosen_among_public_folders_only(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #949: a home's fuller copy of a shelf text was chosen, refused
+        there, and the shelf's own copy was never recorded."""
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        out = tmp_path / "out"
+        whole = _rendering()
+        part = _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})
+        TestTranslations._folder(out / "shared" / "x", "gutenberg:1", ("claude.natural.en", part))
+        TestTranslations._folder(
+            out / "p3" / "local" / "x", "gutenberg:1", ("claude.natural.en", whole)
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        ledger.backfill_texts(book, out)
+        ledger.backfill_translations(book, out)
+        assert book.get("translations", "doc123:claude.natural.en") == part
+
+    def test_a_document_linked_from_outside_the_library_is_not_read(self, tmp_path: Path) -> None:
+        outside = tmp_path / "elsewhere"
+        self._built(outside, "a" * 64, "secret.md")
+        out = tmp_path / "out"
+        (out / "shared" / "x").mkdir(parents=True)
+        (out / "shared" / "x" / "document.json").symlink_to(outside / "document.json")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, out, licence_of=lambda _f, _s: "Public Domain") == (
+            0,
+            0,
+        )

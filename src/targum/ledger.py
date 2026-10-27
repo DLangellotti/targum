@@ -405,18 +405,6 @@ class Ledger:
         source, licence, _private, ingester, schema_version = row[0]
         return Text(document_hash, source, licence, homes, ingester, schema_version)
 
-    def pairs_held(self, key: str) -> int:
-        """How many pairs the rendering a key holds now has; 0 for none."""
-        if not self.file.is_file():
-            return 0
-        with closing(self._connect()) as db:
-            row = db.execute(
-                "SELECT COUNT(*) FROM pairs WHERE translation_id ="
-                " (SELECT id FROM translations WHERE cache_key = ? AND superseded_at IS NULL)",
-                (key,),
-            ).fetchone()
-        return int(row[0])
-
     def is_private(self, document_hash: str) -> bool:
         """Whether a document's current row marks it a reader's private import. False for
         a public text and for one with no row, which a home must not speak for either."""
@@ -701,23 +689,63 @@ def text_folders(root: Path) -> list[Path]:
     return found
 
 
-def home_of(folder: Path) -> str | None:
+def home_of(folder: Path, root: Path | None = None) -> str | None:
     """The reader's home a built text's folder sits in, or None for a public one.
 
-    The outermost `p<id>` or `local` among the few folders above it, so `p3/local/<x>`
-    is p3's and `local/videos/<x>` is local's, as `backfill_texts` decides by the top
-    folder. Only a few levels up, so a library that happens to live under `/usr/local`
-    is not read as somebody's home from that far away.
+    One rule, the fill's: the top folder under the library root decides, whatever lies
+    beneath, so `p3/local/<x>` is p3's, `local/videos/<x>` is local's and
+    `demos/olim/shelf/p1/<x>` is public (qa-claude on #949). `root` is the library; if
+    it is not given, it is the one a `Library` registered (`use_library`), else found
+    by `library_of`. A folder outside the root, or a text built straight into it, is
+    public.
     """
-    found: str | None = None
-    for above in list(folder.parents)[:_HOME_DEPTH]:
-        if is_home(above.name):
-            found = above.name
+    library = root or _library_for(folder)
+    if library is None:
+        return None
+    try:
+        parts = folder.resolve().relative_to(library.resolve()).parts
+    except (ValueError, OSError):
+        return None
+    if len(parts) < 2:
+        return None
+    return parts[0] if is_home(parts[0]) else None
+
+
+#: The library a running server serves, registered by `Library` so a build there knows
+#: its root without guessing. A command-line build finds it with `library_of`.
+_LIBRARY: Path | None = None
+
+
+def use_library(out: Path) -> None:
+    """Name the library root builds in this process write under."""
+    global _LIBRARY
+    _LIBRARY = out
+
+
+def _library_for(folder: Path) -> Path | None:
+    if _LIBRARY is not None:
+        try:
+            folder.resolve().relative_to(_LIBRARY.resolve())
+        except (ValueError, OSError):
+            pass
+        else:
+            return _LIBRARY
+    return library_of(folder)
+
+
+def library_of(folder: Path) -> Path | None:
+    """The library a text's folder is in: the outermost folder above it that keeps the
+    library's own `shared` or `weekly` shelf, as every library does. None if there is
+    none, and then the text reads as public — a build somebody runs into a folder of
+    their own, with no homes in it."""
+    found: Path | None = None
+    for above in folder.parents:
+        try:
+            if (above / "shared").is_dir() or (above / "weekly").is_dir():
+                found = above
+        except OSError:
+            continue
     return found
-
-
-#: How far above a text `home_of` looks: deep enough for `parasha/read/<slug>/print`.
-_HOME_DEPTH = 4
 
 
 def documents_under(root: Path) -> set[str]:
@@ -869,11 +897,23 @@ def _built_folders(out: Path) -> list[tuple[Path, str | None]]:
     one of the library's own public folders (or a text built straight into `out`)."""
     folders: list[tuple[Path, str | None]] = []
     for folder in text_folders(out):
-        top = folder.relative_to(out).parts[0]
+        if _escapes(folder / "document.json", out):
+            log.warning("corpus ledger: %s links outside the library; skipped", folder)
+            continue
         # Decided by the top folder alone, whatever lies beneath: `p3/local/<x>` is p3's.
-        home = top if is_home(top) and folder.parent != out else None
-        folders.append((folder, home))
+        folders.append((folder, home_of(folder, out)))
     return folders
+
+
+def _escapes(path: Path, root: Path) -> bool:
+    """Whether a file is a link to somewhere outside the library (qa-claude on #949)."""
+    try:
+        if not path.is_symlink():
+            return False
+        path.resolve().relative_to(root.resolve())
+    except (ValueError, OSError, RuntimeError):
+        return True
+    return False
 
 
 def backfill_texts(
@@ -1316,9 +1356,9 @@ def record_translations(
     `authored`) is under the text's licence; a published one under its own, which only
     the catalogue knows; one it does not know is under none and exports nowhere.
 
-    `only` limits it to these file stems (the backfill's choice among copies). A
-    rendering with fewer pairs than the key already holds is a partial copy and is not
-    recorded over the fuller one.
+    `only` limits it to these file stems (the backfill's choice among copies). Outside a
+    fill a newer write replaces the row whatever its size, so a re-translation is never
+    stuck behind an older, fuller one.
     """
     translations = [one for one in _rendering_files(folder) if only is None or one.stem in only]
     if not translations:
@@ -1349,9 +1389,6 @@ def record_translations(
             else:
                 licence = _rendering_licence(source, value)
             key = f"{value.get('document_hash')}:{one.stem}"
-            segments = value.get("segments")
-            if isinstance(segments, Mapping) and ledger.pairs_held(key) > len(segments):
-                continue
             ledger.record(
                 "translations",
                 key,
@@ -1414,17 +1451,23 @@ def backfill_translations(ledger: Ledger, out: Path) -> tuple[int, int]:
     """Read every built folder's renderings under the library into rows: the migration
     for `translations`, from what is already on disk. Nothing is translated or fetched.
     Returns (recorded, refused)."""
-    folders = [folder for folder, _home in _built_folders(out)]
-    # One copy per rendering. A text the shelf holds in two folders (`shared/<x>` and
-    # `parasha/read/<x>/print`) has two files under one key; recorded in turn, each run
-    # would add both to the history again. The fullest wins, the first found on a tie.
+    pairs = _built_folders(out)
+    folders = [folder for folder, _home in pairs]
+    # One copy per rendering, in this pass. A text the shelf holds in two folders
+    # (`shared/<x>` and `parasha/read/<x>/print`) has two files under one key; recorded
+    # in turn, each run would add both to the history again. The fullest wins, the first
+    # found on a tie — and only among the folders that may speak for the text: public
+    # ones for a public text, homes for a private one. A home's fuller copy of a public
+    # text would be refused there and leave the public one unrecorded (qa-claude on #949).
     best: dict[tuple[str, str], tuple[int, Path]] = {}
-    for folder in folders:
+    for folder, home in pairs:
         try:
             document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         hash_ = str(document.get("content_hash") or "") if isinstance(document, Mapping) else ""
+        if (home is not None) != ledger.is_private(hash_):
+            continue
         for one in _rendering_files(folder):
             try:
                 segments = json.loads(one.read_text(encoding="utf-8")).get("segments")

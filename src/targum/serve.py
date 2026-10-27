@@ -1766,6 +1766,10 @@ class Library:
         # request — nothing routed through `within(home, …)` can reach it, so a shared
         # text cannot be bought, trashed or rebuilt by whoever is reading it.
         self.shared = out / "shared"
+        # The corpus ledger decides a build's home by its top folder under this root.
+        from . import ledger as ledger_module
+
+        ledger_module.use_library(out)
         # What each shelf row says, kept beside each reader (`remembered`). The one
         # thing a request writes on the shared shelf, as `coverage.lemmas` already did:
         # an answer about a text, never the text.

@@ -369,8 +369,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and the build-time writer and account deletion use the same rule for nested folders.
   A text found at two depths is one text. Symbolic links are not followed. A `weekly:`
   source counts as `targum`, our own writing, in the catalogue or not (David,
-  2026-10-27). A translation held in two public copies of one text is recorded once,
-  the fullest, so a second fill adds no history. On the laptop library the fill went
+  2026-10-27). A translation held in two copies of one text is recorded once per fill:
+  the fullest among the public folders for a public text, or among the homes for a
+  private one, so a second fill adds no history. A newer write at build time still
+  replaces it. The build-time writer uses the same top-folder rule under the library
+  root, and a `document.json` linked from outside the library is not read. On the laptop library the fill went
   from 343 texts to 943, and the commercial export from 269 texts to 552.
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
