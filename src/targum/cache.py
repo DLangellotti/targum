@@ -27,8 +27,18 @@ class Cache:
 
     def get(self, stage: str, key: str) -> Any | None:
         path = self._path(stage, key)
-        if not path.exists():
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            # No file is the answer, whatever the ledger holds: a dropped wrong answer or
+            # a cleared cache must never come back from it (qa-claude on #946).
             return None
+        # The corpus ledger first, for a stage `TARGUM_LEDGER_READ` names (#162, slice
+        # 5), and only with a row at least as new as the file; anything else falls
+        # through to the file, as before.
+        held = ledger.mirror_get(stage, key, mtime)
+        if held is not None:
+            return held
         try:
             return json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:

@@ -268,7 +268,9 @@ class Ledger:
         """
         if stage not in STAGES:
             raise ValueError(f"the ledger does not record {stage!r} yet")
-        stamp = datetime.now(UTC).isoformat(timespec="seconds")
+        stamp = datetime.now(UTC).isoformat(
+            timespec="microseconds"
+        )  # read-through compares it with a file's mtime
         with closing(self._connect()) as db, db:
             # The same value again is not history: a rebuild that changed nothing writes
             # nothing, or every `rebuild --words` would add a copy of every text.
@@ -687,6 +689,70 @@ def mirror_put(stage: str, key: str, value: Any) -> None:
         Ledger(file).record(stage, key, value)
     except (sqlite3.Error, OSError, ValueError, TypeError) as error:
         log.warning("corpus ledger: %s %s not recorded: %s", stage, key[:12], error)
+        # What the key held before is no longer what the cache holds. Read-through must
+        # not hand it back, so it stops being the answer (best effort: a ledger that
+        # could not write may not be able to stamp either, and then says so again).
+        try:
+            Ledger(file, timeout=MIRROR_TIMEOUT).drop(stage, key)
+        except (sqlite3.Error, OSError) as again:
+            log.warning("corpus ledger: %s %s not dropped either: %s", stage, key[:12], again)
+
+
+#: The second flag (slice 5, 2026-10-27): which stages `Cache.get` asks the ledger for
+#: first, comma-separated. Empty or unset is none, so turning the ledger on does not also
+#: turn on reading from it. Only stages whose rows give their value back byte for byte
+#: and whose cache key is the ledger's key can be read: today, `vocalize`.
+READ_ENV = "TARGUM_LEDGER_READ"
+READABLE = frozenset({"vocalize"})
+
+
+def read_stages() -> frozenset[str]:
+    """The stages read through the ledger, as the environment names them."""
+    raw = os.environ.get(READ_ENV, "")
+    return frozenset(one.strip() for one in raw.split(",") if one.strip()) & READABLE
+
+
+def mirror_get(stage: str, key: str, not_before: float) -> Any | None:
+    """`Cache.get`'s first look: the value from the rows, or None for the cache to read
+    its file. Answers only with a row written no earlier than `not_before` — the cache
+    file's mtime — so a file rewritten since (a put whose ledger write failed under a
+    held lock) always wins (qa-claude on #946). The caller asks only while the file
+    exists, so a dropped or cleared key never comes back from here either.
+
+    Read-only and short: the connection is opened `mode=ro`, never migrates or writes,
+    and waits at most `MIRROR_TIMEOUT`. Never raises — whatever a ledger read throws is
+    a None, and the cache's own file answers as before. A None is never a reason to run
+    a stage.
+    """
+    file = path()
+    if file is None or stage not in read_stages():
+        return None
+    try:
+        if not file.is_file():
+            return None
+        db = sqlite3.connect(f"file:{file}?mode=ro", uri=True, timeout=MIRROR_TIMEOUT)
+        with closing(db):
+            row = db.execute(
+                f"SELECT id, written_at FROM {_HEAD[stage]}"  # noqa: S608 - a fixed name
+                " WHERE cache_key = ? AND superseded_at IS NULL",
+                (key,),
+            ).fetchone()
+            if row is None or not _not_older(str(row[1]), not_before):
+                return None
+            return _read_row(db, stage, int(row[0]))
+    except Exception as error:  # noqa: BLE001 - nothing a ledger read raises may break a build
+        log.warning("corpus ledger: %s %s not read: %s", stage, key[:12], error)
+        return None
+
+
+def _not_older(written_at: str, not_before: float) -> bool:
+    """Whether a row stamped `written_at` was written no earlier than `not_before`. Rows
+    from before slice 5 carry whole seconds, so their write happened somewhere in the
+    second after the stamp; newer ones carry microseconds and are compared exactly."""
+    when = datetime.fromisoformat(written_at).timestamp()
+    if "." not in written_at:
+        return not_before < when + 1
+    return not_before <= when
 
 
 def mirror_drop(stage: str, key: str) -> None:
