@@ -43,12 +43,12 @@ ENV = "TARGUM_LEDGER"
 
 #: The ledger's own schema, independent of `models.SCHEMA_VERSION`: the rows can change
 #: shape without the cache key moving, which is the point of having rows.
-LEDGER_SCHEMA = 4
+LEDGER_SCHEMA = 5
 
 #: The stages the ledger records, and the table each one's values head. `tokens` since
 #: 2026-10-08 (David's third answer of 2026-10-03): one annotator's pass over a text,
 #: written where the pipeline writes `annotation.json`, since annotation has no cache.
-_HEAD = {"vocalize": "vocalizations", "tokens": "annotations"}
+_HEAD = {"vocalize": "vocalizations", "tokens": "annotations", "translations": "translations"}
 STAGES = frozenset(_HEAD)
 
 # Every field of a `Vocalization` as it is dumped. A value with any other key is refused
@@ -167,6 +167,50 @@ CREATE TABLE IF NOT EXISTS text_homes (
     home          TEXT NOT NULL,
     PRIMARY KEY (document_hash, home)
 );
+-- One rendering of one text (schema 5, 2026-10-27): a machine translation, an authored
+-- English or a published translation matched to it, as its `translations/*.json` holds
+-- it. Keyed `<document_hash>:<file stem>`, the name the build writes it under. `licence`
+-- is the rendering's own: the catalogue's for a published one, the text's for one targum
+-- made. `own_exportable`/`own_research` are that licence's bits; `exportable`/`research`
+-- are those AND the text's, so a translation of a private text exports nowhere.
+-- `head_json` is the file with its segments emptied, so every other field comes back
+-- exactly and in place.
+CREATE TABLE IF NOT EXISTS translations (
+    id              INTEGER PRIMARY KEY,
+    stage           TEXT NOT NULL,
+    cache_key       TEXT NOT NULL,
+    document_hash   TEXT NOT NULL,
+    source_language TEXT NOT NULL,
+    target_language TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    tool            TEXT NOT NULL,
+    tool_version    TEXT,
+    style           TEXT,
+    schema_version  INTEGER NOT NULL,
+    licence         TEXT NOT NULL,
+    own_exportable  INTEGER NOT NULL,
+    own_research    INTEGER NOT NULL,
+    head_json       TEXT NOT NULL,
+    written_at      TEXT NOT NULL,
+    superseded_at   TEXT,
+    exportable      INTEGER NOT NULL DEFAULT 0,
+    research        INTEGER NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS translations_current
+    ON translations (cache_key) WHERE superseded_at IS NULL;
+CREATE INDEX IF NOT EXISTS translations_by_text ON translations (document_hash);
+-- One aligned pair of that rendering: the source sentence and its target. `source` is
+-- the segment's text where the build's segments were at hand, null where not.
+CREATE TABLE IF NOT EXISTS pairs (
+    translation_id INTEGER NOT NULL REFERENCES translations (id),
+    segment_id     TEXT NOT NULL,
+    ord            INTEGER NOT NULL,
+    source         TEXT,
+    target         TEXT NOT NULL,
+    confidence     REAL,
+    coarse         INTEGER NOT NULL,
+    PRIMARY KEY (translation_id, segment_id)
+);
 CREATE TABLE IF NOT EXISTS pointings (
     vocalization_id INTEGER NOT NULL REFERENCES vocalizations (id),
     segment_id      TEXT NOT NULL,
@@ -204,8 +248,19 @@ class Ledger:
         )
         return db
 
-    def record(self, stage: str, key: str, value: Any) -> None:
+    def record(
+        self,
+        stage: str,
+        key: str,
+        value: Any,
+        *,
+        licence: str = "",
+        sources: Mapping[str, str] | None = None,
+    ) -> None:
         """Write one cache value as rows, replacing what that cache key held before.
+
+        `licence` and `sources` are for `translations` only: the rendering's own licence,
+        and each segment's source text for its pair.
 
         Raises ValueError, and writes nothing, for a value the rows could not give back
         exactly — an unknown field, a repeated segment, anything that would make the
@@ -217,7 +272,9 @@ class Ledger:
         with closing(self._connect()) as db, db:
             # The same value again is not history: a rebuild that changed nothing writes
             # nothing, or every `rebuild --words` would add a copy of every text.
-            if _bytes(_read(db, stage, key)) == _bytes(value):
+            if _bytes(_read(db, stage, key)) == _bytes(value) and (
+                stage != "translations" or _licence_held(db, key) == licence
+            ):
                 return
             # What the key held stays, as history; it is only no longer the answer.
             db.execute(
@@ -227,6 +284,8 @@ class Ledger:
             )
             if stage == "vocalize":
                 _insert_vocalization(db, stage, key, value, stamp)
+            elif stage == "translations":
+                _insert_translation(db, stage, key, value, stamp, licence, sources or {})
             else:
                 _insert_annotation(db, stage, key, value, stamp)
             back = _read(db, stage, key)
@@ -344,6 +403,15 @@ class Ledger:
         source, licence, _private, ingester, schema_version = row[0]
         return Text(document_hash, source, licence, homes, ingester, schema_version)
 
+    def is_private(self, document_hash: str) -> bool:
+        """Whether a document's current row marks it a reader's private import. False for
+        a public text and for one with no row, which a home must not speak for either."""
+        if not self.file.is_file():
+            return False
+        with closing(self._connect()) as db:
+            row = self._row(db, document_hash)
+        return bool(row[0][2]) if row is not None else False
+
     def terms(self, document_hash: str) -> tuple[bool, bool] | None:
         """(exportable, research) for one document as recorded, or None if unrecorded."""
         if not self.file.is_file():
@@ -444,6 +512,13 @@ def _stamp(db: sqlite3.Connection, document_hash: str) -> None:
             " WHERE document_hash = ? AND (exportable != ? OR research != ?)",
             (*bits, document_hash, *bits),
         )
+    # A translation is the text's bits AND its own licence's: a published rendering under
+    # a licence of its own may be narrower than the text it is beside.
+    db.execute(
+        "UPDATE translations SET exportable = ? AND own_exportable,"
+        " research = ? AND own_research WHERE document_hash = ?",
+        (*bits, document_hash),
+    )
 
 
 def _add_bits(db: sqlite3.Connection) -> None:
@@ -535,6 +610,7 @@ def disown(home: str) -> int:
 #: The rows a value is made of, by the head table they hang off and the column that
 #: names it: what has to go when a head row goes.
 _UNITS = {
+    "translations": ("pairs", "translation_id"),
     "vocalizations": ("pointings", "vocalization_id"),
     "annotations": ("tokens", "annotation_id"),
 }
@@ -667,6 +743,23 @@ def is_home(name: str) -> bool:
     return _HOME.fullmatch(name) is not None
 
 
+def _built_folders(out: Path) -> list[tuple[Path, str | None]]:
+    """Every built text's folder under the library, with the home it is in, or None for
+    one of the library's own public folders (or a text built straight into `out`)."""
+    try:
+        roots = sorted(one for one in out.iterdir() if one.is_dir())
+    except OSError:
+        return []
+    folders: list[tuple[Path, str | None]] = []
+    for root in roots:
+        home = root.name if is_home(root.name) else None
+        if home is None and (root / "document.json").is_file():
+            folders.append((root, None))
+            continue
+        folders += [(one, home) for one in sorted(root.iterdir()) if one.is_dir()]
+    return folders
+
+
 def backfill_texts(
     ledger: Ledger,
     out: Path,
@@ -689,19 +782,7 @@ def backfill_texts(
     found: dict[str, tuple[Path, dict[str, Any]]] = {}
     held_in: dict[str, set[str]] = {}
     public: set[str] = set()
-    try:
-        roots = sorted(one for one in out.iterdir() if one.is_dir())
-    except OSError:
-        return 0, 0
-    # (folder, the home it is in or None for public)
-    folders: list[tuple[Path, str | None]] = []
-    for root in roots:
-        home = root.name if is_home(root.name) else None
-        if home is None and (root / "document.json").is_file():
-            folders.append((root, None))
-            continue
-        folders += [(one, home) for one in sorted(root.iterdir()) if one.is_dir()]
-    for folder, home in folders:
+    for folder, home in _built_folders(out):
         try:
             document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -866,6 +947,8 @@ def _read(db: sqlite3.Connection, stage: str, key: str) -> dict[str, Any] | None
 
 def _read_row(db: sqlite3.Connection, stage: str, row_id: int) -> dict[str, Any]:
     """One value, rebuilt from its rows, current or not."""
+    if stage == "translations":
+        return _read_translation(db, row_id)
     if stage == "tokens":
         return _read_annotation(db, row_id)
     return _read_vocalization(db, row_id)
@@ -986,3 +1069,225 @@ def _read_vocalization(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
         "machine": [row[0] for row in ordered(3)],
         "rejected": [row[0] for row in ordered(4)],
     }
+
+
+#: The fields a translation file has, which a translation row must hold all of.
+_TRANSLATION = ("name", "document_hash", "source_language", "target_language", "provider")
+
+
+def _licence_held(db: sqlite3.Connection, key: str) -> str | None:
+    row = db.execute(
+        "SELECT licence FROM translations WHERE cache_key = ? AND superseded_at IS NULL", (key,)
+    ).fetchone()
+    return row[0] if row is not None else None
+
+
+def translation_terms(licence: str, kind: str) -> Any:
+    """A rendering's own export bits: its licence's, except that a machine translation
+    is never in the commercial export (David, 2026-10-27): the model providers' terms bar
+    using their output to train competing models. Authored and published renderings
+    follow their licence alone."""
+    from .licensing import ExportTerms, export_terms
+
+    terms = export_terms(licence)
+    if kind == "machine":
+        return ExportTerms(exportable=False, research=terms.research)
+    return terms
+
+
+def _insert_translation(
+    db: sqlite3.Connection,
+    stage: str,
+    key: str,
+    value: Any,
+    stamp: str,
+    licence: str,
+    sources: Mapping[str, str],
+) -> None:
+    if not isinstance(value, Mapping) or any(name not in value for name in _TRANSLATION):
+        raise ValueError("not a translation as the pipeline writes one")
+    segments = value.get("segments")
+    coarse = value.get("coarse") or []
+    confidence = value.get("confidence") or {}
+    if not isinstance(segments, Mapping) or not isinstance(coarse, list):
+        raise ValueError("not a translation as the pipeline writes one")
+    if not isinstance(confidence, Mapping):
+        raise ValueError("not a translation as the pipeline writes one")
+    head = dict(value)
+    head["segments"] = {}
+    own = translation_terms(licence, str(value.get("kind") or "machine"))
+    cursor = db.execute(
+        "INSERT INTO translations (stage, cache_key, document_hash, source_language,"
+        " target_language, kind, tool, tool_version, style, schema_version, licence,"
+        " own_exportable, own_research, head_json, written_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            stage,
+            key,
+            value["document_hash"],
+            value["source_language"],
+            value["target_language"],
+            str(value.get("kind") or "machine"),
+            value["provider"],
+            value.get("model"),
+            value.get("style"),
+            int(value.get("schema_version") or 0),
+            licence,
+            int(own.exportable),
+            int(own.research),
+            json.dumps(head, ensure_ascii=False),
+            stamp,
+        ),
+    )
+    flagged = set(coarse)
+    db.executemany(
+        "INSERT INTO pairs (translation_id, segment_id, ord, source, target, confidence,"
+        " coarse) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+            (
+                cursor.lastrowid,
+                segment,
+                ord_,
+                sources.get(segment),
+                target,
+                confidence.get(segment),
+                int(segment in flagged),
+            )
+            for ord_, (segment, target) in enumerate(segments.items())
+        ],
+    )
+
+
+def _read_translation(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
+    """One rendering, rebuilt from its head and its pairs, segments back in their place."""
+    head_json = db.execute("SELECT head_json FROM translations WHERE id = ?", (row_id,)).fetchone()
+    value: dict[str, Any] = json.loads(head_json[0])
+    value["segments"] = {
+        segment: target
+        for segment, target in db.execute(
+            "SELECT segment_id, target FROM pairs WHERE translation_id = ? ORDER BY ord",
+            (row_id,),
+        )
+    }
+    return value
+
+
+def mirror_translations(folder: Path) -> None:
+    """A build's renderings, from its `translations/*.json` (slice 4): called once a build
+    has written them, and after a chapter is bought. Reads files only; nothing is
+    translated. Does nothing with the flag off; never raises."""
+    file = path()
+    if file is None:
+        return
+    try:
+        record_translations(Ledger(file, timeout=MIRROR_TIMEOUT), folder)
+    except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
+        log.warning("corpus ledger: %s translations not recorded: %s", folder.name, error)
+
+
+def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
+    """Record every rendering one built folder holds. Returns (recorded, refused).
+
+    Reads `document.json` for the text, `segments.json` for each pair's source sentence
+    and `translations/*.json` for the renderings. A rendering targum made (`machine`,
+    `authored`) is under the text's licence; a published one under its own, which only
+    the catalogue knows; one it does not know is under none and exports nowhere.
+    """
+    # `words.<lang>.json` is the glossary kept beside them, not a rendering.
+    translations = sorted(
+        one for one in (folder / "translations").glob("*.json") if not one.name.startswith("words.")
+    )
+    if not translations:
+        return 0, 0
+    document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    source = str(document.get("source") or "")
+    # A reader's copy of a text the shelf holds shares the shelf copy's keys, and is often
+    # only the chapters they bought: recorded, it would stand in for the whole rendering
+    # and add a copy to the history at every build (qa-claude on #945). While a text is
+    # public, only a public folder records its renderings; a home records only a text
+    # that is private, which no public folder holds.
+    if is_home(folder.parent.name) and not ledger.is_private(
+        str(document.get("content_hash") or "")
+    ):
+        return 0, 0
+    sources = _segment_texts(folder)
+    text_licence: str | None = None
+    recorded = refused = 0
+    for one in translations:
+        try:
+            value = json.loads(one.read_text(encoding="utf-8"))
+            if not isinstance(value, Mapping):
+                raise ValueError("not a translation")
+            if str(value.get("kind") or "machine") in ("machine", "authored"):
+                if text_licence is None:
+                    text_licence = _licence_of(folder, source)
+                licence = text_licence
+            else:
+                licence = _rendering_licence(source, value)
+            ledger.record(
+                "translations",
+                f"{value.get('document_hash')}:{one.stem}",
+                value,
+                licence=licence,
+                sources=sources,
+            )
+        except (ValueError, TypeError, OSError) as error:
+            log.warning("corpus ledger: %s not recorded: %s", one.name, error)
+            refused += 1
+        else:
+            recorded += 1
+    return recorded, refused
+
+
+def _segment_texts(folder: Path) -> dict[str, str]:
+    try:
+        held = json.loads((folder / "segments.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    segments = held.get("segments") if isinstance(held, Mapping) else None
+    if not isinstance(segments, list):
+        return {}
+    return {
+        str(one["id"]): str(one["text"])
+        for one in segments
+        if isinstance(one, Mapping) and "id" in one and "text" in one
+    }
+
+
+def _rendering_licence(source: str, value: Mapping[str, Any]) -> str:
+    """A published rendering's own licence, from the catalogue entry of the text it is
+    beside: the one rendering in its language, or the one of that name among several.
+    Empty where the catalogue does not say, which exports nowhere."""
+    from . import catalogue
+
+    try:
+        entry = catalogue.matching(source)
+    except Exception:  # noqa: BLE001 - a private catalogue is absent on a public checkout
+        entry = None
+    if entry is None:
+        return ""
+    language = str(value.get("target_language") or "")
+    beside = [one for one in entry.translations if one.language == language]
+    if len(beside) == 1:
+        return beside[0].licence
+    name = _source_key(str(value.get("name") or ""))
+    named = [one for one in beside if _source_key(one.name) == name]
+    return named[0].licence if len(named) == 1 else ""
+
+
+def backfill_translations(ledger: Ledger, out: Path) -> tuple[int, int]:
+    """Read every built folder's renderings under the library into rows: the migration
+    for `translations`, from what is already on disk. Nothing is translated or fetched.
+    Returns (recorded, refused)."""
+    recorded = refused = 0
+    for folder, _home in _built_folders(out):
+        if not (folder / "document.json").is_file():
+            continue
+        try:
+            done, failed = record_translations(ledger, folder)
+        except (OSError, ValueError) as error:
+            log.warning("corpus ledger: %s not read: %s", folder.name, error)
+            continue
+        recorded += done
+        refused += failed
+    return recorded, refused

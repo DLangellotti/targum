@@ -379,6 +379,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   texts with no licence and ND texts are in neither export, and no account id is
   written. It reads the file `TARGUM_LEDGER` names, spends nothing, and refuses a folder
   that is not empty.
+- The corpus ledger holds translations and their aligned pairs (targum-internal#162,
+  slice 4; ledger schema 5). Every build, and every chapter bought later, records each
+  rendering in its folder with each sentence beside its translation.
+  `targum cache ledger-translations` fills the table from the `translations/*.json`
+  files already on disk. Filling translates, fetches and spends nothing. A rendering
+  targum made is under its text's licence, and a published one under the licence the
+  catalogue gives it, or none. A machine translation is in the research export only,
+  never the commercial one, because the model providers' terms bar using their output
+  to train competing models (David, 2026-10-27); the datasheet says so. Its export bits
+  are its text's and its own together, so translations of readers' own texts stay
+  private. While a text is on the shelf, a reader's copy of it records nothing, so a
+  partial copy cannot stand in for the shelf's.
+  `targum corpus export` now writes `translations` and `pairs` too, asking each
+  rendering's licence again.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the

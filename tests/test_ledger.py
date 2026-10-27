@@ -16,7 +16,7 @@ import pytest
 
 from targum import ledger
 from targum.cache import Cache
-from targum.models import Annotation, Segment, Token, Vocalization
+from targum.models import Annotation, Segment, Token, Translation, Vocalization
 from targum.paths import cache_dir
 
 POINTED = Vocalization(
@@ -755,7 +755,9 @@ class TestTheBitsTravel:
         assert _bits(file, "vocalizations") == [(1, 1)]
         assert _bits(file, "annotations") == [(1, 1)]
         with sqlite3.connect(file) as db:
-            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == ("4",)
+            assert db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() == (
+                str(ledger.LEDGER_SCHEMA),
+            )
 
     def test_an_unchanged_text_still_stamps_rows_written_before_it(self, tmp_path: Path) -> None:
         """A text recorded before its rows had the columns: running the backfill again
@@ -860,3 +862,256 @@ class TestTheBitsTravel:
         assert ledger.Ledger(file).text("a" * 64) is None, "gone on without the row"
         ledger.mirror_text(folder)
         assert ledger.Ledger(file).text("a" * 64) is not None
+
+
+def _rendering(document_hash: str = "doc123", **change: Any) -> dict[str, Any]:
+    # Segments out of document order, and coarse and confidence fields only some carry.
+    value = Translation(
+        name="English (Claude)",
+        document_hash=document_hash,
+        source_language="he",
+        target_language="en",
+        provider="claude",
+        model="claude-test",
+        segments={"s2": "Father came.", "s0": "Hello.", "s1": "Mother came."},
+        coarse=["s1"],
+        confidence={"s1": 0.5, "s2": 0.9},
+    ).model_dump(mode="json")
+    return {**value, **change}
+
+
+class TestTranslations:
+    """Slice 4 (2026-10-27): renderings and their aligned pairs, read from the files a
+    build already wrote. Nothing is translated to fill them."""
+
+    def test_a_rendering_comes_back_as_the_same_bytes(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record(
+            "translations",
+            "doc123:claude.natural.en",
+            _rendering(),
+            licence="Public Domain",
+            sources={"s0": "שלום.", "s1": "אמא באה."},
+        )
+        back = book.get("translations", "doc123:claude.natural.en")
+        assert json.dumps(back, ensure_ascii=False) == json.dumps(_rendering(), ensure_ascii=False)
+        with sqlite3.connect(book.file) as db:
+            pairs = db.execute(
+                "SELECT segment_id, source, target, confidence, coarse FROM pairs ORDER BY ord"
+            ).fetchall()
+        assert pairs == [
+            ("s2", None, "Father came.", 0.9, 0),
+            ("s0", "שלום.", "Hello.", None, 0),
+            ("s1", "אמא באה.", "Mother came.", 0.5, 1),
+        ]
+
+    def test_its_bits_are_its_text_s_and_its_own_licence_s(self, tmp_path: Path) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("translations", "doc123:mine", _rendering(), licence="Public Domain")
+        book.record(
+            "translations", "doc123:theirs", _rendering(kind="aligned"), licence="CC BY-NC 4.0"
+        )
+        assert _bits(book.file, "translations") == [(0, 0), (0, 0)], "no text row yet"
+        book.record_text(ledger.Text("doc123", "gutenberg:1", "Public Domain"))
+        assert _bits(book.file, "translations") == [(0, 1), (0, 1)], "machine: research only"
+        book.record(
+            "translations", "doc123:ours", _rendering(kind="authored"), licence="Public Domain"
+        )
+        assert _bits(book.file, "translations")[-1] == (1, 1), "authored follows its licence"
+        book.record_text(ledger.Text("doc123", "upload.pdf", "Public Domain", frozenset({"p4"})))
+        assert set(_bits(book.file, "translations")) == {(0, 0)}, "a reader's text: private"
+
+    def test_a_corrected_licence_on_the_same_rendering_keeps_the_old_as_history(
+        self, tmp_path: Path
+    ) -> None:
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("translations", "k", _rendering(kind="aligned"), licence="")
+        book.record("translations", "k", _rendering(kind="aligned"), licence="")
+        book.record("translations", "k", _rendering(kind="aligned"), licence="CC BY 4.0")
+        assert len(book.history("translations", "k")) == 2
+        with sqlite3.connect(book.file) as db:
+            held = db.execute(
+                "SELECT licence, own_exportable FROM translations WHERE superseded_at IS NULL"
+            ).fetchall()
+        assert held == [("CC BY 4.0", 1)]
+
+    def test_a_departed_reader_s_renderings_go_with_their_text(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("translations", "k", _rendering("a" * 64), licence="")
+        book.record("translations", "k", _rendering("a" * 64, name="again"), licence="")
+        ledger.forget({"a" * 64})
+        with sqlite3.connect(book.file) as db:
+            assert db.execute("SELECT COUNT(*) FROM translations").fetchone()[0] == 0
+            assert db.execute("SELECT COUNT(*) FROM pairs").fetchone()[0] == 0
+
+    @staticmethod
+    def _folder(folder: Path, source: str, *renderings: tuple[str, dict[str, Any]]) -> None:
+        (folder / "translations").mkdir(parents=True)
+        document = {"source": source, "language": "he", "blocks": [], "content_hash": "doc123"}
+        (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
+        segments = {
+            "document_hash": "doc123",
+            "language": "he",
+            "segmenter": "fake",
+            "segments": [{"id": "s0", "text": "שלום."}],
+        }
+        (folder / "segments.json").write_text(json.dumps(segments), encoding="utf-8")
+        for stem, value in renderings:
+            (folder / "translations" / f"{stem}.json").write_text(
+                json.dumps(value, ensure_ascii=False), encoding="utf-8"
+            )
+
+    def test_backfill_reads_the_files_and_buys_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from targum import catalogue
+
+        # No network at all: the suite refuses any connection, so a backfill that tried to
+        # buy a translation would fail here rather than spend.
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        rendering = catalogue.Rendering(
+            name="JPS", source="sefaria:en:Genesis", licence="CC BY-NC 4.0"
+        )
+        entry = type("Entry", (), {"translations": [rendering]})()
+        monkeypatch.setattr(catalogue, "matching", lambda _source: entry)
+        out = tmp_path / "out"
+        self._folder(
+            out / "shared" / "genesis",
+            "sefaria:Genesis",
+            ("claude.natural.en", _rendering()),
+            ("aligned.jps.en", _rendering(kind="aligned", name="JPS")),
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.backfill_texts(book, out) == (1, 0)
+        assert ledger.backfill_translations(book, out) == (2, 0)
+        assert ledger.backfill_translations(book, out) == (2, 0), "again: the same rows"
+        with sqlite3.connect(book.file) as db:
+            rows = db.execute(
+                "SELECT cache_key, licence, exportable, research FROM translations ORDER BY id"
+            ).fetchall()
+            assert db.execute("SELECT COUNT(*) FROM translations").fetchone()[0] == 2
+            source = db.execute("SELECT source FROM pairs WHERE segment_id = 's0'").fetchone()
+        assert rows == [
+            ("doc123:aligned.jps.en", "CC BY-NC 4.0", 0, 1),
+            ("doc123:claude.natural.en", "Public Domain", 0, 1),
+        ]
+        assert source == ("שלום.",)
+
+    def test_a_published_rendering_the_catalogue_does_not_know_exports_nowhere(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from targum import catalogue
+
+        monkeypatch.setattr(catalogue, "matching", lambda _source: None)
+        folder = tmp_path / "out" / "shared" / "x"
+        self._folder(folder, "https://x.example/a", ("aligned.x.en", _rendering(kind="aligned")))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.record_translations(book, folder) == (1, 0)
+        with sqlite3.connect(book.file) as db:
+            assert db.execute("SELECT licence FROM translations").fetchone() == ("",)
+
+    def test_a_build_records_its_renderings(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        _build(source, tmp_path / "out" / "shared" / "text-he", fake_segmenter, Named("fake/1"))
+        folder = tmp_path / "out" / "shared" / "text-he"
+        stems = sorted(one.stem for one in (folder / "translations").glob("*.json"))
+        assert stems, "the build wrote a translation"
+        document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        for stem in stems:
+            on_disk = json.loads((folder / "translations" / f"{stem}.json").read_text("utf-8"))
+            held = book.get("translations", f"{document['content_hash']}:{stem}")
+            assert held == on_disk
+        assert set(_bits(book.file, "translations")) == {(0, 1)}, "machine: research only"
+
+    def test_the_command_records_the_library(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from typer.testing import CliRunner
+
+        from targum.cli import app
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        self._folder(
+            tmp_path / "out" / "p2" / "x", "upload.pdf", ("claude.natural.en", _rendering())
+        )
+        ledger.Ledger(tmp_path / "corpus.db").record_text(
+            ledger.Text("doc123", "upload.pdf", "", frozenset({"p2"}))
+        )
+        result = CliRunner().invoke(
+            app, ["cache", "ledger-translations", "--out", str(tmp_path / "out")]
+        )
+        assert result.exit_code == 0, result.output
+        assert "Recorded 1 translations" in result.output
+        result = CliRunner().invoke(app, ["cache", "ledger-translations"], env={ledger.ENV: ""})
+        assert result.exit_code != 0 and "ledger is off" in result.output
+
+    def test_a_chapter_bought_later_is_recorded(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        """The server's Translate buys a chapter through `Build.translate(only=…)`, after
+        the build's own pass; that path records the rendering too."""
+        from targum.models import Document, SegmentedDocument, read_artifact
+        from targum.pipeline import Build
+
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        folder = tmp_path / "out" / "shared" / "text-he"
+        _build(source, folder, fake_segmenter, Named("fake/1"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        segmented = read_artifact(SegmentedDocument, folder / "segments.json")
+        document = read_artifact(Document, folder / "document.json")
+        assert segmented is not None and document is not None
+        builder = Build(str(source), provider_name="null", out=folder, target_language="en")
+        builder.out_dir(document)
+        builder.translate(segmented, only=segmented.segments[:1])
+        with sqlite3.connect(tmp_path / "corpus.db") as db:
+            assert db.execute("SELECT COUNT(*) FROM translations").fetchone()[0] >= 1
+
+    def test_a_reader_s_copy_of_a_shelf_text_does_not_overwrite_the_shelf_s(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #945: the shelf's copy and a reader's partial copy share a key.
+        While the text is public only the public folder records; a private text still
+        records from its home."""
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        whole = _rendering()
+        part = _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})
+        out = tmp_path / "out"
+        self._folder(out / "shared" / "x", "gutenberg:1", ("claude.natural.en", whole))
+        self._folder(out / "p3" / "x", "gutenberg:1", ("claude.natural.en", part))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        ledger.backfill_texts(book, out)
+        ledger.backfill_translations(book, out)
+        ledger.backfill_translations(book, out)
+        assert book.get("translations", "doc123:claude.natural.en") == whole
+        assert len(book.history("translations", "doc123:claude.natural.en")) == 1
+
+        alone = tmp_path / "alone"
+        self._folder(alone / "p3" / "x", "upload.pdf", ("claude.natural.en", part))
+        other = ledger.Ledger(tmp_path / "other.db")
+        ledger.backfill_texts(other, alone)
+        assert ledger.backfill_translations(other, alone) == (1, 0)
+        assert other.get("translations", "doc123:claude.natural.en") == part
+
+    def test_the_glossary_beside_the_renderings_is_not_one(self, tmp_path: Path) -> None:
+        folder = tmp_path / "out" / "shared" / "x"
+        self._folder(folder, "https://x.example/a", ("claude.natural.en", _rendering()))
+        (folder / "translations" / "words.en.json").write_text("{}", encoding="utf-8")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.record_translations(book, folder) == (1, 0), "not refused, skipped"
