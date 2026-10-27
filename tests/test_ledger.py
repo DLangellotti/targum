@@ -1534,3 +1534,111 @@ class TestAnyDepth:
         ).run()
         held = ledger.Ledger(tmp_path / "corpus.db").text(document["content_hash"])
         assert held is not None and held.homes == {"local"}, "the --out root decides"
+
+
+class TestCommandLineBuildsNameTheirLibrary:
+    """qa-claude on #949: `targum build` and the weekly passed no library root, so the
+    ledger failed closed on their paths — a text under `demos/olim/shelf/p1/` or in a
+    library that sits below a folder named `local` was recorded private, and the export
+    shrank. They pass `./targum-out` and the weekly's library now, as the seed does."""
+
+    def test_the_library_of_a_command_line_build(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from targum.cli import _library_root
+
+        monkeypatch.chdir(tmp_path)
+        library = tmp_path / "targum-out"
+        assert _library_root(None) == library, "no --out lands in ./targum-out"
+        assert _library_root(library / "demos" / "olim" / "shelf" / "p1" / "x") == library
+        assert _library_root(tmp_path / "elsewhere" / "x") is None, "unknown: fail closed"
+
+    def test_a_build_given_its_library_uses_the_fill_s_rule(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        from targum.pipeline import Build
+
+        monkeypatch.setattr(ledger, "_LIBRARY", None)
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        library = tmp_path / "local" / "targum-out"
+        for folder, given, homes in (
+            (library / "demos" / "olim" / "shelf" / "p1" / "x", library, frozenset()),
+            (library / "library" / "ruth", library, frozenset()),
+            (library / "library" / "ruth", None, {"local"}),  # no library: fails closed
+        ):
+            (tmp_path / "corpus.db").unlink(missing_ok=True)
+            Build(
+                str(source),
+                provider_name="null",
+                out=folder,
+                library=given,
+                segmenter=fake_segmenter,  # type: ignore[arg-type]
+                target_language="en",
+                vocalizer=Named("fake/1"),
+            ).run()
+            hash_ = json.loads((folder / "document.json").read_text("utf-8"))["content_hash"]
+            held = ledger.Ledger(tmp_path / "corpus.db").text(hash_)
+            assert held is not None and held.homes == homes, (folder, given)
+
+    def test_targum_build_passes_its_library(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, source: Path
+    ) -> None:
+        from typer.testing import CliRunner
+
+        from targum import cli
+
+        seen: dict[str, Any] = {}
+
+        class Stop(Exception):
+            pass
+
+        def capture(*args: Any, **kwargs: Any) -> None:
+            seen.update(kwargs)
+            raise Stop
+
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(cli, "Build", capture)
+        out = tmp_path / "targum-out" / "demos" / "olim" / "shelf" / "p1" / "x"
+        CliRunner().invoke(cli.app, ["build", str(source), "--out", str(out)])
+        assert seen.get("library") == tmp_path / "targum-out"
+
+    def test_the_weekly_passes_its_library(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        from types import SimpleNamespace
+
+        from typer.testing import CliRunner
+
+        from targum import pipeline
+        from targum.cli import app
+        from targum.weekly import index as weekly_index
+        from targum.weekly.models import Level
+
+        seen: dict[str, Any] = {}
+
+        class Stop(Exception):
+            pass
+
+        def capture(*args: Any, **kwargs: Any) -> None:
+            seen.update(kwargs)
+            raise Stop
+
+        level = next(iter(Level))
+        # `--out` sets this for the process; set here first so the test puts it back.
+        monkeypatch.setenv("TARGUM_WEEKLY_DIR", str(tmp_path / "targum-out" / "weekly"))
+        monkeypatch.setattr(pipeline, "Build", capture)
+        monkeypatch.setattr(
+            weekly_index,
+            "by_week",
+            lambda _week: SimpleNamespace(editions=[SimpleNamespace(level=level)]),
+        )
+        result = CliRunner().invoke(
+            app, ["weekly", "build", "2026-w35", "--out", str(tmp_path / "targum-out")]
+        )
+        assert isinstance(result.exception, Stop), result.output
+        assert seen.get("library") == tmp_path / "targum-out"

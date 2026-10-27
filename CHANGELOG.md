@@ -376,6 +376,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   root the server registers or the build's `--out` root. With no root known it treats
   any `p<id>` or `local` folder on the path as private, and a `document.json` linked from outside the library is not read. On the laptop library the fill went
   from 343 texts to 943, and the commercial export from 269 texts to 552.
+- `targum build` and `targum weekly build` now tell the corpus ledger which library they
+  write into (targum-internal#162), as `targum seed` already did: `./targum-out`, or the
+  weekly's library. So the ledger applies the fill's rule to them. A text under
+  `demos/olim/shelf/p1/`, or in a library that sits below a folder named `local`, is no
+  longer recorded as private by the fail-closed fallback, and the export does not
+  shrink. A command-line build into a folder outside `./targum-out` still fails closed.
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
   string, whether it is a reader's private import, and two export bits computed from David's 2026-10-08 rule

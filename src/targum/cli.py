@@ -880,6 +880,20 @@ def backup(
         raise
 
 
+def _library_root(out: Path | None) -> Path | None:
+    """The library a command-line build writes into, for the corpus ledger: `./targum-out`,
+    where the build lands without `--out` and where a folder named with it usually sits.
+    None for a folder anywhere else, and the ledger then fails closed on its path."""
+    library = Path.cwd() / "targum-out"
+    if out is None:
+        return library
+    try:
+        out.resolve().relative_to(library.resolve())
+    except (ValueError, OSError):
+        return None
+    return library
+
+
 def _backup_alarm(message: str, detail: str) -> None:
     """Mail the operator about a failed night. Never the reason the run fails: a mail
     that cannot go is said in the journal beside the failure it was about."""
@@ -2802,6 +2816,7 @@ def build(
             provider_name=provider or settings.provider,
             model=model or (known.model if known else "") or settings.model,
             out=out or (Path(settings.out) if settings.out else None),
+            library=_library_root(out or (Path(settings.out) if settings.out else None)),
             force=force,
             batch_size=settings.batch_size,
             effort=settings.effort,
@@ -3984,6 +3999,8 @@ def weekly_build(
             target_language=language,
             source_language="he",
             out=root / folder(week, level, language),
+            # The weekly's folder sits in the library, which is what decides it is public.
+            library=root.parent,
             model=HOSTED_MODEL,
             gloss=True,
             siblings=siblings,
