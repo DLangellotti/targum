@@ -1054,12 +1054,30 @@ def _backup_ledger(given: Path | None, into: Path) -> Path | None:
     from . import ledger as ledger_module
     from .backup import check_ledger, snapshot
 
-    where = given or ledger_module.path()
+    configured = ledger_module.path()
+    where = given or configured
     if where is None:
         console.print("[dim]Corpus ledger: off, nothing to copy.[/dim]")
         return None
+    # The unit names the file and the service is pointed at one by TARGUM_LEDGER. If they
+    # part, the night copies a file nothing writes, and says nothing (qa-claude on #947).
+    if configured is not None and given is not None and given.resolve() != configured.resolve():
+        _backup_alarm(
+            "The backup and the service name different corpus ledgers.",
+            f"--ledger is {given}; TARGUM_LEDGER is {configured}. "
+            "Point the unit at the file the service writes.",
+        )
+        console.print(f"[yellow]--ledger is {given} but TARGUM_LEDGER is {configured}.[/yellow]")
     if not where.is_file():
-        console.print(f"[dim]Corpus ledger: no file at {where} yet.[/dim]")
+        if configured is not None:
+            # Switched on and nothing there: the service writes a ledger this cannot see.
+            _backup_alarm(
+                "The corpus ledger is switched on and there is no file to copy.",
+                f"Nothing at {where}; TARGUM_LEDGER is {configured}.",
+            )
+            console.print(f"[yellow]Corpus ledger: no file at {where}.[/yellow]")
+        else:
+            console.print(f"[dim]Corpus ledger: no file at {where} yet.[/dim]")
         return None
     try:
         made = snapshot(where, into, prefix="corpus")

@@ -526,4 +526,19 @@ def restore(backup: Path, store: Path, *, ledger: bool = False) -> Path:
     for suffix in ("-wal", "-shm"):
         store.with_name(store.name + suffix).unlink(missing_ok=True)
     shutil.copy2(backup, store)
+    _owned_like_its_folder(store)
     return aside
+
+
+def _owned_like_its_folder(path: Path) -> None:
+    """Run as root, give a restored file to whoever owns its folder.
+
+    On the box that is `targum`, and the service runs as it: a root-owned `targum.db` or
+    `corpus.db` would make every write fail, and the ledger's fail silently (qa-claude on
+    #947). As anyone else this does nothing, because the file is already theirs.
+    """
+    if not hasattr(os, "geteuid") or os.geteuid() != 0:
+        return
+    folder = path.parent.stat()
+    if folder.st_uid != 0:
+        os.chown(path, folder.st_uid, folder.st_gid)

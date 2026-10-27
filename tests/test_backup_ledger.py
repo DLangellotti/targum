@@ -257,3 +257,63 @@ def test_the_drill_decrypts_and_counts_the_ledger() -> None:
     assert "corpus-*.db.gz.age" in drill
     assert "PRAGMA integrity_check" in drill.split("corpus-*.db.gz.age", 1)[1]
     assert "SELECT value FROM meta WHERE key = 'schema'" in drill
+
+
+def test_a_unit_and_a_service_naming_different_ledgers_mails(
+    box: dict[str, Any], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """qa-claude on #947: the unit names its file, the service is pointed by
+    TARGUM_LEDGER. If they part, the night must not copy nothing and say nothing."""
+    _ledger(box["ledger"], 1)
+    elsewhere = tmp_path / "moved" / "corpus.db"
+    monkeypatch.setenv(ledger.ENV, str(elsewhere))
+    result = CliRunner().invoke(app, [*box["args"], "--ledger", str(box["ledger"])])
+    assert result.exit_code == 0, result.output
+    assert box["mailed"], "the operator is told"
+    assert "different corpus ledgers" in box["mailed"][0][1]
+
+
+def test_a_ledger_switched_on_with_no_file_mails(
+    box: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(ledger.ENV, str(box["ledger"]))
+    result = CliRunner().invoke(app, [*box["args"], "--ledger", str(box["ledger"])])
+    assert result.exit_code == 0, result.output
+    assert box["mailed"] and "no file to copy" in box["mailed"][0][1]
+    assert len(list(box["out"].glob("targum-*.db"))) == 1, "the database copy still stands"
+
+
+def test_restored_as_root_the_file_goes_to_the_folder_s_owner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    live = tmp_path / "corpus.db"
+    _ledger(live, 1)
+    taken = snapshot(live, tmp_path / "backups", prefix="corpus")
+    chowned: list[tuple[Path, int, int]] = []
+    monkeypatch.setattr(backup.os, "geteuid", lambda: 0)
+    monkeypatch.setattr(backup.os, "chown", lambda p, u, g: chowned.append((Path(p), u, g)))
+    restore(taken, live, ledger=True)
+    folder = tmp_path.stat()
+    if folder.st_uid != 0:
+        assert chowned == [(live, folder.st_uid, folder.st_gid)]
+
+
+def test_restoring_as_anyone_else_changes_no_owner(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    live = tmp_path / "corpus.db"
+    _ledger(live, 1)
+    taken = snapshot(live, tmp_path / "backups", prefix="corpus")
+    monkeypatch.setattr(backup.os, "geteuid", lambda: 501)
+
+    def refuse(*args: Any) -> None:
+        raise AssertionError("chown as a non-root user")
+
+    monkeypatch.setattr(backup.os, "chown", refuse)
+    restore(taken, live, ledger=True)
+
+
+def test_the_restore_line_runs_as_targum() -> None:
+    page = (DEPLOY / "RESTORE.md").read_text(encoding="utf-8")
+    line = next(one for one in page.splitlines() if "restore corpus-" in one and "targum" in one)
+    assert "sudo -u targum" in line or "runuser -u targum" in line
