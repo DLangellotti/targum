@@ -362,6 +362,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The back office flags sign-ups that might be fake (David, 2026-10-27;
+  targum-internal#544). Eight flags, each a plain reason under the address, all read from
+  what the store already holds: never confirmed after 2 days, confirmed within 10
+  seconds, the same inbox as another address, a throwaway domain (a CC0 list of about
+  9,960 domains vendored in `src/targum/disposable.txt`, never fetched), one of 5 or more
+  sign-ups within 10 minutes, let in and never signed in, signed in and nothing done, and
+  mostly digits before the @. Accounts and the waitlist take a "Possibly fake (2+)"
+  filter and a Most flags order. A flagged row still waiting has a Turn off press, which
+  sets it off without deleting it or writing to anybody and can be undone from the same
+  row (schema 49: `waiting.turned_off`, `waiting.was`). An address turned off that asks
+  again is sent nothing.
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars

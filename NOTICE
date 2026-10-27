@@ -27,3 +27,13 @@ notice claims nothing over it. It is recorded here because knowing where a file 
 and on what terms is worth more than the paperwork it saves.
 
 Rebuilt by `scripts/hebrew_paradigms.py`, which names the dump it read.
+
+`src/targum/disposable.txt` — about 9,960 throwaway e-mail domains, which the back
+office reads to flag a sign-up from one (targum-internal#544). Vendored from
+<https://github.com/disposable-email-domains/disposable-email-domains>,
+`disposable_email_blocklist.conf` at commit fa960072882ed3e629ffdc064d2ccb9d5b461c2f
+(2026-10-27), and never fetched at runtime.
+
+That list is dedicated to the public domain under CC0 1.0 Universal:
+<https://creativecommons.org/publicdomain/zero/1.0/>. No attribution is required; it is
+recorded here for the reason the paradigms are.

@@ -52,9 +52,12 @@ import contextlib
 import json
 import os
 import sqlite3
+from bisect import bisect_left, bisect_right
+from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
+from functools import cache
 from pathlib import Path
 
 #: How much of the past the day table shows. A month is what fits on a page without
@@ -97,9 +100,36 @@ ACCOUNT_SORTS = {
     "texts": "Most texts",
     "days": "Most days",
     "credits": "Most credits",
+    "flags": "Most flags",
 }
 #: How the waitlist may be ordered. Oldest first is the order the door lets people in.
-WAITING_SORTS = {"oldest": "Oldest first", "newest": "Newest first"}
+WAITING_SORTS = {"oldest": "Oldest first", "newest": "Newest first", "flags": "Most flags"}
+
+#: What might make a sign-up fake, each said as a plain reason (targum-internal#544).
+#: Read only from what the store already holds — David, 2026-10-27: no address or
+#: browser is stored for this, and the privacy notice does not change. A flag is a
+#: reason to look, never a verdict: each has an innocent reading on its own.
+FLAGS = {
+    "unconfirmed": "Never confirmed their email",
+    "instant": "Confirmed within 10 seconds of asking",
+    "same_inbox": "Same inbox as another address",
+    "throwaway": "Throwaway email domain",
+    "burst": "One of 5 or more sign-ups within 10 minutes",
+    "unused": "Let in, never signed in",
+    "idle": "Signed in, nothing done",
+    "digits": "Mostly digits before the @",
+}
+#: David's thresholds, 2026-10-27: 10 seconds, 5 in 10 minutes, 2 days.
+CONFIRMED_TOO_FAST_MS = 10_000
+BURST = 5
+BURST_WITHIN_MS = 10 * 60 * 1000
+FLAG_AFTER_DAYS = 2
+#: How many flags make an address "Possibly fake" for the filter.
+FAKE_AT = 2
+
+#: The throwaway domains, vendored from a CC0 list (see the file's head and NOTICE).
+#: Read once, from the package: nothing is fetched at runtime.
+DISPOSABLE = Path(__file__).with_name("disposable.txt")
 
 
 def bare(email: str) -> str:
@@ -161,6 +191,8 @@ class Account:
     used: float = 0.0
     allowance: float | None = None
     spent: float = 0.0
+    #: What might make this sign-up fake, as reasons (targum-internal#544).
+    flags: list[str] = field(default_factory=list)
 
 
 def credits(seconds: float | None) -> str:
@@ -262,6 +294,10 @@ class Waiting:
     page: str = ""
     #: The link they tried on the front page and joined with (targum-internal#399).
     link: str = ""
+    #: What might make this sign-up fake, as reasons, and whether the operator turned it
+    #: off from here (targum-internal#544).
+    flags: list[str] = field(default_factory=list)
+    turned_off: bool = False
 
 
 @dataclass
@@ -327,6 +363,8 @@ class Listing:
     #: How many rows match the search, filled in by `survey`.
     matches: int = 0
     per: int = PER_PAGE
+    #: Only those with `FAKE_AT` flags or more: "Possibly fake (2+)".
+    fake: bool = False
 
     @classmethod
     def read(
@@ -336,6 +374,7 @@ class Listing:
         order: str,
         page: str,
         sorts: Mapping[str, str],
+        fake: str = "",
     ) -> Listing:
         """A listing from a parsed query string, anything unknown taken as the default:
         an address is typed by hand as often as clicked."""
@@ -349,7 +388,7 @@ class Listing:
             number = max(1, int(first(page) or 1))
         except ValueError:
             number = 1
-        return cls(q=said, sort=sort, page=number)
+        return cls(q=said, sort=sort, page=number, fake=bool(fake and first(fake)))
 
     def pages(self) -> int:
         return max(1, -(-self.matches // self.per))
@@ -385,6 +424,8 @@ class Survey:
     active_count: int = 0
     #: How many Follow up would name, of whom `follow_up` holds the oldest.
     follow_up_total: int = 0
+    #: Addresses with `FAKE_AT` flags or more, across the waitlist and accounts.
+    possibly_fake: int = 0
     days: list[Day] = field(default_factory=list)
     taken: str = ""
     #: How many are waiting at the front door, by state (targum-internal#69), and who.
@@ -463,7 +504,11 @@ ACCOUNT_ORDERS = {
     # The month's credits: the sum `Store.hours_used` reads (targum-internal#543).
     "credits": "(SELECT IFNULL(SUM(length), 0) FROM job j"
     " WHERE j.owner = p.id AND j.length > 0 AND j.made >= :month) DESC, p.id DESC",
+    "flags": "{score} DESC, p.made DESC, p.id DESC",
 }
+
+#: An address's count of flags, from the table `_flag` fills for this request.
+SCORE = "IFNULL((SELECT score FROM temp.bo_flags f WHERE f.address = lower({column})), 0)"
 
 DAY_MS = 24 * 60 * 60 * 1000
 
@@ -675,6 +720,118 @@ def _has_table(db: sqlite3.Connection, name: str) -> bool:
     )
 
 
+@cache
+def _disposable() -> frozenset[str]:
+    """The vendored throwaway domains, one a line, `#` lines being its head."""
+    lines = DISPOSABLE.read_text(encoding="utf-8").splitlines()
+    return frozenset(
+        line.strip().lower() for line in lines if line.strip() and not line.startswith("#")
+    )
+
+
+def throwaway(email: str) -> bool:
+    """Whether an address is at a throwaway domain, or under one: `x.mailinator.com` is
+    as much one as `mailinator.com`."""
+    domain = email.strip().lower().rpartition("@")[2]
+    known = _disposable()
+    labels = domain.split(".")
+    return any(".".join(labels[n:]) in known for n in range(len(labels) - 1))
+
+
+def mostly_digits(email: str) -> bool:
+    """Whether more than half of what is before the @ is digits, four characters or more:
+    `48213377@` is, `anna1990@` is not."""
+    local = bare(email).partition("@")[0]
+    return len(local) >= 4 and 2 * sum(ch.isdigit() for ch in local) > len(local)
+
+
+def _ids(db: sqlite3.Connection, sql: str) -> set[int]:
+    with contextlib.suppress(sqlite3.Error):
+        return {int(row[0]) for row in db.execute(sql) if row[0] is not None}
+    return set()
+
+
+def _flag(db: sqlite3.Connection, at: int, mine: frozenset[str]) -> dict[str, list[str]]:
+    """What might make each address fake, by its address in lower case: the keys of
+    `FLAGS` that hold, in their order. Every address on the waitlist or with an account
+    is asked, one row each, and the counts go into `temp.bo_flags` for the lists to
+    filter and order by — a table of this connection's own, which a read-only
+    connection may still write.
+
+    `at` is the moment "two days ago" is counted back from.
+    """
+    old = at - FLAG_AFTER_DAYS * DAY_MS
+    waiting: dict[str, sqlite3.Row] = {}
+    if _has_table(db, "waiting"):
+        for row in db.execute("SELECT email, state, asked, joined, invited FROM waiting"):
+            if bare(str(row["email"])) not in mine:
+                waiting[str(row["email"]).strip().lower()] = row
+    people: dict[str, sqlite3.Row] = {
+        str(row["email"]).strip().lower(): row
+        for row in db.execute("SELECT id, email, made FROM person")
+        if bare(str(row["email"])) not in mine
+    }
+    let_in: dict[str, int] = {}
+    if _has_table(db, "invited"):
+        let_in = {
+            str(row[0]): int(row[1] or 0)
+            for row in db.execute("SELECT lower(email), MAX(at) FROM invited GROUP BY 1")
+        }
+    # Signed in: a session, or a sign-in link that was used. Did something: anything of
+    # their own kept, opened, read or asked for.
+    signed = _ids(db, "SELECT DISTINCT person FROM session") | _ids(
+        db, "SELECT DISTINCT person FROM link WHERE used IS NOT NULL AND purpose = 'sign-in'"
+    )
+    did = (
+        _ids(db, "SELECT DISTINCT person FROM word")
+        | _ids(db, "SELECT DISTINCT person FROM doc WHERE opened > 0")
+        | _ids(db, "SELECT DISTINCT person FROM day")
+        | _ids(db, "SELECT DISTINCT owner FROM job")
+    )
+    addresses = set(waiting) | set(people)
+    inboxes = Counter(bare(each) for each in addresses)
+    asked = sorted(int(row["asked"]) for row in waiting.values())
+
+    found: dict[str, list[str]] = {}
+    for email in addresses:
+        row, person = waiting.get(email), people.get(email)
+        held: set[str] = set()
+        if row is not None:
+            asked_at, joined = int(row["asked"]), int(row["joined"] or 0)
+            if row["state"] == "pending" and not joined and asked_at <= old:
+                held.add("unconfirmed")
+            if joined and 0 <= joined - asked_at < CONFIRMED_TOO_FAST_MS:
+                held.add("instant")
+            near = bisect_right(asked, asked_at + BURST_WITHIN_MS) - bisect_left(
+                asked, asked_at - BURST_WITHIN_MS
+            )
+            if near >= BURST:
+                held.add("burst")
+        if inboxes[bare(email)] > 1:
+            held.add("same_inbox")
+        if throwaway(email):
+            held.add("throwaway")
+        if mostly_digits(email):
+            held.add("digits")
+        let_at = let_in.get(email) or (int(row["invited"] or 0) if row is not None else 0)
+        who = int(person["id"]) if person is not None else None
+        active = who is not None and (who in signed or who in did)
+        if let_at and let_at <= old and not active:
+            held.add("unused")
+        if person is not None and who in signed and who not in did and int(person["made"]) <= old:
+            held.add("idle")
+        if held:
+            found[email] = [key for key in FLAGS if key in held]
+
+    db.execute("DROP TABLE IF EXISTS temp.bo_flags")
+    db.execute("CREATE TEMP TABLE bo_flags (address TEXT PRIMARY KEY, score INTEGER NOT NULL)")
+    db.executemany(
+        "INSERT INTO temp.bo_flags (address, score) VALUES (?, ?)",
+        [(email, len(keys)) for email, keys in found.items()],
+    )
+    return found
+
+
 def survey(
     db: sqlite3.Connection,
     today: date | None = None,
@@ -714,6 +871,12 @@ def survey(
     mine = frozenset(bare(each) for each in operators)
     named: dict[str, object] = {"mine": json.dumps(sorted(mine)), "month": month_from(now)}
 
+    # What might make each sign-up fake, worked out once for every address and kept in a
+    # table of this connection's own, so the lists can filter and order by it.
+    stamp = int(datetime.now(UTC).timestamp() * 1000) if today is None else until - 1
+    reasons = _flag(db, stamp, mine)
+    found.possibly_fake = sum(1 for each in reasons.values() if len(each) >= FAKE_AT)
+
     _waitlist(
         db,
         found,
@@ -724,6 +887,10 @@ def survey(
     )
     ids = _accounts(db, found, named, accounts or Listing(sort="joined"))
     _credits(db, found, named, allowance, plan_allowance)
+    for who in found.accounts:
+        who.flags = [FLAGS[key] for key in reasons.get(who.email.strip().lower(), [])]
+    for row in found.waiting_list:
+        row.flags = [FLAGS[key] for key in reasons.get(row.email.strip().lower(), [])]
 
     # The last thirty days, for the accounts on the page only.
     by_day = {when: Day(day=when) for when in window}
@@ -847,18 +1014,29 @@ def _waitlist(
             if listing.q:
                 clause += " AND fold(email) LIKE :like ESCAPE '\\'"
                 args["like"] = _like(listing.q)
+            score = SCORE.format(column="waiting.email")
+            if listing.fake:
+                clause += f" AND {score} >= {FAKE_AT}"
             listing.matches = _one(db, f"SELECT COUNT(*) FROM waiting {clause}", args)  # noqa: S608
             listing.page = min(listing.page, listing.pages())
             # Oldest first is the order they would be let in.
-            order = "asked, rowid" if listing.sort == "oldest" else "asked DESC, rowid DESC"
+            order = {
+                "oldest": "asked, rowid",
+                "newest": "asked DESC, rowid DESC",
+                "flags": f"{score} DESC, asked, rowid",
+            }.get(listing.sort, "asked, rowid")
             rows += db.execute(
-                f"SELECT rowid AS row_, * FROM waiting {clause}"  # noqa: S608
+                f"SELECT rowid AS row_, {score} AS score_, * FROM waiting {clause}"  # noqa: S608
                 f" ORDER BY {order} LIMIT :per OFFSET :skip",
                 {**args, "per": listing.per, "skip": listing.offset()},
             ).fetchall()
-        rows.sort(
-            key=lambda row: (int(row["asked"]), int(row["row_"])), reverse=still.sort != "oldest"
-        )
+        if still.sort == "flags":
+            rows.sort(key=lambda row: (-int(row["score_"]), int(row["asked"]), int(row["row_"])))
+        else:
+            rows.sort(
+                key=lambda row: (int(row["asked"]), int(row["row_"])),
+                reverse=still.sort == "newest",
+            )
         found.waiting_list = [
             Waiting(
                 email=str(row["email"]),
@@ -869,6 +1047,7 @@ def _waitlist(
                 language=_spoken(row),
                 page=_page(row),
                 link=_page(row, "link"),
+                turned_off=bool(_page(row, "turned_off") not in ("", "0")),
             )
             for row in rows
         ]
@@ -899,9 +1078,12 @@ def _accounts(
             " AND (fold(p.email) LIKE :like ESCAPE '\\' OR fold(p.name) LIKE :like ESCAPE '\\')"
         )
         args["like"] = _like(listing.q)
+    score = SCORE.format(column="p.email")
+    if listing.fake:
+        clause += f" AND {score} >= {FAKE_AT}"
     listing.matches = _one(db, f"SELECT COUNT(*) FROM person p WHERE {clause}", args)  # noqa: S608
     listing.page = min(listing.page, listing.pages())
-    order = ACCOUNT_ORDERS.get(listing.sort, ACCOUNT_ORDERS["joined"])
+    order = ACCOUNT_ORDERS.get(listing.sort, ACCOUNT_ORDERS["joined"]).replace("{score}", score)
     people = db.execute(
         f"SELECT p.id, p.email, p.name, p.made, p.leaving FROM person p WHERE {clause}"  # noqa: S608
         f" ORDER BY {order} LIMIT :per OFFSET :skip",
