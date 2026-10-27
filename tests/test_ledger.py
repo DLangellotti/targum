@@ -1379,9 +1379,10 @@ class TestAnyDepth:
             "d": (out / "p3" / "a" / "b" / "c" / "d" / "x", {"p3"}),
             "e": (out / "demos" / "olim" / "shelf" / "p1" / "x", set()),
         }
+        monkeypatch.setattr(ledger, "_LIBRARY", None)
         for name, (folder, _homes) in cases.items():
             self._built(folder, name * 64, f"source-{name}")
-            ledger.mirror_text(folder)
+            ledger.mirror_text(folder, out)
         book = ledger.Ledger(tmp_path / "corpus.db")
         for name, (_folder, homes) in cases.items():
             assert book.text(name * 64).homes == homes, name  # type: ignore[union-attr]
@@ -1481,3 +1482,55 @@ class TestAnyDepth:
             0,
             0,
         )
+
+    def test_with_no_root_known_a_home_anywhere_on_the_path_is_private(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Fail closed (qa-claude on #949): nothing is guessed up the tree."""
+        monkeypatch.setattr(ledger, "_LIBRARY", None)
+        assert ledger.home_of(tmp_path / "out" / "p3" / "x") == "p3"
+        assert ledger.home_of(tmp_path / "out" / "p3" / "local" / "x") == "p3"
+        assert ledger.home_of(tmp_path / "out" / "local" / "videos" / "x") == "local"
+        assert ledger.home_of(tmp_path / "out" / "demos" / "shelf" / "p1" / "x") == "p1"
+        assert ledger.home_of(tmp_path / "out" / "library" / "ruth") is None
+        assert ledger.home_of(tmp_path / "out" / "P3" / "x") is None, "names compared exactly"
+
+    def test_a_shared_folder_above_the_library_does_not_make_a_home_public(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+    ) -> None:
+        """qa-claude's blocker on #949: on macOS `/Users/Shared` answers to "shared", and a
+        root guessed up the tree read every laptop home as public. A command-line build
+        into `targum-out/p3/x` is p3's, with or without `--out`."""
+        monkeypatch.setattr(ledger, "_LIBRARY", None)
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        users = tmp_path / "Users"
+        (users / "Shared").mkdir(parents=True)
+        (users / "weekly").mkdir()
+        library = users / "david" / "targum-out"
+        _build(source, library / "p3" / "text-he", fake_segmenter, Named("fake/1"))
+        document = json.loads(
+            (library / "p3" / "text-he" / "document.json").read_text(encoding="utf-8")
+        )
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        held = book.text(document["content_hash"])
+        assert held is not None and held.homes == {"p3"}
+
+        from targum.pipeline import Build
+
+        (tmp_path / "corpus.db").unlink()
+        Build(
+            str(source),
+            provider_name="null",
+            out=library / "local" / "videos" / "clip",
+            out_root=library,
+            segmenter=fake_segmenter,  # type: ignore[arg-type]
+            target_language="en",
+            vocalizer=Named("fake/1"),
+        ).run()
+        held = ledger.Ledger(tmp_path / "corpus.db").text(document["content_hash"])
+        assert held is not None and held.homes == {"local"}, "the --out root decides"

@@ -113,8 +113,10 @@ among the folders that may speak for the text (public folders for a public text,
 for a private one). Outside a fill a newer write replaces the row whatever its size. The
 top folder under the library root decides private or public: `p3/local/<x>` is p3's,
 `local/videos/<x>` local's, `demos/olim/shelf/p1/<x>` public. A build asks the same
-question through `ledger.home_of`, under the root a `Library` registers or the outermost
-folder above it that keeps a `shared` or `weekly` shelf. A `document.json` that links
+question through `ledger.home_of`, under the root a `Library` registers or the build's
+own `--out` root. With no root known it fails closed: a `p<id>` or `local` folder
+anywhere on the path makes the text private. Nothing is guessed up the tree (on macOS
+`/Users/Shared` answers to "shared"). A `document.json` that links
 outside the library is not read. Only a reader's home (`p<id>`, or `local`) is private; every other folder in
 the library — the shared shelf, the weekly, the laptop's parasha and Russian shelves — is
 public, and a document any public folder holds is public. A text with no licence string gets `exportable = 0`.

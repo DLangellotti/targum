@@ -554,7 +554,7 @@ def _add_bits(db: sqlite3.Connection) -> None:
 MIRROR_TIMEOUT = 2.0
 
 
-def mirror_text(folder: Path) -> None:
+def mirror_text(folder: Path, root: Path | None = None) -> None:
     """A build's `texts` row (targum-internal#162, slice 2): called once a build has
     written `document.json` and anything beside it a licence is read from. Does nothing
     with the flag off; never raises, because the reader matters more than the ledger.
@@ -575,7 +575,7 @@ def mirror_text(folder: Path) -> None:
             ingester=str(document.get("ingester") or ""),
             schema_version=int(document.get("schema_version") or 0),
         )
-        home = home_of(folder)
+        home = home_of(folder, root)
         Ledger(file, timeout=MIRROR_TIMEOUT).hold(text, home)
     except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
         log.warning("corpus ledger: %s not recorded as a text: %s", folder.name, error)
@@ -692,27 +692,40 @@ def text_folders(root: Path) -> list[Path]:
 def home_of(folder: Path, root: Path | None = None) -> str | None:
     """The reader's home a built text's folder sits in, or None for a public one.
 
-    One rule, the fill's: the top folder under the library root decides, whatever lies
-    beneath, so `p3/local/<x>` is p3's, `local/videos/<x>` is local's and
-    `demos/olim/shelf/p1/<x>` is public (qa-claude on #949). `root` is the library; if
-    it is not given, it is the one a `Library` registered (`use_library`), else found
-    by `library_of`. A folder outside the root, or a text built straight into it, is
-    public.
+    With the library root known — the one a `Library` registered (`use_library`), else
+    the `root` a caller passes, a build's `--out` — one rule, the fill's: the top folder
+    under it decides, whatever lies beneath, so `p3/local/<x>` is p3's,
+    `local/videos/<x>` is local's and `demos/olim/shelf/p1/<x>` is public. A root that is
+    itself a home (a server build's `out_root`) is that home.
+
+    With no root known it fails closed (qa-claude on #949): any `p<id>` or `local` folder
+    anywhere on the path makes the text private — the outermost `p<id>` if there is one,
+    else `local`. Nothing is guessed up the tree: on macOS `/Users/Shared` answers to
+    "shared", and a guessed root there read every laptop home as public. Names are
+    compared exactly, case and all.
     """
-    library = root or _library_for(folder)
-    if library is None:
-        return None
-    try:
-        parts = folder.resolve().relative_to(library.resolve()).parts
-    except (ValueError, OSError):
-        return None
-    if len(parts) < 2:
-        return None
-    return parts[0] if is_home(parts[0]) else None
+    library = _registered_for(folder) or root
+    if library is not None:
+        try:
+            parts = folder.resolve().relative_to(library.resolve()).parts
+        except (ValueError, OSError):
+            library = None
+        else:
+            if is_home(library.name):
+                return library.name
+            if len(parts) < 2:
+                return None
+            return parts[0] if is_home(parts[0]) else None
+    names = [above.name for above in reversed(folder.parents)]
+    homes = [name for name in names if is_home(name)]
+    numbered = [name for name in homes if name != "local"]
+    if numbered:
+        return numbered[0]
+    return "local" if homes else None
 
 
 #: The library a running server serves, registered by `Library` so a build there knows
-#: its root without guessing. A command-line build finds it with `library_of`.
+#: its root. A command-line build passes its own `--out` root instead.
 _LIBRARY: Path | None = None
 
 
@@ -722,30 +735,14 @@ def use_library(out: Path) -> None:
     _LIBRARY = out
 
 
-def _library_for(folder: Path) -> Path | None:
-    if _LIBRARY is not None:
-        try:
-            folder.resolve().relative_to(_LIBRARY.resolve())
-        except (ValueError, OSError):
-            pass
-        else:
-            return _LIBRARY
-    return library_of(folder)
-
-
-def library_of(folder: Path) -> Path | None:
-    """The library a text's folder is in: the outermost folder above it that keeps the
-    library's own `shared` or `weekly` shelf, as every library does. None if there is
-    none, and then the text reads as public — a build somebody runs into a folder of
-    their own, with no homes in it."""
-    found: Path | None = None
-    for above in folder.parents:
-        try:
-            if (above / "shared").is_dir() or (above / "weekly").is_dir():
-                found = above
-        except OSError:
-            continue
-    return found
+def _registered_for(folder: Path) -> Path | None:
+    if _LIBRARY is None:
+        return None
+    try:
+        folder.resolve().relative_to(_LIBRARY.resolve())
+    except (ValueError, OSError):
+        return None
+    return _LIBRARY
 
 
 def documents_under(root: Path) -> set[str]:
@@ -1333,7 +1330,7 @@ def _read_translation(db: sqlite3.Connection, row_id: int) -> dict[str, Any]:
     return value
 
 
-def mirror_translations(folder: Path) -> None:
+def mirror_translations(folder: Path, root: Path | None = None) -> None:
     """A build's renderings, from its `translations/*.json` (slice 4): called once a build
     has written them, and after a chapter is bought. Reads files only; nothing is
     translated. Does nothing with the flag off; never raises."""
@@ -1341,13 +1338,13 @@ def mirror_translations(folder: Path) -> None:
     if file is None:
         return
     try:
-        record_translations(Ledger(file, timeout=MIRROR_TIMEOUT), folder)
+        record_translations(Ledger(file, timeout=MIRROR_TIMEOUT), folder, root=root)
     except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
         log.warning("corpus ledger: %s translations not recorded: %s", folder.name, error)
 
 
 def record_translations(
-    ledger: Ledger, folder: Path, *, only: set[str] | None = None
+    ledger: Ledger, folder: Path, *, only: set[str] | None = None, root: Path | None = None
 ) -> tuple[int, int]:
     """Record every rendering one built folder holds. Returns (recorded, refused).
 
@@ -1370,7 +1367,7 @@ def record_translations(
     # and add a copy to the history at every build (qa-claude on #945). While a text is
     # public, only a public folder records its renderings; a home records only a text
     # that is private, which no public folder holds.
-    if home_of(folder) is not None and not ledger.is_private(
+    if home_of(folder, root) is not None and not ledger.is_private(
         str(document.get("content_hash") or "")
     ):
         return 0, 0
@@ -1485,7 +1482,7 @@ def backfill_translations(ledger: Ledger, out: Path) -> tuple[int, int]:
         if folder not in chosen:
             continue
         try:
-            done, failed = record_translations(ledger, folder, only=chosen[folder])
+            done, failed = record_translations(ledger, folder, only=chosen[folder], root=out)
         except (OSError, ValueError) as error:
             log.warning("corpus ledger: %s not read: %s", folder.name, error)
             continue
