@@ -17,6 +17,7 @@ import re
 import shutil
 from collections import Counter
 from collections.abc import Callable, Collection, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from functools import cache, lru_cache
@@ -1431,14 +1432,20 @@ class Spoken(NamedTuple):
 SILENT = Spoken({}, {}, "")
 
 
+#: Set while `on_disk` asks: `_inlined` then names the file rather than reading it in.
+_NAMED: ContextVar[bool] = ContextVar("named", default=False)
+
+
 def _inlined(path: Path) -> str:
     """An audio file as a data URI, or "" where it is not there.
 
     In the page rather than beside it, because a reader fetches nothing — the rule that
-    decides the fonts and the icons decides this too.
+    decides the fonts and the icons decides this too. Under `on_disk`, the path instead.
     """
     if not path.exists():
         return ""
+    if _NAMED.get():
+        return str(path)
     mime = mimetypes.guess_type(path.name)[0] or "audio/mpeg"
     return f"data:{mime};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
 
@@ -1893,6 +1900,21 @@ def speech(document: Document, segments: list[Segment], folder: Path | None = No
     return _read_along(document, segments)
 
 
+def on_disk(document: Document, segments: list[Segment], folder: Path | None = None) -> Spoken:
+    """`speech`, with `audio` the file on this disk rather than a data URI.
+
+    For a page that plays one line from a recording a text already has (Dictation,
+    design.md §12, "Sentences: dictation and fill the gap", 2026-10-27): the same
+    question the reader's build asks, in the same order, so a line has a clock here
+    exactly where it has one in the reader, and nothing is read in to be thrown away.
+    """
+    named = _NAMED.set(True)
+    try:
+        return speech(document, segments, folder)
+    finally:
+        _NAMED.reset(named)
+
+
 def _this_week() -> dict[str, Any] | None:
     """The newest readable issue of the weekly, as Your Progress needs it."""
     from ..weekly import index as weekly
@@ -2102,6 +2124,7 @@ LISTS = {
     "words": "Your Words",
     "phrases": "Your Phrases",
     "grammar": "Grammar",
+    "sentences": "Sentences",
 }
 
 
@@ -2137,6 +2160,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
                 "follow.",
                 "subs.",
                 "practice.",
+                "sentences.",
             ),
         )
     )

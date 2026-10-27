@@ -895,6 +895,13 @@ def test_the_queue_waits_and_never_chases() -> None:
     # this card exists not to say, and a count is how it starts.
     assert "length +" not in card and "count" not in card.lower()
 
+    # Nor do dictation and fill the gap (§12, "Sentences: dictation and fill the gap",
+    # 2026-10-27): nothing scored, nothing kept, and an answer never leaves the page.
+    sentences = (ASSETS / "sentences.js").read_text(encoding="utf-8")
+    sentences = re.sub(r"//.*", " ", re.sub(r"/\*.*?\*/", " ", sentences, flags=re.S))
+    for owed in ("due", "schedule", "streak", "score", "%", "right +=", "post", "localstorage"):
+        assert owed not in sentences.lower(), f"the Sentences tab says {owed!r}"
+
     # The heading is an invitation with no number beside it.
     yours = (TEMPLATES / "yours.html.j2").read_text(encoding="utf-8")
     assert "Practise these" in yours

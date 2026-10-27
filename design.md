@@ -380,6 +380,49 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Sentences: dictation and fill the gap — 2026-10-27
+
+From the LingQ comparison the same day (targum-internal#534): LingQ reviews in five ways,
+and targum had Practise these and the grammar rounds and no dictation or cloze. David
+decided it starts now, before Launch. Dictation suits a reader whose recordings are
+already timed line by line.
+
+- **Sentences is the fourth tab** beside Words, Phrases and Grammar (`/sentences`), drawn
+  as Grammar is: the two practices as a list on the left, each with Start or a line saying
+  why it is not offered yet, and a line at a time in the practice card's frame beside it.
+  Five lines of each, drawn at random from the sections the reader finished ("Met" means
+  a section you finished, 2026-09-28), and five new ones on the next visit.
+- **Dictation plays one line, and the reader writes it.** Play the line plays it from its
+  clock in a recording the text already has: the reader's build asks the question
+  (`builder.on_disk` asks `speech`'s), so it is the same recording the reader plays, an
+  import's, a voice already paid for on Hear, a scene's voicing or the reading attached
+  to the source. A line with no clock is never offered, a line of 3 to 14 words and at
+  most 12 seconds is, and nothing is voiced for this page: a text with no recording has
+  no dictation. The file is handed over as a `/heard` token (2026-10-06), which opens that
+  one file for twenty minutes and names no path. Check shows "It said:" and the line with
+  the words the reader missed or wrote another way marked in teal, as the practice card
+  marks a word, then "You wrote:" with the words the line does not have struck through,
+  then the translation. Every word right is "Every word is there.", and nothing more.
+- **Fill the gap takes out one of the words being learned** (steps 1 to 3), in a line
+  drawn from the texts it was met in, with the line's translation under it. Check says
+  "Yes, {word}." or "It's {word} here." and marks the word in the line.
+- **What is forgiven in a comparison.** Words are matched in order, the longest run the
+  two share. Forgiven: the points and the chanting marks, with the maqaf, paseq and sof
+  pasuq read as the space or stop they are; a final letter written as its plain form or
+  the other way round; a vav or yod written in or left out, because full and defective
+  spelling are both Hebrew and a pointed line is usually defective (הוא and היא still
+  differ: a letter changed is not a letter written in); the stress mark and ё in
+  Russian; capitals; punctuation. Nothing else: a wrong letter is a different word, and a
+  French accent is spelling.
+- **Nothing is scored, nothing is kept and nothing is sent.** No percentage, no count of
+  words right, no schedule ("Your Words is one table and a practice card": targum keeps
+  none). The comparison is made in the browser (`sentences.js`); the server is asked for
+  lines and never told an answer, so there is no row to export or forget. "2 of 5" is
+  where the reader is in the five.
+- **A word's stage moves only where the reader presses it.** Neither practice writes a
+  stage or offers the control: the stage is pressed on Practise these or the word's card,
+  as before. A gap answered right is not a word known.
+
 ### Share > targum lands in Add — 2026-10-27
 
 From the LingQ comparison the same day (targum-internal#532): LingQ's importer is the

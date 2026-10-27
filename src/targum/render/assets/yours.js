@@ -805,14 +805,16 @@
     return Promise.resolve();
   }
 
-  // The Grammar tab draws itself (`grammar.js`) from the server: there is nothing of it in
-  // the browser's lists to draw first.
+  // The Grammar and Sentences tabs draw themselves (`grammar.js`, `sentences.js`) from the
+  // server: there is nothing of them in the browser's lists to draw first.
   var drawing =
     which === "grammar"
       ? (window.TargumGrammar && window.TargumGrammar.loaded) || Promise.resolve()
-      : which === "texts"
-        ? drawTexts()
-        : drawKept();
+      : which === "sentences"
+        ? (window.TargumSentences && window.TargumSentences.loaded) || Promise.resolve()
+        : which === "texts"
+          ? drawTexts()
+          : drawKept();
   // After the lists, and never in their way: the phrases appear first and the record of
   // corrected lines a moment later.
   drawing.then(drawRewrote).catch(function () {});
@@ -834,6 +836,7 @@
     if (which === "texts") return t("home.still-opening", "We're still opening your texts.");
     if (which === "phrases") return t("lists.still-opening.phrases", "We're still opening your phrases.");
     if (which === "grammar") return t("practice.page.still-opening", "We're still opening your practice.");
+    if (which === "sentences") return t("sentences.page.still-opening", "We're still opening your sentences.");
     return t("lists.still-opening.words", "We're still opening your words.");
   }
   var slowly = setTimeout(function () {
@@ -861,7 +864,7 @@
                 "home.offline.says",
                 "Your texts will open when you're back online. Everything you've read is still here."
               )
-            : which === "grammar"
+            : which === "grammar" || which === "sentences"
               ? t("practice.page.offline", "Your practice opens when you're back online.")
               : t("lists.offline.says", "Your list opens when you're back online. Everything you've marked is still here.");
       } else if (!(why && why.answered)) {

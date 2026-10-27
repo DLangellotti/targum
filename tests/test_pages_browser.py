@@ -3082,7 +3082,8 @@ def test_your_words_opens_from_progress_with_the_five_stages_on_every_row(
 
     assert got["back"].startswith("/progress")
     assert got["summary"] == "3 on your list · 1 known"
-    assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar"] and got["current"].startswith("Words")
+    assert got["tabs"] == ["Words 3", "Phrases 0", "Grammar", "Sentences"]
+    assert got["current"].startswith("Words")
     assert got["chips"][0] == "To work on" and "Still learning" in got["chips"]
     five = ["New", "Learning", "Almost", "Known", "ignore"]
     assert got["steps"] and all(steps == five for steps in got["steps"])

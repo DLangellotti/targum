@@ -8913,6 +8913,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
             return self._practice_page(parse_qs(urlparse(self.path).query))
+        if route == "/account/sentences":
+            return self._sentences(parse_qs(urlparse(self.path).query))
         if route == "/account/places":
             return self._places(parse_qs(urlparse(self.path).query))
         if route == "/account/due":
@@ -13610,6 +13612,52 @@ class Handler(BaseHTTPRequestHandler):
             spot=spot,
         )
         self._json({"signedIn": True, **said})
+
+    def _sentences(self, query: dict[str, list[str]]) -> None:
+        """What the Sentences tab draws for one language (targum-internal#534; design.md
+        §12, "Sentences: dictation and fill the gap", 2026-10-27): lines to write down from
+        a recording the text already has, each with a `/heard` address for its file, and
+        lines with a word still being learned taken out. Drawn afresh on every ask, off
+        builds already on this machine; nothing spends and nothing is kept."""
+        from . import heard as heard_module
+        from . import occurrences as occurrences_module
+        from . import sentences, touchstones
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        into = str((query.get("into") or ["en"])[0]).split("-")[0].strip().lower() or "en"
+        home = self.library.home(person)
+        homes = [home, self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        finished = self.store.finished(person.id)
+        roots = heard_module.roots(home, self.library.shared)
+        dictation = []
+        for line in sentences.heard_lines(finished, folder_for, language):
+            issued = heard_module.HEARD.issue(line.path, roots)
+            if issued is not None:
+                src = f"{heard_module.ROUTE}?t={issued[0]}"
+                dictation.append(sentences.dictation_item(line, into, src))
+        marked = self.store.marked(person, language)
+        learning = touchstones.learning(marked)
+        met = occurrences_module.texts_met(learning, finished, folder_for, language)
+        gaps = sentences.gap_items(
+            [lemma for lemma in learning if met.get(lemma, 0) > 0],
+            finished,
+            folder_for,
+            language,
+            into,
+        )
+        self._json({"signedIn": True, "dictation": dictation, "gaps": gaps})
 
     def _practised(self, payload: dict[str, Any]) -> None:
         """One answer, or the end of a round, on one spot: `{language, spot, key, right}`
