@@ -4473,6 +4473,38 @@ def cache_clear(
     console.print(f"[green]Cleared[/green] {removed} cached items [dim]{cache_dir()}[/dim]")
 
 
+@cache_app.command("ledger-texts")
+def cache_ledger_texts(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Record every built text, with its licence and its two export bits, in the corpus
+    ledger's `texts` table (targum-internal#162).
+
+    Reads the built folders and writes only the file `TARGUM_LEDGER` names; nothing is
+    fetched or spent and no reader changes. A text only a reader's home holds is a
+    private import and exports nowhere. Run again, it adds only what changed.
+    """
+    from . import ledger as ledger_module
+
+    file = ledger_module.path()
+    if file is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the file it should write, then run this again.",
+            )
+        )
+    root = out or Path.cwd() / "targum-out"
+    book = ledger_module.Ledger(file)
+    recorded, unchanged = ledger_module.backfill_texts(book, root)
+    console.print(
+        f"[green]Recorded[/green] {recorded} texts, {unchanged} unchanged [dim]{file}[/dim]"
+    )
+
+
 @export_app.command("pdf")
 def export_pdf(
     folder: Annotated[Path, typer.Argument(help="A built targum's folder.")],

@@ -26,8 +26,9 @@ import logging
 import os
 import re
 import sqlite3
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import closing
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -42,7 +43,7 @@ ENV = "TARGUM_LEDGER"
 
 #: The ledger's own schema, independent of `models.SCHEMA_VERSION`: the rows can change
 #: shape without the cache key moving, which is the point of having rows.
-LEDGER_SCHEMA = 2
+LEDGER_SCHEMA = 3
 
 #: The stages the ledger records, and the table each one's values head. `tokens` since
 #: 2026-10-08 (David's third answer of 2026-10-03): one annotator's pass over a text,
@@ -127,6 +128,33 @@ CREATE TABLE IF NOT EXISTS tokens (
     PRIMARY KEY (annotation_id, segment_id, ord)
 );
 CREATE INDEX IF NOT EXISTS tokens_by_lemma ON tokens (lemma);
+-- One source document, and what its licence lets the corpus do with it (schema 3,
+-- 2026-10-27). Every other table copies `exportable` from here, so this is the row an
+-- export asks first. The bits are computed from `licence` and `owner` by
+-- `licensing.export_terms`, never typed. `owner` is the home a private import lives in,
+-- null for anything on the shared shelf or the weekly: the private bucket (#161).
+-- `tool` is the ingester. History on change, like every head table: a licence corrected
+-- leaves the old verdict behind it.
+CREATE TABLE IF NOT EXISTS texts (
+    id                 INTEGER PRIMARY KEY,
+    stage              TEXT NOT NULL,
+    cache_key          TEXT NOT NULL,
+    document_hash      TEXT NOT NULL,
+    source             TEXT NOT NULL,
+    licence            TEXT NOT NULL,
+    owner              TEXT,
+    exportable         INTEGER NOT NULL,
+    research           INTEGER NOT NULL,
+    reader_publishable INTEGER NOT NULL,
+    tool               TEXT NOT NULL,
+    tool_version       TEXT,
+    schema_version     INTEGER NOT NULL,
+    written_at         TEXT NOT NULL,
+    superseded_at      TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS texts_current
+    ON texts (cache_key) WHERE superseded_at IS NULL;
+CREATE INDEX IF NOT EXISTS texts_exportable ON texts (exportable, research);
 CREATE TABLE IF NOT EXISTS pointings (
     vocalization_id INTEGER NOT NULL REFERENCES vocalizations (id),
     segment_id      TEXT NOT NULL,
@@ -244,6 +272,104 @@ class Ledger:
                 if value is not None:
                     yield key, value
 
+    def record_text(self, text: Text) -> bool:
+        """Write one source document's row, keeping what it said before as history.
+
+        The two export bits and `reader_publishable` are computed here from the licence
+        and the owner, so nothing can record a verdict the licence does not give. Returns
+        False, and writes nothing, when the row would say what it already says.
+        """
+        if not text.document_hash or not text.source:
+            raise ValueError("a text needs its document hash and its source")
+        from .licensing import export_terms
+        from .screen import licence_flags
+
+        terms = export_terms(text.licence, private=text.owner is not None)
+        publishable = licence_flags(text.licence).reader_publishable
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
+        with closing(self._connect()) as db, db:
+            if self._text(db, text.document_hash) == text:
+                return False
+            db.execute(
+                "UPDATE texts SET superseded_at = ? WHERE cache_key = ? AND superseded_at IS NULL",
+                (stamp, text.document_hash),
+            )
+            db.execute(
+                "INSERT INTO texts (stage, cache_key, document_hash, source, licence, owner,"
+                " exportable, research, reader_publishable, tool, tool_version,"
+                " schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "texts",
+                    text.document_hash,
+                    text.document_hash,
+                    text.source,
+                    text.licence,
+                    text.owner,
+                    int(terms.exportable),
+                    int(terms.research),
+                    int(publishable),
+                    text.ingester,
+                    None,
+                    text.schema_version,
+                    stamp,
+                ),
+            )
+        return True
+
+    def text(self, document_hash: str) -> Text | None:
+        """What the ledger holds about one source document now, or None."""
+        if not self.file.is_file():
+            return None
+        with closing(self._connect()) as db:
+            return self._text(db, document_hash)
+
+    def terms(self, document_hash: str) -> tuple[bool, bool] | None:
+        """(exportable, research) for one document as recorded, or None if unrecorded."""
+        if not self.file.is_file():
+            return None
+        with closing(self._connect()) as db:
+            row = db.execute(
+                "SELECT exportable, research FROM texts"
+                " WHERE cache_key = ? AND superseded_at IS NULL",
+                (document_hash,),
+            ).fetchone()
+        return (bool(row[0]), bool(row[1])) if row is not None else None
+
+    @staticmethod
+    def _text(db: sqlite3.Connection, document_hash: str) -> Text | None:
+        row = db.execute(
+            "SELECT document_hash, source, licence, owner, tool, schema_version FROM texts"
+            " WHERE cache_key = ? AND superseded_at IS NULL",
+            (document_hash,),
+        ).fetchone()
+        if row is None:
+            return None
+        return Text(
+            document_hash=row[0],
+            source=row[1],
+            licence=row[2],
+            owner=row[3],
+            ingester=row[4],
+            schema_version=row[5],
+        )
+
+
+@dataclass(frozen=True)
+class Text:
+    """One source document as the `texts` table holds it: the facts, not the verdict.
+
+    The verdict — the two export bits and `reader_publishable` — is a column the ledger
+    computes from `licence` and `owner` on the way in, so it is not a field here.
+    """
+
+    document_hash: str
+    source: str
+    licence: str
+    #: The home a private import lives in, or None for the shared shelf and the weekly.
+    owner: str | None = None
+    ingester: str = ""
+    schema_version: int = 0
+
 
 #: The rows a value is made of, by the head table they hang off and the column that
 #: names it: what has to go when a head row goes.
@@ -282,6 +408,7 @@ def forget(hashes: set[str]) -> int:
                 db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
                 db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
             gone += len(ids)
+        db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
     return gone
 
 
@@ -363,6 +490,92 @@ def backfill(ledger: Ledger, cache: Cache, stage: str = "vocalize") -> tuple[int
     return recorded, refused
 
 
+def backfill_texts(
+    ledger: Ledger,
+    out: Path,
+    *,
+    public: tuple[str, ...] = ("shared", "weekly"),
+    licence_of: Callable[[Path, str], str] | None = None,
+) -> tuple[int, int]:
+    """Record a `texts` row for every built text under an output folder. Reads only.
+
+    `out` is the library's root: `shared` and `weekly` are public, and every other
+    folder in it is a reader's home. A document a public folder holds has no owner,
+    whatever homes also hold it; one held only in homes is a private import, owned by
+    them. The licence is the catalogue's for the source, else what the manifest beside
+    the reader records (`promote.licence_of`), else empty, which exports nowhere.
+
+    Returns (recorded, unchanged). A folder with no readable `document.json` is skipped.
+    """
+    if licence_of is None:
+        licence_of = _licence_of
+    found: dict[str, tuple[Path, dict[str, Any]]] = {}
+    holders: dict[str, set[str]] = {}
+    try:
+        roots = sorted(one for one in out.iterdir() if one.is_dir())
+    except OSError:
+        return 0, 0
+    for root in roots:
+        for folder in sorted(one for one in root.iterdir() if one.is_dir()):
+            try:
+                document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(document, Mapping):
+                continue
+            hash_ = str(document.get("content_hash") or "")
+            if not hash_ or not document.get("source"):
+                continue
+            holders.setdefault(hash_, set()).add(root.name)
+            # A public copy is the one the licence is read beside, where there is one.
+            if hash_ not in found or root.name in public:
+                found[hash_] = (folder, dict(document))
+    recorded = unchanged = 0
+    for hash_, (folder, document) in found.items():
+        homes = holders[hash_]
+        owner = None if homes & set(public) else " ".join(sorted(homes))
+        source = str(document["source"])
+        text = Text(
+            document_hash=hash_,
+            source=source,
+            licence=licence_of(folder, source),
+            owner=owner,
+            ingester=str(document.get("ingester") or ""),
+            schema_version=int(document.get("schema_version") or 0),
+        )
+        if ledger.record_text(text):
+            recorded += 1
+        else:
+            unchanged += 1
+    return recorded, unchanged
+
+
+def _licence_of(folder: Path, source: str) -> str:
+    """The catalogue's licence for a source, else the one recorded beside the reader."""
+    from . import catalogue
+    from .promote import licence_of
+
+    try:
+        entry = catalogue.matching(source)
+    except Exception:  # noqa: BLE001 - a private catalogue is absent on a public checkout
+        entry = None
+    if entry is not None:
+        # The entry answers for its renderings too; a rendering is its own work under
+        # its own licence (targum-internal#234), so it is asked for by its own source.
+        wanted = _source_key(source)
+        if _source_key(entry.source) == wanted:
+            return entry.licence
+        for rendering in entry.translations:
+            if _source_key(rendering.source) == wanted:
+                return rendering.licence
+    return licence_of(folder, source)
+
+
+def _source_key(source: str) -> str:
+    # `catalogue._key`'s flattening, so a match there is a match here.
+    return source.strip().lower().replace("_", " ").rstrip("/")
+
+
 def _bytes(value: Any) -> str:
     # What `Cache.put` writes, so "the same" means the same file.
     return json.dumps(value, ensure_ascii=False)
@@ -415,6 +628,12 @@ def _migrate(db: sqlite3.Connection) -> None:
         return  # a new file: the schema makes it current
     found = db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone()
     if found is None or int(found[0]) >= LEDGER_SCHEMA:
+        return
+    if int(found[0]) >= 2:
+        # 2 → 3 (2026-10-27) only adds `texts`, which the schema script makes; nothing
+        # already written changes shape.
+        with db:
+            db.execute("UPDATE meta SET value = ? WHERE key = 'schema'", (str(LEDGER_SCHEMA),))
         return
     # One transaction, opened by hand and holding the write lock from the start. Python's
     # sqlite3 commits a CREATE TABLE on its own outside an explicit BEGIN, so a copy that

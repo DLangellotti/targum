@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from targum.licensing import Standing, exportable, verdict
+from targum.licensing import ExportTerms, Standing, export_terms, exportable, verdict
 
 
 @pytest.mark.parametrize(
@@ -92,3 +92,38 @@ def test_derivatives_is_the_readers_question_and_export_is_the_corpus_one() -> N
     assert not verdict("CC BY-ND 4.0").derivatives
     assert not verdict("").derivatives
     assert verdict("CC BY-SA 4.0").derivatives and verdict("CC BY-SA 4.0").exportable
+
+
+@pytest.mark.parametrize(
+    ("licence", "commercial", "research"),
+    [
+        ("Public Domain", True, True),
+        ("CC0 1.0", True, True),
+        ("CC BY 3.0", True, True),
+        ("cc-by-sa-4.0", True, True),
+        ("Creative Commons Attribution-ShareAlike 4.0", True, True),
+        ("CC BY-NC 4.0", False, True),
+        ("CC BY-NC-SA 3.0", False, True),
+        ("CC BY-ND 4.0", False, False),
+        ("CC BY-NC-ND 4.0", False, False),
+        ("", False, False),
+        ("   ", False, False),
+        ("Ben-Yehuda Project terms of use", False, False),
+        # Not on David's list, so in neither until it is (asked on targum-internal#162).
+        ("targum", False, False),
+        ("MPL-2.0", False, False),
+    ],
+)
+def test_the_export_rule_is_the_list_david_named(
+    licence: str, commercial: bool, research: bool
+) -> None:
+    """Decided 2026-10-08 (targum-internal#162): commercial export is PD, CC0, CC BY and
+    CC BY-SA; research also admits CC BY-NC and CC BY-NC-SA; ND, no licence and a private
+    import are never exportable."""
+    terms = export_terms(licence)
+    assert (terms.exportable, terms.research) == (commercial, research)
+
+
+def test_a_private_import_exports_nowhere_whatever_its_licence() -> None:
+    assert export_terms("Public Domain", private=True) == ExportTerms(False, False)
+    assert export_terms("CC BY 4.0", private=True) == ExportTerms(False, False)
