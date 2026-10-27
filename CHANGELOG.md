@@ -330,6 +330,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   greyed presses; an article with no picture takes no tile on a phone; what a press did
   is said under the head; a source that didn't answer offers Try again. The waiting rows
   are rows with a hairline between, not cards, since the tab's card holds them.
+- A scene voicing request has a wall-clock deadline (`scripts/voice_scenes.py`). urllib's
+  `timeout=` bounds each socket read on its own, so an answer that trickles never trips
+  it. Each request now runs in a worker thread that is
+  given 90 s in all (`--deadline`); past it the socket is shut, the request is reported
+  to `say`'s `on_cutoff` as possibly billed, and the turn is retried after 10 s and 20 s,
+  failing with a `CutOff` (a `TimeoutError`) on the third. Tested against a fake model
+  on 127.0.0.1 that trickles a byte every 50 ms. The Hebrew B1 re-voicing that stalled
+  on 2026-10-26 was not this: `pmset -g log` shows the laptop, on battery, going to
+  sleep a minute into the run, and nothing in a sleeping process can time out.
 
 ### Added
 - `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
