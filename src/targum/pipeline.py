@@ -524,6 +524,12 @@ class Build:
             segments=mapping,
         )
         translation.write(self.translation_path(self.resolved_out))
+        if only is not None:
+            # A chapter bought after the reader was built (the server's Translate):
+            # the build's own pass below never sees it. Off unless `TARGUM_LEDGER` is set.
+            from . import ledger as ledger_module
+
+            ledger_module.mirror_translations(self.resolved_out)
         return translation
 
     def _first_chapters(
@@ -2416,6 +2422,7 @@ class Build:
         from . import ledger as ledger_module
 
         ledger_module.mirror_text(self.resolved_out)
+        ledger_module.mirror_translations(self.resolved_out)
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.

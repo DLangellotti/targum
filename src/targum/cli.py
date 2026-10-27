@@ -4507,6 +4507,38 @@ def cache_ledger_texts(
     )
 
 
+@cache_app.command("ledger-translations")
+def cache_ledger_translations(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Record every built text's translations, and their aligned pairs, in the corpus
+    ledger (targum-internal#162).
+
+    Read from each folder's `translations/*.json`, which is work already paid for:
+    nothing is translated, fetched or spent, and no reader changes. Run
+    `targum cache ledger-texts` first, or every translation reads as exporting nowhere
+    until its text has a row. Run again, it adds only what changed.
+    """
+    from . import ledger as ledger_module
+
+    file = ledger_module.path()
+    if file is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the file it should write, then run this again.",
+            )
+        )
+    root = out or Path.cwd() / "targum-out"
+    recorded, refused = ledger_module.backfill_translations(ledger_module.Ledger(file), root)
+    console.print(
+        f"[green]Recorded[/green] {recorded} translations, {refused} refused [dim]{file}[/dim]"
+    )
+
+
 @corpus_app.command("export")
 def corpus_export(
     to: Annotated[Path, typer.Argument(help="An empty folder to write the dataset into.")],

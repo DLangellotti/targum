@@ -13,7 +13,7 @@ from typer.testing import CliRunner
 
 from targum import corpus_export, ledger
 from targum.cli import app
-from targum.models import Annotation, Token, Vocalization
+from targum.models import Annotation, Token, Translation, Vocalization
 
 
 def _pointed(document_hash: str, **change: Any) -> dict[str, Any]:
@@ -46,6 +46,21 @@ def _annotated(document_hash: str) -> dict[str, Any]:
     ).model_dump(mode="json")
 
 
+def _translated(document_hash: str, **change: Any) -> dict[str, Any]:
+    value = Translation(
+        name="English (Claude)",
+        document_hash=document_hash,
+        source_language="he",
+        target_language="en",
+        provider="claude",
+        model="claude-test",
+        segments={"s1": "Mother came.", "s0": "Hello."},
+        coarse=["s1"],
+        confidence={"s1": 0.5},
+    ).model_dump(mode="json")
+    return {**value, **change}
+
+
 H = {name: name * 64 for name in "abcdef"}
 
 
@@ -68,6 +83,21 @@ def book(tmp_path: Path) -> ledger.Ledger:
         book.record("tokens", f"{H[name]}:grammar/2", _annotated(H[name]))
     # History: only the current value goes out.
     book.record("vocalize", "v-a", _pointed(H["a"], machine=[]))
+    # Renderings: targum's own under the text's licence, a published one under its own.
+    for name, licence in (("a", "Public Domain"), ("b", "CC BY-NC 4.0"), ("c", "Public Domain")):
+        book.record(
+            "translations",
+            f"{H[name]}:claude.natural.en",
+            _translated(H[name]),
+            licence=licence,
+            sources={"s0": "שלום.", "s1": "אמא באה."},
+        )
+    book.record(
+        "translations",
+        f"{H['a']}:aligned.jps.en",
+        _translated(H["a"], kind="aligned", provider="JPS 1917", name="JPS"),
+        licence="CC BY-NC 4.0",
+    )
     return book
 
 
@@ -97,7 +127,15 @@ def test_the_commercial_export_holds_only_what_may_be_sold(
         "pointings": 2,
         "annotations": 1,
         "tokens": 3,
+        "translations": 1,
+        "pairs": 2,
     }
+    pairs = _lines(out, "pairs")
+    assert [(row["segment_id"], row["source"], row["target"]) for row in pairs] == [
+        ("s1", "אמא באה.", "Mother came."),
+        ("s0", "שלום.", "Hello."),
+    ]
+    assert pairs[0]["coarse"] == 1 and pairs[0]["confidence"] == 0.5
 
 
 def test_the_research_export_also_admits_noncommercial(book: ledger.Ledger, tmp_path: Path) -> None:
@@ -113,7 +151,7 @@ def test_row_counts_are_the_count_of_rows_with_the_bit(
     """Criterion 3: each table's count is `SELECT COUNT(*) … WHERE <bit>` of its rows."""
     sheet = corpus_export.export(book.file, tmp_path / "out", kind)
     with sqlite3.connect(book.file) as db:
-        for table in ("texts", "vocalizations", "annotations"):
+        for table in ("texts", "vocalizations", "annotations", "translations"):
             expected = db.execute(
                 f"SELECT COUNT(*) FROM {table} WHERE {kind} AND superseded_at IS NULL"  # noqa: S608
             ).fetchone()[0]
@@ -129,7 +167,7 @@ def test_no_licence_no_private_and_no_nd_text_leaves_even_with_a_wrong_bit(
     three texts that must stay, and still nothing of theirs goes out."""
     with sqlite3.connect(book.file) as db:
         for name in "cde":
-            for table in ("texts", "vocalizations", "annotations"):
+            for table in ("texts", "vocalizations", "annotations", "translations"):
                 db.execute(
                     f"UPDATE {table} SET exportable = 1, research = 1"  # noqa: S608
                     " WHERE document_hash = ?",
@@ -171,7 +209,10 @@ def test_the_datasheet_lists_every_source_licence_and_tool(
     assert {(one["table"], one["tool"], one["rows"]) for one in sheet["tools"]} == {
         ("vocalizations", "dicta/menaked/1", 2),
         ("annotations", "grammar/2", 1),
+        ("translations", "claude", 2),
+        ("translations", "JPS 1917", 1),
     }
+    assert sheet["translation_licences"] == {"CC BY-NC 4.0": 2, "Public Domain": 1}
     assert sheet["ledger_schema"] == ledger.LEDGER_SCHEMA
     on_disk = json.loads((tmp_path / "out" / "datasheet.json").read_text(encoding="utf-8"))
     assert on_disk == sheet
@@ -225,3 +266,30 @@ def test_a_source_that_is_a_path_through_a_home_never_leaves(
     corpus_export.export(book.file, tmp_path / "out", "exportable")
     written = _everything(tmp_path / "out")
     assert leaky not in written and "p3" not in written
+
+
+def test_a_published_rendering_leaves_only_under_its_own_licence(
+    book: ledger.Ledger, tmp_path: Path
+) -> None:
+    """Slice 4: the JPS rendering beside a public-domain text is CC BY-NC here, so it is
+    in the research export and not the commercial one, whatever its text allows."""
+    corpus_export.export(book.file, tmp_path / "commercial", "exportable")
+    corpus_export.export(book.file, tmp_path / "research", "research")
+    commercial = [row["cache_key"] for row in _lines(tmp_path / "commercial", "translations")]
+    research = [row["cache_key"] for row in _lines(tmp_path / "research", "translations")]
+    assert commercial == [f"{H['a']}:claude.natural.en"]
+    assert research == [
+        f"{H['a']}:claude.natural.en",
+        f"{H['b']}:claude.natural.en",
+        f"{H['a']}:aligned.jps.en",
+    ]
+
+
+def test_a_rendering_whose_own_licence_was_stamped_wrong_still_stays(
+    book: ledger.Ledger, tmp_path: Path
+) -> None:
+    with sqlite3.connect(book.file) as db:
+        db.execute("UPDATE translations SET exportable = 1, own_exportable = 1")
+    corpus_export.export(book.file, tmp_path / "out", "exportable")
+    keys = [row["cache_key"] for row in _lines(tmp_path / "out", "translations")]
+    assert keys == [f"{H['a']}:claude.natural.en"], "the licence is asked again"

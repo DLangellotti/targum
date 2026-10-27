@@ -1,8 +1,9 @@
 """`targum corpus export`: the corpus ledger as a dataset (targum-internal#162, slice 3).
 
-One JSONL file per table, filtered on one export bit, and a datasheet generated from the
-same rows (acceptance criteria 3 and 4). Two exports, and neither reads the other's bit
-(David, 2026-10-08):
+One JSONL file per table (texts, pointings, annotations and tokens, and since slice 4
+translations and their aligned pairs), filtered on one export bit, and a datasheet
+generated from the same rows (acceptance criteria 3 and 4). Two exports, and neither
+reads the other's bit (David, 2026-10-08):
 
 - **`exportable`**, the commercial one: public domain, CC0, CC BY, CC BY-SA and targum's
   own writing.
@@ -69,6 +70,16 @@ def _allow(db: sqlite3.Connection, bit: str) -> None:
             if getattr(export_terms(licence), bit) and not _names_a_home(source)
         ],
     )
+    # A rendering leaves when its text does and its own licence, asked again, allows it.
+    db.execute("CREATE TEMP TABLE allowed_translations (id INTEGER PRIMARY KEY)")
+    renderings = db.execute(
+        f"SELECT id, licence FROM translations WHERE superseded_at IS NULL"  # noqa: S608
+        f" AND {bit} = 1 AND document_hash IN (SELECT document_hash FROM allowed)"
+    ).fetchall()
+    db.executemany(
+        "INSERT INTO allowed_translations (id) VALUES (?)",
+        [(row_id,) for row_id, licence in renderings if getattr(export_terms(licence), bit)],
+    )
 
 
 def _names_a_home(source: str) -> bool:
@@ -119,6 +130,16 @@ def _queries(bit: str) -> dict[str, str]:
             " ORDER BY vocalization_id, segment_id"
         ),
         "annotations": wanted["annotations"] + " ORDER BY id",
+        "translations": (
+            "SELECT id, cache_key, document_hash, source_language, target_language, kind,"
+            " tool, tool_version, style, licence, schema_version, head_json, written_at"
+            " FROM translations WHERE id IN (SELECT id FROM allowed_translations) ORDER BY id"
+        ),
+        "pairs": (
+            "SELECT translation_id, segment_id, ord, source, target, confidence, coarse"
+            " FROM pairs WHERE translation_id IN (SELECT id FROM allowed_translations)"
+            " ORDER BY translation_id, ord"
+        ),
         "tokens": (
             "SELECT annotation_id, segment_id, segment_ord, ord, form, lemma, pos, features,"  # noqa: S608
             " band, token_json FROM tokens WHERE annotation_id IN"
@@ -173,7 +194,7 @@ def _datasheet(db: sqlite3.Connection, kind: str, counts: dict[str, int]) -> dic
     queries = _queries(kind)
     texts = list(_rows(db, queries["texts"]))
     tools: list[dict[str, Any]] = []
-    for head in ("vocalizations", "annotations"):
+    for head in ("vocalizations", "annotations", "translations"):
         seen = Counter((row["tool"], row["tool_version"]) for row in _rows(db, queries[head]))
         tools += [
             {"table": head, "tool": tool, "tool_version": version, "rows": rows}
@@ -187,6 +208,9 @@ def _datasheet(db: sqlite3.Connection, kind: str, counts: dict[str, int]) -> dic
         "ledger_schema": int(schema[0]) if schema else None,
         "rows": counts,
         "licences": dict(sorted(Counter(text["licence"] for text in texts).items())),
+        "translation_licences": dict(
+            sorted(Counter(row["licence"] for row in _rows(db, queries["translations"])).items())
+        ),
         "sources": sorted(
             ({"source": text["source"], "licence": text["licence"]} for text in texts),
             key=lambda one: (one["source"], one["licence"]),
@@ -211,6 +235,10 @@ def _markdown(sheet: dict[str, Any]) -> str:
         "## Licences",
         "",
         *(f"- {licence}: {texts} texts" for licence, texts in sheet["licences"].items()),
+        *(
+            f"- {licence}: {rows} translations"
+            for licence, rows in sheet["translation_licences"].items()
+        ),
         "",
         "## Tools",
         "",
