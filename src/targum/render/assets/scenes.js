@@ -14,19 +14,46 @@
   "use strict";
 
   // A scene in another language names it after `scene-`: `scene-ru-01-slug` (2026-10-13).
-  var SCENE = /^scene-(?:[a-z]{2,3}-)?(\d+)-/;
+  // The code names a series, not only a language: Hebrew's B1 conversations are
+  // `scene-he-01…` (2026-10-27) and number from 1 again, so a number is only an order
+  // inside its series. The unprefixed `scene-NN` path is series "", and Hebrew's path.
+  var SCENE = /^scene-(?:([a-z]{2,3})-)?(\d+)-/;
 
   function numberOf(id) {
     var found = SCENE.exec(String(id || ""));
-    return found ? parseInt(found[1], 10) : 0;
+    return found ? parseInt(found[2], 10) : 0;
   }
 
-  /* Scenes by number, then everything else in the order it came. */
+  function seriesOf(id) {
+    var found = SCENE.exec(String(id || ""));
+    return found ? found[1] || "" : "";
+  }
+
+  /* The series a language's path is: the unprefixed scenes for Hebrew, its own code for
+     any other. Hebrew's B1 series is a shelf of its own, never the first-day path. */
+  function pathOf(code) {
+    var wanted = String(code || "he").split("-")[0].toLowerCase();
+    return wanted === "he" ? "" : wanted;
+  }
+
+  /* Whether an id is a scene on a language's path. */
+  function onPath(id, code) {
+    return numberOf(id) > 0 && seriesOf(id) === pathOf(code);
+  }
+
+  /* Scenes by series (the A1 path first), then number, then id; everything else after,
+     in the order it came. */
   function ordered(list) {
     return list.slice().sort(function (a, b) {
       var left = numberOf(a.id);
       var right = numberOf(b.id);
-      if (left && right) return left - right;
+      if (left && right) {
+        var leftSeries = seriesOf(a.id);
+        var rightSeries = seriesOf(b.id);
+        if (leftSeries !== rightSeries) return leftSeries < rightSeries ? -1 : 1;
+        if (left !== right) return left - right;
+        return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
+      }
       if (left) return -1;
       if (right) return 1;
       return 0;
@@ -37,13 +64,14 @@
      page — the row the library chips and the door Learn opens. `docs` is the reader's
      own `targum:docs`, keyed by content hash, where a finish is written (and synced).
      Nothing when no scene is seeded, or every one is finished. One language's scenes at
-     a time, Hebrew's unless another is named: two languages' scene 1s are both first. */
+     a time, Hebrew's unless another is named: two languages' scene 1s are both first.
+     Only the language's path series: Hebrew's B1 scene 1 is not where a new reader starts. */
   function next(shared, docs, code) {
     var wanted = code || "he";
     var scenes = ordered(
       (shared || []).filter(function (reader) {
         var language = String(reader.language || "he").split("-")[0].toLowerCase();
-        return numberOf(reader.entry) > 0 && language === wanted;
+        return onPath(reader.entry, wanted) && language === wanted;
       }).map(function (reader) {
         return { id: reader.entry, reader: reader };
       })
@@ -60,5 +88,13 @@
     return !!(record && record.done);
   }
 
-  window.TargumScenes = { numberOf: numberOf, ordered: ordered, next: next, finished: finished };
+  window.TargumScenes = {
+    numberOf: numberOf,
+    seriesOf: seriesOf,
+    pathOf: pathOf,
+    onPath: onPath,
+    ordered: ordered,
+    next: next,
+    finished: finished,
+  };
 })();

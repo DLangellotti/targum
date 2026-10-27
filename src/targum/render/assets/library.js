@@ -1460,8 +1460,11 @@
     var out = [];
     for (var i = 0; i < inBand.length && out.length < SHELF_MOST; i++) {
       // The scenes are one sequence however the file folds them.
+      // One per series: A1's path and Hebrew's B1 conversations are two sequences.
       var scene = window.TargumScenes && window.TargumScenes.numberOf(inBand[i].id);
-      var group = scene ? { id: "scenes" } : GROUP_OF[inBand[i].id];
+      var group = scene
+        ? { id: "scenes:" + window.TargumScenes.seriesOf(inBand[i].id) }
+        : GROUP_OF[inBand[i].id];
       if (group) {
         if (taken[group.id]) continue;
         taken[group.id] = true;
@@ -2726,7 +2729,7 @@
     if (window.TargumScenes) {
       nextRow = window.TargumScenes.next(shared, finishedDocs);
       anyFinished = shared.some(function (reader) {
-        return window.TargumScenes.numberOf(reader.entry) > 0 && window.TargumScenes.finished(reader, finishedDocs);
+        return window.TargumScenes.onPath(reader.entry, "he") && window.TargumScenes.finished(reader, finishedDocs);
       });
     }
 

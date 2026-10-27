@@ -4980,6 +4980,25 @@ def test_after_a_scene_comes_the_next_scene(monkeypatch: pytest.MonkeyPatch) -> 
     assert offered[0]["scene"] == "Scene 2"
 
 
+def test_the_next_scene_stays_in_its_series(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hebrew's B1 conversations are `scene-he-NN` and number from 1 again (2026-10-27).
+    After B1's scene 1 comes B1's scene 2, not A1's; after A1's scene 1, A1's scene 2."""
+    rows = catalogue_of(
+        ("scene-01-nice-to-meet-you", "dialogue:01-nice-to-meet-you", 5, "modern"),
+        ("scene-02-in-a-cafe", "dialogue:02-in-a-cafe", 0, "modern"),
+        ("scene-he-01-the-lease", "dialogue:he-01-the-lease", 20, "modern"),
+        ("scene-he-02-the-bank", "dialogue:he-02-the-bank", 22, "modern"),
+        ("scene-he-03-last", "dialogue:he-03-last", 24, "modern"),
+        ("scene-04-later", "dialogue:04-later", 3, "modern"),
+    )
+    assert suggestion(monkeypatch, "dialogue:he-01-the-lease", rows) == "scene-he-02-the-bank"
+    assert suggestion(monkeypatch, "dialogue:01-nice-to-meet-you", rows) == "scene-02-in-a-cafe"
+    drawn = offers(monkeypatch, "dialogue:he-03-last", rows)
+    assert all(one["because"] != "Next in the sequence." for one in drawn), (
+        "past B1's last scene there is no next scene, and A1's scene 4 is not it"
+    )
+
+
 def test_after_the_last_scene_the_step_up_takes_over(monkeypatch: pytest.MonkeyPatch) -> None:
     rows = catalogue_of(
         ("scene-03-which-way", "dialogue:03-which-way", 2, "modern"),

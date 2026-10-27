@@ -2288,7 +2288,12 @@ def seeds() -> list[str]:
 
     scenes = sorted(
         (e for e in catalogue_module.CATALOGUE if e.kind is catalogue_module.Kind.dialogue),
-        key=lambda e: (catalogue_module.scene_number(e.id), e.id),
+        # The A1 path first, then each other series whole: numbers restart per series.
+        key=lambda e: (
+            catalogue_module.scene_series(e.id),
+            catalogue_module.scene_number(e.id),
+            e.id,
+        ),
     )
     # Hebrew only. The arrival's doors are Hebrew's — every other shelf reaches its own
     # first text through the Library — and seeding the head of every ordered collection
