@@ -51,17 +51,20 @@ SHIP_TIMEOUT = 600.0
 NOT_PAID_FOR = "models"
 
 
-def snapshot(store: Path, into: Path, now: datetime | None = None) -> Path:
+def snapshot(
+    store: Path, into: Path, now: datetime | None = None, *, prefix: str = "targum"
+) -> Path:
     """A consistent copy of the database, taken while it is in use.
 
     Returns the file written. Raises if the source is missing, because a backup command
-    that quietly writes nothing is worse than one that fails.
+    that quietly writes nothing is worse than one that fails. `prefix` names the copy:
+    `targum` for the account database, `corpus` for the corpus ledger.
     """
     if not store.is_file():
         raise FileNotFoundError(store)
     into.mkdir(parents=True, exist_ok=True)
     stamped = (now or datetime.now()).strftime(STAMP)
-    target = into / f"targum-{stamped}.db"
+    target = into / f"{prefix}-{stamped}.db"
 
     source = sqlite3.connect(store)
     try:
@@ -72,6 +75,11 @@ def snapshot(store: Path, into: Path, now: datetime | None = None) -> Path:
             source.backup(copy)
         finally:
             copy.close()
+    except BaseException:
+        # A copy that failed partway is not a backup; leaving it would let the sweep
+        # count it as one and push a good night out.
+        target.unlink(missing_ok=True)
+        raise
     finally:
         source.close()
     return target
@@ -274,6 +282,34 @@ def check(path: Path) -> str:
     return ""
 
 
+def check_ledger(path: Path) -> str:
+    """What is wrong with this copy of the corpus ledger, or "" if nothing is.
+
+    The same rule as the database: opened and read as it is taken. A ledger is known by
+    its `meta` table naming a schema; an integrity check alone passes an empty file.
+    """
+    if not path.is_file() or path.stat().st_size == 0:
+        return "the file is missing or empty"
+    try:
+        db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    except sqlite3.Error as error:
+        return str(error)
+    try:
+        answer = db.execute("PRAGMA integrity_check").fetchone()
+        if not answer or answer[0] != "ok":
+            return f"integrity check said {answer[0] if answer else 'nothing'}"
+        tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        if "meta" not in tables:
+            return "no meta table: not a corpus ledger"
+        if db.execute("SELECT value FROM meta WHERE key = 'schema'").fetchone() is None:
+            return "the ledger names no schema"
+    except sqlite3.Error as error:
+        return str(error)
+    finally:
+        db.close()
+    return ""
+
+
 class NotShipped(RuntimeError):
     """A copy did not leave the box, and nobody would otherwise have known."""
 
@@ -461,7 +497,7 @@ def sweep(into: Path, keep: int = KEEP) -> list[Path]:
     kind push the other out.
     """
     gone: list[Path] = []
-    for pattern in ("targum-*.db", "cache-*.zip"):
+    for pattern in ("targum-*.db", "corpus-*.db", "cache-*.zip"):
         found = sorted(into.glob(pattern))
         for path in found[: max(0, len(found) - keep)]:
             path.unlink(missing_ok=True)
@@ -469,13 +505,15 @@ def sweep(into: Path, keep: int = KEEP) -> list[Path]:
     return gone
 
 
-def restore(backup: Path, store: Path) -> Path:
+def restore(backup: Path, store: Path, *, ledger: bool = False) -> Path:
     """Put a backup back, keeping what is there now.
 
     The displaced database is moved aside rather than deleted, because restoring the
     wrong file is a thing people do at four in the morning. Returns where it went.
+    `ledger` puts back a copy of the corpus ledger rather than the account database, and
+    checks it as one.
     """
-    problem = check(backup)
+    problem = check_ledger(backup) if ledger else check(backup)
     if problem:
         raise ValueError(f"That backup is not usable: {problem}")
 
@@ -488,4 +526,19 @@ def restore(backup: Path, store: Path) -> Path:
     for suffix in ("-wal", "-shm"):
         store.with_name(store.name + suffix).unlink(missing_ok=True)
     shutil.copy2(backup, store)
+    _owned_like_its_folder(store)
     return aside
+
+
+def _owned_like_its_folder(path: Path) -> None:
+    """Run as root, give a restored file to whoever owns its folder.
+
+    On the box that is `targum`, and the service runs as it: a root-owned `targum.db` or
+    `corpus.db` would make every write fail, and the ledger's fail silently (qa-claude on
+    #947). As anyone else this does nothing, because the file is already theirs.
+    """
+    if not hasattr(os, "geteuid") or os.geteuid() != 0:
+        return
+    folder = path.parent.stat()
+    if folder.st_uid != 0:
+        os.chown(path, folder.st_uid, folder.st_gid)

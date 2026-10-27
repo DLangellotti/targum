@@ -841,6 +841,10 @@ def backup(
         str,
         typer.Option("--to", help="An rclone remote to send copies to. Or TARGUM_BACKUP_TO."),
     ] = "",
+    ledger_file: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="The corpus ledger to copy. Default: TARGUM_LEDGER."),
+    ] = None,
 ) -> None:
     """Copy the two things that cannot be rebuilt.
 
@@ -860,9 +864,14 @@ def backup(
     public key in TARGUM_BACKUP_AGE_RECIPIENT, so the box can write a copy and cannot
     read one back; both must be set or nothing leaves. A failed night mails
     TARGUM_ALERT_TO when it is set.
+
+    The corpus ledger (`--ledger`, or the file TARGUM_LEDGER names) is copied the same
+    way, as a SQLite snapshot rather than a copy of a live file, and leaves with the
+    rest. No ledger is said in one line; a ledger that will not copy mails the operator
+    and the rest of the night goes on.
     """
     try:
-        _backup(out, store, keep, to)
+        _backup(out, store, keep, to, ledger_file)
     except typer.Exit:
         raise
     except Exception as error:
@@ -887,7 +896,9 @@ def _backup_failed(error: TargumError) -> NoReturn:
     fail(error)
 
 
-def _backup(out: Path | None, store: Path | None, keep: int, to: str) -> None:
+def _backup(
+    out: Path | None, store: Path | None, keep: int, to: str, ledger_file: Path | None = None
+) -> None:
     import shutil
     from datetime import datetime
 
@@ -965,6 +976,12 @@ def _backup(out: Path | None, store: Path | None, keep: int, to: str) -> None:
                 f"[green]Weekly copied to {issues}[/green] [dim]({kb:.0f} KB, checked)[/dim]"
             )
 
+    # The corpus ledger (targum-internal#162). Until a stage is ledger-only it is a second
+    # copy of what the cache holds, and the cache archive above covers it; it is copied
+    # now so that the night that changes is not the first night it is in a backup. A
+    # failure mails, because that is the night it would matter, and the rest goes on.
+    corpus = _backup_ledger(ledger_file, into)
+
     dropped = sweep(into, keep)
     if dropped:
         word = "copy" if len(dropped) == 1 else "copies"
@@ -1008,7 +1025,9 @@ def _backup(out: Path | None, store: Path | None, keep: int, to: str) -> None:
             )
         )
 
-    leaving = [path for path in (made, bundle, issues) if path is not None and path.is_file()]
+    leaving = [
+        path for path in (made, bundle, issues, corpus) if path is not None and path.is_file()
+    ]
     # Sealed copies are made for the trip and not kept: the plain ones beside them are
     # what a restore on this box would use, and an encrypted copy here is one nobody
     # here can open.
@@ -1028,6 +1047,55 @@ def _backup(out: Path | None, store: Path | None, keep: int, to: str) -> None:
         shutil.rmtree(outgoing, ignore_errors=True)
     for line in sent:
         console.print(f"[green]Sealed and sent to {line}[/green] [dim](checked)[/dim]")
+
+
+def _backup_ledger(given: Path | None, into: Path) -> Path | None:
+    """Tonight's snapshot of the corpus ledger, checked, or None with the reason said."""
+    from . import ledger as ledger_module
+    from .backup import check_ledger, snapshot
+
+    configured = ledger_module.path()
+    where = given or configured
+    if where is None:
+        console.print("[dim]Corpus ledger: off, nothing to copy.[/dim]")
+        return None
+    # The unit names the file and the service is pointed at one by TARGUM_LEDGER. If they
+    # part, the night copies a file nothing writes, and says nothing (qa-claude on #947).
+    if configured is not None and given is not None and given.resolve() != configured.resolve():
+        _backup_alarm(
+            "The backup and the service name different corpus ledgers.",
+            f"--ledger is {given}; TARGUM_LEDGER is {configured}. "
+            "Point the unit at the file the service writes.",
+        )
+        console.print(f"[yellow]--ledger is {given} but TARGUM_LEDGER is {configured}.[/yellow]")
+    if not where.is_file():
+        if configured is not None:
+            # Switched on and nothing there: the service writes a ledger this cannot see.
+            _backup_alarm(
+                "The corpus ledger is switched on and there is no file to copy.",
+                f"Nothing at {where}; TARGUM_LEDGER is {configured}.",
+            )
+            console.print(f"[yellow]Corpus ledger: no file at {where}.[/yellow]")
+        else:
+            console.print(f"[dim]Corpus ledger: no file at {where} yet.[/dim]")
+        return None
+    try:
+        made = snapshot(where, into, prefix="corpus")
+    except (OSError, sqlite3.Error) as error:
+        _backup_alarm("The corpus ledger could not be copied.", str(error))
+        console.print(f"[yellow]Could not copy the corpus ledger:[/yellow] [dim]{error}[/dim]")
+        return None
+    problem = check_ledger(made)
+    if problem:
+        made.unlink(missing_ok=True)
+        _backup_alarm("The corpus ledger copy came out unusable.", problem)
+        console.print(f"[yellow]The corpus ledger copy is unusable:[/yellow] [dim]{problem}[/dim]")
+        return None
+    mb = made.stat().st_size / 1024 / 1024
+    console.print(
+        f"[green]Corpus ledger copied to {made}[/green] [dim]({mb:.1f} MB, checked)[/dim]"
+    )
+    return made
 
 
 @app.command("watch-health")
@@ -1282,8 +1350,9 @@ def restore(
 ) -> None:
     """Put a backup back. Stop targum first.
 
-    Takes any of the three: a `targum-*.db` snapshot, a `cache-*.zip` archive, or a
-    `weekly-*.zip` of the issues. The database
+    Takes any of the four: a `targum-*.db` snapshot, a `corpus-*.db` snapshot of the
+    corpus ledger (put back where `--store` or TARGUM_LEDGER says), a `cache-*.zip`
+    archive, or a `weekly-*.zip` of the issues. The database
     replaces what is there, moving it aside rather than deleting it, because restoring
     the wrong file is a thing people do at four in the morning. The cache is unpacked
     *over* what is there instead — it is content-addressed, so an entry already present
@@ -1308,9 +1377,23 @@ def restore(
         console.print("[dim]Nothing already there was removed.[/dim]")
         return
 
-    where = store or default_store()
+    corpus = backup.name.startswith("corpus-")
+    if corpus:
+        from . import ledger as ledger_module
+
+        named = store or ledger_module.path()
+        if named is None:
+            fail(
+                TargumError(
+                    "Where should the corpus ledger go?",
+                    "Pass --store, or set TARGUM_LEDGER to the ledger file.",
+                )
+            )
+        where = named
+    else:
+        where = store or default_store()
     try:
-        aside = put_back(backup, where)
+        aside = put_back(backup, where, ledger=corpus)
     except ValueError as error:
         fail(TargumError(str(error), "Try an earlier copy."))
 

@@ -17,6 +17,27 @@ that cannot be rebuilt comes back from these files alone.**
   so a cache hit is quoted at nothing. Lose it and everyone pays again for work already
   bought.
 
+And since targum-internal#162's backup step, a third:
+
+- **The corpus ledger** (`/var/lib/targum/corpus.db`, `TARGUM_LEDGER`). Rows of what the
+  pipeline made, with each text's licence and export bits. Until a stage is ledger-only
+  it is a second copy of what the cache holds; once one is, it is the only copy, which is
+  why it is in the nightly set before that happens. Taken as a SQLite snapshot
+  (`backup.snapshot(prefix="corpus")`), never a file copy of the live WAL database,
+  checked as it is taken, and sealed and sent with the rest as `corpus-<stamp>.db.gz.age`.
+  `deploy/restore-drill.sh` decrypts the newest one after the database and counts its
+  current rows. To put one back, as `targum`, never as root (a root-owned `corpus.db`
+  makes every ledger write fail, and the ledger fails silently):
+
+  ```
+  systemctl stop targum
+  sudo -u targum /usr/local/bin/targum restore corpus-<stamp>.db --store /var/lib/targum/corpus.db
+  systemctl start targum
+  ```
+
+  It moves the old file aside and clears its `-wal`/`-shm`. Run as root by mistake, it
+  gives the restored file to the folder's owner.
+
 It does **not** copy language models, and that is not an oversight: they are downloads.
 A restored box fetches them again with `targum models fetch scripture`, which also
 brings STEP Bible's brief Tanakh glosses (`tbesh.json`; without it the cards fall back to

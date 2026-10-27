@@ -53,3 +53,31 @@ for table in person word phrase doc; do
 done
 echo "   decrypted, checked and counted. Compare the counts with the box:"
 echo "   ssh root@targum.page \"sqlite3 -readonly /var/lib/targum/targum.db 'SELECT COUNT(*) FROM person'\""
+
+# The corpus ledger (targum-internal#162): the same night, the same identity. Absent only
+# for nights before the backup carried it, and said so rather than passed over.
+ledger="$(rclone lsf "$TO/$FOLDER" --include 'corpus-*.db.gz.age' | sort | tail -1)"
+if [ -z "$ledger" ]; then
+  echo "== no corpus ledger copy at $TO/$FOLDER yet: a night before the backup carried it =="
+  exit 0
+fi
+echo "== $TO/$FOLDER/$ledger =="
+rclone copyto "$TO/$FOLDER/$ledger" "$work/$ledger"
+if [ -n "${TARGUM_AGE_IDENTITY_REF:-}" ]; then
+  age --decrypt -i <(op read "$TARGUM_AGE_IDENTITY_REF") "$work/$ledger" | gunzip >"$work/corpus.db"
+else
+  age --decrypt -i "$IDENTITY" "$work/$ledger" | gunzip >"$work/corpus.db"
+fi
+said="$(sqlite3 "$work/corpus.db" 'PRAGMA integrity_check')"
+if [ "$said" != "ok" ]; then
+  echo "corpus ledger integrity check said: $said" >&2
+  exit 1
+fi
+printf '   %-14s %s\n' schema "$(sqlite3 "$work/corpus.db" "SELECT value FROM meta WHERE key = 'schema'")"
+for table in texts vocalizations annotations translations; do
+  if [ -n "$(sqlite3 "$work/corpus.db" "SELECT 1 FROM sqlite_master WHERE name = '$table'")" ]; then
+    printf '   %-14s %s\n' "$table" "$(sqlite3 "$work/corpus.db" "SELECT COUNT(*) FROM $table WHERE superseded_at IS NULL")"
+  fi
+done
+echo "   the ledger decrypted, checked and counted. Compare with the box:"
+echo "   ssh root@targum.page \"sqlite3 -readonly /var/lib/targum/corpus.db 'SELECT COUNT(*) FROM vocalizations WHERE superseded_at IS NULL'\""
