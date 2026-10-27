@@ -2410,6 +2410,12 @@ class Build:
         # renderer reads the manifest, and a page built first would be silent.
         if self.is_recording_source:
             self._write_audio_manifest(segmented)
+        # The corpus ledger's `texts` row (targum-internal#162): here, once the manifest
+        # a recording's licence is read from is written, and before the stages whose rows
+        # copy its export bits. Off unless `TARGUM_LEDGER` is set; never fails a build.
+        from . import ledger as ledger_module
+
+        ledger_module.mirror_text(self.resolved_out)
 
         # Vowels first. The bands do not need them, but the reading of each word is
         # worked out from them, and a stage cannot use what has not run yet.

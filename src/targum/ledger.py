@@ -28,7 +28,7 @@ import re
 import sqlite3
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -43,7 +43,7 @@ ENV = "TARGUM_LEDGER"
 
 #: The ledger's own schema, independent of `models.SCHEMA_VERSION`: the rows can change
 #: shape without the cache key moving, which is the point of having rows.
-LEDGER_SCHEMA = 3
+LEDGER_SCHEMA = 4
 
 #: The stages the ledger records, and the table each one's values head. `tokens` since
 #: 2026-10-08 (David's third answer of 2026-10-03): one annotator's pass over a text,
@@ -84,7 +84,9 @@ CREATE TABLE IF NOT EXISTS vocalizations (
     tool_version   TEXT,
     schema_version INTEGER NOT NULL,
     written_at     TEXT NOT NULL,
-    superseded_at  TEXT
+    superseded_at  TEXT,
+    exportable     INTEGER NOT NULL DEFAULT 0,
+    research       INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS vocalizations_current
     ON vocalizations (cache_key) WHERE superseded_at IS NULL;
@@ -106,7 +108,9 @@ CREATE TABLE IF NOT EXISTS annotations (
     schema_version INTEGER NOT NULL,
     head_json      TEXT NOT NULL,
     written_at     TEXT NOT NULL,
-    superseded_at  TEXT
+    superseded_at  TEXT,
+    exportable     INTEGER NOT NULL DEFAULT 0,
+    research       INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS annotations_current
     ON annotations (cache_key) WHERE superseded_at IS NULL;
@@ -192,6 +196,7 @@ class Ledger:
         db.execute("PRAGMA journal_mode=WAL")
         _migrate(db)
         db.executescript(_SCHEMA)
+        _add_bits(db)
         db.execute(
             "INSERT OR IGNORE INTO meta (key, value) VALUES ('schema', ?)", (str(LEDGER_SCHEMA),)
         )
@@ -226,6 +231,7 @@ class Ledger:
             if _bytes(back) != _bytes(value):
                 # Leaving the `with db` block by an exception rolls the write back.
                 raise ValueError("the rows do not give the value back exactly")
+            _stamp(db, str(value["document_hash"]))
 
     def get(self, stage: str, key: str) -> dict[str, Any] | None:
         """The value a cache key holds, rebuilt from rows. None if there is no row."""
@@ -291,40 +297,33 @@ class Ledger:
         """
         if not text.document_hash or not text.source:
             raise ValueError("a text needs its document hash and its source")
-        verdict = _verdict(text)
-        stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
-            db.execute("DELETE FROM text_homes WHERE document_hash = ?", (text.document_hash,))
-            db.executemany(
-                "INSERT INTO text_homes (document_hash, home) VALUES (?, ?)",
-                [(text.document_hash, home) for home in sorted(text.homes)],
-            )
-            held = self._row(db, text.document_hash)
-            if held is not None and held == (_facts(text), verdict):
-                return False
-            db.execute(
-                "UPDATE texts SET superseded_at = ? WHERE cache_key = ? AND superseded_at IS NULL",
-                (stamp, text.document_hash),
-            )
-            db.execute(
-                "INSERT INTO texts (stage, cache_key, document_hash, source, licence, private,"
-                " exportable, research, reader_publishable, tool, tool_version,"
-                " schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    "texts",
-                    text.document_hash,
-                    text.document_hash,
-                    text.source,
-                    text.licence,
-                    int(bool(text.homes)),
-                    *verdict,
-                    text.ingester,
-                    None,
-                    text.schema_version,
-                    stamp,
-                ),
-            )
-        return True
+            return _write_text(db, text)
+
+    def hold(self, text: Text, home: str | None) -> bool:
+        """Record a text a build has just written, into `home` or, with None, into one of
+        the library's own public folders. `text.homes` is not read: it is worked out here.
+
+        A public build makes the text public. A build in a reader's home adds that home
+        to the ones holding it, unless the text is already public, which a reader's copy
+        of a shelf text does not change. Read and written in one transaction, so two
+        builds of one text finishing together cannot lose a home.
+        """
+        if not text.document_hash or not text.source:
+            raise ValueError("a text needs its document hash and its source")
+        with closing(self._connect()) as db, db:
+            db.commit()  # what opening left open, so the lock below is taken from the start
+            db.execute("BEGIN IMMEDIATE")
+            homes: frozenset[str] = frozenset()
+            if home is not None:
+                held = self._row(db, text.document_hash)
+                if held is None or held[0][2]:
+                    known = db.execute(
+                        "SELECT home FROM text_homes WHERE document_hash = ?",
+                        (text.document_hash,),
+                    )
+                    homes = frozenset({home, *(row[0] for row in known)})
+            return _write_text(db, replace(text, homes=homes))
 
     def text(self, document_hash: str) -> Text | None:
         """What the ledger holds about one source document now, or None."""
@@ -382,6 +381,119 @@ class Text:
     homes: frozenset[str] = frozenset()
     ingester: str = ""
     schema_version: int = 0
+
+
+def _write_text(db: sqlite3.Connection, text: Text) -> bool:
+    """`record_text` inside a transaction the caller holds."""
+    verdict = _verdict(text)
+    stamp = datetime.now(UTC).isoformat(timespec="seconds")
+    db.execute("DELETE FROM text_homes WHERE document_hash = ?", (text.document_hash,))
+    db.executemany(
+        "INSERT INTO text_homes (document_hash, home) VALUES (?, ?)",
+        [(text.document_hash, home) for home in sorted(text.homes)],
+    )
+    held = Ledger._row(db, text.document_hash)
+    if held is not None and held == (_facts(text), verdict):
+        # Unchanged, but the rows under it may predate it (or schema 4): stamp anyway.
+        _stamp(db, text.document_hash)
+        return False
+    db.execute(
+        "UPDATE texts SET superseded_at = ? WHERE cache_key = ? AND superseded_at IS NULL",
+        (stamp, text.document_hash),
+    )
+    db.execute(
+        "INSERT INTO texts (stage, cache_key, document_hash, source, licence, private,"
+        " exportable, research, reader_publishable, tool, tool_version,"
+        " schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            "texts",
+            text.document_hash,
+            text.document_hash,
+            text.source,
+            text.licence,
+            int(bool(text.homes)),
+            *verdict,
+            text.ingester,
+            None,
+            text.schema_version,
+            stamp,
+        ),
+    )
+    _stamp(db, text.document_hash)
+    return True
+
+
+#: The head tables whose rows carry their text's export bits, copied from `texts`.
+_STAMPED = ("vocalizations", "annotations")
+
+
+def _stamp(db: sqlite3.Connection, document_hash: str) -> None:
+    """Copy a text's current export bits onto every row made from it, history included,
+    so an export of any table is one `WHERE` with no join. A text with no `texts` row
+    exports nowhere: its rows read 0 until one is written."""
+    found = db.execute(
+        "SELECT exportable, research FROM texts WHERE cache_key = ? AND superseded_at IS NULL",
+        (document_hash,),
+    ).fetchone()
+    bits = (found[0], found[1]) if found is not None else (0, 0)
+    for head in _STAMPED:
+        db.execute(
+            f"UPDATE {head} SET exportable = ?, research = ?"  # noqa: S608 - a fixed name
+            " WHERE document_hash = ? AND (exportable != ? OR research != ?)",
+            (*bits, document_hash, *bits),
+        )
+
+
+def _add_bits(db: sqlite3.Connection) -> None:
+    """Schema 4 (2026-10-27): the export bits on every head table made from a text.
+    Asked of the columns rather than of `meta`, and inside the write lock, so a file any
+    older schema left — or a second process racing this one — ends up with them once."""
+
+    def missing() -> list[str]:
+        return [
+            head
+            for head in _STAMPED
+            if "exportable" not in {row[1] for row in db.execute(f"PRAGMA table_info({head})")}
+        ]
+
+    if not missing():
+        return
+    db.execute("BEGIN IMMEDIATE")
+    try:
+        for head in missing():
+            for column in ("exportable", "research"):
+                db.execute(f"ALTER TABLE {head} ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0")
+        db.execute("COMMIT")
+    except BaseException:
+        db.execute("ROLLBACK")
+        raise
+
+
+def mirror_text(folder: Path) -> None:
+    """A build's `texts` row (targum-internal#162, slice 2): called once a build has
+    written `document.json` and anything beside it a licence is read from. Does nothing
+    with the flag off; never raises, because the reader matters more than the ledger.
+
+    The folder's parent says whose it is: a reader's home (`is_home`) or the library's
+    own, as `backfill_texts` reads the same tree.
+    """
+    file = path()
+    if file is None:
+        return
+    try:
+        document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        source = str(document.get("source") or "")
+        text = Text(
+            document_hash=str(document.get("content_hash") or ""),
+            source=source,
+            licence=_licence_of(folder, source),
+            ingester=str(document.get("ingester") or ""),
+            schema_version=int(document.get("schema_version") or 0),
+        )
+        home = folder.parent.name if is_home(folder.parent.name) else None
+        Ledger(file).hold(text, home)
+    except (sqlite3.Error, OSError, ValueError, TypeError, AttributeError) as error:
+        log.warning("corpus ledger: %s not recorded as a text: %s", folder.name, error)
 
 
 def _facts(text: Text) -> tuple[str, str, int, str, int]:
