@@ -40,14 +40,18 @@ from __future__ import annotations
 
 import argparse
 import base64
+import http.client
+import io
 import json
 import os
 import struct
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -93,8 +97,116 @@ ASK = "Read aloud as {name}, a {who}, in conversation. Only the line, nothing el
 GUIDE = " Read {hints}."
 
 
+#: Wall-clock seconds one request may take, from opening the connection to the last
+#: byte. Not a socket timeout: urllib's `timeout=` bounds each read on its own, so an
+#: answer that trickles a byte every few seconds never trips it. A turn is a few
+#: seconds of speech and comes back in well under twenty; ninety is a stall, not a slow
+#: answer. No deadline survives the laptop going to sleep, though: the re-voicing that
+#: "hung" on 2026-10-26 was a Mac on battery entering sleep at 19:45:06, a minute into
+#: the run, with the watchdog frozen beside it. Run a long voicing on power, awake.
+DEADLINE = 90.0
+#: The most any one socket operation may wait, so the abandoned worker of a cut-off
+#: request does not outlive it by much.
+STALL = 30.0
+#: Cut-offs allowed on one turn before the turn fails, and the first backoff after one.
+#: A stall is the door's, not the request's, so it is worth one more try, not six.
+CUTOFFS = 3
+CUTOFF_WAIT = 10
+
+
 class Daily(RuntimeError):
     """The per-day quota is gone. Waiting will not help; tomorrow will."""
+
+
+class CutOff(TimeoutError):
+    """A request that ran past its wall-clock deadline and was abandoned.
+
+    It may still be billed: the model may have spoken the whole line before the answer
+    stalled on its way back. So it is reported to `say`'s `on_cutoff`, for a ledger to
+    record, rather than passing as if nothing was asked."""
+
+    def __init__(self, elapsed: float, received: int, deadline: float) -> None:
+        super().__init__(
+            f"cut off after {elapsed:.0f}s (deadline {deadline:.0f}s), {received} bytes in"
+        )
+        self.elapsed = elapsed
+        self.received = received
+        self.deadline = deadline
+
+
+def fetch(request: urllib.request.Request, deadline: float = DEADLINE) -> bytes:
+    """The whole answer to `request` within `deadline` seconds of wall clock, or `CutOff`.
+
+    The request runs in a worker thread and this waits on it with a hard deadline. On
+    expiry the worker's socket is shut down, which wakes it from any read it is stuck
+    in, and the request is given up. An HTTP error comes back as an `HTTPError` whose
+    body has already been read inside the deadline."""
+    connections: list[http.client.HTTPConnection] = []
+    stop = threading.Event()
+    received = [0]
+    outcome: dict[str, Any] = {}
+
+    def tracked(kind: type[http.client.HTTPConnection]) -> Any:
+        def make(host: str, **settings: Any) -> http.client.HTTPConnection:
+            connection = kind(host, **settings)
+            connections.append(connection)
+            return connection
+
+        return make
+
+    class Plain(urllib.request.HTTPHandler):
+        def http_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+            return self.do_open(tracked(http.client.HTTPConnection), req)
+
+    class Secure(urllib.request.HTTPSHandler):
+        def https_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+            return self.do_open(tracked(http.client.HTTPSConnection), req)
+
+    opener = urllib.request.build_opener(Plain, Secure)
+
+    def work() -> None:
+        try:
+            with opener.open(request, timeout=min(STALL, deadline)) as answer:
+                chunks: list[bytes] = []
+                while not stop.is_set():
+                    chunk = answer.read1(65536)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    received[0] += len(chunk)
+                outcome["body"] = b"".join(chunks)
+        except urllib.error.HTTPError as error:
+            try:
+                detail = error.read()
+            except Exception:  # noqa: BLE001 - the body is a courtesy, not a contract
+                detail = b""
+            outcome["refused"] = (error, detail)
+        except BaseException as error:  # noqa: BLE001 - handed to the caller's thread
+            outcome["error"] = error
+
+    began = time.monotonic()
+    worker = threading.Thread(target=work, name="tts-request", daemon=True)
+    worker.start()
+    worker.join(deadline)
+    if worker.is_alive():
+        stop.set()
+        for connection in connections:
+            sock = connection.sock
+            if sock is not None:
+                try:
+                    sock.shutdown(2)  # SHUT_RDWR: wakes a blocked recv in the worker
+                except OSError:
+                    pass
+        raise CutOff(time.monotonic() - began, received[0], deadline)
+    if "refused" in outcome:
+        error, detail = outcome["refused"]
+        raise urllib.error.HTTPError(
+            request.full_url, error.code, error.reason, error.headers, io.BytesIO(detail)
+        )
+    if "error" in outcome:
+        raise outcome["error"]
+    body: bytes = outcome["body"]
+    return body
 
 
 def wav(pcm: bytes) -> bytes:
@@ -120,8 +232,20 @@ DOORS = {
 }
 
 
-def say(text: str, voice: str, key: str, prompt: str, via: str = "gemini") -> bytes:
-    """One turn. Returns raw PCM, not a WAV: these get joined before they get a header."""
+def say(
+    text: str,
+    voice: str,
+    key: str,
+    prompt: str,
+    via: str = "gemini",
+    deadline: float = DEADLINE,
+    on_cutoff: Callable[[CutOff], None] | None = None,
+) -> bytes:
+    """One turn. Returns raw PCM, not a WAV: these get joined before they get a header.
+
+    Every request has `deadline` seconds of wall clock. One that runs past it is
+    abandoned, handed to `on_cutoff` (it may have been billed), and retried after a
+    backoff, at most `CUTOFFS` times before the `CutOff` is raised."""
     url = DOORS[via][0].format(model=MODEL) + f"?key={key}"
     body = {
         # Vertex requires the role; the Gemini API takes it and does not need it.
@@ -138,12 +262,22 @@ def say(text: str, voice: str, key: str, prompt: str, via: str = "gemini") -> by
     # that simply loops gets a 429 on about the second one. Backing off is not an
     # error path here, it is the normal one: the first attempt at this scene died on
     # turn 0 with nothing written.
-    for attempt in range(6):
+    cutoffs = 0
+    for attempt in range(6 + CUTOFFS):
         try:
-            with urllib.request.urlopen(request, timeout=600) as answer:
-                payload = json.loads(answer.read())
+            payload = json.loads(fetch(request, deadline))
             part = payload["candidates"][0]["content"]["parts"][0]
             return base64.b64decode(part["inlineData"]["data"])
+        except CutOff as cut:
+            cutoffs += 1
+            if on_cutoff is not None:
+                on_cutoff(cut)
+            if cutoffs >= CUTOFFS:
+                raise
+            wait = CUTOFF_WAIT * (2 ** (cutoffs - 1))
+            print(f"      {cut}; waiting {wait}s", flush=True)
+            time.sleep(wait)
+            continue
         except urllib.error.HTTPError as error:
             if error.code == 429:
                 # A per-minute limit is worth waiting out; the per-day one is not.
@@ -162,7 +296,7 @@ def say(text: str, voice: str, key: str, prompt: str, via: str = "gemini") -> by
                     pass
             # 400 is in here because it is not always what it says: see ASK.
             detail = detail if error.code == 429 else b""
-            if error.code not in (400, 429, 500, 503) or attempt == 5:
+            if error.code not in (400, 429, 500, 503) or attempt - cutoffs == 5:
                 # A bare "HTTP Error 400: Bad Request" says nothing anybody can act on,
                 # and that is what the first run of this printed after eleven good turns.
                 # The body says which field it disliked.
@@ -174,7 +308,7 @@ def say(text: str, voice: str, key: str, prompt: str, via: str = "gemini") -> by
                 raise RuntimeError(
                     f"HTTP {error.code} on this turn: {said or '(no detail)'}"
                 ) from error
-            wait = WAIT * (2**attempt)
+            wait = WAIT * (2 ** (attempt - cutoffs))
             print(f"      {error.code}; waiting {wait}s", flush=True)
             time.sleep(wait)
     raise RuntimeError("unreachable")
@@ -219,7 +353,13 @@ def encode(raw: Path, into: Path) -> None:
 
 
 def voice(
-    scene: dict[str, Any], key: str, into: Path, spacing: float = SPACING, via: str = "gemini"
+    scene: dict[str, Any],
+    key: str,
+    into: Path,
+    spacing: float = SPACING,
+    via: str = "gemini",
+    deadline: float = DEADLINE,
+    on_cutoff: Callable[[CutOff], None] | None = None,
 ) -> tuple[list[list[float]], float]:
     """The whole scene, one turn at a time. Returns the spans and the seconds spoken."""
     quiet = b"\0" * int(RATE * GAP) * 2
@@ -228,7 +368,15 @@ def voice(
     at = 0.0
     for n in range(len(scene["turns"])):
         turn = scene["turns"][n]
-        pcm = say(turn["text"], scene["cast"][turn["who"]]["voice"], key, prompt_for(scene, n), via)
+        pcm = say(
+            turn["text"],
+            scene["cast"][turn["who"]]["voice"],
+            key,
+            prompt_for(scene, n),
+            via,
+            deadline,
+            on_cutoff,
+        )
         seconds = len(pcm) / (RATE * 2)
         spans.append([round(at, 2), round(at + seconds, 2)])
         pieces.append(pcm)
@@ -256,6 +404,9 @@ def main() -> None:
         "--via", choices=sorted(DOORS), default="gemini", help="which door to the model"
     )
     parser.add_argument("--spacing", type=float, default=SPACING, help="seconds between requests")
+    parser.add_argument(
+        "--deadline", type=float, default=DEADLINE, help="wall-clock seconds per request"
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -316,10 +467,17 @@ def main() -> None:
 
     into.mkdir(parents=True, exist_ok=True)
     spent = 0.0
+    cut: list[CutOff] = []
+    voiced = 0
     for scene in scenes:
         print(f"\n{scene['id']}:", flush=True)
         try:
-            spans, seconds = voice(scene, key, into, args.spacing, args.via)
+            spans, seconds = voice(
+                scene, key, into, args.spacing, args.via, args.deadline, cut.append
+            )
+        except CutOff as stalled:
+            print(f"  not voiced this run: {stalled}", file=sys.stderr)
+            continue
         except Daily as gone:
             print(f"\n  the day's quota is gone: {gone}", file=sys.stderr)
             print(
@@ -328,13 +486,18 @@ def main() -> None:
             )
             return
         spent += seconds / 60 * PER_MINUTE
+        voiced += 1
         # Written per scene, so a run that dies keeps what it paid for.
         (into / f"{scene['id']}.spans.json").write_text(
             json.dumps(spans, indent=2) + "\n", encoding="utf-8"
         )
         print(f"  {seconds:.1f}s, ${spent:.2f} so far", flush=True)
 
-    print(f"\n{len(scenes)} scenes into {into}. This run cost ${spent:.2f}.")
+    print(f"\n{voiced} of {len(scenes)} scenes into {into}. This run cost ${spent:.2f}.")
+    if cut:
+        # Not in the figure above, because nothing came back to measure; but asked for,
+        # and possibly billed, so said.
+        print(f"{len(cut)} requests were cut off at {args.deadline:.0f}s and may be billed too.")
     print("The spans are exact, not detected. Nothing where the scenes live was touched.")
 
 
