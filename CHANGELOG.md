@@ -370,6 +370,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   columns in place. The ledger is still off unless `TARGUM_LEDGER` is set, it never
   fails a build, and no reader sees a change. If another process holds the ledger's lock,
   a build waits at most 2 seconds for it, then goes on without the row.
+- `targum corpus export <folder> --exportable` or `--research` (targum-internal#162,
+  slice 3) writes the corpus ledger as a dataset: one JSONL file per table (texts,
+  pointings, annotations and their tokens) and a datasheet listing every source,
+  licence and tool with the row counts. Only current rows go out. A text leaves only
+  when its bit is set, it is public, no reader's home holds it, and the licence rule
+  asked again gives the bit, so a wrong bit alone exports nothing. Private imports,
+  texts with no licence and ND texts are in neither export, and no account id is
+  written. It reads the file `TARGUM_LEDGER` names, spends nothing, and refuses a folder
+  that is not empty.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
