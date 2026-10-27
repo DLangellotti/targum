@@ -4564,6 +4564,12 @@ class Library:
             return self.run_chapter(job)
         if job.options.get("voice"):
             return self.run_voice(job)
+        # A reader's own text, corrected (targum-internal#533): its words read again here,
+        # for nothing, or its corrected lines translated again, at a press.
+        if job.options.get("words_again"):
+            return self.run_words(job)
+        if job.options.get("again"):
+            return self.run_again(job)
         try:
             job.stage = "working"
             self.remember(job)
@@ -5161,6 +5167,141 @@ class Library:
             traceback.print_exc()
             incidents_module.record(self.incidents, f"build:{job.stage}", error, job=job.id)
             self._blame(job, broke(job.ui, error))
+
+    def run_words(self, job: Job) -> None:
+        """Read the corrected lines of a reader's own text again, and redraw its reader
+        (targum-internal#533).
+
+        Never claimed, because nothing here is bought: the pointing and the words are
+        worked out on this machine (`correct.words_again`), and a language whose words a
+        model reads waits for the Translate again press. The English already held is
+        filed under the corrected text's keys (`correct.recache`), so the next build that
+        reads the cache buys only the corrected lines.
+        """
+        from . import correct as correct_module
+        from .cli import rebuild_one
+        from .models import SegmentedDocument, Translation
+        from .models import read_artifact as read
+
+        folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+        if folder is None:
+            return self._blame(job, "We can't find that one any more.")
+        job.stage = "working"
+        job.message = said_in(job.ui, "job.reading-the-words", "We're reading the words again…")
+        self.remember(job)
+        try:
+            correct_module.words_again(folder)
+            segmented = read(SegmentedDocument, folder / "segments.json")
+            if segmented is not None:
+                for path in sorted((folder / "translations").glob("*.json")):
+                    translation = read(Translation, path)
+                    if translation is None or translation.provider != "anthropic":
+                        continue
+                    builder = self._builder(
+                        Job(
+                            id=job.id,
+                            source=job.source,
+                            owner=job.owner,
+                            home=job.home,
+                            options={"to": translation.target_language},
+                        )
+                    )
+                    builder._resolved_out = folder
+                    correct_module.recache(builder, segmented, translation)
+            with correct_module.lock(folder):
+                rebuild_one(
+                    folder,
+                    reads=sorted(self._reads_of(job.owner) or ()) or None,
+                    covers=self.out / "thumbs",
+                )
+                correct_module.tidy_pages(folder)
+        except TargumError as error:
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "correct", error, job=job.id)
+            return self._blame(job, broke(job.ui, error))
+        job.reader = f"{folder.name}/reader/index.html"
+        job.message = ""
+        job.stage = "done"
+        self.remember(job)
+
+    def run_again(self, job: Job) -> None:
+        """Translate the corrected lines of a reader's own text again, and their words
+        where a model reads them (targum-internal#533). Pressed and claimed
+        (`Handler._text_translate`); this buys exactly the lines the press was quoted for.
+        """
+        from . import correct as correct_module
+        from .cli import rebuild_one
+        from .models import SegmentedDocument, Translation
+        from .models import read_artifact as read
+
+        folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
+        if folder is None:
+            return self._blame(job, "We can't find that one any more.")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        lines = [str(one) for one in job.options.get("again") or []]
+        wanted = (
+            [segment for segment in segmented.segments if segment.id in set(lines)]
+            if segmented
+            else []
+        )
+        if segmented is None or not wanted:
+            return self._blame(job, "We can't find those lines any more.")
+        builder = self._builder(job)
+        builder._resolved_out = folder
+        target = str(job.options.get("to") or "en")
+        job.stage = "working"
+        job.total = len(wanted)
+        job.message = said_in(
+            job.ui, "job.translating-again", "We're translating your corrections…"
+        )
+        self.remember(job)
+        try:
+            # Bought outside the lock, which a model call would hold for seconds, and
+            # written inside it, over the file as it is by then.
+            fresh = builder._translated(
+                segmented, wanted, lambda done: setattr(job, "done", job.done + done)
+            )
+            path = builder.translation_path(folder)
+            with correct_module.lock(folder):
+                translation = read(Translation, path)
+                if translation is None:
+                    return self._blame(job, "We can't find that translation any more.")
+                still = {segment.id for segment in segmented.segments}
+                if (now_segments := read(SegmentedDocument, folder / "segments.json")) is not None:
+                    still = {segment.id for segment in now_segments.segments}
+                translation.segments.update({k: v for k, v in fresh.items() if k in still})
+                translation.write(path)
+                # The words of a language a model reads, which the free pass left unread.
+                from .annotate import model_lemma
+
+                read_words = (
+                    model_lemma.reads(segmented.language)
+                    and builder.annotate_chapter(segmented, wanted) is not None
+                )
+                correct_module.translated(folder, target, lines, read=read_words)
+            from . import ledger as ledger_module
+
+            ledger_module.mirror_translations(folder)
+            with correct_module.lock(folder):
+                rebuild_one(
+                    folder,
+                    reads=sorted(self._reads_of(job.owner) or ()) or None,
+                    covers=self.out / "thumbs",
+                )
+        except TargumError as error:
+            return self._blame(job, told(job.ui, error, hosted=self.hosted))
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "correct", error, job=job.id)
+            return self._blame(job, broke(job.ui, error))
+        job.spent = builder.spent.cost()
+        job.reader = f"{folder.name}/reader/index.html"
+        job.message = ""
+        job.stage = "done"
+        self.settle(job)
+        self.remember(job)
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -8908,6 +9049,8 @@ class Handler(BaseHTTPRequestHandler):
             )
         if route == "/voice":
             return self._voice_asked()
+        if route == "/text/edit":
+            return self._text_asked()
         if route.startswith("/job/"):
             job = self._own_job(route[len("/job/") :])
             return self._json(
@@ -9133,6 +9276,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._accept_grant()
         if route == "/correction":
             return self._propose_correction(payload)
+        if route == "/text/correct":
+            return self._text_correct(payload)
+        if route == "/text/part":
+            return self._text_part(payload)
+        if route == "/text/translate":
+            return self._text_translate(payload)
         if route == "/tell-us":
             return self._tell_us(payload)
         if route == "/account/languages":
@@ -14310,6 +14459,214 @@ class Handler(BaseHTTPRequestHandler):
             reason="offered by a reader",
         )
         self._json({"proposed": made})
+
+    # -- a reader's own text, corrected (targum-internal#533) ---------------------------
+
+    def _own_text(self, name: str) -> Path | None:
+        """A text in this home that this reader brought, or None.
+
+        Two doors, both shut on a library text: the folder has to be in the asker's home,
+        and its source has to be theirs rather than the catalogue's (`correct.own_folder`).
+        A copy of a library book in their home is still the library's, and its corrections
+        are proposals (`_propose_correction`).
+        """
+        from . import correct as correct_module
+
+        folder = self.library.within(self._home(), name)
+        if folder is None or not correct_module.own_folder(folder):
+            return None
+        return folder
+
+    def _text_jobs(self, folder: Path) -> list[Job]:
+        """What is being done to this folder now: builds, voices, and words read again."""
+        home = self._home()
+        return [
+            job
+            for job in list(self.library.jobs.values())
+            if job.home == home
+            and job.options.get("folder") == folder.name
+            and job.stage in ("queued", "working")
+        ]
+
+    def _text_asked(self) -> None:
+        """Whether the reader may correct this text, and what is waiting on it.
+
+        Asked by the reader as it loads, so it only reads. `before` is, per language, the
+        corrected lines whose English is still from before the correction; `reading` is
+        whether their words are being read again now.
+        """
+        from . import correct as correct_module
+
+        query = parse_qs(urlparse(self.path).query)
+        folder = self._own_text(query.get("name", [""])[0])
+        if folder is None:
+            return self._json({"editable": False})
+        working = self._text_jobs(folder)
+        kept = correct_module.record(folder)
+        return self._json(
+            {
+                "editable": True,
+                "breaks": kept["breaks"],
+                "before": correct_module.stale(folder),
+                "reading": next((job.state() for job in working if job.kind == "words"), None),
+            }
+        )
+
+    def _text_busy(self, folder: Path) -> bool:
+        """Whether something other than a correction is working on this text. A build
+        reads the folder when it starts and writes it when it ends, so a correction
+        between the two would be written over, or would make it buy what it had."""
+        return any(job.kind != "words" for job in self._text_jobs(folder))
+
+    def _words_job(self, folder: Path) -> Job:
+        """The free pass that reads the corrected lines again and redraws the reader. One
+        waiting a folder: a second correction joins the pass that has not started."""
+        waiting = next(
+            (
+                job
+                for job in self._text_jobs(folder)
+                if job.kind == "words" and job.stage == "queued"
+            ),
+            None,
+        )
+        if waiting is not None:
+            return waiting
+        person = self._person()
+        job = Job(
+            ui=self._page_language(),
+            id=secrets.token_hex(8),
+            source=str(folder),
+            options={"words_again": True, "folder": folder.name},
+            owner=person.id if person else None,
+            home=self._home(),
+            kind="words",
+        )
+        self.library.jobs[job.id] = job
+        self.library.enqueue(job)
+        return job
+
+    def _text_correct(self, payload: dict[str, Any]) -> None:
+        """One line of a reader's own text, corrected. Free: see `correct.correct_line`."""
+        from . import correct as correct_module
+
+        folder = self._own_text(str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        if self._text_busy(folder):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.text-busy",
+                        "We're still working on this text. Correct it once that's done.",
+                    )
+                },
+                409,
+            )
+        try:
+            done = correct_module.correct_line(
+                folder, str(payload.get("line") or ""), str(payload.get("text") or "")
+            )
+        except TargumError as error:
+            return self._json({"error": refused_in(self._page_language(), error)}, 400)
+        answer: dict[str, Any] = {
+            "line": done.new,
+            "was": done.old,
+            "text": done.now,
+            "before": done.before,
+        }
+        if done.new != done.old:
+            answer["job"] = self._words_job(folder).state()
+        self._json(answer)
+
+    def _text_part(self, payload: dict[str, Any]) -> None:
+        """Start a part at a line of a reader's own text, or join it to the one before."""
+        from . import correct as correct_module
+
+        folder = self._own_text(str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        if self._text_busy(folder):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.text-busy",
+                        "We're still working on this text. Correct it once that's done.",
+                    )
+                },
+                409,
+            )
+        line = str(payload.get("line") or "")
+        try:
+            breaks = correct_module.cut(folder, line, join=bool(payload.get("join")))
+        except TargumError as error:
+            return self._json({"error": refused_in(self._page_language(), error)}, 400)
+        self._json(
+            {
+                "breaks": breaks,
+                "page": correct_module.page_of(folder, line),
+                "job": self._words_job(folder).state(),
+            }
+        )
+
+    def _text_translate(self, payload: dict[str, Any]) -> None:
+        """Translate again the lines a reader corrected: a quoted press, claimed through
+        `Library.press` like every other (design.md §12, 2026-10-27). A text costs no
+        credits, so the page says so; the money is held to the same rails a build is."""
+        from . import correct as correct_module
+        from .annotate import model_lemma
+        from .models import Document, SegmentedDocument
+        from .models import read_artifact as read
+
+        folder = self._own_text(str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        if self._text_busy(folder):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.text-busy",
+                        "We're still working on this text. Correct it once that's done.",
+                    )
+                },
+                409,
+            )
+        stale = correct_module.stale(folder)
+        target = str(payload.get("to") or "")
+        if target not in stale:
+            target = next(iter(stale), "")
+        lines = stale.get(target, [])
+        document = read(Document, folder / "document.json")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        if not lines or document is None or segmented is None:
+            return self._json({"ready": True})
+        wanted = [segment for segment in segmented.segments if segment.id in set(lines)]
+        person = self._person()
+        job = Job(
+            ui=self._page_language(),
+            id=secrets.token_hex(8),
+            source=document.source,
+            title=document.title or folder.name,
+            language=document.language,
+            options={"again": lines, "folder": folder.name, "to": target},
+            owner=person.id if person else None,
+            admin=bool(person and person.admin),
+            home=self._home(),
+        )
+        builder = self.library._builder(job)
+        usable, _ = builder.provider.available()
+        if not usable:
+            return self._json(self._no_key(), 402)
+        job.estimate = builder.provider.estimate(wanted, segmented.language, target, builder.style)
+        if model_lemma.reads(segmented.language):
+            job.estimate += model_lemma.estimate(wanted, segmented.language)
+        job.total = len(wanted)
+        job.stage = "ready"
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        if self.library.press(job):
+            self.library.remember(job)
+            return self._json(job.state(), 402)
+        self._json(job.state())
 
     def _gloss_word(self, payload: dict[str, Any]) -> None:
         """One word, because a reader asked for it.

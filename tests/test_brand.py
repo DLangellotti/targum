@@ -551,6 +551,12 @@ THUMBED = (
     ".chat-play",
     ".quote-source",
     ".quote-more",
+    # Correcting a text you brought (targum-internal#533).
+    ".correct-save",
+    ".correct-cancel",
+    ".correct-cut",
+    ".correct-done",
+    ".correct-again",
 )
 
 

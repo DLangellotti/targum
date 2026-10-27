@@ -392,6 +392,12 @@ class Build:
             if existing is not None:
                 self.reused.append("document")
                 return existing
+        # A reader's corrections, put back into a text read again from its source: a
+        # recording grows by being ingested whole again (targum-internal#533).
+        from . import correct as correct_module
+
+        if correct_module.replay_document(path.parent, fresh):
+            fresh.content_hash = fresh.recompute_hash()
         fresh.write(path)
         return fresh
 
@@ -408,6 +414,10 @@ class Build:
                 self.reused.append("segments")
                 return existing
         segmented = segment_document(document, self.segmenter)
+        # And where the reader cut it into parts, at the lines that are still there.
+        from . import correct as correct_module
+
+        correct_module.replay_breaks(path.parent, segmented)
         if not segmented.segments:
             # The file's own name, never the path it was written to on this disk: an
             # upload's path is the server's, and a reader was being shown it.

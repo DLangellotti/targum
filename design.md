@@ -380,6 +380,48 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The owner of a text corrects its words, and cuts it into parts — 2026-10-27
+
+From the LingQ comparison of 2026-10-27 (targum-internal#533; David decided it starts
+before Launch). A reader could write a note on a word and propose a meaning, and nothing
+else: a transcript that misheard a word kept it, and a long talk was one page. On LingQ
+losing the way to fix a transcript was a live complaint that day.
+
+- **Only a text you brought.** The ⋯ menu's *This text* group has a row, **Correct the
+  text**, on a text in your home whose source is yours — a link, a file, a recording —
+  and not the catalogue's. A library text never draws it, even as your copy in Your
+  targums, and a reader's correction of one is still a proposal on the word's card
+  ("An editor settles a reader's proposal", below). The server holds the same line
+  (`correct.own_folder`), so a door shut only in the page is not the only door.
+- **Correcting is a mode, and a line is the unit.** The row puts the page in correcting:
+  a quiet bar over the text says "Tap a line to correct it." with **Done** at its end,
+  and a tap on a line opens it under itself as a field in the reading face, with
+  **Save** (teal, a working action), **Cancel** (bordered in ink) and, at the end of the
+  row, **Start a new part here** or, on a line that already starts one you made, **Join
+  with the part before**. While correcting, lines are reached by Tab and opened with
+  Enter (§14, 3). Esc closes the field. A tap on a word opens the line, not its card.
+- **The corrected line, and only it, changes.** A line's id is its place and its text, so
+  it takes a new id and every other line keeps the English, the words, the pointing and
+  the clock it had. Its words and pointing are read again on the box, for nothing; a
+  word the correction left alone keeps its clock in the recording and a word it changed
+  has none until the part is heard again — a gap beats a clock that lies (§12,
+  2026-09-27 on spans).
+- **The English waits for a press.** A corrected line keeps its old translation in the
+  muted ink, with "This translation is from before your correction.", **Translate
+  again**, and "Uses none of your credits" beside it, because a text costs none. The
+  press is quoted and claimed through `Library.press` like every other, and buys only
+  the corrected lines. Nothing else here spends; a language whose words a model reads
+  has them read in the same press.
+- **A part is a cut, not a copy.** Starting a part divides the text where the line is,
+  as a heading would; no line moves and nothing is bought again. Only a cut you made can
+  be joined: a part that opens at a heading is the text's own.
+- **Kept across a rebuild.** `corrections.json` beside the text records each corrected
+  line and each cut, and a build that reads the text again from its source — a recording
+  growing by a part — puts them back.
+
+What it does not change: the word's card, its note and its proposal; a library text;
+and what a build of a new text does.
+
 ### Aramaic climbs from Onkelos to the daf — 2026-10-25
 
 David, 2026-10-25, on ling-arc's research into taking a reader from no Aramaic to Onkelos

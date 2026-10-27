@@ -291,6 +291,9 @@ class SegmentedDocument(Artifact):
     language: str
     segmenter: str
     segments: list[Segment] = Field(default_factory=list)
+    #: The lines a reader started a part at, by id (`correct.cut`, targum-internal#533).
+    #: Read by `render.split_sections` beside the headings, so a cut moves no id.
+    breaks: list[str] = Field(default_factory=list)
 
     @property
     def direction(self) -> str:
