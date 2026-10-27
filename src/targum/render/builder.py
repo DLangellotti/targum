@@ -47,6 +47,7 @@ from ..annotate.base import (
 from ..annotate.gloss import from_step_bible
 from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed, qatan
+from ..correct import own_source
 from ..models import (
     Annotation,
     BlockKind,
@@ -162,10 +163,11 @@ def embed_json(payload: object) -> Markup:
 
 
 def split_sections(segmented: SegmentedDocument) -> list[Section]:
-    """Break at top-level headings, then on length."""
+    """Break at top-level headings, at the lines a reader cut at, then on length."""
     sections: list[Section] = []
     current: Section | None = None
     has_body = False
+    cuts = set(segmented.breaks)
 
     # A heading only opens a new section once the current one holds actual prose.
     # Otherwise a title, or a title and byline, would each become a section of its own.
@@ -173,8 +175,10 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
 
     for segment in segmented.segments:
         starts_section = (
-            segment.kind is BlockKind.heading
-            and (segment.level or 1) <= 2
+            (
+                (segment.kind is BlockKind.heading and (segment.level or 1) <= 2)
+                or segment.id in cuts
+            )
             and current is not None
             and has_body
         )
@@ -6682,6 +6686,10 @@ def render(
             # The video's home, for the one control that leaves the page. Where the
             # source was a file there is none, and the control is not drawn.
             spoken_home=spoken.home,
+            # Whether this is a text somebody brought, which its owner may correct and
+            # cut into parts (targum-internal#533). The script asks the server before it
+            # draws the row; this keeps `correct.js` off every library text's page.
+            correctable=own_source(document.source, spoken.home),
             # Which service, for the control's name; and whether its address takes a
             # time, which only YouTube's does — an Instagram reel opens at its start.
             spoken_home_named=video_hosts.named(spoken.home),

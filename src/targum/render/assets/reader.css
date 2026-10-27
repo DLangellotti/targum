@@ -6500,3 +6500,95 @@ a.lv-qrow:hover .lv-qname { color: var(--teal); }
   .lv-queue .lv-mini { display: none; }
   .lv-qbody { padding-block-end: 1.5rem; }
 }
+
+/* --- correcting a text you brought (targum-internal#533; §12, 2026-10-27) -----------
+   The chrome's face and the reader's radii (§8: 4 for controls, 6 for the open line).
+   Save is a working action, so it takes the teal; Cancel and the part's press are
+   bordered in ink, and nothing here is a beige button on a beige card (§9). The line
+   being corrected wears the raised paper, the view's one raised layer while it is open. */
+.correct-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: var(--measure);
+  margin: 0 auto 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+}
+.correct-said { margin: 0; color: var(--ink); }
+body.correcting main .pair[data-id] { cursor: text; }
+body.correcting main .pair[data-id]:hover { outline: 1px solid var(--rule); outline-offset: 2px; }
+.pair.correcting-this { background: var(--paper-raised); border-radius: 6px; }
+.correct-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.25rem 0 1rem;
+  font-family: var(--chrome);
+}
+.correct-field {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--reading);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+.correct-field:lang(he),
+.correct-field:lang(yi),
+.correct-field:lang(arc) { font-family: var(--reading-hebrew); }
+.correct-keys { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.correct-save,
+.correct-cancel,
+.correct-cut,
+.correct-done,
+.correct-again {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.correct-save { border: 0; background: var(--teal); color: var(--paper); font-weight: 600; }
+.correct-cancel,
+.correct-cut,
+.correct-done,
+.correct-again { border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+.correct-cut { margin-inline-start: auto; }
+.correct-save:disabled,
+.correct-cut:disabled,
+.correct-again:disabled { opacity: 0.5; cursor: default; }
+.correct-note { margin: 0; font-size: 0.8125rem; color: var(--ink); }
+.correct-note:empty { display: none; }
+.pair.translated-before .tr { color: var(--ink-soft); }
+.correct-before {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+.correct-cost { color: var(--ink-soft); }
+@media (hover: none) and (pointer: coarse) {
+  .correct-save,
+  .correct-cancel,
+  .correct-cut,
+  .correct-done,
+  .correct-again,
+  .correct-field { min-height: 44px; }
+}

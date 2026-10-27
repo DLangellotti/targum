@@ -1116,7 +1116,7 @@ window.targumReaderRest = function (R) {
     more.addEventListener("click", function (event) {
       var at = event.target;
       if (!at || !at.closest) return;
-      if (!at.closest('[data-fullscreen], #talk-open, [data-toggle="list"], .home, [data-video]')) return;
+      if (!at.closest('[data-fullscreen], #talk-open, #correct-open, [data-toggle="list"], .home, [data-video]')) return;
       setTimeout(function () {
         showMore(false);
       }, 0);
