@@ -436,6 +436,14 @@
           <span class="m-label">{{ t("reader.page.add-to-a-playlist", "Add to a playlist") }}</span>
         </a>
       </div>
+      {#- Correct the text (targum-internal#533): only on a text the reader brought, and
+          shown by `correct.js` once the server says it is theirs. -#}
+      {% if correctable %}
+      <button type="button" class="m-row" id="correct-open" data-what="{{ t("reader.page.correct-the-text", "Correct the text") }}" aria-pressed="false" hidden>
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5Z"/><path d="M9 4 12 7"/></svg></span>
+        <span class="m-label">{{ t("reader.page.correct-the-text", "Correct the text") }}</span>
+      </button>
+      {% endif %}
       {#- Talk to targum about this text (2026-09-11). Hidden until the page knows it is
           served: off a disk there is nothing to talk to. -#}
       <button type="button" class="m-row talk-cta" id="talk-open" data-what="{{ t("reader.bar.talk-to-targum", "Talk to targum") }}" aria-expanded="false" aria-controls="talk-drawer" title="{{ t("reader.page.talk-to-targum-about-this-text", "Talk to targum about this text") }}" hidden>
@@ -1482,6 +1490,7 @@
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 {{ script('list.js') }}
 {{ script('talk.js') }}
+{% if correctable %}{{ script('correct.js') }}{% endif %}
 {% if false_friends %}
 {#- A French word's false friend on its card (targum-internal#267), only on a page written
     with `TARGUM_FALSE_FRIENDS` on; without it the page ends as it did. #}
