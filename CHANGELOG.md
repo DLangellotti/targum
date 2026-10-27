@@ -396,9 +396,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - The cache can read pointings from the corpus ledger first (targum-internal#162, slice
   5), behind a second flag, `TARGUM_LEDGER_READ=vocalize`, which is off by default. A
   ledger miss, a locked or broken ledger file, or a ledger that is off falls back to the
-  cache's own file, so a stage never runs because of the ledger. A build served from the
-  ledger asks the vocalizer nothing and spends nothing. A cache write the ledger refused
-  no longer leaves the old row to be read back.
+  cache's own file, so a stage never runs because of the ledger. The ledger answers only
+  while the cache file exists and only with a row at least as new as it, so a dropped,
+  cleared or newer file always wins. Reads are read-only and never take the write
+  lock. A build served from the ledger asks the vocalizer nothing and spends nothing.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,
   gaps G1, G8, G9). **A frequency list counted from the shelf's own Aramaic**
   (`annotate/aramaic_frequency.json`, `scripts/count_aramaic.py`): Onkelos, Jonathan, the
