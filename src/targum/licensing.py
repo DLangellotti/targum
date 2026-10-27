@@ -201,7 +201,8 @@ class ExportTerms:
     list rather than a family. Anything not on the list stays out of both until it is.
     """
 
-    #: The commercial export: public domain, CC0, CC BY, CC BY-SA.
+    #: The commercial export: public domain, CC0, CC BY, CC BY-SA, and targum's own
+    #: writing (David, 2026-10-27).
     exportable: bool
     #: The research export: everything above, and CC BY-NC and CC BY-NC-SA.
     research: bool
@@ -225,6 +226,10 @@ def export_terms(licence: str, *, private: bool = False) -> ExportTerms:
     if noncommercial:
         return ExportTerms(exportable=False, research=creative and attribution)
     if any(word in flat for word in _PUBLIC):
+        return ExportTerms(exportable=True, research=True)
+    # targum's own writing — the dialogues, the weekly's prose — is ours to export
+    # (David, 2026-10-27).
+    if flat == _OWN or flat.startswith(_OWN + " "):
         return ExportTerms(exportable=True, research=True)
     if creative and attribution:
         return ExportTerms(exportable=True, research=True)

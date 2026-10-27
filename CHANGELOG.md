@@ -351,8 +351,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
   string, its owner and two export bits computed from David's 2026-10-08 rule
-  (`licensing.export_terms`). Commercial export admits public domain, CC0, CC BY and
-  CC BY-SA. Research export also admits CC BY-NC and CC BY-NC-SA. ND texts, texts with
+  (`licensing.export_terms`). Commercial export admits public domain, CC0, CC BY,
+  CC BY-SA and targum's own writing (David, 2026-10-27). Research export also admits CC BY-NC and CC BY-NC-SA. ND texts, texts with
   no licence and readers' private imports go in neither. A licence corrected later keeps
   the old row as history. Account deletion removes the row. `targum cache ledger-texts`
   fills the table from the built folders and spends nothing. Ledger schema 3 only adds

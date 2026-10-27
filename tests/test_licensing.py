@@ -109,8 +109,9 @@ def test_derivatives_is_the_readers_question_and_export_is_the_corpus_one() -> N
         ("", False, False),
         ("   ", False, False),
         ("Ben-Yehuda Project terms of use", False, False),
-        # Not on David's list, so in neither until it is (asked on targum-internal#162).
-        ("targum", False, False),
+        # Our own writing goes in the commercial export (David, 2026-10-27).
+        ("targum", True, True),
+        # Not on David's list, so in neither until it is.
         ("MPL-2.0", False, False),
     ],
 )
@@ -118,8 +119,8 @@ def test_the_export_rule_is_the_list_david_named(
     licence: str, commercial: bool, research: bool
 ) -> None:
     """Decided 2026-10-08 (targum-internal#162): commercial export is PD, CC0, CC BY and
-    CC BY-SA; research also admits CC BY-NC and CC BY-NC-SA; ND, no licence and a private
-    import are never exportable."""
+    CC BY-SA, and since 2026-10-27 targum's own writing; research also admits CC BY-NC
+    and CC BY-NC-SA; ND, no licence and a private import are never exportable."""
     terms = export_terms(licence)
     assert (terms.exportable, terms.research) == (commercial, research)
 
@@ -127,3 +128,10 @@ def test_the_export_rule_is_the_list_david_named(
 def test_a_private_import_exports_nowhere_whatever_its_licence() -> None:
     assert export_terms("Public Domain", private=True) == ExportTerms(False, False)
     assert export_terms("CC BY 4.0", private=True) == ExportTerms(False, False)
+
+
+def test_our_own_writing_is_in_the_commercial_export() -> None:
+    """David, 2026-10-27: the dialogues and the weekly, licensed "targum", may leave in a
+    commercial dataset; a private import is still out whatever it says."""
+    assert export_terms("targum") == ExportTerms(exportable=True, research=True)
+    assert export_terms("targum", private=True) == ExportTerms(False, False)

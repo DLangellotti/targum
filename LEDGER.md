@@ -42,7 +42,7 @@ export is one `WHERE` with no join.
 
 | table | one row is | its own columns |
 |---|---|---|
-| `texts` | a source document | `document_hash`, `source`, `licence`, `owner` (null when public), `exportable`, `research`, `reader_publishable`; `tool` is the ingester — **built** (2026-10-27, schema 3). The bits are computed by `licensing.export_terms` from the licence and the owner, never typed: commercial is PD, CC0, CC BY, CC BY-SA; research adds CC BY-NC and CC BY-NC-SA; ND, no licence and a private import are in neither (David, 2026-10-08). Filled by `targum cache ledger-texts` from the built folders; not yet written at build time. |
+| `texts` | a source document | `document_hash`, `source`, `licence`, `owner` (null when public), `exportable`, `research`, `reader_publishable`; `tool` is the ingester — **built** (2026-10-27, schema 3). The bits are computed by `licensing.export_terms` from the licence and the owner, never typed: commercial is PD, CC0, CC BY, CC BY-SA and targum's own writing (David, 2026-10-27); research adds CC BY-NC and CC BY-NC-SA; ND, no licence and a private import are in neither (David, 2026-10-08). Filled by `targum cache ledger-texts` from the built folders; not yet written at build time. |
 | `segmentations` + `segments` | a split of a text / one sentence | `document_hash`, `segmenter`; `segment_id`, `ord`, `text` |
 | `translations` + `pairs` | one rendering / one aligned pair | `document_hash`, `provider`, `model`, `style`, `target_language`; `segment_id`, `target`, `confidence`, `coarse` |
 | `alignments` + `links` | a human translation matched / one link | `document_hash`, `translation_hash`, `aligner`; `source[]`, `target[]`, `confidence` |
