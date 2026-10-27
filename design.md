@@ -411,6 +411,19 @@ The icons the manifest names, `/app-icon-192.png` and `/app-icon-512.png`, are t
 folder's full-bleed squares; the mark sits inside the area a launcher masks to a circle.
 The page policy gains `manifest-src 'self'`.
 
+### The back office pages its lists — 2026-10-27
+
+David asked for the back office to scale to more users (targum-internal#542). Accounts
+and the waitlist draw fifty rows at a time, each with a search box, an order and
+**Previous** and **Next** under the table, as a plain GET form and links: the page still
+carries no script for it, and the address says which page is open, so a reload lands
+back on it. Accounts open newest first and can be ordered by last active, words,
+texts or days; the waitlist keeps oldest first, the order the door lets people in, with
+those let in still folded under **Let in (n)**, paged on their own. The last thirty days
+draw the accounts on the open page. The headline's counts, Follow up, the weekly table
+and How far readers get still count everybody; Follow up names the oldest fifty and says
+how many more there are.
+
 ### Aramaic climbs from Onkelos to the daf — 2026-10-25
 
 David, 2026-10-25, on ling-arc's research into taking a reader from no Aramaic to Onkelos

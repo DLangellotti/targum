@@ -82,6 +82,14 @@
   .bo a.write { font-size: 0.8125rem; font-weight: 600; }
   .bo .told .said-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .bo .told .told-where { margin: 0.25rem 0 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
+  /* A list longer than a page (targum-internal#542): a search, an order and the way to
+     the next fifty, as a GET form and plain links. */
+  .bo .find { margin: 0 0 0.75rem; }
+  .bo .find input[type="search"] { min-inline-size: 12rem; flex: 1 1 12rem; max-inline-size: 22rem; }
+  .bo .pager { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: baseline;
+               margin: 0.75rem 0 0; font-size: 0.875rem; }
+  .bo .pager a { font-weight: 600; }
+  .bo p.count { font-size: 0.8125rem; margin: 0 0 0.5rem; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -92,7 +100,8 @@
       are the first thing read whichever tab is open (2026-09-28). -#}
   <p class="taken">{{ survey.waiting_for_a_way_in }} waiting to be let in &middot;
     {% if visits and visits.any() %}{{ '%.1f'|format(visits.a_day()) }} visitors a day this week &middot; {% endif %}
-    {{ survey.accounts|length }} account{{ '' if survey.accounts|length == 1 else 's' }},
+    {%- set account_count = survey.accounts_total or survey.accounts|length %}
+    {{ account_count }} account{{ '' if account_count == 1 else 's' }},
     {{ survey.active() }} active in the last {{ days }} days &middot;
     {{ told_open }} message{{ '' if told_open == 1 else 's' }} waiting on us &middot;
     {{ incidents|length }} incident{{ '' if incidents|length == 1 else 's' }} &middot; taken {{ survey.taken }}</p>
@@ -139,6 +148,9 @@
       {% endfor %}
     </tbody>
   </table>
+  {%- if survey.follow_up_total > survey.follow_up|length %}
+  <p class="quiet count">The oldest {{ survey.follow_up|length }} of {{ survey.follow_up_total }}.</p>
+  {%- endif %}
   {%- else %}
   <p class="quiet">Nobody to follow up with today.</p>
   {%- endif %}
@@ -238,7 +250,7 @@
   <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
     {{ survey.waiting.off }} left the list &middot;
-    {{ survey.waiting_list|selectattr('invited')|list|length }} let in</p>
+    {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in</p>
   {#- Which page each joined through (targum-internal#388): `/aliyah` beside the front
       door is only worth keeping if somebody comes in by it. -#}
   {%- if survey.waiting_by_page %}
@@ -251,6 +263,22 @@
       above answer "how many", which is the one question the operator does not have.
       Those already let in fold away beneath (2026-10-15): with the door open, they were
       most of the list, and the few still waiting were the rows to find. -#}
+  {#- Paging (targum-internal#542). Each list draws fifty rows; the links keep the other
+      list's search and page, and a search starts its own list from the first page. -#}
+  {%- macro pager(listing, key, label) %}
+  {%- if listing.pages() > 1 %}
+  <nav class="pager" aria-label="{{ label }}">
+    {%- if listing.page > 1 %}<a rel="prev" href="{{ bo_url(**{key: listing.page - 1}) }}">Previous</a>{% endif %}
+    <span class="quiet">{{ listing.first_row() }}–{{ listing.last_row() }} of {{ listing.matches }}</span>
+    {%- if listing.page < listing.pages() %}<a rel="next" href="{{ bo_url(**{key: listing.page + 1}) }}">Next</a>{% endif %}
+  </nav>
+  {%- endif %}
+  {%- endmacro %}
+  {%- macro carry(names) %}
+    {%- for key, value in bo_kept() if key in names %}
+    <input type="hidden" name="{{ key }}" value="{{ value }}">
+    {%- endfor %}
+  {%- endmacro %}
   {%- macro waiting_row(who) %}
       <tr>
         <td>{{ who.email }}</td>
@@ -279,10 +307,19 @@
       <tr><th>Address</th><th>Asked</th><th>Confirmed</th><th>State</th><th>Let in</th><th>Reads</th><th>From</th></tr>
     </thead>
   {%- endmacro %}
-  {%- if survey.waiting_list %}
+  {%- if survey.waiting_list or waiting_listing.q or survey.waiting_let_in %}
   {%- set still = survey.waiting_list|rejectattr('invited')|list %}
   {%- set done = survey.waiting_list|selectattr('invited')|list %}
   <h2>The waitlist</h2>
+  <form method="get" action="/back-office#people" class="decide find" role="search">
+    <input type="search" name="wq" value="{{ waiting_listing.q }}" maxlength="100"
+           placeholder="Address" aria-label="Search the waitlist by address">
+    <select name="wsort" aria-label="Order of the waitlist">
+      {% for key, name in waiting_sorts.items() %}<option value="{{ key }}"{% if key == waiting_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+    {{- carry(('q', 'sort', 'page')) }}
+    <button type="submit">Search</button>
+  </form>
   {%- if still %}
   <table>
     {{ waiting_head() }}
@@ -290,18 +327,23 @@
       {% for who in still %}{{ waiting_row(who) }}{% endfor %}
     </tbody>
   </table>
+  {{ pager(waiting_listing, 'wpage', 'Waitlist pages') }}
+  {%- elif waiting_listing.q %}
+  <p class="quiet">Nobody still waiting matches “{{ waiting_listing.q }}”.</p>
   {%- else %}
   <p class="quiet">Everybody who joined has been let in.</p>
   {%- endif %}
   {%- if done %}
-  <details class="let-in">
-    <summary>Let in ({{ done|length }})</summary>
+  {#- Open when it is being paged through, or holds the only rows a search found. -#}
+  <details class="let-in"{% if let_in_listing.page > 1 or (waiting_listing.q and not still) %} open{% endif %}>
+    <summary>Let in ({{ let_in_listing.matches if waiting_listing.q else (survey.waiting_let_in or done|length) }})</summary>
     <table>
       {{ waiting_head() }}
       <tbody>
         {% for who in done %}{{ waiting_row(who) }}{% endfor %}
       </tbody>
     </table>
+    {{ pager(let_in_listing, 'ipage', 'Let in pages') }}
   </details>
   {%- endif %}
   {#- The press that keeps the front door's promise (targum-internal#292): the oldest
@@ -319,6 +361,19 @@
   {%- endif %}
 
   <h2>Accounts</h2>
+  {#- Fifty at a time, newest first unless asked otherwise (targum-internal#542). -#}
+  <form method="get" action="/back-office#people" class="decide find" role="search">
+    <input type="search" name="q" value="{{ accounts_listing.q }}" maxlength="100"
+           placeholder="Address or name" aria-label="Search accounts by address or name">
+    <select name="sort" aria-label="Order of the accounts">
+      {% for key, name in account_sorts.items() %}<option value="{{ key }}"{% if key == accounts_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+    {{- carry(('wq', 'wsort', 'wpage', 'ipage')) }}
+    <button type="submit">Search</button>
+  </form>
+  {%- if accounts_listing.q and not survey.accounts %}
+  <p class="quiet">No account matches “{{ accounts_listing.q }}”.</p>
+  {%- else %}
   <table>
     <thead>
       <tr>
@@ -344,8 +399,13 @@
       {% endfor %}
     </tbody>
   </table>
+  {{ pager(accounts_listing, 'page', 'Account pages') }}
+  {%- endif %}
 
   <h2>The last {{ days }} days</h2>
+  {%- if accounts_listing.pages() > 1 or accounts_listing.q %}
+  <p class="quiet count">The accounts on this page of Accounts.</p>
+  {%- endif %}
   {#- One row a reader and one cell a day, oldest on the left (2026-10-15). It was a
       column a reader, which stopped fitting at ten. A filled cell is a day they kept a
       word, opened a text or read; its title says which. Most recently active first. -#}

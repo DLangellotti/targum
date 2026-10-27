@@ -65,7 +65,8 @@ def store(tmp_path: Path) -> sqlite3.Connection:
 
 def test_it_counts_what_each_account_has(store: sqlite3.Connection) -> None:
     found = survey(store, today=date(2026, 9, 4))
-    first, second = found.accounts
+    # Newest first (targum-internal#542): the account just made is the one to look at.
+    second, first = found.accounts
     assert first.email == "a@example.com"
     assert first.words == 5, "the deleted word is not a word they have"
     assert first.learned == 2
@@ -82,13 +83,13 @@ def test_a_finished_targum_is_counted_the_way_the_ledger_counts_it(
     never their sum (targum-internal#173). The page has to agree with the reader's own
     progress page or one of the two is lying."""
     found = survey(store, today=date(2026, 9, 4))
-    assert found.accounts[0].targums_finished == 1, "one old record, no sections: worth one"
+    assert found.accounts[-1].targums_finished == 1, "one old record, no sections: worth one"
 
     store.execute("INSERT INTO section (person, hash, section, at) VALUES (1, 'h1', '1', 1)")
     store.execute("INSERT INTO section (person, hash, section, at) VALUES (1, 'h1', '2', 1)")
     store.commit()
     again = survey(store, today=date(2026, 9, 4))
-    assert again.accounts[0].targums_finished == 2, "two sections beats the old record of one"
+    assert again.accounts[-1].targums_finished == 2, "two sections beats the old record of one"
 
 
 def test_the_days_show_who_did_what(store: sqlite3.Connection) -> None:

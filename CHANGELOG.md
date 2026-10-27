@@ -348,6 +348,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The back office scales past a few hundred accounts (David, 2026-10-27;
+  targum-internal#542). Accounts and the waitlist are pages of fifty with a search box,
+  an order and Previous and Next, as a GET form and links, so the page still carries no
+  script for them. Accounts open newest first and can be ordered by last active, words,
+  texts or days; the waitlist stays oldest first, with those let in folded and paged on
+  their own. Each row's figures and the thirty-day strip are counted for the accounts on
+  the page only; Follow up, each week's readers, how far readers get and the headline are
+  summed in the store instead of read row by row into Python, and Follow up names the
+  oldest fifty with a count of the rest. Five indexes (`job(owner)`, `job(made)`,
+  `waiting(asked)`, `person(made)`, `event(kind)`) are made on the next open. Measured on
+  5,000 accounts and 200,000 words: under a second for the page.
 - The nightly backup now copies the corpus ledger (`corpus.db`, targum-internal#162),
   which the ledger-only step needs before any stage stops writing its cache file. It is
   taken as a SQLite snapshot (never a file copy of the live WAL database), checked as it

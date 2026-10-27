@@ -671,6 +671,15 @@ MIGRATIONS: tuple[str, ...] = (
     " MAX(subscriber.joined, subscriber.asked), subscriber.language"
     " FROM subscriber JOIN person ON person.email = subscriber.email"
     " WHERE subscriber.state = 'on'",
+    # What the back office asks of every account at once (targum-internal#542): each
+    # account's jobs, jobs in a window, the waitlist in the order it is let in, accounts
+    # newest first, and the reach's events by kind. Indexes rather than columns, so the
+    # schema's version stays where it is; `IF NOT EXISTS` makes every later open a no-op.
+    "CREATE INDEX IF NOT EXISTS job_owner ON job (owner)",
+    "CREATE INDEX IF NOT EXISTS job_made ON job (made)",
+    "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
+    "CREATE INDEX IF NOT EXISTS person_made ON person (made)",
+    "CREATE INDEX IF NOT EXISTS event_kind ON event (kind)",
 )
 
 SCHEMA = """
