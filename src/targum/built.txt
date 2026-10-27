@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-26
+More Hebrew verbs give their right root and binyan, and a verb in the present is filed under its past.
+The last word of a Bible verse is stressed where it is chanted, and more Hebrew words sound as they are read.
+A Hebrew word pointed only here and there plays no sound rather than a wrong one.
+
 2026-10-25
 Your Progress climbs an Aramaic ladder, from Onkelos up to the Aramaic of the Writings.
 A text in an older Hebrew says which it is, such as Revival-era Hebrew, on its card and in the reader.
