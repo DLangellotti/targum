@@ -52,7 +52,7 @@ import contextlib
 import json
 import os
 import sqlite3
-from bisect import bisect_left, bisect_right
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -508,7 +508,9 @@ ACCOUNT_ORDERS = {
 }
 
 #: An address's count of flags, from the table `_flag` fills for this request.
-SCORE = "IFNULL((SELECT score FROM temp.bo_flags f WHERE f.address = lower({column})), 0)"
+#: Keyed by `fold`, as `_flag` keys it: SQLite's lower() folds ASCII alone, and a
+#: Cyrillic address missed its own flags (qa on targum#957).
+SCORE = "IFNULL((SELECT score FROM temp.bo_flags f WHERE f.address = fold(trim({column}))), 0)"
 
 DAY_MS = 24 * 60 * 60 * 1000
 
@@ -729,6 +731,11 @@ def _disposable() -> frozenset[str]:
     )
 
 
+def flag_key(email: str) -> str:
+    """The key an address's flags are kept under, here and in `SCORE`'s SQL alike."""
+    return fold(email.strip())
+
+
 def throwaway(email: str) -> bool:
     """Whether an address is at a throwaway domain, or under one: `x.mailinator.com` is
     as much one as `mailinator.com`."""
@@ -761,22 +768,24 @@ def _flag(db: sqlite3.Connection, at: int, mine: frozenset[str]) -> dict[str, li
     `at` is the moment "two days ago" is counted back from.
     """
     old = at - FLAG_AFTER_DAYS * DAY_MS
+    # The operator's addresses, the admins' and the test accounts' are nobody's sign-up:
+    # an admin read as "Signed in, nothing done" (qa on targum#957).
+    staff = _staff(db, mine)
     waiting: dict[str, sqlite3.Row] = {}
     if _has_table(db, "waiting"):
         for row in db.execute("SELECT email, state, asked, joined, invited FROM waiting"):
-            if bare(str(row["email"])) not in mine:
-                waiting[str(row["email"]).strip().lower()] = row
+            if bare(str(row["email"])) not in staff:
+                waiting[flag_key(str(row["email"]))] = row
     people: dict[str, sqlite3.Row] = {
-        str(row["email"]).strip().lower(): row
+        flag_key(str(row["email"])): row
         for row in db.execute("SELECT id, email, made FROM person")
-        if bare(str(row["email"])) not in mine
+        if bare(str(row["email"])) not in staff
     }
     let_in: dict[str, int] = {}
     if _has_table(db, "invited"):
-        let_in = {
-            str(row[0]): int(row[1] or 0)
-            for row in db.execute("SELECT lower(email), MAX(at) FROM invited GROUP BY 1")
-        }
+        for row in db.execute("SELECT email, at FROM invited"):
+            key = flag_key(str(row[0]))
+            let_in[key] = max(let_in.get(key, 0), int(row[1] or 0))
     # Signed in: a session, or a sign-in link that was used. Did something: anything of
     # their own kept, opened, read or asked for.
     signed = _ids(db, "SELECT DISTINCT person FROM session") | _ids(
@@ -790,7 +799,15 @@ def _flag(db: sqlite3.Connection, at: int, mine: frozenset[str]) -> dict[str, li
     )
     addresses = set(waiting) | set(people)
     inboxes = Counter(bare(each) for each in addresses)
+    # In a burst: some ten minutes that hold this sign-up hold five or more. A sliding
+    # window over the times in order, not ten minutes either side of each, which is twenty
+    # (qa on targum#957).
     asked = sorted(int(row["asked"]) for row in waiting.values())
+    bursting: set[int] = set()
+    for start, when in enumerate(asked):
+        end = bisect_right(asked, when + BURST_WITHIN_MS)
+        if end - start >= BURST:
+            bursting.update(asked[start:end])
 
     found: dict[str, list[str]] = {}
     for email in addresses:
@@ -802,10 +819,7 @@ def _flag(db: sqlite3.Connection, at: int, mine: frozenset[str]) -> dict[str, li
                 held.add("unconfirmed")
             if joined and 0 <= joined - asked_at < CONFIRMED_TOO_FAST_MS:
                 held.add("instant")
-            near = bisect_right(asked, asked_at + BURST_WITHIN_MS) - bisect_left(
-                asked, asked_at - BURST_WITHIN_MS
-            )
-            if near >= BURST:
+            if asked_at in bursting:
                 held.add("burst")
         if inboxes[bare(email)] > 1:
             held.add("same_inbox")
@@ -888,9 +902,9 @@ def survey(
     ids = _accounts(db, found, named, accounts or Listing(sort="joined"))
     _credits(db, found, named, allowance, plan_allowance)
     for who in found.accounts:
-        who.flags = [FLAGS[key] for key in reasons.get(who.email.strip().lower(), [])]
+        who.flags = [FLAGS[key] for key in reasons.get(flag_key(who.email), [])]
     for row in found.waiting_list:
-        row.flags = [FLAGS[key] for key in reasons.get(row.email.strip().lower(), [])]
+        row.flags = [FLAGS[key] for key in reasons.get(flag_key(row.email), [])]
 
     # The last thirty days, for the accounts on the page only.
     by_day = {when: Day(day=when) for when in window}

@@ -12,6 +12,8 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+import test_serve
+from test_serve import Postbox, form, sign_in
 
 from targum.accounts import Store
 from targum.backoffice import (
@@ -28,6 +30,8 @@ from targum.render.builder import back_office_page
 
 TODAY = date(2026, 10, 27)
 DAY_MS = 24 * 60 * 60 * 1000
+served = test_serve.served
+postbox = test_serve.postbox
 NOON = int(dt.datetime.combine(TODAY, dt.time(12, 0), dt.UTC).timestamp() * 1000)
 
 
@@ -223,18 +227,67 @@ def test_leaving_is_theirs_and_no_undo_brings_them_back(store: Store) -> None:
     assert not store.undo_turn_off("leaver@example.com")
 
 
-def test_only_an_admin_turns_off_or_back() -> None:
-    """The press's door is the page's: an admin session, 404 for anyone else, and a form
-    post from this origin, as Let in and Send again are."""
-    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
-    text = served.read_text(encoding="utf-8")
-    handler = text[text.index("def _turn_off") : text.index("def _resend")]
-    assert "not person.admin" in handler
-    assert 'self._send(404, b"not found"' in handler
-    routes = text[text.index("def _post(") :]
-    assert (
-        'BACK_OFFICE_ROUTE + "/turn-off"' in routes and 'BACK_OFFICE_ROUTE + "/turn-on"' in routes
+def test_only_an_admin_turns_off_or_back(
+    served: tuple[int, str, Path], postbox: Postbox, tmp_path: Path
+) -> None:
+    """The press's door is the page's: an admin session, 404 for anyone else, as Let in
+    and Send again are. Asked of the running server (qa on targum#957)."""
+    port, _, _ = served
+    store = Store(tmp_path / "words.db")
+    store.join_waitlist("12345678@mailinator.com")
+    reader = sign_in(port, postbox, "reader@example.com")
+    status, _, _ = form(port, "/back-office/turn-off", {"email": "12345678@mailinator.com"}, reader)
+    assert status == 404
+    assert store.waiting_state("12345678@mailinator.com") == "pending"
+
+    store.make_admin("ops@example.com")
+    admin = sign_in(port, postbox, "ops@example.com")
+    status, _, where = form(
+        port, "/back-office/turn-off", {"email": "12345678@mailinator.com"}, admin
     )
+    assert status in (302, 303) and where.endswith("#people")
+    assert store.waiting_state("12345678@mailinator.com") == "off"
+    status, _, _ = form(port, "/back-office/turn-on", {"email": "12345678@mailinator.com"}, reader)
+    assert status == 404
+    assert store.waiting_state("12345678@mailinator.com") == "off"
+    status, _, where = form(
+        port, "/back-office/turn-on", {"email": "12345678@mailinator.com"}, admin
+    )
+    assert status in (302, 303) and where.endswith("#people")
+    assert store.waiting_state("12345678@mailinator.com") == "pending"
+
+
+def test_a_burst_is_five_inside_some_ten_minutes_not_twenty(store: Store) -> None:
+    """qa on targum#957: at 0, 1, 10, 19 and 20 minutes no ten minutes hold five, though
+    ten minutes either side of the one at 10 do."""
+    start = NOON - 4 * DAY_MS
+    for n, minute in enumerate((0, 1, 10, 19, 20)):
+        waiting(store, f"spread{n}@example.com", start + minute * 60_000, joined=NOON)
+    found = survey(store.db, today=TODAY)
+    assert not [row.email for row in found.waiting_list if FLAGS["burst"] in row.flags]
+
+
+def test_a_cyrillic_address_finds_its_own_flags(store: Store) -> None:
+    """qa on targum#957: the lists looked the score up through SQLite's lower(), which
+    folds ASCII alone, and a Cyrillic address missed its flags in the filter."""
+    waiting(store, "Иван@mailinator.com", NOON - 4 * DAY_MS, state="pending")
+    found = survey(
+        store.db,
+        today=TODAY,
+        waitlist=Listing(sort="oldest", fake=True),
+        let_in=Listing(sort="oldest", fake=True),
+    )
+    assert [row.email for row in found.waiting_list] == ["Иван@mailinator.com"]
+    assert found.waiting_list[0].flags == [FLAGS["unconfirmed"], FLAGS["throwaway"]]
+
+
+def test_an_admin_is_never_flagged(store: Store) -> None:
+    """qa on targum#957: an admin read as "Signed in, nothing done"."""
+    person(store, 6, "ops@example.com", NOON - 9 * DAY_MS)
+    store.db.execute("INSERT INTO session (hash, person, made, seen) VALUES ('s6', 6, 1, 1)")
+    assert flags_of(store, "ops@example.com") == [FLAGS["idle"]]
+    store.make_admin("ops@example.com")
+    assert flags_of(store, "ops@example.com") == []
 
 
 def test_the_throwaway_list_is_vendored_and_says_where_it_came_from() -> None:
