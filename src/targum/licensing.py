@@ -225,7 +225,9 @@ def export_terms(licence: str, *, private: bool = False) -> ExportTerms:
     attribution = "by" in parts or "attribution" in flat
     if noncommercial:
         return ExportTerms(exportable=False, research=creative and attribution)
-    if any(word in flat for word in _PUBLIC):
+    # Whole words, and only the names on David's list: "pd" inside "updated" is not
+    # public domain, and a "no known copyright" label or a PDM is not a licence he named.
+    if "public domain" in flat or "pd" in parts or "cc0" in parts:
         return ExportTerms(exportable=True, research=True)
     # targum's own writing — the dialogues, the weekly's prose — is ours to export
     # (David, 2026-10-27).

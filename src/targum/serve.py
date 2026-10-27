@@ -2586,6 +2586,9 @@ class Library:
         if ledger_module.path() is None:
             return
         try:
+            # Their home out of every text it held, including those somebody else still
+            # holds, before anything else can fail (clause 3.14).
+            ledger_module.disown(home.name)
             mine = ledger_module.documents_under(home)
             if not mine:
                 return

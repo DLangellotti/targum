@@ -113,6 +113,14 @@ def test_derivatives_is_the_readers_question_and_export_is_the_corpus_one() -> N
         ("targum", True, True),
         # Not on David's list, so in neither until it is.
         ("MPL-2.0", False, False),
+        # Whole words only (qa-claude on #942): "pd" inside "updated" is not public domain.
+        ("Copyright, updated 2020", False, False),
+        ("PD", True, True),
+        # Labels, not licences on David's list.
+        ("PDM", False, False),
+        ("no known copyright restrictions", False, False),
+        # Without "CC" or "Creative Commons" it is not read as one.
+        ("Attribution-ShareAlike 4.0 International", False, False),
     ],
 )
 def test_the_export_rule_is_the_list_david_named(

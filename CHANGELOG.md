@@ -350,11 +350,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   0 on the box, 13 on the laptop's `targum-out`.
 - The corpus ledger's `texts` table (targum-internal#162, slice 1 of the plan on the
   card). Each source document gets one row in `corpus.db` with its source, its licence
-  string, its owner and two export bits computed from David's 2026-10-08 rule
+  string, whether it is a reader's private import, and two export bits computed from David's 2026-10-08 rule
   (`licensing.export_terms`). Commercial export admits public domain, CC0, CC BY,
   CC BY-SA and targum's own writing (David, 2026-10-27). Research export also admits CC BY-NC and CC BY-NC-SA. ND texts, texts with
   no licence and readers' private imports go in neither. A licence corrected later keeps
-  the old row as history. Account deletion removes the row. `targum cache ledger-texts`
+  the old row as history, and so does a rule that now reads the licence differently.
+  Which readers' homes hold a private import is kept apart from the row, current only,
+  so a departed reader's home leaves every row, including texts another reader still
+  holds. Account deletion removes the row when the text was theirs alone. Only `p<id>`
+  and `local` folders count as homes. `targum cache ledger-texts`
   fills the table from the built folders and spends nothing. Ledger schema 3 only adds
   the table. Nothing reads it yet, so no reader sees a change.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,

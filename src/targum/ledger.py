@@ -130,11 +130,12 @@ CREATE TABLE IF NOT EXISTS tokens (
 CREATE INDEX IF NOT EXISTS tokens_by_lemma ON tokens (lemma);
 -- One source document, and what its licence lets the corpus do with it (schema 3,
 -- 2026-10-27). Every other table copies `exportable` from here, so this is the row an
--- export asks first. The bits are computed from `licence` and `owner` by
--- `licensing.export_terms`, never typed. `owner` is the home a private import lives in,
--- null for anything on the shared shelf or the weekly: the private bucket (#161).
--- `tool` is the ingester. History on change, like every head table: a licence corrected
--- leaves the old verdict behind it.
+-- export asks first. The bits are computed from `licence` and `private` by
+-- `licensing.export_terms`, never typed. `private` marks a reader's import, held only in
+-- readers' homes: the private bucket (#161). Which homes hold it is `text_homes`, never a
+-- column here, so a departed reader's id leaves no trace in any row or any history.
+-- `tool` is the ingester. History on change, like every head table: a licence corrected,
+-- or a rule that now reads it differently, leaves the old verdict behind it.
 CREATE TABLE IF NOT EXISTS texts (
     id                 INTEGER PRIMARY KEY,
     stage              TEXT NOT NULL,
@@ -142,7 +143,7 @@ CREATE TABLE IF NOT EXISTS texts (
     document_hash      TEXT NOT NULL,
     source             TEXT NOT NULL,
     licence            TEXT NOT NULL,
-    owner              TEXT,
+    private            INTEGER NOT NULL,
     exportable         INTEGER NOT NULL,
     research           INTEGER NOT NULL,
     reader_publishable INTEGER NOT NULL,
@@ -155,6 +156,13 @@ CREATE TABLE IF NOT EXISTS texts (
 CREATE UNIQUE INDEX IF NOT EXISTS texts_current
     ON texts (cache_key) WHERE superseded_at IS NULL;
 CREATE INDEX IF NOT EXISTS texts_exportable ON texts (exportable, research);
+-- The homes a private text is held in, one row each: current only, no history, so an
+-- account deletion takes its home out of every row in one statement.
+CREATE TABLE IF NOT EXISTS text_homes (
+    document_hash TEXT NOT NULL,
+    home          TEXT NOT NULL,
+    PRIMARY KEY (document_hash, home)
+);
 CREATE TABLE IF NOT EXISTS pointings (
     vocalization_id INTEGER NOT NULL REFERENCES vocalizations (id),
     segment_id      TEXT NOT NULL,
@@ -276,26 +284,30 @@ class Ledger:
         """Write one source document's row, keeping what it said before as history.
 
         The two export bits and `reader_publishable` are computed here from the licence
-        and the owner, so nothing can record a verdict the licence does not give. Returns
-        False, and writes nothing, when the row would say what it already says.
+        and whether it is private, so nothing can record a verdict the licence does not
+        give. Returns False, and writes no row, when the facts and the verdict the rule
+        gives now are both what the row already says; a rule that changed supersedes it.
+        The homes are kept current in `text_homes` either way.
         """
         if not text.document_hash or not text.source:
             raise ValueError("a text needs its document hash and its source")
-        from .licensing import export_terms
-        from .screen import licence_flags
-
-        terms = export_terms(text.licence, private=text.owner is not None)
-        publishable = licence_flags(text.licence).reader_publishable
+        verdict = _verdict(text)
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
-            if self._text(db, text.document_hash) == text:
+            db.execute("DELETE FROM text_homes WHERE document_hash = ?", (text.document_hash,))
+            db.executemany(
+                "INSERT INTO text_homes (document_hash, home) VALUES (?, ?)",
+                [(text.document_hash, home) for home in sorted(text.homes)],
+            )
+            held = self._row(db, text.document_hash)
+            if held is not None and held == (_facts(text), verdict):
                 return False
             db.execute(
                 "UPDATE texts SET superseded_at = ? WHERE cache_key = ? AND superseded_at IS NULL",
                 (stamp, text.document_hash),
             )
             db.execute(
-                "INSERT INTO texts (stage, cache_key, document_hash, source, licence, owner,"
+                "INSERT INTO texts (stage, cache_key, document_hash, source, licence, private,"
                 " exportable, research, reader_publishable, tool, tool_version,"
                 " schema_version, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
@@ -304,10 +316,8 @@ class Ledger:
                     text.document_hash,
                     text.source,
                     text.licence,
-                    text.owner,
-                    int(terms.exportable),
-                    int(terms.research),
-                    int(publishable),
+                    int(bool(text.homes)),
+                    *verdict,
                     text.ingester,
                     None,
                     text.schema_version,
@@ -321,37 +331,40 @@ class Ledger:
         if not self.file.is_file():
             return None
         with closing(self._connect()) as db:
-            return self._text(db, document_hash)
+            row = self._row(db, document_hash)
+            if row is None:
+                return None
+            homes = frozenset(
+                home
+                for (home,) in db.execute(
+                    "SELECT home FROM text_homes WHERE document_hash = ?", (document_hash,)
+                )
+            )
+        source, licence, _private, ingester, schema_version = row[0]
+        return Text(document_hash, source, licence, homes, ingester, schema_version)
 
     def terms(self, document_hash: str) -> tuple[bool, bool] | None:
         """(exportable, research) for one document as recorded, or None if unrecorded."""
         if not self.file.is_file():
             return None
         with closing(self._connect()) as db:
-            row = db.execute(
-                "SELECT exportable, research FROM texts"
-                " WHERE cache_key = ? AND superseded_at IS NULL",
-                (document_hash,),
-            ).fetchone()
-        return (bool(row[0]), bool(row[1])) if row is not None else None
+            row = self._row(db, document_hash)
+        return (bool(row[1][0]), bool(row[1][1])) if row is not None else None
 
     @staticmethod
-    def _text(db: sqlite3.Connection, document_hash: str) -> Text | None:
+    def _row(
+        db: sqlite3.Connection, document_hash: str
+    ) -> tuple[tuple[str, str, int, str, int], tuple[int, int, int]] | None:
+        """(facts, verdict) of a document's current row."""
         row = db.execute(
-            "SELECT document_hash, source, licence, owner, tool, schema_version FROM texts"
+            "SELECT source, licence, private, tool, schema_version,"
+            " exportable, research, reader_publishable FROM texts"
             " WHERE cache_key = ? AND superseded_at IS NULL",
             (document_hash,),
         ).fetchone()
         if row is None:
             return None
-        return Text(
-            document_hash=row[0],
-            source=row[1],
-            licence=row[2],
-            owner=row[3],
-            ingester=row[4],
-            schema_version=row[5],
-        )
+        return (row[0], row[1], row[2], row[3], row[4]), (row[5], row[6], row[7])
 
 
 @dataclass(frozen=True)
@@ -359,16 +372,44 @@ class Text:
     """One source document as the `texts` table holds it: the facts, not the verdict.
 
     The verdict — the two export bits and `reader_publishable` — is a column the ledger
-    computes from `licence` and `owner` on the way in, so it is not a field here.
+    computes from `licence` and `homes` on the way in, so it is not a field here.
     """
 
     document_hash: str
     source: str
     licence: str
-    #: The home a private import lives in, or None for the shared shelf and the weekly.
-    owner: str | None = None
+    #: The readers' homes holding a private import; empty for anything public.
+    homes: frozenset[str] = frozenset()
     ingester: str = ""
     schema_version: int = 0
+
+
+def _facts(text: Text) -> tuple[str, str, int, str, int]:
+    return (text.source, text.licence, int(bool(text.homes)), text.ingester, text.schema_version)
+
+
+def _verdict(text: Text) -> tuple[int, int, int]:
+    from .licensing import export_terms
+    from .screen import licence_flags
+
+    terms = export_terms(text.licence, private=bool(text.homes))
+    publishable = licence_flags(text.licence).reader_publishable
+    return int(terms.exportable), int(terms.research), int(publishable)
+
+
+def disown(home: str) -> int:
+    """Take one departed reader's home out of every text it held (clause 3.14).
+
+    `forget` deletes what was theirs alone; this is the rest, a text somebody else
+    still holds. Its rows stay, as corpus or as the other reader's, and keep no trace of
+    this home: the homes live only in `text_homes`, never in a row or its history.
+    Returns how many texts it was taken out of; does nothing with the flag off.
+    """
+    file = path()
+    if file is None or not home or not file.is_file():
+        return 0
+    with closing(Ledger(file)._connect()) as db, db:
+        return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
 
 
 #: The rows a value is made of, by the head table they hang off and the column that
@@ -409,6 +450,10 @@ def forget(hashes: set[str]) -> int:
                 db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
             gone += len(ids)
         db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
+        db.execute(
+            f"DELETE FROM text_homes WHERE document_hash IN ({marks})",  # noqa: S608
+            wanted,
+        )
     return gone
 
 
@@ -490,56 +535,77 @@ def backfill(ledger: Ledger, cache: Cache, stage: str = "vocalize") -> tuple[int
     return recorded, refused
 
 
+#: A reader's home under the library, as `Library.home` names it: `p<account id>`, or
+#: `local` for whoever is signed out on a machine somebody runs themselves. Every other
+#: folder is the library's own — the shared shelf, the weekly, and on the laptop the
+#: parasha, the Russian shelf, the dialogues — and holds nothing private.
+_HOME = re.compile(r"p\d+|local")
+
+
+def is_home(name: str) -> bool:
+    """Whether a folder under the library is a reader's home."""
+    return _HOME.fullmatch(name) is not None
+
+
 def backfill_texts(
     ledger: Ledger,
     out: Path,
     *,
-    public: tuple[str, ...] = ("shared", "weekly"),
     licence_of: Callable[[Path, str], str] | None = None,
 ) -> tuple[int, int]:
     """Record a `texts` row for every built text under an output folder. Reads only.
 
-    `out` is the library's root: `shared` and `weekly` are public, and every other
-    folder in it is a reader's home. A document a public folder holds has no owner,
-    whatever homes also hold it; one held only in homes is a private import, owned by
-    them. The licence is the catalogue's for the source, else what the manifest beside
-    the reader records (`promote.licence_of`), else empty, which exports nowhere.
+    `out` is the library's root. A reader's home (`is_home`) holds private imports;
+    every other folder is the library's own and public, and so is a text built straight
+    into `out`. A document any public folder holds is public, whatever homes also hold
+    it; one held only in homes is private, held by them. The licence is the
+    catalogue's for the source, else what the manifest beside the reader records
+    (`promote.licence_of`), else empty, which exports nowhere.
 
     Returns (recorded, unchanged). A folder with no readable `document.json` is skipped.
     """
     if licence_of is None:
         licence_of = _licence_of
     found: dict[str, tuple[Path, dict[str, Any]]] = {}
-    holders: dict[str, set[str]] = {}
+    held_in: dict[str, set[str]] = {}
+    public: set[str] = set()
     try:
         roots = sorted(one for one in out.iterdir() if one.is_dir())
     except OSError:
         return 0, 0
+    # (folder, the home it is in or None for public)
+    folders: list[tuple[Path, str | None]] = []
     for root in roots:
-        for folder in sorted(one for one in root.iterdir() if one.is_dir()):
-            try:
-                document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            if not isinstance(document, Mapping):
-                continue
-            hash_ = str(document.get("content_hash") or "")
-            if not hash_ or not document.get("source"):
-                continue
-            holders.setdefault(hash_, set()).add(root.name)
-            # A public copy is the one the licence is read beside, where there is one.
-            if hash_ not in found or root.name in public:
-                found[hash_] = (folder, dict(document))
+        home = root.name if is_home(root.name) else None
+        if home is None and (root / "document.json").is_file():
+            folders.append((root, None))
+            continue
+        folders += [(one, home) for one in sorted(root.iterdir()) if one.is_dir()]
+    for folder, home in folders:
+        try:
+            document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(document, Mapping):
+            continue
+        hash_ = str(document.get("content_hash") or "")
+        if not hash_ or not document.get("source"):
+            continue
+        if home is None:
+            public.add(hash_)
+        else:
+            held_in.setdefault(hash_, set()).add(home)
+        # A public copy is the one the licence is read beside, where there is one.
+        if hash_ not in found or home is None:
+            found[hash_] = (folder, dict(document))
     recorded = unchanged = 0
     for hash_, (folder, document) in found.items():
-        homes = holders[hash_]
-        owner = None if homes & set(public) else " ".join(sorted(homes))
         source = str(document["source"])
         text = Text(
             document_hash=hash_,
             source=source,
             licence=licence_of(folder, source),
-            owner=owner,
+            homes=frozenset() if hash_ in public else frozenset(held_in[hash_]),
             ingester=str(document.get("ingester") or ""),
             schema_version=int(document.get("schema_version") or 0),
         )
