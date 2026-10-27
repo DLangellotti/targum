@@ -385,8 +385,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `targum cache ledger-translations` fills the table from the `translations/*.json`
   files already on disk. Filling translates, fetches and spends nothing. A rendering
   targum made is under its text's licence, and a published one under the licence the
-  catalogue gives it, or none. Its export bits are its text's and its own licence's
-  together, so translations of readers' own texts stay private.
+  catalogue gives it, or none. A machine translation is in the research export only,
+  never the commercial one, because the model providers' terms bar using their output
+  to train competing models (David, 2026-10-27); the datasheet says so. Its export bits
+  are its text's and its own together, so translations of readers' own texts stay
+  private. While a text is on the shelf, a reader's copy of it records nothing, so a
+  partial copy cannot stand in for the shelf's.
   `targum corpus export` now writes `translations` and `pairs` too, asking each
   rendering's licence again.
 - Aramaic's free groundwork for the Onkelos climb (David, 2026-10-25; ling-arc's plan,

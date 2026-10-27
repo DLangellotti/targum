@@ -403,6 +403,15 @@ class Ledger:
         source, licence, _private, ingester, schema_version = row[0]
         return Text(document_hash, source, licence, homes, ingester, schema_version)
 
+    def is_private(self, document_hash: str) -> bool:
+        """Whether a document's current row marks it a reader's private import. False for
+        a public text and for one with no row, which a home must not speak for either."""
+        if not self.file.is_file():
+            return False
+        with closing(self._connect()) as db:
+            row = self._row(db, document_hash)
+        return bool(row[0][2]) if row is not None else False
+
     def terms(self, document_hash: str) -> tuple[bool, bool] | None:
         """(exportable, research) for one document as recorded, or None if unrecorded."""
         if not self.file.is_file():
@@ -1073,6 +1082,19 @@ def _licence_held(db: sqlite3.Connection, key: str) -> str | None:
     return row[0] if row is not None else None
 
 
+def translation_terms(licence: str, kind: str) -> Any:
+    """A rendering's own export bits: its licence's, except that a machine translation
+    is never in the commercial export (David, 2026-10-27): the model providers' terms bar
+    using their output to train competing models. Authored and published renderings
+    follow their licence alone."""
+    from .licensing import ExportTerms, export_terms
+
+    terms = export_terms(licence)
+    if kind == "machine":
+        return ExportTerms(exportable=False, research=terms.research)
+    return terms
+
+
 def _insert_translation(
     db: sqlite3.Connection,
     stage: str,
@@ -1082,8 +1104,6 @@ def _insert_translation(
     licence: str,
     sources: Mapping[str, str],
 ) -> None:
-    from .licensing import export_terms
-
     if not isinstance(value, Mapping) or any(name not in value for name in _TRANSLATION):
         raise ValueError("not a translation as the pipeline writes one")
     segments = value.get("segments")
@@ -1095,7 +1115,7 @@ def _insert_translation(
         raise ValueError("not a translation as the pipeline writes one")
     head = dict(value)
     head["segments"] = {}
-    own = export_terms(licence)
+    own = translation_terms(licence, str(value.get("kind") or "machine"))
     cursor = db.execute(
         "INSERT INTO translations (stage, cache_key, document_hash, source_language,"
         " target_language, kind, tool, tool_version, style, schema_version, licence,"
@@ -1173,11 +1193,23 @@ def record_translations(ledger: Ledger, folder: Path) -> tuple[int, int]:
     `authored`) is under the text's licence; a published one under its own, which only
     the catalogue knows; one it does not know is under none and exports nowhere.
     """
-    translations = sorted((folder / "translations").glob("*.json"))
+    # `words.<lang>.json` is the glossary kept beside them, not a rendering.
+    translations = sorted(
+        one for one in (folder / "translations").glob("*.json") if not one.name.startswith("words.")
+    )
     if not translations:
         return 0, 0
     document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
     source = str(document.get("source") or "")
+    # A reader's copy of a text the shelf holds shares the shelf copy's keys, and is often
+    # only the chapters they bought: recorded, it would stand in for the whole rendering
+    # and add a copy to the history at every build (qa-claude on #945). While a text is
+    # public, only a public folder records its renderings; a home records only a text
+    # that is private, which no public folder holds.
+    if is_home(folder.parent.name) and not ledger.is_private(
+        str(document.get("content_hash") or "")
+    ):
+        return 0, 0
     sources = _segment_texts(folder)
     text_licence: str | None = None
     recorded = refused = 0

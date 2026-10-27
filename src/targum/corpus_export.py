@@ -42,6 +42,17 @@ RULES = {
     "research": "public domain, CC0, CC BY, CC BY-SA, targum's own writing, CC BY-NC, CC BY-NC-SA",
 }
 
+#: What each export does with a machine translation, and why (David, 2026-10-27).
+MACHINE = {
+    "exportable": (
+        "not included: the model providers' terms bar using their output to train competing models"
+    ),
+    "research": (
+        "included under their text's licence; never in the commercial export, because the"
+        " model providers' terms bar using their output to train competing models"
+    ),
+}
+
 #: The datasheet's own format, so a consumer can tell one shape from the next.
 DATASHEET_VERSION = 1
 
@@ -73,12 +84,16 @@ def _allow(db: sqlite3.Connection, bit: str) -> None:
     # A rendering leaves when its text does and its own licence, asked again, allows it.
     db.execute("CREATE TEMP TABLE allowed_translations (id INTEGER PRIMARY KEY)")
     renderings = db.execute(
-        f"SELECT id, licence FROM translations WHERE superseded_at IS NULL"  # noqa: S608
+        f"SELECT id, licence, kind FROM translations WHERE superseded_at IS NULL"  # noqa: S608
         f" AND {bit} = 1 AND document_hash IN (SELECT document_hash FROM allowed)"
     ).fetchall()
     db.executemany(
         "INSERT INTO allowed_translations (id) VALUES (?)",
-        [(row_id,) for row_id, licence in renderings if getattr(export_terms(licence), bit)],
+        [
+            (row_id,)
+            for row_id, licence, kind in renderings
+            if getattr(ledger_module.translation_terms(licence, kind), bit)
+        ],
     )
 
 
@@ -217,6 +232,7 @@ def _datasheet(db: sqlite3.Connection, kind: str, counts: dict[str, int]) -> dic
         ),
         "tools": tools,
         "rule": RULES[kind],
+        "machine_translations": MACHINE[kind],
     }
 
 
@@ -227,6 +243,7 @@ def _markdown(sheet: dict[str, Any]) -> str:
         f"Made {sheet['made']} from corpus ledger schema {sheet['ledger_schema']}.",
         f"Admits: {sheet['rule']}. Never: ND, no licence string, a reader's private import.",
         "Only the current value of each row; no history.",
+        f"Machine translations: {sheet['machine_translations']}.",
         "",
         "## Rows",
         "",

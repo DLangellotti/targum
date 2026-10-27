@@ -913,9 +913,13 @@ class TestTranslations:
         )
         assert _bits(book.file, "translations") == [(0, 0), (0, 0)], "no text row yet"
         book.record_text(ledger.Text("doc123", "gutenberg:1", "Public Domain"))
-        assert _bits(book.file, "translations") == [(1, 1), (0, 1)]
+        assert _bits(book.file, "translations") == [(0, 1), (0, 1)], "machine: research only"
+        book.record(
+            "translations", "doc123:ours", _rendering(kind="authored"), licence="Public Domain"
+        )
+        assert _bits(book.file, "translations")[-1] == (1, 1), "authored follows its licence"
         book.record_text(ledger.Text("doc123", "upload.pdf", "Public Domain", frozenset({"p4"})))
-        assert _bits(book.file, "translations") == [(0, 0), (0, 0)], "a reader's text: private"
+        assert set(_bits(book.file, "translations")) == {(0, 0)}, "a reader's text: private"
 
     def test_a_corrected_licence_on_the_same_rendering_keeps_the_old_as_history(
         self, tmp_path: Path
@@ -992,7 +996,7 @@ class TestTranslations:
             source = db.execute("SELECT source FROM pairs WHERE segment_id = 's0'").fetchone()
         assert rows == [
             ("doc123:aligned.jps.en", "CC BY-NC 4.0", 0, 1),
-            ("doc123:claude.natural.en", "Public Domain", 1, 1),
+            ("doc123:claude.natural.en", "Public Domain", 0, 1),
         ]
         assert source == ("שלום.",)
 
@@ -1029,7 +1033,7 @@ class TestTranslations:
             on_disk = json.loads((folder / "translations" / f"{stem}.json").read_text("utf-8"))
             held = book.get("translations", f"{document['content_hash']}:{stem}")
             assert held == on_disk
-        assert set(_bits(book.file, "translations")) == {(1, 1)}
+        assert set(_bits(book.file, "translations")) == {(0, 1)}, "machine: research only"
 
     def test_the_command_records_the_library(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -1042,6 +1046,9 @@ class TestTranslations:
         monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
         self._folder(
             tmp_path / "out" / "p2" / "x", "upload.pdf", ("claude.natural.en", _rendering())
+        )
+        ledger.Ledger(tmp_path / "corpus.db").record_text(
+            ledger.Text("doc123", "upload.pdf", "", frozenset({"p2"}))
         )
         result = CliRunner().invoke(
             app, ["cache", "ledger-translations", "--out", str(tmp_path / "out")]
@@ -1075,3 +1082,36 @@ class TestTranslations:
         builder.translate(segmented, only=segmented.segments[:1])
         with sqlite3.connect(tmp_path / "corpus.db") as db:
             assert db.execute("SELECT COUNT(*) FROM translations").fetchone()[0] >= 1
+
+    def test_a_reader_s_copy_of_a_shelf_text_does_not_overwrite_the_shelf_s(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """qa-claude on #945: the shelf's copy and a reader's partial copy share a key.
+        While the text is public only the public folder records; a private text still
+        records from its home."""
+        monkeypatch.setattr(ledger, "_licence_of", lambda _folder, _source: "Public Domain")
+        whole = _rendering()
+        part = _rendering(segments={"s0": "Hello."}, coarse=[], confidence={})
+        out = tmp_path / "out"
+        self._folder(out / "shared" / "x", "gutenberg:1", ("claude.natural.en", whole))
+        self._folder(out / "p3" / "x", "gutenberg:1", ("claude.natural.en", part))
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        ledger.backfill_texts(book, out)
+        ledger.backfill_translations(book, out)
+        ledger.backfill_translations(book, out)
+        assert book.get("translations", "doc123:claude.natural.en") == whole
+        assert len(book.history("translations", "doc123:claude.natural.en")) == 1
+
+        alone = tmp_path / "alone"
+        self._folder(alone / "p3" / "x", "upload.pdf", ("claude.natural.en", part))
+        other = ledger.Ledger(tmp_path / "other.db")
+        ledger.backfill_texts(other, alone)
+        assert ledger.backfill_translations(other, alone) == (1, 0)
+        assert other.get("translations", "doc123:claude.natural.en") == part
+
+    def test_the_glossary_beside_the_renderings_is_not_one(self, tmp_path: Path) -> None:
+        folder = tmp_path / "out" / "shared" / "x"
+        self._folder(folder, "https://x.example/a", ("claude.natural.en", _rendering()))
+        (folder / "translations" / "words.en.json").write_text("{}", encoding="utf-8")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        assert ledger.record_translations(book, folder) == (1, 0), "not refused, skipped"

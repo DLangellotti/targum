@@ -98,6 +98,13 @@ def book(tmp_path: Path) -> ledger.Ledger:
         _translated(H["a"], kind="aligned", provider="JPS 1917", name="JPS"),
         licence="CC BY-NC 4.0",
     )
+    book.record(
+        "translations",
+        f"{H['a']}:authored.en",
+        _translated(H["a"], kind="authored", provider="targum", name="English"),
+        licence="Public Domain",
+        sources={"s0": "שלום.", "s1": "אמא באה."},
+    )
     return book
 
 
@@ -211,8 +218,10 @@ def test_the_datasheet_lists_every_source_licence_and_tool(
         ("annotations", "grammar/2", 1),
         ("translations", "claude", 2),
         ("translations", "JPS 1917", 1),
+        ("translations", "targum", 1),
     }
-    assert sheet["translation_licences"] == {"CC BY-NC 4.0": 2, "Public Domain": 1}
+    assert sheet["translation_licences"] == {"CC BY-NC 4.0": 2, "Public Domain": 2}
+    assert "train competing models" in sheet["machine_translations"]
     assert sheet["ledger_schema"] == ledger.LEDGER_SCHEMA
     on_disk = json.loads((tmp_path / "out" / "datasheet.json").read_text(encoding="utf-8"))
     assert on_disk == sheet
@@ -277,11 +286,12 @@ def test_a_published_rendering_leaves_only_under_its_own_licence(
     corpus_export.export(book.file, tmp_path / "research", "research")
     commercial = [row["cache_key"] for row in _lines(tmp_path / "commercial", "translations")]
     research = [row["cache_key"] for row in _lines(tmp_path / "research", "translations")]
-    assert commercial == [f"{H['a']}:claude.natural.en"]
+    assert commercial == [f"{H['a']}:authored.en"]
     assert research == [
         f"{H['a']}:claude.natural.en",
         f"{H['b']}:claude.natural.en",
         f"{H['a']}:aligned.jps.en",
+        f"{H['a']}:authored.en",
     ]
 
 
@@ -292,4 +302,21 @@ def test_a_rendering_whose_own_licence_was_stamped_wrong_still_stays(
         db.execute("UPDATE translations SET exportable = 1, own_exportable = 1")
     corpus_export.export(book.file, tmp_path / "out", "exportable")
     keys = [row["cache_key"] for row in _lines(tmp_path / "out", "translations")]
-    assert keys == [f"{H['a']}:claude.natural.en"], "the licence is asked again"
+    assert keys == [f"{H['a']}:authored.en"], "the licence and the rule are asked again"
+
+
+def test_a_machine_translation_never_leaves_in_the_commercial_export(
+    book: ledger.Ledger, tmp_path: Path
+) -> None:
+    """David, 2026-10-27: the model providers' terms bar using their output to train
+    competing models, so a machine translation is research-only. Forged bits on every
+    row of it are not enough: the export asks the rule again."""
+    with sqlite3.connect(book.file) as db:
+        db.execute(
+            "UPDATE translations SET exportable = 1, own_exportable = 1 WHERE kind = 'machine'"
+        )
+    sheet = corpus_export.export(book.file, tmp_path / "out", "exportable")
+    kinds = {row["kind"] for row in _lines(tmp_path / "out", "translations")}
+    assert "machine" not in kinds
+    assert "train competing models" in sheet["machine_translations"]
+    assert "train competing models" in (tmp_path / "out" / "DATASHEET.md").read_text("utf-8")
