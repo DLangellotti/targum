@@ -18,7 +18,7 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="parts">
-{% set here = 'texts' if mine else 'library' %}{% set title = '' %}
+{% set here = 'texts' if mine else 'library' %}{% set title = '' %}{% set came_label = manifest.title %}
 {% include '_nav.html.j2' %}
 {{ script('building.js') }}
 

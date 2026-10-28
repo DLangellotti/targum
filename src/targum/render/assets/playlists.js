@@ -939,6 +939,8 @@
     name.id = "one-name";
     name.appendChild(isolated(one.name));
     said.appendChild(name);
+    // A text opened from here names the playlist in its back (targum-internal#546).
+    document.body.setAttribute("data-came-label", one.name || "");
     var line = element("p", "pl-facts");
     var facts = [textCount(one.items.length)];
     if (one.seconds) facts.push(length(one.seconds));
