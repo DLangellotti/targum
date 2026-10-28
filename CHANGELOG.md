@@ -798,6 +798,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "Conversations" replaces "Dialogue" on the Library's door and Kind filter, rows, home's
   cards and the reader's list; ids and addresses are unchanged. The step labels lose
   their numbers. English and Russian as ling-en and ling-ru read them, approved by David.
+- A public text page, the four legal pages and /about ship only the CSS they use
+  (targum-internal#550). They carried all of shared.css and reader.css, about 315 kB inline,
+  for a few dozen rules; they now load `public-page.css`, 2.8 kB, which
+  `scripts/public_page_css.py` writes from those two sheets. Ruth's page went from 308 kB
+  to 113 kB of HTML, /about from 330 kB to 135 kB and /privacy from 326 kB to 131 kB,
+  before compression. Nothing looks different: a browser test computes every element's
+  style on those pages with the file and with the two sheets, at 390 and 1440, light and
+  dark, and requires them equal, and another fails when the file falls out of step with
+  the sheets it is written from.
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an
   app. Every date is the day and the month in full, the year only when it isn't this
