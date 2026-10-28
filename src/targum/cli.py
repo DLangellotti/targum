@@ -1178,6 +1178,52 @@ def ytdlp_stopped() -> None:
     console.print("Told TARGUM_ALERT_TO that the yt-dlp upgrade failed.")
 
 
+@app.command("drill-credit")
+def drill_credit(
+    provider: Annotated[
+        str,
+        typer.Option("--provider", help="Anthropic, OpenAI, Google or ElevenLabs."),
+    ] = "Anthropic",
+    state: Annotated[
+        Path | None,
+        typer.Option(
+            "--state",
+            help="The drill's own record, a .json file. Default: ~/.targum/credit-drill.json."
+            " Never credit-watch.json.",
+        ),
+    ] = None,
+) -> None:
+    """Mail TARGUM_ALERT_TO the out-of-credit alert once, as a drill, spending nothing.
+
+    The provider's own refusal goes through the code a failing build uses, against a
+    scratch record (~/.targum/credit-drill.json unless --state names one), so the live
+    four-hour limit is untouched. --state must be a .json file that is absent or already
+    a record: anything else is refused rather than overwritten. The
+    subject says "(a drill)". Run it on the box as targum, the way deploy/INCIDENT.md
+    says (targum-internal#482).
+    """
+    from .alerts import DRILL_REFUSALS, recipient
+    from .alerts import drill_credit as drill
+    from .serve import default_store
+
+    if not recipient():
+        console.print("[dim]Credit alerts not configured: TARGUM_ALERT_TO is not set.[/dim]")
+        return
+    named = {name.lower(): name for name in DRILL_REFUSALS}
+    if provider.lower() not in named:
+        fail(TargumError(f"No drill for {provider}.", "One of: " + ", ".join(DRILL_REFUSALS)))
+    try:
+        said = drill(
+            named[provider.lower()],
+            state or default_store().parent / "credit-drill.json",
+        )
+    except ValueError as error:
+        fail(TargumError("The drill did not run.", str(error)))
+    except Exception as error:
+        fail(TargumError("The out-of-credit mail did not go.", str(error)))
+    console.print(said)
+
+
 @app.command("watch-weekly")
 def watch_weekly(
     state: Annotated[

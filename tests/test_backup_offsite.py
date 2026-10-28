@@ -286,3 +286,45 @@ def test_the_sealed_database_is_the_live_one(
         assert db.execute("SELECT COUNT(*) FROM person").fetchone()[0] == 0
     finally:
         db.close()
+
+
+def test_rclones_error_is_kept_and_its_config_notice_is_not() -> None:
+    """2026-10-26 to 10-28: the first 200 characters were a NOTICE about a config file
+    the box does not use, and every failed night said only "failed to get"."""
+    stderr = (
+        '2026/10/28 04:00:42 NOTICE: Config file "/srv/targum/.config/rclone/rclone.conf" '
+        "not found - using defaults\n"
+        "2026/10/28 04:00:43 ERROR : targum-20261028-040012.db.gz.age: Failed to copy:\n"
+        "failed to get upload URL: 401 unauthorized: bad_auth_token\n"
+    )
+
+    def refused(*args: str, timeout: float = 0.0) -> Any:
+        return SimpleNamespace(returncode=1, stdout="", stderr=stderr)
+
+    with pytest.raises(backup.NotShipped) as raised:
+        backup.ship([Path("targum-20261028-040012.db.gz.age")], "b2:bucket", run=refused)
+    said = str(raised.value)
+    assert "401 unauthorized: bad_auth_token" in said
+    assert "NOTICE" not in said
+    assert backup._said("plain trouble") == "plain trouble"
+    assert backup._said("x" * 900).endswith("…") and len(backup._said("x" * 900)) == 401
+
+
+def test_a_full_bucket_says_so() -> None:
+    """2026-10-26 to 10-28: Backblaze refused every upload with 403 storage_cap_exceeded
+    (the bucket at its free 10 GB), and the mail said only "failed to get"."""
+    stderr = (
+        '2026/10/26 04:00:41 NOTICE: Config file "/srv/targum/.config/rclone/rclone.conf" '
+        "not found - using defaults\n"
+        "2026/10/26 04:00:42 ERROR : targum-20261026-040012.db.gz.age: Failed to copy: "
+        "failed to get upload URL: Cannot upload files, storage cap exceeded. "
+        "(403 storage_cap_exceeded)\n"
+    )
+
+    def refused(*args: str, timeout: float = 0.0) -> Any:
+        return SimpleNamespace(returncode=1, stdout="", stderr=stderr)
+
+    with pytest.raises(backup.NotShipped) as raised:
+        backup.ship([Path("targum-20261026-040012.db.gz.age")], "b2:bucket", run=refused)
+    assert "(403 storage_cap_exceeded)" in str(raised.value)
+    assert "NOTICE" not in str(raised.value)

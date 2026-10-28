@@ -380,6 +380,24 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### On a phone, Back closes Talk before it leaves the page (2026-10-28)
+Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.
+
+### The back office counts the beta's gate in one row — 2026-10-28
+
+Approved by David, 2026-10-28. Beta's gate is a second text and Launch's go/no-go
+(targum-internal#486) reads week 4, from the weekly table of 2026-10-15 (targum-internal
+#458). Under the weeks, one more row: **Since the beta, 2026-10-19**, every week from
+batch one's on, each column added up, under a rule in ink and set in ink at weight 600,
+the way a ledger draws its total. The alpha's readers before batch one stay out of it.
+It is still counts, "3 of 6" out of those who have had the chance and "too soon" until
+anyone has, never a percentage and never a name. A second text now has to come on a later
+day than the first day the reader read, not the day they were let in, so a late first
+evening of two texts is one visit, not a return.
+
+### A named back beside the mark, in the reader and Theatre (2026-10-28)
+The mark stays and still goes to Your targums. When the bar is out, a named back stands beside it and returns to wherever the text was opened from, or to Your targums when there's no origin. It fades with the bar and comes back the same ways, plus a tap on the top strip on a phone. In Theatre the mark and the back stay at the reader's 55% while a video plays, never invisible.
+
 ### A text you brought, rewritten at your level — 2026-10-28
 
 From the LingQ comparison of 2026-10-27 (targum-internal#535; David decided it starts

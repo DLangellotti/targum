@@ -184,6 +184,18 @@
     series' instalment lands, and home puts it first under Continue. Before `building.js`, which
     every page includes after this header and which asks it. -#}
 {{ script('follow.js') }}
+{#- What this page is, said as it is left, so a reader opened from it names it in its
+    named back (design.md §12, 2026-10-28; targum-internal#546). The page's own title
+    where it has one, the place where it does not, and `came_label` where a template
+    knows better — a series' name, a text's contents. -#}
+{%- set came_places = {
+  'texts': t("yours.page.your-targums", "Your targums"),
+  'library': t("nav.library", "Library"),
+  'progress': t("you.page.your-progress", "Your Progress"),
+  'add': t("nav.upload", "Upload"),
+  'chat': t("nav.talk-to-targum", "Talk to targum"),
+} %}
+{{ script('came.js', data_label=(came_label|default('')) or (title|default('')) or came_places.get(here, '')) }}
 {%- endif %}
 {#- How a refusal is drawn (design.md §12, 2026-10-09): under a field, a line, a panel,
     and the connection's banner, which `fault.js` puts at the foot of this header. -#}

@@ -387,13 +387,24 @@ def test_it_steps_back_while_playing_and_comes_back(browser, tmp_path) -> None: 
         page.wait_for_function("() => document.body.classList.contains('film-quiet')", timeout=6000)
         shown = page.evaluate(
             """() => ({
-              bar: getComputedStyle(document.querySelector('.bar')).opacity,
+              title: getComputedStyle(document.querySelector('.bar > .bar-title')).opacity,
+              tools: getComputedStyle(document.querySelector('.bar > .controls')).opacity,
               play: getComputedStyle(document.querySelector('.film-play')).opacity,
               track: getComputedStyle(document.querySelector('.film-track')).opacity,
               line: getComputedStyle(document.querySelector('#film-sub')).opacity,
             })"""
         )
-        assert shown == {"bar": "0", "play": "0", "track": "1", "line": "1"}, shown
+        assert shown == {"title": "0", "tools": "0", "play": "0", "track": "1", "line": "1"}, shown
+        # The way out stays faint, not gone (design.md §12, 2026-10-28, targum-internal#546):
+        # the mark and the named back keep the reader's 55% while the picture plays.
+        out = page.evaluate(
+            """() => ['#home', '#bar-back'].map((s) => {
+              const el = document.querySelector(s);
+              const r = el.getBoundingClientRect();
+              return { opacity: getComputedStyle(el).opacity, drawn: r.width > 0 && r.height > 0 };
+            })"""
+        )
+        assert out == [{"opacity": "0.55", "drawn": True}] * 2, out
 
         page.mouse.move(400, 400)
         assert not page.evaluate(FILM)["quiet"], "the pointer brings it back"
