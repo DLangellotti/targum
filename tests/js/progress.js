@@ -153,20 +153,42 @@ setImmediate(() => setImmediate(() => process.stdout.write(
     asked: asked,
     where: {
       head: at("where-title").textContent,
-      shown: at("touchstones").hidden === false,
+      step: at("where-step").hidden === false ? at("where-step").textContent : "",
+      known: at("where-known").hidden === false ? at("where-known").textContent : "",
+      go: at("where-go").hidden === false ? at("where-go").textContent : "",
+      goHref: at("where-go").hidden === false ? at("where-go").href : "",
+      shown: at("ladder").hidden === false,
+      grid: at("level-grid").hidden === false,
       note: at("where-note").hidden === false ? at("where-note").textContent : "",
+      foot: at("level-foot").hidden === false ? at("level-said").textContent : "",
+      footLetter: (function () {
+        const run = at("level-said").children.find((node) => node.tagName === "bdi");
+        return run ? { text: run.textContent, dir: run.getAttribute("dir"), lang: run.getAttribute("lang") } : null;
+      })(),
+      toward: at("level-toward").hidden === false
+        ? {
+            next: at("level-next").textContent,
+            label: at("level-bar").getAttribute("aria-label"),
+            now: at("level-bar").getAttribute("aria-valuenow"),
+            role: at("level-bar").getAttribute("role"),
+            width: at("level-fill").style.width,
+          }
+        : null,
       rungs: at("touchstones")
         .children.filter((item) => String(item.className) === "touch")
         .map((item) => {
-          const link = item.children[0];
+          const row = item.children[0];
+          const words = row.children.find((node) => String(node.className) === "touch-words");
+          const count = row.children.find((node) => String(node.className) === "touch-count");
           return {
-            text: link.textContent,
-            state: String(link.className).split(" ").pop().replace("touch-", ""),
-            tag: String(link.tagName).toLowerCase(),
-            href: link.href,
-            current: link.getAttribute("aria-current") || "",
-            label: link.getAttribute("aria-label") || "",
-            ticked: Boolean(link.innerHTML),
+            name: words ? words.children[0].textContent : "",
+            said: words ? words.children[1].textContent : "",
+            count: count ? count.textContent : "",
+            state: String(row.className).split(" ").pop().replace("touch-", ""),
+            tag: String(row.tagName).toLowerCase(),
+            href: row.href,
+            current: row.getAttribute("aria-current") || "",
+            text: row.textContent,
           };
         }),
     },

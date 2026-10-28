@@ -2663,7 +2663,7 @@ CARD_KINDS = (
     ("video", "Video"),
     ("article", "Article"),
     ("talk", "Video"),
-    ("dialogue", "Dialogue"),
+    ("dialogue", "Conversation"),
     ("story", "Story"),
     ("novel", "Book"),
     ("essay", "Essay"),
@@ -3838,7 +3838,7 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
 #: Library's chips stand them (`KINDS` in `library.js`), and the words each is called by
 #: there. One list for every language: a kind with nothing in a language is not drawn.
 _SHELF_KINDS: tuple[tuple[str, str], ...] = (
-    ("dialogue", "Dialogues"),
+    ("dialogue", "Conversations"),
     ("story", "Stories"),
     ("article", "News"),
     ("novel", "Novels"),
@@ -5474,6 +5474,7 @@ def library_page(token: str, language: str = "en") -> str:
     """
     from ..catalogue import collections, everything, swipe_sets
     from ..chat.sources import TOPICS as news_topics
+    from ..levelmap import text_level
     from ..strings import text as said_text
 
     return (
@@ -5487,7 +5488,13 @@ def library_page(token: str, language: str = "en") -> str:
             # say, so each is fetched again only when the catalogue changes (design.md
             # §12, 2026-10-19 and 2026-10-22). The same in every page language.
             shelf=shelf_files(
-                [entry.state() for entry in everything() if not read_as_portions(entry)],
+                # Each with its own level, which Your Progress's Level rows open the
+                # shelf at (`#see/level/<level>`, design.md §12, 2026-10-28).
+                [
+                    {**entry.state(), "cefr": text_level(entry)}
+                    for entry in everything()
+                    if not read_as_portions(entry)
+                ],
                 # Which texts the page meets as one thing, and only the members actually
                 # on the shelf, so a collection can never open onto a row that is not there.
                 [group.state() for group in collections()],
