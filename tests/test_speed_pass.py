@@ -62,39 +62,49 @@ def test_its_loads_are_never_counted_as_visitors() -> None:
         assert BOTS.search(agent), agent
 
 
+def figures(lcp: float | None, **more: Any) -> dict[str, Any]:
+    return {"fcp": 900, "lcp": lcp, "load": 1200, "cls": 0.0, "kb": 90, "requests": 1, **more}
+
+
 def test_a_page_is_the_median_of_its_loads() -> None:
     speed = load_script()
     loads = [
-        {"fcp": 900, "lcp": 1000, "ttfb": 300, "load": 1100, "cls": 0.0, "kb": 90, "requests": 1},
-        {"fcp": 950, "lcp": 1400, "ttfb": 320, "load": 1500, "cls": 0.02, "kb": 90, "requests": 1},
-        {
-            "fcp": 990,
-            "lcp": 1200,
-            "ttfb": 340,
-            "load": 1300,
-            "cls": 0.0,
-            "kb": 91,
-            "requests": 1,
-            "blocked": ["POST /events"],
-        },
+        figures(1000),
+        figures(1400, cls=0.02),
+        figures(1200, fcp=990, blocked=["POST /events"]),
     ]
     result = speed.summarize("ruth", "/library/ruth", "phone", loads)
-    assert (result.lcp, result.fcp, result.ttfb) == (1200, 950, 320)
+    assert (result.lcp, result.fcp) == (1200, 900)
     assert result.cls == 0.02, "the worst shift, not the middle one"
     assert result.blocked == ["POST /events"]
+    assert not hasattr(result, "ttfb"), "DevTools' latency is not in responseStart"
 
 
-def test_a_phone_page_is_held_to_the_budget_with_its_setup() -> None:
+def test_the_verdict_is_the_measured_lcp_and_the_margin_only_warns() -> None:
     speed = load_script()
-    loads = [
-        {"fcp": 1000, "lcp": 1100, "ttfb": 300, "load": 1200, "cls": 0, "kb": 90, "requests": 1}
-    ]
-    phone = speed.summarize("x", "/", "phone", loads)
-    desk = speed.summarize("x", "/", "desk", loads)
-    assert speed.BUDGET_MS == 1500
-    # 1100 measured is under the line; with 450 ms of setup it is over.
-    assert phone.holds(0) and not phone.holds(speed.SETUP_MS)
-    # A desk is not on a phone's network, so nothing is added.
-    assert desk.holds(speed.SETUP_MS)
-    assert "OVER" in speed.line(phone, speed.SETUP_MS, speed.BUDGET_MS)
+    assert (speed.BUDGET_MS, speed.SETUP_MS, speed.MARGIN_MS) == (1500, 0, 450)
+    phone = speed.summarize("x", "/", "phone", [figures(1100)])
+    desk = speed.summarize("x", "/", "desk", [figures(1100)])
+    # 1100 holds; with the 450 ms margin it would be 1550, so it is near, not over.
+    assert phone.holds(speed.SETUP_MS) and phone.near(speed.MARGIN_MS)
+    said = speed.line(phone, speed.SETUP_MS, speed.BUDGET_MS)
+    assert "near" in said and "OVER" not in said and "1550" in said
+    # A desk is not on a phone's network: no margin, never near.
+    assert desk.holds(speed.SETUP_MS) and not desk.near(speed.MARGIN_MS)
     assert "holds" in speed.line(desk, speed.SETUP_MS, speed.BUDGET_MS)
+    # A setup asked for is added to the verdict.
+    assert not phone.holds(450)
+    over = speed.summarize("x", "/", "phone", [figures(1600)])
+    assert "OVER" in speed.line(over, speed.SETUP_MS, speed.BUDGET_MS)
+
+
+def test_a_page_with_no_lcp_says_so_and_does_not_hold() -> None:
+    speed = load_script()
+    blank = speed.summarize("x", "/", "phone", [figures(None), figures(None)])
+    assert blank.lcp is None
+    assert not blank.holds(speed.SETUP_MS)
+    said = speed.line(blank, speed.SETUP_MS, speed.BUDGET_MS)
+    assert "no LCP" in said and "holds" not in said and " 0 " not in said
+    # One load that painted is enough to have a figure.
+    some = speed.summarize("x", "/", "phone", [figures(None), figures(1300)])
+    assert some.lcp == 1300

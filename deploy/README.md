@@ -155,9 +155,10 @@ a phone):
 ```
 
 It loads each page cold on a throttled phone (three loads) and an unthrottled desk (two),
-prints the largest contentful paint, and holds the phone's to 1.5 s with 450 ms of
-connection setup added, which DevTools throttling leaves out. It exits 1 when a phone page
-is over. Only GETs leave (it aborts anything else and says how many it stopped), nothing
+prints the largest contentful paint and holds the phone's to 1.5 s. Beside it each phone
+line prints the LCP with a 450 ms margin and says "near" when that one crosses the line: a
+warning that a real first visit might, never the verdict. It exits 1 when a phone page is
+over, or when a page records no LCP at all. Only GETs leave (it aborts anything else and says how many it stopped), nothing
 signs in, and its user agent ends in `targum-speed-pass`, which the visitor count drops.
 It takes about five minutes for the eight pages, and it is a heavy browser run, so it
 takes the shared lock like any other.
