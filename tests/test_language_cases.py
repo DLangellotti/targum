@@ -115,7 +115,7 @@ def test_the_scripts_say_the_name_in_its_case() -> None:
         + "\nvar s = window.TargumStrings;\n"
         "console.log(JSON.stringify(["
         's.t("shelf.empty.language", "Nothing in {language} yet.", {language: "Иврит"}),'
-        's.t("chat.ask-about-the-text", "Ask about it or write in {language}", {language: "Russian"}),'
+        's.t("chat.ask-about-the-text", "Ask about it, {language}", {language: "Russian"}),'
         's.tn("add.words", 5, "a", "b", {language: "Идиш"}),'
         's.t("shelf.empty.language", "Nothing in {language} yet.", {language: "Klingon"})'
         "]));"
