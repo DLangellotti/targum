@@ -78,6 +78,13 @@ body.yours .nothing a:hover { border-block-end-color: var(--ink-soft); }
 .words-head { display: flex; flex-direction: column; gap: 0.6rem; margin-block-end: 1.25rem; }
 .words-back { align-self: start; font-size: 0.875rem; color: var(--teal); text-decoration: none; }
 .words-back:hover { text-decoration: underline; }
+.words-back[hidden] { display: none; }
+/* The way back to a text, where the reader stopped (targum-internal#547): the head's one
+   way back while it stands, a little stronger than Your Progress's line. */
+.came-back { align-self: start; font-size: 0.875rem; font-weight: 600; color: var(--teal); text-decoration: none; }
+.came-back:hover { text-decoration: underline; }
+.came-back[hidden] { display: none; }
+.came-back-text { font-weight: 700; }
 .words-summary { margin: 0; font-size: 0.9375rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .words-summary:empty { display: none; }
 
@@ -466,6 +473,7 @@ body.yours table.words-table[hidden] { display: none; }
    text, and a reach would cross it. */
 @media (hover: none) and (pointer: coarse) {
   .words-back,
+  .came-back,
   .words-exports .link-quiet:not([hidden]),
   .practise-go,
   .met-open,

@@ -1118,6 +1118,21 @@ body[data-lens="suffix"] .w.pron-end {
 .list-foot button { flex: 1 1 0; min-width: 0; padding: 0.3rem; font-size: 0.6875rem; }
 .list-foot button:disabled { opacity: 0.4; cursor: default; }
 .list-foot button:disabled:hover { color: var(--ink-soft); border-color: var(--rule); }
+/* Every word, a row of its own under the two files (targum-internal#547). */
+.list-foot { flex-wrap: wrap; }
+.list-foot .list-all {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: var(--teal);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.list-foot .list-all[hidden] { display: none; }
+.list-foot .list-all:hover { text-decoration: underline; }
 .list-items li {
   display: grid;
   /* term, difficulty, how well you know it, and the button that drops it. The meaning

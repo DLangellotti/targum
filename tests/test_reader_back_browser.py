@@ -19,7 +19,16 @@ from typing import Any
 
 import pytest
 
-from targum.models import Block, BlockKind, Document, Segment, SegmentedDocument, Translation
+from targum.models import (
+    Annotation,
+    Block,
+    BlockKind,
+    Document,
+    Segment,
+    SegmentedDocument,
+    Token,
+    Translation,
+)
 from targum.render import render
 from targum.render.builder import library_page, list_page
 
@@ -95,7 +104,26 @@ def built(out: Path) -> str:
         provider="null",
         segments={s.id: f"Line {s.index}." for s in segments},
     )
-    return render(document, segmented, [english], out)[0].read_text(encoding="utf-8")
+    # Words with levels, so the reader carries its word list and the list its foot.
+    tokens = {}
+    for s in segments:
+        marks, offset = [], 0
+        for word in s.text.split(" "):
+            marks.append(
+                Token(start=offset, end=offset + len(word), surface=word, lemma=word, band=2)
+            )
+            offset += len(word) + 1
+        tokens[s.id] = marks
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator="test/1",
+        method="frequency",
+        method_note="a test",
+        tokens=tokens,
+    )
+    pages = render(document, segmented, [english], out, annotation=annotation)
+    return pages[0].read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -121,7 +149,11 @@ def reader(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 @pytest.fixture(scope="module")
 def desk() -> dict[str, str]:
-    return {"/": list_page(TOKEN, "texts"), "/library": library_page(TOKEN)}
+    return {
+        "/": list_page(TOKEN, "texts"),
+        "/library": library_page(TOKEN),
+        "/words": list_page(TOKEN, "words"),
+    }
 
 
 def tab(browser, reader: str, desk: dict[str, str], viewport: dict[str, int]):
@@ -151,8 +183,30 @@ def tab(browser, reader: str, desk: dict[str, str], viewport: dict[str, int]):
     return context, page
 
 
-def into_reader(page, address: str = READER) -> dict[str, Any]:
-    page.goto(SITE + address)
+def press_to(page, address: str) -> None:
+    """Leave the page by a press, as a reader does: a link of the page's own, pressed."""
+    page.evaluate(
+        """(to) => {
+          const link = document.createElement('a');
+          link.id = 'press-to';
+          link.href = to;
+          link.textContent = 'Open';
+          link.style.cssText = 'position:fixed;top:0;left:0;z-index:2147483647;padding:8px';
+          document.body.appendChild(link);
+        }""",
+        address,
+    )
+    with page.expect_navigation():
+        page.click("#press-to")
+
+
+def into_reader(page, address: str = READER, pressed: bool = True) -> dict[str, Any]:
+    """Open the reader from where the tab stands: by a press, or `pressed=False`, by an
+    address typed into the browser."""
+    if pressed and page.url.startswith(SITE):
+        press_to(page, address)
+    else:
+        page.goto(SITE + address)
     page.wait_for_selector("#bar-back:not([hidden])")
     # The mark's link is shown once the reader has started, which waits for its store.
     page.wait_for_selector("#home:not([hidden])")
@@ -282,3 +336,105 @@ def test_the_installed_app_keeps_the_bar_out_of_the_notch(reader) -> None:
     the screen's edges and the bar's row starts under the status bar."""
     assert "viewport-fit=cover" in reader
     assert ".bar { padding-block-start: env(safe-area-inset-top, 0px); }" in reader
+
+
+def test_a_link_typed_after_the_library_says_your_targums(browser, reader, desk) -> None:
+    """qa on targum#963: an address typed or pasted into the browser after a visit to the
+    Library still said "← Library". Only a page left by a press is where the text came
+    from; anything else opens as a link from nowhere does."""
+    context, page = tab(browser, reader, desk, DESK)
+    try:
+        desk_page(page, "/library")
+        bar = into_reader(page, pressed=False)
+        assert bar["said"] == "Your targums" and bar["href"] == bar["home"], bar
+    finally:
+        context.close()
+
+
+#: The head of Your Words: the way back to a text, and Your Progress's.
+WORDS_HEAD = """
+() => {
+  const back = document.getElementById('came-back');
+  const progress = document.querySelector('.words-back[data-came-instead]');
+  return {
+    back: !back.hidden && back.getClientRects().length > 0,
+    said: back.textContent.replace(/[\\u2066-\\u2069]/g, '').replace(/\\s+/g, ' ').trim(),
+    href: back.getAttribute('href'),
+    height: back.getBoundingClientRect().height,
+    progress: !progress.hidden,
+  };
+}
+"""
+
+
+@pytest.mark.parametrize("viewport", WIDTHS)
+def test_the_word_list_leads_to_every_word_and_back_to_the_same_place(
+    browser, reader, desk, viewport
+) -> None:
+    """targum-internal#547. The word list's foot leads to Your Words, on a phone where the
+    list is a sheet and at a desk; Your Words then offers "← Back to <text>, where you
+    stopped", which opens the text at the sentence the reader was on — and the reader's
+    own back is the one it had, "← Library", not "← Words"."""
+    context, page = tab(browser, reader, desk, viewport)
+    try:
+        desk_page(page, "/library")
+        assert into_reader(page)["said"] == "Library"
+        # Read down to a sentence well into the text, so there is a place to go back to.
+        page.evaluate(
+            "() => document.querySelectorAll('#reader .pair')[30].scrollIntoView({block: 'start'})"
+        )
+        page.wait_for_timeout(300)
+        page.click("#list-tab")
+        page.wait_for_selector("#list-all", state="visible")
+        foot = page.evaluate(
+            """() => {
+              const r = document.getElementById('list-all').getBoundingClientRect();
+              return { height: r.height, inside: r.left >= 0 && r.right <= innerWidth,
+                       href: document.getElementById('list-all').getAttribute('href') };
+            }"""
+        )
+        assert foot["height"] >= 44 and foot["inside"], foot
+        assert foot["href"] == "/words?learning=he", "in the text's language, as the mark"
+
+        with page.expect_navigation():
+            page.click("#list-all")
+        page.wait_for_selector("#came-back:not([hidden])")
+        head = page.evaluate(WORDS_HEAD)
+        assert head["said"] == "← Back to טקסט לקריאה, where you stopped", head
+        assert head["href"] == READER, "the plain address, which opens at the place"
+        assert not head["progress"], "one way back at the head"
+        assert head["height"] > 0
+
+        with page.expect_navigation():
+            page.click("#came-back")
+        page.wait_for_selector("#home:not([hidden])")
+        page.wait_for_timeout(400)
+        landed = page.evaluate(
+            """() => {
+              const pair = document.querySelectorAll('#reader .pair')[30];
+              const r = pair.getBoundingClientRect();
+              return { top: r.top, bottom: r.bottom, height: innerHeight, y: scrollY };
+            }"""
+        )
+        assert landed["y"] > 0 and 0 <= landed["top"] < landed["height"], landed
+        assert page.evaluate(BAR)["said"] == "Library", "the text keeps where it came from"
+    finally:
+        context.close()
+
+
+def test_words_opened_any_other_way_shows_no_way_back(browser, reader, desk) -> None:
+    """From the Library, or typed in, Your Words keeps its own head: Your Progress."""
+    context, page = tab(browser, reader, desk, DESK)
+    try:
+        desk_page(page, "/library")
+        press_to(page, "/words")
+        page.wait_for_selector(".words-head")
+        head = page.evaluate(WORDS_HEAD)
+        assert not head["back"] and head["progress"], head
+
+        page.goto(SITE + "/words")
+        page.wait_for_selector(".words-head")
+        head = page.evaluate(WORDS_HEAD)
+        assert not head["back"] and head["progress"], head
+    finally:
+        context.close()

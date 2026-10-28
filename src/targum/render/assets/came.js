@@ -66,10 +66,53 @@
   var script = document.currentScript;
   var handed = null;
 
+  /* A desk page is where the next one came from only when the reader left it by a press — a
+     link, a card, Next, a swipe — and not when they typed or pasted an address into the
+     browser, which leaves the page the same way and says nothing about where they are
+     going (qa on targum#963). So a press is noted as it lands, and a desk page left more than
+     a minute after the last one writes nothing: the next page opens as a link from
+     nowhere would, with "Your targums". A minute, because a press can start something
+     that opens the reader when it is ready — a rewrite, an upload — a moment later. */
+  //: How long after a press a page that is left still counts as left by it.
+  var PRESSED_MS = 60 * 1000;
+  //: And how old a page's word may be when the next page reads it.
+  var FRESH_MS = 2 * 60 * 1000;
+  var pressedAt = 0;
+  function pressed() {
+    pressedAt = Date.now();
+  }
+  if (live) {
+    document.addEventListener("pointerdown", pressed, { capture: true, passive: true });
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key === "Enter" || event.key === " ") pressed();
+      },
+      true
+    );
+  }
+  function leftByAPress() {
+    return Date.now() - pressedAt < PRESSED_MS;
+  }
+  function leaving(record) {
+    if (handed) return write(FROM, handed);
+    if (!leftByAPress()) {
+      try {
+        window.sessionStorage.removeItem(FROM);
+      } catch (e) {}
+      return;
+    }
+    write(FROM, record);
+  }
+  function fresh(record) {
+    return !!record && Date.now() - Number(record.at || 0) < FRESH_MS;
+  }
+
   window.TargumCame = {
     /* What the page before this one was, as it said it, or null. */
     from: function () {
-      return live ? read(FROM) : null;
+      var record = live ? read(FROM) : null;
+      return fresh(record) ? record : null;
     },
     /* What this page says it is when it is left, in place of its own name: the Words
        page's way back hands the text it came from straight on, so the reader opens with
@@ -85,8 +128,10 @@
   /* --- a desk page ---------------------------------------------------------------- */
 
   if (!back) {
+    // This runs from the page's header, before the head of Your Words is parsed.
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wordsBack);
+    else wordsBack();
     window.addEventListener("pagehide", function () {
-      if (handed) return write(FROM, handed);
       var body = document.body;
       // A page whose name is drawn by its script — one playlist — says it on the body;
       // the rest are named where they are rendered.
@@ -95,16 +140,63 @@
         (script && script.getAttribute("data-label")) ||
         (document.querySelector("h1") || {}).textContent ||
         document.title;
-      write(FROM, { via: "desk", label: plain(label), href: here(), at: Date.now() });
+      leaving({ via: "desk", label: plain(label), href: here(), at: Date.now() });
     });
     return;
+  }
+
+  /* The Words page's way back to the text it was opened from (targum-internal#547): "←
+     Back to <text>, where you stopped", only when the page before this one was a reader,
+     and to the reader's plain address, which opens at the place it was left
+     (`targum:place`). Pressed, it hands the reader its own record back, so the reader
+     opens with the back it had — "← Library" — rather than "← Words". A reload keeps the
+     line; arriving any other way draws none. */
+  function wordsBack() {
+    var line = document.getElementById("came-back");
+    if (!line) return;
+    var KEPT = "targum:words-from";
+    var came = window.TargumCame.from();
+    var how = "navigate";
+    try {
+      var entry = performance.getEntriesByType("navigation")[0];
+      if (entry && entry.type) how = entry.type;
+    } catch (e) {}
+    if (!(came && came.via === "reader")) came = how === "navigate" ? null : read(KEPT);
+    if (!came || came.via !== "reader" || !came.href) {
+      try {
+        window.sessionStorage.removeItem(KEPT);
+      } catch (e) {}
+      return;
+    }
+    write(KEPT, came);
+    var said = line.querySelector(".came-back-said");
+    var wording = line.getAttribute("data-wording") || "{text}";
+    var parts = wording.split("{text}");
+    if (said) {
+      said.textContent = "";
+      said.appendChild(document.createTextNode(parts[0]));
+      var name = document.createElement("bdi");
+      name.className = "came-back-text";
+      name.textContent = came.label || "";
+      said.appendChild(name);
+      said.appendChild(document.createTextNode(parts.slice(1).join("{text}")));
+    }
+    line.setAttribute("href", came.href);
+    line.hidden = false;
+    // One way back at the head of the page: the text's, in place of Your Progress's.
+    Array.prototype.forEach.call(document.querySelectorAll("[data-came-instead]"), function (other) {
+      other.hidden = true;
+    });
+    line.addEventListener("click", function () {
+      window.TargumCame.hand(came);
+    });
   }
 
   /* --- a reader ------------------------------------------------------------------- */
 
   var folder = location.pathname.replace(/[^/]*$/, "");
   var backs = read(BACKS) || {};
-  var came = read(FROM);
+  var came = window.TargumCame.from();
   var how = "navigate";
   try {
     var entry = performance.getEntriesByType("navigation")[0];
@@ -112,7 +204,8 @@
   } catch (e) {}
 
   var to = null;
-  if (how === "back_forward" && backs[folder]) to = backs[folder];
+  // The browser's own Back and Forward, and a reload, find the text's back as it was.
+  if ((how === "back_forward" || how === "reload") && backs[folder]) to = backs[folder];
   else if (came && came.via === "reader") to = came.back || null;
   else if (came && came.via === "desk" && came.href && came.label) to = { label: came.label, href: came.href };
 
@@ -145,6 +238,26 @@
   // test, and off a disk this file has already stopped.
   back.hidden = false;
 
+  /* The word list's way through to every word (targum-internal#547): Your Words, with
+     the mark's own query — the key it was served with and the text's language — so the
+     page opens in the language of the text the reader came from. */
+  var all = document.getElementById("list-all");
+  function allWords() {
+    if (!all) return;
+    var mark = home ? home.getAttribute("href") || "" : "";
+    var query = mark.indexOf("?") < 0 ? "" : mark.slice(mark.indexOf("?"));
+    all.setAttribute("href", "/words" + query);
+  }
+  if (all) {
+    allWords();
+    all.hidden = false;
+    if (home && window.MutationObserver) {
+      new MutationObserver(allWords).observe(home, { attributes: true, attributeFilter: ["href"] });
+    }
+  }
+
+  // A reader always says what it was as it is left, press or none: listening plays on
+  // into a playlist's next item by itself, and that item is still the playlist's.
   window.addEventListener("pagehide", function () {
     if (handed) return write(FROM, handed);
     write(FROM, {
