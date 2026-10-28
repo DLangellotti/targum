@@ -417,19 +417,79 @@ FITS = """() => {
 }"""
 
 
-@pytest.mark.parametrize("width", [390, 1440])
-def test_in_a_reader_the_box_s_line_is_never_cut(browser, width: int) -> None:
-    """#472 re-audit: a textarea's placeholder takes no ellipsis in Chromium, so in a
-    reader on a phone "Ask about the text, or write in Hebrew" was cut as "or wri". It
-    falls back to the line the box says everywhere else where it does not fit."""
-    context, page = framed_in_a_reader(browser, width)
-    got = page.evaluate(FITS)
+#: The reader's line (David, 2026-10-28): the long one where it fits the drawer's field
+#: at a desk (about 235px), the short one where it does not, which is every phone.
+LONG_LINE = {"en": "Ask about it or write in ", "ru": "Вопрос о тексте "}
+SHORT_LINE = {"en": "Ask about it", "ru": "Спросите…"}
+
+
+def in_the_drawer(browser, width: int, language: str = "en", reading: str = "he"):
+    """The real drawer, opened from the pill, its frame told what is being read: the
+    field is as wide as the drawer makes it, not as wide as /chat on its own (qa, #966)."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, has_touch=width < 600, is_mobile=width < 600
+    )
+    page = context.new_page()
+    library = library_page(TOKEN, language=language)
+    framed = chat_page(TOKEN, embed=True, language=language)
+    answer = answer_with({"/chat/list": {"chats": [], "usable": True}})
+
+    def route(r, request) -> None:
+        path = request.url[len(SITE) :].split("?")[0]
+        if "embed=1" in request.url:
+            r.fulfill(status=200, content_type="text/html", body=framed)
+        elif path == "/library":
+            r.fulfill(status=200, content_type="text/html", body=library)
+        else:
+            answer(r, request)
+
+    page.route(f"{SITE}/**", route)
+    page.goto(f"{SITE}/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.click("#talk-open")
+    frame = page.frame_locator("#talk-frame")
+    frame.locator("#say").wait_for()
+    page.wait_for_timeout(300)
+    page.evaluate(
+        """(about) => document.getElementById('talk-frame').contentWindow
+             .postMessage({type: 'targum:reading', about}, location.origin)""",
+        {**READING, "language": reading},
+    )
+    frame.locator("#chat-reading:not([hidden])").wait_for()
+    page.wait_for_timeout(200)
+    return context, page.frame(url=lambda url: "embed=1" in url)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [1440, 390, 320])
+def test_in_a_reader_the_box_s_line_fits_the_drawer(browser, width: int, language: str) -> None:
+    """#472: a textarea's placeholder takes no ellipsis in Chromium, and in the drawer
+    the field is about 235px at a desk and narrower on a phone, so "Ask about the text,
+    or write in Hebrew" was cut as "or wri" (qa on #966: a framed /chat at full width
+    hid it). The long line shows in the drawer at a desk; a phone's narrower field gets
+    the short one, never cut, down to 320px."""
+    context, frame = in_the_drawer(browser, width, language)
+    got = frame.evaluate(FITS)
     context.close()
     assert got["fits"], got
-    if width == 1440:
-        assert got["line"] == "Ask about the text, or write in Hebrew", got
+    if width < 1024:
+        # The phone's sheet leaves the field about 158px at 390 and 88px at 320
+        # (measured 2026-10-28), short of the long line's ~190px.
+        assert got["line"] == SHORT_LINE[language], got
     else:
-        assert got["line"] == "Hebrew or English", got
+        assert got["line"].startswith(LONG_LINE[language]), got
+        assert len(got["line"]) > len(LONG_LINE[language]), "names the language"
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("reading", ["fr", "arc", "ru", "yi"])
+def test_the_long_line_fits_for_every_language_read(browser, reading: str, language: str) -> None:
+    """«по-французски» and the Aramaic name are the longest forms the line takes (ling-ru,
+    2026-10-28): they fit the drawer at a desk too, so nobody gets the short line there."""
+    context, frame = in_the_drawer(browser, 1440, language, reading)
+    got = frame.evaluate(FITS)
+    context.close()
+    assert got["fits"] and got["line"].startswith(LONG_LINE[language]), got
 
 
 def test_the_sentence_being_read_says_its_language(browser) -> None:

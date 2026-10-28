@@ -12,12 +12,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
-- In a reader, the talk drawer's box no longer cuts its line mid-letter on a phone
-  (targum-internal#472 re-audit). A textarea's placeholder takes no ellipsis in Chromium,
-  so "Ask about the text, or write in Hebrew" read "or wri" at 390px; where it does not
-  fit, the box says "Hebrew or English" as it does everywhere else, and gets the long
-  line back when there is room. The Reading line's sentence now carries its `lang` and
-  `dir`, so a screen reader reads the Hebrew as Hebrew.
+- In a reader, the talk drawer's box no longer cuts its line mid-letter
+  (targum-internal#472). A textarea's placeholder takes no ellipsis in Chromium, and the
+  drawer's field is about 235px at a desk and 158px on a phone, so "Ask about the text,
+  or write in Hebrew" read "or wri". The line is David's shorter one now, "Ask about it
+  or write in {language}" («Вопрос о тексте {language:adv}»), and where even that does
+  not fit, which is every phone, "Ask about it" («Спросите…»), chosen by measuring the
+  field. The box keeps the reader's line when the conversation switches language. The
+  Reading line's sentence now carries its `lang` and `dir`. design.md §12 says so.
 - Home's one card stays for a reader with a long record (qa on targum#958). Home sent
   every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
   server's 64 KB request line, so the card was never drawn. They go in a POST body now;

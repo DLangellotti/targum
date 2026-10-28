@@ -2220,7 +2220,13 @@ ink (#684); this is what it opens.
   nothing there: there is nothing in front of the reader to be about.
 - **The suggestions and the Reading line stand only while the conversation is empty.**
   Once there is a turn the thread has the room, and the chip says what it is about.
-  In a reader the box says "Ask about the text, or write in {language}".
+  In a reader the box says "Ask about it or write in {language}" («Вопрос о тексте
+  {language:adv}»), and "Ask about it" («Спросите…») where the field is too narrow for
+  that, measured (David, 2026-10-28, targum-internal#472). It said "Ask about the text,
+  or write in {language}", which the drawer's field cut mid-letter, because a
+  placeholder takes no ellipsis. At a desk the field is about 235px and the long line
+  shows; a phone's sheet leaves it about 158px at 390 and 88px at 320, so a phone
+  shows the short line.
 - **The conversation's own look**: the reader's lines in the teal wash at the end edge,
   sized to what was said, targum's on the page; a door to a text ("Open …") is the
   primary, a pill at its words' width, where it was an ink block — "A door's one press is

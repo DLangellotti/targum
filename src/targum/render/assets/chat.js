@@ -50,9 +50,11 @@
 
   // The box's line is the first of `lines` that fits the field on one line, or the
   // last. A textarea's placeholder is never cut with an ellipsis in Chromium, whatever
-  // chat.css asks: in a reader on a phone "Ask about the text, or write in Hebrew" was
-  // sliced mid-letter as "or wri" (#472, after B8). Measured again when the field's
-  // width changes, so a phone turned on its side gets the long line back.
+  // chat.css asks: in a reader's drawer, whose field is about 235px at a desk and 158px
+  // on a 390px phone, "Ask about the text, or write in Hebrew" was sliced mid-letter as
+  // "or wri" (#472). Measured
+  // again when the field's width changes, so a phone turned on its side gets the long
+  // line back.
   var placeholderLines = null;
   var measuring = null;
   function fits(line) {
@@ -1254,7 +1256,9 @@
     // The box names the conversation's language: an Italian one said "Write in Hebrew or
     // English" until 2026-09-14.
     var named = (window.TARGUM_LANGUAGES || {})[listedIn];
-    if (named && listedIn !== "en") {
+    // In a reader the box keeps asking about the text, in the language just switched to.
+    if (reading && (reading.sentence || reading.title)) drawReading();
+    else if (named && listedIn !== "en") {
       placeholder([t("chat.write-in", "{language} or English", { language: named })]);
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
@@ -1517,11 +1521,12 @@
     if (shown && field) {
       var named = (window.TARGUM_LANGUAGES || {})[listedIn || spoken()];
       if (named) {
-        // Where the reader's line does not fit, the box falls back to the line it says
-        // everywhere else; the Reading line above it already says what this is about.
+        // The short line only where the long one does not fit, which today is a phone's
+        // narrower field (David, 2026-10-28; design.md §12, "Talk is a sheet over a
+        // dimmed page").
         placeholder([
-          t("chat.ask-about-the-text", "Ask about the text, or write in {language}", { language: named }),
-          t("chat.write-in", "{language} or English", { language: named }),
+          t("chat.ask-about-the-text", "Ask about it or write in {language}", { language: named }),
+          t("chat.ask-about-it", "Ask about it"),
         ]);
       }
     }
