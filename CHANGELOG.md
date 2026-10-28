@@ -385,6 +385,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Scenes, whose order is built from the scene numbers, so a new scene joins it without a
   new collection. A reader who said bet is a beginner too while nothing is measured, and
   /suggest no longer cuts the finished ids at 200, which could offer a finished scene.
+- A named back beside the mark in the reader and Theatre (David, 2026-10-28;
+  targum-internal#546). A beta reader got stuck inside a reader: the mark was the only way
+  out and went to Your targums whatever page they had come from. Beside the mark, which is
+  unchanged, the bar now names where the text was opened from, "← Library", "← <playlist>",
+  "← Words", and goes back there; with nothing to say (a shared or typed link) it reads
+  "← Your targums". Each desk page writes its name to the tab's own store as it is left and
+  the reader reads it, so nothing is added to any address. The next section, a playlist's
+  next item, the next scene, a reload and the browser's Back keep it. It is 44px with a
+  visible label, fades with the bar and comes back the same ways, and is the first Tab
+  stop, which brings the bar out. In Theatre the mark and the back stay at 55% while a
+  video plays instead of vanishing. The reader is laid out to the screen's edges
+  (`viewport-fit=cover`) and the bar clears the notch in the installed app.
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars

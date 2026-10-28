@@ -269,6 +269,8 @@ THUMBED = (
     ".more-on",
     # Theatre's size grip on the picture's foot (design.md §12, 2026-10-07).
     ".film-size",
+    # The named back beside the mark (design.md §12, 2026-10-28, targum-internal#546).
+    ".bar-back",
     # Saving for offline (design.md §12, 2026-10-09): save, stop, try again and remove, in
     # a reader's ⋯ and on a playlist's page.
     ".offline-go",

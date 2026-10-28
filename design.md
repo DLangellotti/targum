@@ -380,6 +380,9 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A named back beside the mark, in the reader and Theatre (2026-10-28)
+The mark stays and still goes to Your targums. When the bar is out, a named back stands beside it and returns to wherever the text was opened from, or to Your targums when there's no origin. It fades with the bar and comes back the same ways, plus a tap on the top strip on a phone. In Theatre the mark and the back stay at the reader's 55% while a video plays, never invisible.
+
 ### A text you brought, rewritten at your level — 2026-10-28
 
 From the LingQ comparison of 2026-10-27 (targum-internal#535; David decided it starts

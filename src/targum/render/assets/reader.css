@@ -72,6 +72,51 @@
 a.bar-brand { text-decoration: none; border: 0; }
 a.bar-brand:hover { color: var(--teal); }
 
+/* The named back beside the mark (design.md §12, 2026-10-28; targum-internal#546). First
+   in the document so the first Tab lands on it, and drawn after the mark, which keeps the
+   corner as it always has. A word and not a glyph, and 44px at every width (§14.3): it is
+   how a reader who is stuck gets out. Laid out physically, as the bar is, so its arrow
+   points the way the bar's corner is whichever way the text reads. */
+.bar > .bar-brand { order: -1; }
+.bar > .bar-back { order: 0; }
+.bar-back {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.3rem;
+  min-inline-size: 0;
+  min-block-size: 44px;
+  margin-inline-start: 0.6rem;
+  padding: 0 0.7rem 0 0.45rem;
+  border: 0;
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bar-back[hidden] { display: none; }
+.bar-back:hover { color: var(--teal); }
+.bar-back svg {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.bar-back-to { min-inline-size: 0; max-inline-size: 14rem; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 40rem) {
+  .bar-back { margin-inline-start: 0.4rem; padding-inline-end: 0.55rem; }
+  .bar-back-to { max-inline-size: 8.5rem; }
+}
+
 .bar-title { display: flex; gap: 0.75rem; align-items: baseline; color: var(--ink-soft); }
 /* The English beside the Hebrew in the bar, and gone where the bar has no room for two
    titles; the document title keeps both at every width. */
@@ -3268,11 +3313,19 @@ body.film-panel .film-panel-head:not([hidden]) {
    The bar and the row fade, and what stays is the picture, the hairline of where the
    voice is and the line being said. The bar's ground stays paper and nothing moves. */
 .bar,
+.bar > .bar-title,
+.bar > .controls,
 .film-ctl > *,
 .film-line,
 .film-about,
 .film-far { transition: opacity 400ms ease; }
-body.film-quiet .bar { opacity: 0; }
+/* The way out stays faint, not gone (§12, 2026-10-28; targum-internal#546): the mark and
+   the named back keep the reader's 55% while a video plays, and the rest of the bar fades
+   as it did. The bar's ground and hairline go with it, so the picture stands clear. */
+body.film-quiet .bar { background: transparent; border-block-end-color: transparent; }
+body.film-quiet .bar > :not(.bar-brand):not(.bar-back) { opacity: 0; }
+body.film-quiet .bar > .bar-brand,
+body.film-quiet .bar > .bar-back { opacity: 0.55; }
 body.film-quiet .film-ctl > :not(.film-track),
 body.film-quiet .film-line,
 body.film-quiet .film-about { opacity: 0; }
@@ -3288,6 +3341,8 @@ body.film-quiet .film-frame,
 body.film-quiet .video-tap { cursor: none; }
 @media (prefers-reduced-motion: reduce) {
   .bar,
+  .bar > .bar-title,
+  .bar > .controls,
   .film-ctl > *,
   .film-line,
   .film-about,
@@ -4937,6 +4992,7 @@ body.practice-section .beside-add { display: none; }
 
 /* --- C: the bar steps back --- */
 .bar .bar-brand,
+.bar .bar-back,
 .bar .bar-title > *,
 .bar .bar-tools,
 .bar .listen-word,
@@ -4945,6 +5001,9 @@ body.practice-section .beside-add { display: none; }
 .bar { transition: border-color 400ms ease; }
 .bar.quiet { border-block-end-color: transparent; }
 .bar.quiet .bar-brand { opacity: 0.55; }
+/* The named back steps back with the rest (§12, 2026-10-28), and comes back the same ways:
+   still the first Tab, which brings the bar out. */
+.bar.quiet .bar-back { opacity: 0; pointer-events: none; }
 .bar.quiet .bar-title > :not(.known),
 .bar.quiet .bar-tools { opacity: 0; pointer-events: none; }
 /* The title folds away rather than leaving a hole, so the count stands by the mark. */
@@ -4959,6 +5018,7 @@ body.practice-section .beside-add { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .bar,
   .bar .bar-brand,
+  .bar .bar-back,
   .bar .bar-title > *,
   .bar .bar-tools,
   .bar .listen-word,
@@ -4987,6 +5047,7 @@ body.practice-section .beside-add { display: none; }
   .m-menu .offline-remove,
   .m-menu .m-select,
   .sheet-grab,
+  .bar .bar-back,
   .cmp-add { min-block-size: 44px; }
   .bar .m-menu .seg > * { min-inline-size: 44px; }
   .bar .bar-tool,
@@ -6650,3 +6711,10 @@ body.correcting main .pair[data-id]:hover { outline: 1px solid var(--rule); outl
   .rewrite-cancel,
   .rewrite-level select { min-height: 44px; }
 }
+
+/* --- the installed app: the bar clears the notch (targum-internal#546) ---
+   Opened from the home screen there is no browser around the page, and no browser Back:
+   the bar is the way out, so it never sits under the notch. The page is laid out to the
+   screen's edges (`viewport-fit=cover`) and the bar's ground reaches up under the status
+   bar while its row starts below it. Last, so no width's padding sets it back to 0. */
+.bar { padding-block-start: env(safe-area-inset-top, 0px); }
