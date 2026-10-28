@@ -375,8 +375,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   in sshd and leaves how anyone logs in alone. And it reports a reboot that has been
   waiting, with the date: the box has been running kernel 7.0.0-29 with 7.0.0-38
   installed since 2026-10-08. It never reboots. The minter unit's comment no longer
-  claims a loopback binding: it listens on `*:4416`, behind two nft tables. Nothing runs
-  on the box until David runs the script.
+  claims a loopback binding: it listens on `*:4416`, behind two nft tables. No step that
+  can fail under `set -e` comes before its own undo any more (qa on targum#967): Caddy's
+  reload, restart, check and probe, sshd's reload, the wall's rollback timer and the
+  swapfile's three steps each take their change back and stop. Nothing runs on the box
+  until David runs the script.
 - The back office flags sign-ups that might be fake (David, 2026-10-27;
   targum-internal#544). Eight flags, each a plain reason under the address, all read from
   what the store already holds: never confirmed after 2 days, confirmed within 10

@@ -62,7 +62,7 @@ def test_sshd_is_checked_before_it_is_reloaded(script: list[str]) -> None:
     """The drop-in is written, `sshd -t` reads it, and only then is sshd reloaded."""
     written = first(script, r"put_file 0644 \"\$SSHD_DROPIN\"")
     checked = first(script, r"^if ! sshd -t; then")
-    reloaded = first(script, r"^systemctl reload ssh")
+    reloaded = first(script, r"systemctl reload ssh")
     assert written < checked < reloaded
 
 
@@ -133,8 +133,8 @@ def test_the_wall_is_checked_then_can_undo_itself_then_goes_up(script: list[str]
     exists on disk before any of it."""
     rollback_written = first(script, r"put_file 0755 \"\$ROLLBACK\"")
     checked = first(script, r"^if ! nft -c -f \"\$NFT_CONF\"; then")
-    armed = first(script, r"^systemd-run .*--on-active=")
-    loaded = first(script, r"^systemctl reload nftables")
+    armed = first(script, r"^if ! systemd-run .*--on-active=")
+    loaded = first(script, r"\{ systemctl reload nftables")
     assert rollback_written < checked < armed < loaded
 
 
@@ -162,7 +162,20 @@ def test_every_change_waits_for_a_real_run() -> None:
     real run reaches. One bare at the top level would run under --dry-run too."""
     now: list[str] = []  # the branch each open `if` is in
     seen: list[set[str]] = []  # the kinds of condition each open `if` has had
-    for line in code(SCRIPT):
+    lines = code(SCRIPT)
+    functions = {m.group(1) for line in lines if (m := re.match(r"^(\w+)\(\) \{$", line))}
+    calls = re.compile(rf"^({'|'.join(sorted(functions))})$") if functions else None
+    inside = False
+    for line in lines:
+        # A function's body runs where it is called; the call is what is checked.
+        if re.match(r"^\w+\(\) \{$", line) and line[:-4] not in {"act", "put_file", "die", "say"}:
+            inside = True
+            continue
+        if inside:
+            inside = line != "}"
+            continue
+        if calls and calls.match(line):
+            assert "real" in now, f"runs under --dry-run: {line}"
         one_line = line.endswith("; fi")
         if re.match(r"^if\b", line) and not one_line:
             now.append(branch(line))
@@ -227,20 +240,103 @@ def test_every_log_caddy_writes_is_inside_its_sandbox() -> None:
     )
 
 
-def test_caddy_is_checked_then_restarted_then_probed_and_undone_on_failure(
-    script: list[str],
+STUB = """#!/bin/bash
+echo "$(basename "$0") $*" >> "$LOG"
+for f in $FAIL; do
+  [[ "$(basename "$0") $*" == *"${f//_/ }"* ]] && exit 1
+done
+exit 0
+"""
+
+
+def run_caddy_up(tmp_path: Path, fail: str) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    """harden.sh's own `caddy_up`, run as the script runs it (`set -euo pipefail`), with
+    systemctl, systemd-analyze and curl stubbed: each logs its call and fails when its
+    command line holds one of FAIL's words (`_` for a space)."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    body = re.search(r"^caddy_up\(\) \{\n.*?^\}\n", text, re.M | re.S)
+    assert body, "harden.sh has no caddy_up function"
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    for name in ("systemctl", "systemd-analyze", "curl"):
+        (stubs / name).write_text(STUB, encoding="utf-8")
+        (stubs / name).chmod(0o755)
+    dropin = tmp_path / "10-targum-sandbox.conf"
+    dropin.write_text("[Service]\n", encoding="utf-8")
+    log = tmp_path / "calls.log"
+    harness = tmp_path / "run.sh"
+    harness.write_text(
+        "set -euo pipefail\n"
+        "say() { printf '%s\\n' \"$*\"; }\n"
+        "die() { printf 'REFUSED: %s\\n' \"$*\" >&2; exit 1; }\n"
+        f'CADDY_DROPIN="{dropin}"\n' + body.group(0) + "caddy_up\n",
+        encoding="utf-8",
+    )
+    run = subprocess.run(
+        ["bash", str(harness)],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": f"{stubs}:/usr/bin:/bin", "LOG": str(log), "FAIL": fail},
+    )
+    calls = log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+    return run, calls
+
+
+def test_caddy_comes_up_in_its_sandbox_when_every_step_passes(tmp_path: Path) -> None:
+    run, calls = run_caddy_up(tmp_path, "")
+    assert run.returncode == 0, run.stderr
+    assert (tmp_path / "10-targum-sandbox.conf").exists()
+    assert [call.split()[0:2] for call in calls] == [
+        ["systemd-analyze", "verify"],
+        ["systemctl", "daemon-reload"],
+        ["systemctl", "restart"],
+        ["systemctl", "is-active"],
+        ["curl", "-fsS"],
+    ]
+    assert "https://targum.page/health" in calls[-1]
+
+
+@pytest.mark.parametrize(
+    "fail",
+    ["systemctl_daemon-reload", "systemctl_restart_caddy", "systemctl_is-active", "curl"],
+)
+def test_any_failed_step_takes_the_sandbox_out_and_restarts_caddy(
+    tmp_path: Path, fail: str
 ) -> None:
-    written = first(script, r"put_file 0644 \"\$CADDY_DROPIN\"")
-    checked = first(script, r"^if ! systemd-analyze verify caddy\.service; then")
-    restarted = first(script, r"^systemctl restart caddy$")
-    probed = first(script, r"https://targum\.page/health; then$")
-    assert written < checked < restarted < probed
-    assert script[checked + 1] == 'rm -f "$CADDY_DROPIN"'
-    assert script[checked + 2].startswith("die ")
-    after = script[probed + 1 : probed + 5]
-    assert after[0] == 'rm -f "$CADDY_DROPIN"'
-    assert "systemctl restart caddy" in after
-    assert after[-1].startswith("die ")
+    """Under `set -e`, each of these failing used to end the script before its undo when
+    it was a bare line (qa on targum#967): the drop-in stayed and Caddy stayed down."""
+    run, calls = run_caddy_up(tmp_path, fail)
+    assert run.returncode == 1
+    assert "REFUSED: caddy did not serve the site" in run.stderr
+    assert not (tmp_path / "10-targum-sandbox.conf").exists()
+    failed = next(i for i, call in enumerate(calls) if fail.replace("_", " ") in call)
+    assert any(call == "systemctl restart caddy" for call in calls[failed + 1 :]), calls
+    # And it got that far: nothing after the failing step but the undo.
+    assert not any(call.startswith("curl") for call in calls[failed + 1 :])
+
+
+def test_a_rejected_caddy_drop_in_never_reaches_systemd(tmp_path: Path) -> None:
+    run, calls = run_caddy_up(tmp_path, "systemd-analyze")
+    assert run.returncode == 1
+    assert not (tmp_path / "10-targum-sandbox.conf").exists()
+    assert not any(call.startswith("systemctl") for call in calls)
+
+
+def test_no_undo_is_left_behind_a_bare_step(script: list[str]) -> None:
+    """The other places a failure under `set -e` could leave a half-done change: an sshd
+    reload that fails puts the old drop-in back, and a rollback timer that will not arm
+    takes the wall's include out before anything loads."""
+    reload = first(script, r"! systemctl reload ssh\.service; then$")
+    assert script[reload + 1] == 'rm -f "$SSHD_DROPIN"'
+    assert script[reload + 3].startswith("die ")
+    armed = first(script, r"^if ! systemd-run .*--on-active=")
+    assert script[armed + 1] == '"$ROLLBACK" >/dev/null'
+    assert script[armed + 2].startswith("die ")
+    made = first(script, r"act fallocate")
+    assert script[made].startswith("if ! {")
+    assert script[made + 1] == 'rm -f "$SWAPFILE"'
+    assert not any(re.match(r"^systemctl (daemon-reload|restart caddy)$", line) for line in script)
 
 
 def test_it_says_a_reboot_is_waiting_and_never_reboots(script: list[str]) -> None:
