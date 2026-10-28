@@ -4588,6 +4588,11 @@ class Library:
             return self.run_words(job)
         if job.options.get("again"):
             return self.run_again(job)
+        # A reader's own text rewritten at their level (targum-internal#535): the model
+        # writes it first, and then it is built like any text the reader pasted.
+        if job.options.get("rewrite") and not job.options.get("rewritten"):
+            if not self._rewrite(job):
+                return
         try:
             job.stage = "working"
             self.remember(job)
@@ -4602,6 +4607,8 @@ class Library:
                 # Looking up word meanings carries on in this thread afterwards, into a
                 # reader that is already open.
                 job.reader = f"{result.out_dir.name}/reader/index.html"
+                if job.options.get("rewrite"):
+                    self._link_rewrite(job, result.out_dir)
                 job.stage = "done"
                 job.message = ""
                 self.remember(job)
@@ -5165,6 +5172,8 @@ class Library:
 
             def ready(result: Result) -> None:
                 job.reader = f"{result.out_dir.name}/reader/index.html"
+                if job.options.get("rewrite"):
+                    self._link_rewrite(job, result.out_dir)
                 job.stage = "done"
                 job.message = ""
                 self.remember(job)
@@ -5320,6 +5329,161 @@ class Library:
         job.stage = "done"
         self.settle(job)
         self.remember(job)
+
+    # -- a reader's own text, rewritten at their level (targum-internal#535) ------------
+
+    def quote_rewrite(
+        self,
+        folder: Path,
+        written: Any,
+        *,
+        owner: int | None,
+        admin: bool,
+        home: Path,
+        target: str = "",
+        ui: str = "en",
+    ) -> Job:
+        """A priced job that rewrites `folder` at `written` and builds what comes back,
+        left at `ready` for a press. Nothing is asked of a model here.
+
+        Reserved for both halves on one receipt: the rewriting, and the translation of a
+        text somewhat longer than the original (`rewrite.LONGER`), since a text for a
+        smaller vocabulary says more. Settled to what the two really cost.
+        """
+        from . import rewrite as rewrite_module
+        from .annotate import model_lemma
+        from .models import Document, SegmentedDocument
+        from .models import read_artifact as read
+
+        document = read(Document, folder / "document.json")
+        segmented = read(SegmentedDocument, folder / "segments.json")
+        here = self.targets(folder)
+        target = target if target in here else (here[0] if here else "en")
+        job = Job(
+            ui=ui,
+            id=secrets.token_hex(8),
+            source="",
+            title=(document.title if document else "") or folder.name,
+            language=document.language if document else "",
+            owner=owner,
+            admin=admin,
+            home=home,
+            options={
+                "words": True,
+                "to": target,
+                "from": document.language if document else "",
+                "rewrite": {"from": folder.name, "level": written.value},
+            },
+        )
+        if document is None or segmented is None:
+            job.error = said_in(ui, "rewrite.not-ready", "This text isn't ready yet.")
+            job.stage = "failed"
+            return job
+        refusal = ""
+        if rewrite_module.refused(rewrite_module.licence_of(folder)):
+            refusal = said_in(
+                ui,
+                "rewrite.licence",
+                "This text's licence doesn't allow changing it, so we can't rewrite it.",
+            )
+        elif not rewrite_module.rewrites(document.language):
+            refusal = said_in(
+                ui,
+                "rewrite.language",
+                "We can rewrite texts in Hebrew, French, Russian and Italian.",
+            )
+        _, paragraphs = rewrite_module.text_of(document)
+        count = sum(rewrite_module.words(one) for one in paragraphs)
+        if not refusal and count > rewrite_module.LONGEST:
+            refusal = said_in(
+                ui,
+                "rewrite.too-long",
+                "We rewrite texts of up to {words} words, and this one is longer.",
+                words=f"{rewrite_module.LONGEST:,}",
+            )
+        if refusal:
+            job.error = refusal
+            job.stage = "failed"
+            return job
+        # Where the rewrite will be written once it is pressed: a file of the reader's
+        # own, like a pasted text, so the build that follows is the ordinary one.
+        name = rewrite_module.stem(folder, written)
+        job.source = str(home / "uploads" / secrets.token_hex(8) / f"{name}.txt")
+        rewriter = rewrite_module.Rewriter()
+        builder = self._builder(job)
+        usable, _ = builder.provider.available()
+        if not usable or not rewriter.available()[0]:
+            job.blocked = no_key(ui)
+            job.stage = "blocked"
+            return job
+        translating = builder.provider.estimate(
+            segmented.segments, segmented.language, target, builder.style
+        )
+        if model_lemma.reads(segmented.language):
+            translating += model_lemma.estimate(segmented.segments, segmented.language)
+        job.estimate = rewriter.estimate(count) + translating * rewrite_module.LONGER
+        job.segments = len(segmented.segments)
+        job.total = job.segments
+        job.blocked = self.why_blocked(job.estimate, ui)
+        job.stage = "blocked" if job.blocked else "ready"
+        return job
+
+    def _rewrite(self, job: Job) -> bool:
+        """The first half of a pressed rewrite: ask the model, and write what it gave back
+        where the build will read it. False, with the job blamed, where it could not."""
+        from . import rewrite as rewrite_module
+        from .models import Document
+        from .models import read_artifact as read
+        from .paths import write_atomic
+
+        asked = job.options.get("rewrite") or {}
+        original = self.within(job.home or self.out, str(asked.get("from") or ""))
+        written = rewrite_module.named(str(asked.get("level") or ""))
+        document = read(Document, original / "document.json") if original else None
+        if original is None or written is None or document is None:
+            self._blame(job, said_in(job.ui, "rewrite.gone", "We can't find that text any more."))
+            return False
+        job.stage = "working"
+        job.message = said_in(
+            job.ui,
+            "job.rewriting",
+            "We're rewriting it for {level}…",
+            level=rewrite_module.label(written, job.ui),
+        )
+        self.remember(job)
+        try:
+            made = rewrite_module.Rewriter().rewrite(document, written)
+        except TargumError as error:
+            self._blame(job, told(job.ui, error, hosted=self.hosted))
+            return False
+        except Exception as error:
+            traceback.print_exc()
+            incidents_module.record(self.incidents, "rewrite", error, job=job.id)
+            self._blame(job, broke(job.ui, error))
+            return False
+        # On the receipt beside the build, as the reading of a picture is: one text, one
+        # line. Written to the job before the build starts, so a build that fails still
+        # settles what the rewriting cost.
+        job.reading += made.spent.cost()
+        job.spent = job.reading
+        path = Path(job.source)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_atomic(path, made.file(document.language))
+        job.title = made.title
+        job.options["rewritten"] = True
+        job.message = ""
+        self.remember(job)
+        return True
+
+    def _link_rewrite(self, job: Job, folder: Path) -> None:
+        """Write down, beside each, that this rewrite was made from its original."""
+        from . import rewrite as rewrite_module
+
+        asked = job.options.get("rewrite") or {}
+        original = self.within(job.home or self.out, str(asked.get("from") or ""))
+        written = rewrite_module.named(str(asked.get("level") or ""))
+        if original is not None and written is not None:
+            rewrite_module.link(folder, original, written)
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.
@@ -9445,6 +9609,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._text_part(payload)
         if route == "/text/translate":
             return self._text_translate(payload)
+        if route == "/text/rewrite":
+            return self._text_rewrite(payload)
         if route == "/tell-us":
             return self._tell_us(payload)
         if route == "/account/languages":
@@ -14728,8 +14894,95 @@ class Handler(BaseHTTPRequestHandler):
                 "breaks": kept["breaks"],
                 "before": correct_module.stale(folder),
                 "reading": next((job.state() for job in working if job.kind == "words"), None),
+                "rewrite": self._rewrite_offer(folder),
             }
         )
+
+    def _rewrite_written(self, folder: Path) -> Any:
+        """The level this reader's rewrite of `folder` is written at, from their ledger."""
+        from . import level as level_module
+        from . import rewrite as rewrite_module
+        from .models import Document
+        from .models import read_artifact as read
+
+        document = read(Document, folder / "document.json")
+        person = self._person()
+        if self.store is None or person is None or document is None:
+            return rewrite_module.for_reader(level_module.EMPTY)
+        return rewrite_module.for_reader(
+            level_module.snapshot(self.store, person.id, document.language)
+        )
+
+    def _rewrite_offer(self, folder: Path) -> dict[str, Any]:
+        """What the reader's page needs to offer a rewrite of this text, and to link it
+        to its original or its rewrites (targum-internal#535). Only reads."""
+        from . import rewrite as rewrite_module
+        from .models import Document
+        from .models import read_artifact as read
+
+        ui = self._page_language()
+        home = self._home()
+
+        def named(entry: dict[str, str]) -> dict[str, str] | None:
+            other = self.library.within(home, entry["name"])
+            if other is None or not (other / "document.json").is_file():
+                return None
+            written = rewrite_module.named(entry["level"])
+            return {
+                "reader": f"/reader/{quote(other.name)}/reader/index.html",
+                "title": self.library.document_title(other),
+                "level": rewrite_module.label(written, ui) if written else "",
+            }
+
+        document = read(Document, folder / "document.json")
+        offered = bool(
+            document is not None
+            and rewrite_module.rewrites(document.language)
+            and not rewrite_module.refused(rewrite_module.licence_of(folder))
+        )
+        mine = self._rewrite_written(folder)
+        made_from = rewrite_module.made_from(folder)
+        return {
+            "offered": offered,
+            "level": mine.value,
+            "levels": [
+                {"id": written.value, "label": rewrite_module.label(written, ui)}
+                for written in rewrite_module.OFFERED
+            ],
+            "from": named(made_from) if made_from else None,
+            "made": [one for one in map(named, rewrite_module.made_of(folder)) if one],
+        }
+
+    def _text_rewrite(self, payload: dict[str, Any]) -> None:
+        """Rewrite a reader's own text at their level, as a new text linked to it: the
+        press on the offer the page drew, which said what it uses before it was pressed
+        (design.md §12, 2026-10-28). Claimed through `Library.press` like every build."""
+        from . import rewrite as rewrite_module
+
+        folder = self._own_text(str(payload.get("name") or ""))
+        if folder is None:
+            return self._json({"error": "not found"}, 404)
+        written = rewrite_module.named(str(payload.get("level") or ""))
+        if written is None:
+            written = self._rewrite_written(folder)
+        person = self._person()
+        job = self.library.quote_rewrite(
+            folder,
+            written,
+            owner=person.id if person else None,
+            admin=bool(person and person.admin),
+            home=self._home(),
+            target=str(payload.get("to") or ""),
+            ui=self._page_language(),
+        )
+        if job.stage == "failed":
+            return self._json(job.state(), 400)
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        if job.stage == "blocked" or self.library.press(job):
+            self.library.remember(job)
+            return self._json(job.state(), 402)
+        self._json(job.state())
 
     def _text_busy(self, folder: Path) -> bool:
         """Whether something other than a correction is working on this text. A build

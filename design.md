@@ -380,6 +380,48 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A text you brought, rewritten at your level — 2026-10-28
+
+From the LingQ comparison of 2026-10-27 (targum-internal#535; David decided it starts
+before Launch). LingQ's Simplify lesson is popular and sits on its top tier only. targum
+already wrote the weekly at three levels, and nothing for a text a reader brought.
+
+- **Only a text you brought, in a language with a ladder.** The ⋯ menu's *This text*
+  group has **Rewrite at my level** under Correct the text, on the same texts and behind
+  the same door (`correct.own_folder`): never a library text. Hebrew, French, Russian
+  and Italian, the languages a level is a place on. A licence that forbids derivatives
+  refuses in a plain sentence ("This text's licence doesn't allow changing it, so we
+  can't rewrite it."); a text you brought carries no licence we can read, and its rewrite
+  stays yours alone, as its translation does. Up to 6,000 words: a book is a chapter at a
+  time everywhere else too.
+- **The level is targum's to say, and yours to change.** It is the weekly's own words,
+  "Easy · 1,000 words" or "Simplified · 3,000 words", chosen at or under the rung your
+  marked words reach, or the one you named on arrival until they reach one: A1 and A2
+  read Easy, A2+ and up Simplified. Never over you, so the rewrite is one you'd follow,
+  Read it now rather than A stretch. The weekly's third level, Native, is not offered: it
+  is not simplified, which is what you brought. The model is asked for the weekly's
+  sentence lengths and the commonest words, in the same language, keeping the facts,
+  names and order, adding nothing; Hebrew comes back unpointed and is pointed by the
+  pipeline like every modern text.
+- **One press, said before it is pressed.** The row opens an offer over the text in the
+  correcting bar's frame: what it does ("We'll write this text again in simpler words, as
+  a new text linked to this one."), **Write it for** with the level, "Uses none of your
+  credits" because a text costs none, **Rewrite it** (teal) and **Cancel**. The press is
+  `/text/rewrite`, claimed through `Library.press` and so `Library.claim`, for the
+  rewriting and the build of what comes back on one receipt. The page follows it and
+  opens the new text when it is ready.
+- **A new text, linked both ways.** The rewrite is a text of yours like one you pasted,
+  built and worded by the ordinary pipeline, with its own title as the model rewrote it.
+  It says over its text "Rewritten for Easy · 1,000 words from" and the original's
+  title, linked; the original says "Also written for Easy · 1,000 words:" and the
+  rewrite's. `rewrite.json` and `rewrites.json` beside each keep the pair.
+- **A chat or a connector offers it with a link.** `quote_rewrite` returns the text's
+  page with the offer open (`?rewrite=1`) and nothing else: it prices nothing and makes
+  nothing, and the press is the reader's on targum's page, as Hear this section's is.
+
+What it does not change: the original, which is never touched; the weekly's own writer
+and voice, which stay private and are not what writes this; and Correct the text.
+
 ### A Hebrew beginner's one card is their next scene (2026-10-27)
 - **The order:** Scenes 1–100, then 101–240, then the B1 Conversations, each its own series (targum#953), so numbers never cross.
 - **Who:** a Hebrew reader whose stored rung (`person.declared`) is aleph or bet (bet added by David, 2026-10-28), or who has said none, while nothing is measured; a measured level outvotes the stored one. Signed out counts as nothing said. Home's single suggestion card becomes their next unfinished scene, with its picture and one line ("Your next scene" / "Start here" on the first).
