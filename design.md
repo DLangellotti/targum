@@ -505,6 +505,24 @@ The icons the manifest names, `/app-icon-192.png` and `/app-icon-512.png`, are t
 folder's full-bleed squares; the mark sits inside the area a launcher masks to a circle.
 The page policy gains `manifest-src 'self'`.
 
+### The back office flags sign-ups that might be fake — 2026-10-27
+
+David wanted a way to tell which sign-ups are fake (targum-internal#544). Each address on
+the waitlist and in Accounts can carry flags, said under it in ink-soft as plain reasons
+with their count in ink: never confirmed after two days; confirmed within ten seconds of
+asking; the same inbox as another address; a throwaway domain; one of five or more
+sign-ups within ten minutes; let in and never signed in; signed in and nothing done;
+mostly digits before the @. They are read only from what the store already holds: no
+address or browser is kept for them, and the privacy notice does not change. A flag is a
+reason to look, never a verdict, so nothing acts on one by itself.
+
+Both lists take a **Possibly fake (2+)** box beside the search and a **Most flags**
+order. A flagged row still waiting gets **Turn off**: its state becomes off so the door
+never takes it, nothing is deleted and nobody is written to, and its row then says
+"Turned off" with an **Undo** that puts back the state it had. An address turned off that
+asks again is sent nothing. Leaving the list is still the reader's own, and no Undo
+brings back somebody who left.
+
 ### The back office shows credits, and dollars beside them — 2026-10-27
 
 David wanted to see each reader's credit use in the back office (targum-internal#543) and

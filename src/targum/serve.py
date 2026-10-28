@@ -8269,9 +8269,9 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(urlparse(self.path).query)
         found = survey_store(
             self.store.path,
-            accounts=Listing.read(query, "q", "sort", "page", ACCOUNT_SORTS),
-            waitlist=Listing.read(query, "wq", "wsort", "wpage", WAITING_SORTS),
-            let_in=Listing.read(query, "wq", "wsort", "ipage", WAITING_SORTS),
+            accounts=Listing.read(query, "q", "sort", "page", ACCOUNT_SORTS, "fake"),
+            waitlist=Listing.read(query, "wq", "wsort", "wpage", WAITING_SORTS, "wfake"),
+            let_in=Listing.read(query, "wq", "wsort", "ipage", WAITING_SORTS, "wfake"),
             # A reader's month and an admin's, which is Plan's (targum-internal#543).
             allowance=self.library.allowance(paid_plan=False),
             plan_allowance=self.library.allowance(paid_plan=True),
@@ -8377,6 +8377,28 @@ class Handler(BaseHTTPRequestHandler):
             said = f"Could not write to {email}: {row.failed}"
         else:
             said = f"Let {email} in, and wrote to them."
+        self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
+
+    def _turn_off(self, form: dict[str, str], undo: bool = False) -> None:
+        """Turn a flagged address on the waitlist off, or put it back, from its row in
+        the back office (targum-internal#544, David 2026-10-27). The same door as
+        `_let_in`: an admin session, and 404 for anyone else; a form post from the page,
+        which `SameSite=Lax` and `form-action 'self'` keep to this origin. Nothing is
+        deleted and nobody is written to (`Store.turn_off_waiting`)."""
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        email = (form.get("email") or "").strip()
+        if undo:
+            done = self.store.undo_turn_off(email)
+            said = f"Put {email} back." if done else f"{email} was not turned off here."
+        else:
+            done = self.store.turn_off_waiting(email)
+            said = (
+                f"Turned {email} off. Undo is on its row."
+                if done
+                else f"{email} is not on the list, already off, or let in."
+            )
         self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said[:300])}#people")
 
     def _resend(self, form: dict[str, str]) -> None:
@@ -9221,6 +9243,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._let_in(self._form())
         if route == BACK_OFFICE_ROUTE + "/resend":
             return self._resend(self._form())
+        if route == BACK_OFFICE_ROUTE + "/turn-off":
+            return self._turn_off(self._form())
+        if route == BACK_OFFICE_ROUTE + "/turn-on":
+            return self._turn_off(self._form(), undo=True)
         if route == BACK_OFFICE_ROUTE + "/balance":
             return self._balance(self._form())
         if route == BACK_OFFICE_ROUTE + "/told":

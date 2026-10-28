@@ -90,6 +90,11 @@
                margin: 0.75rem 0 0; font-size: 0.875rem; }
   .bo .pager a { font-weight: 600; }
   .bo p.count { font-size: 0.8125rem; margin: 0 0 0.5rem; }
+  /* A sign-up's flags under its address (targum-internal#544): ink-soft like every
+     other aside here; the count in ink so a row with three reads at a glance. */
+  .bo p.flags { margin: 0.2rem 0 0; font-size: 0.75rem; color: var(--ink-soft); }
+  .bo p.flags .flag-count { color: var(--ink); font-weight: 600; }
+  .bo label.fake { font-size: 0.8125rem; display: inline-flex; gap: 0.3rem; align-items: center; }
   .bo .decide button[value="accept"] { background: var(--ink); color: var(--paper); border-color: var(--ink); font-weight: 600; }
 </style>
 </head>
@@ -291,7 +296,8 @@
   <p class="taken">{{ survey.waiting.on }} confirmed their email &middot;
     {{ survey.waiting.pending }} not yet confirmed &middot;
     {{ survey.waiting.off }} left the list &middot;
-    {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in</p>
+    {{ survey.waiting_let_in or survey.waiting_list|selectattr('invited')|list|length }} let in
+    {%- if survey.possibly_fake %} &middot; {{ survey.possibly_fake }} possibly fake{% endif %}</p>
   {#- Which page each joined through (targum-internal#388): `/aliyah` beside the front
       door is only worth keeping if somebody comes in by it. -#}
   {%- if survey.waiting_by_page %}
@@ -320,14 +326,19 @@
     <input type="hidden" name="{{ key }}" value="{{ value }}">
     {%- endfor %}
   {%- endmacro %}
+  {#- What might make a sign-up fake (targum-internal#544): each flag a plain reason, from
+      what the store already holds. A reason to look, never a verdict. -#}
+  {%- macro flagged(reasons) %}
+    {%- if reasons %}<p class="flags"><span class="flag-count">{{ reasons|length }} flag{{ '' if reasons|length == 1 else 's' }}:</span> {{ reasons|join(' · ') }}</p>{% endif %}
+  {%- endmacro %}
   {%- macro waiting_row(who) %}
       <tr>
-        <td>{{ who.email }}</td>
+        <td>{{ who.email }}{{ flagged(who.flags) }}</td>
         <td class="quiet">{{ who.asked }}</td>
         <td class="quiet">{{ who.joined or '—' }}</td>
         {#- What the state means, not what the column stores: `on` read as "let in" and it
             only ever meant the address answered its confirmation mail (2026-09-28). -#}
-        <td class="quiet">{{ {'on': 'Confirmed their email', 'pending': 'Not confirmed yet', 'off': 'Left the list'}.get(who.state, who.state) }}</td>
+        <td class="quiet">{% if who.turned_off and who.state == 'off' %}Turned off{% else %}{{ {'on': 'Confirmed their email', 'pending': 'Not confirmed yet', 'off': 'Left the list'}.get(who.state, who.state) }}{% endif %}</td>
         <td>
           {%- if who.invited %}<span class="quiet">{{ who.invited }}</span>
           {%- elif who.state == 'on' %}
@@ -337,7 +348,20 @@
             <input type="hidden" name="email" value="{{ who.email }}">
             <button type="submit" value="accept" aria-label="Let {{ who.email }} in">Let in</button>
           </form>
-          {%- else %}<span class="quiet">—</span>{% endif %}
+          {%- elif not (who.flags and who.state != 'off') and not who.turned_off %}<span class="quiet">—</span>{% endif %}
+          {#- Turn off (David, 2026-10-27): a flagged address still waiting is set off, never
+              deleted, and nobody is written to; Undo puts back the state it was in. -#}
+          {%- if who.turned_off and who.state == 'off' %}
+          <form method="post" action="/back-office/turn-on" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Undo turning {{ who.email }} off">Undo</button>
+          </form>
+          {%- elif who.flags and not who.invited and who.state != 'off' %}
+          <form method="post" action="/back-office/turn-off" class="decide">
+            <input type="hidden" name="email" value="{{ who.email }}">
+            <button type="submit" aria-label="Turn {{ who.email }} off">Turn off</button>
+          </form>
+          {%- endif %}
         </td>
         <td class="quiet">{{ who.language or 'en' }}</td>
         <td class="quiet">{{ who.page or '—' }}{% if who.link %}<br><a href="{{ who.link }}" rel="noopener noreferrer" target="_blank">{{ who.link|truncate(48, true, '…') }}</a>{% endif %}</td>
@@ -358,7 +382,8 @@
     <select name="wsort" aria-label="Order of the waitlist">
       {% for key, name in waiting_sorts.items() %}<option value="{{ key }}"{% if key == waiting_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
     </select>
-    {{- carry(('q', 'sort', 'page')) }}
+    <label class="fake"><input type="checkbox" name="wfake" value="1"{% if waiting_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
+    {{- carry(('q', 'sort', 'fake', 'page')) }}
     <button type="submit">Search</button>
   </form>
   {%- if still %}
@@ -409,7 +434,8 @@
     <select name="sort" aria-label="Order of the accounts">
       {% for key, name in account_sorts.items() %}<option value="{{ key }}"{% if key == accounts_listing.sort %} selected{% endif %}>{{ name }}</option>{% endfor %}
     </select>
-    {{- carry(('wq', 'wsort', 'wpage', 'ipage')) }}
+    <label class="fake"><input type="checkbox" name="fake" value="1"{% if accounts_listing.fake %} checked{% endif %}> Possibly fake (2+)</label>
+    {{- carry(('wq', 'wsort', 'wfake', 'wpage', 'ipage')) }}
     <button type="submit">Search</button>
   </form>
   {%- if accounts_listing.q and not survey.accounts %}
@@ -427,7 +453,7 @@
     <tbody>
       {% for who in survey.accounts %}
       <tr>
-        <td><a href="{{ bo_url(who=who.id) }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}
+        <td><a href="{{ bo_url(who=who.id) }}">{{ who.email }}</a>{% if who.name %} <span class="quiet">{{ who.name }}</span>{% endif %}{{ flagged(who.flags) }}
           {%- if who.leaving %} <span class="quiet">leaving {{ who.leaving }}</span>{% endif %}</td>
         <td class="quiet">{{ who.joined }}</td>
         <td class="quiet">{{ who.last_active or '—' }}</td>
