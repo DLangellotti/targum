@@ -12,6 +12,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The pages in front of the account load their files once (targum-internal#549; design.md
+  §12, approved by David 2026-10-28). The front door, a text's public page, About and the
+  legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under
+  `no-store`. They now work like desk pages: whole on a first visit, and named by
+  address once kept. A stranger's first page warms only what the public pages use, in
+  its language: 188 kB in English and 272 kB in Russian, never the desk's ~0.9 MB of
+  scripts, catalogues and other faces. The kept-files cookie keeps its name and holds
+  that smaller set's hash. Measured locally on the phone profile, a first visit's LCP
+  went from 1.13–1.28 s to 0.78–0.91 s, and a second page from 95–112 kB to 6–10 kB.
+  Screenshots match pixel for pixel at 390 and 1440 once the faces are on.
 - Subscriptions answer a thumb (targum-internal#475 re-audit). Measured on a phone, the
   Subscriptions tab's Pause and the way into a subscription were 32px wide side by side,
   "‹ Subscriptions" was 21px tall and the only way back from one, and the names and

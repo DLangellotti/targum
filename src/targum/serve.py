@@ -90,10 +90,12 @@ from .render.builder import (
     kind_page,
     legal_is_public,
     legal_page,
+    named_files,
     names_files,
     not_found_page,
     parasha_page,
     press_page,
+    public_kept,
     set_page,
     shelf_page,
     signin_page,
@@ -5626,6 +5628,10 @@ CONNECT_MINUTES = 10
 # the life of the files it vouches for.
 KEPT_COOKIE = "targum_kept"
 KEPT_DAYS = 365
+# A public page warms a smaller set, the public pages' own files (`public_files`; David,
+# 2026-10-28, targum-internal#549), and the same cookie then holds that set's name. The
+# name stays the one the Privacy Notice gives (clause 3.13), and so does what it holds: a
+# set's hash, the same for everybody on this build.
 
 
 def kept_cookie(value: str, address: str) -> str:
@@ -6273,7 +6279,7 @@ class Handler(BaseHTTPRequestHandler):
         # sent the page whole, with the few lines that fetch the files once it is up.
         # Either way the page varies with the cookie, and says so.
         two_ways = kind.startswith("text/html") and names_files(body)
-        if two_ways and self._cookie(KEPT_COOKIE) != asset_set():
+        if two_ways and not self._has_kept(body):
             body = first_visit(body.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", kind)
@@ -16036,6 +16042,14 @@ class Handler(BaseHTTPRequestHandler):
     #: so a file that changes is a file at a new address.
     ASSET_CACHE = "public, max-age=31536000, immutable"
 
+    def _has_kept(self, body: bytes) -> bool:
+        """Whether this browser keeps every file the page names: the desk's whole set, or
+        a public set that holds all of this page's (targum-internal#549)."""
+        if self._cookie(KEPT_COOKIE) == asset_set():
+            return True
+        held = public_kept(self._cookie(KEPT_COOKIE))
+        return held is not None and set(named_files(body)) <= held
+
     def _kept(self) -> None:
         """A page sent whole has fetched every file it was told to (`first_visit`), so
         the browser is given the kept-files cookie, and its next desk page names its files
@@ -16052,6 +16066,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         if asked == current:
             self.send_header("Set-Cookie", kept_cookie(current, self.address))
+        elif public_kept(asked) is not None and self._cookie(KEPT_COOKIE) != current:
+            # A public set, unless the browser already keeps the desk's whole one, which
+            # holds it.
+            self.send_header("Set-Cookie", kept_cookie(asked, self.address))
         self.send_header("Content-Length", "0")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
