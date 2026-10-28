@@ -12,6 +12,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A /sync on /library no longer comes back 502 now and then (targum-internal#495).
+  The Library asks for a couple of hundred thumbnails within a second, Caddy opens a
+  connection to us for each, and the server listened with `socketserver`'s backlog of
+  five: a connection that arrived while the queue was full lost its handshake and was
+  reset about a second later, under whichever request rode on it. The box counted
+  169,443 such overflows since boot; two resets reached a reader as a fault, both a
+  /sync during a burst of 121 and 206 thumbnails. The queue is 1,024 now (the kernel
+  caps it at `somaxconn`, 4,096 on the box). The other /sync 502s in the log answer in a
+  millisecond and fall inside a service restart; `sync.js` sends the same changes again
+  after either.
 - Home's one card stays for a reader with a long record (qa on targum#958). Home sent
   every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
   server's 64 KB request line, so the card was never drawn. They go in a POST body now;
