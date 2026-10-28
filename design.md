@@ -380,6 +380,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The pages in front of the account load their files once — 2026-10-28 (proposed)
+
+**Proposed, awaiting David's approval** (targum-internal#549, from builder-3's speed pass
+of 2026-10-28). Not approved: until David says so, this entry is a proposal and the
+amendments below are not in force.
+
+The front door, a text's public page (`/library/<id>`), About and the legal pages joined
+the desk's list (`PUBLIC_PAGES` in `render/builder.py`). "A desk page loads its files
+once and keeps them" (2026-10-18) left them inline because "the front door and every page
+in front of it" were grouped with readers. None of them is ever opened off a disk or kept
+by the worker, and each carried 65 to 122 kB of faces and up to 290 kB of CSS under
+`no-store`, again on every page a visitor opened.
+
+- **They work the way desk pages do.** A browser without the kept-files cookie gets the
+  page whole, and `warm.js` fetches the files after `load`. A browser with the cookie
+  gets the page with its files named by address. The policy is still read off each page
+  as sent: the whole form names its blocks by hash and gains no `'self'`.
+- **Measured locally** on §14's phone profile (4× CPU, Slow 4G, median of three):
+  - a visitor's second page went from 95–112 kB to 6–24 kB, and its LCP from
+    1.10–1.17 s to 0.67–1.04 s;
+  - a first visit's LCP went from 1.13–1.28 s to 0.78–0.91 s.
+- **Three costs, each for David to accept or refuse:**
+  1. **On a first visit the front door wears the platform's face for a moment.** This is
+     2026-10-23's trade for the desk ("A first visit wears the platform's face for a
+     moment"), now on the page a stranger meets first. The swap moves the layout: CLS
+     was 0.18 on the phone on the front door, against 0 before. Once the faces are on,
+     the page is pixel for pixel what it was. The alternative keeps the faces in place
+     on these pages' first visit: no swap and no shift, but no gain for a first visit.
+  2. **A stranger's first page fetches the whole desk set after it loads.** That is
+     about 0.9 MB at low priority, never ahead of the page: the desk's scripts, the
+     Library's catalogues and the Russian faces. It is what a first desk visit already
+     does. The alternative is a smaller public set with a cookie of its own.
+  3. **The kept-files cookie (privacy notice clause 3.13) is now given on the public
+     pages too.** It identifies nobody, and the clause already covers it.
+- **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
+  pages, built indexes, the shelf, the weekly and series pages, prints, cards in a host's
+  frame and Saved on this device still carry their files inline. *A reader still fetches
+  nothing.*
+
 ### On a phone, Back closes Talk before it leaves the page (2026-10-28)
 Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.
 

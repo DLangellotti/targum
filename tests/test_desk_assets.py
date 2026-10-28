@@ -3,8 +3,10 @@ desk page loads its files once and keeps them", 2026-10-18, targum-internal#484)
 
 The desk names its files under `/assets/<name>.<hash>.<ext>`, served for a year as
 immutable. Everything else still carries its files inline and fetches nothing: readers,
-contents pages, the shelf, the public pages, a card in a host's frame, a printed page, and
-Saved on this device, the one desk page a worker keeps for offline."""
+contents pages, the shelf, the series pages, a card in a host's frame, a printed page, and
+Saved on this device, the one desk page a worker keeps for offline. The public pages in
+front of the account (the front door, a text's page, About, the legal pages) joined the
+desk on 2026-10-28 (targum-internal#549)."""
 
 from __future__ import annotations
 
@@ -51,14 +53,10 @@ STAYS_INLINE = {
     "card-offer.html.j2",
     "card-text.html.j2",
     "shelf.html.j2",
-    "text.html.j2",
     "series.html.j2",
     "weekly-note.html.j2",
-    "landing.html.j2",
-    "about.html.j2",
     "how.html.j2",
     "holding.html.j2",
-    "legal.html.j2",
     "connect.html.j2",
     "approve.html.j2",
     "connect_refused.html.j2",
@@ -228,7 +226,7 @@ def test_the_policy_lets_a_desk_page_load_its_own_files_and_nothing_else() -> No
 
 
 def test_a_page_that_names_no_file_is_held_to_its_hashes() -> None:
-    for page in (saved_page(TOKEN), builder.about_page(), builder.shelf_page()):
+    for page in (saved_page(TOKEN), builder.shelf_page()):
         directives = _directives(Handler._policy(page.encode("utf-8")))
         assert "'self'" not in directives["script-src"]
         assert "'self'" not in directives["style-src"]
@@ -243,3 +241,47 @@ def test_a_page_that_names_no_file_is_held_to_its_hashes() -> None:
     # Text that only mentions the route is not a file the page loads.
     page = b'<html><body><p>&lt;script src="/assets/x.js"&gt;</p><script>x=1</script></body></html>'
     assert "'self'" not in _directives(Handler._policy(page))["script-src"]
+
+
+def _public_pages() -> dict[str, str]:
+    from targum.catalogue import Entry
+
+    entry = Entry(
+        id="ruth",
+        title="רות",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="sefaria:Ruth",
+        blurb="Four chapters.",
+        words=1129,
+    )
+    return {
+        "front door": builder.front_page(address="https://targum.page"),
+        "about": builder.about_page(address="https://targum.page"),
+        "privacy": builder.legal_page("privacy", "https://targum.page"),
+        "terms": builder.legal_page("terms", "https://targum.page"),
+        "a text's page": builder.text_page(entry, "https://targum.page"),
+    }
+
+
+def test_the_pages_in_front_of_the_account_load_their_files_once() -> None:
+    """targum-internal#549 (design.md §12, 2026-10-28, proposed): each carried 65 to 122 kB
+    of faces and up to 290 kB of CSS on every page a stranger opened. Kept, a page names
+    them by address, every one a file the server holds, and its policy lets it load them;
+    a first visit gets the page whole, its scripts held to their hashes, as a desk page."""
+    for name, html in _public_pages().items():
+        named = _NAMED.findall(html)
+        assert any("/face-" in one for one in named), f"{name}: its faces ride as files"
+        assert set(named) <= set(asset_files()), name
+        assert _big_inline_blocks(html) == [], name
+        linked = _directives(Handler._policy(html.encode("utf-8")))
+        assert linked["style-src"][0] == "'self'", name
+        whole = builder.first_visit(html)
+        # The faces wait in an inert <template> that nothing fetches until `load`.
+        live = re.sub(r'<template id="late-faces">.*?</template>', "", whole, flags=re.S)
+        assert not builder.names_files(live), f"{name}: a first visit names no file"
+        held = _directives(Handler._policy(whole.encode("utf-8")))
+        # Its scripts are held to their hashes; styles keep `'self'` for the late faces
+        # alone, which `warm.js` puts on at `load` (design.md §12, 2026-10-23).
+        assert "'self'" not in held["script-src"], name
+        assert "'unsafe-inline'" not in " ".join(sum(held.values(), [])), name
