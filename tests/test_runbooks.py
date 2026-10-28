@@ -142,12 +142,14 @@ def test_the_drill_keeps_the_four_hour_limit_in_its_own_file(
     tmp_path: Path, told: list[tuple[str, str]]
 ) -> None:
     state = tmp_path / "credit-drill.json"
+    # Whatever the serving process (or an earlier test) set, the drill hands back.
+    found = (alerts.CREDIT.state, alerts.CREDIT.send)
     alerts.drill_credit("OpenAI", state, now=NOW)
     again = alerts.drill_credit("OpenAI", state, now=NOW + timedelta(hours=1))
     assert again.startswith("not mailed")
     assert len(told) == 1
     assert state.exists() and not (tmp_path / alerts.LIVE_CREDIT_STATE).exists()
-    assert alerts.CREDIT.state is None and alerts.CREDIT.send is None, "put back as found"
+    assert (alerts.CREDIT.state, alerts.CREDIT.send) == found, "put back as found"
 
 
 def test_the_drill_never_writes_the_live_record(
