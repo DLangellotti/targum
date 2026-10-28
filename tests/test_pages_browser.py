@@ -1161,7 +1161,8 @@ READING = """() => {
     width: box ? box.width : 0,
     height: box ? box.height : 0,
     // Inside the card's padding: the reading line is a card of its own since #553.
-    panelWidth: panel.clientWidth - parseFloat(getComputedStyle(panel).paddingLeft)
+    panelWidth: panel.getBoundingClientRect().width
+      - parseFloat(getComputedStyle(panel).paddingLeft)
       - parseFloat(getComputedStyle(panel).paddingRight),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
     rem: parseFloat(getComputedStyle(document.documentElement).fontSize),

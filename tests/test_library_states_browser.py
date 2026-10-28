@@ -803,7 +803,7 @@ def test_the_foot_says_what_targum_is_for_the_language_learned(
 
 @pytest.mark.parametrize("phone", [False, True])
 def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
-    browser, page_html, phone: bool
+    browser, phone: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """targum-internal#553: a Level row on Your Progress opens `#see/now/level/<level>`,
     and the list is the texts at that level the reader can read now, every one of them,
@@ -811,10 +811,15 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
     "Your level leads with what you can read", 2026-10-28)."""
     import os
 
-    from targum.levelmap import text_level
+    from targum import levelmap
 
-    shared = built(0.95)
-    levels = {entry.id: text_level(entry) for entry in everything()}
+    # The suite's catalogue carries no sentence lengths, so no text has a level of its
+    # own; every third Hebrew text is given one, and the shelf files are written with it.
+    hebrew = [e.id for e in everything() if e.language == "he" and not read_as_portions(e)]
+    levels = {entry_id: ("A1", "A2", "B1")[at % 3] for at, entry_id in enumerate(hebrew)}
+    monkeypatch.setattr(levelmap, "text_level", lambda entry: levels.get(entry.id, ""))
+    page_html = library_page("")
+    shared = built(0.95, count=5000)
     wanted = sum(1 for reader in shared if levels.get(reader["entry"]) == "A1")
     assert wanted, "the catalogue has beginner texts to count"
     answers = {"/readers": {"readers": [], "shared": shared, "signedIn": True}}
