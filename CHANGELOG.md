@@ -18,6 +18,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   titles that open a subscription or a text were their line's height. The two presses
   take 44px, and the links a centred 44px reach that crosses no other press. All six are
   in `test_brand`'s thumb registry, and a browser test taps around each one.
+- The front door's last polish from design's §14 pass (targum-internal#477). The word
+  card's Here row puts its meaning on a line of its own under the form, so "crack" /
+  «разбивают» no longer wraps alone at 1440 (polish 4). Under a coarse pointer the bar's
+  mark and the why-fold reach 44px, and the chat demo's "Save as a text" and a text
+  page's way back to the Library answer a tap through a centred 44px reach while the
+  words keep their size (polish 8). No copy changed.
 - deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
   targum-internal#482 (a rollback, last night's database, a provider down, out of
   credit, the box unreachable), with the date each last ran. `targum drill-credit` sends
