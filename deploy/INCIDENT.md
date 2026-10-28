@@ -4,7 +4,8 @@ Something is wrong on targum.page: a mail from the health watch, a reader saying
 deploy that ended badly. This is what to do before deciding anything. Written
 2026-10-22 (targum-internal#482) against the code and, read-only, the box. **First run
 as a drill on 2026-10-22**: the commands below took three seconds, and the preflight with
-connections about two minutes. The output is on #482.
+connections about two minutes. The output is on #482. "Drills", at the end, has one
+drill for each kind of trouble and the date each last ran.
 
 Everything in "Where to look" is read-only and needs nobody's word. Everything that
 changes the box (a restart, a rollback, a restore, a key) waits for David's word, in the
@@ -16,15 +17,20 @@ moment, unless he is the one doing it.
   (`r00ms send targum --as <seat> --to claude "…"`, which reaches him through the lead).
   One line: what is broken, since when, what a reader sees. No reader's words or address
   in the room or on a card; "a reader on /add" is enough.
-- **`TARGUM_ALERT_TO`** (set in `/etc/targum/targum.env`, confirmed 2026-10-22) already
-  gets three kinds of mail without anybody sending them: the health watch (after two
-  failed checks five minutes apart, every six hours while down, once on recovery), a
+- **`TARGUM_ALERT_TO`** (set in `/etc/targum/targum.env`, confirmed again 2026-10-28)
+  already gets six kinds of mail without anybody sending them: the health watch (after
+  two failed checks five minutes apart, every six hours while down, once on recovery); a
   provider out of credit (once per provider per four hours, from the process that met
-  it), and the weekly not out by Monday noon UTC. If one of those started this, David
-  has it already; say what you are looking at so two people do not look at the same
-  thing.
-- **The outside monitor** (UptimeRobot, deploy/README.md "Alerts") is the only thing that
-  hears a box that is off: the health watch runs on the box and goes quiet with it.
+  it); a page breaking in readers' browsers (one message reported five times in an hour,
+  then quiet about it for a day); the nightly backup failing, a copy that did not leave
+  the box included; the nightly yt-dlp upgrade failing; and the weekly stopped, or not
+  out by Monday noon UTC. If one of those started this, David has it already; say what
+  you are looking at so two people do not look at the same thing.
+- **There is no outside monitor yet.** The health watch runs on the box and goes quiet
+  with it, so a box that is off, or cut off from the network, is heard about from a
+  reader. None has ever been set up (the access log shows no monitor's knock since it
+  began on 2026-08-27, checked 2026-10-28), and David's word on 2026-10-28 is "Not before
+  Launch".
 
 Write down the time (UTC) you started. Everything after is measured from it.
 
@@ -88,6 +94,29 @@ Healthy: last night's `targum-YYYYMMDD-0400NN.db`, `cache-…zip` and `weekly-�
 later decisions calm. Do not open the copies in place (see [`ROLLBACK.md`](ROLLBACK.md)
 step 4a).
 
+And the copies that left the box, because the ones beside the database go down with it:
+
+```sh
+ssh root@targum.page 'journalctl -u targum-backup --since "-3 days" --no-pager -o cat | grep -E "Sealed and sent|did not leave|ERROR"'
+tail -3 ~/targum-backups/pull.log
+```
+
+Healthy: a `Sealed and sent to backblaze:…/daily` line for each of the last nights, and
+the laptop's pull (`page.targum.backup-pull`, 08:00 local) ending `done` this morning. A
+`did not leave` line is the nightly backup failing, and it mailed `TARGUM_ALERT_TO`; the
+copy on the box was still taken. On 2026-10-28 both were broken at once: the bucket had
+refused every night since 2026-10-26, and the laptop's pull had not run since 2026-10-20,
+because its launchd job was not loaded after the laptop restarted.
+
+**If the line says `storage_cap_exceeded` (a 403)**, the bucket has reached its account's
+storage cap: Backblaze refuses every upload, and nothing on the box is wrong. That was
+the 2026-10-26 failure: about 9.4 GB against the free 10 GB, and the `videos` copy is
+most of it (8.3 GB, against 0.9 GB for `daily` and 0.1 GB for `weekly`). The fix is
+David's, in the Backblaze console under **Caps & Alerts**: raise the storage cap (or set
+one with an alert before it is reached). The next 04:00 run sends again by itself; to see
+it sooner, on his word, `systemctl start targum-backup`. Do not delete copies in the
+bucket to make room.
+
 **6. What readers are getting, from Caddy.**
 
 ```sh
@@ -115,7 +144,7 @@ When it started and whether it `Deactivated successfully` or `Failed`. A failed 
 | No answer from `curl`, **and** `ssh` times out | **The box or its network.** | Hetzner Cloud console: is the server running? Its status page: is the location down? Try from another network (a phone off Wi-Fi). If the console shows it running and nothing reaches it, the firewall or the provider's network; the console's own shell goes through neither (deploy/README.md). |
 | No answer from `curl` from here, but `ssh` works and `curl` on the box works (`ssh root@targum.page 'curl -sS -m 5 http://127.0.0.1:8420/health'`) | **The network between**: DNS, TLS, a path from this network. | `dig +short targum.page` should give the box's address; try from another network. A hotel network resets SSH and can do the same to HTTPS. Nothing on the box to change. |
 | `502` from Caddy; `systemctl is-active targum` says `failed` or `activating` | **The service is down** on a running box. | The journal (step 3) says why. After a deploy: [`ROLLBACK.md`](ROLLBACK.md). Not after a deploy: disk, memory, the env file. |
-| `/health` `"ok": true`, but builds or chat fail for readers | **A model provider**, almost always. | `journalctl -u targum --since "-30 min" \| grep -iE "credit\|quota\|billing\|overloaded\|529\|503\|rate.limit\|timed out"`, then the provider's status page (status.anthropic.com, status.openai.com, the Google Cloud status page for Gemini and Vertex). |
+| `/health` `"ok": true`, but builds or chat fail for readers | **A model provider**, almost always. | `journalctl -u targum --since "-30 min" \| grep -iE "credit\|quota\|billing\|overloaded\|529\|503\|rate.limit\|timed out"`, then the provider's status page (status.claude.com, which status.anthropic.com now redirects to; status.openai.com; status.cloud.google.com for Gemini and Vertex). "Drills" below has the commands. |
 | A mail "targum: <provider> is out of credit" | **Out of credit.** | Top up that provider's console (David's accounts). Nothing on the box needs changing; readers are already told it is on our side. `/var/lib/targum/credit-watch.json` holds when each was last mailed; it appears only with the first credit mail, so a box without it is normal. |
 | `/health` `{"ok": false, "store": false}` (503) | **The database cannot be read.** | Disk full? Permissions (`ls -la /var/lib/targum/targum.db*`, all `targum targum`)? Then [`ROLLBACK.md`](ROLLBACK.md) step 4, on David's word. |
 | `/health` ok, pages slow, `queue` climbing | **Workers stuck or the box saturated.** | `targum-deploy` active (a rebuild eating the CPU)? Memory and swap (step 4)? `uptime`'s load against the box's 4 cores. |
@@ -222,3 +251,93 @@ recommendation, in a few lines.
 - A line on the card that tracked it, or a new one: what happened, from when to when (UTC),
   what readers saw, what fixed it.
 - If a step here was wrong or missing, fix this page in the same week.
+
+## Drills
+
+One for each kind of trouble targum-internal#482 names. A drill runs the steps on a day
+nothing is wrong, so the first time is not the bad night. Each says when it last ran
+and what was not drilled. Re-run the restore within 30 days of Launch, and any drill
+whose steps changed since it last ran. A drill that changes the box runs on David's go,
+in the moment, like the real thing.
+
+| Drill | Last run | Changes the box |
+|---|---|---|
+| Rollback | 2026-10-22, live, on David's go | yes |
+| Restore last night's database | 2026-10-22 on the box (scratch copy); 2026-09-29 from the bucket (#16) | no, scratch only |
+| Provider down | 2026-10-28, read-only walk | no |
+| Out of credit | not yet: needs David's go to send one mail | sends one mail |
+| Box unreachable | 2026-10-28, read-only walk, laptop side only | no |
+
+### Rollback
+
+[`ROLLBACK.md`](ROLLBACK.md), steps 1 to 3a. The 2026-10-22 drill deployed `c823783e`,
+then put the same build back with `deploy/rollback.sh --keep-catalogue c823783e5a9e`:
+18 seconds to `Rolled back.`, health ok, `NRestarts=0`, nine 502s in Caddy across the two
+restarts. To drill it again: a quiet hour, David at the keyboard, `deploy/rollback.sh`
+with no commit to see what the box keeps, then onto the build before the live one and
+forward again with `deploy.sh`.
+
+### Restore last night's database
+
+[`ROLLBACK.md`](ROLLBACK.md) step 4a on the box, against a scratch copy, and
+[`RESTORE.md`](RESTORE.md) for a copy that left the box. On 2026-10-22 the copy the
+deploy took opened `ok` at schema 47 with the same people and words as live, in under a
+minute. The bucket's copy was decrypted and counted on 2026-09-29 (#16). Neither touches
+the live database. Due again within 30 days of Launch.
+
+### Provider down
+
+A provider failing for everyone looks to a reader like a broken deploy. The drill is
+the walk from the table above, from the laptop, read-only:
+
+```sh
+curl -sS -m 10 https://targum.page/health
+ssh root@targum.page 'journalctl -u targum --since "-24 h" --no-pager | grep -iE "credit|quota|billing|overloaded|529|503|rate.limit|timed out" | tail -20'
+for page in status.claude.com status.openai.com; do curl -sSL -m 10 "https://$page/api/v2/status.json" | python3 -c 'import json,sys; s=json.load(sys.stdin)["status"]; print(s["indicator"], s["description"])'; done
+```
+
+Then status.cloud.google.com in a browser for Gemini and Vertex. A provider's own page
+saying it is degraded, with matching errors in the journal, means wait: nothing on the
+box helps, and readers are already told a sentence (`serve.broke`, pinned by
+`tests/test_credit.py`).
+
+Walked 2026-10-28 05:19 UTC, three seconds: `/health` ok, one 529 in the journal in a
+day, status.claude.com "Partially Degraded Service", status.openai.com "All Systems
+Operational". It found that status.anthropic.com now redirects to status.claude.com.
+Not drilled: what a reader sees during a real outage, which only an outage shows.
+
+### Out of credit
+
+`targum drill-credit` sends the real out-of-credit mail once, through the code a failing
+build uses, with "(a drill)" in the subject. It spends nothing and keeps its own record,
+so the live four-hour limit (`credit-watch.json`) is never touched. On David's go:
+
+```sh
+ssh root@targum.page 'systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum drill-credit --provider Anthropic --state /var/lib/targum/credit-drill.json && rm /var/lib/targum/credit-drill.json'
+```
+
+Healthy: it prints `mailed: targum: Anthropic is out of credit (a drill)` and the mail
+arrives at `TARGUM_ALERT_TO`. Then the real move, as a walk: open the provider's billing
+page in the back office's balances and find the top-up. `--provider` takes Anthropic,
+OpenAI, Google or ElevenLabs. Not yet run: it needs the deploy that carries it and
+David's go.
+
+### Box unreachable
+
+From the laptop, then from a phone off Wi-Fi:
+
+```sh
+curl -sS -m 10 -o /dev/null -w '%{http_code} %{time_total}s\n' https://targum.page/
+dig +short targum.page
+ssh -o ConnectTimeout=10 root@targum.page 'uptime; systemctl is-active targum caddy targum-deploy'
+curl -sSL -m 10 -o /dev/null -w '%{http_code}\n' https://status.hetzner.com/
+```
+
+Then the Hetzner Cloud console (David's account): is the server running, and does its
+console shell answer? That shell goes through neither the firewall nor the network
+between, so it is the way in when SSH is not.
+
+Walked 2026-10-28 05:21 UTC, about two seconds: `200` in 0.64 s, the box's address,
+`active active inactive`, Hetzner's status page up. Not drilled: the Hetzner console,
+which needs David's sign-in, and being told. Nothing outside the box watches it (see
+"Minute 0"), so today a dead box is heard about from a reader.

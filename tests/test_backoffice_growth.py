@@ -175,6 +175,86 @@ def test_a_second_text_needs_a_later_day_and_the_fourth_week_counts_its_own_days
     assert (week.week_four, week.week_four_over) == (1, 2)
 
 
+def test_a_second_text_is_later_than_the_first_day_read_not_the_day_let_in(
+    db: sqlite3.Connection,
+) -> None:
+    # Let in on the 7th, first read on the 10th, two texts in that one evening: not back
+    # yet, however late the evening was after the invitation.
+    let_in(db, "late@example.com", date(2026, 9, 7))
+    person(db, 6, "late@example.com", date(2026, 9, 10))
+    opened(db, 6, "a", date(2026, 9, 10))
+    opened(db, 6, "b", date(2026, 9, 10))
+    db.commit()
+    week = {week.week: week for week in found(db).batches}["2026-09-07"]
+    assert (week.second_text, week.old_enough) == (0, 1)
+    # Back on the 12th to a third: now they have come back to a second text.
+    opened(db, 6, "c", date(2026, 9, 12))
+    db.commit()
+    week = {week.week: week for week in found(db).batches}["2026-09-07"]
+    assert (week.second_text, week.old_enough) == (1, 1)
+
+
+def test_an_evening_west_of_greenwich_is_one_day(db: sqlite3.Connection) -> None:
+    # New York, the evening of September 9: the reader's own day row says the 9th, and the
+    # two texts opened at 22:00 and 22:30 there are stamped in the small hours of the 10th
+    # in UTC. One evening, not a return, and not a second day.
+    let_in(db, "evening@example.com", date(2026, 9, 7))
+    person(db, 6, "evening@example.com", date(2026, 9, 9))
+    db.execute("INSERT INTO day (person, day, count) VALUES (6, '2026-09-09', 1)")
+    for doc, minute in (("a", 0), ("b", 30)):
+        at = dt.datetime(2026, 9, 10, 2, minute, tzinfo=dt.UTC)
+        db.execute(
+            "INSERT INTO doc (person, hash, opened, updated) VALUES (6, ?, ?, ?)",
+            (doc, int(at.timestamp() * 1000), int(at.timestamp() * 1000)),
+        )
+    db.commit()
+    page = found(db)
+    week = {week.week: week for week in page.batches}["2026-09-07"]
+    assert (week.came_back, week.second_text, week.old_enough) == (0, 0, 1)
+    reach = {part.part: part.people for part in page.reach}
+    assert reach["Read on a second day"] == 2  # the fixture's two, not this evening
+
+
+def test_the_page_says_what_each_week_s_columns_mean(db: sqlite3.Connection) -> None:
+    html = back_office_page(found(db), 30)
+    part = html[html.index("Each week's readers") : html.index("How far readers get")]
+    note = part[part.index('<p class="note">') :]
+    for said in ("Came back:", "A second text:", "Week 1 and Week 4:", "latest opening"):
+        assert said in note
+
+
+def test_the_beta_row_adds_up_the_weeks_from_batch_one(db: sqlite3.Connection) -> None:
+    from targum.backoffice import BETA_FROM
+
+    # Before batch one: no beta row, however many weeks the alpha has.
+    assert found(db).beta is None
+    # Batch one, and the week after it.
+    let_in(db, "b1@example.com", BETA_FROM)
+    person(db, 6, "b1@example.com", BETA_FROM)
+    opened(db, 6, "a", BETA_FROM)
+    opened(db, 6, "b", BETA_FROM + dt.timedelta(days=2))
+    let_in(db, "b1-late@example.com", BETA_FROM + dt.timedelta(days=8))
+    person(db, 7, "b1-late@example.com", BETA_FROM + dt.timedelta(days=8))
+    opened(db, 7, "a", BETA_FROM + dt.timedelta(days=8))
+    db.commit()
+    page = survey(db, today=BETA_FROM + dt.timedelta(days=30), operators=["operator@gmail.com"])
+    weeks = [week for week in page.batches if week.week >= BETA_FROM.isoformat()]
+    assert len(weeks) == 2
+    beta = page.beta
+    assert beta is not None
+    assert beta.week == BETA_FROM.isoformat()
+    # Only the two let in from batch one on; the alpha's five stay out of it.
+    assert (beta.let_in, beta.signed_in, beta.opened) == (2, 2, 2)
+    assert (beta.second_text, beta.old_enough) == (1, 2)
+    assert (beta.week_one, beta.week_one_over) == (1, 2)
+    assert beta.week_four_over == 1
+    html = back_office_page(page, 30)
+    table = html[html.index("Each week's readers") : html.index("How far readers get")]
+    assert f"Since the beta, {BETA_FROM.isoformat()}" in table
+    assert table.index("<tbody>") < table.index("<tfoot>")
+    assert "1 of 2" in table[table.index("<tfoot>") :]
+
+
 def test_reach_is_counted_with_no_one_in_it(db: sqlite3.Connection) -> None:
     reach = {part.part: part.people for part in found(db).reach}
     assert reach["Opened a text"] == 4

@@ -22,9 +22,9 @@ Three things can be put back, and they are separate:
 
 **`rollback.sh` is the first way back for any build the box kept; a redeploy (3b) is
 for anything older.** Wheels are kept from the first deploy with targum#876 on, which was
-`c823783e` on 2026-10-22. Until a second deploy has gone out the box keeps that one
-wheel alone, so `rollback.sh` has nothing older to put back and the way back past it is
-a redeploy of the previous SHA (step 3b).
+`c823783e` on 2026-10-22, and the box keeps the last five: on 2026-10-28 they were
+`3ce1f1e6ace4` back to `d33756a9a56b` (2026-10-25). `deploy/rollback.sh` with no
+commit lists them. Anything older than the fifth is a redeploy of that SHA (step 3b).
 
 **Roll back the code first, and the database only if the data itself is damaged.** The
 schema changes in `accounts.py` are additive columns and tables (`CREATE TABLE IF NOT
