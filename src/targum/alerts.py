@@ -368,6 +368,18 @@ def drill_credit(
     what a drill is for. The subject says it is a drill."""
     if state.name == LIVE_CREDIT_STATE:
         raise ValueError(f"{state} is the live file; a drill keeps its own.")
+    # The record is rewritten whole, so a path mistyped onto anything else would be
+    # overwritten: qa pointed it at a scratch database on #962, and the live one is
+    # /var/lib/targum/targum.db beside it. Only a .json that is a record already, or none.
+    if state.suffix != ".json":
+        raise ValueError(f"{state} is not a .json file; a drill's record is one.")
+    if state.exists():
+        try:
+            held = json.loads(state.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise ValueError(f"{state} is there and is not a drill's record.") from error
+        if not isinstance(held, dict):
+            raise ValueError(f"{state} is there and is not a drill's record.")
     detail = DRILL_REFUSALS[provider]
     found = out_of_credit(detail)
     if found != provider:

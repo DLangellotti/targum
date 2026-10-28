@@ -1186,13 +1186,19 @@ def drill_credit(
     ] = "Anthropic",
     state: Annotated[
         Path | None,
-        typer.Option("--state", help="The drill's own record. Never credit-watch.json."),
+        typer.Option(
+            "--state",
+            help="The drill's own record, a .json file. Default: ~/.targum/credit-drill.json."
+            " Never credit-watch.json.",
+        ),
     ] = None,
 ) -> None:
     """Mail TARGUM_ALERT_TO the out-of-credit alert once, as a drill, spending nothing.
 
     The provider's own refusal goes through the code a failing build uses, against a
-    scratch record beside the database, so the live four-hour limit is untouched. The
+    scratch record (~/.targum/credit-drill.json unless --state names one), so the live
+    four-hour limit is untouched. --state must be a .json file that is absent or already
+    a record: anything else is refused rather than overwritten. The
     subject says "(a drill)". Run it on the box as targum, the way deploy/INCIDENT.md
     says (targum-internal#482).
     """

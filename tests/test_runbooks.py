@@ -198,3 +198,41 @@ def test_without_a_recipient_the_command_mails_nobody(
     result = CliRunner().invoke(app, ["drill-credit", "--state", str(tmp_path / "d.json")])
     assert result.exit_code == 0
     assert "not configured" in result.output
+
+
+def test_the_drill_never_overwrites_a_database_named_by_mistake(
+    tmp_path: Path, told: list[tuple[str, str]]
+) -> None:
+    """qa on #962: --state pointed at a scratch SQLite file and the record replaced it.
+    On the box that mistyped path could be /var/lib/targum/targum.db."""
+    import sqlite3
+
+    database = tmp_path / "targum.db"
+    with sqlite3.connect(database) as db:
+        db.execute("CREATE TABLE person (id TEXT)")
+    before = database.read_bytes()
+    with pytest.raises(ValueError, match="not a .json file"):
+        alerts.drill_credit("Anthropic", database, now=NOW)
+    disguised = tmp_path / "targum.json"
+    disguised.write_bytes(before)
+    with pytest.raises(ValueError, match="not a drill's record"):
+        alerts.drill_credit("Anthropic", disguised, now=NOW)
+    listed = tmp_path / "list.json"
+    listed.write_text("[1, 2]", encoding="utf-8")
+    with pytest.raises(ValueError, match="not a drill's record"):
+        alerts.drill_credit("Anthropic", listed, now=NOW)
+    assert database.read_bytes() == before and disguised.read_bytes() == before
+    assert listed.read_text(encoding="utf-8") == "[1, 2]"
+    assert not told
+
+
+def test_the_command_refuses_a_database_and_leaves_it_whole(
+    tmp_path: Path, told: list[tuple[str, str]]
+) -> None:
+    database = tmp_path / "targum.db"
+    database.write_bytes(b"SQLite format 3\x00" + b"\x00" * 84)
+    before = database.read_bytes()
+    result = CliRunner().invoke(app, ["drill-credit", "--state", str(database)])
+    assert result.exit_code != 0
+    assert database.read_bytes() == before
+    assert not told
