@@ -115,6 +115,8 @@ def shelf(browser, tmp_path: Path, width: int):
         f"const readers = {json.dumps(_readers())};"
         "window.fetch = (url, opts) => {"
         "  const path = String(url).split('?')[0];"
+        # Home's own read, a POST since targum#959: answered, never recorded as a press.
+        "  if (path.endsWith('/suggest')) return Promise.resolve(new Response('{}'));"
         "  if (opts && opts.method === 'POST') {"
         "    const posted = JSON.parse(sessionStorage.getItem('posted') || '[]');"
         "    posted.push([path.replace(/^.*?(\\/[a-z]+)$/, '$1'), JSON.parse(opts.body || '{}')]);"
