@@ -217,7 +217,9 @@
      page and does not dim it: the scrim says "this is what you are doing now", and a
      reader who followed a link out of a conversation is reading the page they came to
      (audit 2, 2026-10-09; design.md §12, "A drawer left open comes back undimmed"). */
-  function show(on, restored) {
+  function show(on, restored, byHistory) {
+    if (on && !restored && !byHistory) stepIn();
+    if (!on && !byHistory) stepOut();
     if (on) {
       if (!reading && window.TargumReader && window.TargumReader.where) reading = window.TargumReader.where();
       load();
@@ -297,9 +299,7 @@
     }
     if (data.type === "targum:open" && data.reader) {
       var path = String(data.reader);
-      window.location.href = keyed(
-        "/reader/" + path.split("/").map(encodeURIComponent).join("/")
-      );
+      leave(keyed("/reader/" + path.split("/").map(encodeURIComponent).join("/")));
     }
   });
 
@@ -327,13 +327,79 @@
   }
   if (wasOpen) show(true, true);
 
+  /* On a phone, Back closes the sheet before it leaves the page (design.md §12,
+     2026-10-28; targum-internal#548). The sheet covers the page, and a phone's Back — the
+     button, or the swipe from the edge — is how a reader puts away what covers the page:
+     it left the page instead, and the conversation with it. So opening the sheet adds one
+     step to the history, at the same address, and Back takes that step and closes it; the
+     next Back leaves. The only step a panel adds. Closing it any other way — ×, the
+     dimmed page, the handle, Escape — takes the step back too, so the history never holds
+     a step that does nothing. At a desk the drawer stands beside the page and adds none. */
+  var STEP = "targumTalk";
+  var stepped = false;
+  function onStep() {
+    var state = window.history.state;
+    return !!(state && typeof state === "object" && state[STEP]);
+  }
+  function stepIn() {
+    if (stepped || !sheet() || !window.history.pushState) return;
+    var state = {};
+    state[STEP] = true;
+    try {
+      window.history.pushState(state, "", window.location.href);
+      stepped = true;
+    } catch (e) {
+      /* no history to add to; the sheet still opens */
+    }
+  }
+  function stepOut() {
+    if (!stepped) return;
+    stepped = false;
+    if (onStep()) window.history.back();
+  }
+  window.addEventListener("popstate", function () {
+    var open = pill.getAttribute("aria-expanded") === "true";
+    if (onStep()) {
+      // Forward, onto the sheet's step: the sheet it stands for.
+      if (!open && sheet()) {
+        stepped = true;
+        show(true, false, true);
+      }
+      return;
+    }
+    if (stepped && open) {
+      stepped = false;
+      show(false, false, true);
+    }
+  });
+  // A page opened from the sheet takes the sheet's step's place, so Back from it comes
+  // back to this page rather than to a step that would only close a sheet already shut.
+  function leave(href) {
+    if (stepped && onStep()) window.location.replace(href);
+    else window.location.href = href;
+  }
+  // A page loaded onto the sheet's step — a reload, or the same address opened again —
+  // opens with the sheet shut, as every page on a phone does (D7, above), so the step is
+  // only an address now: its mark is taken off, and Back is never asked to close a sheet
+  // that is not there.
+  if (onStep()) {
+    try {
+      window.history.replaceState(null, "", window.location.href);
+    } catch (e) {
+      /* nothing to clear */
+    }
+  }
+
   // A conversation by id, from the palette: open the drawer and name it in the frame's
-  // address, which the conversation's own script answers.
+  // address, which the conversation's own script answers. Replaced, not set: a hash set
+  // in a frame is a step in this page's history, and Back walked the conversations
+  // opened from the palette before it left the page (targum-internal#548).
   function open(id) {
     show(true);
     var name = function () {
       try {
-        frame.contentWindow.location.hash = "#" + encodeURIComponent(id);
+        var at = frame.contentWindow.location;
+        at.replace(at.href.split("#")[0] + "#" + encodeURIComponent(id));
       } catch (e) {
         /* not this origin yet; the drawer still opens */
       }

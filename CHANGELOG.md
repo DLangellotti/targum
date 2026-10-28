@@ -12,6 +12,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
+  targum-internal#482 (a rollback, last night's database, a provider down, out of
+  credit, the box unreachable), with the date each last ran. `targum drill-credit` sends
+  the out-of-credit mail once as a drill, through the code a failing build uses, without
+  spending and without touching the live four-hour limit. The runbooks say plainly there
+  is no outside monitor yet (David, 2026-10-28: "Not before Launch"); they used to say
+  one heard a dead box. A copy that did not leave the box now says rclone's error, not
+  its config notice: every failed night since 2026-10-26 said only "failed to get", where
+  Backblaze was refusing with 403 storage_cap_exceeded, and INCIDENT.md says what to do
+  about a full bucket. `tests/test_runbooks.py` checks that every unit and `targum` command the
+  runbooks name exists.
 - A /sync on /library no longer comes back 502 now and then (targum-internal#495).
   The Library asks for a couple of hundred thumbnails within a second, Caddy opens a
   connection to us for each, and the server listened with `socketserver`'s backlog of
@@ -376,6 +387,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The back office counts the beta's gate in one row (targum-internal#458). Under Each
+  week's readers, **Since the beta, 2026-10-19** adds up every week from batch one's
+  (invitations confirmed 2026-10-21, #460) with the same columns, so the go/no-go (#486)
+  quotes one line, "A second text 3 of 6, Week 4 2 of 5", instead of adding weeks, and
+  the alpha's readers before it stay out. A second text now has to come on a later day
+  than the first day the reader read, not the day they were let in: somebody who signed
+  in three days after the invitation and opened two texts that evening was counted as
+  having come back. Its first day and Came back now keep the reader's local day and
+  UTC stamps apart, so an evening west of Greenwich is one day, and a line under the
+  table says what each column means. Read from the rows the store already holds; nothing
+  new is kept.
+- `deploy/harden.sh` does three more things (targum-internal#9). It puts Caddy in a
+  systemd sandbox (`deploy/caddy-sandbox.conf`: the limits targum.service and the minter
+  already carry, writable only in /var/lib/caddy and /var/log/caddy; Caddy scored 8.8
+  EXPOSED in `systemd-analyze security` on 2026-10-28 against their 5.3). It is checked with
+  `systemd-analyze verify`, Caddy is restarted, and `/health` is probed through it; on any
+  failure the drop-in comes out again by itself. It turns off X11 and agent forwarding
+  in sshd and leaves how anyone logs in alone. And it reports a reboot that has been
+  waiting, with the date: the box has been running kernel 7.0.0-29 with 7.0.0-38
+  installed since 2026-10-08. It never reboots. The minter unit's comment no longer
+  claims a loopback binding: it listens on `*:4416`, behind two nft tables. No step that
+  can fail under `set -e` comes before its own undo any more (qa on targum#967): Caddy's
+  reload, restart, check and probe, sshd's reload, the wall's rollback timer and the
+  swapfile's three steps each take their change back and stop. Nothing runs on the box
+  until David runs the script.
 - The back office flags sign-ups that might be fake (David, 2026-10-27;
   targum-internal#544). Eight flags, each a plain reason under the address, all read from
   what the store already holds: never confirmed after 2 days, confirmed within 10
@@ -411,6 +447,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   stop, which brings the bar out. In Theatre the mark and the back stay at 55% while a
   video plays instead of vanishing. The reader is laid out to the screen's edges
   (`viewport-fit=cover`) and the bar clears the notch in the installed app.
+- On a phone, Back closes Talk before it leaves the page (David, 2026-10-28;
+  targum-internal#548). The sheet covers the page, and the phone's Back, or the swipe,
+  left the page under it. Opening the sheet now adds one step to the history at the same
+  address: Back closes it and the next Back leaves. ×, the dimmed page, the handle and
+  Escape take that step back, so no step is left that does nothing, and a text opened from
+  the conversation takes its place. A conversation opened from the search palette no
+  longer adds a step of its own (the frame's address is replaced, not set). The desk is
+  unchanged.
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars
