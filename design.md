@@ -380,6 +380,18 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The back office counts the beta's gate in one row — 2026-10-28
+
+*Proposed, awaiting David's approval.* Beta's gate is a second text and Launch's go/no-go
+(targum-internal#486) reads week 4, from the weekly table of 2026-10-15 (targum-internal
+#458). Under the weeks, one more row: **Since the beta, 2026-10-19**, every week from
+batch one's on, each column added up, under a rule in ink and set in ink at weight 600,
+the way a ledger draws its total. The alpha's readers before batch one stay out of it.
+It is still counts, "3 of 6" out of those who have had the chance and "too soon" until
+anyone has, never a percentage and never a name. A second text now has to come on a later
+day than the first day the reader read, not the day they were let in, so a late first
+evening of two texts is one visit, not a return.
+
 ### A text you brought, rewritten at your level — 2026-10-28
 
 From the LingQ comparison of 2026-10-27 (targum-internal#535; David decided it starts

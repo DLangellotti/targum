@@ -77,6 +77,10 @@
   .bo .strip .on { background: var(--leaf); }
   .bo .strip .off { background: var(--rule); }
   .bo .reach td:first-child { inline-size: 70%; }
+  /* The beta's row under the weeks: the same counts added up, under a rule in ink so it
+     reads as the sum of what is above it, the way a ledger's total does (#458). */
+  .bo tr.beta th, .bo tr.beta td { border-block-start: 1px solid var(--ink); color: var(--ink);
+                                   font-weight: 600; }
   .bo details.let-in { margin-block-start: 1rem; }
   .bo details.let-in summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; }
   .bo a.write { font-size: 0.8125rem; font-weight: 600; }
@@ -253,10 +257,7 @@
         <th class="n">A second text</th><th class="n">Week 1</th><th class="n">Week 4</th>
       </tr>
     </thead>
-    <tbody>
-      {% for week in survey.batches %}
-      <tr>
-        <td>{{ week.week }}</td>
+    {%- macro counts(week) %}
         <td class="n">{{ week.let_in }}</td>
         <td class="n">{{ week.signed_in }}</td>
         <td class="n">{{ week.opened }}</td>
@@ -266,9 +267,25 @@
         {%- for n, over in [(week.came_back, week.old_enough), (week.second_text, week.old_enough), (week.week_one, week.week_one_over), (week.week_four, week.week_four_over)] %}
         <td class="n">{% if over %}{{ n }} of {{ over }}{% else %}<span class="quiet">too soon</span>{% endif %}</td>
         {%- endfor %}
+    {%- endmacro %}
+    <tbody>
+      {% for week in survey.batches %}
+      <tr>
+        <td>{{ week.week }}</td>
+        {{- counts(week) }}
       </tr>
       {% endfor %}
     </tbody>
+    {%- if survey.beta %}
+    {#- The beta's gate in one row (targum-internal#458): every week from batch one on,
+        added up, so the go/no-go quotes a line instead of a sum. -#}
+    <tfoot>
+      <tr class="beta">
+        <th scope="row">Since the beta, {{ survey.beta.week }}</th>
+        {{- counts(survey.beta) }}
+      </tr>
+    </tfoot>
+    {%- endif %}
   </table></div>
   {%- endif %}
 
