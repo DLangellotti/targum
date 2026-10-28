@@ -366,6 +366,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- The back office counts the beta's gate in one row (targum-internal#458). Under Each
+  week's readers, **Since the beta, 2026-10-19** adds up every week from batch one's
+  (invitations confirmed 2026-10-21, #460) with the same columns, so the go/no-go (#486)
+  quotes one line, "A second text 3 of 6, Week 4 2 of 5", instead of adding weeks, and
+  the alpha's readers before it stay out. A second text now has to come on a later day
+  than the first day the reader read, not the day they were let in: somebody who signed
+  in three days after the invitation and opened two texts that evening was counted as
+  having come back. Its first day and Came back now keep the reader's local day and
+  UTC stamps apart, so an evening west of Greenwich is one day, and a line under the
+  table says what each column means. Read from the rows the store already holds; nothing
+  new is kept.
 - `deploy/harden.sh` does three more things (targum-internal#9). It puts Caddy in a
   systemd sandbox (`deploy/caddy-sandbox.conf`: the limits targum.service and the minter
   already carry, writable only in /var/lib/caddy and /var/log/caddy; Caddy scored 8.8
