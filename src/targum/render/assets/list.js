@@ -171,7 +171,7 @@
     var words = {
       article: t("reader.list.kind.article", "Article"),
       talk: t("reader.list.kind.video", "Video"),
-      dialogue: t("reader.list.kind.dialogue", "Dialogue"),
+      dialogue: t("reader.list.kind.dialogue", "Conversation"),
       story: t("reader.list.kind.story", "Story"),
       novel: t("reader.list.kind.book", "Book"),
       essay: t("reader.list.kind.essay", "Essay"),

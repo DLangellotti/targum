@@ -7934,7 +7934,7 @@ class Handler(BaseHTTPRequestHandler):
         if door in doors:
             return self._say(f"library.door.{door}", doors[door])
         words = {
-            "dialogue": "Dialogue",
+            "dialogue": "Conversation",
             "story": "Story",
             "article": "News",
             "novel": "Novel",
@@ -14237,7 +14237,8 @@ class Handler(BaseHTTPRequestHandler):
         if not language:
             return self._json({"error": "no language"}, 400)
         marked = self.store.marked(person, language)
-        entries = [entry for entry in catalogue_module.everything() if entry.language == language]
+        everything = catalogue_module.everything()
+        entries = [entry for entry in everything if entry.language == language]
         index = coverage_module.read_index(catalogue_module.lemmas_path())
         rungs = touchstones.ladder(entries, language)
         answer: dict[str, Any] = {
@@ -14250,10 +14251,15 @@ class Handler(BaseHTTPRequestHandler):
             "known": self.store.known_count(person, language),
         }
         answer.update(
-            touchstones.standing(rungs, index, marked)
+            touchstones.standing(
+                rungs, index, marked, self._readable(everything, index, marked, language)
+            )
             if rungs and index.texts
-            else {"ladder": [], "here": None, "said": ""}
+            else {"ladder": [], "here": None, "next": None}
         )
+        # The one level on the page, its foot line (design.md §12, "Your level leads with
+        # what you can read", 2026-10-28): the measured rung and never the declared one.
+        answer["level"] = self._foot_level(person, language)
         answer["texts"] = touchstones.at_level(
             entries, index, marked, language, ui_language=self._ui_language()
         )
@@ -14294,6 +14300,82 @@ class Handler(BaseHTTPRequestHandler):
                 for reader in mine[: touchstones.TEXTS]
             ]
         self._json(answer)
+
+    def _readable(
+        self, everything: list[Any], index: Any, marked: dict[str, int], language: str
+    ) -> dict[str, int]:
+        """How many texts of each ladder kind are on this reader's Read it now shelf, read
+        as the Library reads a row (`/readers`): a copy they have built, or the shared
+        shelf has, measured on its own words, and otherwise the catalogue's measure. So
+        a row on Your Progress opens a shelf holding exactly the texts it counted."""
+        from . import touchstones
+
+        wanted = {
+            str(entry.id)
+            for entry in everything
+            if str(entry.kind) in touchstones.KINDS
+            and language
+            in {
+                str(code).split("-")[0].lower()
+                for code in (getattr(entry, "languages", None) or [entry.language])
+            }
+        }
+        built: dict[str, float] = {}
+        # The shared shelf first and the reader's own over it, as `rows()` in library.js.
+        for home in (self.library.shared, self._home()):
+            readers = [
+                reader
+                for reader in self.library.readers(home)
+                if str(reader.get("entry") or "") in wanted
+            ]
+            self._measure(home, readers)
+            for reader in readers:
+                known = reader.get("known")
+                if isinstance(known, (int, float)) and not isinstance(known, bool):
+                    built[str(reader["entry"])] = float(known)
+                else:
+                    built.pop(str(reader["entry"]), None)
+
+        def known_of(entry_id: str) -> float | None:
+            if entry_id in built:
+                return built[entry_id]
+            measured = index.against(entry_id, marked)
+            # The share as `/readers` hands it to the Library, rounded where `state()`
+            # rounds it, so a text at 89.996% is on the shelf on both pages or neither.
+            return float(measured.state()["known"]) if measured is not None else None
+
+        return touchstones.readable(everything, language, known_of)
+
+    def _foot_level(self, person: Any, language: str) -> dict[str, Any] | None:
+        """The rung `level.py` measures for this language, for the foot line and the bar
+        toward the next one; None for a language with no scale (Aramaic, Yiddish) and
+        until the first rung is reached. Hebrew climbs the ulpan by weighted words, and
+        the European scale counts the commonest words."""
+        from . import level as level_module
+
+        ladder = level_module.ladder_for(language)
+        if ladder is None or self.store is None:
+            return None
+        found = level_module.snapshot(self.store, person.id, language)
+        if found.here is None:
+            return None
+        measure = found.weighted if ladder.measure == "weighted" else float(found.common)
+        toward: float | None = None
+        if found.next is not None:
+            span = found.next.at - found.here.at
+            toward = max(0.0, min(1.0, (measure - found.here.at) / span)) if span else 0.0
+        return {
+            "scale": "ulpan" if ladder is level_module.ULPAN_LADDER else "cefr",
+            "letter": found.here.letter,
+            "name": found.here.name,
+            "cefr": found.here.cefr,
+            "next": (
+                {"letter": found.next.letter, "name": found.next.name}
+                if found.next is not None
+                else None
+            ),
+            "toward": toward,
+        }
 
     def _already(self, payload: dict[str, Any]) -> None:
         """Whether the library already has what is in the Add box (targum-internal#251).

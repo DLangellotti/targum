@@ -785,6 +785,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a credit is about a minute of audio or video; Your account by its name; subscribe, not
   follow, and news as links; we get a text ready, not "nothing is made". Russian twins
   drafted for ling-ru.
+- Your Progress's first part is Level (targum-internal#553; design.md §12, "Your level
+  leads with what you can read", 2026-10-28). It leads with the hardest kind of text you
+  can read on your own, the next step and "Show texts at your level"; week one says
+  where to start and names no level. The ladder is open, each kind "Easy for you", "Your
+  next step" or "Not yet", with "N you can read" counted by the Library's Read it now
+  rule, and the row opens `#see/now/kind/<kind>`, a new Library address that shows
+  exactly those. No percentage is drawn in the section. One foot line gives the measured
+  ulpan or European level, with a thin bar toward the next rung and no numbers.
+  "Conversations" replaces "Dialogue" on the ladder, the Library's door and Kind filter,
+  rows, home's cards and the reader's list; ids and addresses are unchanged. The step
+  labels lose their numbers. Russian drafted for ling-ru and David.
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an
   app. Every date is the day and the month in full, the year only when it isn't this

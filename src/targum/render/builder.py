@@ -2663,7 +2663,7 @@ CARD_KINDS = (
     ("video", "Video"),
     ("article", "Article"),
     ("talk", "Video"),
-    ("dialogue", "Dialogue"),
+    ("dialogue", "Conversation"),
     ("story", "Story"),
     ("novel", "Book"),
     ("essay", "Essay"),
@@ -3838,7 +3838,7 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
 #: Library's chips stand them (`KINDS` in `library.js`), and the words each is called by
 #: there. One list for every language: a kind with nothing in a language is not drawn.
 _SHELF_KINDS: tuple[tuple[str, str], ...] = (
-    ("dialogue", "Dialogues"),
+    ("dialogue", "Conversations"),
     ("story", "Stories"),
     ("article", "News"),
     ("novel", "Novels"),

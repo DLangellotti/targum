@@ -261,7 +261,7 @@ def test_a_collection_carries_what_its_texts_agree_on(tmp_path: Path) -> None:
     tanakh = next(row for row in drawn["rows"] if row["group"] == "tanakh")
     assert tanakh["meta"] == "6 texts", "narrative and poetry agree about no kind"
     scenes = next(row for row in drawn["rows"] if row["group"] and row["title"] == "סצנות")
-    assert scenes["meta"].startswith("Dialogue · "), "dialogues agree, and say so"
+    assert scenes["meta"].startswith("Conversation · "), "dialogues agree, and say so"
 
 
 def test_a_collection_is_as_long_as_its_texts_together(tmp_path: Path) -> None:
@@ -427,7 +427,7 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
     there = {entry.kind.value for entry in CATALOGUE if entry.language.startswith("he")}
     assert len(kinds) == len(there) + 1, "All, and one a kind on the shelf"
     # Dialogues first — where a reader with no words starts — then the biggest ones.
-    assert kinds[:4] == ["All", "Dialogues", "Stories", "News"]
+    assert kinds[:4] == ["All", "Conversations", "Stories", "News"]
     assert "Plays" not in kinds or "play" in there
 
 
@@ -441,7 +441,7 @@ def test_a_kind_is_called_what_a_reader_would_call_it(tmp_path: Path) -> None:
     # The boards' word, not the catalogue's (design.md §12, 2026-10-09).
     assert genesis["kind"] == "Tanakh", "not bare Narrative beside Novels and Stories"
     kinds = {row["kind"] for row in rows}
-    assert "News" in kinds and "Dialogue" in kinds
+    assert "News" in kinds and "Conversation" in kinds
     assert not kinds & {
         "Prose",
         "Articles",
@@ -565,7 +565,7 @@ def test_a_first_visit_lands_on_the_shelves_with_the_first_scene_first(tmp_path:
     assert now["cards"][0]["title"] == "נעים מאוד"
     assert now["cards"][0]["chip"] == "Start here"
     # Its kind and length, never its scene number (design.md §12, 2026-10-09).
-    assert now["cards"][0]["kind"] == "Dialogue · 1 min"
+    assert now["cards"][0]["kind"] == "Conversation · 1 min"
     scenes = [card for card in now["cards"] if card["id"].startswith("scene-")]
     assert len(scenes) == 1
 
@@ -1091,6 +1091,25 @@ def test_a_touchstone_address_opens_that_kind_in_every_band(tmp_path: Path) -> N
 
     unknown = browse(tmp_path, hash="#see/kind/sermon", catalogueKnown=BANDED)
     assert unknown["kindOn"] in ("", "All"), "a kind the Library has no word for is not chosen"
+
+
+def test_a_ladder_row_with_a_count_opens_that_kind_under_read_it_now(tmp_path: Path) -> None:
+    """design.md §12, "Your level leads with what you can read" (2026-10-28): a ladder row
+    that counts texts opens `#see/now/kind/<kind>`, the kind under the one band, so the
+    shelf holds exactly what the row counted. `#see/kind/<kind>` still opens every band."""
+    drawn = browse(tmp_path, hash="#see/now/kind/article", catalogueKnown=BANDED)
+    assert drawn["shelving"] is False
+    assert drawn["fitOn"] == "Read it now"
+    assert drawn["kindOn"] == "News"
+    assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:3]}
+
+    every = browse(tmp_path, hash="#see/kind/article", catalogueKnown=BANDED)
+    assert every["fitOn"] == "Any" and len(every["rows"]) == 4
+
+    searched = browse(
+        tmp_path, hash="#see/now/kind/article", catalogueKnown=BANDED, view={"find": "ליגה"}
+    )
+    assert len(searched["rows"]) == 3, "a search left from before does not narrow it"
 
 
 def test_the_librarys_box_opens_the_one_search_held_to_the_library(tmp_path: Path) -> None:
@@ -2008,4 +2027,4 @@ def test_dialogues_is_a_door_among_browse_by_kind(tmp_path: Path) -> None:
     assert "dialogue" in ids
     assert ids.index("dialogue") == (1 if ids[0] == "tanakh" else 0), "first after the Tanakh"
     door = drawn["kindDoors"][ids.index("dialogue")]
-    assert door["href"] == "#see/kind/dialogue" and door["says"] == ["Dialogues"]
+    assert door["href"] == "#see/kind/dialogue" and door["says"] == ["Conversations"]

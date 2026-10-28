@@ -1,23 +1,23 @@
 """Where a reader is, said in kinds of text they could open (design.md §12, "Your
-Progress is a story in three parts", 2026-10-09).
+Progress is a story in three parts", 2026-10-09, and "Your level leads with what you can
+read", 2026-10-28).
 
 David, 2026-10-08: Your Progress opens on a short ladder of real kinds of text from the
-language's own library — a dialogue, a video, a news article, a short story, a novel,
+language's own library — a conversation, a video, a news article, a short story, a novel,
 a poem — ordered by how hard the catalogue measured each kind (`Entry.difficulty`,
 the median of the texts of that kind that have been measured), and a headline naming the
-hardest of them the reader would follow. Not a placement (§6): every rung is a shelf of
-real texts they can open.
+hardest of them the reader can read on their own. Not a placement (§6): every rung is a
+shelf of real texts they can open.
 
 How much of a kind they would follow is the share of its **running words** whose
 dictionary form they have marked known, text by text, and the middle text of the kind:
-one long book cannot speak for forty short stories. The words are said by the share:
+one long book cannot speak for forty short stories. At 95% and up the kind is easy for
+them; the page says so in words and never prints the share (David, 2026-10-28: "no
+percentages anywhere"). Each rung also counts the texts of its kind on the Library's Read
+it now shelf, so the number on the row is the number on the shelf it opens.
 
-- 95% and up: "You'd follow a news article";
-- 90–95%: "You'd follow nearly all of a news article";
-- 75–90%: "You'd follow most of a news article".
-
-Below 75% nothing is claimed. Everything here is arithmetic over the catalogue and the
-lemma index beside it, with nothing fetched and nothing spent.
+Everything here is arithmetic over the catalogue and the lemma index beside it, with
+nothing fetched and nothing spent.
 """
 
 from __future__ import annotations
@@ -118,10 +118,10 @@ def aramaic_ladder(entries: Iterable[Any]) -> list[Rung]:
 #: words (David, 2026-10-09: "what is a picture book?").
 NAMED: Mapping[str, Mapping[str, str]] = {"it": {"story": "children-book"}}
 
-#: The three wordings, by the share of running words known (percent).
+#: A kind is easy for you from this share of running words known (percent), and a text
+#: is on the Library's Read it now shelf from this share of its words.
 FOLLOW = 95
 NEARLY = 90
-MOST = 75
 
 #: How many texts "Texts at your level now" names, and how many words the other half.
 TEXTS = 3
@@ -138,17 +138,6 @@ class Rung:
     name: str
     difficulty: float
     texts: tuple[str, ...]
-
-
-def said(share: int | None) -> str:
-    """Which wording a share earns: "follow", "nearly", "most", or "" for nothing."""
-    if share is None:
-        return ""
-    if share >= FOLLOW:
-        return "follow"
-    if share >= NEARLY:
-        return "nearly"
-    return "most" if share >= MOST else ""
 
 
 def ladder(entries: Iterable[Any], language: str) -> list[Rung]:
@@ -222,12 +211,23 @@ def percent(share: float) -> int:
     return max(0, min(100, int(share * 100)))
 
 
-def standing(rungs: list[Rung], index: Index, marked: Mapping[str, int]) -> dict[str, Any]:
-    """The ladder as the page draws it: each rung's share, and which one is "here".
+def standing(
+    rungs: list[Rung],
+    index: Index,
+    marked: Mapping[str, int],
+    readable: Mapping[str, int] | None = None,
+) -> dict[str, Any]:
+    """The ladder as the page draws it (design.md §12, "Your level leads with what you can
+    read", 2026-10-28): each rung easy, the next step, or not yet, and how many of its
+    texts the reader could read now.
 
-    Here is the hardest rung followed at 90% or more, or failing that at 75% or more; the
-    rungs before it are passed, the one after it is next, and with no rung reached the
-    first one is next — the place to start.
+    A rung is easy for you where its middle text's running words are 95% known (`FOLLOW`),
+    and so is every rung below the hardest easy one: the ladder climbs. The next step is
+    the rung after it, or the first rung where none is easy yet. The share stays in the
+    answer for the tests and nothing else: the page prints no percentage.
+
+    `readable` is how many texts of each kind the Library's Read it now shelf holds for
+    this reader (`readable`), so a row's count is the shelf it opens.
     """
     shares: list[int | None] = []
     for rung in rungs:
@@ -236,23 +236,23 @@ def standing(rungs: list[Rung], index: Index, marked: Mapping[str, int]) -> dict
         shares.append(percent(median(measured)) if measured else None)
 
     here: int | None = None
-    for floor in (NEARLY, MOST):
-        for at, share in enumerate(shares):
-            if share is not None and share >= floor:
-                here = at
-        if here is not None:
-            break
+    for at, share in enumerate(shares):
+        if share is not None and share >= FOLLOW:
+            here = at
+    following: int | None
+    if here is None:
+        following = 0 if rungs else None
+    else:
+        following = here + 1 if here + 1 < len(rungs) else None
 
     out = []
     for at, rung in enumerate(rungs):
-        if here is None:
-            state = "next" if at == 0 else "ahead"
-        elif at < here:
-            state = "passed"
-        elif at == here:
-            state = "here"
+        if here is not None and at <= here:
+            state = "easy"
+        elif at == following:
+            state = "next"
         else:
-            state = "next" if at == here + 1 else "ahead"
+            state = "ahead"
         out.append(
             {
                 "kind": rung.kind,
@@ -260,13 +260,38 @@ def standing(rungs: list[Rung], index: Index, marked: Mapping[str, int]) -> dict
                 "share": shares[at],
                 "state": state,
                 "texts": len(rung.texts),
+                "readable": int((readable or {}).get(rung.kind, 0)),
             }
         )
-    return {
-        "ladder": out,
-        "here": here,
-        "said": said(shares[here]) if here is not None else "",
-    }
+    return {"ladder": out, "here": here, "next": following}
+
+
+def readable(
+    entries: Iterable[Any],
+    language: str,
+    known_of: Callable[[str], float | None],
+) -> dict[str, int]:
+    """How many texts of each ladder kind sit on the Library's Read it now shelf.
+
+    The Library's own rule, row for row (`library.js` `matches` and `fitOf`): a catalogue
+    row in this language (any of its languages, as `inLanguage` reads them), of this
+    kind, whose share of words known is 90% or more. `known_of` answers that share the
+    way the Library does, a built copy's own measure over the catalogue's, and None where
+    nothing was measured, which the Library never shelves as Read it now.
+    """
+    counts: dict[str, int] = {}
+    for entry in entries:
+        kind = str(getattr(entry, "kind", ""))
+        if kind not in KINDS:
+            continue
+        codes = getattr(entry, "languages", None) or [getattr(entry, "language", "")]
+        if language not in {str(code).split("-")[0].lower() for code in codes}:
+            continue
+        share = known_of(str(entry.id))
+        if share is None or share * 100 < NEARLY:
+            continue
+        counts[kind] = counts.get(kind, 0) + 1
+    return counts
 
 
 def at_level(

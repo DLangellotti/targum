@@ -70,10 +70,12 @@
      meets are the ones with fifty texts behind them rather than the ones with two.
      Fixed rather than recomputed: a row of filters that rearranges itself as you use it
      is a row you have to read every time. "Tanakh" for the Bible's story books, and
-     "Dialogues" and "Videos" rather than the catalogue's "Scenes" and "Talks": the
-     boards' words (design.md §12, "A text is named in everyday words", 2026-10-09). */
+     "Conversations" and "Videos" rather than the catalogue's "Scenes" and "Talks": the
+     boards' words (design.md §12, "A text is named in everyday words", 2026-10-09), and
+     "Conversations" over "Dialogues" since David's call of 2026-10-28 (§12, "Your level
+     leads with what you can read"). */
   var KINDS = [
-    ["dialogue", t("library.kind.dialogue", "Dialogues")],
+    ["dialogue", t("library.kind.dialogue", "Conversations")],
     ["story", t("library.kind.story", "Stories")],
     ["article", t("library.kind.article", "News")],
     ["novel", t("library.kind.novel", "Novels")],
@@ -90,7 +92,7 @@
      names above are shelves and chips, plural, and on a row they read as the catalogue's
      ids — "Talks · 1 min", "Documents · 5 min" (design review, 2026-10-09). */
   var KIND_ONE = [
-    ["dialogue", t("library.kind-one.dialogue", "Dialogue")],
+    ["dialogue", t("library.kind-one.dialogue", "Conversation")],
     ["story", t("library.kind-one.story", "Story")],
     ["article", t("library.kind-one.article", "News")],
     ["novel", t("library.kind-one.novel", "Novel")],
@@ -1401,16 +1403,22 @@
     var now = decodeURIComponent((location.hash || "").slice(1));
     if (now === SEE) return "";
     if (now.indexOf(SEE + "/") !== 0) return null;
-    var band = now.slice(SEE.length + 1);
+    // `#see/now/kind/story` names a band and a kind; the band is its first step.
+    var band = now.slice(SEE.length + 1).split("/")[0];
     return bandNamed(band) ? band : "";
   }
 
   /* The kind a See all address names — `#see/kind/story` — or null. A touchstone on Your
      Progress opens its shelf this way (design.md §12, "Your Progress is a story in three
-     parts", 2026-10-09): the whole list, every band, narrowed to that kind of text. */
+     parts", 2026-10-09): the whole list, every band, narrowed to that kind of text. And
+     `#see/now/kind/story` is that kind under one band: a row of Your Progress's ladder
+     that counts the texts you can read opens exactly those (§12, "Your level leads with
+     what you can read", 2026-10-28). */
   function kindAddressed() {
     var now = decodeURIComponent((location.hash || "").slice(1));
     var lead = SEE + "/kind/";
+    var banded = now.match(/^see\/([a-z]+)\/kind\//);
+    if (banded && bandNamed(banded[1])) lead = banded[0];
     if (now.indexOf(lead) !== 0) return null;
     var kind = now.slice(lead.length);
     for (var n = 0; n < KINDS.length; n++) if (KINDS[n][0] === kind) return kind;
@@ -2874,7 +2882,7 @@
       if (hebrew) offered.push(["tanakh", keyed("/tanakh-map"), t("library.door.tanakh", "Tanakh"), "תנ״ך"]);
       [
         // The scenes and the conversations, in their order (design.md §12, 2026-10-27).
-        ["dialogue", t("library.door.dialogues", "Dialogues")],
+        ["dialogue", t("library.door.dialogues", "Conversations")],
         ["article", t("library.door.news", "News")],
         ["talk", t("library.door.video", "Video")],
         ["books", t("library.door.books", "Books")],
@@ -3452,8 +3460,11 @@
         view.where = "library";
         if (see) view.fit = see;
         if (kindNamed) {
-          view.fit = "";
+          // Every band, unless the address names one (`#see/now/kind/<kind>`).
+          view.fit = see || "";
           view.kind = kindNamed;
+          // A shelf named by its address is that shelf, not a search left from before.
+          view.find = "";
           view.where = "library";
         }
       } else if (!named) {
@@ -3494,8 +3505,10 @@
         if (see) view.fit = see;
         var kindNamed = kindAddressed();
         if (kindNamed) {
-          view.fit = "";
+          view.fit = see || "";
           view.kind = kindNamed;
+          view.find = "";
+          find.value = "";
         }
         view.where = "library";
         return redraw();

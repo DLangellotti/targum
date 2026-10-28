@@ -1,14 +1,17 @@
 /* Your Progress, as a story in three parts (design.md §12, "Your Progress is a story in
- * three parts", 2026-10-09).
+ * three parts", 2026-10-09; its first part is Level since "Your level leads with what you
+ * can read", 2026-10-28).
  *
- * Under the totals: where you are — a ladder of real kinds of text from the language's own
- * library, each a link to its shelf, and what you knew of what you read; how you got here —
- * time and words, and the words taken up week by week; and what next — the words you keep
- * meeting and the texts at your level now.
+ * Under the totals: Level — the hardest kind of text you can read on your own, the next
+ * step, the ladder of the language's own kinds with how many of each you could read now,
+ * and one foot line with the measured level — then what you knew of what you read; how
+ * you got here — time and words, and the words taken up week by week; and what next — the
+ * words you keep meeting and the texts at your level now.
  *
  * The totals and the weeks are read from the browser's own store, the same one the reader
- * writes; the ladder, the words met and the texts at your level from `/account/story`, and
- * time and the reading line from the account's record. Nothing here spends.
+ * writes; the ladder, the level, the words met and the texts at your level from
+ * `/account/story`, and time and the reading line from the account's record. Nothing here
+ * spends, and nothing in Level is a percentage.
  */
 
 (function () {
@@ -41,95 +44,91 @@
     { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
   ];
 
-  /* The rungs, each with what its chip says and the four sentences the headline can be.
-     A sentence each rather than a name dropped into one: Russian declines the kind
-     («почти всю новостную статью», «большую часть новостной статьи»), and a name in a
-     slot would be wrong in two of the three. */
+  /* The rungs, each with its name on the ladder and the sentences the card can say
+     (design.md §12, "Your level leads with what you can read", 2026-10-28). A sentence
+     each rather than a name dropped into one: Russian declines the kind («Начните с
+     разговоров»), and a name in a slot would be wrong. Aramaic's rungs are the Aramaic
+     translations, the climb's own (§12, 2026-10-25), and have no shelf of their own to
+     open, so no "Open" press. */
   var RUNGS = {
     dialogue: {
-      chip: t("progress.touch.dialogue", "A dialogue"),
-      follow: t("progress.where.follow.dialogue", "You'd follow a dialogue"),
-      nearly: t("progress.where.nearly.dialogue", "You'd follow nearly all of a dialogue"),
-      most: t("progress.where.most.dialogue", "You'd follow most of a dialogue"),
-      start: t("progress.where.start.dialogue", "A dialogue is the place to start"),
+      name: t("progress.rung.dialogue", "Conversations"),
+      can: t("progress.level.can.dialogue", "You can read conversations on your own."),
+      next: t("progress.level.next.dialogue", "Your next step is conversations."),
+      start: t("progress.level.start.dialogue", "Start with conversations."),
+      open: t("progress.level.open.dialogue", "Open a conversation"),
     },
     talk: {
-      chip: t("progress.touch.talk", "A video"),
-      follow: t("progress.where.follow.talk", "You'd follow a video"),
-      nearly: t("progress.where.nearly.talk", "You'd follow nearly all of a video"),
-      most: t("progress.where.most.talk", "You'd follow most of a video"),
-      start: t("progress.where.start.talk", "A video is the place to start"),
+      name: t("progress.rung.talk", "Videos"),
+      can: t("progress.level.can.talk", "You can follow videos on your own."),
+      next: t("progress.level.next.talk", "Your next step is videos."),
+      start: t("progress.level.start.talk", "Start with videos."),
+      open: t("progress.level.open.talk", "Open a video"),
     },
     article: {
-      chip: t("progress.touch.article", "A news article"),
-      follow: t("progress.where.follow.article", "You'd follow a news article"),
-      nearly: t("progress.where.nearly.article", "You'd follow nearly all of a news article"),
-      most: t("progress.where.most.article", "You'd follow most of a news article"),
-      start: t("progress.where.start.article", "A news article is the place to start"),
+      name: t("progress.rung.article", "News articles"),
+      can: t("progress.level.can.article", "You can read news articles on your own."),
+      next: t("progress.level.next.article", "Your next step is news articles."),
+      start: t("progress.level.start.article", "Start with news articles."),
+      open: t("progress.level.open.article", "Open a news article"),
     },
     story: {
-      chip: t("progress.touch.story", "A short story"),
-      follow: t("progress.where.follow.story", "You'd follow a short story"),
-      nearly: t("progress.where.nearly.story", "You'd follow nearly all of a short story"),
-      most: t("progress.where.most.story", "You'd follow most of a short story"),
-      start: t("progress.where.start.story", "A short story is the place to start"),
+      name: t("progress.rung.story", "Short stories"),
+      can: t("progress.level.can.story", "You can read short stories on your own."),
+      next: t("progress.level.next.story", "Your next step is short stories."),
+      start: t("progress.level.start.story", "Start with short stories."),
+      open: t("progress.level.open.story", "Open a short story"),
     },
     "children-book": {
-      chip: t("progress.touch.children-book", "A children's book"),
-      follow: t("progress.where.follow.children-book", "You'd follow a children's book"),
-      nearly: t("progress.where.nearly.children-book", "You'd follow nearly all of a children's book"),
-      most: t("progress.where.most.children-book", "You'd follow most of a children's book"),
-      start: t("progress.where.start.children-book", "A children's book is the place to start"),
+      name: t("progress.rung.children-book", "Children's books"),
+      can: t("progress.level.can.children-book", "You can read children's books on your own."),
+      next: t("progress.level.next.children-book", "Your next step is children's books."),
+      start: t("progress.level.start.children-book", "Start with children's books."),
+      open: t("progress.level.open.children-book", "Open a children's book"),
     },
     novel: {
-      chip: t("progress.touch.novel", "A novel"),
-      follow: t("progress.where.follow.novel", "You'd follow a novel"),
-      nearly: t("progress.where.nearly.novel", "You'd follow nearly all of a novel"),
-      most: t("progress.where.most.novel", "You'd follow most of a novel"),
-      start: t("progress.where.start.novel", "A novel is the place to start"),
+      name: t("progress.rung.novel", "Novels"),
+      can: t("progress.level.can.novel", "You can read novels on your own."),
+      next: t("progress.level.next.novel", "Your next step is novels."),
+      start: t("progress.level.start.novel", "Start with novels."),
+      open: t("progress.level.open.novel", "Open a novel"),
     },
     poetry: {
-      chip: t("progress.touch.poetry", "A poem"),
-      follow: t("progress.where.follow.poetry", "You'd follow a poem"),
-      nearly: t("progress.where.nearly.poetry", "You'd follow nearly all of a poem"),
-      most: t("progress.where.most.poetry", "You'd follow most of a poem"),
-      start: t("progress.where.start.poetry", "A poem is the place to start"),
+      name: t("progress.rung.poetry", "Poems"),
+      can: t("progress.level.can.poetry", "You can read poems on your own."),
+      next: t("progress.level.next.poetry", "Your next step is poems."),
+      start: t("progress.level.start.poetry", "Start with poems."),
+      open: t("progress.level.open.poetry", "Open a poem"),
     },
-    // Aramaic's rungs are the Aramaic translations, the climb's own (design.md §12, 2026-10-25).
     "onkelos": {
-      chip: t("progress.touch.onkelos", "Onkelos"),
-      follow: t("progress.where.follow.onkelos", "You'd follow Onkelos"),
-      nearly: t("progress.where.nearly.onkelos", "You'd follow nearly all of Onkelos"),
-      most: t("progress.where.most.onkelos", "You'd follow most of Onkelos"),
-      start: t("progress.where.start.onkelos", "Onkelos is the place to start"),
+      name: t("progress.rung.onkelos", "Onkelos"),
+      can: t("progress.level.can.onkelos", "You can read Onkelos on your own."),
+      next: t("progress.level.next.onkelos", "Your next step is Onkelos."),
+      start: t("progress.level.start.onkelos", "Start with Onkelos."),
     },
     "former-prophets": {
-      chip: t("progress.touch.former-prophets", "Jonathan on Joshua to Kings"),
-      follow: t("progress.where.follow.former-prophets", "You'd follow Jonathan on Joshua to Kings"),
-      nearly: t("progress.where.nearly.former-prophets", "You'd follow nearly all of Jonathan on Joshua to Kings"),
-      most: t("progress.where.most.former-prophets", "You'd follow most of Jonathan on Joshua to Kings"),
-      start: t("progress.where.start.former-prophets", "Jonathan on Joshua to Kings is the place to start"),
+      name: t("progress.rung.former-prophets", "Jonathan on Joshua to Kings"),
+      can: t("progress.level.can.former-prophets", "You can read Jonathan on Joshua to Kings on your own."),
+      next: t("progress.level.next.former-prophets", "Your next step is Jonathan on Joshua to Kings."),
+      start: t("progress.level.start.former-prophets", "Start with Jonathan on Joshua to Kings."),
     },
     "jonathan-torah": {
-      chip: t("progress.touch.jonathan-torah", "Pseudo-Jonathan"),
-      follow: t("progress.where.follow.jonathan-torah", "You'd follow Pseudo-Jonathan"),
-      nearly: t("progress.where.nearly.jonathan-torah", "You'd follow nearly all of Pseudo-Jonathan"),
-      most: t("progress.where.most.jonathan-torah", "You'd follow most of Pseudo-Jonathan"),
-      start: t("progress.where.start.jonathan-torah", "Pseudo-Jonathan is the place to start"),
+      name: t("progress.rung.jonathan-torah", "Pseudo-Jonathan"),
+      can: t("progress.level.can.jonathan-torah", "You can read Pseudo-Jonathan on your own."),
+      next: t("progress.level.next.jonathan-torah", "Your next step is Pseudo-Jonathan."),
+      start: t("progress.level.start.jonathan-torah", "Start with Pseudo-Jonathan."),
     },
     "latter-prophets": {
-      chip: t("progress.touch.latter-prophets", "Jonathan on the Prophets"),
-      follow: t("progress.where.follow.latter-prophets", "You'd follow Jonathan on the Prophets"),
-      nearly: t("progress.where.nearly.latter-prophets", "You'd follow nearly all of Jonathan on the Prophets"),
-      most: t("progress.where.most.latter-prophets", "You'd follow most of Jonathan on the Prophets"),
-      start: t("progress.where.start.latter-prophets", "Jonathan on the Prophets is the place to start"),
+      name: t("progress.rung.latter-prophets", "Jonathan on the Prophets"),
+      can: t("progress.level.can.latter-prophets", "You can read Jonathan on the Prophets on your own."),
+      next: t("progress.level.next.latter-prophets", "Your next step is Jonathan on the Prophets."),
+      start: t("progress.level.start.latter-prophets", "Start with Jonathan on the Prophets."),
     },
     "writings": {
-      chip: t("progress.touch.writings", "The Aramaic of the Writings"),
-      follow: t("progress.where.follow.writings", "You'd follow the Aramaic of the Writings"),
-      nearly: t("progress.where.nearly.writings", "You'd follow nearly all of the Aramaic of the Writings"),
-      most: t("progress.where.most.writings", "You'd follow most of the Aramaic of the Writings"),
-      start: t("progress.where.start.writings", "The Aramaic of the Writings is the place to start"),
+      name: t("progress.rung.writings", "The Aramaic of the Writings"),
+      can: t("progress.level.can.writings", "You can read the Aramaic of the Writings on your own."),
+      next: t("progress.level.next.writings", "Your next step is the Aramaic of the Writings."),
+      start: t("progress.level.start.writings", "Start with the Aramaic of the Writings."),
     },
   };
 
@@ -273,7 +272,7 @@
     if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
   }
 
-  /* --- 1 · where you are ------------------------------------------------------ */
+  /* --- Level ----------------------------------------------------------------- */
 
   var story = {};
   var storyAsked = {};
@@ -282,29 +281,137 @@
   var TICK =
     '<svg class="touch-tick" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
     '<path d="M3.5 8.5l3 3 6-7"/></svg>';
+  var DOT =
+    '<svg class="touch-dot" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<circle cx="8" cy="8" r="4.5"/></svg>';
+  var RING =
+    '<svg class="touch-ring" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+    '<circle cx="8" cy="8" r="4.5"/></svg>';
 
-  function shelfHref(kind) {
-    return keyed("/library#see/kind/" + encodeURIComponent(kind));
+  /* A rung's shelf in the Library: the texts of that kind you can read now where it
+     counts any (`#see/now/kind/<kind>`, so the row's number is the shelf's), and every
+     band of that kind where it counts none. */
+  function shelfHref(kind, readable) {
+    return keyed("/library#see/" + (readable ? "now/" : "") + "kind/" + encodeURIComponent(kind));
+  }
+
+  function rungOf(rung) {
+    return RUNGS[rung.name] || RUNGS[rung.kind] || { name: rung.kind, can: "", next: "", start: "" };
+  }
+
+  /* A sentence with one part set as an element: the known count in bold, a Hebrew level
+     letter in its own direction. The rest of the sentence stays text. */
+  function sentence(host, said, slot, node) {
+    var at = said.indexOf(slot);
+    if (at < 0) {
+      host.appendChild(document.createTextNode(said));
+      return;
+    }
+    if (at) host.appendChild(document.createTextNode(said.slice(0, at)));
+    host.appendChild(node);
+    var rest = said.slice(at + slot.length);
+    if (rest) host.appendChild(document.createTextNode(rest));
+  }
+
+  //: A level letter as Hebrew writes it: the geresh after the letter, the plus after that,
+  //: in a run of its own direction (ling-he, 2026-10-28).
+  function letterRun(letter) {
+    var bare = String(letter || "");
+    var plus = bare.slice(-1) === "+";
+    var run = el("bdi", "level-letter", bare.replace("+", "") + "׳" + (plus ? "+" : ""));
+    run.setAttribute("lang", "he");
+    run.setAttribute("dir", "rtl");
+    return run;
+  }
+
+  function ulpanName(name) {
+    var id = String(name || "").replace(/ /g, "-");
+    return t("charts.ulpan." + id, String(name || ""));
+  }
+
+  /* The foot line: the one level on the page, the measured rung in the reader's own
+     scale, and a bar toward the next rung with no numbers on it (David, 2026-10-28).
+     Aramaic and Yiddish have no scale, and nothing is said before the first rung. */
+  function drawFoot(level) {
+    var foot = document.getElementById("level-foot");
+    var said = document.getElementById("level-said");
+    var toward = document.getElementById("level-toward");
+    said.textContent = "";
+    foot.hidden = !level;
+    toward.hidden = true;
+    if (!level) return;
+    var ulpan = level.scale === "ulpan";
+    if (ulpan) {
+      var line = t(
+        "progress.level.ulpan",
+        "In ulpan terms you're about {name}, {letter}, roughly {cefr}. Ulpan classes in Israel run from aleph, for beginners, to vav.",
+        { name: ulpanName(level.name), cefr: level.cefr, letter: "\u0000" }
+      );
+      sentence(said, line, "\u0000", letterRun(level.letter));
+    } else {
+      said.textContent = t(
+        "progress.level.cefr",
+        "On the European scale you're about {level}. It runs from A1, for beginners, to C2.",
+        { level: level.name }
+      );
+    }
+    if (!level.next || typeof level.toward !== "number") return;
+    var bar = document.getElementById("level-bar");
+    var fill = document.getElementById("level-fill");
+    var next = document.getElementById("level-next");
+    var share = Math.max(0, Math.min(1, level.toward));
+    var nextName = ulpan ? ulpanName(level.next.name) : level.next.name;
+    fill.style.width = Math.round(share * 100) + "%";
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
+    bar.setAttribute("aria-label", t("progress.level.toward", "Toward {name}", { name: nextName }));
+    next.textContent = "";
+    if (ulpan) {
+      sentence(
+        next,
+        t("progress.level.next-ulpan", "next: {name} {letter}", { name: nextName, letter: "\u0000" }),
+        "\u0000",
+        letterRun(level.next.letter)
+      );
+    } else {
+      next.textContent = t("progress.level.next-cefr", "next: {level}", { level: nextName });
+    }
+    toward.hidden = false;
   }
 
   function drawWhere(code) {
+    var grid = document.getElementById("level-grid");
     var head = document.getElementById("where-title");
-    var list = document.getElementById("touchstones");
+    var step = document.getElementById("where-step");
+    var knownLine = document.getElementById("where-known");
+    var go = document.getElementById("where-go");
     var note = document.getElementById("where-note");
+    var ladderCard = document.getElementById("ladder");
+    var list = document.getElementById("touchstones");
     list.textContent = "";
-    list.hidden = true;
+    ladderCard.hidden = true;
+    step.hidden = true;
+    step.textContent = "";
+    knownLine.hidden = true;
+    knownLine.textContent = "";
+    go.hidden = true;
     note.hidden = true;
     note.textContent = "";
+    head.textContent = "";
     var said = story[code];
 
     if (signedIn === false) {
-      head.textContent = t("progress.where.signed-out", "Sign in and we'll say which texts you'd follow.");
+      grid.hidden = false;
+      head.textContent = t("progress.level.signed-out", "Sign in to see which texts you can read on your own.");
+      drawFoot(null);
       return;
     }
     if (!said) {
-      head.textContent = "";
+      grid.hidden = true;
       return;
     }
+    grid.hidden = false;
+    drawFoot(said.level || null);
     var ladder = said.ladder || [];
     if (!ladder.length) {
       // Yiddish has no library, and a box without the lemma index (or a catalogue whose
@@ -321,50 +428,85 @@
       return;
     }
 
+    // Aramaic's rungs are bodies of Targum, and the Library has no shelf for each, so they
+    // are said without a link and without a count to check against a shelf.
+    var shelved = code !== "arc";
     var here = typeof said.here === "number" ? ladder[said.here] : null;
-    var wording = here ? RUNGS[here.name] || RUNGS[here.kind] : RUNGS[ladder[0].name] || RUNGS[ladder[0].kind];
-    head.textContent = here && said.said ? wording[said.said] : wording ? wording.start : "";
-
-    ladder.forEach(function (rung, index) {
-      if (index) {
-        var gap = el("li", "touch-gap");
-        gap.setAttribute("aria-hidden", "true");
-        gap.innerHTML =
-          '<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3.5l4.5 4.5L6 12.5"/></svg>';
-        list.appendChild(gap);
+    var next = typeof said.next === "number" ? ladder[said.next] : null;
+    if (here) {
+      // The hardest kind you can read on your own, the next step, and the one press.
+      head.textContent = rungOf(here).can;
+      step.textContent = next ? rungOf(next).next : t("progress.level.top", "It's the hardest kind of text in the library.");
+      step.hidden = false;
+      go.textContent = t("progress.level.go", "Show texts at your level");
+      go.href = keyed("/library#see/now");
+      go.hidden = false;
+    } else {
+      // Week one: where to start, why, the words marked so far, and no level.
+      var first = rungOf(next || ladder[0]);
+      head.textContent = first.start;
+      step.textContent = shelved
+        ? t("progress.level.why", "They use the most common words, so they're the easiest place to begin.")
+        : t("progress.level.why-one", "It uses the most common words, so it's the easiest place to begin.");
+      step.hidden = false;
+      var count = said.known || 0;
+      var bold = el("b", "level-count", grouped(count));
+      sentence(
+        knownLine,
+        tn("progress.level.marked", count, "You've marked {n} word as known so far.", "You've marked {n} words as known so far.", {
+          n: "\u0000",
+        }),
+        "\u0000",
+        bold
+      );
+      knownLine.hidden = false;
+      if (shelved && first.open) {
+        go.textContent = first.open;
+        go.href = shelfHref((next || ladder[0]).kind, 0);
+      } else {
+        go.textContent = t("progress.level.go-easiest", "Show the easiest texts");
+        go.href = keyed("/library#see/now");
       }
+      go.hidden = false;
+    }
+
+    ladder.forEach(function (rung) {
       var item = el("li", "touch");
-      // Aramaic's rungs are the Aramaic translations, and the Library has no shelf for
-      // each yet, so they are said without a link rather than opening an empty list.
-      var shelved = code !== "arc";
-      var link = el(shelved ? "a" : "span", "touch-chip touch-" + rung.state);
-      if (shelved) link.href = shelfHref(rung.kind);
-      var named_ = (RUNGS[rung.name] || RUNGS[rung.kind] || { chip: rung.kind }).chip;
-      if (rung.state === "passed") link.innerHTML = TICK;
-      link.appendChild(el("span", "touch-name", named_));
-      var shown = (rung.state === "here" || rung.state === "next") && typeof rung.share === "number";
-      if (shown) link.appendChild(el("span", "touch-share", t("progress.touch.share", "{n}%", { n: rung.share })));
-      if (rung.state === "here") link.setAttribute("aria-current", "step");
-      link.title = !shelved
-        ? typeof rung.share === "number"
-          ? t("progress.touch.title-unshelved", "{kind}: you know {n}% of its words.", {
-              kind: named_,
-              n: rung.share,
-            })
-          : named_
-        : typeof rung.share === "number"
-          ? t("progress.touch.title", "{kind}: you know {n}% of its words. Open this shelf in the Library.", {
-              kind: named_,
-              n: rung.share,
-            })
-          : t("progress.touch.open", "Open this shelf in the Library");
-      // The share and where it goes, said to a screen reader too, not in the title alone
-      // (polish 1, targum-internal#471; design.md §14, nothing is hover-only).
-      link.setAttribute("aria-label", link.title);
-      item.appendChild(link);
+      var readable = shelved && rung.readable > 0 ? rung.readable : 0;
+      var row = el(shelved ? "a" : "span", "touch-row touch-" + rung.state);
+      if (shelved) row.href = shelfHref(rung.kind, readable);
+      var mark = el("span", "touch-mark");
+      mark.innerHTML = rung.state === "easy" ? TICK : rung.state === "next" ? DOT : RING;
+      row.appendChild(mark);
+      var words = el("span", "touch-words");
+      words.appendChild(el("span", "touch-name", rungOf(rung).name));
+      var stateSaid =
+        rung.state === "easy"
+          ? t("progress.ladder.easy", "Easy for you")
+          : rung.state === "next"
+            ? t("progress.ladder.next", "Your next step")
+            : t("progress.ladder.ahead", "Not yet");
+      words.appendChild(el("span", "touch-state", stateSaid));
+      row.appendChild(words);
+      if (readable) {
+        row.appendChild(
+          el(
+            "span",
+            "touch-count",
+            tn("progress.ladder.readable", readable, "{n} you can read", "{n} you can read", { n: grouped(readable) })
+          )
+        );
+      }
+      if (shelved) {
+        var go_ = el("span", "touch-go", "›");
+        go_.setAttribute("aria-hidden", "true");
+        row.appendChild(go_);
+      }
+      if (rung.state === "next") row.setAttribute("aria-current", "step");
+      item.appendChild(row);
       list.appendChild(item);
     });
-    list.hidden = false;
+    ladderCard.hidden = false;
   }
 
   // Whether the story for a language has answered, and whether its asking failed.

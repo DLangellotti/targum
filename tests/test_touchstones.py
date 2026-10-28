@@ -1,6 +1,7 @@
 """Your Progress's story (design.md §12, "Your Progress is a story in three parts",
-2026-10-09): the ladder of kinds of text, where a reader is on it, the texts at their level
-and the words they keep meeting.
+2026-10-09, and "Your level leads with what you can read", 2026-10-28): the ladder of kinds
+of text, where a reader is on it, how many of each kind they could read now, the level at
+the foot, the texts at their level and the words they keep meeting.
 
 The arithmetic in `touchstones`, then the whole of `/account/story` end to end.
 """
@@ -73,22 +74,6 @@ def test_italian_stories_are_its_childrens_books() -> None:
     assert [(rung.kind, rung.name) for rung in rungs] == [("story", "children-book")]
 
 
-@pytest.mark.parametrize(
-    ("share", "said"),
-    [
-        (100, "follow"),
-        (95, "follow"),
-        (94, "nearly"),
-        (90, "nearly"),
-        (89, "most"),
-        (75, "most"),
-        (74, ""),
-    ],
-)
-def test_the_wording_is_by_the_share_of_running_words(share: int, said: str) -> None:
-    assert touchstones.said(share) == said
-
-
 def index_of(texts: dict[str, dict[str, int]]) -> Any:
     """An index with running counts: entry -> {lemma: how often}."""
     return build_index({entry: list(counts) for entry, counts in texts.items()}, texts)
@@ -115,7 +100,7 @@ def test_a_share_falls_back_to_distinct_words_where_nothing_was_counted() -> Non
     assert touchstones.running_share(index, "a1", {"common": KNOWN}) == pytest.approx(0.5)
 
 
-def test_here_is_the_hardest_rung_followed_and_the_next_one_after_it() -> None:
+def test_easy_is_ninety_five_and_up_and_the_next_step_follows_the_hardest_easy() -> None:
     rungs = touchstones.ladder(shelf(), "he")
     index = index_of(
         {
@@ -126,31 +111,54 @@ def test_here_is_the_hardest_rung_followed_and_the_next_one_after_it() -> None:
             "p1": {"שלום": 86, "שיר": 14},
         }
     )
-    got = touchstones.standing(rungs, index, {"שלום": KNOWN})
-    assert [(rung["kind"], rung["state"], rung["share"]) for rung in got["ladder"]] == [
-        ("dialogue", "passed", 100),
-        ("talk", "passed", 95),
-        ("article", "here", 93),
-        ("poetry", "next", 86),
+    got = touchstones.standing(rungs, index, {"שלום": KNOWN}, {"dialogue": 2, "article": 1})
+    assert [(rung["kind"], rung["state"], rung["readable"]) for rung in got["ladder"]] == [
+        ("dialogue", "easy", 2),
+        ("talk", "easy", 0),
+        ("article", "next", 1),
+        ("poetry", "ahead", 0),
     ]
-    assert got["said"] == "nearly"
+    assert got["here"] == 1 and got["next"] == 2
+    assert "said" not in got, "no wording by share any more"
 
 
-def test_with_nothing_at_ninety_here_is_the_hardest_at_seventy_five() -> None:
+def test_a_rung_below_the_hardest_easy_one_is_easy_too() -> None:
+    """The ladder climbs: a reader who reads news on their own reads conversations."""
     rungs = touchstones.ladder(shelf(), "he")
-    index = index_of({"d1": {"a": 8, "b": 2}, "t1": {"a": 3, "b": 7}})
+    index = index_of({"d1": {"a": 9, "b": 1}, "t1": {"a": 20}})
     got = touchstones.standing(rungs, index, {"a": KNOWN})
-    assert got["here"] == 0 and got["said"] == "most"
-    assert [rung["state"] for rung in got["ladder"]] == ["here", "next", "ahead", "ahead"]
+    assert [rung["state"] for rung in got["ladder"]] == ["easy", "easy", "next", "ahead"]
     # The article and the poem were never measured: no share, never 0%.
     assert got["ladder"][2]["share"] is None
 
 
-def test_with_no_rung_reached_the_first_is_the_place_to_start() -> None:
+def test_with_no_rung_easy_the_first_is_the_next_step() -> None:
     rungs = touchstones.ladder(shelf(), "he")
-    got = touchstones.standing(rungs, index_of({"d1": {"a": 1, "b": 9}}), {"a": KNOWN})
-    assert got["here"] is None and got["said"] == ""
+    got = touchstones.standing(rungs, index_of({"d1": {"a": 9, "b": 1}}), {"a": KNOWN})
+    assert got["here"] is None and got["next"] == 0
     assert [rung["state"] for rung in got["ladder"]] == ["next", "ahead", "ahead", "ahead"]
+
+
+def test_the_top_rung_easy_has_no_next_step() -> None:
+    rungs = touchstones.ladder(shelf(), "he")
+    index = index_of({entry: {"a": 1} for entry in ("d1", "d2", "t1", "a1", "p1")})
+    got = touchstones.standing(rungs, index, {"a": KNOWN})
+    assert got["here"] == 3 and got["next"] is None
+
+
+def test_readable_counts_the_librarys_read_it_now_by_kind() -> None:
+    """The Library's rule: 90% and up of a text's words, any of its languages, and a
+    built copy's measure over the catalogue's. Unmeasured is never on the shelf."""
+
+    @dataclass(frozen=True)
+    class Two(Entry):
+        languages: tuple[str, ...] = ()
+
+    entries = [*shelf(), Two("both", "arc", "dialogue", 5, languages=("arc", "he"))]
+    shares = {"d1": 0.9, "d2": 0.8999, "a1": 0.95, "t1": None, "p1": 1.0, "x1": 1.0, "both": 0.97}
+    got = touchstones.readable(entries, "he", shares.get)
+    assert got == {"dialogue": 2, "article": 1, "poetry": 1}, "prose is no ladder kind"
+    assert touchstones.readable(entries, "ru", shares.get) == {}
 
 
 def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
@@ -235,13 +243,128 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
         "kind": "dialogue",
         "name": "dialogue",
         "share": 95,
-        "state": "here",
+        "state": "easy",
         "texts": 3,
+        "readable": 1,
     }
-    assert said["said"] == "follow"
+    assert said["here"] == 0 and said["next"] == 1
+    # One word known is no rung of the ulpan's: no foot line until the first is reached.
+    assert said["level"] is None
     # By distinct words, as the Library's Read it now: only d2 is all known.
     assert [text["id"] for text in said["texts"]] == ["d2"]
     assert said["words"] == [{"lemma": "ספר", "texts": 2}]
 
     status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)
     assert said["ladder"] == [] and said["library"] is False and said["uploads"] == []
+
+
+def test_each_ladder_count_is_its_library_shelf_count(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The acceptance line of targum-internal#553: a row of the ladder says "N you can
+    read" and opens `#see/now/kind/<kind>`, and the Library, drawn from what `/readers`
+    hands it on the same server for the same reader, shows exactly N texts there."""
+    from test_library_js import draw as library
+    from test_library_js import text
+
+    from targum import catalogue as catalogue_module
+    from targum.coverage import write_index
+
+    port, token, _ = served
+    entries = [
+        Entry("d1", "he", "dialogue", 5, "שיחה א"),
+        Entry("d2", "he", "dialogue", 6, "שיחה ב"),
+        Entry("d3", "he", "dialogue", 7, "שיחה ג"),
+        Entry("d4", "he", "dialogue", 8, "שיחה ד"),
+        Entry("t1", "he", "talk", 12, "הרצאה א"),
+        Entry("t2", "he", "talk", 13, "הרצאה ב"),
+        Entry("a1", "he", "article", 17, "ידיעה"),
+        Entry("p1", "he", "poetry", 25, "שיר"),
+    ]
+    known = [f"w{n}" for n in range(9)]
+    lemmas = tmp_path / "lemmas.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                # Every word known; nine in ten, on the line; eight in ten; all again.
+                "d1": {word: 1 for word in known},
+                "d2": {**{word: 1 for word in known}, "rare": 1},
+                "d3": {**{word: 1 for word in known[:8]}, "x": 1, "y": 1},
+                "d4": {word: 1 for word in known[:4]},
+                "t1": {word: 1 for word in known},
+                "t2": {"w0": 1, "x": 1},
+                "a1": {**{word: 1 for word in known}, "rare": 1},
+                "p1": {"w0": 1, "x": 1, "y": 1},
+            }
+        ),
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: entries)
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+
+    cookie = sign_in(port, postbox)
+    words = [
+        {"language": "he", "lemma": word, "status": KNOWN, "at": 1, "seen": 1} for word in known
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    counts = {rung["kind"]: rung["readable"] for rung in said["ladder"]}
+    assert counts == {"dialogue": 3, "talk": 1, "article": 1, "poetry": 0}
+
+    status, shelf_said, _ = call(port, "GET", f"/readers?k={token}", cookie=cookie)
+    assert status == 200
+    rows = [
+        text(entry.id, entry.title, kind=entry.kind, difficulty=entry.difficulty)
+        for entry in entries
+    ]
+    for kind, count in counts.items():
+        drawn = library(
+            tmp_path,
+            catalogue=rows,
+            collections=[],
+            catalogueKnown=shelf_said["catalogue"],
+            readers=shelf_said["readers"],
+            shared=shelf_said["shared"],
+            hash=f"#see/now/kind/{kind}",
+        )
+        assert len(drawn["rows"]) == count, (kind, drawn["rows"])
+        assert drawn["fitOn"] == "Read it now"
+
+
+def test_the_foot_level_is_the_measured_rung_and_the_way_to_the_next(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """level.py's rung, measured from weighted known words, with the share of the way to
+    the next rung for the bar; nothing for a language with no scale."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    words = [
+        {
+            "language": "he",
+            "lemma": f"מלה{n}",
+            "status": KNOWN,
+            "at": 1,
+            "seen": 1,
+            "band": "fairly easy",
+        }
+        for n in range(300)
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    level = said["level"]
+    assert {key: level[key] for key in ("scale", "letter", "name", "cefr", "next")} == {
+        "scale": "ulpan",
+        "letter": "א",
+        "name": "aleph",
+        "cefr": "A1",
+        "next": {"letter": "א+", "name": "aleph plus"},
+    }
+    assert level["toward"] == pytest.approx(50 / 650)
+
+    status, said, _ = call(port, "GET", f"/account/story?language=yi&k={token}", cookie=cookie)
+    assert said["level"] is None
