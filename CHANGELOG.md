@@ -385,6 +385,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Scenes, whose order is built from the scene numbers, so a new scene joins it without a
   new collection. A reader who said bet is a beginner too while nothing is measured, and
   /suggest no longer cuts the finished ids at 200, which could offer a finished scene.
+- On a phone, Back closes Talk before it leaves the page (David, 2026-10-28;
+  targum-internal#548). The sheet covers the page, and the phone's Back, or the swipe,
+  left the page under it. Opening the sheet now adds one step to the history at the same
+  address: Back closes it and the next Back leaves. ×, the dimmed page, the handle and
+  Escape take that step back, so no step is left that does nothing, and a text opened from
+  the conversation takes its place. A conversation opened from the search palette no
+  longer adds a step of its own (the frame's address is replaced, not set). The desk is
+  unchanged.
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars

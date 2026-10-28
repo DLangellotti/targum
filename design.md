@@ -380,6 +380,9 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### On a phone, Back closes Talk before it leaves the page (2026-10-28)
+Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.
+
 ### A text you brought, rewritten at your level — 2026-10-28
 
 From the LingQ comparison of 2026-10-27 (targum-internal#535; David decided it starts
