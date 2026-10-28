@@ -22,7 +22,7 @@
 <script>window.TARGUM_KEY = "{{ token }}";</script>
 </head>
 <body class="series-page" data-series-kind="{{ kind }}">
-{% set here = 'library' %}{% set title = '' %}
+{% set here = 'library' %}{% set title = '' %}{% set came_label = series.name %}
 {% include '_nav.html.j2' %}
 {{ script('building.js') }}
 {%- set kept = ('lang=' ~ asked) if asked else '' %}
