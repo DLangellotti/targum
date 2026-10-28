@@ -395,6 +395,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Your Progress has every §14 state pinned in a browser (targum-internal#471):
+  `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
+  (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at
+  390 as a touch phone. Each must say what to do next, with its press where it has one,
+  never scroll sideways, and throw nothing. The page itself is unchanged.
 - The back office counts the beta's gate in one row (targum-internal#458). Under Each
   week's readers, **Since the beta, 2026-10-19** adds up every week from batch one's
   (invitations confirmed 2026-10-21, #460) with the same columns, so the go/no-go (#486)
