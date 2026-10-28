@@ -1727,6 +1727,53 @@ def quote_voice(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def quote_rewrite(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """One of the reader's own texts written again at their level, as a link
+    (targum-internal#535).
+
+    Nothing is priced, made or claimed here, the way `quote_voice` makes nothing: the
+    link opens the text on targum with its "Rewrite at my level" offer open, saying the
+    level and what it uses, and the reader's press there is `/text/rewrite`, claimed
+    through `Library.press`. The model never spends.
+    """
+    from .. import correct as correct_module
+    from .. import rewrite as rewrite_module
+    from ..models import Document
+    from ..models import read_artifact as read
+
+    if ctx.person is None:
+        return {"error": "Rewriting a text needs an account: it is one of the reader's texts."}
+    found = _own_folder(ctx, str(args.get("text") or ""))
+    if found is None or not correct_module.own_folder(found[1]):
+        return {
+            "error": "That isn't one of the reader's own texts. targum rewrites only texts "
+            "the reader brought."
+        }
+    name, folder = found
+    document = read(Document, folder / "document.json")
+    if document is None:
+        return {"error": "That text isn't ready yet."}
+    if not rewrite_module.rewrites(document.language):
+        return {"error": "targum rewrites texts in Hebrew, French, Russian and Italian."}
+    if rewrite_module.refused(rewrite_module.licence_of(folder)):
+        return {"error": "That text's licence doesn't allow changing it."}
+    written = rewrite_module.for_reader(ctx.level)
+    return {
+        "rewrite": {
+            "title": document.title or name,
+            "level": rewrite_module.label(written, ctx.language),
+            "credits": 0,
+            "open": f"{ctx.press_at}/reader/{quote(name)}/reader/index.html?rewrite=1",
+        },
+        "note": (
+            "Give the reader the link in `open`, on a line of its own, and say in ONE "
+            "sentence that it writes this text again at their level as a new text of "
+            "theirs, and uses none of their credits. They confirm it on targum's own "
+            "page, and you cannot. Don't describe the page or tell them to press anything."
+        ),
+    }
+
+
 #: How many texts one set may hold: design.md §12's cap, and the playlist's own.
 MOST_IN_SET = 20
 #: How many texts one set may hold: design.md §12's cap, and the playlist's own.
@@ -3917,6 +3964,26 @@ REGISTRY: tuple[Tool, ...] = (
         quote_voice,
         scope="chat",
         title="Hear a section",
+    ),
+    Tool(
+        "quote_rewrite",
+        "One of the reader's own texts, written again in simpler words at their level as "
+        "a new text linked to the original: for a text they brought that is too hard. "
+        "Give the text's name or link from their shelf. Free: returns the level and a "
+        "link to the text on targum, where the reader confirms; you cannot. Library "
+        "texts are refused.",
+        _schema(
+            {
+                "text": {
+                    "type": "string",
+                    "description": "The text's name or link from the reader's shelf.",
+                },
+            },
+            ("text",),
+        ),
+        quote_rewrite,
+        scope="chat",
+        title="Rewrite a text at my level",
     ),
     Tool(
         "describe_source",

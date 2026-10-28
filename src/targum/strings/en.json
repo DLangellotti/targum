@@ -4135,5 +4135,20 @@
   "correct.empty": "A line needs some words. To start again, press Cancel.",
   "correct.too-long": "That's too long for one line. Add it as a text of its own.",
   "correct.could-not": "We couldn't change that line.",
-  "correct.at-start": "This is where the text starts already."
+  "correct.at-start": "This is where the text starts already.",
+  "reader.page.rewrite-at-my-level": "Rewrite at my level",
+  "reader.rewrite.what": "We'll write this text again in simpler words, as a new text linked to this one.",
+  "reader.rewrite.for": "Write it for",
+  "reader.rewrite.go": "Rewrite it",
+  "reader.rewrite.working": "We're rewriting it. This takes a minute or two.",
+  "reader.rewrite.could-not": "We couldn't rewrite it. Try again.",
+  "reader.rewrite.from": "Rewritten for {level} from",
+  "reader.rewrite.made": "Also written for {level}:",
+  "job.rewriting": "We're rewriting it for {level}…",
+  "rewrite.not-ready": "This text isn't ready yet.",
+  "rewrite.licence": "This text's licence doesn't allow changing it, so we can't rewrite it.",
+  "rewrite.language": "We can rewrite texts in Hebrew, French, Russian and Italian.",
+  "rewrite.too-long": "We rewrite texts of up to {words} words, and this one is longer.",
+  "rewrite.gone": "We can't find that text any more.",
+  "rewrite.empty": "We couldn't rewrite this text. Nothing was added to your texts."
 }

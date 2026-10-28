@@ -6592,3 +6592,61 @@ body.correcting main .pair[data-id]:hover { outline: 1px solid var(--rule); outl
   .correct-again,
   .correct-field { min-height: 44px; }
 }
+
+/* --- rewriting a text you brought at your level (targum-internal#535; §12, 2026-10-28) -
+   The correcting bar's frame and radii. Rewrite it is the one working action, so it takes
+   the teal; Cancel is bordered in ink. The links between a rewrite and its original are
+   quiet chrome above the text, in ink-soft with the link in ink. */
+.rewrite-offer,
+.rewrite-links {
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: var(--measure);
+  margin: 0 auto 1rem;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+}
+.rewrite-offer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.rewrite-offer[hidden] { display: none; }
+.rewrite-said,
+.rewrite-note { margin: 0; }
+.rewrite-note:empty { display: none; }
+.rewrite-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.rewrite-level select {
+  font: inherit;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.rewrite-cost { color: var(--ink-soft); }
+.rewrite-keys { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.rewrite-go,
+.rewrite-cancel {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.rewrite-go { border: 0; background: var(--teal); color: var(--paper); font-weight: 600; }
+.rewrite-cancel { border: 1px solid var(--ink); background: transparent; color: var(--ink); }
+.rewrite-go:disabled { opacity: 0.5; cursor: default; }
+.rewrite-links { color: var(--ink-soft); }
+.rewrite-links p { margin: 0 0 0.25rem; }
+.rewrite-links a { color: var(--ink); }
+@media (hover: none) and (pointer: coarse) {
+  .rewrite-go,
+  .rewrite-cancel,
+  .rewrite-level select { min-height: 44px; }
+}

@@ -443,6 +443,12 @@
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M10.5 2.5 13.5 5.5 5.5 13.5H2.5V10.5Z"/><path d="M9 4 12 7"/></svg></span>
         <span class="m-label">{{ t("reader.page.correct-the-text", "Correct the text") }}</span>
       </button>
+      {#- Rewrite at my level (targum-internal#535): the same door, and `rewrite.js` shows it
+          once the server says the text is theirs and its language is one we rewrite. -#}
+      <button type="button" class="m-row" id="rewrite-open" data-what="{{ t("reader.page.rewrite-at-my-level", "Rewrite at my level") }}" aria-expanded="false" hidden>
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M2.5 4h11M2.5 8h7M2.5 12h4"/><path d="M11 10.5 13 12.5 11 14.5"/><path d="M8.5 12.5H13"/></svg></span>
+        <span class="m-label">{{ t("reader.page.rewrite-at-my-level", "Rewrite at my level") }}</span>
+      </button>
       {% endif %}
       {#- Talk to targum about this text (2026-09-11). Hidden until the page knows it is
           served: off a disk there is nothing to talk to. -#}
@@ -1490,7 +1496,7 @@
     nothing unless the page was served with `?list=`, so a reader off a disk is as it was. -#}
 {{ script('list.js') }}
 {{ script('talk.js') }}
-{% if correctable %}{{ script('correct.js') }}{% endif %}
+{% if correctable %}{{ script('correct.js') }}{{ script('rewrite.js') }}{% endif %}
 {% if false_friends %}
 {#- A French word's false friend on its card (targum-internal#267), only on a page written
     with `TARGUM_FALSE_FRIENDS` on; without it the page ends as it did. #}
