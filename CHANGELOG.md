@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The front door's last polish from design's §14 pass (targum-internal#477). The word
+  card's Here row puts its meaning on a line of its own under the form, so "crack" /
+  «разбивают» no longer wraps alone at 1440 (polish 4). Under a coarse pointer the bar's
+  mark and the why-fold reach 44px, and the chat demo's "Save as a text" and a text
+  page's way back to the Library answer a tap through a centred 44px reach while the
+  words keep their size (polish 8). No copy changed.
 - deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
   targum-internal#482 (a rollback, last night's database, a provider down, out of
   credit, the box unreachable), with the date each last ran. `targum drill-credit` sends

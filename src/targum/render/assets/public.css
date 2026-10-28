@@ -716,6 +716,15 @@ body.public {
   }
   /* Sign in in the corner was 36px tall on the signed-out Library (QA, 2026-10-20). */
   .public .corner .enter { min-block-size: 44px; display: inline-flex; align-items: center; }
+  /* The text page's way back to the Library was 38 × 18 (design's #477 pass, polish 8).
+     The word stays the size it is; a centred reach of at least 44 × 44 answers the tap. */
+  .public .where a { position: relative; }
+  .public .where a::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+  }
 }
 
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no
