@@ -1030,3 +1030,95 @@ def test_the_confirm_page_s_mosaic_fills_its_tile(browser) -> None:
     )
     context.close()
     assert got["cell"] >= got["tile"] / 2 - 2, got
+
+
+#: Every point a thumb's 44px covers around a control's centre, as offsets in px.
+REACH = """(selector) => [...document.querySelectorAll(selector)]
+  .filter((el) => el.getBoundingClientRect().width > 0)
+  .map((el) => {
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const hits = (dx, dy) => {
+      const at = document.elementFromPoint(x + dx, y + dy);
+      return !!at && (at === el || el.contains(at));
+    };
+    return {
+      what: selector + ' ' + (el.textContent || el.getAttribute('aria-label') || '').trim(),
+      tall: hits(0, -20) && hits(0, 20),
+      wide: hits(-20, 0) && hits(20, 0),
+    };
+  })"""
+
+
+def _thumbed(browser):
+    """A phone's context whose pages match (hover: none) and (pointer: coarse), where
+    §8's reach is given."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 2400}, has_touch=True, is_mobile=True
+    )
+    page = context.new_page()
+    context.new_cdp_session(page).send(
+        "Emulation.setEmulatedMedia",
+        {"features": [{"name": "pointer", "value": "coarse"}, {"name": "hover", "value": "none"}]},
+    )
+    return context, page
+
+
+def test_the_tab_s_presses_and_links_answer_a_thumb(browser) -> None:
+    """#475 re-audit, §8: under a thumb the row's Pause and its way in were 32px wide side
+    by side, and the names and titles that open a page or a text were their line's height."""
+    context, page = _thumbed(browser)
+    listed = {
+        "signedIn": True,
+        "subscriptions": ROWS,
+        "series": SERIES,
+        "credits": {"left": 354, "back": "November 1"},
+    }
+    serve(page, _tab_routes(listed), [])
+    page.goto(f"{SITE}/?show=subscriptions")
+    page.wait_for_selector("#subs-rows .sub-row")
+    found = []
+    for selector in (".sub-row-acts .btn", ".sub-name", "a.sub-latest-title", ".sub-foot a"):
+        found += page.evaluate(REACH, selector)
+    context.close()
+    assert len(found) >= 8, found
+    short = [one["what"] for one in found if not (one["tall"] and one["wide"])]
+    assert not short, short
+
+
+def test_one_subscription_s_way_back_and_titles_answer_a_thumb(browser) -> None:
+    """#475 re-audit, §8: "‹ Subscriptions" was 21px tall and the page's only way back."""
+    context, page = _thumbed(browser)
+    answer = {
+        "signedIn": True,
+        "subscription": dict(
+            ROWS[1],
+            caps=[30, 60, 120, 240],
+            items=[
+                {
+                    "key": "v1",
+                    "title": "פלאפל או מקדונלדס?",
+                    "link": "https://youtu.be/v1",
+                    "reader": "/reader/v1/reader/index.html",
+                    "state": "ready",
+                    "came": "",
+                    "seen": True,
+                    "found": 4_000,
+                    "published": 4_000,
+                    "seconds": 240,
+                    "credits": 4,
+                    "why": "",
+                    "building": False,
+                }
+            ],
+        ),
+        "credits": {"left": 354, "back": "November 1"},
+    }
+    serve(page, {"/subscriptions/2": subscription_page(""), "/subscriptions/2.json": answer}, [])
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector("a.sub-item-title")
+    found = page.evaluate(REACH, ".sub-back") + page.evaluate(REACH, "a.sub-item-title")
+    context.close()
+    assert len(found) == 2, found
+    short = [one["what"] for one in found if not (one["tall"] and one["wide"])]
+    assert not short, short
