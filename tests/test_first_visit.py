@@ -352,3 +352,53 @@ def test_a_different_shelf_is_a_different_file(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(catalogue_module, "everything", lambda: list(real())[:1])
     second = shelf_files(library_page(TOKEN))[""]
     assert first != second
+
+
+# -- the pages in front of the account (targum-internal#549) ------------------------
+
+
+def _warmed(html: str) -> tuple[list[str], str]:
+    found = re.search(r'<script[^>]*\bdata-files="([^"]*)"[^>]*\bdata-kept="([^"]*)"', html)
+    assert found, "a page sent whole says what it will fetch"
+    return json.loads(found.group(1).replace("&#34;", '"').replace("&quot;", '"')), found.group(2)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_a_public_page_warms_only_what_the_public_pages_use(language: str) -> None:
+    """David, 2026-10-28: a stranger's first public page fetches the public pages' own
+    files and the faces they wear in its language, never the desk's scripts, the
+    Library's catalogues or the other language's faces (about 0.9 MB of them)."""
+    for html in (
+        builder.front_page(language, "https://targum.page"),
+        builder.about_page(language, "https://targum.page"),
+    ):
+        files, kept = _warmed(first_visit(html))
+        assert set(files) == set(builder.public_files(language)), files
+        assert not [one for one in files if "catalogue" in one or "/home." in one], files
+        russian = [one for one in files if "-ru." in one]
+        assert bool(russian) == (language == "ru"), files
+        assert kept == f"{KEPT_ROUTE}?set={builder.public_set(language)}"
+    # A desk page still warms the desk's whole set.
+    files, kept = _warmed(first_visit(list_page(TOKEN, "texts")))
+    assert set(builder.public_files("en")) < set(files) and kept.endswith(asset_set())
+
+
+def test_a_public_set_keeps_the_public_pages_and_no_desk_page(
+    served: tuple[int, str, Path],
+) -> None:
+    port, token, _ = served
+    public = builder.public_set("en")
+    _, _, cookies, _ = _get(port, f"{KEPT_ROUTE}?set={public}")
+    assert cookies and cookies[0].startswith(f"{KEPT_COOKIE}={public};"), cookies
+    # The cookie's name is the one the Privacy Notice gives; what it holds is a set's hash.
+    _, headers, _, html = _get(port, f"/about?k={token}", cookie=f"{KEPT_COOKIE}={public}")
+    assert names_files(html) and "data-kept" not in html, "a kept public page names its files"
+    assert _sources(headers["content-security-policy"], "style-src")[0] == "'self'"
+    # A desk page names files no public set holds, so it is sent whole and warms the desk.
+    _, _, _, desk = _get(port, DOOR, cookie=f"{KEPT_COOKIE}={public}")
+    assert not names_files(_without_late_faces(desk)) and asset_set() in desk
+    # A browser that keeps the desk's whole set is not handed the smaller one.
+    _, _, cookies, _ = _get(
+        port, f"{KEPT_ROUTE}?set={public}", cookie=f"{KEPT_COOKIE}={asset_set()}"
+    )
+    assert cookies == []
