@@ -2825,9 +2825,12 @@ def back_office_page(
     here = {
         "q": accounts.q,
         "sort": "" if accounts.sort == next(iter(ACCOUNT_SORTS)) else accounts.sort,
+        # "Possibly fake (2+)", on either list (targum-internal#544).
+        "fake": "1" if accounts.fake else "",
         "page": accounts.page,
         "wq": still.q,
         "wsort": "" if still.sort == next(iter(WAITING_SORTS)) else still.sort,
+        "wfake": "1" if still.fake else "",
         "wpage": still.page,
         "ipage": let_in.page,
     }

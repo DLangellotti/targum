@@ -309,10 +309,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    on its row and the back office could not count it. Written at claim. On a table every
 #    box has, so it is in MIGRATIONS; nought for every row before it.
 #
+# 48→49: waiting.turned_off and waiting.was — when the operator turned an address off
+#    from the back office, and the state it was in, so Undo puts it back (targum-internal
+#    #544, David 2026-10-27: a flagged row is turned off, never deleted, and undoable).
+#    On a table every box has, so they are in MIGRATIONS; nought and empty before them.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 48
+SCHEMA_VERSION = 49
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -683,6 +688,9 @@ MIGRATIONS: tuple[str, ...] = (
     # schema's version stays where it is; `IF NOT EXISTS` makes every later open a no-op.
     # Whether targum paid for a job (schema 48, targum-internal#543).
     "ALTER TABLE job ADD COLUMN gift INTEGER NOT NULL DEFAULT 0",
+    # An address the operator turned off, and what it was before (schema 49, #544).
+    "ALTER TABLE waiting ADD COLUMN turned_off INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE waiting ADD COLUMN was TEXT NOT NULL DEFAULT ''",
     "CREATE INDEX IF NOT EXISTS job_owner ON job (owner)",
     "CREATE INDEX IF NOT EXISTS job_made ON job (made)",
     "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
@@ -1262,7 +1270,11 @@ CREATE TABLE IF NOT EXISTS waiting (
   page     TEXT    NOT NULL DEFAULT '',
   -- The link they tried on the front page and joined with, never fetched again until
   -- they are let in. Empty when they joined without one (targum-internal#399).
-  link     TEXT    NOT NULL DEFAULT ''
+  link     TEXT    NOT NULL DEFAULT '',
+  -- When the operator turned this address off from the back office, and the state it
+  -- was in, so Undo can put it back (schema 49). Nought and empty otherwise.
+  turned_off INTEGER NOT NULL DEFAULT 0,
+  was        TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS waiting_state ON waiting (state);
 
@@ -2456,6 +2468,10 @@ class Store:
             raise ValueError("No address given.")
         if self.waiting_state(address) == "on":
             return None
+        # An address the operator turned off stays off, and is sent nothing: asking
+        # again is what a script signing up throwaway addresses does (targum-internal#544).
+        if self.waiting_turned_off(address):
+            return None
         token = secrets.token_urlsafe(TOKEN_BYTES)
         spoken = tidy(language)
         with self.write() as db:
@@ -2482,6 +2498,37 @@ class Store:
                 ),
             )
         return token
+
+    def waiting_turned_off(self, email: str) -> bool:
+        """Whether the operator turned this address off and has not undone it."""
+        row = self.db.execute(
+            "SELECT turned_off FROM waiting WHERE email = ?", (tidy(email),)
+        ).fetchone()
+        return row is not None and bool(row["turned_off"])
+
+    def turn_off_waiting(self, email: str) -> bool:
+        """Turn an address on the waitlist off, from the back office (targum-internal#544).
+
+        Never a delete: the row stays, its state becomes `off` so the door never picks it,
+        and the state it was in is kept for `undo_turn_off`. Nobody is written to. False
+        for an address not on the list, already off, or already let in."""
+        with self.write() as db:
+            changed = db.execute(
+                "UPDATE waiting SET was = state, state = 'off', turned_off = ?"
+                " WHERE email = ? AND state != 'off' AND invited = 0",
+                (now(), email.strip()),
+            ).rowcount
+        return changed > 0
+
+    def undo_turn_off(self, email: str) -> bool:
+        """Put back an address the operator turned off, in the state it was in."""
+        with self.write() as db:
+            changed = db.execute(
+                "UPDATE waiting SET state = was, was = '', turned_off = 0"
+                " WHERE email = ? AND turned_off > 0 AND state = 'off' AND was != ''",
+                (email.strip(),),
+            ).rowcount
+        return changed > 0
 
     def waiting_state(self, email: str) -> str:
         """`pending`, `on`, `off`, or empty for an address that never asked."""
@@ -2551,7 +2598,9 @@ class Store:
             db.execute(
                 # The link goes with them: it was kept only to hand back when they
                 # were let in (targum-internal#399).
-                "UPDATE waiting SET state = 'off', ended = ?, link = '' WHERE email = ?",
+                # Leaving is theirs, and no Undo of the operator's brings them back.
+                "UPDATE waiting SET state = 'off', ended = ?, link = '', turned_off = 0,"
+                " was = '' WHERE email = ?",
                 (now(), row["email"]),
             )
             return True
