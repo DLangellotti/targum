@@ -80,7 +80,7 @@
   /* The beta's row under the weeks: the same counts added up, under a rule in ink so it
      reads as the sum of what is above it, the way a ledger's total does (#458). */
   .bo tr.beta th, .bo tr.beta td { border-block-start: 1px solid var(--ink); color: var(--ink);
-                                   font-weight: 600; }
+                                   font-size: inherit; font-weight: 600; }
   .bo details.let-in { margin-block-start: 1rem; }
   .bo details.let-in summary { cursor: pointer; color: var(--ink-soft); font-weight: 600; }
   .bo a.write { font-size: 0.8125rem; font-weight: 600; }
@@ -287,6 +287,11 @@
     </tfoot>
     {%- endif %}
   </table></div>
+  {#- What the columns mean, said once, since the go/no-go quotes them (qa on targum#964). -#}
+  <p class="note">Came back: read on two different days. A second text: opened two texts,
+    the latest on a later day than their first; only a text's latest opening is kept, so
+    opening the first text again on a later day can count. Week 1 and Week 4: read on any
+    of days 1–7 or 22–28 after being let in. Each is out of those who have had the time.</p>
   {%- endif %}
 
   {%- if survey.readers %}

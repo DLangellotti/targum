@@ -324,10 +324,11 @@ class Batch:
     old_enough: int = 0
     came_back: int = 0
     #: Of the same, how many came back to a second text: two texts opened, one of them
-    #: last on a day after the first day they read, which is not always the day they were
-    #: let in: somebody who signs in three days late and opens two texts that evening has
-    #: not come back yet. `doc.opened` keeps only the latest opening, so this is as near
-    #: to "returned to a second document" as their record goes.
+    #: last on a day after the first day they opened a text or kept a word (UTC, as the
+    #: opening is), which is not always the day they were let in: somebody who signs in
+    #: three days late and opens two texts that evening has not come back yet.
+    #: `doc.opened` keeps only the latest opening, so this is as near to "returned to a
+    #: second document" as their record goes.
     second_text: int = 0
     #: Of those let in long enough ago for the whole week to have passed, how many read
     #: on some day of it.
@@ -1226,6 +1227,12 @@ def _staff(db: sqlite3.Connection, operators: frozenset[str]) -> set[str]:
 #: them, summed in the store (targum-internal#542): their days — marked, opened a text,
 #: kept a word — counted, the last of them, and whether any fell in their first week or
 #: fourth, counted from the day they were let in or, with no guest list, joined.
+#:
+#: A `day` row is the reader's own local date and a text opened or a word kept is a UTC
+#: stamp, so the two are never compared with each other: an evening in New York that
+#: crosses Greenwich's midnight would read as two days. `back` counts days within one
+#: clock at a time, and `first`, which a second text is later than, is taken from the UTC
+#: stamps alone, the same clock as the opening it is compared with (qa on targum#964).
 READERS = """
 WITH staff(e) AS (SELECT value FROM json_each(:staff)),
 inv(e, at) AS ({invited}),
@@ -1235,13 +1242,16 @@ r AS (
   FROM person p LEFT JOIN inv ON inv.e = lower(p.email)
   WHERE bare(p.email) NOT IN (SELECT e FROM staff)
 ),
-acts(person, d) AS (
-  SELECT person, day FROM day WHERE gone = 0
-  UNION SELECT person, date(opened / 1000, 'unixepoch') FROM doc WHERE opened > 0
-  UNION SELECT person, date(at / 1000, 'unixepoch') FROM word WHERE at > 0
+acts(person, d, utc) AS (
+  SELECT person, day, 0 FROM day WHERE gone = 0
+  UNION SELECT person, date(opened / 1000, 'unixepoch'), 1 FROM doc WHERE opened > 0
+  UNION SELECT person, date(at / 1000, 'unixepoch'), 1 FROM word WHERE at > 0
 ),
 a AS (
-  SELECT r.id AS person, COUNT(*) AS n, MIN(acts.d) AS first, MAX(acts.d) AS last,
+  SELECT r.id AS person, COUNT(DISTINCT acts.d) AS n,
+    max(COUNT(DISTINCT CASE WHEN acts.utc = 0 THEN acts.d END),
+        COUNT(DISTINCT CASE WHEN acts.utc = 1 THEN acts.d END)) AS back,
+    MIN(CASE WHEN acts.utc = 1 THEN acts.d END) AS first, MAX(acts.d) AS last,
     MAX(acts.d BETWEEN date(r.start, '+{one_from} days') AND date(r.start, '+{one_to} days'))
       AS w1,
     MAX(acts.d BETWEEN date(r.start, '+{four_from} days') AND date(r.start, '+{four_to} days'))
@@ -1249,7 +1259,8 @@ a AS (
   FROM r JOIN acts ON acts.person = r.id GROUP BY r.id
 )
 SELECT r.id, r.email, r.made, r.leaving, r.let_in, r.start,
-  IFNULL(a.n, 0) AS days, IFNULL(a.first, '') AS first, IFNULL(a.last, '') AS last,
+  IFNULL(a.n, 0) AS days, IFNULL(a.back, 0) AS back,
+  IFNULL(a.first, '') AS first, IFNULL(a.last, '') AS last,
   IFNULL(a.w1, 0) AS w1, IFNULL(a.w4, 0) AS w4,
   (SELECT COUNT(*) FROM doc d WHERE d.person = r.id AND d.opened > 0) AS opened,
   (SELECT MAX(opened) FROM doc d WHERE d.person = r.id AND d.opened > 0) AS last_opened,
@@ -1377,7 +1388,7 @@ def _growth(
         # Only those let in long enough ago to have had a second day.
         if (now - when).days >= CAME_BACK_AFTER and who in signed_in:
             batch.old_enough += 1
-            batch.came_back += int(row["days"]) >= 2
+            batch.came_back += int(row["back"]) >= 2
             last_opened = _day(int(row["last_opened"])) if row["last_opened"] else ""
             batch.second_text += texts >= 2 and last_opened > str(row["first"])
         # A week counts for those who have had the whole of it.
@@ -1449,7 +1460,7 @@ def _growth(
                 " WHERE kind = 'control' AND control LIKE 'export:%' AND person {readers}"
             ),
         ),
-        ("Read on a second day", sum(1 for row in readers if int(row["days"]) >= 2)),
+        ("Read on a second day", sum(1 for row in readers if int(row["back"]) >= 2)),
     )
     found.reach = [Reach(part, people) for part, people in parts]
 

@@ -373,7 +373,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the alpha's readers before it stay out. A second text now has to come on a later day
   than the first day the reader read, not the day they were let in: somebody who signed
   in three days after the invitation and opened two texts that evening was counted as
-  having come back. Read from the rows the store already holds; nothing new is kept.
+  having come back. Its first day and Came back now keep the reader's local day and
+  UTC stamps apart, so an evening west of Greenwich is one day, and a line under the
+  table says what each column means. Read from the rows the store already holds; nothing
+  new is kept.
 - The back office flags sign-ups that might be fake (David, 2026-10-27;
   targum-internal#544). Eight flags, each a plain reason under the address, all read from
   what the store already holds: never confirmed after 2 days, confirmed within 10
