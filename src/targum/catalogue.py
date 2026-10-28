@@ -1009,9 +1009,7 @@ def _scenes_in_order(collection: Collection, shelf: list[Entry]) -> tuple[str, .
     found = [
         entry.id
         for entry in shelf
-        if scene_number(entry.id)
-        and scene_series(entry.id) == only
-        and entry.language == language
+        if scene_number(entry.id) and scene_series(entry.id) == only and entry.language == language
     ]
     return tuple(sorted(found, key=lambda each: (scene_number(each), each)))
 
