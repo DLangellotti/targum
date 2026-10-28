@@ -271,6 +271,21 @@ def tried_for(job: Any, ui: str) -> dict[str, Any]:
     }
 
 
+class Server(ThreadingHTTPServer):
+    """The HTTP server, with a listen queue long enough for one page's thumbnails.
+
+    `socketserver` listens with a backlog of five. The Library asks for a couple of
+    hundred `/thumb` pictures within a second, Caddy opens a connection to us for each,
+    and a sixth arriving before the accept loop has caught up overflowed the queue: the
+    kernel dropped its handshake, and about a second later the connection was reset
+    under whatever request rode on it. Caddy answered 502. That was `/sync` on /library
+    on 2026-10-20 and 2026-10-24 (targum-internal#495), with 169,443 overflows counted
+    on the box since its boot. The kernel still caps this at `net.core.somaxconn`.
+    """
+
+    request_queue_size = 1024
+
+
 class Refusal(str):
     """A refusal's sentence, carrying what its panel draws beside it (design.md §12, "A
     refusal is drawn on one of five surfaces", 2026-10-09): `fact`, the quiet line of what
@@ -16931,7 +16946,7 @@ def start(
     # The desk pages' own files, read and hashed once, so each is answered from memory.
     asset_files()
     try:
-        server = ThreadingHTTPServer(("127.0.0.1", port), handler)
+        server = Server(("127.0.0.1", port), handler)
     except OSError as error:
         if error.errno not in (errno.EADDRINUSE, errno.EACCES):
             raise
