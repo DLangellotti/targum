@@ -320,6 +320,19 @@ def _rclone(*args: str, timeout: float = SHIP_TIMEOUT) -> subprocess.CompletedPr
     )
 
 
+def _said(stderr: str | None, limit: int = 400) -> str:
+    """What rclone said that matters: from its first ERROR on, or all of it if none.
+
+    It opens with a NOTICE that its config file is missing (the box configures it from
+    the environment), and cutting the first 200 characters kept that notice and lost the
+    error: on 2026-10-26 to 10-28 every failed night said only "Failed to copy: failed to
+    get" (targum-internal#482)."""
+    lines = (stderr or "").strip().splitlines()
+    first = next((at for at, line in enumerate(lines) if "ERROR" in line), 0)
+    told = " ".join(line.strip() for line in lines[first:] if line.strip())
+    return told if len(told) <= limit else told[:limit] + "…"
+
+
 def ship(
     files: Sequence[Path],
     to: str,
@@ -354,11 +367,11 @@ def ship(
             "copyto", str(path), f"{to.rstrip('/')}/{path.name}", timeout=timeout
         )
         if done.returncode != 0:
-            raise NotShipped(f"{path.name} did not leave: {(done.stderr or '').strip()[:200]}")
+            raise NotShipped(f"{path.name} did not leave: {_said(done.stderr)}")
 
     listed = runner("lsjson", to, timeout=timeout)  # type: ignore[operator]
     if listed.returncode != 0:
-        raise NotShipped(f"Could not read back {to}: {(listed.stderr or '').strip()[:200]}")
+        raise NotShipped(f"Could not read back {to}: {_said(listed.stderr)}")
     try:
         there = {row["Name"]: int(row.get("Size", -1)) for row in json.loads(listed.stdout or "[]")}
     except (json.JSONDecodeError, TypeError, KeyError) as error:

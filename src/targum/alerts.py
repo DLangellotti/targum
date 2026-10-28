@@ -11,8 +11,9 @@ exits cleanly, and a failed backup is a line in the journal as it always was.
 **It watches from the box, which is its limit.** A box that is powered off, or cut off
 from the network, sends nothing, and nothing here can change that: this catches the
 service, Caddy, the certificate and the database going wrong on a machine that is still
-up. The outside half — a monitor somewhere else that notices the silence — is the
-UptimeRobot line on the same card, and it is still worth having.
+up. The outside half, a monitor somewhere else that notices the silence, was dropped
+when #20 closed (2026-10-07) and asked for again on #482. Until one exists, a box that
+is off is heard about from a reader.
 
 One mail per outage rather than one per failed check: an alert after `THRESHOLD`
 consecutive failures, a reminder every `REMIND` while it stays down, and one mail when it
@@ -332,6 +333,70 @@ def credit_ran_out(provider: str, detail: str, *, now: datetime | None = None) -
     except Exception:  # noqa: BLE001 - see above
         return False
     return True
+
+
+#: What each provider says when the account behind it has run out, for `drill_credit`.
+#: Anthropic's and OpenAI's are the box's job table word for word (2026-09-29, 10-09).
+DRILL_REFUSALS = {
+    "Anthropic": (
+        "Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', "
+        "'message': 'Your credit balance is too low to access the Anthropic API. Please go "
+        "to Plans & Billing to upgrade or purchase credits.'}}"
+    ),
+    "OpenAI": (
+        'OpenAI 429: {"error": {"message": "You have no credits remaining.", '
+        '"type": "insufficient_quota"}}'
+    ),
+    "Google": "BILLING_DISABLED generativelanguage.googleapis.com",
+    "ElevenLabs": '{"detail": {"status": "quota_exceeded"}} elevenlabs',
+}
+
+#: The live file the serving process keeps. A drill never writes it, because a drill
+#: marked there would keep a real alert about the same provider quiet for four hours.
+LIVE_CREDIT_STATE = "credit-watch.json"
+
+
+def drill_credit(
+    provider: str, state: Path, *, mailer: Mailer | None = None, now: datetime | None = None
+) -> str:
+    """Send the out-of-credit mail once, the way a build that met an empty account sends
+    it, and spend nothing (targum-internal#482).
+
+    The provider's refusal is recognised by `out_of_credit` and goes through
+    `credit_ran_out` and its four-hour limit, against `state`, which is never the live
+    file. Unlike a real alert, a mail that fails here raises, because finding that out is
+    what a drill is for. The subject says it is a drill."""
+    if state.name == LIVE_CREDIT_STATE:
+        raise ValueError(f"{state} is the live file; a drill keeps its own.")
+    detail = DRILL_REFUSALS[provider]
+    found = out_of_credit(detail)
+    if found != provider:
+        raise ValueError(f"{provider}'s refusal now reads as {found or 'nothing'}.")
+    failed: list[Exception] = []
+
+    def send(subject: str, body: str) -> None:
+        try:
+            tell(
+                f"{subject} (a drill)",
+                f"This is a drill. Nothing ran out.\n\n{body}",
+                mailer=mailer,
+            )
+        except Exception as error:
+            failed.append(error)
+            raise
+
+    before = CREDIT.state, CREDIT.send
+    CREDIT.state, CREDIT.send = state, send
+    try:
+        sent = credit_ran_out(found, detail, now=now)
+    finally:
+        CREDIT.state, CREDIT.send = before
+    if failed:
+        raise failed[0]
+    if not sent:
+        hours = int(CREDIT_REMIND.total_seconds() // 3600)
+        return f"not mailed: this drill told {found} within {hours} hours (see {state})"
+    return f"mailed: targum: {found} is out of credit (a drill)"
 
 
 # -- a page that breaks in readers' browsers -------------------------------------------

@@ -218,8 +218,17 @@ drill --url https://targum.page/no-such-page; drill --url https://targum.page/no
 drill && rm /var/lib/targum/health-drill.json
 ```
 
-It watches from the box, so a box that is off or unreachable sends nothing. An outside
-monitor (UptimeRobot, the other half of targum-internal#20) is what hears that silence.
+It watches from the box, so a box that is off or unreachable sends nothing, and nothing
+outside the box is listening for that silence: the outside monitor (UptimeRobot, the
+other half of targum-internal#20) was dropped when #20 closed on 2026-10-07, and the
+access log shows no monitor's knock since it began on 2026-08-27 (checked 2026-10-28).
+targum-internal#482 asks for one again; it waits on David.
+
+A provider out of credit mails the same address from the serving process, once per
+provider per four hours. `targum drill-credit --provider <name> --state <scratch>`
+sends that mail as a drill, through the same code and spending nothing;
+[`INCIDENT.md`](INCIDENT.md) "Drills" has the command for the box, with the other
+drills.
 
 The weekly reaches the same address two ways (targum-internal#404). A run of
 `deploy/weekly-run.sh` that stops hands what it said to `targum weekly stopped` on the
