@@ -366,6 +366,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `deploy/harden.sh` does three more things (targum-internal#9). It puts Caddy in a
+  systemd sandbox (`deploy/caddy-sandbox.conf`: the limits targum.service and the minter
+  already carry, writable only in /var/lib/caddy and /var/log/caddy; Caddy scored 8.8
+  EXPOSED in `systemd-analyze security` on 2026-10-28 against their 5.3). It is checked with
+  `systemd-analyze verify`, Caddy is restarted, and `/health` is probed through it; on any
+  failure the drop-in comes out again by itself. It turns off X11 and agent forwarding
+  in sshd and leaves how anyone logs in alone. And it reports a reboot that has been
+  waiting, with the date: the box has been running kernel 7.0.0-29 with 7.0.0-38
+  installed since 2026-10-08. It never reboots. The minter unit's comment no longer
+  claims a loopback binding: it listens on `*:4416`, behind two nft tables. Nothing runs
+  on the box until David runs the script.
 - The back office flags sign-ups that might be fake (David, 2026-10-27;
   targum-internal#544). Eight flags, each a plain reason under the address, all read from
   what the store already holds: never confirmed after 2 days, confirmed within 10

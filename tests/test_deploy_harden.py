@@ -19,6 +19,7 @@ import pytest
 DEPLOY = Path(__file__).resolve().parent.parent / "deploy"
 SCRIPT = DEPLOY / "harden.sh"
 WALL = DEPLOY / "nftables-targum-wall.conf"
+CADDY = DEPLOY / "caddy-sandbox.conf"
 
 
 def code(path: Path) -> list[str]:
@@ -89,6 +90,12 @@ def test_the_drop_in_says_keys_only() -> None:
     block = text.split("<<'SSHD'", 1)[1].split("\nSSHD\n", 1)[0]
     assert "PasswordAuthentication no" in block
     assert "PermitRootLogin prohibit-password" in block
+    # Forwarding off changes nothing about how anyone logs in, so it cannot lock a door.
+    assert "X11Forwarding no" in block
+    assert "AllowAgentForwarding no" in block
+    assert not re.search(r"^\s*(MaxAuthTries|AllowUsers|Port|ListenAddress)\b", block, re.M), (
+        "a line that decides who gets in belongs in its own reviewed change"
+    )
 
 
 def test_the_wall_lets_ssh_in_before_anything_else() -> None:
@@ -138,7 +145,7 @@ def test_ufw_is_not_used(script: list[str]) -> None:
 
 MUTATING = re.compile(
     r"^(fallocate|mkswap|swapon|chmod|apt-get|systemd-run|install |cp |mv "
-    r"|systemctl (reload|restart|enable|stop|reset-failed)|printf .*>>)"
+    r"|systemctl (reload|restart|enable|stop|reset-failed|daemon-reload)|printf .*>>)"
 )
 
 
@@ -185,3 +192,68 @@ def test_it_refuses_anywhere_but_the_box() -> None:
 def test_provision_points_at_it() -> None:
     assert "harden.sh" in (DEPLOY / "provision.sh").read_text(encoding="utf-8")
     assert "harden.sh" in (DEPLOY / "README.md").read_text(encoding="utf-8")
+
+
+def caddy_rules() -> dict[str, str]:
+    return dict(line.split("=", 1) for line in code(CADDY) if "=" in line)
+
+
+def test_caddy_s_sandbox_keeps_what_caddy_needs() -> None:
+    """Its certificates and autosave live in /var/lib/caddy and the visitor count reads its
+    logs in /var/log/caddy; it binds 80 and 443 as the caddy user. Lose any of those and
+    the site is down, so the drop-in names each."""
+    rules = caddy_rules()
+    assert code(CADDY)[0] == "[Service]"
+    assert rules["ProtectSystem"] == "strict"
+    assert set(rules["ReadWritePaths"].split()) == {"/var/lib/caddy", "/var/log/caddy"}
+    assert set(rules["CapabilityBoundingSet"].split()) == {
+        "CAP_NET_BIND_SERVICE",
+        "CAP_NET_ADMIN",
+    }
+    assert {"AF_INET", "AF_INET6", "AF_UNIX"} <= set(rules["RestrictAddressFamilies"].split())
+    # A drop-in adds; the package's own start line, user and capabilities stay its own.
+    for key in ("ExecStart", "ExecReload", "User", "AmbientCapabilities"):
+        assert key not in rules
+
+
+def test_every_log_caddy_writes_is_inside_its_sandbox() -> None:
+    caddyfile = (DEPLOY / "Caddyfile").read_text(encoding="utf-8")
+    logs = re.findall(r"output file (\S+)", caddyfile)
+    assert logs
+    for log in logs:
+        assert log.startswith("/var/log/caddy/"), log
+    assert not re.search(r"^\s*(root|file_server)\b", caddyfile, re.M), (
+        "Caddy serves files from disk now; the sandbox has to be able to read them"
+    )
+
+
+def test_caddy_is_checked_then_restarted_then_probed_and_undone_on_failure(
+    script: list[str],
+) -> None:
+    written = first(script, r"put_file 0644 \"\$CADDY_DROPIN\"")
+    checked = first(script, r"^if ! systemd-analyze verify caddy\.service; then")
+    restarted = first(script, r"^systemctl restart caddy$")
+    probed = first(script, r"https://targum\.page/health; then$")
+    assert written < checked < restarted < probed
+    assert script[checked + 1] == 'rm -f "$CADDY_DROPIN"'
+    assert script[checked + 2].startswith("die ")
+    after = script[probed + 1 : probed + 5]
+    assert after[0] == 'rm -f "$CADDY_DROPIN"'
+    assert "systemctl restart caddy" in after
+    assert after[-1].startswith("die ")
+
+
+def test_it_says_a_reboot_is_waiting_and_never_reboots(script: list[str]) -> None:
+    assert any("/var/run/reboot-required" in line for line in script)
+    assert not any(
+        re.search(r"(^|[;&|]\s*)(reboot|shutdown|systemctl (reboot|kexec|poweroff))\b", line)
+        for line in script
+    )
+
+
+def test_the_minter_unit_does_not_claim_a_loopback_binding() -> None:
+    """It binds every interface; a comment saying otherwise is how a wall gets taken down
+    as unnecessary."""
+    unit = (DEPLOY / "bgutil-pot.service").read_text(encoding="utf-8")
+    assert "which is the loopback" not in unit
+    assert "*:4416" in unit
