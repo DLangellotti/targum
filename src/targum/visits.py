@@ -63,6 +63,8 @@ BOTS = re.compile(
     r"bot|crawl|spider|slurp|preview|scan|monitor|fetch|http|curl|wget|python|go-http|"
     r"java/|okhttp|headless|lighthouse|facebookexternalhit|whatsapp|telegram|"
     r"embedly|quora link|pinterest|bitly|vkshare|feedly|uptime|"
+    # Our own read-only speed pass, `scripts/speed_pass.py` (targum-internal#551).
+    r"targum-speed-pass|"
     # No current browser says "compatible;" — the crawlers that borrow a browser's
     # string keep it (2026-09-28).
     r"compatible;",

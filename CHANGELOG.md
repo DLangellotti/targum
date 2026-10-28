@@ -407,6 +407,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `scripts/speed_pass.py`, a read-only speed pass on the live public pages for design.md
+  §14 line 5 (targum-internal#551, from builder-3's pass of 2026-10-28). It loads the
+  landing, the Library, three text and scene pages, /about, /privacy and /terms cold on a
+  throttled phone and an unthrottled desk, prints the largest contentful paint and holds
+  the phone's to 1.5 s, with a 450 ms margin printed beside it as a warning; it exits 1
+  when a page is over or records no LCP. Only GETs leave, nothing signs in, and its
+  user agent ends in `targum-speed-pass`, which the visitor count now drops.
+  deploy/README.md says when to run it: after a deploy that touches the public pages.
 - Your Progress has every §14 state pinned in a browser (targum-internal#471):
   `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
   (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at
