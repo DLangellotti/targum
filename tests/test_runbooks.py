@@ -98,14 +98,14 @@ def test_the_incident_page_carries_a_drill_for_each_kind_of_trouble() -> None:
 
 
 def test_no_runbook_says_an_outside_monitor_is_watching() -> None:
-    """None was ever set up: #20 closed without it on 2026-10-07, and the access log
-    shows no monitor's knock since it began (2026-08-27). A page that says one hears a
-    box that is off is what lets nobody notice that nothing does. When one is set up,
-    this test changes with the pages that say so."""
+    """None was ever set up, and David's word on 2026-10-28 is "Not before Launch". A
+    page that says one hears a box that is off is what lets nobody notice that nothing
+    does. When one is set up, this test changes with the pages that say so."""
     for name in RUNBOOKS:
-        for paragraph in re.split(r"\n\s*\n", _text(name)):
+        for raw in re.split(r"\n\s*\n", _text(name)):
+            paragraph = " ".join(raw.split())
             if "UptimeRobot" in paragraph or "outside monitor" in paragraph.lower():
-                assert re.search(r"\bdropped\b", paragraph), (
+                assert re.search(r"no outside monitor yet|Not before Launch", paragraph), (
                     f"{name} speaks of an outside monitor as if it ran: {paragraph}"
                 )
 

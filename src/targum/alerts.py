@@ -11,9 +11,9 @@ exits cleanly, and a failed backup is a line in the journal as it always was.
 **It watches from the box, which is its limit.** A box that is powered off, or cut off
 from the network, sends nothing, and nothing here can change that: this catches the
 service, Caddy, the certificate and the database going wrong on a machine that is still
-up. The outside half, a monitor somewhere else that notices the silence, was dropped
-when #20 closed (2026-10-07) and asked for again on #482. Until one exists, a box that
-is off is heard about from a reader.
+up. There is no outside half yet, a monitor somewhere else that notices the silence:
+David, 2026-10-28, "Not before Launch". Until then a box that is off is heard about from
+a reader.
 
 One mail per outage rather than one per failed check: an alert after `THRESHOLD`
 consecutive failures, a reminder every `REMIND` while it stays down, and one mail when it

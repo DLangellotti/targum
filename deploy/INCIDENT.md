@@ -26,12 +26,11 @@ moment, unless he is the one doing it.
   the box included; the nightly yt-dlp upgrade failing; and the weekly stopped, or not
   out by Monday noon UTC. If one of those started this, David has it already; say what
   you are looking at so two people do not look at the same thing.
-- **Nothing outside the box is watching.** The health watch runs on the box and goes
-  quiet with it, so a box that is off, or cut off from the network, is heard about from a
-  reader. An outside monitor (UptimeRobot was the plan) was dropped when
-  targum-internal#20 closed on 2026-10-07, and the access log shows no monitor's knock
-  since the log began on 2026-08-27 (checked 2026-10-28). #482 asks for one again; until
-  David decides, assume nobody hears a dead box.
+- **There is no outside monitor yet.** The health watch runs on the box and goes quiet
+  with it, so a box that is off, or cut off from the network, is heard about from a
+  reader. None has ever been set up (the access log shows no monitor's knock since it
+  began on 2026-08-27, checked 2026-10-28), and David's word on 2026-10-28 is "Not before
+  Launch".
 
 Write down the time (UTC) you started. Everything after is measured from it.
 
@@ -108,6 +107,15 @@ the laptop's pull (`page.targum.backup-pull`, 08:00 local) ending `done` this mo
 copy on the box was still taken. On 2026-10-28 both were broken at once: the bucket had
 refused every night since 2026-10-26, and the laptop's pull had not run since 2026-10-20,
 because its launchd job was not loaded after the laptop restarted.
+
+**If the line says `storage_cap_exceeded` (a 403)**, the bucket has reached its account's
+storage cap: Backblaze refuses every upload, and nothing on the box is wrong. That was
+the 2026-10-26 failure: about 9.4 GB against the free 10 GB, and the `videos` copy is
+most of it (8.3 GB, against 0.9 GB for `daily` and 0.1 GB for `weekly`). The fix is
+David's, in the Backblaze console under **Caps & Alerts**: raise the storage cap (or set
+one with an alert before it is reached). The next 04:00 run sends again by itself; to see
+it sooner, on his word, `systemctl start targum-backup`. Do not delete copies in the
+bucket to make room.
 
 **6. What readers are getting, from Caddy.**
 

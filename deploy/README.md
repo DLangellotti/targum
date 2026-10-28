@@ -218,11 +218,11 @@ drill --url https://targum.page/no-such-page; drill --url https://targum.page/no
 drill && rm /var/lib/targum/health-drill.json
 ```
 
-It watches from the box, so a box that is off or unreachable sends nothing, and nothing
-outside the box is listening for that silence: the outside monitor (UptimeRobot, the
-other half of targum-internal#20) was dropped when #20 closed on 2026-10-07, and the
-access log shows no monitor's knock since it began on 2026-08-27 (checked 2026-10-28).
-targum-internal#482 asks for one again; it waits on David.
+It watches from the box, so a box that is off or unreachable sends nothing. There is no
+outside monitor yet to hear that silence: the one planned on targum-internal#20
+(UptimeRobot) was never set up, the access log shows no monitor's knock since it began
+on 2026-08-27 (checked 2026-10-28), and David's word on 2026-10-28 is "Not before
+Launch".
 
 A provider out of credit mails the same address from the serving process, once per
 provider per four hours. `targum drill-credit --provider <name> --state <scratch>`
