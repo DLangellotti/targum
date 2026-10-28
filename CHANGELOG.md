@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Subscriptions answer a thumb (targum-internal#475 re-audit). Measured on a phone, the
+  Subscriptions tab's Pause and the way into a subscription were 32px wide side by side,
+  "‹ Subscriptions" was 21px tall and the only way back from one, and the names and
+  titles that open a subscription or a text were their line's height. The two presses
+  take 44px, and the links a centred 44px reach that crosses no other press. All six are
+  in `test_brand`'s thumb registry, and a browser test taps around each one.
 - deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
   targum-internal#482 (a rollback, last night's database, a provider down, out of
   credit, the box unreachable), with the date each last ran. `targum drill-credit` sends

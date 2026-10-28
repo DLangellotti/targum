@@ -559,6 +559,14 @@ THUMBED = (
     ".correct-cut",
     ".correct-done",
     ".correct-again",
+    # Subscriptions under a thumb (#475 re-audit, 2026-10-28): the tab row's two presses,
+    # the way back from one subscription, and the names and titles that open something.
+    ".sub-row-acts .btn",
+    ".sub-back",
+    ".sub-name",
+    ".sub-latest-title",
+    ".sub-item-title",
+    ".sub-foot a",
 )
 
 

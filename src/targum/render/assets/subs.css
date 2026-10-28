@@ -608,4 +608,29 @@ body.press main.sub-gate { padding: 1.25rem 1rem 3rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .sub-follow-topic, .sub-again { min-block-size: 44px; }
+  /* Measured under a thumb at 390 (#475 re-audit, 2026-10-28): the tab row's Pause and
+     its way in were 32px wide side by side, "‹ Subscriptions" was 21px tall and the only
+     way back, and the names and titles that open a page or a text were their line's
+     height. The two presses take their width; the links take a centred reach that
+     crosses no other press, as Tell us does (#471 B4). */
+  .sub-row-acts .btn { min-inline-size: 44px; }
+  .sub-back { display: inline-flex; align-items: center; min-block-size: 44px; }
+  .sub-name,
+  .sub-latest-title,
+  .sub-item-title,
+  .sub-foot a { position: relative; }
+  .sub-name::after,
+  .sub-latest-title::after,
+  .sub-item-title::after,
+  .sub-foot a::after {
+    content: "";
+    position: absolute;
+    /* Centred both ways, physically, so a two-letter Hebrew title reaches as far on
+       either side as an English one does. */
+    left: 50%;
+    top: 50%;
+    inline-size: max(100%, 44px);
+    block-size: 44px;
+    transform: translate(-50%, -50%);
+  }
 }
