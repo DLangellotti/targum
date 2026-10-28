@@ -12,6 +12,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Home's one card stays for a reader with a long record (qa on targum#958). Home sent
+  every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
+  server's 64 KB request line, so the card was never drawn. They go in a POST body now;
+  a GET with `?skip=` still answers.
 - A new Hebrew reader starts on scene 1 of the A1 path again (2026-10-27, a regression
   since aec01564). The 27 B1 conversations are `scene-he-01…` and number from 1 too, and
   every page read the number alone: since `/readers` lists shared texts newest-built

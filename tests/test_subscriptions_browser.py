@@ -139,6 +139,10 @@ def serve(page, routes: dict[str, Any], posted: list[tuple[str, Any]]) -> None:
 
     def answer(route, request) -> None:
         path = request.url[len(SITE) :].split("?")[0]
+        # Home's own read is a POST since its body carries what is finished (targum#959):
+        # answered as a read, and never kept with what the page posts.
+        if path == "/suggest":
+            return route.fulfill(status=200, content_type="application/json", body="{}")
         if request.method == "POST":
             body = json.loads(request.post_data or "{}")
             posted.append((path, body))

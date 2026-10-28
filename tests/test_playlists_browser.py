@@ -78,6 +78,9 @@ FAKE = """
 const said = (x) => Promise.resolve(new Response(JSON.stringify(x)));
 window.fetch = (url, opts) => {
   const path = String(url).split('?')[0].replace(/^.*?(\\/playlists)/, '$1');
+  // Home's own read, a POST since its body carries what is finished (targum#959): not a
+  // playlist press, so it is answered as the reads below are and never recorded.
+  if (path.endsWith('/suggest')) return said({});
   if (opts && opts.method === 'POST') {
     const posted = JSON.parse(sessionStorage.getItem('posted') || '[]');
     posted.push([path, JSON.parse(opts.body)]);
@@ -666,7 +669,8 @@ def test_the_protocols_words_never_reach_the_reader(browser, tmp_path: Path) -> 
         """
         const before = window.fetch;
         window.fetch = (url, opts) => {
-          if (opts && opts.method === 'POST' && !sessionStorage.getItem('refused')) {
+          const read = String(url).split('?')[0].endsWith('/suggest');
+          if (opts && opts.method === 'POST' && !read && !sessionStorage.getItem('refused')) {
             sessionStorage.setItem('refused', '1');
             const refused = JSON.stringify({error: 'bad request'});
             return Promise.resolve(new Response(refused, {status: 400}));
