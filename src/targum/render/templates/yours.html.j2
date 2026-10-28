@@ -171,7 +171,13 @@
       language the menu is on. Hidden until sync says there is an account to export from;
       named by what comes out, so two presses never both say Export. -#}
   <div class="words-head">
-    <a class="words-back" href="/progress" data-back>← {{ t("you.page.your-progress", "Your Progress") }}</a>
+    {%- if which == 'words' %}
+    {#- The way back to the text this page was opened from, at the place the reader
+        stopped (targum-internal#547): drawn by `came.js` only when the page before was a
+        reader, and then the one way back at the head, in Your Progress's place. -#}
+    <a class="came-back" id="came-back" href="/" data-wording="{{ t("lists.back-to-text", "Back to {text}, where you stopped") }}" hidden><span aria-hidden="true">←</span> <span class="came-back-said"></span></a>
+    {%- endif %}
+    <a class="words-back" href="/progress" data-back data-came-instead>← {{ t("you.page.your-progress", "Your Progress") }}</a>
     <div class="words-sum">
       <p class="words-summary" id="words-summary"></p>
       <p class="words-exports">

@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Subscriptions answer a thumb (targum-internal#475 re-audit). Measured on a phone, the
+  Subscriptions tab's Pause and the way into a subscription were 32px wide side by side,
+  "‹ Subscriptions" was 21px tall and the only way back from one, and the names and
+  titles that open a subscription or a text were their line's height. The two presses
+  take 44px, and the links a centred 44px reach that crosses no other press. All six are
+  in `test_brand`'s thumb registry, and a browser test taps around each one.
 - The front door's last polish from design's §14 pass (targum-internal#477). The word
   card's Here row puts its meaning on a line of its own under the form, so "crack" /
   «разбивают» no longer wraps alone at 1440 (polish 4). Under a coarse pointer the bar's
@@ -401,6 +407,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Your Progress has every §14 state pinned in a browser (targum-internal#471):
+  `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
+  (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at
+  390 as a touch phone. Each must say what to do next, with its press where it has one,
+  never scroll sideways, and throw nothing. The page itself is unchanged.
 - The back office counts the beta's gate in one row (targum-internal#458). Under Each
   week's readers, **Since the beta, 2026-10-19** adds up every week from batch one's
   (invitations confirmed 2026-10-21, #460) with the same columns, so the go/no-go (#486)
@@ -469,6 +480,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the conversation takes its place. A conversation opened from the search palette no
   longer adds a step of its own (the frame's address is replaced, not set). The desk is
   unchanged.
+- Your words are one step from a text's word list, with the way back to the same place
+  (David, 2026-10-28; targum-internal#547). The "Words from this text" panel ends in "All
+  your words →", on a phone's sheet and at a desk. Your Words opened that way leads with "←
+  Back to <text>, where you stopped", in Your Progress's place, and it opens the text at
+  the sentence the reader was on, with the text's own back still naming where it was
+  opened from. Opened any other way, Your Words is as it was. An address typed or pasted
+  after a visit to the Library now opens a text with "← Your targums" rather than "←
+  Library": a desk page counts as where a text came from only when it was left by a press
+  (qa on targum#963).
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars
