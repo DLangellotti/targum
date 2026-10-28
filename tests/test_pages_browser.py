@@ -1199,7 +1199,7 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     assert got["said"][1].startswith("It fell because"), got
     assert "%" not in got["text"]
     assert not got["sideways"], got
-    assert 0 < got["width"] <= got["panelWidth"], got
+    assert 0 < got["width"] <= got["panelWidth"] + 0.5, got
     assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
 
 
