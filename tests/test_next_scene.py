@@ -157,6 +157,30 @@ def test_a_finished_scene_is_never_offered_however_much_is_finished(chatting: An
     assert got["suggestion"]["id"] == "scene-02-in-a-cafe"
 
 
+def test_five_thousand_finished_ids_ride_in_the_body(chatting: Any) -> None:
+    """qa on targum#958: in the address, about 2,000 finished ids passed the server's
+    64 KB request line and home drew no card. Home posts them in the body now, and 5,000
+    still find the next scene."""
+    port, key, _store, _chats = chatting
+    finished = [f"article-{n:05d}-a-long-catalogue-slug" for n in range(5000)]
+    finished.append("scene-01-nice-to-meet-you")
+    assert len(",".join(finished)) > 64 * 1024, "past what the address could carry"
+    status, got, _ = call(port, "POST", f"/suggest?k={key}", {"language": "he", "skip": finished})
+    assert status == 200
+    assert got["suggestion"]["id"] == "scene-02-in-a-cafe"
+    assert got["suggestion"]["scene"] == {"first": False}
+    # Anything not a list of ids is no ids, not an error.
+    status, got, _ = call(port, "POST", f"/suggest?k={key}", {"language": "he", "skip": "x"})
+    assert status == 200 and got["suggestion"]["id"] == "scene-01-nice-to-meet-you"
+
+
+def test_home_asks_with_a_body() -> None:
+    """The page's own ask: a POST whose body carries the ids, never the address."""
+    text = (ASSETS / "home.js").read_text(encoding="utf-8")
+    assert 'askWith("/suggest", { language: code, skip: skip })' in text
+    assert "/suggest?" not in text
+
+
 def test_a_scene_collection_runs_by_number_and_takes_new_scenes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

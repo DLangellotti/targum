@@ -9356,6 +9356,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._chat_say(payload)
         if route == "/chat/suggest":
             return self._chat_suggest(payload)
+        if route == "/suggest":
+            return self._suggest(payload if isinstance(payload, dict) else {})
         if route == "/voice":
             return self._voice(payload)
         if route == "/say-word":
@@ -10696,11 +10698,20 @@ class Handler(BaseHTTPRequestHandler):
         underway = self._voice_underway(home, folder.name, number) if folder else None
         return self._json({"job": underway.state() if underway else None})
 
-    def _suggest(self) -> None:
+    #: The most finished ids one ask may carry. Far past any reader's record, and a bound
+    #: on the work a body can ask of the pick.
+    SUGGEST_SKIP_MOST = 20000
+
+    def _suggest(self, payload: dict[str, Any] | None = None) -> None:
         """One text that fits this reader's level and interests, for the Suggested door
         on Learn (2026-09-11): the same pick the conversation's "Something to read"
         makes, with no conversation, no turn and no card — the sheet draws it and Open
-        goes to its library row, or to the text where it is built already."""
+        goes to its library row, or to the text where it is built already.
+
+        Asked as a POST with `{"language", "skip"}` in the body since home's every
+        finished id rides along (qa on targum#958): in the address, about 2,000 of them
+        passed the server's 64 KB request line, and home showed no card at all. A GET
+        with `?language=&skip=` still answers, for anything that asks the old way."""
         if self.chats is None or self.chats.store is None:
             return self._json({"suggestion": None})
         from .chat import tools as chat_tools
@@ -10708,16 +10719,26 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         admin = bool(person and self.store.is_admin(person.email))
         query = parse_qs(urlparse(self.path).query)
+        if payload is not None:
+            asked = str(payload.get("language") or "")
+            given = payload.get("skip")
+            said = (
+                [str(one) for one in given if isinstance(one, str)]
+                if isinstance(given, list)
+                else []
+            )
+        else:
+            asked = query.get("language", [""])[0]
+            said = query.get("skip", [""])[0].split(",")
         # In the language Learn is showing, which is the switcher's (2026-09-13).
-        spoken = self._asked_language(query.get("language", [""])[0])
+        spoken = self._asked_language(asked)
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
         # What the page says the reader has finished, by catalogue id: that is kept in
         # the browser, and a finished suggestion makes way for the next (2026-09-11).
-        skip = query.get("skip", [""])[0]
-        # Every id the page sends, however many: a cap of 200 cut the alphabet short at
-        # the scenes, and a reader who had finished more than that was offered a scene
-        # they had finished (qa on targum#958). The request line bounds it already.
-        done = sorted({one.strip() for one in skip.split(",") if one.strip()})
+        # Every id the page sends: a cap of 200 cut the alphabet short at the scenes, and
+        # a reader who had finished more than that was offered a scene they had finished
+        # (qa on targum#958).
+        done = sorted({one.strip() for one in said[: self.SUGGEST_SKIP_MOST] if one.strip()})
         # A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27):
         # the order is the scenes', not the ranking's, until their level is past them.
         scene = None
