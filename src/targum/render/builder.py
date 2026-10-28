@@ -519,7 +519,14 @@ class _Page(Template):
     def render(self, *args: Any, **kwargs: Any) -> str:
         if self.name in DESK_PAGES:
             kwargs.setdefault("linked_assets", True)
-        return _with_called_strings(super().render(*args, **kwargs))
+        html = _with_called_strings(super().render(*args, **kwargs))
+        if self.name in PUBLIC_PAGES and kwargs.get("linked_assets", True):
+            # Said on the page, so `first_visit` warms the public set and not the desk's.
+            at = html.find("<html")
+            end = html.find(">", at)
+            if at >= 0 and end > at:
+                html = f"{html[:end]} {PUBLIC_MARK}{html[end:]}"
+        return html
 
 
 def _environment() -> Environment:
@@ -877,15 +884,28 @@ def worker_script() -> str:
 # `/assets/<name>.<hash>.<ext>` and the browser keeps them for a year. The hash is of the
 # file as served, so a changed file is a new address and nothing stale is ever kept.
 #
-# Everything else still carries its files inline: readers, contents pages, the shelf and
-# the public pages, a card in a host's frame, a printed page, and the one desk page a
-# worker keeps for offline (Saved on this device), whose saved copy must open with nothing
-# else in the cache. A page is linked only when it is named here; one left out is inline.
+# Everything else still carries its files inline: readers, contents pages, the shelf, the
+# series pages, a card in a host's frame, a printed page, and the one desk page a worker
+# keeps for offline (Saved on this device), whose saved copy must open with nothing else
+# in the cache. The public pages in front of the account joined the desk on 2026-10-28
+# (`PUBLIC_PAGES`). A page is linked only when it is named here; one left out is inline.
 ASSET_ROUTE = "/assets/"
+
+#: The public pages in front of the account that load their files by address too:
+#: the front door, a text's public page, About and the legal pages (targum-internal#549,
+#: 2026-10-28; design.md §12, proposed). Each is only ever served, never opened off a disk
+#: or kept by the worker, and a stranger who opens a second one paid for the faces and the
+#: stylesheets again on every page: 65 to 122 kB of faces and up to 290 kB of CSS under
+#: `no-store`. A first visit still gets each of them whole (`first_visit`).
+PUBLIC_PAGES = frozenset({"about.html.j2", "landing.html.j2", "legal.html.j2", "text.html.j2"})
+
+#: What a public page says on its `<html>`, so a first visit to it warms only the files
+#: the public pages use (`public_files`), never the desk's whole set.
+PUBLIC_MARK = 'data-files="public"'
 
 #: The desk pages that load their files by address. Template names, so a page that is
 #: not named keeps inlining.
-DESK_PAGES = frozenset(
+DESK_PAGES = PUBLIC_PAGES | frozenset(
     {
         "add.html.j2",
         "chat.html.j2",
@@ -1135,6 +1155,64 @@ def carried(html: str) -> str:
 #: kept-files cookie (design.md §12, 2026-10-19). Its query names the set it fetched.
 KEPT_ROUTE = f"{ASSET_ROUTE}kept"
 
+#: The languages a public page is drawn in, each with the faces of its own.
+PUBLIC_LANGUAGES = ("en", "ru")
+
+
+@cache
+def public_files(language: str) -> tuple[str, ...]:
+    """Every file the public pages name in `language`: their stylesheets, their scripts
+    and the faces they wear, and nothing else (David, 2026-10-28, targum-internal#549).
+    What a stranger's first public page warms, so nobody who has not signed in fetches
+    the desk's scripts, the Library's catalogues or another language's faces. Read off
+    the pages as drawn, so a page that starts naming another file adds it here."""
+    from ..catalogue import Entry
+
+    entry = Entry(
+        id="public-files",
+        title="רות",
+        author="",
+        language="he",
+        source="",
+        blurb="",
+        words=1,
+    )
+    pages = [
+        front_page(language),
+        about_page(language),
+        text_page(entry, language=language),
+        *(legal_page(which) for which in LEGAL),
+    ]
+    named = (address for html in pages for address in named_files(html))
+    return tuple(sorted(dict.fromkeys(named)))
+
+
+def _set_name(files: Any) -> str:
+    import hashlib
+
+    return hashlib.sha256("\n".join(sorted(files)).encode("utf-8")).hexdigest()[:16]
+
+
+def public_set(language: str) -> str:
+    """The name of one language's public set: what the public kept-files cookie holds."""
+    return _set_name(("public", *public_files(language)))
+
+
+def public_kept(value: str) -> frozenset[str] | None:
+    """The files a public kept-files cookie vouches for, or None if it names no set this
+    build has (an old build's, or nothing)."""
+    for language in PUBLIC_LANGUAGES:
+        if value and value == public_set(language):
+            return frozenset(public_files(language))
+    return None
+
+
+def named_files(html: str | bytes) -> list[str]:
+    """The files a page names under `/assets/`, in order."""
+    text = html.decode("utf-8") if isinstance(html, bytes) else html
+    return [match.group(2) or match.group(3) for match in _FILE_TAG.finditer(text)]
+
+
 #: How long after `load` a page sent whole waits before it fetches the files, and how
 #: many it asks for at once: late and few enough that what the page itself fetches once
 #: it is up (the reader's words, the covers) is never queued behind them.
@@ -1167,9 +1245,19 @@ def first_visit(html: str) -> str:
     which gives the browser the kept-files cookie, so the next desk page names its files
     by address and finds them kept. A page left before then has no cookie, and the next
     one is sent whole too (design.md §12, "A first visit gets the page whole")."""
-    named = (match.group(2) or match.group(3) for match in _FILE_TAG.finditer(html))
-    own = list(dict.fromkeys(named))
-    files = [*own, *(address for address in _DESK_NAMED if address not in own)]
+    own = list(dict.fromkeys(named_files(html)))
+    # A public page warms the public set in its own language and nothing more (David,
+    # 2026-10-28, targum-internal#549): a stranger reading the privacy notice is not sent
+    # the desk's scripts, the catalogues or the other language's faces. A desk page warms
+    # the desk's whole set, as before.
+    public = PUBLIC_MARK in html[: html.find(">", html.find("<html")) + 1]
+    if public:
+        language = "ru" if re.search(r'<html[^>]*\blang="ru', html) else "en"
+        pool: Any = public_files(language)
+        kept = public_set(language)
+    else:
+        pool, kept = _DESK_NAMED, asset_set()
+    files = [*own, *(address for address in pool if address not in own)]
     # The faces are not carried in place: about 67 kB gzipped that stood in front of the
     # page's own script and, on the Library, of its shelf (#484). They wait at the foot in
     # an inert `<template>`, which nothing fetches, and `warm.js` puts them on once the
@@ -1180,7 +1268,7 @@ def first_visit(html: str) -> str:
     said = _attributes(
         {
             "data_files": json.dumps(files),
-            "data_kept": f"{KEPT_ROUTE}?set={asset_set()}",
+            "data_kept": f"{KEPT_ROUTE}?set={kept}",
             "data_after": WARM_AFTER_MS,
             "data_lanes": WARM_LANES,
         }
@@ -2575,7 +2663,7 @@ CARD_KINDS = (
     ("video", "Video"),
     ("article", "Article"),
     ("talk", "Video"),
-    ("dialogue", "Dialogue"),
+    ("dialogue", "Conversation"),
     ("story", "Story"),
     ("novel", "Book"),
     ("essay", "Essay"),
@@ -3750,7 +3838,7 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
 #: Library's chips stand them (`KINDS` in `library.js`), and the words each is called by
 #: there. One list for every language: a kind with nothing in a language is not drawn.
 _SHELF_KINDS: tuple[tuple[str, str], ...] = (
-    ("dialogue", "Dialogues"),
+    ("dialogue", "Conversations"),
     ("story", "Stories"),
     ("article", "News"),
     ("novel", "Novels"),
@@ -5386,6 +5474,7 @@ def library_page(token: str, language: str = "en") -> str:
     """
     from ..catalogue import collections, everything, swipe_sets
     from ..chat.sources import TOPICS as news_topics
+    from ..levelmap import text_level
     from ..strings import text as said_text
 
     return (
@@ -5399,7 +5488,13 @@ def library_page(token: str, language: str = "en") -> str:
             # say, so each is fetched again only when the catalogue changes (design.md
             # §12, 2026-10-19 and 2026-10-22). The same in every page language.
             shelf=shelf_files(
-                [entry.state() for entry in everything() if not read_as_portions(entry)],
+                # Each with its own level, which Your Progress's Level rows open the
+                # shelf at (`#see/level/<level>`, design.md §12, 2026-10-28).
+                [
+                    {**entry.state(), "cefr": text_level(entry)}
+                    for entry in everything()
+                    if not read_as_portions(entry)
+                ],
                 # Which texts the page meets as one thing, and only the members actually
                 # on the shelf, so a collection can never open onto a row that is not there.
                 [group.state() for group in collections()],

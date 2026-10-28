@@ -12,12 +12,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The pages in front of the account load their files once (targum-internal#549; design.md
+  §12, approved by David 2026-10-28). The front door, a text's public page, About and the
+  legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under
+  `no-store`. They now work like desk pages: whole on a first visit, and named by
+  address once kept. A stranger's first page warms only what the public pages use, in
+  its language: 188 kB in English and 272 kB in Russian, never the desk's ~0.9 MB of
+  scripts, catalogues and other faces. The kept-files cookie keeps its name and holds
+  that smaller set's hash. Measured locally on the phone profile, a first visit's LCP
+  went from 1.13–1.28 s to 0.78–0.91 s, and a second page from 95–112 kB to 6–10 kB.
+  Screenshots match pixel for pixel at 390 and 1440 once the faces are on.
 - Subscriptions answer a thumb (targum-internal#475 re-audit). Measured on a phone, the
   Subscriptions tab's Pause and the way into a subscription were 32px wide side by side,
   "‹ Subscriptions" was 21px tall and the only way back from one, and the names and
   titles that open a subscription or a text were their line's height. The two presses
   take 44px, and the links a centred 44px reach that crosses no other press. All six are
   in `test_brand`'s thumb registry, and a browser test taps around each one.
+- The front door's last polish from design's §14 pass (targum-internal#477). The word
+  card's Here row puts its meaning on a line of its own under the form, so "crack" /
+  «разбивают» no longer wraps alone at 1440 (polish 4). Under a coarse pointer the bar's
+  mark and the why-fold reach 44px, and the chat demo's "Save as a text" and a text
+  page's way back to the Library answer a tap through a centred 44px reach while the
+  words keep their size (polish 8). No copy changed.
 - deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
   targum-internal#482 (a rollback, last night's database, a provider down, out of
   credit, the box unreachable), with the date each last ran. `targum drill-credit` sends
@@ -401,6 +417,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `scripts/speed_pass.py`, a read-only speed pass on the live public pages for design.md
+  §14 line 5 (targum-internal#551, from builder-3's pass of 2026-10-28). It loads the
+  landing, the Library, three text and scene pages, /about, /privacy and /terms cold on a
+  throttled phone and an unthrottled desk, prints the largest contentful paint and holds
+  the phone's to 1.5 s, with a 450 ms margin printed beside it as a warning; it exits 1
+  when a page is over or records no LCP. Only GETs leave, nothing signs in, and its
+  user agent ends in `targum-speed-pass`, which the visitor count now drops.
+  deploy/README.md says when to run it: after a deploy that touches the public pages.
 - Your Progress has every §14 state pinned in a browser (targum-internal#471):
   `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
   (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at
@@ -761,6 +785,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a credit is about a minute of audio or video; Your account by its name; subscribe, not
   follow, and news as links; we get a text ready, not "nothing is made". Russian twins
   drafted for ling-ru.
+- Your Progress's first part is Level (targum-internal#553; design.md §12, "Your level
+  leads with what you can read", 2026-10-28). Its rows are the texts' own levels,
+  Beginner · A1, A2, B1 and B2 and up (`levelmap.text_level`), each "Easy for you", "Your
+  next step" or "Not yet" with "N you can read" counted by the Library's Read it now rule.
+  The card leads with the hardest level you can read on your own, the next step and "Show
+  texts at your level"; week one says where to start and names no level. No percentage is
+  drawn in the section. One foot line gives the measured ulpan or European level, with a
+  thin bar toward the next rung and no numbers. The Library filters by a text's level:
+  `#see/level/<level>` and `#see/now/level/<level>`, a chip that clears it, and its
+  shelf rows carry each text's `cefr`, so a row opens exactly the texts it counted.
+  "Conversations" replaces "Dialogue" on the Library's door and Kind filter, rows, home's
+  cards and the reader's list; ids and addresses are unchanged. The step labels lose
+  their numbers. English and Russian as ling-en and ling-ru read them, approved by David.
 - A public text page, the four legal pages and /about ship only the CSS they use
   (targum-internal#550). They carried all of shared.css and reader.css, about 315 kB inline,
   for a few dozen rules; they now load `public-page.css`, 2.8 kB, which

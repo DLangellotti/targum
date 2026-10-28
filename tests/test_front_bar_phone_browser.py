@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 from targum.catalogue import Entry, Kind
-from targum.render.builder import aliyah_page, front_page, kind_page, shelf_page
+from targum.render.builder import aliyah_page, carried, front_page, kind_page, shelf_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -109,9 +109,11 @@ def _open(browser: Any, html: str, width: int) -> dict[str, Any]:
         viewport={"width": width, "height": 800}, has_touch=True, is_mobile=True
     )
     page = context.new_page()
-    # Nothing is fetched: the page is whole, and anything it asks for is refused.
+    # Nothing is fetched: the page is whole, and anything it asks for is refused. The
+    # front door names its files by address since targum-internal#549, so it is read
+    # with them put back in place, as a browser that kept them draws it.
     page.route("**/*", lambda route: route.abort())
-    page.set_content(html)
+    page.set_content(carried(html))
     read: dict[str, Any] = page.evaluate(READ)
     context.close()
     return read

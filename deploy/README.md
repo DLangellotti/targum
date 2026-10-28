@@ -142,6 +142,30 @@ The link opens the ordinary sign-in page; press its button. `targum test-account
 no address lists them. What a test account builds is spent like anybody's, under the same
 rails, and it shows in the usage figures.
 
+## Speed
+
+After a deploy that touches the public pages (the landing, the signed-out Library and its
+text pages, `/about`, the legal pages), run the read-only speed pass from the laptop and
+put its numbers on the surface's §14 card (design.md §14 line 5: useful in under 1.5 s on
+a phone):
+
+```
+.venv/bin/python scripts/speed_pass.py --json speed.json
+.venv/bin/python scripts/speed_pass.py --page /library/ruth     # one page instead of eight
+```
+
+It loads each page cold on a throttled phone (three loads) and an unthrottled desk (two),
+prints the largest contentful paint and holds the phone's to 1.5 s. Beside it each phone
+line prints the LCP with a 450 ms margin and says "near" when that one crosses the line: a
+warning that a real first visit might, never the verdict. It exits 1 when a phone page is
+over, or when a page records no LCP at all. Only GETs leave (it aborts anything else and says how many it stopped), nothing
+signs in, and its user agent ends in `targum-speed-pass`, which the visitor count drops.
+It takes about five minutes for the eight pages, and it is a heavy browser run, so it
+takes the shared lock like any other.
+
+The signed-in surfaces are not in it: measuring them needs a test account and David's
+word to sign in from a script.
+
 ## Backups off the box
 
 `targum-backup.timer` runs `targum backup` at 04:00 UTC (it replaced the cron line in

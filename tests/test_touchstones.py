@@ -1,6 +1,7 @@
 """Your Progress's story (design.md §12, "Your Progress is a story in three parts",
-2026-10-09): the ladder of kinds of text, where a reader is on it, the texts at their level
-and the words they keep meeting.
+2026-10-09, and "Your level leads with what you can read", 2026-10-28): the ladder of kinds
+of text, where a reader is on it, how many of each kind they could read now, the level at
+the foot, the texts at their level and the words they keep meeting.
 
 The arithmetic in `touchstones`, then the whole of `/account/story` end to end.
 """
@@ -18,7 +19,7 @@ from test_reading_line import built, ms, word
 from test_serve import Postbox, call, sign_in
 
 from targum import touchstones
-from targum.coverage import IGNORED, KNOWN, build_index
+from targum.coverage import KNOWN, build_index
 
 served = test_serve.served
 postbox = test_serve.postbox
@@ -34,28 +35,48 @@ class Entry:
     english: str = ""
     author: str = ""
     named: dict[str, str] = field(default_factory=dict)
+    sentence: float = 0.0
+    minutes: int = 0
 
 
 def shelf() -> list[Entry]:
-    """A Hebrew shelf of four kinds, and one Russian story."""
+    """A Hebrew shelf at every level, one text unmeasured, and one Russian story."""
     return [
-        Entry("d1", "he", "dialogue", 6, "שיחה"),
-        Entry("d2", "he", "dialogue", 8, "שיחה ב"),
-        Entry("d0", "he", "dialogue", 0, "לא נמדד"),
-        Entry("a1", "he", "article", 17, "ידיעה", english="A report"),
-        Entry("t1", "he", "talk", 14, "הרצאה"),
-        Entry("p1", "he", "poetry", 25, "שיר"),
-        # Not a touchstone kind: it stays on its shelf and off the ladder.
-        Entry("x1", "he", "prose", 19, "בראשית"),
-        Entry("r1", "ru", "story", 22, "Муму"),
+        Entry("d1", "he", "dialogue", 6, "שיחה", sentence=6, minutes=2),  # A1
+        Entry("d2", "he", "dialogue", 8, "שיחה ב", sentence=8, minutes=10),  # A2
+        Entry("d0", "he", "dialogue", 0, "לא נמדד"),  # unmeasured
+        Entry("a1", "he", "article", 17, "ידיעה", english="A report", sentence=12),  # B1
+        Entry("t1", "he", "talk", 14, "הרצאה", sentence=9, minutes=10),  # A2
+        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # B2+
+        Entry("r1", "ru", "story", 22, "Муму", sentence=15),
     ]
 
 
-def test_the_ladder_is_the_kinds_by_their_median_measured_difficulty() -> None:
+def test_the_ladder_is_the_texts_own_levels_not_kinds() -> None:
+    """David, 2026-10-28: an easy video is easier than a hard conversation, so a row is a
+    level and holds every kind at it. Unmeasured texts are on no row."""
     rungs = touchstones.ladder(shelf(), "he")
-    assert [rung.kind for rung in rungs] == ["dialogue", "talk", "article", "poetry"]
-    assert rungs[0].difficulty == 7, "the unmeasured dialogue is not counted as easy"
-    assert "x1" not in {text for rung in rungs for text in rung.texts}
+    assert [(rung.kind, rung.texts) for rung in rungs] == [
+        ("A1", ("d1",)),
+        ("A2", ("d2", "t1")),
+        ("B1", ("a1",)),
+        ("B2+", ("p1",)),
+    ]
+    assert [rung.kind for rung in touchstones.ladder(shelf(), "ru")] == ["B2+"]
+
+
+def test_a_level_with_nothing_at_it_is_no_row() -> None:
+    rungs = touchstones.ladder([Entry("b", "he", "story", 17, sentence=12)], "he")
+    assert [rung.kind for rung in rungs] == ["B1"]
+
+
+def test_a_text_in_two_languages_is_on_both_ladders() -> None:
+    @dataclass(frozen=True)
+    class Two(Entry):
+        languages: tuple[str, ...] = ()
+
+    both = Two("dan", "he", "prose", 17, sentence=12, languages=("he", "arc"))
+    assert [rung.texts for rung in touchstones.ladder([both], "he")] == [("dan",)]
 
 
 def test_aramaic_outside_the_targums_and_an_empty_library_have_no_ladder() -> None:
@@ -66,91 +87,52 @@ def test_aramaic_outside_the_targums_and_an_empty_library_have_no_ladder() -> No
     assert touchstones.ladder(shelf(), "yi") == []
 
 
-def test_italian_stories_are_its_childrens_books() -> None:
-    """StoryWeaver's children's books, said in everyday words: "what is a picture book?"
-    (David, 2026-10-09). The rung still opens the story shelf."""
-    rungs = touchstones.ladder([Entry("i1", "it", "story", 13)], "it")
-    assert [(rung.kind, rung.name) for rung in rungs] == [("story", "children-book")]
-
-
-@pytest.mark.parametrize(
-    ("share", "said"),
-    [
-        (100, "follow"),
-        (95, "follow"),
-        (94, "nearly"),
-        (90, "nearly"),
-        (89, "most"),
-        (75, "most"),
-        (74, ""),
-    ],
-)
-def test_the_wording_is_by_the_share_of_running_words(share: int, said: str) -> None:
-    assert touchstones.said(share) == said
-
-
 def index_of(texts: dict[str, dict[str, int]]) -> Any:
     """An index with running counts: entry -> {lemma: how often}."""
     return build_index({entry: list(counts) for entry, counts in texts.items()}, texts)
 
 
-def test_a_share_is_of_running_words_not_of_distinct_ones() -> None:
-    """Known: the one word that comes round nine times in ten. Of its distinct words
-    that is half; of its running words, nine in ten."""
-    index = index_of({"a1": {"common": 9, "rare": 1}})
-    assert touchstones.running_share(index, "a1", {"common": KNOWN}) == pytest.approx(0.9)
-    assert touchstones.running_share(index, "nowhere", {"common": KNOWN}) is None
-
-
-def test_an_ignored_word_is_left_out_of_the_running_share() -> None:
-    """Ignored is not vocabulary: left out of the running words, as the reader does."""
-    index = index_of({"a1": {"common": 6, "name": 3, "rare": 1}})
-    marked = {"common": KNOWN, "name": IGNORED}
-    assert touchstones.running_share(index, "a1", marked) == pytest.approx(6 / 7)
-
-
-def test_a_share_falls_back_to_distinct_words_where_nothing_was_counted() -> None:
-    index = index_of({"a1": {"common": 9, "rare": 1}})
-    index.counts.clear()
-    assert touchstones.running_share(index, "a1", {"common": KNOWN}) == pytest.approx(0.5)
-
-
-def test_here_is_the_hardest_rung_followed_and_the_next_one_after_it() -> None:
+def test_easy_is_most_of_a_level_readable_and_the_next_step_follows() -> None:
+    """A row counts its texts on the Library's Read it now (90%), and is easy where more
+    than half its measured texts are; unmeasured ones are left out of both."""
     rungs = touchstones.ladder(shelf(), "he")
-    index = index_of(
-        {
-            "d1": {"שלום": 10},
-            "d2": {"שלום": 10},
-            "t1": {"שלום": 19, "מדע": 1},
-            "a1": {"שלום": 93, "חדשות": 7},
-            "p1": {"שלום": 86, "שיר": 14},
-        }
-    )
-    got = touchstones.standing(rungs, index, {"שלום": KNOWN})
-    assert [(rung["kind"], rung["state"], rung["share"]) for rung in got["ladder"]] == [
-        ("dialogue", "passed", 100),
-        ("talk", "passed", 95),
-        ("article", "here", 93),
-        ("poetry", "next", 86),
+    shares = {"d1": 1.0, "d2": 0.95, "t1": 0.5, "a1": 0.9, "p1": None}
+    got = touchstones.standing(rungs, shares.get)
+    assert [(rung["kind"], rung["state"], rung["readable"]) for rung in got["ladder"]] == [
+        ("A1", "easy", 1),
+        ("A2", "easy", 1),
+        ("B1", "easy", 1),
+        ("B2+", "next", 0),
     ]
-    assert got["said"] == "nearly"
+    assert got["here"] == 2 and got["next"] == 3
+    assert "said" not in got and "share" not in got["ladder"][0], "no percentage to print"
 
 
-def test_with_nothing_at_ninety_here_is_the_hardest_at_seventy_five() -> None:
+def test_half_a_level_is_not_most_of_it() -> None:
     rungs = touchstones.ladder(shelf(), "he")
-    index = index_of({"d1": {"a": 8, "b": 2}, "t1": {"a": 3, "b": 7}})
-    got = touchstones.standing(rungs, index, {"a": KNOWN})
-    assert got["here"] == 0 and got["said"] == "most"
-    assert [rung["state"] for rung in got["ladder"]] == ["here", "next", "ahead", "ahead"]
-    # The article and the poem were never measured: no share, never 0%.
-    assert got["ladder"][2]["share"] is None
-
-
-def test_with_no_rung_reached_the_first_is_the_place_to_start() -> None:
-    rungs = touchstones.ladder(shelf(), "he")
-    got = touchstones.standing(rungs, index_of({"d1": {"a": 1, "b": 9}}), {"a": KNOWN})
-    assert got["here"] is None and got["said"] == ""
+    got = touchstones.standing(rungs, {"d1": 0.5, "d2": 0.95, "t1": 0.5}.get)
     assert [rung["state"] for rung in got["ladder"]] == ["next", "ahead", "ahead", "ahead"]
+    assert got["ladder"][1]["readable"] == 1, "counted, even where the level is not easy"
+
+
+def test_a_row_below_the_hardest_easy_one_is_easy_too() -> None:
+    """The ladder climbs: a reader who reads B1 on their own reads beginner texts."""
+    rungs = touchstones.ladder(shelf(), "he")
+    got = touchstones.standing(rungs, {"a1": 0.97}.get)
+    assert [rung["state"] for rung in got["ladder"]] == ["easy", "easy", "easy", "next"]
+
+
+def test_with_no_row_easy_the_first_is_the_next_step() -> None:
+    rungs = touchstones.ladder(shelf(), "he")
+    got = touchstones.standing(rungs, {"d1": 0.4}.get)
+    assert got["here"] is None and got["next"] == 0
+    assert [rung["state"] for rung in got["ladder"]] == ["next", "ahead", "ahead", "ahead"]
+
+
+def test_the_top_row_easy_has_no_next_step() -> None:
+    rungs = touchstones.ladder(shelf(), "he")
+    got = touchstones.standing(rungs, {"p1": 1.0}.get)
+    assert got["here"] == 3 and got["next"] is None
 
 
 def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
@@ -231,17 +213,146 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
     assert status == 200, said
     assert said["library"] is True and said["known"] == 1
+    # By distinct words, as the Library: d2 is all known, d1 half, a1 half; t1 is not
+    # indexed. A2 is easy on d2 alone, so A1 below it is easy too, with none to count.
     assert said["ladder"][0] == {
-        "kind": "dialogue",
-        "name": "dialogue",
-        "share": 95,
-        "state": "here",
-        "texts": 3,
+        "kind": "A1",
+        "name": "A1",
+        "state": "easy",
+        "texts": 1,
+        "readable": 0,
     }
-    assert said["said"] == "follow"
+    assert said["ladder"][1]["readable"] == 1 and said["ladder"][1]["state"] == "easy"
+    assert said["conversations"] is True
+    assert said["here"] == 1 and said["next"] == 2
+    # One word known is no rung of the ulpan's: no foot line until the first is reached.
+    assert said["level"] is None
     # By distinct words, as the Library's Read it now: only d2 is all known.
     assert [text["id"] for text in said["texts"]] == ["d2"]
     assert said["words"] == [{"lemma": "ספר", "texts": 2}]
 
     status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)
     assert said["ladder"] == [] and said["library"] is False and said["uploads"] == []
+
+
+def test_each_ladder_count_is_its_library_shelf_count(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The acceptance line of targum-internal#553: a row of the ladder says "N you can
+    read" and opens `#see/now/level/<level>`, and the Library, drawn from what `/readers`
+    hands it on the same server for the same reader and from its shelf rows as the
+    builder writes them (each with its `cefr`), shows exactly N texts there."""
+    from urllib.parse import quote
+
+    from test_library_js import draw as library
+    from test_library_js import text
+
+    from targum import catalogue as catalogue_module
+    from targum.coverage import write_index
+
+    port, token, _ = served
+    entries = [
+        Entry("d1", "he", "dialogue", 5, "שיחה א", sentence=6, minutes=2),  # A1
+        Entry("d2", "he", "dialogue", 6, "שיחה ב", sentence=6, minutes=2),  # A1
+        Entry("d3", "he", "dialogue", 7, "שיחה ג", sentence=8, minutes=10),  # A2
+        Entry("d4", "he", "dialogue", 8, "שיחה ד", sentence=8, minutes=10),  # A2
+        Entry("t1", "he", "talk", 12, "הרצאה א", sentence=9, minutes=10),  # A2
+        Entry("t2", "he", "talk", 13, "הרצאה ב", sentence=12),  # B1
+        Entry("a1", "he", "article", 17, "ידיעה", sentence=12),  # B1
+        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # B2+
+    ]
+    known = [f"w{n}" for n in range(9)]
+    lemmas = tmp_path / "lemmas.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                # Every word known; nine in ten, on the line; eight in ten; all again.
+                "d1": {word: 1 for word in known},
+                "d2": {**{word: 1 for word in known}, "rare": 1},
+                "d3": {**{word: 1 for word in known[:8]}, "x": 1, "y": 1},
+                "d4": {word: 1 for word in known[:4]},
+                "t1": {word: 1 for word in known},
+                "t2": {"w0": 1, "x": 1},
+                "a1": {**{word: 1 for word in known}, "rare": 1},
+                "p1": {"w0": 1, "x": 1, "y": 1},
+            }
+        ),
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: entries)
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+
+    cookie = sign_in(port, postbox)
+    words = [
+        {"language": "he", "lemma": word, "status": KNOWN, "at": 1, "seen": 1} for word in known
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    counts = {rung["kind"]: rung["readable"] for rung in said["ladder"]}
+    assert counts == {"A1": 2, "A2": 2, "B1": 1, "B2+": 0}
+
+    status, shelf_said, _ = call(port, "GET", f"/readers?k={token}", cookie=cookie)
+    assert status == 200
+    from targum.levelmap import text_level
+
+    rows = [
+        text(
+            entry.id,
+            entry.title,
+            kind=entry.kind,
+            difficulty=entry.difficulty,
+            cefr=text_level(entry),  # type: ignore[arg-type]
+        )
+        for entry in entries
+    ]
+    for level, count in counts.items():
+        drawn = library(
+            tmp_path,
+            catalogue=rows,
+            collections=[],
+            catalogueKnown=shelf_said["catalogue"],
+            readers=shelf_said["readers"],
+            shared=shelf_said["shared"],
+            hash=f"#see/now/level/{quote(level)}",
+        )
+        assert len(drawn["rows"]) == count, (level, drawn["rows"])
+        assert drawn["fitOn"] == "Read it now"
+
+
+def test_the_foot_level_is_the_measured_rung_and_the_way_to_the_next(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """level.py's rung, measured from weighted known words, with the share of the way to
+    the next rung for the bar; nothing for a language with no scale."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    words = [
+        {
+            "language": "he",
+            "lemma": f"מלה{n}",
+            "status": KNOWN,
+            "at": 1,
+            "seen": 1,
+            "band": "fairly easy",
+        }
+        for n in range(300)
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    level = said["level"]
+    assert {key: level[key] for key in ("scale", "letter", "name", "cefr", "next")} == {
+        "scale": "ulpan",
+        "letter": "א",
+        "name": "aleph",
+        "cefr": "A1",
+        "next": {"letter": "א+", "name": "aleph plus"},
+    }
+    assert level["toward"] == pytest.approx(50 / 650)
+
+    status, said, _ = call(port, "GET", f"/account/story?language=yi&k={token}", cookie=cookie)
+    assert said["level"] is None

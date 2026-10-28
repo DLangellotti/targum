@@ -30,12 +30,10 @@ DAY = 86_400_000
 TODAY = datetime.date(2026, 10, 28)
 
 LADDER = [
-    {"kind": "dialogue", "name": "dialogue", "share": 99, "state": "passed", "texts": 9},
-    {"kind": "talk", "name": "talk", "share": 96, "state": "passed", "texts": 9},
-    {"kind": "article", "name": "article", "share": 93, "state": "here", "texts": 9},
-    {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9},
-    {"kind": "novel", "name": "novel", "share": 70, "state": "ahead", "texts": 9},
-    {"kind": "poetry", "name": "poetry", "share": None, "state": "ahead", "texts": 9},
+    {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
+    {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
+    {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
+    {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
 ]
 
 
@@ -97,9 +95,13 @@ def story(full: bool) -> dict[str, Any]:
             "signedIn": True,
             "library": True,
             "known": 0,
-            "ladder": [dict(rung, share=None, state="ahead") for rung in LADDER],
-            "here": -1,
-            "said": "",
+            "ladder": [
+                dict(rung, share=None, state="next" if at == 0 else "ahead", readable=0)
+                for at, rung in enumerate(LADDER)
+            ],
+            "here": None,
+            "next": 0,
+            "level": None,
             "texts": [],
             "words": [],
         }
@@ -108,8 +110,16 @@ def story(full: bool) -> dict[str, Any]:
         "library": True,
         "known": 1700,
         "ladder": LADDER,
-        "here": 2,
-        "said": "nearly",
+        "here": 1,
+        "next": 2,
+        "level": {
+            "scale": "ulpan",
+            "letter": "ב",
+            "name": "bet",
+            "cefr": "A2",
+            "next": {"letter": "ב+", "name": "bet plus"},
+            "toward": 0.4,
+        },
         "texts": [
             {
                 "id": "jonah",

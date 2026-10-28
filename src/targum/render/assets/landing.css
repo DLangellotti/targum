@@ -454,6 +454,8 @@ h1, h2, h3 { text-wrap: balance; }
 .facts-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); font-size: 0.875rem; align-items: baseline; }
 .facts-list dt { color: var(--muted); font-size: 0.8125rem; }
 .facts-list dd .he { font-size: 1.0625rem; }
+/* The Here row's meaning, on its own line under the form (#477, polish 4). */
+.facts-list dd .here-gloss { display: block; }
 .scripture { font-family: var(--scripture); font-size: 1.0625rem; direction: rtl; unicode-bidi: isolate; }
 .binyanim { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .binyanim span { background: var(--field); border-radius: 8px; padding: 0.1rem var(--space-2); font-size: 0.8125rem; }
@@ -740,6 +742,18 @@ html { overflow-x: clip; }
   .bar .signin, .tongue a, .field input { min-block-size: 44px; }
   .bar .signin, .tongue a, .rate, .strip .play { min-inline-size: 44px; display: inline-grid; place-items: center; }
   .pop-x { inline-size: 44px; block-size: 44px; }
+  /* The rest of design's #477 pass, polish 8: the bar's mark was 21 tall, the why-fold 39
+     wide, and the chat demo's "Save as a text" 73 × 20. The mark and the fold grow; the
+     link keeps its size and answers through a centred reach, as .track does. */
+  .bar .brand { min-block-size: 44px; }
+  .fold { min-inline-size: 44px; }
+  .ct-sum a { position: relative; }
+  .ct-sum a::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+  }
   .track { position: relative; }
   .track::after { content: ""; position: absolute; inset-inline: 0; inset-block: -20px; }
 }

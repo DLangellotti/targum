@@ -1080,21 +1080,21 @@ STORY = {
     "library": True,
     "known": 1,
     "ladder": [
-        {"kind": "dialogue", "name": "dialogue", "share": 99, "state": "passed", "texts": 9},
-        {"kind": "talk", "name": "talk", "share": 96, "state": "passed", "texts": 9},
-        {"kind": "article", "name": "article", "share": 93, "state": "here", "texts": 9},
-        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9},
-        {"kind": "novel", "name": "novel", "share": None, "state": "ahead", "texts": 9},
-        {"kind": "poetry", "name": "poetry", "share": None, "state": "ahead", "texts": 9},
+        {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
+        {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
+        {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
+        {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
     ],
-    "here": 2,
-    "said": "nearly",
+    "here": 1,
+    "next": 2,
+    "level": None,
     "texts": [{"id": "jonah", "title": "יונה", "english": "Jonah", "known": 91}],
     "words": [{"lemma": "a", "texts": 3}],
 }
 
 STORY_SEEN = """() => ({
   head: document.getElementById('where-title').textContent,
+  title: document.getElementById('where-section').textContent,
   rungs: [...document.querySelectorAll('#touchstones .touch a')].map((a) => ({
     text: a.textContent, href: a.getAttribute('href'), height: a.getBoundingClientRect().height,
   })),
@@ -1107,9 +1107,9 @@ STORY_SEEN = """() => ({
 
 @pytest.mark.parametrize("width", [390, 1280])
 def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
-    """§12, 2026-10-09: where you are on the ladder of the language's own kinds of text,
-    each opening its shelf; how you got here; what next. No credits on the page, and
-    nothing wider than a phone."""
+    """§12, 2026-10-09 and 2026-10-28: your level, on the ladder of the language's own
+    kinds of text, each opening its shelf; how you got here; what next. No credits on the
+    page, and nothing wider than a phone."""
     import os
 
     context, page = _progress_with(browser, {}, width=width, story=STORY)
@@ -1117,20 +1117,23 @@ def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
     shots = os.environ.get("TARGUM_SHOTS")
     if shots:
         page.screenshot(path=f"{shots}/progress-{width}.png", full_page=True)
-    page.locator("#touchstones .touch a", has_text="A short story").click()
+    page.locator("#touchstones .touch a", has_text="B1").click()
     page.wait_for_timeout(200)
     went = page.url
     context.close()
 
-    assert got["parts"] == ["1 · Where you are", "2 · How you got here", "3 · What next"]
-    assert got["head"] == "You'd follow nearly all of a news article"
-    assert [rung["text"] for rung in got["rungs"]][2:4] == ["A news article93%", "A short story86%"]
+    assert got["title"] == "Level"
+    assert got["parts"] == ["How you got here", "What next"]
+    assert got["head"] == "You can read A2 texts on your own."
+    assert [rung["text"] for rung in got["rungs"]][1:3] == [
+        "A2Easy for you143 you can read›",
+        "B1Your next step12 you can read›",
+    ]
     assert not got["credits"], "credits are the account page's"
     assert got["level"] == ["יונה91% known"], "the title alone, as the board has it"
     assert not got["sideways"], got
-    if width == 390:
-        assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
-    assert went.endswith("/library?k=" + TOKEN + "#see/kind/story"), went
+    assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
+    assert went.endswith("/library?k=" + TOKEN + "#see/now/level/B1"), went
 
 
 def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> None:
@@ -1157,7 +1160,10 @@ READING = """() => {
     said: [...panel.querySelectorAll('.reading-words p')].map((p) => p.textContent),
     width: box ? box.width : 0,
     height: box ? box.height : 0,
-    panelWidth: panel.getBoundingClientRect().width,
+    // Inside the card's padding: the reading line is a card of its own since #553.
+    panelWidth: panel.getBoundingClientRect().width
+      - parseFloat(getComputedStyle(panel).paddingLeft)
+      - parseFloat(getComputedStyle(panel).paddingRight),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
     rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
     text: panel.textContent,
@@ -1193,7 +1199,7 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     assert got["said"][1].startswith("It fell because"), got
     assert "%" not in got["text"]
     assert not got["sideways"], got
-    assert 0 < got["width"] <= got["panelWidth"], got
+    assert 0 < got["width"] <= got["panelWidth"] + 0.5, got
     assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
 
 

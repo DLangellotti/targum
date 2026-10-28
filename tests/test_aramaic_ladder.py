@@ -127,7 +127,8 @@ def test_the_page_climbs_the_aramaic_ladder() -> None:
 
 
 def test_every_aramaic_rung_has_its_words_on_the_page() -> None:
-    """Each rung's chip and its four headlines, in English and in Russian."""
+    """Each rung's name on the ladder and its three sentences, in English and in Russian
+    (design.md §12, "Your level leads with what you can read", 2026-10-28)."""
     import json
     from pathlib import Path
 
@@ -139,7 +140,7 @@ def test_every_aramaic_rung_has_its_words_on_the_page() -> None:
     russian = json.loads((strings / "ru.json").read_text(encoding="utf-8"))
     for family, _ in touchstones.ARAMAIC_FAMILIES:
         assert f'"{family}": {{' in page, family
-        for key in ("touch", "where.follow", "where.nearly", "where.most", "where.start"):
+        for key in ("rung", "level.can", "level.next", "level.start"):
             name = f"progress.{key}.{family}"
             assert english.get(name) and russian.get(name), name
 

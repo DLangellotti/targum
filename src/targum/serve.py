@@ -90,10 +90,12 @@ from .render.builder import (
     kind_page,
     legal_is_public,
     legal_page,
+    named_files,
     names_files,
     not_found_page,
     parasha_page,
     press_page,
+    public_kept,
     set_page,
     shelf_page,
     signin_page,
@@ -5626,6 +5628,10 @@ CONNECT_MINUTES = 10
 # the life of the files it vouches for.
 KEPT_COOKIE = "targum_kept"
 KEPT_DAYS = 365
+# A public page warms a smaller set, the public pages' own files (`public_files`; David,
+# 2026-10-28, targum-internal#549), and the same cookie then holds that set's name. The
+# name stays the one the Privacy Notice gives (clause 3.13), and so does what it holds: a
+# set's hash, the same for everybody on this build.
 
 
 def kept_cookie(value: str, address: str) -> str:
@@ -6273,7 +6279,7 @@ class Handler(BaseHTTPRequestHandler):
         # sent the page whole, with the few lines that fetch the files once it is up.
         # Either way the page varies with the cookie, and says so.
         two_ways = kind.startswith("text/html") and names_files(body)
-        if two_ways and self._cookie(KEPT_COOKIE) != asset_set():
+        if two_ways and not self._has_kept(body):
             body = first_visit(body.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", kind)
@@ -7928,7 +7934,7 @@ class Handler(BaseHTTPRequestHandler):
         if door in doors:
             return self._say(f"library.door.{door}", doors[door])
         words = {
-            "dialogue": "Dialogue",
+            "dialogue": "Conversation",
             "story": "Story",
             "article": "News",
             "novel": "Novel",
@@ -14231,9 +14237,10 @@ class Handler(BaseHTTPRequestHandler):
         if not language:
             return self._json({"error": "no language"}, 400)
         marked = self.store.marked(person, language)
-        entries = [entry for entry in catalogue_module.everything() if entry.language == language]
+        everything = catalogue_module.everything()
+        entries = [entry for entry in everything if entry.language == language]
         index = coverage_module.read_index(catalogue_module.lemmas_path())
-        rungs = touchstones.ladder(entries, language)
+        rungs = touchstones.ladder(everything, language)
         answer: dict[str, Any] = {
             "signedIn": True,
             "language": language,
@@ -14244,10 +14251,18 @@ class Handler(BaseHTTPRequestHandler):
             "known": self.store.known_count(person, language),
         }
         answer.update(
-            touchstones.standing(rungs, index, marked)
+            touchstones.standing(rungs, self._known_of(rungs, index, marked))
             if rungs and index.texts
-            else {"ladder": [], "here": None, "said": ""}
+            else {"ladder": [], "here": None, "next": None}
         )
+        # Whether the shelf has conversations, which week one offers as the first pick.
+        answer["conversations"] = any(
+            str(entry.kind) == "dialogue" and touchstones.in_language(entry, language)
+            for entry in everything
+        )
+        # The one level on the page, its foot line (design.md §12, "Your level leads with
+        # what you can read", 2026-10-28): the measured rung and never the declared one.
+        answer["level"] = self._foot_level(person, language)
         answer["texts"] = touchstones.at_level(
             entries, index, marked, language, ui_language=self._ui_language()
         )
@@ -14288,6 +14303,70 @@ class Handler(BaseHTTPRequestHandler):
                 for reader in mine[: touchstones.TEXTS]
             ]
         self._json(answer)
+
+    def _known_of(
+        self, rungs: list[Any], index: Any, marked: dict[str, int]
+    ) -> Callable[[str], float | None]:
+        """A text's share of words known, read as the Library reads a row (`/readers`): a
+        copy the reader has built, or the shared shelf has, measured on its own words, and
+        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
+        Your Progress opens a shelf holding exactly the texts it counted."""
+        wanted = {entry_id for rung in rungs for entry_id in rung.texts}
+        built: dict[str, float] = {}
+        # The shared shelf first and the reader's own over it, as `rows()` in library.js.
+        for home in (self.library.shared, self._home()):
+            readers = [
+                reader
+                for reader in self.library.readers(home)
+                if str(reader.get("entry") or "") in wanted
+            ]
+            self._measure(home, readers)
+            for reader in readers:
+                known = reader.get("known")
+                if isinstance(known, (int, float)) and not isinstance(known, bool):
+                    built[str(reader["entry"])] = float(known)
+                else:
+                    built.pop(str(reader["entry"]), None)
+
+        def known_of(entry_id: str) -> float | None:
+            if entry_id in built:
+                return built[entry_id]
+            measured = index.against(entry_id, marked)
+            # A text at 89.996% is on the shelf on both pages or neither.
+            return float(measured.state()["known"]) if measured is not None else None
+
+        return known_of
+
+    def _foot_level(self, person: Any, language: str) -> dict[str, Any] | None:
+        """The rung `level.py` measures for this language, for the foot line and the bar
+        toward the next one; None for a language with no scale (Aramaic, Yiddish) and
+        until the first rung is reached. Hebrew climbs the ulpan by weighted words, and
+        the European scale counts the commonest words."""
+        from . import level as level_module
+
+        ladder = level_module.ladder_for(language)
+        if ladder is None or self.store is None:
+            return None
+        found = level_module.snapshot(self.store, person.id, language)
+        if found.here is None:
+            return None
+        measure = found.weighted if ladder.measure == "weighted" else float(found.common)
+        toward: float | None = None
+        if found.next is not None:
+            span = found.next.at - found.here.at
+            toward = max(0.0, min(1.0, (measure - found.here.at) / span)) if span else 0.0
+        return {
+            "scale": "ulpan" if ladder is level_module.ULPAN_LADDER else "cefr",
+            "letter": found.here.letter,
+            "name": found.here.name,
+            "cefr": found.here.cefr,
+            "next": (
+                {"letter": found.next.letter, "name": found.next.name}
+                if found.next is not None
+                else None
+            ),
+            "toward": toward,
+        }
 
     def _already(self, payload: dict[str, Any]) -> None:
         """Whether the library already has what is in the Add box (targum-internal#251).
@@ -16036,6 +16115,14 @@ class Handler(BaseHTTPRequestHandler):
     #: so a file that changes is a file at a new address.
     ASSET_CACHE = "public, max-age=31536000, immutable"
 
+    def _has_kept(self, body: bytes) -> bool:
+        """Whether this browser keeps every file the page names: the desk's whole set, or
+        a public set that holds all of this page's (targum-internal#549)."""
+        if self._cookie(KEPT_COOKIE) == asset_set():
+            return True
+        held = public_kept(self._cookie(KEPT_COOKIE))
+        return held is not None and set(named_files(body)) <= held
+
     def _kept(self) -> None:
         """A page sent whole has fetched every file it was told to (`first_visit`), so
         the browser is given the kept-files cookie, and its next desk page names its files
@@ -16052,6 +16139,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(204)
         if asked == current:
             self.send_header("Set-Cookie", kept_cookie(current, self.address))
+        elif public_kept(asked) is not None and self._cookie(KEPT_COOKIE) != current:
+            # A public set, unless the browser already keeps the desk's whole one, which
+            # holds it.
+            self.send_header("Set-Cookie", kept_cookie(asked, self.address))
         self.send_header("Content-Length", "0")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")

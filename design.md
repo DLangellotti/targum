@@ -380,6 +380,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The pages in front of the account load their files once — 2026-10-28
+
+Approved by David, 2026-10-28 (targum-internal#549, from builder-3's speed pass of the
+same day). The front door, a text's public page (`/library/<id>`), About and the legal
+pages joined the desk's list (`PUBLIC_PAGES` in `render/builder.py`). "A desk page loads
+its files once and keeps them" (2026-10-18) had left them inline, grouped with readers as
+"the front door and every page in front of it". None of them is ever opened off a disk
+or kept by the worker, and each carried 65 to 122 kB of faces and up to 290 kB of CSS
+under `no-store`, again on every page a visitor opened.
+
+- **They work the way desk pages do.** A browser that has not kept the files gets the
+  page whole, and `warm.js` fetches the files after `load`. A browser that has kept them
+  gets the page with its files named by address. The policy is still read off each page
+  as sent, and nothing is `'unsafe-inline'`.
+- **A stranger's first page warms only what the public pages use** (David). That means
+  their stylesheets, their two scripts and the faces they wear in the page's language
+  (`public_files`). It never includes the desk's scripts, the Library's catalogues or the
+  other language's faces. Warming the desk's whole set would have been about 0.9 MB in
+  the background. The kept-files cookie then holds the public set's name. A page is
+  named by address only where every file it names is in the set the cookie vouches for.
+  So a desk page, whose files no public set holds, is still sent whole and warms the
+  desk's set, which holds the public one.
+- **The cookie is the one clause 3.13 names** (David: the notice covers it). It keeps
+  the same name, and its value is a set's hash, the same for everybody on the build.
+- **A first visit wears the platform's face for a moment** (David accepted it). This is
+  2026-10-23's trade for the desk, now on the front door: the faces go on at `load`, and
+  the swap moves the layout (CLS 0.18 on the phone, against 0 before). Once they are on,
+  the page is pixel for pixel what it was, at 390 and at 1440.
+- **Measured locally** on §14's phone profile (4× CPU, Slow 4G):
+  - a first visit's LCP went from 1.13–1.28 s to 0.78–0.91 s;
+  - a visitor's second page went from 95–112 kB to 6–10 kB. Its LCP fell within the
+    laptop's noise: 0.96–1.49 s against 1.10–1.48 s over paired runs;
+  - the warm-up after a stranger's first page is 188 kB in English and 272 kB in
+    Russian, where the desk's whole set was about 0.9 MB.
+- **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
+  pages, built indexes, the shelf, the weekly and series pages, prints, cards in a host's
+  frame and Saved on this device still carry their files inline. *A reader still fetches
+  nothing.*
+
 ### On a phone, Back closes Talk before it leaves the page (2026-10-28)
 Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.
 
@@ -400,6 +439,75 @@ On Your Words opened from a text, "← Back to <text>, where you stopped" stands
 
 ### A named back beside the mark, in the reader and Theatre (2026-10-28)
 The mark stays and still goes to Your targums. When the bar is out, a named back stands beside it and returns to wherever the text was opened from, or to Your targums when there's no origin. It fades with the bar and comes back the same ways, plus a tap on the top strip on a phone. In Theatre the mark and the back stay at the reader's 55% while a video plays, never invisible.
+
+### Your level leads with what you can read — 2026-10-28
+
+Approved by David, 2026-10-28 (targum-internal#553), after five reviews (ling-en, ling-he,
+ling-ru, design twice) and three calls of his the same evening; the lines quoted here are
+ling-en's and ling-ru's reads of targum#975, approved by him as written. A beta reader read "Kids'
+stories 74%" as a score, and the ladder of percentages under "Where you are" said nothing
+a new learner could use. Part 1 of Your Progress is now **Level** («Уровень»), and this
+reverses two lines of "Your Progress is a story in three parts" (2026-10-09): the ladder
+of kinds of text, and the retirement of the ulpan and CEFR rung from this page, which
+comes back as one line at the foot.
+
+- **The rows are the texts' own levels, not kinds of text** (David: an easy video is
+  easier than a hard conversation, so a kind has no one difficulty). "Texts by level":
+  Beginner · A1, A2, B1, B2 and up, each text placed by the rule the stage standard counts
+  the shelf by (`levelmap.text_level`, the same as `cefr_rows`: the Easy spec in full is
+  A1, the rest of Easy A2, Simplified B1, Native B2 and up), from the catalogue's own
+  `difficulty` and `sentence`. An unmeasured text, and an older Hebrew, is on no row. A
+  level with nothing at it in the language is not a row. Aramaic keeps its climb of
+  Targums (2026-10-25), which no level has been measured for, without links or counts.
+- **Each row is "Easy for you" with a tick, "Your next step" on the leaf wash, or "Not
+  yet"**, and where it has any, "N you can read": the texts at that level on the Library's
+  Read it now (90% of a text's words known, a built copy's measure over the catalogue's,
+  rounded as `/readers` rounds it). A level is easy for you where more than half its
+  measured texts are on that shelf, and every level below the hardest easy one is easy
+  too. The row opens `#see/now/level/<level>` where it counts texts, so the Library shows
+  exactly N, and `#see/level/<level>` where it counts none.
+- **The card says what you can read.** "You can read A2 texts on your own." (beginner
+  texts, B1 texts, texts at B2 and up), "Your next step is B1 texts." and one filled press,
+  "Show texts at your level", to Read it now. At the top row the second line says
+  "That's the hardest level in the Library."
+- **Week one names no level.** Before any level is easy: "Start with beginner texts.",
+  "Conversations use the most common words, so they're a good first pick." where the
+  shelf has them, "You've marked N words as known so far." and "Open a conversation".
+- **The Library filters by a text's level.** Its shelf rows carry each text's level
+  (`cefr`), and See all answers `#see/level/<level>` and `#see/<band>/level/<level>`, so
+  the address survives a reload. The level shows as a tinted chip beside the menus, "Beginner
+  · A1 ×", which clears it and keeps the band and is read aloud as "Remove the Beginner ·
+  A1 filter"; the title names it ("Beginner texts in
+  Hebrew"); an empty one says so with the way to every text. The level lives in the address
+  only: the shelves and any other address let it go. `#see/kind/<kind>` still works.
+- **No percentages anywhere in Level.** The chips, the shares and the "you know N% of its
+  words" titles are gone; the server no longer sends a share.
+- **The foot line is the only level**, and only the measured rung (`level.py`, from the
+  first rung reached), never the declared one (2026-09-19 stands). Hebrew says both scales
+  in one line, and says what an ulpan is for a reader outside Israel: "In ulpan terms
+  you're at aleph plus (א׳+), about A1 on the European scale. Ulpan is Israel's Hebrew
+  course for new immigrants, and its classes run from aleph to vav." French, Russian and Italian: "On the
+  European scale you're about B1. It runs from A1, for beginners, to C2." Aramaic and
+  Yiddish have no foot line. The letter carries its geresh and sits in its own
+  right-to-left run, the plus after the geresh.
+- **Under it, a bar toward the next rung, with no numbers**: a 4px leaf line on the desk's
+  track, filled from this rung to the next on the measure the rung is reached by (weighted
+  words for the ulpan, the commonest words for the European scale), "Next: bet ב׳" or
+  "Next: B2" beside it, a `progressbar` with its name. No bar at the top rung.
+- **"Conversations" replaces "Dialogue"** as the scenes' and dialogues' name: the Library's
+  door, its Kind filter and a row's kind ("Conversation · 3 min"), home's cards and the
+  reader's list («Разговоры», «Разговор»). David, 2026-10-28, overriding "Dialogue, Chat
+  History, and no Practise with nothing to practise" (2026-10-10). Ids and addresses are
+  unchanged: `#see/kind/dialogue` still opens them.
+- **The step labels lose their numbers.** "1 · Where you are" went with its section, and
+  the other two read "How you got here" and "What next".
+
+What it keeps: every figure on the page is a real count (§6), nothing on it spends, and
+"what you knew of what you read, month by month" stays under Level as a card of its own.
+`test_progress_js.py`, `test_progress_level_browser.py` (every state at 390 and 1440, none
+with a "%"), `test_library_js.py` and `test_library_states_browser.py` (the level address
+and its chip) and `test_touchstones.py`
+(`test_each_ladder_count_is_its_library_shelf_count`) pin it.
 
 ### A text you brought, rewritten at your level — 2026-10-28
 
@@ -1889,7 +1997,9 @@ below) took for him. The board still governs the card; these two are drawn into 
 
 Three calls of David's, 2026-10-10:
 
-- **The Progress ladder says "Dialogue"** («Диалог»), where its first rung said "A
+- **The Progress ladder says "Dialogue"** («Диалог») *(Conversations since 2026-10-28, where the
+  kind is named, and the ladder is the texts' own levels: "Your level leads with what you
+  can read", above)*, where its first rung said "A
   conversation" («Разговор») while the Library called the same kind of text "Dialogue".
   One kind has one name, so the headline follows: "You'd follow a dialogue", "A dialogue
   is the place to start" («Вы поймёте диалог», «Начните с диалога»). This amends the
@@ -3314,7 +3424,9 @@ menu's language, as everywhere):
   streaks". `charts.longest` stays, for nothing else draws one. **Credits are not on this
   page**: the month's credits moved to the account page, its first panel ("Credits").
   **No "sections finished"**: it means nothing to a learner (David).
-- **1 · Where you are: touchstones.** A short ladder of real kinds of text from the
+- **1 · Where you are: touchstones.** *(Level since 2026-10-28: the texts' own levels rather
+  than kinds, no percentages, and the measured level back at its foot — "Your level leads
+  with what you can read", above.)* A short ladder of real kinds of text from the
   language's own library — a dialogue, a video, a news article, a short story, a
   novel, a poem (Italian's stories are StoryWeaver's children's books, and are called
   "a children's book") — ordered by
