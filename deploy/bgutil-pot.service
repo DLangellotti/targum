@@ -28,9 +28,11 @@ Group=bgutil
 WorkingDirectory=/srv/bgutil/server
 # 1.3.2 takes a port and nothing else: --host arrived after it, and passing it is how
 # this unit failed to start the first time. The binding is the provider's own default,
-# which is the loopback — checked with `ss -lntp` after every version bump, because a
-# release that changed it would put a token minter on the public internet and say
-# nothing. Caddy never learns the port exists.
+# and that is every interface, not the loopback its README says: `ss -lntp` read
+# `*:4416` on 2026-09-04 and again on 2026-10-28. Two nft tables shut it from outside —
+# the 4416 guard in nftables-targum.conf and the wall's drop policy — so check `ss -lntp`
+# after every version bump, and pass --host 127.0.0.1 once a release takes it. Caddy
+# never learns the port exists.
 #
 # Egress is deliberately not restricted: minting a token means talking to YouTube, so
 # an IPAddressAllow=localhost here would be a unit that starts and cannot work.

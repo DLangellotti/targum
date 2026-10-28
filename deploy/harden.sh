@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Harden the box (targum-internal#9): swap, security updates, password login off, and a
-# firewall. Run as root on the box itself, after provision.sh:
+# Harden the box (targum-internal#9): swap, security updates, password login off, Caddy
+# in a sandbox, and a firewall. Run as root on the box itself, after provision.sh:
 #
 #   scp -r deploy root@targum.page:/tmp/ && ssh root@targum.page bash /tmp/deploy/harden.sh --dry-run
 #   ssh root@targum.page bash /tmp/deploy/harden.sh
@@ -30,6 +30,16 @@
 #
 #   rm /etc/ssh/sshd_config.d/00-targum.conf && systemctl reload ssh
 #   /usr/local/sbin/targum-wall-rollback
+#
+# Caddy's sandbox cannot touch SSH; if the site is down after it and Caddy did not come
+# back by itself (the script takes the drop-in out when Caddy fails its check):
+#
+#   rm /etc/systemd/system/caddy.service.d/10-targum-sandbox.conf
+#   systemctl daemon-reload && systemctl restart caddy
+#
+# It never reboots. A kernel that security updates installed runs only after a reboot, so
+# the last section says whether one is waiting and since when; the reboot is the
+# operator's, at an hour they choose.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,6 +72,8 @@ NFT_CONF=/etc/nftables.conf
 ROLLBACK=/usr/local/sbin/targum-wall-rollback
 ROLLBACK_UNIT=targum-wall-rollback
 ROLLBACK_AFTER=10min
+CADDY_SRC="$HERE/caddy-sandbox.conf"
+CADDY_DROPIN=/etc/systemd/system/caddy.service.d/10-targum-sandbox.conf
 
 CHANGED=0
 
@@ -124,6 +136,7 @@ if [ ! -f /etc/systemd/system/targum.service ] || [ ! -d /etc/targum ]; then
   die "no targum.service or /etc/targum, so this box was never provisioned. Run provision.sh first; harden.sh finishes a targum box, it does not make one."
 fi
 [ -f "$WALL_SRC" ] || die "$WALL_SRC is missing; copy the whole deploy/ directory, not the script alone."
+[ -f "$CADDY_SRC" ] || die "$CADDY_SRC is missing; copy the whole deploy/ directory, not the script alone."
 
 # ---------------------------------------------------------------------------------------
 # --confirm: you are in, from a fresh session, so the wall can stay.
@@ -156,9 +169,12 @@ if [ -n "$(swapon --show --noheadings 2>/dev/null)" ]; then
   say "   swap is on: $(swapon --show --noheadings | awk '{print $1, $3}' | paste -sd, -)"
 else
   if [ ! -f "$SWAPFILE" ]; then
-    act fallocate -l "$SWAP_SIZE" "$SWAPFILE"
-    act chmod 600 "$SWAPFILE"
-    act mkswap "$SWAPFILE"
+    # All three or none: a file left behind by a failed mkswap would be skipped by the
+    # next run and refused by swapon.
+    if ! { act fallocate -l "$SWAP_SIZE" "$SWAPFILE" && act chmod 600 "$SWAPFILE" && act mkswap "$SWAPFILE"; }; then
+      rm -f "$SWAPFILE"
+      die "could not make $SWAPFILE; it was removed again."
+    fi
   fi
   act swapon "$SWAPFILE"
 fi
@@ -213,6 +229,9 @@ if put_file 0644 "$SSHD_DROPIN" <<'SSHD'; then
 PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin prohibit-password
+# Nothing here draws windows, and nothing that logs in should carry a key onward.
+X11Forwarding no
+AllowAgentForwarding no
 SSHD
   if [ "$DRY" = 1 ]; then
     say "   would check it with: sshd -t"
@@ -229,8 +248,10 @@ SSHD
     # every open session — this one included — exactly where it is. With socket
     # activation the service may be idle, and then the next connection reads the new
     # file anyway.
-    if systemctl is-active --quiet ssh.service; then
-      systemctl reload ssh.service
+    if systemctl is-active --quiet ssh.service && ! systemctl reload ssh.service; then
+      rm -f "$SSHD_DROPIN"
+      [ -n "$SSHD_BACKUP" ] && mv "$SSHD_BACKUP" "$SSHD_DROPIN"
+      die "sshd would not reload. The drop-in was put back as it was; the running sshd never read the new one."
     fi
     say "   reloaded ssh"
   fi
@@ -246,6 +267,59 @@ if [ "$DRY" = 0 ]; then
     *"passwordauthentication no"*"permitrootlogin prohibit-password"*) ;;
     *) die "sshd -T does not say keys only ($effective). Something read earlier overrides $SSHD_DROPIN." ;;
   esac
+fi
+
+# ---------------------------------------------------------------------------------------
+say "== caddy: sandboxed =="
+# The package unit with the same limits targum.service and the minter already carry; see
+# caddy-sandbox.conf for each line and why. A restart, which a reload is not enough for,
+# is a second of the site refusing connections; SSH never goes through Caddy.
+# ---------------------------------------------------------------------------------------
+# Every step after the drop-in is written sits inside one condition, so that under
+# `set -e` no failure can leave before the undo: a Type=notify unit that fails to start
+# makes `systemctl restart` itself exit non-zero, and a bare restart would end the script
+# with the drop-in in place and Caddy down (qa on targum#967). The undo's own steps may
+# fail too and still reach `die`. tests/test_deploy_harden.py runs this function with
+# each step failing in turn.
+caddy_up() {
+  # Checked before systemd is told, and taken back on any objection, as sshd's is.
+  if ! systemd-analyze verify caddy.service; then
+    rm -f "$CADDY_DROPIN"
+    die "systemd-analyze rejected the caddy drop-in. It was removed and caddy was not touched."
+  fi
+  # The site through Caddy, from here, with the real name so the real certificate is
+  # served: a sandbox that hid the certificates or the log directory fails this.
+  if ! systemctl daemon-reload \
+    || ! systemctl restart caddy \
+    || ! systemctl is-active --quiet caddy \
+    || ! curl -fsS -o /dev/null --max-time 15 --retry 3 --retry-delay 2 --retry-all-errors \
+      --resolve targum.page:443:127.0.0.1 https://targum.page/health; then
+    rm -f "$CADDY_DROPIN"
+    # The undo can fail too, and then the line must not say it worked: a daemon-reload
+    # that failed leaves systemd holding the sandbox, so a restart that "worked" brought
+    # Caddy back still inside it.
+    local undone=1
+    systemctl daemon-reload || undone=0
+    systemctl restart caddy || undone=0
+    if [ "$undone" = 0 ]; then
+      die "caddy did not serve the site in its sandbox, AND THE UNDO FAILED: the drop-in file is gone but caddy is not back as it was. By hand: rm -f $CADDY_DROPIN && systemctl daemon-reload && systemctl restart caddy — then journalctl -u caddy."
+    fi
+    die "caddy did not serve the site in its sandbox. The drop-in was removed and caddy restarted as it was; see journalctl -u caddy."
+  fi
+  say "   caddy restarted in its sandbox, and serving"
+}
+
+if ! systemctl cat caddy.service >/dev/null 2>&1; then
+  say "   no caddy.service here; nothing to sandbox"
+elif put_file 0644 "$CADDY_DROPIN" <"$CADDY_SRC"; then
+  if [ "$DRY" = 1 ]; then
+    say "   would check it with: systemd-analyze verify caddy.service"
+    say "   would restart caddy and check https://targum.page/health through it"
+  else
+    caddy_up
+  fi
+else
+  say "   $CADDY_DROPIN already in place"
 fi
 
 # ---------------------------------------------------------------------------------------
@@ -296,13 +370,35 @@ else
   # 2. Arm the rollback. If the wall shuts you out, it comes down by itself.
   systemctl stop "$ROLLBACK_UNIT.timer" 2>/dev/null || true
   systemctl reset-failed "$ROLLBACK_UNIT.service" 2>/dev/null || true
-  systemd-run --quiet --unit="$ROLLBACK_UNIT" --on-active="$ROLLBACK_AFTER" "$ROLLBACK"
+  if ! systemd-run --quiet --unit="$ROLLBACK_UNIT" --on-active="$ROLLBACK_AFTER" "$ROLLBACK"; then
+    "$ROLLBACK" >/dev/null
+    die "the rollback timer would not arm, so the wall was not loaded and its include is out of $NFT_CONF again. Nothing changed in the running firewall."
+  fi
   # 3. Load. nftables.conf is one transaction: flush and re-add, SSH rule and drop policy
   #    together, so there is no window with one and not the other.
-  systemctl enable --quiet nftables
-  systemctl reload nftables 2>/dev/null || systemctl restart nftables
-  nft list table inet targum_wall >/dev/null || die "the wall did not load; see journalctl -u nftables"
+  # From here the timer is the undo: anything that fails still leaves it armed.
+  if ! systemctl enable --quiet nftables \
+    || ! { systemctl reload nftables 2>/dev/null || systemctl restart nftables; } \
+    || ! nft list table inet targum_wall >/dev/null; then
+    die "the wall did not load; see journalctl -u nftables. The rollback is armed and takes the include out in $ROLLBACK_AFTER."
+  fi
   say "   firewall up, and it comes down again in $ROLLBACK_AFTER unless confirmed"
+fi
+
+# ---------------------------------------------------------------------------------------
+say "== reboot =="
+# Looked at, never done. unattended-upgrades installs a new kernel and leaves the old one
+# running, so the box can be "up to date" and unpatched at once: found 2026-10-28 with a
+# reboot waiting since 2026-10-08, running 7.0.0-29 with 7.0.0-38 installed.
+# ---------------------------------------------------------------------------------------
+if [ -f /var/run/reboot-required ]; then
+  waiting="$(date -r /var/run/reboot-required +%F 2>/dev/null || echo "an unknown date")"
+  newest="$(find /boot -maxdepth 1 -name 'vmlinuz-*' -printf '%f\n' 2>/dev/null | sed 's/^vmlinuz-//' | sort -V | tail -1)"
+  say "   a reboot is waiting, since $waiting: running $(uname -r), newest installed ${newest:-unknown}"
+  say "   it is not done here. At a quiet hour, after a backup: reboot, then from a new terminal"
+  say "   ssh root@targum.page bash /tmp/deploy/harden.sh --confirm   (says sshd and the wall came back)"
+else
+  say "   no reboot waiting: running $(uname -r)"
 fi
 
 say ""
