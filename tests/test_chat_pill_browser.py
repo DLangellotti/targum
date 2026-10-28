@@ -371,3 +371,71 @@ def test_offline_the_pill_s_reason_keeps_full_ink_and_is_said_once(browser) -> N
     assert contrast(got["color"], got["fill"]) >= 4.5, got
     assert contrast(got["label"], got["pillFill"]) >= 4.5, got
     assert got["after"] == "none", got
+
+
+READING = {
+    "document": "ha-yam-he",
+    "section": "sec-0001",
+    "sentence": "הַיָּם הָיָה שָׁקֵט מְאוֹד בַּבֹּקֶר, וְהַדַּיָּגִים יָצְאוּ אֶל הַמַּיִם",
+    "language": "he",
+    "title": "A chapter",
+}
+
+
+def framed_in_a_reader(browser, width: int):
+    """The conversation page as a reader's drawer frames it, told what is being read."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, has_touch=width < 600, is_mobile=width < 600
+    )
+    page = context.new_page()
+    page.route(f"{SITE}/**", answer_with({"/chat/list": {"chats": [], "usable": True}}))
+    page.goto(f"{SITE}/chat?embed=1&k={TOKEN}")
+    page.wait_for_selector("#say")
+    page.wait_for_timeout(300)
+    page.evaluate(
+        "(about) => window.postMessage({type: 'targum:reading', about}, location.origin)",
+        READING,
+    )
+    page.wait_for_selector("#chat-reading:not([hidden])")
+    page.wait_for_timeout(200)
+    return context, page
+
+
+FITS = """() => {
+  const field = document.getElementById('say');
+  const style = getComputedStyle(field);
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ');
+  const room = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const text = document.getElementById('chat-reading-text');
+  return {
+    line: field.placeholder,
+    fits: ctx.measureText(field.placeholder).width <= room,
+    lang: text.getAttribute('lang'),
+    dir: text.getAttribute('dir'),
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_in_a_reader_the_box_s_line_is_never_cut(browser, width: int) -> None:
+    """#472 re-audit: a textarea's placeholder takes no ellipsis in Chromium, so in a
+    reader on a phone "Ask about the text, or write in Hebrew" was cut as "or wri". It
+    falls back to the line the box says everywhere else where it does not fit."""
+    context, page = framed_in_a_reader(browser, width)
+    got = page.evaluate(FITS)
+    context.close()
+    assert got["fits"], got
+    if width == 1440:
+        assert got["line"] == "Ask about the text, or write in Hebrew", got
+    else:
+        assert got["line"] == "Hebrew or English", got
+
+
+def test_the_sentence_being_read_says_its_language(browser) -> None:
+    """#472 re-audit, §14.3: the Reading line above the box carried a Hebrew sentence
+    with no `lang`, so it was read out in the page's language."""
+    context, page = framed_in_a_reader(browser, 390)
+    got = page.evaluate(FITS)
+    context.close()
+    assert got["lang"] == "he" and got["dir"] == "rtl", got

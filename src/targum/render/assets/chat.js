@@ -47,6 +47,44 @@
   // text opens in the page that holds the frame, and the address is left alone: a
   // frame's own history is the holding page's history too.
   var EMBED = String(document.body.className || "").split(" ").indexOf("embed") >= 0;
+
+  // The box's line is the first of `lines` that fits the field on one line, or the
+  // last. A textarea's placeholder is never cut with an ellipsis in Chromium, whatever
+  // chat.css asks: in a reader on a phone "Ask about the text, or write in Hebrew" was
+  // sliced mid-letter as "or wri" (#472, after B8). Measured again when the field's
+  // width changes, so a phone turned on its side gets the long line back.
+  var placeholderLines = null;
+  var measuring = null;
+  function fits(line) {
+    if (typeof window.getComputedStyle !== "function" || !document.createElement) return true;
+    var style = window.getComputedStyle(field);
+    var room =
+      field.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+    if (room <= 0) return true;
+    if (!measuring) {
+      var canvas = document.createElement("canvas");
+      measuring = canvas && canvas.getContext ? canvas.getContext("2d") : null;
+    }
+    if (!measuring) return true;
+    measuring.font = style.fontStyle + " " + style.fontWeight + " " + style.fontSize + " " + style.fontFamily;
+    return measuring.measureText(line).width <= room;
+  }
+  function placeholder(lines) {
+    placeholderLines = lines;
+    var chosen = lines[lines.length - 1];
+    for (var i = 0; i < lines.length; i++) {
+      if (fits(lines[i])) {
+        chosen = lines[i];
+        break;
+      }
+    }
+    field.placeholder = chosen;
+  }
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      if (placeholderLines) placeholder(placeholderLines);
+    }).observe(field);
+  }
   // The bar's height, for the room the conversation takes under it (chat.css): it is one
   // row or two depending on the width, so it is measured rather than assumed.
   (function keepHead() {
@@ -1217,7 +1255,7 @@
     // English" until 2026-09-14.
     var named = (window.TARGUM_LANGUAGES || {})[listedIn];
     if (named && listedIn !== "en") {
-      field.placeholder = t("chat.write-in", "{language} or English", { language: named });
+      placeholder([t("chat.write-in", "{language} or English", { language: named })]);
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
       if (answer.error) return tell(answer.error);
@@ -1417,7 +1455,7 @@
         openReader(reader);
       },
       stuck: function () {
-        field.placeholder = t("chat.stuck", "The word, and the sentence it was in");
+        placeholder([t("chat.stuck", "The word, and the sentence it was in")]);
         field.focus();
       },
     });
@@ -1479,12 +1517,28 @@
     if (shown && field) {
       var named = (window.TARGUM_LANGUAGES || {})[listedIn || spoken()];
       if (named) {
-        field.placeholder = t("chat.ask-about-the-text", "Ask about the text, or write in {language}", {
-          language: named,
-        });
+        // Where the reader's line does not fit, the box falls back to the line it says
+        // everywhere else; the Reading line above it already says what this is about.
+        placeholder([
+          t("chat.ask-about-the-text", "Ask about the text, or write in {language}", { language: named }),
+          t("chat.write-in", "{language} or English", { language: named }),
+        ]);
       }
     }
-    if (readingText) readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
+    if (readingText) {
+      readingText.textContent = shown.length > 90 ? shown.slice(0, 88) + "…" : shown;
+      // The sentence is in the text's language, and says so (§14.3, #472): a Hebrew run
+      // read in the page's language is read wrong by a screen reader. A title is said in
+      // whatever it is written in, which for most texts is the reader's own language.
+      var code = spoken();
+      if (sentence || /[\u0590-\u05FF]/.test(shown)) {
+        readingText.setAttribute("lang", code);
+        readingText.setAttribute("dir", HEBREW_LETTERS[code] ? "rtl" : "auto");
+      } else {
+        readingText.removeAttribute("lang");
+        readingText.setAttribute("dir", "auto");
+      }
+    }
     if (readingAsk) {
       readingAsk.textContent = sentence
         ? t("chat.page.explain-this-sentence", "Explain this sentence")
