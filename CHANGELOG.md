@@ -463,6 +463,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the conversation takes its place. A conversation opened from the search palette no
   longer adds a step of its own (the frame's address is replaced, not set). The desk is
   unchanged.
+- Your words are one step from a text's word list, with the way back to the same place
+  (David, 2026-10-28; targum-internal#547). The "Words from this text" panel ends in "All
+  your words →", on a phone's sheet and at a desk. Your Words opened that way leads with "←
+  Back to <text>, where you stopped", in Your Progress's place, and it opens the text at
+  the sentence the reader was on, with the text's own back still naming where it was
+  opened from. Opened any other way, Your Words is as it was. An address typed or pasted
+  after a visit to the Library now opens a text with "← Your targums" rather than "←
+  Library": a desk page counts as where a text came from only when it was left by a press
+  (qa on targum#963).
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars

@@ -1362,6 +1362,10 @@
     {#- The same list again, shaped for Anki: the pointed word on the front, the sentence
         it was met in on the back. A file most learners already have somewhere to put. -#}
     <button type="button" data-export="anki" id="anki-button">{{ t("reader.page.anki-deck", "Anki deck") }}</button>
+    {#- Every word, not only this text's (targum-internal#547): Your Words, which offers
+        the way back to this place in the text. Shown by `came.js` where the page was
+        served: off a disk there is no Words page. -#}
+    <a class="list-all" id="list-all" href="/words" hidden>{{ t("reader.page.all-your-words", "All your words") }} <span aria-hidden="true">→</span></a>
   </div>
 </aside>
 <button type="button" class="list-tab" id="list-tab" data-toggle="list" aria-expanded="false" aria-controls="list"><span class="list-tab-said" dir="ltr"><b id="list-tab-count">0</b> <span id="list-tab-label">{{ t("reader.page.words", "words") }}</span><span id="list-tab-phrases" hidden></span></span></button>
