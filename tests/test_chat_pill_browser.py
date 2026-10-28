@@ -371,3 +371,131 @@ def test_offline_the_pill_s_reason_keeps_full_ink_and_is_said_once(browser) -> N
     assert contrast(got["color"], got["fill"]) >= 4.5, got
     assert contrast(got["label"], got["pillFill"]) >= 4.5, got
     assert got["after"] == "none", got
+
+
+READING = {
+    "document": "ha-yam-he",
+    "section": "sec-0001",
+    "sentence": "הַיָּם הָיָה שָׁקֵט מְאוֹד בַּבֹּקֶר, וְהַדַּיָּגִים יָצְאוּ אֶל הַמַּיִם",
+    "language": "he",
+    "title": "A chapter",
+}
+
+
+def framed_in_a_reader(browser, width: int):
+    """The conversation page as a reader's drawer frames it, told what is being read."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, has_touch=width < 600, is_mobile=width < 600
+    )
+    page = context.new_page()
+    page.route(f"{SITE}/**", answer_with({"/chat/list": {"chats": [], "usable": True}}))
+    page.goto(f"{SITE}/chat?embed=1&k={TOKEN}")
+    page.wait_for_selector("#say")
+    page.wait_for_timeout(300)
+    page.evaluate(
+        "(about) => window.postMessage({type: 'targum:reading', about}, location.origin)",
+        READING,
+    )
+    page.wait_for_selector("#chat-reading:not([hidden])")
+    page.wait_for_timeout(200)
+    return context, page
+
+
+FITS = """() => {
+  const field = document.getElementById('say');
+  const style = getComputedStyle(field);
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(' ');
+  const room = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  const text = document.getElementById('chat-reading-text');
+  return {
+    line: field.placeholder,
+    fits: ctx.measureText(field.placeholder).width <= room,
+    lang: text.getAttribute('lang'),
+    dir: text.getAttribute('dir'),
+  };
+}"""
+
+
+#: The reader's line (David, 2026-10-28): the long one where it fits the drawer's field
+#: at a desk (about 235px), the short one where it does not, which is every phone.
+LONG_LINE = {"en": "Ask about it or write in ", "ru": "Вопрос о тексте "}
+SHORT_LINE = {"en": "Ask about it", "ru": "Спросите…"}
+
+
+def in_the_drawer(browser, width: int, language: str = "en", reading: str = "he"):
+    """The real drawer, opened from the pill, its frame told what is being read: the
+    field is as wide as the drawer makes it, not as wide as /chat on its own (qa, #966)."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 844}, has_touch=width < 600, is_mobile=width < 600
+    )
+    page = context.new_page()
+    library = library_page(TOKEN, language=language)
+    framed = chat_page(TOKEN, embed=True, language=language)
+    answer = answer_with({"/chat/list": {"chats": [], "usable": True}})
+
+    def route(r, request) -> None:
+        path = request.url[len(SITE) :].split("?")[0]
+        if "embed=1" in request.url:
+            r.fulfill(status=200, content_type="text/html", body=framed)
+        elif path == "/library":
+            r.fulfill(status=200, content_type="text/html", body=library)
+        else:
+            answer(r, request)
+
+    page.route(f"{SITE}/**", route)
+    page.goto(f"{SITE}/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.click("#talk-open")
+    frame = page.frame_locator("#talk-frame")
+    frame.locator("#say").wait_for()
+    page.wait_for_timeout(300)
+    page.evaluate(
+        """(about) => document.getElementById('talk-frame').contentWindow
+             .postMessage({type: 'targum:reading', about}, location.origin)""",
+        {**READING, "language": reading},
+    )
+    frame.locator("#chat-reading:not([hidden])").wait_for()
+    page.wait_for_timeout(200)
+    return context, page.frame(url=lambda url: "embed=1" in url)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("width", [1440, 390, 320])
+def test_in_a_reader_the_box_s_line_fits_the_drawer(browser, width: int, language: str) -> None:
+    """#472: a textarea's placeholder takes no ellipsis in Chromium, and in the drawer
+    the field is about 235px at a desk and narrower on a phone, so "Ask about the text,
+    or write in Hebrew" was cut as "or wri" (qa on #966: a framed /chat at full width
+    hid it). The long line shows in the drawer at a desk; a phone's narrower field gets
+    the short one, never cut, down to 320px."""
+    context, frame = in_the_drawer(browser, width, language)
+    got = frame.evaluate(FITS)
+    context.close()
+    assert got["fits"], got
+    if width < 1024:
+        # The phone's sheet leaves the field about 158px at 390 and 88px at 320
+        # (measured 2026-10-28), short of the long line's ~190px.
+        assert got["line"] == SHORT_LINE[language], got
+    else:
+        assert got["line"].startswith(LONG_LINE[language]), got
+        assert len(got["line"]) > len(LONG_LINE[language]), "names the language"
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("reading", ["fr", "arc", "ru", "yi"])
+def test_the_long_line_fits_for_every_language_read(browser, reading: str, language: str) -> None:
+    """«по-французски» and the Aramaic name are the longest forms the line takes (ling-ru,
+    2026-10-28): they fit the drawer at a desk too, so nobody gets the short line there."""
+    context, frame = in_the_drawer(browser, 1440, language, reading)
+    got = frame.evaluate(FITS)
+    context.close()
+    assert got["fits"] and got["line"].startswith(LONG_LINE[language]), got
+
+
+def test_the_sentence_being_read_says_its_language(browser) -> None:
+    """#472 re-audit, §14.3: the Reading line above the box carried a Hebrew sentence
+    with no `lang`, so it was read out in the page's language."""
+    context, page = framed_in_a_reader(browser, 390)
+    got = page.evaluate(FITS)
+    context.close()
+    assert got["lang"] == "he" and got["dir"] == "rtl", got

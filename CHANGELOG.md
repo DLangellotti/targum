@@ -33,6 +33,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   caps it at `somaxconn`, 4,096 on the box). The other /sync 502s in the log answer in a
   millisecond and fall inside a service restart; `sync.js` sends the same changes again
   after either.
+- In a reader, the talk drawer's box no longer cuts its line mid-letter
+  (targum-internal#472). A textarea's placeholder takes no ellipsis in Chromium, and the
+  drawer's field is about 235px at a desk and 158px on a phone, so "Ask about the text,
+  or write in Hebrew" read "or wri". The line is David's shorter one now, "Ask about it
+  or write in {language}" («Вопрос о тексте {language:adv}»), and where even that does
+  not fit, which is every phone, "Ask about it" («Спросите…»), chosen by measuring the
+  field. The box keeps the reader's line when the conversation switches language. The
+  Reading line's sentence now carries its `lang` and `dir`. design.md §12 says so.
 - Home's one card stays for a reader with a long record (qa on targum#958). Home sent
   every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
   server's 64 KB request line, so the card was never drawn. They go in a POST body now;
