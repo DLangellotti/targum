@@ -735,6 +735,9 @@ def test_suggest_hands_learn_one_text_with_no_conversation(chatting, monkeypatch
         return {"suggestions": left[: args["limit"]]}
 
     monkeypatch.setattr(tools, "suggest_next", suggest_next)
+    # The ordinary suggestion: not a Hebrew beginner, whose card is their next scene
+    # (design.md §12, 2026-10-27; tests/test_next_scene.py).
+    monkeypatch.setattr(tools, "scene_reader", lambda level: False)
     status, got, _ = call(port, "GET", f"/suggest?k={key}")
     # Whether the library has the language at all rides along (P4, 2026-10-09): home
     # says so plainly where it has nothing (board YiHome).
@@ -758,6 +761,7 @@ def test_home_says_nothing_of_a_share_of_none(chatting, monkeypatch: Any) -> Non
     from targum.chat import tools
 
     port, key, _store, _chats = chatting
+    monkeypatch.setattr(tools, "scene_reader", lambda level: False)
 
     def picking(share: int):
         row = {"id": "ruth", "title": "רות", "because": f"You know {share}% of its words."}

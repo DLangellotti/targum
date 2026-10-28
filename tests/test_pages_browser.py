@@ -2847,7 +2847,14 @@ def test_an_english_phone_is_shown_no_russian(browser) -> None:
         context.close()
 
 
-def _home(browser, width: int, readers: list[dict], stored: dict[str, str], over: bool = True):
+def _home(
+    browser,
+    width: int,
+    readers: list[dict],
+    stored: dict[str, str],
+    over: bool = True,
+    suggestion: dict | None = None,
+):
     """Home, served as the box would serve it, with `readers` on the shelf and `stored` in
     this browser's storage. Signed out: the account's places are refused, and this
     browser's are all there are."""
@@ -2869,7 +2876,10 @@ def _home(browser, width: int, readers: list[dict], stored: dict[str, str], over
         elif path == "/account/me":
             body = {"signedIn": False}
         elif path == "/suggest":
-            body = {"suggestion": {"id": "ruth", "title": "רות", "language": "he", "minutes": 9}}
+            body = {
+                "suggestion": suggestion
+                or {"id": "ruth", "title": "רות", "language": "he", "minutes": 9}
+            }
         else:
             body = {}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
@@ -2977,6 +2987,111 @@ def test_a_new_reader_is_asked_first_and_then_sees_an_honest_home(browser) -> No
     context.close()
     assert went == []
     assert got == {"label": "One to start with", "tabs": "none", "shelf": True}, got
+
+
+SCENE_SEEN = """() => {
+  const card = document.getElementById('try-next');
+  const box = card.getBoundingClientRect();
+  const open = card.querySelector('.try-open').getBoundingClientRect();
+  return {
+    label: card.querySelector('.home-label').textContent,
+    title: card.querySelector('.try-what bdi, .try-what [lang]').textContent,
+    facts: !!card.querySelector('.home-card-facts'),
+    picture: !!card.querySelector('img, svg, .home-cover, .cover'),
+    scene: card.getAttribute('data-scene'),
+    href: card.querySelector('.try-open').getAttribute('href'),
+    cards: document.querySelectorAll('#try-next').length,
+    tall: Math.round(open.height),
+    inside: box.right <= window.innerWidth + 0.5 && box.left >= -0.5,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    continueFirst: (() => {
+      const c = document.getElementById('continue');
+      return !c || c.hidden || c.getBoundingClientRect().top <= box.top;
+    })(),
+  };
+}"""
+
+
+def _scene(id_: str, title: str, first: bool) -> dict:
+    return {
+        "id": id_, "title": title, "language": "he", "kind": "dialogue", "minutes": 1,
+        "because": "You know 40% of its words.", "reader": f"/reader/{id_}/reader/index.html",
+        "scene": {"first": first},
+    }  # fmt: skip
+
+
+def _shot(page, name: str) -> None:
+    """Kept for the card's evidence (design.md §14, 1 and 2) in the folder `TARGUM_SHOTS`
+    names, when it names one."""
+    import os
+
+    where = os.environ.get("TARGUM_SHOTS")
+    if where:
+        Path(where).mkdir(parents=True, exist_ok=True)
+        page.screenshot(path=str(Path(where) / f"{name}.png"), full_page=True)
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_a_hebrew_beginners_one_card_is_their_next_scene(browser, width: int) -> None:
+    """design.md §12, "A Hebrew beginner's one card is their next scene" (2026-10-27), in
+    the three states §14 asks of it at both widths: a first visit (Start here, scene 1),
+    a reader coming back (Continue leads, then Your next scene), and a reader with a lot
+    (five hundred texts, and still one card). One line, no facts, nothing spends."""
+    # First visit: nothing opened yet.
+    context, page, went = _home(
+        browser, width, [], {}, suggestion=_scene("scene-01-nice-to-meet-you", "נעים מאוד", True)
+    )
+    page.wait_for_selector("#try-next:not([hidden])")
+    first = page.evaluate(SCENE_SEEN)
+    _shot(page, f"scene-first-{width}")
+    context.close()
+    assert first["label"] == "Start here" and first["scene"] == "first", first
+    assert first["title"] == "נעים מאוד" and not first["facts"], first
+    assert first["href"].startswith("/reader/scene-01-nice-to-meet-you/"), first
+    assert first["inside"] and not first["sideways"], first
+    assert went == []
+
+    # Coming back: a scene finished, another under way in Continue.
+    now = 1_900_000_000_000
+    readers = [_shelf_row("scene-02", "בבית קפה", 100, kind="dialogue", entry="scene-02-in-a-cafe")]
+    places = {"scene-02": {"section": "", "path": "/reader/scene-02/reader/index.html",
+                           "segment": "s3", "seconds": 0, "at": now}}  # fmt: skip
+    context, page, _ = _home(
+        browser, width, readers, {"targum:places": json.dumps(places)},
+        suggestion=_scene("scene-03-which-way", "איפה הרחוב", False),
+    )  # fmt: skip
+    page.wait_for_selector("#continue:not([hidden]) .home-card")
+    page.wait_for_selector("#try-next:not([hidden])")
+    back = page.evaluate(SCENE_SEEN)
+    _shot(page, f"scene-returning-{width}")
+    context.close()
+    assert back["label"] == "Your next scene" and back["scene"] == "next", back
+    assert back["continueFirst"], "Continue leads"
+    assert not back["sideways"], back
+
+    # A reader with a lot: five hundred texts, and still the one card.
+    many = [_shelf_row(f"t{n}", f"טקסט {n}", 1000 + n) for n in range(500)]
+    context, page, _ = _home(
+        browser, width, many, {},
+        suggestion=_scene("scene-140-the-clinic", "בקופת חולים", False),
+    )  # fmt: skip
+    page.wait_for_selector("#try-next:not([hidden])")
+    lot = page.evaluate(SCENE_SEEN)
+    _shot(page, f"scene-a-lot-{width}")
+    context.close()
+    assert lot["label"] == "Your next scene" and lot["cards"] == 1, lot
+    assert lot["inside"] and not lot["sideways"], lot
+    if width < 640:
+        assert lot["tall"] >= 44, "a thumb reaches the press"
+
+
+def test_anyone_else_keeps_the_ordinary_suggestion(browser) -> None:
+    """A suggestion with no `scene` is the ordinary one, said as it always was."""
+    context, page, _ = _home(browser, 1440, [], {})
+    page.wait_for_selector("#try-next:not([hidden])")
+    seen = page.evaluate(SCENE_SEEN)
+    context.close()
+    assert seen["label"] == "One to start with" and seen["scene"] is None, seen
 
 
 WORDS_SEEN = """() => ({

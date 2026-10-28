@@ -558,7 +558,9 @@ def test_a_first_visit_lands_on_the_shelves_with_the_first_scene_first(tmp_path:
     drawn = draw(tmp_path, firstVisit=True, shelves=True, shared=SCENES)
     assert drawn["shelving"] is True
     assert drawn["rows"] == [], "the list waits behind See all"
-    now = drawn["shelves"][0]
+    # Hebrew's Start here shelf leads (design.md §12, 2026-10-27): tests below.
+    assert drawn["shelves"][0]["band"] == "start"
+    now = drawn["shelves"][1]
     assert now["band"] == "now"
     assert now["cards"][0]["title"] == "נעים מאוד"
     assert now["cards"][0]["chip"] == "Start here"
@@ -1952,3 +1954,58 @@ def test_the_era_is_said_in_the_readers_language(tmp_path: Path) -> None:
     )
     cards = {card["id"]: card for one in drawn["shelves"] for card in one["cards"]}
     assert cards["news-one"]["era"] == "Иврит эпохи Возрождения, 1890-е"
+
+
+def scene_catalogue(*extra: str) -> list[dict[str, Any]]:
+    """The fixture catalogue's Hebrew rows, and more scenes made from its first."""
+    from targum.catalogue import CATALOGUE
+
+    rows = [entry.state() for entry in CATALOGUE if entry.language == "he"]
+    first = next(row for row in rows if row["id"] == "scene-01-nice-to-meet-you")
+    return rows + [{**first, "id": id_, "title": id_, "source": "dialogue:" + id_} for id_ in extra]
+
+
+def test_hebrew_has_a_start_here_shelf_in_the_scenes_order(tmp_path: Path) -> None:
+    """design.md §12, "A Hebrew beginner's one card is their next scene" (2026-10-27): the
+    scenes in their order — 1 to 240, then the B1 conversations — from the first one not
+    finished, whatever each measures."""
+    catalogue = scene_catalogue("scene-he-01-the-lease", "scene-101-arnona")
+    drawn = draw(tmp_path, shelves=True, shared=SCENES, catalogue=catalogue)
+    start = drawn["shelves"][0]
+    assert start["band"] == "start" and start["name"] == "Start here"
+    assert start["note"].startswith("Short conversations in the order to meet them")
+    assert [card["id"] for card in start["cards"]] == [
+        "scene-01-nice-to-meet-you",
+        "scene-02-in-a-cafe",
+        "scene-03-which-way",
+        "scene-18-two-coffees",
+        "scene-101-arnona",
+    ]
+    assert start["seeAll"] is False
+
+    done = {
+        "targum:docs": json.dumps(
+            {"scene-01-nice-to-meet-you-h": {"done": 9}, "scene-02-in-a-cafe-h": {"done": 9}}
+        )
+    }
+    later = draw(tmp_path, shelves=True, shared=SCENES, catalogue=catalogue, stored=done)
+    assert [card["id"] for card in later["shelves"][0]["cards"]] == [
+        "scene-03-which-way",
+        "scene-18-two-coffees",
+        "scene-101-arnona",
+        "scene-he-01-the-lease",
+    ]
+
+
+def test_a_shelf_with_no_scenes_has_no_start_here(tmp_path: Path) -> None:
+    drawn = draw(tmp_path, shelves=True, catalogue=media_shelf(), collections=[])
+    assert "start" not in [one["band"] for one in drawn["shelves"]]
+
+
+def test_dialogues_is_a_door_among_browse_by_kind(tmp_path: Path) -> None:
+    drawn = draw(tmp_path, shelves=True, shared=SCENES)
+    ids = [door["id"] for door in drawn["kindDoors"]]
+    assert "dialogue" in ids
+    assert ids.index("dialogue") == (1 if ids[0] == "tanakh" else 0), "first after the Tanakh"
+    door = drawn["kindDoors"][ids.index("dialogue")]
+    assert door["href"] == "#see/kind/dialogue" and door["says"] == ["Dialogues"]

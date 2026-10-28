@@ -1168,6 +1168,73 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {"suggestions": chosen}
 
 
+#: The declared rungs that make a Hebrew reader a beginner whose one card is their next
+#: scene (design.md §12, "A Hebrew beginner's one card is their next scene", 2026-10-27):
+#: aleph or bet, or nothing said at all (bet added by David, 2026-10-28).
+SCENE_DECLARED = frozenset({"", "aleph", "bet"})
+#: The measured rung at which the scenes are behind a reader: B1, the level of the last
+#: series of them. Measured, it outvotes what they said (`level.seed`).
+PAST_THE_SCENES = "gimel"
+#: A scene a reader would follow this much of from their own known words is skipped.
+SCENE_KNOWN_ENOUGH = 0.95
+
+
+def scene_reader(level: Level) -> bool:
+    """Whether this Hebrew reader's one card on home is their next scene.
+
+    A measured rung decides when there is one: below gimel, the scenes are still ahead.
+    Without one, what they said on arrival does: aleph, bet, or nothing."""
+    if (level.language or "he").split("-")[0].lower() != "he":
+        return False
+    if level.here is not None:
+        names = [rung.name for rung in level_module.ULPAN]
+        here = names.index(level.here.name) if level.here.name in names else 0
+        return here < names.index(PAST_THE_SCENES)
+    return level.declared in SCENE_DECLARED
+
+
+def _scene_order(entry: catalogue_module.Entry) -> tuple[int, int, str]:
+    """Scenes 1–100, then 101–240 (one series, numbered on), then the B1 conversations,
+    a series of their own (targum#953): numbers never cross a series."""
+    series = catalogue_module.scene_series(entry.id)
+    return (0 if series == "" else 1, catalogue_module.scene_number(entry.id), entry.id)
+
+
+def next_scene(ctx: Ctx, skip: Iterable[str] = ()) -> dict[str, Any] | None:
+    """A Hebrew beginner's next scene: the first in order not finished, not among `skip`
+    (what the page says is finished or already in Continue), and not one they would
+    follow `SCENE_KNOWN_ENOUGH` of from their own known words. None when every scene is
+    behind them. The row is `suggest_next`'s, with `scene` saying whether it is the first.
+    """
+    left_out = {str(one) for one in skip if str(one)}
+    scenes = sorted(
+        (
+            entry
+            for entry in catalogue_module.everything()
+            if entry.language.split("-")[0] == "he"
+            and catalogue_module.scene_number(entry.id)
+            and catalogue_module.scene_series(entry.id) in ("", "he")
+        ),
+        key=_scene_order,
+    )
+    if not scenes:
+        return None
+    mine, shared = _shelf(ctx)
+    built = _by_source([*mine, *shared])
+    collections = _collections()
+    for entry in scenes:
+        if entry.id in left_out:
+            continue
+        row = _entry_row(entry, built.get(catalogue_module._key(entry.source)), collections)
+        known = row.get("known_share")
+        if known is not None and float(known) >= SCENE_KNOWN_ENOUGH:
+            continue
+        # "Start here" until any scene is finished or under way; "Your next scene" after.
+        row["scene"] = {"first": not left_out & {each.id for each in scenes}}
+        return row
+    return None
+
+
 #: How many texts `find_text` answers with unless asked, and the most it will.
 FIND_LIMIT = 10
 FIND_MOST = 20
