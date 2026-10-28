@@ -382,7 +382,7 @@ fallen behind the entries by half; the dates are the index.)
 
 ### The back office counts the beta's gate in one row — 2026-10-28
 
-*Proposed, awaiting David's approval.* Beta's gate is a second text and Launch's go/no-go
+Approved by David, 2026-10-28. Beta's gate is a second text and Launch's go/no-go
 (targum-internal#486) reads week 4, from the weekly table of 2026-10-15 (targum-internal
 #458). Under the weeks, one more row: **Since the beta, 2026-10-19**, every week from
 batch one's on, each column added up, under a rule in ink and set in ink at weight 600,
