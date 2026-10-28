@@ -12,6 +12,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Home's one card stays for a reader with a long record (qa on targum#958). Home sent
+  every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
+  server's 64 KB request line, so the card was never drawn. They go in a POST body now;
+  a GET with `?skip=` still answers.
 - A new Hebrew reader starts on scene 1 of the A1 path again (2026-10-27, a regression
   since aec01564). The 27 B1 conversations are `scene-he-01…` and number from 1 too, and
   every page read the number alone: since `/readers` lists shared texts newest-built
@@ -385,6 +389,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Scenes, whose order is built from the scene numbers, so a new scene joins it without a
   new collection. A reader who said bet is a beginner too while nothing is measured, and
   /suggest no longer cuts the finished ids at 200, which could offer a finished scene.
+- A named back beside the mark in the reader and Theatre (David, 2026-10-28;
+  targum-internal#546). A beta reader got stuck inside a reader: the mark was the only way
+  out and went to Your targums whatever page they had come from. Beside the mark, which is
+  unchanged, the bar now names where the text was opened from, "← Library", "← <playlist>",
+  "← Words", and goes back there; with nothing to say (a shared or typed link) it reads
+  "← Your targums". Each desk page writes its name to the tab's own store as it is left and
+  the reader reads it, so nothing is added to any address. The next section, a playlist's
+  next item, the next scene, a reload and the browser's Back keep it. It is 44px with a
+  visible label, fades with the bar and comes back the same ways, and is the first Tab
+  stop, which brings the bar out. In Theatre the mark and the back stay at 55% while a
+  video plays instead of vanishing. The reader is laid out to the screen's edges
+  (`viewport-fit=cover`) and the bar clears the notch in the installed app.
 - On a phone, Back closes Talk before it leaves the page (David, 2026-10-28;
   targum-internal#548). The sheet covers the page, and the phone's Back, or the swipe,
   left the page under it. Opening the sheet now adds one step to the history at the same

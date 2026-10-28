@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-27
+Sentences plays a line you have read for you to write down, or takes out a word for you to fill in.
+A text you brought can be corrected line by line in the reader, and the other lines keep their English.
+Share to targum from a phone opens Add with the link, and a Chrome extension does the same.
+
 2026-10-26
 More Hebrew verbs give their right root and binyan, and a verb in the present is filed under its past.
 The last word of a Bible verse is stressed where it is chanted, and more Hebrew words sound as they are read.

@@ -6,7 +6,7 @@
 <html lang="{{ page_language|default('en') }}" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>⁨{{ title }}⁩{% if english %} · {{ english }}{% endif %}{% if not standalone %} — {{ section.title }}{% endif %}</title>
 {% include '_icons.html.j2' %}
 {{ styles('tokens.css', 'shared.css', 'reader.css') }}{% if said %}{{ styles('said.css') }}{% endif %}
@@ -31,6 +31,15 @@
       wires it as before: a link only where there is somewhere to go, and carrying the
       key it was served with — and, since 2026-10-07, the text's language, so Learn
       opens in it (design.md §12). -#}
+  {#- A named back beside the mark (design.md §12, 2026-10-28; targum-internal#546): to
+      wherever the text was opened from, or to Your targums when nothing says. First in
+      the document, so the first Tab lands on it and brings the bar out, and drawn after
+      the mark, which keeps its corner. Named and wired by `came.js`; hidden, like the
+      mark's link, where there is no desk to go back to. -#}
+  <a class="bar-back" id="bar-back" href="/" data-home-name="{{ t("reader.page.your-targums", "Your targums") }}" data-text="{{ title }}" data-aria="{{ t("reader.back.to", "Back to {place}") }}" hidden>
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+    <bdi class="bar-back-to">{{ t("reader.page.your-targums", "Your targums") }}</bdi>
+  </a>
   <a class="bar-brand" id="home" href="/" title="{{ t("reader.page.your-targums", "Your targums") }}" aria-label="{{ t("reader.page.targum-home", "targum — Your targums") }}" hidden>
     <svg viewBox="20 12 56 72" aria-hidden="true" focusable="false">
       <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
@@ -1444,6 +1453,9 @@
 {{ script('events.js') }}
 {{ script('landed.js') }}
 {{ script('reader.js') }}
+{#- After `reader.js`, which shows the mark's link where there is a desk: the named back
+    beside it follows the mark (targum-internal#546). -#}
+{{ script('came.js') }}
 {%- if data_late %}
 {#- After reader.js, so a word answers a tap before the commentaries' data is parsed
     (targum-internal#409). `adoptLate` takes it in. -#}

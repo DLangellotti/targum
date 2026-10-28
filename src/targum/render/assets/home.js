@@ -53,6 +53,20 @@
     });
   }
 
+  /* The same ask, with a body: what home has finished goes in it rather than in the
+     address, which a long record outgrew (qa on targum#958). */
+  function askWith(path, body) {
+    return fetch(keyed(path), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }).then(function (response) {
+      if (!response.ok) throw new Error(String(response.status));
+      return response.json();
+    });
+  }
+
   function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
@@ -899,11 +913,7 @@
     continuing.entries.forEach(function (entry) {
       if (skip.indexOf(entry) < 0) skip.push(entry);
     });
-    ask(
-      "/suggest?language=" +
-        encodeURIComponent(code) +
-        (skip.length ? "&skip=" + encodeURIComponent(skip.join(",")) : "")
-    )
+    askWith("/suggest", { language: code, skip: skip })
       .then(function (got) {
         if (code !== suggesting) return;
         drawTry(got && got.suggestion, first);
