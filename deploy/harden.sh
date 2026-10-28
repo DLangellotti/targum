@@ -295,8 +295,15 @@ caddy_up() {
     || ! curl -fsS -o /dev/null --max-time 15 --retry 3 --retry-delay 2 --retry-all-errors \
       --resolve targum.page:443:127.0.0.1 https://targum.page/health; then
     rm -f "$CADDY_DROPIN"
-    systemctl daemon-reload || true
-    systemctl restart caddy || say "   caddy did not start again either; see journalctl -u caddy"
+    # The undo can fail too, and then the line must not say it worked: a daemon-reload
+    # that failed leaves systemd holding the sandbox, so a restart that "worked" brought
+    # Caddy back still inside it.
+    local undone=1
+    systemctl daemon-reload || undone=0
+    systemctl restart caddy || undone=0
+    if [ "$undone" = 0 ]; then
+      die "caddy did not serve the site in its sandbox, AND THE UNDO FAILED: the drop-in file is gone but caddy is not back as it was. By hand: rm -f $CADDY_DROPIN && systemctl daemon-reload && systemctl restart caddy — then journalctl -u caddy."
+    fi
     die "caddy did not serve the site in its sandbox. The drop-in was removed and caddy restarted as it was; see journalctl -u caddy."
   fi
   say "   caddy restarted in its sandbox, and serving"

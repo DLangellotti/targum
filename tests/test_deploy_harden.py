@@ -316,6 +316,24 @@ def test_any_failed_step_takes_the_sandbox_out_and_restarts_caddy(
     assert not any(call.startswith("curl") for call in calls[failed + 1 :])
 
 
+@pytest.mark.parametrize("fail", ["systemctl_daemon-reload", "systemctl_restart_caddy"])
+def test_an_undo_that_fails_says_so_and_gives_the_rollback(tmp_path: Path, fail: str) -> None:
+    """The stub fails the undo's own step as well as the first one, so the line must not
+    claim caddy was restarted as it was."""
+    run, _ = run_caddy_up(tmp_path, fail)
+    assert run.returncode == 1
+    assert "THE UNDO FAILED" in run.stderr
+    assert "restarted as it was" not in run.stderr
+    assert "systemctl daemon-reload && systemctl restart caddy" in run.stderr
+    assert not (tmp_path / "10-targum-sandbox.conf").exists()
+
+
+def test_an_undo_that_works_says_caddy_is_back(tmp_path: Path) -> None:
+    run, _ = run_caddy_up(tmp_path, "curl")
+    assert "restarted as it was" in run.stderr
+    assert "UNDO FAILED" not in run.stderr
+
+
 def test_a_rejected_caddy_drop_in_never_reaches_systemd(tmp_path: Path) -> None:
     run, calls = run_caddy_up(tmp_path, "systemd-analyze")
     assert run.returncode == 1
