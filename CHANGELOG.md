@@ -12,6 +12,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- deploy/INCIDENT.md has a drill for each of the five kinds of trouble on
+  targum-internal#482 (a rollback, last night's database, a provider down, out of
+  credit, the box unreachable), with the date each last ran. `targum drill-credit` sends
+  the out-of-credit mail once as a drill, through the code a failing build uses, without
+  spending and without touching the live four-hour limit. The runbooks say plainly there
+  is no outside monitor yet (David, 2026-10-28: "Not before Launch"); they used to say
+  one heard a dead box. A copy that did not leave the box now says rclone's error, not
+  its config notice: every failed night since 2026-10-26 said only "failed to get", where
+  Backblaze was refusing with 403 storage_cap_exceeded, and INCIDENT.md says what to do
+  about a full bucket. `tests/test_runbooks.py` checks that every unit and `targum` command the
+  runbooks name exists.
 - Home's one card stays for a reader with a long record (qa on targum#958). Home sent
   every finished text's id in `/suggest`'s address, and about 2,000 of them passed the
   server's 64 KB request line, so the card was never drawn. They go in a POST body now;
