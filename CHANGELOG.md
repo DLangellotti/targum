@@ -364,14 +364,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   0 on the box, 13 on the laptop's `targum-out`.
 - A Hebrew beginner's one card on home is their next scene (David, 2026-10-27;
   targum-internal#545). A beta reader came back after a long gap and could not find the
-  dialogues. A Hebrew reader who said aleph or nothing, and whose measured level is not
+  dialogues. A Hebrew reader who said aleph, bet or nothing, and whose measured level is not
   yet B1, now sees their next unfinished scene where home's single suggestion stood, with
   its picture and one line: "Start here" until a scene is under way, then "Your next
   scene". The order is scenes 1 to 100, 101 to 240, then the B1 conversations, and a
   scene they would follow 95% or more of from their own known words is skipped. Everyone
   else keeps the ordinary suggestion. The Library gains a Start here shelf in the same
-  order and a Dialogues door among Browse by kind; scenes 101 to 240 are a collection of
-  their own in the catalogue (More scenes). The Russian lines are drafts for ling-ru.
+  order and a Dialogues door among Browse by kind. Scenes 1 to 240 are one collection,
+  Scenes, whose order is built from the scene numbers, so a new scene joins it without a
+  new collection. A reader who said bet is a beginner too while nothing is measured, and
+  /suggest no longer cuts the finished ids at 200, which could offer a finished scene.
 - The back office shows each reader's credits (David, 2026-10-27; targum-internal#543).
   Accounts gain Credits this month, the same sum the allowance is held to, against the
   reader's allowance (Plan's for an admin), with the month's model spend in dollars

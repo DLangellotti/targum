@@ -978,13 +978,42 @@ def collections() -> list[Collection]:
     Asked of the shelf rather than trusted, and empty ones are dropped: a collection whose
     texts are all gone is a row that opens onto nothing.
     """
-    have = {entry.id for entry in everything()}
+    shelf = everything()
+    have = {entry.id for entry in shelf}
     kept: list[Collection] = []
     for collection in COLLECTIONS:
-        members = tuple(member for member in collection.members if member in have)
+        members = _scenes_in_order(collection, shelf) or tuple(
+            member for member in collection.members if member in have
+        )
         if len(members) > 1:
             kept.append(replace(collection, members=members))
     return kept
+
+
+def _scenes_in_order(collection: Collection, shelf: list[Entry]) -> tuple[str, ...]:
+    """A collection of one series' scenes holds every scene of that series on the shelf,
+    in the order of their numbers (David, 2026-10-28: Hebrew's Scenes run 1 to 240 as one,
+    "also we'll add more soon"). Its order is built from the numbers, so a scene 241 joins
+    it by being on the shelf, with no new collection and no edit to the list. Empty for a
+    collection that is anything else."""
+    listed = [member for member in collection.members if scene_number(member)]
+    if not listed or len(listed) != len(collection.members):
+        return ()
+    series = {scene_series(member) for member in listed}
+    if len(series) != 1:
+        return ()
+    (only,) = series
+    language = next((entry.language for entry in shelf if entry.id in set(listed)), "")
+    if not language:
+        return ()
+    found = [
+        entry.id
+        for entry in shelf
+        if scene_number(entry.id)
+        and scene_series(entry.id) == only
+        and entry.language == language
+    ]
+    return tuple(sorted(found, key=lambda each: (scene_number(each), each)))
 
 
 def swipe_sets() -> list[Collection]:

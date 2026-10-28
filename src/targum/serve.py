@@ -10688,7 +10688,10 @@ class Handler(BaseHTTPRequestHandler):
         # What the page says the reader has finished, by catalogue id: that is kept in
         # the browser, and a finished suggestion makes way for the next (2026-09-11).
         skip = query.get("skip", [""])[0]
-        done = sorted({one.strip() for one in skip.split(",") if one.strip()})[:200]
+        # Every id the page sends, however many: a cap of 200 cut the alphabet short at
+        # the scenes, and a reader who had finished more than that was offered a scene
+        # they had finished (qa on targum#958). The request line bounds it already.
+        done = sorted({one.strip() for one in skip.split(",") if one.strip()})
         # A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27):
         # the order is the scenes', not the ranking's, until their level is past them.
         scene = None

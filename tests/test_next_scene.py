@@ -13,10 +13,15 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import test_chat_serve
+from test_serve import call
 
 from targum import catalogue as catalogue_module
 from targum import level as level_module
 from targum.chat import tools
+
+chatting = test_chat_serve.chatting
+_record_by_spaces = test_chat_serve._record_by_spaces
 
 EMPTY = level_module.EMPTY
 
@@ -82,7 +87,11 @@ def test_a_beginner_is_aleph_or_nothing_said_until_measured_past_the_scenes() ->
     assert tools.scene_reader(he), "nothing said, nothing measured: a fresh reader"
     assert tools.scene_reader(replace(he, declared="aleph"))
     assert not tools.scene_reader(replace(he, declared="gimel")), "a gimel reader"
-    assert not tools.scene_reader(replace(he, declared="bet"))
+    assert tools.scene_reader(replace(he, declared="bet")), "bet too (David, 2026-10-28)"
+    assert not tools.scene_reader(replace(he, declared="bet-plus"))
+    assert not tools.scene_reader(replace(he, declared="bet", here=rung("gimel"))), (
+        "measured outvotes a said bet"
+    )
     assert not tools.scene_reader(replace(he, here=rung("gimel"))), "a measured B1"
     assert tools.scene_reader(replace(he, here=rung("bet plus"), declared="gimel")), (
         "a measured rung outvotes the said one"
@@ -118,15 +127,69 @@ def test_a_scene_known_well_enough_is_skipped(ctx: Any) -> None:
 
 
 def test_suggest_hands_a_beginner_their_scene_and_anyone_else_the_ranking(
+    chatting: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Asked of the running server (qa on targum#958): a signed-out Hebrew visitor, who
+    has said and measured nothing, is handed scene 1 with `scene` for home's line, then
+    the next once it is finished; a reader past the scenes gets the ranking's pick."""
+    port, key, _store, _chats = chatting
+    status, got, _ = call(port, "GET", f"/suggest?language=he&k={key}")
+    assert status == 200
+    assert got["suggestion"]["id"] == "scene-01-nice-to-meet-you"
+    assert got["suggestion"]["scene"] == {"first": True}
+    got = call(port, "GET", f"/suggest?language=he&skip=scene-01-nice-to-meet-you&k={key}")[1]
+    assert got["suggestion"]["id"] == "scene-02-in-a-cafe"
+    assert got["suggestion"]["scene"] == {"first": False}
+
+    monkeypatch.setattr(tools, "scene_reader", lambda level: False)
+    picked = {"id": "esther", "title": "אסתר", "because": "Not measured yet."}
+    monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": [picked]})
+    got = call(port, "GET", f"/suggest?language=he&k={key}")[1]
+    assert got["suggestion"]["id"] == "esther" and "scene" not in got["suggestion"]
+
+
+def test_a_finished_scene_is_never_offered_however_much_is_finished(chatting: Any) -> None:
+    """qa on targum#958: the ids were cut at 200, alphabetically, so a reader who had
+    finished more than that lost the scenes off the end and was offered scene 1 again."""
+    port, key, _store, _chats = chatting
+    finished = [f"article-{n:04d}" for n in range(400)] + ["scene-01-nice-to-meet-you"]
+    got = call(port, "GET", f"/suggest?language=he&skip={','.join(finished)}&k={key}")[1]
+    assert got["suggestion"]["id"] == "scene-02-in-a-cafe"
+
+
+def test_a_scene_collection_runs_by_number_and_takes_new_scenes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The route: a beginner's answer is the scene, with `scene` for home's line; a reader
-    past them gets `suggest_next`'s pick, untouched."""
-    served = Path(__file__).resolve().parent.parent / "src" / "targum" / "serve.py"
-    text = served.read_text(encoding="utf-8")
-    route = text[text.index("def _suggest(") : text.index("def _chat_suggest")]
-    assert route.index("chat_tools.scene_reader(ctx.level)") < route.index("suggest_next(")
-    assert "chat_tools.next_scene(ctx, done)" in route
+    """David, 2026-10-28: Scenes run 1 to 240 as one collection, "also we'll add more
+    soon". Its order is built from the numbers, so a scene the file never listed joins
+    it, and nothing splits it at 100."""
+    shelf = [entry(f"scene-{n:02d}-x{n}") for n in (2, 1, 101, 241, 100)] + [
+        entry("scene-he-01-b1"),
+        entry("scene-ru-01-r", language="ru"),
+        entry("esther"),
+    ]
+    listed = catalogue_module._collection(
+        {
+            "id": "scenes",
+            "title": "סצנות",
+            "ordered": True,
+            "members": ["scene-01-x1", "scene-02-x2"],
+        }
+    )
+    other = catalogue_module._collection(
+        {"id": "books", "title": "ספרים", "members": ["esther", "scene-01-x1"]}
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: list(shelf))
+    monkeypatch.setattr(catalogue_module, "COLLECTIONS", [listed, other])
+    found = {one.id: one.members for one in catalogue_module.collections()}
+    assert found["scenes"] == (
+        "scene-01-x1",
+        "scene-02-x2",
+        "scene-100-x100",
+        "scene-101-x101",
+        "scene-241-x241",
+    )
+    assert found["books"] == ("esther", "scene-01-x1"), "a mixed collection keeps its list"
 
 
 ASSETS = Path(__file__).resolve().parent.parent / "src" / "targum" / "render" / "assets"
@@ -142,6 +205,9 @@ def test_no_reader_ever_sees_the_word_path() -> None:
     for catalogue in sorted(STRINGS.glob("*.json")):
         for key, said in json.loads(catalogue.read_text(encoding="utf-8")).items():
             assert not re.search(r"\bpaths?\b", str(said), re.I), (catalogue.name, key, said)
+            # And in Russian (qa on targum#958). "В пути", on the way, is a motion verb's
+            # gloss on the grammar card and says nothing of the scenes.
+            assert not re.search(r"\bпуть\b|маршрут", str(said), re.I), (catalogue.name, key)
     for page in sorted(TEMPLATES.glob("*.j2")):
         words = re.sub(
             r"<(style|script)\b.*?</\1>|\{#.*?#\}|\{%.*?%\}|\{\{.*?\}\}|<[^>]+>",
@@ -149,7 +215,7 @@ def test_no_reader_ever_sees_the_word_path() -> None:
             page.read_text("utf-8"),
             flags=re.S,
         )
-        assert not re.search(r"\bpaths?\b", words, re.I), page.name
+        assert not re.search(r"\bpaths?\b|\bпуть\b|маршрут", words, re.I), page.name
     # The English a script falls back to is what a reader sees without a catalogue.
     for script in ("home.js", "library.js", "scenes.js"):
         text = (ASSETS / script).read_text(encoding="utf-8")
@@ -158,4 +224,4 @@ def test_no_reader_ever_sees_the_word_path() -> None:
     design = (Path(__file__).resolve().parent.parent / "design.md").read_text(encoding="utf-8")
     start = design.index("### A Hebrew beginner's one card is their next scene")
     entry_text = design[start : design.index("\n### ", start + 1)]
-    assert not re.search(r"\bpaths?\b", entry_text, re.I)
+    assert not re.search(r"\bpaths?\b|\bпуть\b|маршрут", entry_text, re.I)

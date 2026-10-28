@@ -1170,8 +1170,8 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
 #: The declared rungs that make a Hebrew reader a beginner whose one card is their next
 #: scene (design.md §12, "A Hebrew beginner's one card is their next scene", 2026-10-27):
-#: aleph, or nothing said at all.
-SCENE_DECLARED = frozenset({"", "aleph"})
+#: aleph or bet, or nothing said at all (bet added by David, 2026-10-28).
+SCENE_DECLARED = frozenset({"", "aleph", "bet"})
 #: The measured rung at which the scenes are behind a reader: B1, the level of the last
 #: series of them. Measured, it outvotes what they said (`level.seed`).
 PAST_THE_SCENES = "gimel"
@@ -1183,7 +1183,7 @@ def scene_reader(level: Level) -> bool:
     """Whether this Hebrew reader's one card on home is their next scene.
 
     A measured rung decides when there is one: below gimel, the scenes are still ahead.
-    Without one, what they said on arrival does: aleph, or nothing."""
+    Without one, what they said on arrival does: aleph, bet, or nothing."""
     if (level.language or "he").split("-")[0].lower() != "he":
         return False
     if level.here is not None:
