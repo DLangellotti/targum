@@ -173,7 +173,7 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 
 /* --- Level (design.md §12, "Your level leads with what you can read", 2026-10-28) --------
    The section title on the desk, then cards: what you can read and the one press; the
-   ladder, open, easiest at the top; and the foot line, the one level, on the ground with
+   texts' own levels, open, easiest first; and the foot line, the one level, on the ground with
    its bar. At a desk the lead and the foot share the left five of the twelve columns and
    the ladder takes the right seven; on a phone they stack, the foot last. No percentage
    is drawn anywhere in it. */
@@ -214,17 +214,15 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 @media (min-width: 64rem) {
   .progress .level-ladder { padding: 1.25rem 0.75rem 0.75rem; }
 }
-.progress .level-ladder-head,
-.progress .level-ladder-sub { margin: 0; padding-inline: 0.75rem; }
-@media (min-width: 64rem) {
-  .progress .level-ladder-head,
-  .progress .level-ladder-sub { padding-inline: 1rem; }
+.progress .level-ladder-head {
+  margin: 0 0 0.5rem;
+  padding-inline: 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
 }
-.progress .level-ladder-head { font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
-.progress .level-ladder-sub { margin-block: 0.125rem 0.5rem; font-size: 0.8125rem; line-height: 1.4; color: var(--ink-soft); }
 @media (min-width: 64rem) {
-  .progress .level-ladder-head { font-size: 1.0625rem; }
-  .progress .level-ladder-sub { font-size: 0.875rem; margin-block-end: 0.625rem; }
+  .progress .level-ladder-head { padding-inline: 1rem; margin-block-end: 0.625rem; font-size: 1.0625rem; }
 }
 
 .progress .touchstones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }

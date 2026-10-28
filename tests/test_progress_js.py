@@ -505,43 +505,14 @@ LADDER = {
     "library": True,
     "known": 1240,
     "ladder": [
-        {
-            "kind": "dialogue",
-            "name": "dialogue",
-            "share": 99,
-            "state": "easy",
-            "texts": 9,
-            "readable": 212,
-        },
-        {"kind": "talk", "name": "talk", "share": 96, "state": "easy", "texts": 9, "readable": 64},
-        {
-            "kind": "article",
-            "name": "article",
-            "share": 95,
-            "state": "easy",
-            "texts": 9,
-            "readable": 31,
-        },
-        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9, "readable": 9},
-        {
-            "kind": "novel",
-            "name": "novel",
-            "share": 70,
-            "state": "ahead",
-            "texts": 9,
-            "readable": 0,
-        },
-        {
-            "kind": "poetry",
-            "name": "poetry",
-            "share": None,
-            "state": "ahead",
-            "texts": 9,
-            "readable": 0,
-        },
+        {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
+        {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
+        {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
+        {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
     ],
-    "here": 2,
-    "next": 3,
+    "here": 1,
+    "next": 2,
+    "conversations": True,
     "level": {
         "scale": "ulpan",
         "letter": "ג",
@@ -577,43 +548,48 @@ def week_one(**changes: Any) -> dict[str, Any]:
     )
 
 
-def test_level_leads_with_the_hardest_kind_you_can_read() -> None:
+def test_level_leads_with_the_hardest_level_you_can_read() -> None:
     """design.md §12, "Your level leads with what you can read" (2026-10-28): the hardest
-    kind read on your own, the next step, and one press to the Library's Read it now."""
+    level of text read on your own, the next step, and one press to Read it now."""
     drawn = story()["where"]
-    assert drawn["head"] == "You can read news articles on your own."
-    assert drawn["step"] == "Your next step is short stories."
+    assert drawn["head"] == "You can read A2 texts on your own."
+    assert drawn["step"] == "Your next step is B1 texts."
     assert drawn["go"] == "Show texts at your level"
     assert drawn["goHref"] == "/library?k=k#see/now"
     assert drawn["shown"] and not drawn["note"] and not drawn["known"]
 
 
-def test_every_rung_says_its_state_in_words_and_its_count_where_it_has_one() -> None:
+def test_every_row_says_its_state_in_words_and_its_count_where_it_has_one() -> None:
     rungs = story()["where"]["rungs"]
     assert [(rung["name"], rung["said"], rung["count"]) for rung in rungs] == [
-        ("Conversations", "Easy for you", "212 you can read"),
-        ("Videos", "Easy for you", "64 you can read"),
-        ("News articles", "Easy for you", "31 you can read"),
-        ("Short stories", "Your next step", "9 you can read"),
-        ("Novels", "Not yet", ""),
-        ("Poems", "Not yet", ""),
+        ("Beginner · A1", "Easy for you", "118 you can read"),
+        ("A2", "Easy for you", "143 you can read"),
+        ("B1", "Your next step", "12 you can read"),
+        ("B2 and up", "Not yet", ""),
     ]
-    assert [rung["state"] for rung in rungs] == ["easy", "easy", "easy", "next", "ahead", "ahead"]
-    assert rungs[3]["current"] == "step"
+    assert [rung["state"] for rung in rungs] == ["easy", "easy", "next", "ahead"]
+    assert rungs[2]["current"] == "step"
 
 
 def test_a_row_with_a_count_opens_exactly_the_texts_it_counted() -> None:
-    """A count is the Library's Read it now of that kind, and the row opens that shelf; a
-    row with none opens the kind's whole shelf."""
+    """A count is the Library's Read it now at that level, and the row opens that shelf; a
+    row with none opens every text at its level."""
     rungs = story()["where"]["rungs"]
-    assert rungs[0]["href"] == "/library?k=k#see/now/kind/dialogue"
-    assert rungs[3]["href"] == "/library?k=k#see/now/kind/story"
-    assert rungs[4]["href"] == "/library?k=k#see/kind/novel"
+    assert rungs[0]["href"] == "/library?k=k#see/now/level/A1"
+    assert rungs[2]["href"] == "/library?k=k#see/now/level/B1"
+    assert rungs[3]["href"] == "/library?k=k#see/level/B2%2B"
+
+
+def test_the_headline_at_b2_and_up_reads_as_a_sentence() -> None:
+    ladder = [dict(rung, state="easy") for rung in LADDER["ladder"]]
+    ladder[3]["state"] = "next"
+    drawn = story(ladder=ladder, here=2, next=3)["where"]
+    assert drawn["head"] == "You can read B1 texts on your own."
+    assert drawn["step"] == "Your next step is texts at B2 and up."
 
 
 def test_no_percentage_is_drawn_in_the_level_section() -> None:
-    """David, 2026-10-28: "no percentages anywhere". The shares are still in the answer,
-    and none of them reaches the page."""
+    """David, 2026-10-28: "no percentages anywhere"."""
     for drawn in (story()["where"], week_one()["where"]):
         said = [drawn[key] for key in ("head", "step", "known", "go", "note", "foot")]
         said += [rung["text"] for rung in drawn["rungs"]]
@@ -624,13 +600,20 @@ def test_no_percentage_is_drawn_in_the_level_section() -> None:
 
 def test_week_one_says_where_to_start_and_names_no_level() -> None:
     drawn = week_one()["where"]
-    assert drawn["head"] == "Start with conversations."
-    assert drawn["step"] == "They use the most common words, so they're the easiest place to begin."
+    assert drawn["head"] == "Start with beginner texts."
+    assert drawn["step"] == "Conversations are a good first pick: they use the most common words."
     assert drawn["known"] == "You've marked 86 words as known so far."
     assert drawn["go"] == "Open a conversation"
     assert drawn["goHref"] == "/library?k=k#see/kind/dialogue"
     assert drawn["foot"] == "" and drawn["toward"] is None
-    assert [rung["said"] for rung in drawn["rungs"]] == ["Your next step"] + ["Not yet"] * 5
+    assert [rung["said"] for rung in drawn["rungs"]] == ["Your next step"] + ["Not yet"] * 3
+
+
+def test_week_one_without_conversations_opens_the_first_level() -> None:
+    drawn = week_one(conversations=False)["where"]
+    assert drawn["step"] == ""
+    assert drawn["go"] == "Show texts at this level"
+    assert drawn["goHref"] == "/library?k=k#see/level/A1"
 
 
 def test_one_word_marked_is_said_in_the_singular() -> None:
@@ -647,9 +630,9 @@ def test_the_top_rung_has_no_next_step_and_no_bar() -> None:
         "next": None,
         "toward": None,
     }
-    drawn = story(ladder=ladder, here=5, next=None, level=level)["where"]
-    assert drawn["head"] == "You can read poems on your own."
-    assert drawn["step"] == "It's the hardest kind of text in the library."
+    drawn = story(ladder=ladder, here=3, next=None, level=level)["where"]
+    assert drawn["head"] == "You can read texts at B2 and up on your own."
+    assert drawn["step"] == "It's the hardest level in the library."
     assert drawn["toward"] is None
     assert drawn["foot"].startswith("In ulpan terms you're about vav, ו׳, roughly C2.")
 
@@ -707,23 +690,6 @@ def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
     assert drawn["footLetter"] is None
     assert drawn["toward"]["next"] == "next: B2"
     assert drawn["toward"]["label"] == "Toward B2"
-
-
-def test_italian_childrens_books_are_called_so() -> None:
-    ladder = [
-        {
-            "kind": "story",
-            "name": "children-book",
-            "share": 97,
-            "state": "easy",
-            "texts": 19,
-            "readable": 4,
-        }
-    ]
-    drawn = story(ladder=ladder, here=0, next=None)["where"]
-    assert drawn["head"] == "You can read children's books on your own."
-    assert drawn["rungs"][0]["name"] == "Children's books"
-    assert drawn["rungs"][0]["href"].endswith("#see/now/kind/story")
 
 
 def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:

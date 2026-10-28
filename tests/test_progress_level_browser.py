@@ -38,13 +38,13 @@ def rung(kind: str, state: str, readable: int = 0, name: str = "") -> dict[str, 
     }
 
 
-KINDS = ("dialogue", "talk", "article", "story", "novel", "poetry")
+LEVELS = ("A1", "A2", "B1", "B2+")
 
 
 def ladder(easy: int, counts: tuple[int, ...] = ()) -> list[dict[str, Any]]:
-    """The six kinds with the first `easy` easy, the one after it the next step."""
+    """The four levels with the first `easy` easy, the one after it the next step."""
     out = []
-    for at, kind in enumerate(KINDS):
+    for at, kind in enumerate(LEVELS):
         state = "easy" if at < easy else "next" if at == easy else "ahead"
         out.append(rung(kind, state, counts[at] if at < len(counts) else 0))
     return out
@@ -59,6 +59,7 @@ def story(**fields: Any) -> dict[str, Any]:
         "here": None,
         "next": None,
         "level": None,
+        "conversations": True,
         "texts": [],
         "words": [],
         **fields,
@@ -92,34 +93,34 @@ STATES: dict[str, dict[str, Any]] = {
     "error": {"fail": True, "says": "We couldn't load this part.", "press": "Try again"},
     "week-one": {
         "story": story(known=86, ladder=ladder(0), next=0),
-        "says": "Start with conversations.",
+        "says": "Start with beginner texts.",
         "press": "Open a conversation",
-        "rows": 6,
+        "rows": 4,
         "foot": False,
     },
     "few-weeks": {
         "story": story(known=1240, ladder=ladder(1, (38, 4)), here=0, next=1, level=ULPAN_BET),
-        "says": "You can read conversations on your own.",
+        "says": "You can read beginner texts on your own.",
         "press": "Show texts at your level",
-        "rows": 6,
+        "rows": 4,
         "foot": "In ulpan terms you're about aleph plus, א׳+, roughly A1.",
         "next": "next: bet ב׳",
     },
     "months": {
         "story": story(
-            known=4730, ladder=ladder(3, (212, 64, 31, 9)), here=2, next=3, level=ULPAN_GIMEL
+            known=4730, ladder=ladder(3, (118, 143, 52, 11)), here=2, next=3, level=ULPAN_GIMEL
         ),
-        "says": "You can read news articles on your own.",
+        "says": "You can read B1 texts on your own.",
         "press": "Show texts at your level",
-        "rows": 6,
+        "rows": 4,
         "foot": "In ulpan terms you're about gimel, ג׳, roughly B1.",
         "next": "next: dalet ד׳",
     },
     "top-rung": {
         "story": story(
             known=12500,
-            ladder=ladder(6, (212, 80, 60, 40, 12, 5)),
-            here=5,
+            ladder=ladder(4, (118, 143, 60, 40)),
+            here=3,
             level={
                 "scale": "ulpan",
                 "letter": "ו",
@@ -129,9 +130,9 @@ STATES: dict[str, dict[str, Any]] = {
                 "toward": None,
             },
         ),
-        "says": "It's the hardest kind of text in the library.",
+        "says": "It's the hardest level in the library.",
         "press": "Show texts at your level",
-        "rows": 6,
+        "rows": 4,
         "foot": "In ulpan terms you're about vav, ו׳, roughly C2.",
         "bar": False,
     },
@@ -175,21 +176,21 @@ STATES: dict[str, dict[str, Any]] = {
                 "toward": 0.25,
             },
         ),
-        "says": "You can follow videos on your own.",
+        "says": "You can read A2 texts on your own.",
         "press": "Show texts at your level",
-        "rows": 6,
+        "rows": 4,
         "foot": "On the European scale you're about B1. It runs from A1, for beginners, to C2.",
         "next": "next: B2",
     },
     "russian": {
         "page": "ru",
         "story": story(
-            known=4730, ladder=ladder(3, (212, 64, 31, 9)), here=2, next=3, level=ULPAN_GIMEL
+            known=4730, ladder=ladder(3, (118, 143, 52, 11)), here=2, next=3, level=ULPAN_GIMEL
         ),
         "title": "Уровень",
-        "says": "Вы можете сами читать новостные статьи.",
+        "says": "Вы можете сами читать тексты уровня B1.",
         "press": "Показать тексты вашего уровня",
-        "rows": 6,
+        "rows": 4,
         "foot": "По меркам ульпана у вас примерно уровень гимель (ג׳)",
         "next": "дальше: далет ד׳",
     },

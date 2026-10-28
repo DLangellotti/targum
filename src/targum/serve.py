@@ -14240,7 +14240,7 @@ class Handler(BaseHTTPRequestHandler):
         everything = catalogue_module.everything()
         entries = [entry for entry in everything if entry.language == language]
         index = coverage_module.read_index(catalogue_module.lemmas_path())
-        rungs = touchstones.ladder(entries, language)
+        rungs = touchstones.ladder(everything, language)
         answer: dict[str, Any] = {
             "signedIn": True,
             "language": language,
@@ -14251,11 +14251,14 @@ class Handler(BaseHTTPRequestHandler):
             "known": self.store.known_count(person, language),
         }
         answer.update(
-            touchstones.standing(
-                rungs, index, marked, self._readable(everything, index, marked, language)
-            )
+            touchstones.standing(rungs, self._known_of(rungs, index, marked))
             if rungs and index.texts
             else {"ladder": [], "here": None, "next": None}
+        )
+        # Whether the shelf has conversations, which week one offers as the first pick.
+        answer["conversations"] = any(
+            str(entry.kind) == "dialogue" and touchstones.in_language(entry, language)
+            for entry in everything
         )
         # The one level on the page, its foot line (design.md §12, "Your level leads with
         # what you can read", 2026-10-28): the measured rung and never the declared one.
@@ -14301,25 +14304,14 @@ class Handler(BaseHTTPRequestHandler):
             ]
         self._json(answer)
 
-    def _readable(
-        self, everything: list[Any], index: Any, marked: dict[str, int], language: str
-    ) -> dict[str, int]:
-        """How many texts of each ladder kind are on this reader's Read it now shelf, read
-        as the Library reads a row (`/readers`): a copy they have built, or the shared
-        shelf has, measured on its own words, and otherwise the catalogue's measure. So
-        a row on Your Progress opens a shelf holding exactly the texts it counted."""
-        from . import touchstones
-
-        wanted = {
-            str(entry.id)
-            for entry in everything
-            if str(entry.kind) in touchstones.KINDS
-            and language
-            in {
-                str(code).split("-")[0].lower()
-                for code in (getattr(entry, "languages", None) or [entry.language])
-            }
-        }
+    def _known_of(
+        self, rungs: list[Any], index: Any, marked: dict[str, int]
+    ) -> Callable[[str], float | None]:
+        """A text's share of words known, read as the Library reads a row (`/readers`): a
+        copy the reader has built, or the shared shelf has, measured on its own words, and
+        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
+        Your Progress opens a shelf holding exactly the texts it counted."""
+        wanted = {entry_id for rung in rungs for entry_id in rung.texts}
         built: dict[str, float] = {}
         # The shared shelf first and the reader's own over it, as `rows()` in library.js.
         for home in (self.library.shared, self._home()):
@@ -14340,11 +14332,10 @@ class Handler(BaseHTTPRequestHandler):
             if entry_id in built:
                 return built[entry_id]
             measured = index.against(entry_id, marked)
-            # The share as `/readers` hands it to the Library, rounded where `state()`
-            # rounds it, so a text at 89.996% is on the shelf on both pages or neither.
+            # A text at 89.996% is on the shelf on both pages or neither.
             return float(measured.state()["known"]) if measured is not None else None
 
-        return touchstones.readable(everything, language, known_of)
+        return known_of
 
     def _foot_level(self, person: Any, language: str) -> dict[str, Any] | None:
         """The rung `level.py` measures for this language, for the foot line and the bar

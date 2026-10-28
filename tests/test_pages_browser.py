@@ -1080,43 +1080,13 @@ STORY = {
     "library": True,
     "known": 1,
     "ladder": [
-        {
-            "kind": "dialogue",
-            "name": "dialogue",
-            "share": 99,
-            "state": "easy",
-            "texts": 9,
-            "readable": 9,
-        },
-        {"kind": "talk", "name": "talk", "share": 96, "state": "easy", "texts": 9, "readable": 6},
-        {
-            "kind": "article",
-            "name": "article",
-            "share": 95,
-            "state": "easy",
-            "texts": 9,
-            "readable": 3,
-        },
-        {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9, "readable": 2},
-        {
-            "kind": "novel",
-            "name": "novel",
-            "share": None,
-            "state": "ahead",
-            "texts": 9,
-            "readable": 0,
-        },
-        {
-            "kind": "poetry",
-            "name": "poetry",
-            "share": None,
-            "state": "ahead",
-            "texts": 9,
-            "readable": 0,
-        },
+        {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
+        {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
+        {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
+        {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
     ],
-    "here": 2,
-    "next": 3,
+    "here": 1,
+    "next": 2,
     "level": None,
     "texts": [{"id": "jonah", "title": "יונה", "english": "Jonah", "known": 91}],
     "words": [{"lemma": "a", "texts": 3}],
@@ -1147,23 +1117,23 @@ def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
     shots = os.environ.get("TARGUM_SHOTS")
     if shots:
         page.screenshot(path=f"{shots}/progress-{width}.png", full_page=True)
-    page.locator("#touchstones .touch a", has_text="Short stories").click()
+    page.locator("#touchstones .touch a", has_text="B1").click()
     page.wait_for_timeout(200)
     went = page.url
     context.close()
 
     assert got["title"] == "Level"
     assert got["parts"] == ["How you got here", "What next"]
-    assert got["head"] == "You can read news articles on your own."
-    assert [rung["text"] for rung in got["rungs"]][2:4] == [
-        "News articlesEasy for you3 you can read›",
-        "Short storiesYour next step2 you can read›",
+    assert got["head"] == "You can read A2 texts on your own."
+    assert [rung["text"] for rung in got["rungs"]][1:3] == [
+        "A2Easy for you143 you can read›",
+        "B1Your next step12 you can read›",
     ]
     assert not got["credits"], "credits are the account page's"
     assert got["level"] == ["יונה91% known"], "the title alone, as the board has it"
     assert not got["sideways"], got
     assert all(rung["height"] >= 44 for rung in got["rungs"]), "§8's thumb"
-    assert went.endswith("/library?k=" + TOKEN + "#see/now/kind/story"), went
+    assert went.endswith("/library?k=" + TOKEN + "#see/now/level/B1"), went
 
 
 def test_progress_draws_no_such_figures_where_there_is_no_record(browser) -> None:

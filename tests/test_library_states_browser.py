@@ -799,3 +799,66 @@ def test_the_foot_says_what_targum_is_for_the_language_learned(
     assert shown.inner_text().startswith(said)
     context.close()
     assert not thrown
+
+
+@pytest.mark.parametrize("phone", [False, True])
+def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
+    browser, page_html, phone: bool
+) -> None:
+    """targum-internal#553: a Level row on Your Progress opens `#see/now/level/<level>`,
+    and the list is the texts at that level the reader can read now, every one of them,
+    under a chip that names the level, survives a reload and clears it (design.md §12,
+    "Your level leads with what you can read", 2026-10-28)."""
+    import os
+
+    from targum.levelmap import text_level
+
+    shared = built(0.95)
+    levels = {entry.id: text_level(entry) for entry in everything()}
+    wanted = sum(1 for reader in shared if levels.get(reader["entry"]) == "A1")
+    assert wanted, "the catalogue has beginner texts to count"
+    answers = {"/readers": {"readers": [], "shared": shared, "signedIn": True}}
+    context, page, thrown, _, url = library(
+        browser, page_html, answers, phone=phone, hash="#see/now/level/A1"
+    )
+    page.goto(url)
+    chip = page.locator("#see-level-chip")
+    chip.wait_for(state="visible")
+    seen = page.evaluate(
+        """() => ({
+          title: document.querySelector('#see-title .see-title-name').textContent,
+          count: document.querySelector('#see-title .see-title-count').textContent,
+          chip: document.getElementById('see-level-chip').getBoundingClientRect().height,
+          sideways: document.scrollingElement.scrollWidth > innerWidth,
+        })"""
+    )
+    shots = os.environ.get("TARGUM_SHOTS")
+    if shots:
+        page.screenshot(path=f"{shots}/library-level-{390 if phone else 1440}.png")
+    assert seen["title"] == "Beginner texts in Hebrew"
+    assert seen["count"].split("·")[-1].strip() == str(wanted), seen
+    assert not seen["sideways"]
+    if phone:
+        assert seen["chip"] >= 44, seen
+    assert chip.get_attribute("aria-label") == "Clear the level: Beginner · A1"
+
+    page.reload()
+    chip.wait_for(state="visible")
+    chip.click()
+    page.wait_for_timeout(100)
+    assert chip.count() == 0
+    assert page.evaluate("location.hash") == "#see/now"
+    assert not thrown
+    context.close()
+
+
+def test_a_level_with_nothing_readable_is_said_with_a_way_to_every_text(browser, page_html) -> None:
+    answers = {"/readers": {"readers": [], "shared": built(0.5), "signedIn": True}}
+    context, page, thrown, _, url = library(browser, page_html, answers, hash="#see/now/level/A1")
+    page.goto(url)
+    empty = page.locator("#picked-empty")
+    empty.wait_for(state="visible")
+    assert empty.inner_text().startswith("Nothing you can read now yet.")
+    assert page.locator("#see-level-chip").is_visible()
+    assert not thrown
+    context.close()

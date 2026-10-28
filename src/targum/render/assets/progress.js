@@ -44,61 +44,36 @@
     { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
   ];
 
-  /* The rungs, each with its name on the ladder and the sentences the card can say
-     (design.md §12, "Your level leads with what you can read", 2026-10-28). A sentence
-     each rather than a name dropped into one: Russian declines the kind («Начните с
-     разговоров»), and a name in a slot would be wrong. Aramaic's rungs are the Aramaic
-     translations, the climb's own (§12, 2026-10-25), and have no shelf of their own to
-     open, so no "Open" press. */
+  /* The rows, each with its name on the ladder and the sentences the card can say
+     (design.md §12, "Your level leads with what you can read", 2026-10-28). The rows are
+     the texts' own levels, not kinds of text: an easy video and a hard one sit in
+     different rows. A sentence each rather than a name dropped into one, so Russian can
+     take its case. Aramaic's rows are the Aramaic translations, the climb's own (§12,
+     2026-10-25), and have no shelf of their own to open. */
   var RUNGS = {
-    dialogue: {
-      name: t("progress.rung.dialogue", "Conversations"),
-      can: t("progress.level.can.dialogue", "You can read conversations on your own."),
-      next: t("progress.level.next.dialogue", "Your next step is conversations."),
-      start: t("progress.level.start.dialogue", "Start with conversations."),
-      open: t("progress.level.open.dialogue", "Open a conversation"),
+    A1: {
+      name: t("progress.rung.A1", "Beginner · A1"),
+      can: t("progress.level.can.A1", "You can read beginner texts on your own."),
+      next: t("progress.level.next.A1", "Your next step is beginner texts."),
+      start: t("progress.level.start.A1", "Start with beginner texts."),
     },
-    talk: {
-      name: t("progress.rung.talk", "Videos"),
-      can: t("progress.level.can.talk", "You can follow videos on your own."),
-      next: t("progress.level.next.talk", "Your next step is videos."),
-      start: t("progress.level.start.talk", "Start with videos."),
-      open: t("progress.level.open.talk", "Open a video"),
+    A2: {
+      name: t("progress.rung.A2", "A2"),
+      can: t("progress.level.can.A2", "You can read A2 texts on your own."),
+      next: t("progress.level.next.A2", "Your next step is A2 texts."),
+      start: t("progress.level.start.A2", "Start with A2 texts."),
     },
-    article: {
-      name: t("progress.rung.article", "News articles"),
-      can: t("progress.level.can.article", "You can read news articles on your own."),
-      next: t("progress.level.next.article", "Your next step is news articles."),
-      start: t("progress.level.start.article", "Start with news articles."),
-      open: t("progress.level.open.article", "Open a news article"),
+    B1: {
+      name: t("progress.rung.B1", "B1"),
+      can: t("progress.level.can.B1", "You can read B1 texts on your own."),
+      next: t("progress.level.next.B1", "Your next step is B1 texts."),
+      start: t("progress.level.start.B1", "Start with B1 texts."),
     },
-    story: {
-      name: t("progress.rung.story", "Short stories"),
-      can: t("progress.level.can.story", "You can read short stories on your own."),
-      next: t("progress.level.next.story", "Your next step is short stories."),
-      start: t("progress.level.start.story", "Start with short stories."),
-      open: t("progress.level.open.story", "Open a short story"),
-    },
-    "children-book": {
-      name: t("progress.rung.children-book", "Children's books"),
-      can: t("progress.level.can.children-book", "You can read children's books on your own."),
-      next: t("progress.level.next.children-book", "Your next step is children's books."),
-      start: t("progress.level.start.children-book", "Start with children's books."),
-      open: t("progress.level.open.children-book", "Open a children's book"),
-    },
-    novel: {
-      name: t("progress.rung.novel", "Novels"),
-      can: t("progress.level.can.novel", "You can read novels on your own."),
-      next: t("progress.level.next.novel", "Your next step is novels."),
-      start: t("progress.level.start.novel", "Start with novels."),
-      open: t("progress.level.open.novel", "Open a novel"),
-    },
-    poetry: {
-      name: t("progress.rung.poetry", "Poems"),
-      can: t("progress.level.can.poetry", "You can read poems on your own."),
-      next: t("progress.level.next.poetry", "Your next step is poems."),
-      start: t("progress.level.start.poetry", "Start with poems."),
-      open: t("progress.level.open.poetry", "Open a poem"),
+    "B2+": {
+      name: t("progress.rung.B2+", "B2 and up"),
+      can: t("progress.level.can.B2+", "You can read texts at B2 and up on your own."),
+      next: t("progress.level.next.B2+", "Your next step is texts at B2 and up."),
+      start: t("progress.level.start.B2+", "Start with texts at B2 and up."),
     },
     "onkelos": {
       name: t("progress.rung.onkelos", "Onkelos"),
@@ -288,11 +263,11 @@
     '<svg class="touch-ring" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
     '<circle cx="8" cy="8" r="4.5"/></svg>';
 
-  /* A rung's shelf in the Library: the texts of that kind you can read now where it
-     counts any (`#see/now/kind/<kind>`, so the row's number is the shelf's), and every
-     band of that kind where it counts none. */
-  function shelfHref(kind, readable) {
-    return keyed("/library#see/" + (readable ? "now/" : "") + "kind/" + encodeURIComponent(kind));
+  /* A row's shelf in the Library: the texts at that level you can read now where it
+     counts any (`#see/now/level/<level>`, so the row's number is the shelf's), and every
+     text at that level where it counts none. */
+  function shelfHref(level, readable) {
+    return keyed("/library#see/" + (readable ? "now/" : "") + "level/" + encodeURIComponent(level));
   }
 
   function rungOf(rung) {
@@ -434,21 +409,27 @@
     var here = typeof said.here === "number" ? ladder[said.here] : null;
     var next = typeof said.next === "number" ? ladder[said.next] : null;
     if (here) {
-      // The hardest kind you can read on your own, the next step, and the one press.
+      // The hardest level you can read on your own, the next step, and the one press.
       head.textContent = rungOf(here).can;
-      step.textContent = next ? rungOf(next).next : t("progress.level.top", "It's the hardest kind of text in the library.");
+      step.textContent = next ? rungOf(next).next : t("progress.level.top", "It's the hardest level in the library.");
       step.hidden = false;
       go.textContent = t("progress.level.go", "Show texts at your level");
       go.href = keyed("/library#see/now");
       go.hidden = false;
     } else {
-      // Week one: where to start, why, the words marked so far, and no level.
-      var first = rungOf(next || ladder[0]);
-      head.textContent = first.start;
-      step.textContent = shelved
-        ? t("progress.level.why", "They use the most common words, so they're the easiest place to begin.")
-        : t("progress.level.why-one", "It uses the most common words, so it's the easiest place to begin.");
-      step.hidden = false;
+      // Week one: where to start, a first pick, the words marked so far, and no level.
+      var first = next || ladder[0];
+      head.textContent = rungOf(first).start;
+      if (!shelved) {
+        step.textContent = t("progress.level.why-one", "It uses the most common words, so it's the easiest place to begin.");
+        step.hidden = false;
+      } else if (said.conversations) {
+        step.textContent = t(
+          "progress.level.conversations",
+          "Conversations are a good first pick: they use the most common words."
+        );
+        step.hidden = false;
+      }
       var count = said.known || 0;
       var bold = el("b", "level-count", grouped(count));
       sentence(
@@ -460,12 +441,15 @@
         bold
       );
       knownLine.hidden = false;
-      if (shelved && first.open) {
-        go.textContent = first.open;
-        go.href = shelfHref((next || ladder[0]).kind, 0);
-      } else {
+      if (!shelved) {
         go.textContent = t("progress.level.go-easiest", "Show the easiest texts");
         go.href = keyed("/library#see/now");
+      } else if (said.conversations) {
+        go.textContent = t("progress.level.open-conversation", "Open a conversation");
+        go.href = keyed("/library#see/kind/dialogue");
+      } else {
+        go.textContent = t("progress.level.go-first", "Show texts at this level");
+        go.href = shelfHref(first.kind, 0);
       }
       go.hidden = false;
     }

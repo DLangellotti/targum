@@ -443,31 +443,43 @@ The mark stays and still goes to Your targums. When the bar is out, a named back
 ### Your level leads with what you can read — 2026-10-28
 
 Approved by David, 2026-10-28 (targum-internal#553), after five reviews (ling-en, ling-he,
-ling-ru, design twice). A beta reader read "Kids' stories 74%" as a score, and the ladder
-of percentages under "Where you are" said nothing a new learner could use. Part 1 of Your
-Progress is now **Level** («Уровень»), and this reverses one line of "Your Progress is a
-story in three parts" (2026-10-09): the ulpan and CEFR rung, retired from this page then,
+ling-ru, design twice) and three calls of his the same evening. A beta reader read "Kids'
+stories 74%" as a score, and the ladder of percentages under "Where you are" said nothing
+a new learner could use. Part 1 of Your Progress is now **Level** («Уровень»), and this
+reverses two lines of "Your Progress is a story in three parts" (2026-10-09): the ladder
+of kinds of text, and the retirement of the ulpan and CEFR rung from this page, which
 comes back as one line at the foot.
 
-- **The card says what you can read.** A headline naming the hardest kind of text you can
-  read on your own ("You can read news articles on your own."), a line for the next step
-  ("Your next step is short stories.") and one filled press, "Show texts at your level",
-  to the Library's Read it now. A kind is easy for you where its middle text's running
-  words are 95% known, and every kind below the hardest easy one is easy too. At the top
-  rung the second line says it's the hardest kind in the library.
-- **Week one names no level.** Before any kind is easy: "Start with conversations.", why
-  they're the place to begin, "You've marked N words as known so far." and "Open a
-  conversation".
-- **The ladder is open**, under "Easiest at the top" and a line saying what gets harder
-  further down. Each kind is "Easy for you" with a tick, "Your next step" on the leaf wash,
-  or "Not yet". A kind with texts you could read now says "N you can read", counted by the
-  Library's own Read it now rule (90% of a text's words, a built copy's measure over the
-  catalogue's), and the row opens `#see/now/kind/<kind>`, so the shelf holds exactly N. A
-  kind with none shows no count and opens its whole shelf (`#see/kind/<kind>`, which still
-  works). Aramaic's rows are the Targums, with no shelf each, so they carry no link and
-  no count.
-- **No percentages anywhere in the section.** The shares stay in the server's answer for
-  the tests; the chips, the shares and the "you know N% of its words" titles are gone.
+- **The rows are the texts' own levels, not kinds of text** (David: an easy video is
+  easier than a hard conversation, so a kind has no one difficulty). "Texts by level":
+  Beginner · A1, A2, B1, B2 and up, each text placed by the rule the stage standard counts
+  the shelf by (`levelmap.text_level`, the same as `cefr_rows`: the Easy spec in full is
+  A1, the rest of Easy A2, Simplified B1, Native B2 and up), from the catalogue's own
+  `difficulty` and `sentence`. An unmeasured text, and an older Hebrew, is on no row. A
+  level with nothing at it in the language is not a row. Aramaic keeps its climb of
+  Targums (2026-10-25), which no level has been measured for, without links or counts.
+- **Each row is "Easy for you" with a tick, "Your next step" on the leaf wash, or "Not
+  yet"**, and where it has any, "N you can read": the texts at that level on the Library's
+  Read it now (90% of a text's words known, a built copy's measure over the catalogue's,
+  rounded as `/readers` rounds it). A level is easy for you where more than half its
+  measured texts are on that shelf, and every level below the hardest easy one is easy
+  too. The row opens `#see/now/level/<level>` where it counts texts, so the Library shows
+  exactly N, and `#see/level/<level>` where it counts none.
+- **The card says what you can read.** "You can read A2 texts on your own." (beginner
+  texts, B1 texts, texts at B2 and up), "Your next step is B1 texts." and one filled press,
+  "Show texts at your level", to Read it now. At the top row the second line says it's
+  the hardest level in the library.
+- **Week one names no level.** Before any level is easy: "Start with beginner texts.",
+  "Conversations are a good first pick: they use the most common words." where the shelf
+  has them, "You've marked N words as known so far." and "Open a conversation".
+- **The Library filters by a text's level.** Its shelf rows carry each text's level
+  (`cefr`), and See all answers `#see/level/<level>` and `#see/<band>/level/<level>`, so
+  the address survives a reload. The level shows as a tinted chip beside the menus, "Beginner
+  · A1 ×", which clears it and keeps the band; the title names it ("Beginner texts in
+  Hebrew"); an empty one says so with the way to every text. The level lives in the address
+  only: the shelves and any other address let it go. `#see/kind/<kind>` still works.
+- **No percentages anywhere in Level.** The chips, the shares and the "you know N% of its
+  words" titles are gone; the server no longer sends a share.
 - **The foot line is the only level**, and only the measured rung (`level.py`, from the
   first rung reached), never the declared one (2026-09-19 stands). Hebrew says both scales
   in one line: "In ulpan terms you're about aleph plus, א׳+, roughly A1. Ulpan classes in
@@ -479,19 +491,20 @@ comes back as one line at the foot.
   track, filled from this rung to the next on the measure the rung is reached by (weighted
   words for the ulpan, the commonest words for the European scale), "next: bet ב׳" or
   "next: B2" beside it, a `progressbar` with its name. No bar at the top rung.
-- **"Conversations" replaces "Dialogue"** for the scenes and dialogues: on the ladder, the
-  Library's door, its Kind filter and a row's kind ("Conversation · 3 min"), home's cards
-  and the reader's list («Разговоры», «Разговор»). David, 2026-10-28, overriding "Dialogue,
-  Chat History, and no Practise with nothing to practise" (2026-10-10). The ids and
-  addresses are unchanged: `#see/kind/dialogue` still opens them.
+- **"Conversations" replaces "Dialogue"** as the scenes' and dialogues' name: the Library's
+  door, its Kind filter and a row's kind ("Conversation · 3 min"), home's cards and the
+  reader's list («Разговоры», «Разговор»). David, 2026-10-28, overriding "Dialogue, Chat
+  History, and no Practise with nothing to practise" (2026-10-10). Ids and addresses are
+  unchanged: `#see/kind/dialogue` still opens them.
 - **The step labels lose their numbers.** "1 · Where you are" went with its section, and
   the other two read "How you got here" and "What next".
 
 What it keeps: every figure on the page is a real count (§6), nothing on it spends, and
 "what you knew of what you read, month by month" stays under Level as a card of its own.
 `test_progress_js.py`, `test_progress_level_browser.py` (every state at 390 and 1440, none
-with a "%") and `test_touchstones.py` (`test_each_ladder_count_is_its_library_shelf_count`)
-pin it.
+with a "%"), `test_library_js.py` and `test_library_states_browser.py` (the level address
+and its chip) and `test_touchstones.py`
+(`test_each_ladder_count_is_its_library_shelf_count`) pin it.
 
 ### A text you brought, rewritten at your level — 2026-10-28
 
@@ -1981,8 +1994,9 @@ below) took for him. The board still governs the card; these two are drawn into 
 
 Three calls of David's, 2026-10-10:
 
-- **The Progress ladder says "Dialogue"** («Диалог») *(Conversations since 2026-10-28, everywhere
-  the kind is named: "Your level leads with what you can read", above)*, where its first rung said "A
+- **The Progress ladder says "Dialogue"** («Диалог») *(Conversations since 2026-10-28, where the
+  kind is named, and the ladder is the texts' own levels: "Your level leads with what you
+  can read", above)*, where its first rung said "A
   conversation" («Разговор») while the Library called the same kind of text "Dialogue".
   One kind has one name, so the headline follows: "You'd follow a dialogue", "A dialogue
   is the place to start" («Вы поймёте диалог», «Начните с диалога»). This amends the
@@ -3407,8 +3421,9 @@ menu's language, as everywhere):
   streaks". `charts.longest` stays, for nothing else draws one. **Credits are not on this
   page**: the month's credits moved to the account page, its first panel ("Credits").
   **No "sections finished"**: it means nothing to a learner (David).
-- **1 · Where you are: touchstones.** *(Level since 2026-10-28, with no percentages and the
-  measured level back at its foot: "Your level leads with what you can read", above.)* A short ladder of real kinds of text from the
+- **1 · Where you are: touchstones.** *(Level since 2026-10-28: the texts' own levels rather
+  than kinds, no percentages, and the measured level back at its foot — "Your level leads
+  with what you can read", above.)* A short ladder of real kinds of text from the
   language's own library — a dialogue, a video, a news article, a short story, a
   novel, a poem (Italian's stories are StoryWeaver's children's books, and are called
   "a children's book") — ordered by

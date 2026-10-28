@@ -274,6 +274,34 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
     }
 
 
+#: A text's own level, easiest first, as `cefr_rows` names them: the rows of Your
+#: Progress's Level ladder (design.md §12, "Your level leads with what you can read",
+#: 2026-10-28) and the Library's `#see/level/<level>`.
+TEXT_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2+")
+
+
+def text_level(entry: Entry) -> str:
+    """One text's level on the rule `cefr_rows` counts by, or "" where it has none.
+
+    Only the catalogue's own measures, `difficulty` and `sentence`, so the server and the
+    Library's shelf files say the same thing without either reading a build: a text with
+    no sentence length yet is unmeasured, never easy. An older Hebrew is on a ladder of
+    its own (`ladder_of`) and has no modern level.
+    """
+    register = getattr(getattr(entry, "register", None), "value", "") or ""
+    if register and register != MODERN:
+        return ""
+    difficulty = int(getattr(entry, "difficulty", 0) or 0)
+    sentence = float(getattr(entry, "sentence", 0) or 0)
+    placed = place(difficulty, sentence)
+    if placed is None:
+        return ""
+    if placed is Level.aleph:
+        minutes = int(getattr(entry, "minutes", 0) or 0)
+        return "A1" if meets_easy(difficulty, sentence, minutes) else "A2"
+    return "B1" if placed is Level.bet else "B2+"
+
+
 def videos(shelf: Shelf) -> int:
     """Videos on the shelf at any level, measured or not: the second medium the stage
     standard asks of a Beta language (design.md §12)."""

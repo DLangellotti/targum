@@ -503,6 +503,9 @@
         // Hebrew and the Onkelos beside it (2026-09-14).
         languages: entry.languages || [entry.language],
         kind: entry.kind,
+        // The text's own level, A1 to B2+, or "" where it has none measured: what Your
+        // Progress's Level rows open the shelf at (`#see/level/<level>`, 2026-10-28).
+        cefr: entry.cefr || "",
         register: entry.register,
         // The older Hebrew it is in, and its decade, for the label (David, 2026-10-25).
         era: entry.era || "",
@@ -1425,6 +1428,28 @@
     return KIND_SETS[kind] ? kind : null;
   }
 
+  /* The level a See all address names — `#see/level/A2`, or under one band
+     `#see/now/level/A2` — or "". A row of Your Progress's Level ladder opens the texts at
+     its level this way, and with a count it opens the ones you can read now, so the shelf
+     holds what the row counted (design.md §12, "Your level leads with what you can
+     read", 2026-10-28). The level lives in the address and nowhere else: any other
+     address, the shelves included, lets it go. */
+  var CEFR_LEVELS = ["A1", "A2", "B1", "B2+"];
+  //: Each level as its chip says it, the names Your Progress's rows use.
+  var LEVEL_NAMES = {
+    A1: t("library.level.A1", "Beginner · A1"),
+    A2: t("library.level.A2", "A2"),
+    B1: t("library.level.B1", "B1"),
+    "B2+": t("library.level.B2+", "B2 and up"),
+  };
+
+  function levelAddressed() {
+    var now = decodeURIComponent((location.hash || "").slice(1));
+    var found = now.match(/^see\/(?:([a-z]+)\/)?level\/(.+)$/);
+    if (!found || (found[1] && !bandNamed(found[1]))) return "";
+    return CEFR_LEVELS.indexOf(found[2]) >= 0 ? found[2] : "";
+  }
+
   /* A step the Back button can undo: from the shelves into a list is going somewhere. */
   function mark(hash) {
     var bare = location.pathname + location.search;
@@ -1774,6 +1799,7 @@
       var kinds = KIND_SETS[state.kind] || [state.kind];
       if (kinds.indexOf(row.kind) < 0) return false;
     }
+    if (state.cefr && row.cefr !== state.cefr) return false;
     /* The band is for choosing from the catalogue. It is not for the Beit Midrash: a tree that hid the Writings from a beginner because
        they are hard would be a tree with branches missing, and the reader came to see
        where things stand. Each row still says how much of it they know. */
@@ -1990,7 +2016,8 @@
       menu("level", t("library.menu.level", "Level"), LEVEL_MENU, fitWanted(), function (value) {
         view.fit = value;
         page = PAGE;
-        mark(SEE + (value ? "/" + value : ""));
+        // A level named by the address stays in it, so a reload keeps both.
+        mark(SEE + (value ? "/" + value : "") + (view.cefr ? "/level/" + view.cefr : ""));
         redraw();
       })
     );
@@ -2003,6 +2030,29 @@
         pickLanguage(value);
       })
     );
+    /* The text level a Level row on Your Progress opened the list at, as a chip that says
+       it and clears it: a filter nobody can see is a list that looks short for no
+       reason (§14.3). Clearing it keeps the band and leaves the address without it. */
+    if (view.cefr && LEVEL_NAMES[view.cefr]) {
+      var chip = el("button", "btn tonal see-chip");
+      chip.type = "button";
+      chip.id = "see-level-chip";
+      chip.appendChild(el("span", "see-chip-name", LEVEL_NAMES[view.cefr]));
+      var cross = el("span", "see-chip-x", "\u00d7");
+      cross.setAttribute("aria-hidden", "true");
+      chip.appendChild(cross);
+      chip.setAttribute(
+        "aria-label",
+        t("library.level.clear", "Clear the level: {level}", { level: LEVEL_NAMES[view.cefr] })
+      );
+      chip.addEventListener("click", function () {
+        view.cefr = "";
+        page = PAGE;
+        mark(SEE + (fitWanted() ? "/" + fitWanted() : ""));
+        redraw();
+      });
+      host.appendChild(chip);
+    }
   }
 
   function heading(redraw) {
@@ -2837,6 +2887,7 @@
     /* See all: the one list, under the band its shelf is, a page at a time. */
     function seeBand(band) {
       view.fit = band || "";
+      view.cefr = "";
       view.find = "";
       find.value = "";
       view.where = "library";
@@ -2850,6 +2901,7 @@
     /* And back to the shelves, which is the Library. */
     function toShelves() {
       seeAll = false;
+      view.cefr = "";
       view.find = "";
       find.value = "";
       view.where = "library";
@@ -2943,7 +2995,15 @@
       titleHost.textContent = "";
       var band = bandNamed(fitWanted());
       var kind = view.kind ? named(KINDS, view.kind) || (KIND_SETS[view.kind] ? t("library.kind.books", "Books") : "") : "";
-      var name = band
+      var levelTitles = {
+        A1: t("library.see.level.A1", "Beginner texts in {language}", { language: names[chosen] || chosen }),
+        A2: t("library.see.level.A2", "A2 texts in {language}", { language: names[chosen] || chosen }),
+        B1: t("library.see.level.B1", "B1 texts in {language}", { language: names[chosen] || chosen }),
+        "B2+": t("library.see.level.B2+", "Texts at B2 and up in {language}", { language: names[chosen] || chosen }),
+      };
+      var name = view.cefr && levelTitles[view.cefr]
+        ? levelTitles[view.cefr]
+        : band
         ? band[1]
         : kind
           ? t("library.see.title-kind", "{kind} in {language}", { kind: kind, language: names[chosen] || chosen })
@@ -3454,11 +3514,18 @@
       var see = seeAddressed();
       var named = decodeURIComponent((location.hash || "").slice(1));
       var kindNamed = kindAddressed();
+      view.cefr = levelAddressed();
       if (see !== null) {
         seeAll = true;
         // See all is the Library's list, never a door's of the Jewish texts.
         view.where = "library";
         if (see) view.fit = see;
+        if (view.cefr) {
+          // Every band unless the address names one, every kind, and no search.
+          view.fit = see || "";
+          view.kind = "";
+          view.find = "";
+        }
         if (kindNamed) {
           // Every band, unless the address names one (`#see/now/kind/<kind>`).
           view.fit = see || "";
@@ -3500,9 +3567,16 @@
     function moved() {
       page = PAGE;
       var see = seeAddressed();
+      view.cefr = levelAddressed();
       if (see !== null) {
         seeAll = true;
         if (see) view.fit = see;
+        if (view.cefr) {
+          view.fit = see || "";
+          view.kind = "";
+          view.find = "";
+          find.value = "";
+        }
         var kindNamed = kindAddressed();
         if (kindNamed) {
           view.fit = see || "";

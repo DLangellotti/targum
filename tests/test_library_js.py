@@ -1112,6 +1112,71 @@ def test_a_ladder_row_with_a_count_opens_that_kind_under_read_it_now(tmp_path: P
     assert len(searched["rows"]) == 3, "a search left from before does not narrow it"
 
 
+#: SHELF with each text's own level, as the builder's shelf rows carry it (#553).
+LEVELLED = [
+    {**row, "cefr": level}
+    for row, level in zip(
+        SHELF, ("A1", "A1", "A2", "A2", "A1", "B1", "B1", "B2+", "", "A2"), strict=True
+    )
+]
+
+
+def test_a_level_row_with_a_count_opens_that_level_under_read_it_now(tmp_path: Path) -> None:
+    """design.md §12, "Your level leads with what you can read" (2026-10-28): a Level row
+    on Your Progress that counts texts opens `#see/now/level/<level>`, every kind at that
+    level under the one band, with a chip that names the level."""
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/now/level/A1", catalogueKnown=BANDED)
+    assert drawn["shelving"] is False
+    assert drawn["fitOn"] == "Read it now"
+    # news-one and news-two are A1 and readable; physics is A1 and a stretch.
+    assert {row["id"] for row in drawn["rows"]} == {"news-one", "news-two"}
+    assert drawn["seeTitle"].startswith("Beginner texts in Hebrew")
+    assert drawn["levelChip"] == {
+        "text": "Beginner · A1×",
+        "label": "Clear the level: Beginner · A1",
+    }
+
+
+def test_a_level_row_with_no_count_opens_every_text_at_its_level(tmp_path: Path) -> None:
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/B2%2B", catalogueKnown=BANDED)
+    assert drawn["fitOn"] == "Any"
+    assert {row["id"] for row in drawn["rows"]} == {"story-two"}
+    assert drawn["seeTitle"].startswith("Texts at B2 and up in Hebrew")
+
+
+def test_the_level_chip_clears_the_level_and_keeps_the_band(tmp_path: Path) -> None:
+    drawn = browse(
+        tmp_path,
+        catalogue=LEVELLED,
+        hash="#see/now/level/A1",
+        catalogueKnown=BANDED,
+        do=[{"clearLevel": True}],
+    )
+    assert drawn["levelChip"] is None
+    assert drawn["hash"] == "#see/now"
+    assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:3]}
+
+
+def test_a_level_that_is_not_one_filters_nothing(tmp_path: Path) -> None:
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/C3", catalogueKnown=BANDED)
+    assert drawn["levelChip"] is None and len(drawn["rows"]) == len(SHELF)
+
+
+def test_a_level_left_in_the_view_does_not_follow_onto_the_shelves(tmp_path: Path) -> None:
+    """The level lives in the address only: a stored view that carried one does not narrow
+    the shelves or a plain See all."""
+    drawn = browse(
+        tmp_path, catalogue=LEVELLED, hash="#see", catalogueKnown=BANDED, view={"cefr": "B1"}
+    )
+    assert drawn["levelChip"] is None and len(drawn["rows"]) == len(SHELF)
+
+
+def test_an_empty_level_under_read_it_now_says_so(tmp_path: Path) -> None:
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/now/level/B2%2B", catalogueKnown=BANDED)
+    assert drawn["rows"] == []
+    assert drawn["empty"].startswith("Nothing you can read now yet."), drawn["empty"]
+
+
 def test_the_librarys_box_opens_the_one_search_held_to_the_library(tmp_path: Path) -> None:
     """design.md §12, "One search, everywhere" (2026-10-09): typing over the shelves opens
     the search, held to the Library and carrying what was typed. It narrowed the list in

@@ -30,26 +30,10 @@ DAY = 86_400_000
 TODAY = datetime.date(2026, 10, 28)
 
 LADDER = [
-    {
-        "kind": "dialogue",
-        "name": "dialogue",
-        "share": 99,
-        "state": "easy",
-        "texts": 9,
-        "readable": 9,
-    },
-    {"kind": "talk", "name": "talk", "share": 96, "state": "easy", "texts": 9, "readable": 7},
-    {"kind": "article", "name": "article", "share": 95, "state": "easy", "texts": 9, "readable": 4},
-    {"kind": "story", "name": "story", "share": 86, "state": "next", "texts": 9, "readable": 2},
-    {"kind": "novel", "name": "novel", "share": 70, "state": "ahead", "texts": 9, "readable": 0},
-    {
-        "kind": "poetry",
-        "name": "poetry",
-        "share": None,
-        "state": "ahead",
-        "texts": 9,
-        "readable": 0,
-    },
+    {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
+    {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
+    {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
+    {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
 ]
 
 
@@ -126,8 +110,8 @@ def story(full: bool) -> dict[str, Any]:
         "library": True,
         "known": 1700,
         "ladder": LADDER,
-        "here": 2,
-        "next": 3,
+        "here": 1,
+        "next": 2,
         "level": {
             "scale": "ulpan",
             "letter": "ב",

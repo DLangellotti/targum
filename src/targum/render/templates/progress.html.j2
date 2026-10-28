@@ -44,9 +44,9 @@
   </section>
 
   {#- Level (design.md §12, "Your level leads with what you can read", 2026-10-28): the
-      hardest kind of text the reader can read on their own, the next step and one press
-      to the Library's Read it now; the ladder of the language's own kinds, open, each row
-      a shelf with the count of texts it holds that they could read now; and under it the
+      hardest level of text the reader can read on their own, the next step and one press
+      to the Library's Read it now; the texts' own levels, open, each row a shelf with the
+      count of texts at that level they could read now; and under it the
       one level on the page, in the reader's own scale, with a bar toward the next rung
       and no numbers. No percentage anywhere in it (David, 2026-10-28). -#}
   <section class="story level" id="where" aria-labelledby="where-section">
@@ -66,9 +66,8 @@
         <p class="note level-note" id="where-note" hidden></p>
       </div>
       <div class="card level-ladder" id="ladder" hidden>
-        <p class="level-ladder-head">{{ t("progress.ladder.head", "Easiest at the top") }}</p>
-        <p class="level-ladder-sub">{{ t("progress.ladder.sub", "Further down, the words get rarer and the sentences longer.") }}</p>
-        <ol class="touchstones" id="touchstones" aria-label="{{ t("progress.touch.ladder", "Kinds of text, easiest first") }}"></ol>
+        <p class="level-ladder-head" id="ladder-head">{{ t("progress.ladder.head", "Texts by level") }}</p>
+        <ol class="touchstones" id="touchstones" aria-labelledby="ladder-head"></ol>
       </div>
       <div class="level-foot" id="level-foot" hidden>
         <p class="level-foot-said" id="level-said"></p>

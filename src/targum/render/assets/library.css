@@ -1509,6 +1509,13 @@
   font-size: 1.0625rem;
 }
 .see-menus { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+/* The level a row of Your Progress opened the list at, a tinted pill that clears it
+   (design.md §12, "Your level leads with what you can read", 2026-10-28). */
+.see-menus .see-chip { gap: 0.375rem; }
+.see-menus .see-chip-x { font-size: 1.0625rem; line-height: 1; }
+@media (hover: none) and (pointer: coarse) {
+  .see-menus .see-chip { min-block-size: 44px; }
+}
 .see-menus[hidden], .lib-doors[hidden], .see-title[hidden], .see-more[hidden] { display: none; }
 
 /* The kind doors: "Browse by kind:", then a pill a door. */
