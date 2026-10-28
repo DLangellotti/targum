@@ -601,7 +601,7 @@ def test_no_percentage_is_drawn_in_the_level_section() -> None:
 def test_week_one_says_where_to_start_and_names_no_level() -> None:
     drawn = week_one()["where"]
     assert drawn["head"] == "Start with beginner texts."
-    assert drawn["step"] == "Conversations are a good first pick: they use the most common words."
+    assert drawn["step"] == "Conversations use the most common words, so they're a good first pick."
     assert drawn["known"] == "You've marked 86 words as known so far."
     assert drawn["go"] == "Open a conversation"
     assert drawn["goHref"] == "/library?k=k#see/kind/dialogue"
@@ -632,16 +632,18 @@ def test_the_top_rung_has_no_next_step_and_no_bar() -> None:
     }
     drawn = story(ladder=ladder, here=3, next=None, level=level)["where"]
     assert drawn["head"] == "You can read texts at B2 and up on your own."
-    assert drawn["step"] == "It's the hardest level in the library."
+    assert drawn["step"] == "That's the hardest level in the Library."
     assert drawn["toward"] is None
-    assert drawn["foot"].startswith("In ulpan terms you're about vav, ו׳, roughly C2.")
+    assert drawn["foot"].startswith(
+        "In ulpan terms you're at vav (ו׳), about C2 on the European scale."
+    )
 
 
 def test_hebrew_says_both_scales_in_one_foot_line_with_the_letter_in_its_direction() -> None:
     drawn = story()["where"]
     assert drawn["foot"] == (
-        "In ulpan terms you're about gimel, ג׳, roughly B1. "
-        "Ulpan classes in Israel run from aleph, for beginners, to vav."
+        "In ulpan terms you're at gimel (ג׳), about B1 on the European scale. "
+        "Ulpan is Israel's Hebrew course for new immigrants, and its classes run from aleph to vav."
     )
     assert drawn["footLetter"] == {"text": "ג׳", "dir": "rtl", "lang": "he"}
 
@@ -656,14 +658,16 @@ def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
     )
     drawn = story(level=level)["where"]
     assert drawn["footLetter"]["text"] == "א׳+"
-    assert drawn["foot"].startswith("In ulpan terms you're about aleph plus, א׳+, roughly A1.")
-    assert drawn["toward"]["next"] == "next: bet ב׳"
+    assert drawn["foot"].startswith(
+        "In ulpan terms you're at aleph plus (א׳+), about A1 on the European scale."
+    )
+    assert drawn["toward"]["next"] == "Next: bet ב׳"
 
 
 def test_the_bar_toward_the_next_rung_prints_no_number() -> None:
     toward = story()["where"]["toward"]
     assert toward == {
-        "next": "next: dalet ד׳",
+        "next": "Next: dalet ד׳",
         "label": "Toward dalet",
         "now": "12",
         "role": "progressbar",
@@ -688,7 +692,7 @@ def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
         == "On the European scale you're about B1. It runs from A1, for beginners, to C2."
     )
     assert drawn["footLetter"] is None
-    assert drawn["toward"]["next"] == "next: B2"
+    assert drawn["toward"]["next"] == "Next: B2"
     assert drawn["toward"]["label"] == "Toward B2"
 
 
@@ -711,7 +715,7 @@ def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "once we've measured the library's texts" in drawn["where"]["note"]
+    assert "once we've measured the Library" in drawn["where"]["note"]
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
     # Part 3 says the texts wait on the measuring, not that Aramaic is never placed.
@@ -758,7 +762,7 @@ def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
             "uploads": [{"name": "song", "title": "אויפֿן פּריפּעטשיק", "known": 84}],
         },
     )
-    assert "library has nothing in this language" in drawn["where"]["note"]
+    assert "Library has nothing in this language" in drawn["where"]["note"]
     assert drawn["how"] == "Reading and watching", "nobody's voice in Yiddish"
     nxt = drawn["next"]
     assert nxt["textsTitle"] == "Upload something of your own."

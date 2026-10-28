@@ -2043,7 +2043,7 @@
       chip.appendChild(cross);
       chip.setAttribute(
         "aria-label",
-        t("library.level.clear", "Clear the level: {level}", { level: LEVEL_NAMES[view.cefr] })
+        t("library.level.clear", "Remove the {level} filter", { level: LEVEL_NAMES[view.cefr] })
       );
       chip.addEventListener("click", function () {
         view.cefr = "";

@@ -797,7 +797,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   shelf rows carry each text's `cefr`, so a row opens exactly the texts it counted.
   "Conversations" replaces "Dialogue" on the Library's door and Kind filter, rows, home's
   cards and the reader's list; ids and addresses are unchanged. The step labels lose
-  their numbers. Russian drafted for ling-ru and David.
+  their numbers. English and Russian as ling-en and ling-ru read them, approved by David.
 - Your account's finish polish (targum-internal#469, design's polish 1, 3–7 and 10):
   What's connected is drawn with nothing connected, with one quiet line and Connect an
   app. Every date is the day and the month in full, the year only when it isn't this

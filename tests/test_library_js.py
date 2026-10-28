@@ -1133,7 +1133,7 @@ def test_a_level_row_with_a_count_opens_that_level_under_read_it_now(tmp_path: P
     assert drawn["seeTitle"].startswith("Beginner texts in Hebrew")
     assert drawn["levelChip"] == {
         "text": "Beginner · A1×",
-        "label": "Clear the level: Beginner · A1",
+        "label": "Remove the Beginner · A1 filter",
     }
 
 

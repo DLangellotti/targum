@@ -845,7 +845,7 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
     assert not seen["sideways"]
     if phone:
         assert seen["chip"] >= 44, seen
-    assert chip.get_attribute("aria-label") == "Clear the level: Beginner · A1"
+    assert chip.get_attribute("aria-label") == "Remove the Beginner · A1 filter"
 
     page.reload()
     chip.wait_for(state="visible")

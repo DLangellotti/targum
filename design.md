@@ -443,7 +443,8 @@ The mark stays and still goes to Your targums. When the bar is out, a named back
 ### Your level leads with what you can read — 2026-10-28
 
 Approved by David, 2026-10-28 (targum-internal#553), after five reviews (ling-en, ling-he,
-ling-ru, design twice) and three calls of his the same evening. A beta reader read "Kids'
+ling-ru, design twice) and three calls of his the same evening; the lines quoted here are
+ling-en's and ling-ru's reads of targum#975, approved by him as written. A beta reader read "Kids'
 stories 74%" as a score, and the ladder of percentages under "Where you are" said nothing
 a new learner could use. Part 1 of Your Progress is now **Level** («Уровень»), and this
 reverses two lines of "Your Progress is a story in three parts" (2026-10-09): the ladder
@@ -467,30 +468,32 @@ comes back as one line at the foot.
   exactly N, and `#see/level/<level>` where it counts none.
 - **The card says what you can read.** "You can read A2 texts on your own." (beginner
   texts, B1 texts, texts at B2 and up), "Your next step is B1 texts." and one filled press,
-  "Show texts at your level", to Read it now. At the top row the second line says it's
-  the hardest level in the library.
+  "Show texts at your level", to Read it now. At the top row the second line says
+  "That's the hardest level in the Library."
 - **Week one names no level.** Before any level is easy: "Start with beginner texts.",
-  "Conversations are a good first pick: they use the most common words." where the shelf
-  has them, "You've marked N words as known so far." and "Open a conversation".
+  "Conversations use the most common words, so they're a good first pick." where the
+  shelf has them, "You've marked N words as known so far." and "Open a conversation".
 - **The Library filters by a text's level.** Its shelf rows carry each text's level
   (`cefr`), and See all answers `#see/level/<level>` and `#see/<band>/level/<level>`, so
   the address survives a reload. The level shows as a tinted chip beside the menus, "Beginner
-  · A1 ×", which clears it and keeps the band; the title names it ("Beginner texts in
+  · A1 ×", which clears it and keeps the band and is read aloud as "Remove the Beginner ·
+  A1 filter"; the title names it ("Beginner texts in
   Hebrew"); an empty one says so with the way to every text. The level lives in the address
   only: the shelves and any other address let it go. `#see/kind/<kind>` still works.
 - **No percentages anywhere in Level.** The chips, the shares and the "you know N% of its
   words" titles are gone; the server no longer sends a share.
 - **The foot line is the only level**, and only the measured rung (`level.py`, from the
   first rung reached), never the declared one (2026-09-19 stands). Hebrew says both scales
-  in one line: "In ulpan terms you're about aleph plus, א׳+, roughly A1. Ulpan classes in
-  Israel run from aleph, for beginners, to vav." French, Russian and Italian: "On the
+  in one line, and says what an ulpan is for a reader outside Israel: "In ulpan terms
+  you're at aleph plus (א׳+), about A1 on the European scale. Ulpan is Israel's Hebrew
+  course for new immigrants, and its classes run from aleph to vav." French, Russian and Italian: "On the
   European scale you're about B1. It runs from A1, for beginners, to C2." Aramaic and
   Yiddish have no foot line. The letter carries its geresh and sits in its own
   right-to-left run, the plus after the geresh.
 - **Under it, a bar toward the next rung, with no numbers**: a 4px leaf line on the desk's
   track, filled from this rung to the next on the measure the rung is reached by (weighted
-  words for the ulpan, the commonest words for the European scale), "next: bet ב׳" or
-  "next: B2" beside it, a `progressbar` with its name. No bar at the top rung.
+  words for the ulpan, the commonest words for the European scale), "Next: bet ב׳" or
+  "Next: B2" beside it, a `progressbar` with its name. No bar at the top rung.
 - **"Conversations" replaces "Dialogue"** as the scenes' and dialogues' name: the Library's
   door, its Kind filter and a row's kind ("Conversation · 3 min"), home's cards and the
   reader's list («Разговоры», «Разговор»). David, 2026-10-28, overriding "Dialogue, Chat

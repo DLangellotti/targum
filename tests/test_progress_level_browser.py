@@ -89,7 +89,7 @@ STATES: dict[str, dict[str, Any]] = {
         "signed": False,
         "says": "Sign in to see which texts you can read on your own.",
     },
-    "loading": {"hold": True, "says": "We're working out where you are."},
+    "loading": {"hold": True, "says": "We're working out your level."},
     "error": {"fail": True, "says": "We couldn't load this part.", "press": "Try again"},
     "week-one": {
         "story": story(known=86, ladder=ladder(0), next=0),
@@ -103,8 +103,8 @@ STATES: dict[str, dict[str, Any]] = {
         "says": "You can read beginner texts on your own.",
         "press": "Show texts at your level",
         "rows": 4,
-        "foot": "In ulpan terms you're about aleph plus, א׳+, roughly A1.",
-        "next": "next: bet ב׳",
+        "foot": "In ulpan terms you're at aleph plus (א׳+), about A1 on the European scale.",
+        "next": "Next: bet ב׳",
     },
     "months": {
         "story": story(
@@ -113,8 +113,8 @@ STATES: dict[str, dict[str, Any]] = {
         "says": "You can read B1 texts on your own.",
         "press": "Show texts at your level",
         "rows": 4,
-        "foot": "In ulpan terms you're about gimel, ג׳, roughly B1.",
-        "next": "next: dalet ד׳",
+        "foot": "In ulpan terms you're at gimel (ג׳), about B1 on the European scale.",
+        "next": "Next: dalet ד׳",
     },
     "top-rung": {
         "story": story(
@@ -130,10 +130,10 @@ STATES: dict[str, dict[str, Any]] = {
                 "toward": None,
             },
         ),
-        "says": "It's the hardest level in the library.",
+        "says": "That's the hardest level in the Library.",
         "press": "Show texts at your level",
         "rows": 4,
-        "foot": "In ulpan terms you're about vav, ו׳, roughly C2.",
+        "foot": "In ulpan terms you're at vav (ו׳), about C2 on the European scale.",
         "bar": False,
     },
     "aramaic": {
@@ -180,7 +180,7 @@ STATES: dict[str, dict[str, Any]] = {
         "press": "Show texts at your level",
         "rows": 4,
         "foot": "On the European scale you're about B1. It runs from A1, for beginners, to C2.",
-        "next": "next: B2",
+        "next": "Next: B2",
     },
     "russian": {
         "page": "ru",
@@ -191,8 +191,8 @@ STATES: dict[str, dict[str, Any]] = {
         "says": "Вы можете сами читать тексты уровня B1.",
         "press": "Показать тексты вашего уровня",
         "rows": 4,
-        "foot": "По меркам ульпана у вас примерно уровень гимель (ג׳)",
-        "next": "дальше: далет ד׳",
+        "foot": "По меркам ульпана у вас уровень гимель (ג׳)",
+        "next": "Дальше — уровень далет ד׳",
     },
 }
 

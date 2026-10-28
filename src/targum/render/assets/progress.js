@@ -319,7 +319,7 @@
     if (ulpan) {
       var line = t(
         "progress.level.ulpan",
-        "In ulpan terms you're about {name}, {letter}, roughly {cefr}. Ulpan classes in Israel run from aleph, for beginners, to vav.",
+        "In ulpan terms you're at {name} ({letter}), about {cefr} on the European scale. Ulpan is Israel's Hebrew course for new immigrants, and its classes run from aleph to vav.",
         { name: ulpanName(level.name), cefr: level.cefr, letter: "\u0000" }
       );
       sentence(said, line, "\u0000", letterRun(level.letter));
@@ -344,12 +344,12 @@
     if (ulpan) {
       sentence(
         next,
-        t("progress.level.next-ulpan", "next: {name} {letter}", { name: nextName, letter: "\u0000" }),
+        t("progress.level.next-ulpan", "Next: {name} {letter}", { name: nextName, letter: "\u0000" }),
         "\u0000",
         letterRun(level.next.letter)
       );
     } else {
-      next.textContent = t("progress.level.next-cefr", "next: {level}", { level: nextName });
+      next.textContent = t("progress.level.next-cefr", "Next: {level}", { level: nextName });
     }
     toward.hidden = false;
   }
@@ -397,8 +397,8 @@
         n: grouped(known),
       });
       note.textContent = !said.library
-        ? t("progress.where.no-library", "The library has nothing in this language yet, so we can't show which texts you'd follow.")
-        : t("progress.where.unmeasured", "We'll show which kinds of text you'd follow once we've measured the library's texts.");
+        ? t("progress.where.no-library", "The Library has nothing in this language yet, so we can't show which texts you can read.")
+        : t("progress.where.unmeasured", "We'll show which texts you can read on your own once we've measured the Library.");
       note.hidden = false;
       return;
     }
@@ -411,7 +411,7 @@
     if (here) {
       // The hardest level you can read on your own, the next step, and the one press.
       head.textContent = rungOf(here).can;
-      step.textContent = next ? rungOf(next).next : t("progress.level.top", "It's the hardest level in the library.");
+      step.textContent = next ? rungOf(next).next : t("progress.level.top", "That's the hardest level in the Library.");
       step.hidden = false;
       go.textContent = t("progress.level.go", "Show texts at your level");
       go.href = keyed("/library#see/now");
@@ -426,7 +426,7 @@
       } else if (said.conversations) {
         step.textContent = t(
           "progress.level.conversations",
-          "Conversations are a good first pick: they use the most common words."
+          "Conversations use the most common words, so they're a good first pick."
         );
         step.hidden = false;
       }
