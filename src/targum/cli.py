@@ -1566,6 +1566,26 @@ def _reread_quote(root: Path, languages: set[str], dry_run: bool) -> None:
         raise typer.Abort()
 
 
+def _only(folders: list[Path], names: list[str]) -> list[Path]:
+    """The targums `rebuild --only` names: by folder name, or home/name where the same
+    name sits in more than one home. A name that matches nothing, or a bare name that
+    matches several, stops the run before anything is written."""
+    picked: list[Path] = []
+    for name in names:
+        hits = [
+            folder
+            for folder in folders
+            if name in (folder.name, f"{folder.parent.name}/{folder.name}")
+        ]
+        if not hits:
+            fail(TargumError(f"No targum here is called {name}.", "Name its folder, or home/name."))
+        if len(hits) > 1:
+            homes = ", ".join(f"{folder.parent.name}/{folder.name}" for folder in hits)
+            fail(TargumError(f"{name} is in more than one home: {homes}.", "Name it as home/name."))
+        picked.extend(hit for hit in hits if hit not in picked)
+    return picked
+
+
 def _targums(where: Path) -> list[Path]:
     """Every targum under a library root, whichever home it sits in.
 
@@ -2083,6 +2103,16 @@ def rebuild(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="With --reread: say what it would cost, and stop.")
     ] = False,
+    only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--only",
+            help=(
+                "Rewrite only this targum: its folder name, or home/name (p1/abc-he). "
+                "Again for more."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -2225,7 +2255,10 @@ def rebuild(
 
     done = 0
     skipped: list[tuple[str, str]] = []
-    for folder in sorted(_targums(root)):
+    folders = sorted(_targums(root))
+    if only:
+        folders = _only(folders, only)
+    for folder in folders:
         if folder.name == "uploads":
             continue
         # A weekly edition is one long targum wired to its sibling levels, and rewriting
@@ -2604,6 +2637,51 @@ def refs(
         return
     console.print(f"[green]{filled}[/green] given their refs[dim], {skipped} left alone.[/dim]")
     console.print("[dim]Now `targum rebuild` to write the pages with their audio in.[/dim]")
+
+
+@app.command(name="align-subtitles")
+def align_subtitles(
+    folder: Annotated[Path, typer.Argument(help="One targum's folder: its audio.json beside it.")],
+    part: Annotated[
+        list[int] | None,
+        typer.Option("--part", help="Only this part. Again for more. Default: every one."),
+    ] = None,
+) -> None:
+    """Time each word of a video whose transcript came from its subtitle file.
+
+    A subtitle file times cues, so such a video lights the line being said and no word.
+    This lines the subtitles' own words up with the recording, on this machine, with the
+    forced aligner (targum-internal#572): free, and minutes a part. A word the aligner was
+    not sure of keeps no clock. It rewrites the parts' refinements and the manifest and
+    nothing else — the text and its words are untouched — so `targum rebuild --only` is
+    what writes the page after it.
+    """
+    from .audio.align import CtcAligner
+    from .audio.manifest import load as load_manifest
+    from .audio.subtitle_words import retime_folder
+
+    found = load_manifest(folder)
+    if found is None:
+        fail(TargumError(f"No recording in {folder}.", "Point it at one targum's folder."))
+    aligner = CtcAligner(found.language)
+    usable, hint = aligner.available()
+    if not usable:
+        fail(TargumError("The forced aligner is not here.", hint))
+    report = retime_folder(
+        folder, aligner, parts=part, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+    )
+    for row in report.parts:
+        if row.skipped:
+            console.print(f"[dim]Part {row.number}: left as it was — {row.skipped}.[/dim]")
+        else:
+            console.print(
+                f"Part {row.number}: [green]{row.kept}[/green] of {row.words} words timed"
+                f"[dim] in {row.seconds / 60:.1f} min.[/dim]"
+            )
+    console.print(
+        f"[green]{report.kept}[/green] of {report.words} words timed"
+        f"[dim], {sum(row.seconds for row in report.parts) / 60:.1f} min of aligning.[/dim]"
+    )
 
 
 @app.command()
