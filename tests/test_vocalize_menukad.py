@@ -78,6 +78,25 @@ def test_the_exceptions_are_left_alone(word: str) -> None:
     assert menukad.normalise_word(word) == (word, ())
 
 
+def test_kol_is_the_word_not_the_end_of_another() -> None:
+    assert norm("וְהַכּוֹל") == nfc("וְהַכֹּל")
+    assert menukad.normalise_word("אֶשְׁכּוֹל") == ("אֶשְׁכּוֹל", ())
+
+
+@pytest.mark.parametrize(
+    ("written", "standard"),
+    [("שָׁלֹום", "שָׁלוֹם"), ("עֹוד", "עוֹד"), ("לֹו", "לוֹ"), ("יֹופִי", "יֹפִי"), ("בֹּוקֶר", "בֹּקֶר")],
+)
+def test_a_holam_before_its_vav_is_moved_not_dropped(written: str, standard: str) -> None:
+    """qa on #986: dropping the vav lost every holam male written on the letter before."""
+    assert norm(written) == nfc(standard)
+
+
+def test_residue_names_a_lost_vav() -> None:
+    assert menukad.residue("שָׁלֹם", source="שָׁלוֹם") == [("lost vav", "שָׁלֹם")]
+    assert menukad.residue("בֹּקֶר טוֹב", source="בּוֹקֶר טוֹב") == []
+
+
 def test_a_cast_name_is_left_alone() -> None:
     assert menukad.normalise_word("עִידּוֹ", frozenset({"עידו"})) == ("עִידּוֹ", ())
     assert norm("עִידּוֹ") == nfc("עִדּוֹ")
@@ -122,7 +141,9 @@ def test_the_command_prints_and_writes_only_where_asked(
     path.write_text(json.dumps(scene, ensure_ascii=False), encoding="utf-8")
     assert menukad.main([str(path)]) == 0
     printed = capsys.readouterr().out
-    assert "t0" in printed and "holam + bare vav" in printed and "1 rule applications" in printed
+    assert (
+        "t0" in printed and "holam written before its vav" in printed and "0 words still" in printed
+    )
     assert json.loads(path.read_text(encoding="utf-8")) == scene  # read only
     out = tmp_path / "out"
     assert menukad.main(["--out", str(out), str(path)]) == 0

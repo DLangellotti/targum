@@ -213,8 +213,14 @@ def _future(word: str) -> str:
 #: In application order; each is tried until nothing changes. Written in `reorder`'s mark
 #: order. The counts in the comments are ling-he's (box B1 / dialogue scenes).
 RULES: tuple[Rule, ...] = (
-    # מְעֻולֶּה → מְעֻלֶּה (42 / 0): the menaked's qubuts with its vav kept bare.
-    ("qubuts + bare vav", _sub(f"{QUBUTS}ו(?![{P}])", QUBUTS)),
+    # First, a vowel written on the letter before its own vav is put on the vav: יֹופִי is
+    # יוֹפִי written another way, and מְעֻולֶּה is מְעוּלֶּה. The menaked writes a mater so,
+    # and so does any text that puts a holam male on the letter before (שָׁלֹום, לֹו). Moved,
+    # not dropped: whether the vav goes is for the rules below to say (segolate, qal
+    # future, the lexicon), and שָׁלוֹם keeps it. Dropping it here lost the vav of every
+    # holam male written that way (qa, #986).
+    ("holam written before its vav", _sub(f"{HOLAM}ו(?![{P}])", f"ו{HOLAM}")),
+    ("qubuts written before its vav", _sub(f"{QUBUTS}ו(?![{P}])", f"ו{DAGESH}")),
     # חׇודְשַׁיִים → חׇדְשַׁיִם, but not קְצָווֹת, whose second vav is a consonant.
     ("qamats + bare vav", _sub(f"([{QAMATS}{QATAN}])ו(?![{P}])(?=[{L}])(?!ו{HOLAM})", r"\1")),
     # חִיבּוּר → חִבּוּר, שִׁישִּׁי → שִׁשִּׁי (118 / 242).
@@ -242,13 +248,14 @@ RULES: tuple[Rule, ...] = (
     ("doubled consonantal vav", _sub(f"(ו[{P}]+)ו(?![{P}])(?=[{L}])(?!ו{HOLAM})", r"\1")),
     # אֵלַיי → אֵלַי.
     ("final -ay with two yods", _sub(f"([{PATAH}{QAMATS}])יי(?![{P}])(?![{L}])", r"\1י")),
-    # יֹופִי → יֹפִי (40 / 0): the menaked's holam with its vav kept bare.
-    ("holam + bare vav", _sub(f"{HOLAM}ו(?![{P}])", HOLAM)),
     ("hataf qamats + bare vav", _sub(f"{HATAF_QAMATS}ו(?![{P}])", HATAF_QAMATS)),
     # נִיהוּל → נִהוּל, שִׁיעוּר → שִׁעוּר: a piel noun before a guttural, no dagesh to see.
     ("hiriq + bare yod before a guttural", _sub(f"{HIRIQ}י(?![{P}])(?=[החע]ו{DAGESH})", HIRIQ)),
-    # הַכּוֹל → הַכֹּל.
-    ("kol", _sub(f"כ{DAGESH}ו{HOLAM}ל(?![{P}{L}])", f"כ{DAGESH}{HOLAM}ל")),
+    # הַכּוֹל → הַכֹּל: the word itself behind its prefixes, never the end of אֶשְׁכּוֹל.
+    (
+        "kol",
+        _sub(f"^({_PREFIX})כ({DAGESH}?)ו{HOLAM}ל$", lambda m: f"{m.group(1)}כ{m.group(2)}{HOLAM}ל"),
+    ),
     # לִשְׁמוֹעַ → לִשְׁמֹעַ (44 / 96).
     ("qal future or infinitive", _future),
     # בּוֹקֶר → בֹּקֶר, טוֹפֶס → טֹפֶס (19 / 60): the whole word is a segolate.
@@ -356,6 +363,12 @@ _LEXICON_SOURCE: tuple[tuple[str, str], ...] = (
     ("מְדוּזוֹת", "מֵדוּזוֹת"),
     ("מְדוּזָה", "מֵדוּזָה"),
     ("ג'וֹנְיוֹר", "ג'וּנְיוֹר"),
+    # holam haser that no rule reaches once a holam is back on its vav
+    ("יוֹפִי", "יֹפִי"),
+    ("מְטוֹרָף", "מְטֹרָף"),
+    ("מְטוֹרֶפֶת", "מְטֹרֶפֶת"),
+    ("חוֹם$", "חֹם$"),
+    ("לִישׁוֹן", "לִישֹׁן"),
 )
 
 
@@ -404,16 +417,18 @@ def normalise_word(word: str, names: frozenset[str] = frozenset()) -> tuple[str,
         return word, ()
     w = reorder(word)
     fired: list[str] = []
-    lexed = _lex(w)
-    if lexed != w:
-        fired.append("lexicon")
-        w = lexed
     # A word with a geresh is borrowed (ג'וּנְיוֹר): the lexicon may correct it, and no
     # rule touches it.
     borrowed = "'" in word or "׳" in word
-    for _ in range(0 if borrowed else 4):
+    for _ in range(4):
         before = w
-        for name, rule in RULES:
+        # The lexicon each pass, since the first rules can put a word into the shape
+        # it lists (שֻׁולְחָן becomes שׁוּלְחָן, which it knows).
+        lexed = _lex(w)
+        if lexed != w:
+            fired.append("lexicon")
+            w = lexed
+        for name, rule in () if borrowed else RULES:
             after = rule(w)
             if after != w:
                 fired.append(name)
@@ -463,10 +478,37 @@ _DETECT: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 
-def residue(text: str, names: Iterable[str] = ()) -> list[tuple[str, str]]:
-    """(rule, word) for every word that still looks like full spelling under points."""
+#: The rules allowed to take a vav out of a word. Anything else that loses one has lost it.
+TAKES_A_VAV = frozenset(
+    {
+        "lexicon",
+        "shuruk before dagesh",
+        "qamats + bare vav",
+        "hataf qamats + bare vav",
+        "doubled consonantal vav",
+        "kol",
+        "qal future or infinitive",
+        "segolate",
+    }
+)
+
+
+def residue(
+    text: str, names: Iterable[str] = (), source: str | None = None
+) -> list[tuple[str, str]]:
+    """(rule, word) for every word that still looks like full spelling under points.
+
+    Given the `source` the text was made from, word for word, it also names a word that
+    has lost a vav no rule takes out: שָׁלֹם for שָׁלוֹם is a holam male gone missing, not
+    a correction, and nothing in the word alone says so."""
     keep = frozenset(bare(n) for n in names if n)
-    out = []
+    out: list[tuple[str, str]] = []
+    if source is not None:
+        for old, new in zip(_WORD.findall(source), _WORD.findall(text), strict=False):
+            if bare(new).count("ו") >= bare(old).count("ו") or kept(old, keep):
+                continue
+            if not set(normalise_word(old, keep)[1]) & TAKES_A_VAV:
+                out.append(("lost vav", new))
     for match in _WORD.finditer(text):
         word = match.group(0)
         if not _MARK.search(word) or kept(word, keep) or "'" in word or "׳" in word:
@@ -519,7 +561,7 @@ def main(argv: list[str] | None = None) -> int:
                 total.update(change.rules)
                 rules = ", ".join(change.rules)
                 print(f"{path.stem}\t{where}\t{change.word} → {change.becomes}\t{rules}")
-            for rule, word in residue(text, names):
+            for rule, word in residue(text, names, source=holder[key]):
                 missed += 1
                 print(f"{path.stem}\t{where}\tMISSED {word}\t{rule}")
             holder[key] = text

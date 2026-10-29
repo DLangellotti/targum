@@ -604,7 +604,7 @@ def present_gender(word: str) -> str:
 
 
 #: What may stand between אני and its verb: negation and a closed set of adverbs. Anything
-#: else ends the search, so the object of another verb (אֲנִי אָבִיא בּוֹדֵק) is never read
+#: else ends the search, so the object of another verb (אֲנִי אֶקְנֶה כּוֹתֵב) is never read
 #: as the speaker's present.
 BETWEEN = frozenset(
     "לא כבר עוד פשוט גם ממש רק תמיד עדיין באמת די קצת בדיוק סתם עכשיו כרגע אף פעם".split()
@@ -630,7 +630,7 @@ def speaker_disagrees(hebrew: str, english: str, turn: int, speaker: str) -> Ite
     the speaker's cast gender.
 
     The subject is אני, with the present within three words after it in the same
-    sentence. Hebrew drops אני in a running commentary (עוֹלָה אֵלֶיהָ, "I'm going up");
+    sentence. Hebrew drops אני in a running commentary (עוֹלָה לְמַעְלָה, "I'm coming up");
     there the English decides it, where the turn has as many sentences in each language
     and the matching English one begins with "I'm" or "I am"."""
     if speaker not in ("m", "f"):
