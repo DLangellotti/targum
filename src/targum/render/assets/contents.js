@@ -466,7 +466,9 @@ function partsOf(row) {
     }, 1500);
   }
 
-  fetch(keyed("/readers"))
+  // Its own row and nothing else (targum-internal#556): the whole shelf was ~460 kB on
+  // every open, to read one row of it.
+  fetch(keyed("/readers?shared=0&catalogue=0&name=" + encodeURIComponent(name)))
     .then(function (r) {
       return r.json();
     })

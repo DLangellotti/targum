@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -102,5 +103,42 @@ def test_the_subscriptions_tab_asks_for_its_list_as_the_page_opens(chromium) -> 
         lists = [one for one in asked if one.split("?")[0] == "/subscriptions.json"]
         assert len(lists) == 1, f"the tab's draw reads the answer already asked: {lists}"
         assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_home_asks_for_the_shelf_it_draws(chromium) -> None:
+    """Of the shared shelf, only what this browser has had open, by the start of each hash,
+    and no catalogue (targum-internal#556): the whole of both was most of `/readers`."""
+    html = list_page("", "texts")
+    asked: list[str] = []
+
+    def answer(route: Any, request: Any) -> Any:
+        where = request.url[len(SITE) :]
+        if request.resource_type == "document":
+            return route.fulfill(status=200, content_type="text/html", body=html)
+        asked.append(where)
+        said = ME if where.startswith("/account/me") else {"signedIn": True}
+        route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+
+    opened = "bed612b15ca41eac98f6ee9d507afd09859a739f81f0ccec14191ba9c9dbe382"
+    placed = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    context = chromium.browser().new_context(viewport={"width": 390, "height": 844})
+    context.add_init_script(
+        "localStorage.setItem('targum:welcomed', '1');"
+        f"localStorage.setItem('targum:opened', JSON.stringify({{'{opened}': 5}}));"
+        f"localStorage.setItem('targum:places', JSON.stringify({{'{placed}': {{at: 5}}}}));"
+    )
+    page = context.new_page()
+    try:
+        page.route(f"{SITE}/**", answer)
+        page.goto(SITE + "/")
+        page.wait_for_function("() => document.readyState === 'complete'")
+        page.wait_for_timeout(600)
+        shelves = [one for one in asked if one.split("?")[0] == "/readers"]
+        assert shelves, asked
+        query = parse_qs(urlparse(shelves[0]).query)
+        assert query["catalogue"] == ["0"]
+        assert sorted(query["shared"][0].split(".")) == sorted([opened[:12], placed[:12]])
     finally:
         context.close()

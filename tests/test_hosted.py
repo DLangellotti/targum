@@ -1624,3 +1624,59 @@ def test_an_unknown_text_or_reader_page_is_the_sites_own_404_to_a_browser(
         response = conn.getresponse()
         assert (response.status, response.read()) == (404, b"not found"), path
         conn.close()
+
+
+def test_the_shelf_sends_only_what_a_page_draws(hosted: tuple[int, str]) -> None:
+    """`/readers` is whole by default, for the Library and the arrival; home and a reader
+    ask for less (targum-internal#556), because the shared shelf was most of the answer
+    and most of its time, and neither drew it."""
+    import shutil
+
+    port, session = hosted
+    out = Path(str(STORE[0])).parent / "out"
+    one = out / "shared" / "lean-one"
+    two = out / "shared" / "lean-two"
+    _targum(one, "0123456789abcdef-one")
+    _targum(two, "fedcba9876543210-two")
+
+    def shelf(query: str) -> dict:
+        status, body = ask(port, "/readers" + query, "targum.page", session)
+        assert status == 200, query
+        return json.loads(body)
+
+    def lean(answer: dict) -> set[str]:
+        return {r["name"] for r in answer["shared"]} & {"lean-one", "lean-two"}
+
+    try:
+        whole = shelf("")
+        assert lean(whole) == {"lean-one", "lean-two"}
+        none = shelf("?shared=0&catalogue=0")
+        assert none["shared"] == [] and none["catalogue"] == {}
+        assert set(none) == set(whole), "the same fields, so no page reads a missing one"
+        assert lean(shelf("?shared=0123456789ab&catalogue=0")) == {"lean-one"}, "by its start"
+        assert lean(shelf("?shared=0123456789")) == set(), "too short a start names nothing"
+        assert lean(shelf("?shared=-")) == set(), "none from the page"
+
+        # Opened on another device: the account's own record adds it.
+        store = Store(STORE[0])
+        person = store.person_by_email("reader@example.com")
+        assert person is not None
+        store.db.execute(
+            "INSERT OR REPLACE INTO doc (person, hash, opened) VALUES (?, ?, 1)",
+            (person.id, "fedcba9876543210-two"),
+        )
+        store.db.commit()
+        assert lean(shelf("?shared=-")) == {"lean-two"}
+        assert lean(shelf("?shared=0123456789ab")) == {"lean-one", "lean-two"}
+
+        # A reader's contents page: its own row by name, and nothing else.
+        _targum(out / f"p{person.id}" / "mine-only", "aaaaaaaaaaaa-mine")
+        _targum(out / f"p{person.id}" / "mine-other", "bbbbbbbbbbbb-other")
+        named = shelf("?shared=0&catalogue=0&name=mine-only")
+        assert [r["name"] for r in named["readers"]] == ["mine-only"]
+        assert named["shared"] == [] and named["trash"] == []
+    finally:
+        shutil.rmtree(one, ignore_errors=True)
+        shutil.rmtree(two, ignore_errors=True)
+        for folder in out.glob("p*/mine-*"):
+            shutil.rmtree(folder, ignore_errors=True)

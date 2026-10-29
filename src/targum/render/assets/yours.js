@@ -428,6 +428,28 @@
      texts were opened, the places, the words), so the shelf, Continue and the counts are
      drawn again from it, and nothing the server already answered is asked again. Set
      once home is drawn; an answer that comes before then is kept for it. */
+  /* The shelf as home draws it (targum-internal#556): the reader's own texts, and of the
+     shared shelf only what they have had open, which is all of it that `gather` keeps.
+     The whole shared shelf was ~430 kB of the answer, measured on the server, for a few
+     rows. Each opened text is named by the start of its hash; the server adds what the
+     account knows was opened on other devices. A browser that has opened more than an
+     address should carry asks for the whole shelf, as before. No catalogue: only the
+     Library draws it. */
+  var OPENED_PREFIX = 12;
+  var OPENED_NAMED_AT_MOST = 300;
+  function shelfAddress() {
+    var named = {};
+    [stored("targum:opened"), stored("targum:places")].forEach(function (record) {
+      Object.keys(record).forEach(function (hash) {
+        if (/^[0-9a-f]{12,}$/i.test(hash)) named[hash.slice(0, OPENED_PREFIX).toLowerCase()] = true;
+      });
+    });
+    var starts = Object.keys(named);
+    if (starts.length > OPENED_NAMED_AT_MOST) return "/readers?catalogue=0";
+    // "-" names none, and still has the account's added: an empty value is no value.
+    return "/readers?catalogue=0&shared=" + (starts.join(".") || "-");
+  }
+
   var redrawHome = null;
   var owedRedraw = false;
 
@@ -439,7 +461,7 @@
       });
     };
     return Promise.all([caughtUp().then(function () {
-      return ask("/readers");
+      return ask(shelfAddress());
     }), jobs(), accountPlaces()]).then(function (both) {
       var theirPlaces = both[2];
       var readers = gather(both[0], opened, theirPlaces);
@@ -707,7 +729,7 @@
               if (home) home.draw(shown, readers, building);
               return follow();
             }
-            return ask("/readers").then(function (data) {
+            return ask(shelfAddress()).then(function (data) {
               readers = gather(data, stored("targum:opened"), theirPlaces);
               trash = (data && data.trash) || trash;
               render();

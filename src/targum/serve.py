@@ -7853,6 +7853,97 @@ class Handler(BaseHTTPRequestHandler):
             if code != "x-default"
         )
 
+    def _readers(self, query: dict[str, list[str]]) -> None:
+        """The shelf: the reader's own texts, the shared ones, what they took off it, and
+        the figures each is measured with. Not "/library": that name belongs to the page
+        a person opens.
+
+        Whole by default, which is what the Library and the arrival draw. A page that
+        draws less says so (targum-internal#556), because the shared shelf is ~455 texts
+        measured against this reader's words, most of the answer and most of its time,
+        and home and a reader drew none of it:
+
+        - `shared=0`: none of the shared shelf.
+        - `shared=<hash>.<hash>…`: only the shared texts this reader has had open, which
+          are what home puts on Recent. Each is the start of a text's hash, from this
+          browser's own record; the account's own record (`opened_documents`) and its
+          places are added here, so a text opened on another device is never left out.
+        - `catalogue=0`: no catalogue measured. Only the Library draws it.
+        - `name=<folder>`: of the reader's own, only that one, and nothing taken off the
+          shelf: what a reader's contents page asks about itself.
+        """
+        home = self._home()
+        person = self._person()
+        name = (query.get("name") or [""])[0]
+        mine = self.library.readers(home)
+        if name:
+            mine = [reader for reader in mine if reader.get("name") == name]
+        self._measure(home, mine)
+        # And the shared one, measured against this reader's words like their own.
+        # The page shows it only to a reader with nothing of their own in that
+        # language: it is where to start, not another row on a full shelf.
+        asked = (query.get("shared") or [None])[0]
+        shared: list[dict[str, Any]] = []
+        if asked != "0":
+            shared = self.library.readers(self.library.shared)
+            if asked is not None:
+                shared = self._opened_of(shared, asked, person)
+            for reader in shared:
+                reader["shared"] = True
+            self._measure(self.library.shared, shared)
+        # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
+        if person is not None and self.store is not None:
+            holding = self.store.playlists_holding(person.id)
+            for reader in (*mine, *shared):
+                reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
+        catalogue = (query.get("catalogue") or [""])[0] != "0"
+        self._json(
+            {
+                "readers": mine,
+                "shared": shared,
+                "trash": [] if name else self.library.readers(home, trashed=True),
+                # Whether this reader is offered a conversation in Hebrew — the same
+                # word `/chat/list` gives, decided the same way (`Library.talks`).
+                "talk": self.library.talks(home, person.id if person else None),
+                # Whether this deployment can draw a cover at all. A page with no
+                # image key offers nothing rather than offering and failing.
+                "covers": self.library.can_draw(),
+                # Every catalogue text measured against this reader's words, built or
+                # not (targum-internal#293). Keyed by entry id; a built copy's own
+                # measurement above wins, because that is the text they actually have.
+                "catalogue": self._measure_catalogue() if catalogue else {},
+                # Whether somebody is signed in: a Library row's Subscribe is the
+                # account's, so it is offered only to an account.
+                "signedIn": person is not None,
+            }
+        )
+
+    #: The shortest start of a hash `/readers?shared=` takes: twelve hex digits tell 455
+    #: texts apart with room to spare, and a hundred of them stay a short address.
+    OPENED_PREFIX = 12
+
+    def _opened_of(
+        self, shared: list[dict[str, Any]], asked: str, person: Person | None
+    ) -> list[dict[str, Any]]:
+        """The shared texts this reader has had open: those the page named by the start of
+        their hash, and those the account knows of, by `doc` or by place."""
+        starts = {
+            one[: self.OPENED_PREFIX].lower()
+            for one in asked.split(".")
+            if len(one) >= self.OPENED_PREFIX
+        }
+        if person is not None and self.store is not None:
+            known = set(self.store.opened_documents(person.id))
+            known.update(
+                str(place.get("hash") or "") for place in self.store.places(person.id, limit=20)
+            )
+            starts.update(one[: self.OPENED_PREFIX].lower() for one in known if one)
+        return [
+            reader
+            for reader in shared
+            if str(reader.get("document") or "")[: self.OPENED_PREFIX].lower() in starts
+        ]
+
     def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
         """Say how much of each targum the reader already knows.
 
@@ -9248,43 +9339,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/sentence/"):
             return self._sentence(route[len("/sentence/") :])
         if route == "/readers":
-            # Not "/library": that name belongs to the page a person opens.
-            home = self._home()
-            mine = self.library.readers(home)
-            self._measure(home, mine)
-            # And the shared one, measured against this reader's words like their own.
-            # The page shows it only to a reader with nothing of their own in that
-            # language: it is where to start, not another row on a full shelf.
-            shared = self.library.readers(self.library.shared)
-            for reader in shared:
-                reader["shared"] = True
-            self._measure(self.library.shared, shared)
-            person = self._person()
-            # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
-            if person is not None and self.store is not None:
-                holding = self.store.playlists_holding(person.id)
-                for reader in (*mine, *shared):
-                    reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
-            return self._json(
-                {
-                    "readers": mine,
-                    "shared": shared,
-                    "trash": self.library.readers(home, trashed=True),
-                    # Whether this reader is offered a conversation in Hebrew — the same
-                    # word `/chat/list` gives, decided the same way (`Library.talks`).
-                    "talk": self.library.talks(home, person.id if person else None),
-                    # Whether this deployment can draw a cover at all. A page with no
-                    # image key offers nothing rather than offering and failing.
-                    "covers": self.library.can_draw(),
-                    # Every catalogue text measured against this reader's words, built or
-                    # not (targum-internal#293). Keyed by entry id; a built copy's own
-                    # measurement above wins, because that is the text they actually have.
-                    "catalogue": self._measure_catalogue(),
-                    # Whether somebody is signed in: a Library row's Subscribe is the
-                    # account's, so it is offered only to an account.
-                    "signedIn": person is not None,
-                }
-            )
+            return self._readers(parse_qs(urlparse(self.path).query))
         if route == "/account/me":
             return self._me()
         if route == "/account/totals":
