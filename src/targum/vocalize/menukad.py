@@ -36,6 +36,11 @@ that uses this fails on a non-empty residue rather than shipping it.
 
     python -m targum.vocalize.menukad SCENE.json [...]          # print every change
     python -m targum.vocalize.menukad --out DIR SCENE.json [...]  # and write copies
+    python -m targum.vocalize.menukad --pointed --out DIR SCENE.json [...]
+
+`--pointed` is for a scene (targum-internal#568): the normalised line goes into each
+turn's `pointed` and `text` keeps its full spelling, which is the shape a scene holds now.
+A turn that already has a `pointed` line is normalised there instead.
 """
 
 from __future__ import annotations
@@ -586,6 +591,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("files", nargs="+", type=Path)
     parser.add_argument("--out", type=Path, help="write normalised copies here")
+    parser.add_argument(
+        "--pointed",
+        action="store_true",
+        help="for scenes: write each line into the turn's `pointed`, keeping `text`",
+    )
     args = parser.parse_args(argv)
     total: Counter[str] = Counter()
     missed = 0
@@ -593,15 +603,22 @@ def main(argv: list[str] | None = None) -> int:
         data = json.loads(path.read_text(encoding="utf-8"))
         for where, holder, key, names in _lines(data):
             assert holder is not None
-            text, changes = normalise(holder[key], names)
+            into = key
+            if args.pointed and key == "text":
+                into = "pointed"
+                if not holder.get("pointed"):
+                    if not _MARK.search(holder["text"]):
+                        continue  # nothing pointed, so nothing for a pointed cell
+                    holder["pointed"] = holder["text"]
+            text, changes = normalise(holder[into], names)
             for change in changes:
                 total.update(change.rules)
                 rules = ", ".join(change.rules)
                 print(f"{path.stem}\t{where}\t{change.word} → {change.becomes}\t{rules}")
-            for rule, word in residue(text, names, source=holder[key]):
+            for rule, word in residue(text, names, source=holder[into]):
                 missed += 1
                 print(f"{path.stem}\t{where}\tMISSED {word}\t{rule}")
-            holder[key] = text
+            holder[into] = text
         if args.out:
             args.out.mkdir(parents=True, exist_ok=True)
             (args.out / path.name).write_text(

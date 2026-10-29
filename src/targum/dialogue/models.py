@@ -57,6 +57,13 @@ class Turn(BaseModel):
     #: before it ships. Empty for every scene written before this, which `said_in` reads
     #: as "say it in English" — the same fallback the catalogue's own names make.
     said: dict[str, str] = Field(default_factory=dict)
+    #: The line in standard ktiv menukad, for the reader's pointed cell
+    #: (targum-internal#568). `text` is the line in full spelling, pointed or not: it is
+    #: what the plain cell shows with the points off, what the voice reads, and what taps
+    #: and audio are measured against. Pointed Hebrew is spelt defectively (חיבור,
+    #: חִבּוּר), so one string cannot be right in both views. Empty for a scene written
+    #: before this, whose pointed line is derived from `text` (`dialogue.spelling`).
+    pointed: str = ""
 
     def said_in(self, language: str) -> str:
         """This line's translation in `language`, English where there is none."""

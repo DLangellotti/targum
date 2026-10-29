@@ -599,6 +599,11 @@ class Vocalization(Artifact):
     Nikkud only ever adds marks above the letters, never changes them, so every entry
     here has the same consonant skeleton as the segment it belongs to. Segments that end
     up with no marks at all are left out: there is nothing to toggle for them.
+
+    The one exception is a scene's (`vocalizer` "scene/1", targum-internal#568): its
+    pointed lines are in standard ktiv menukad and its text in full spelling, so a word
+    may have a letter fewer. Anything mapping offsets onto a pointed line goes through
+    `vocalize.aligned_positions`, which handles both.
     """
 
     document_hash: str

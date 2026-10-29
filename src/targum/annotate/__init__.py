@@ -6,7 +6,13 @@ from collections.abc import Mapping
 
 from ..errors import TargumError
 from ..models import Annotation, Segment, SegmentedDocument, Token, Vocalization
-from ..vocalize.base import has_taamim, map_span, pointed_positions, strip_nikkud
+from ..vocalize.base import (
+    aligned_positions,
+    has_taamim,
+    map_span,
+    pointed_positions,
+    strip_nikkud,
+)
 from . import register as register_module
 from .base import (
     BAND_COUNT,
@@ -438,8 +444,9 @@ class Annotator:
             # Token offsets are measured against the segment as ingested; the pointed
             # form may carry marks that segment never had. Both share a bare skeleton —
             # `splice` refuses anything else — so that is the way across.
-            _, to_bare = strip_nikkud(source)
-            to_pointed = pointed_positions(pointed)
+            bare_source, to_bare = strip_nikkud(source)
+            # A scene's pointed line may spell a word with fewer letters (#568).
+            to_pointed = aligned_positions(pointed, bare_source)
             # A verse's last word, where the source carries the accents: its U+05BD is
             # silluq, the stress, and not a meteg (`pronounce.PAUSE`, grammar/8). Not in
             # Mishnah or modern text, which carry no accents and where it is a meteg.
