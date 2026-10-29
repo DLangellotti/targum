@@ -479,6 +479,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on 127.0.0.1 that trickles a byte every 50 ms. The Hebrew B1 re-voicing that stalled
   on 2026-10-26 was not this: `pmset -g log` shows the laptop, on battery, going to
   sleep a minute into the run, and nothing in a sleeping process can time out.
+- A speech answer with no audio in it no longer kills the shelf run (targum-internal#566).
+  The whole-shelf re-voice died on 2026-10-29 at turn 9 of 218-after-the-accident with
+  `KeyError: 'parts'`: Vertex sent a candidate with no content parts. `say` now reads
+  the answer's `finishReason`, flagged `safetyRatings` and `promptFeedback`, raises
+  `Refused` with them, and asks once more first, since an empty generation can be
+  transient. In `voice_shelf.py` a refused turn marks its scene `failed` with that
+  reason and the run goes on to the next scene; every such answer, audio taken out, is
+  appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
 - `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
