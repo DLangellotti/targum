@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-28
+A text you brought can be rewritten at an easier level, as a new text of yours linked to the first.
+A Hebrew beginner's home shows the next dialogue to read, and the Library has a Start here shelf.
+The reader names where a text was opened from, such as the Library or Words, and goes back there.
+
 2026-10-27
 Sentences plays a line you have read for you to write down, or takes out a word for you to fill in.
 A text you brought can be corrected line by line in the reader, and the other lines keep their English.
