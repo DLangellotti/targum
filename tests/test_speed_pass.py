@@ -108,3 +108,54 @@ def test_a_page_with_no_lcp_says_so_and_does_not_hold() -> None:
     # One load that painted is enough to have a figure.
     some = speed.summarize("x", "/", "phone", [figures(None), figures(1300)])
     assert some.lcp == 1300
+
+
+def test_the_sign_out_never_leaves_whatever_its_method() -> None:
+    # Signing out empties a test account (deploy/README.md, "A test account").
+    speed = load_script()
+    blocked: list[str] = []
+    handle = speed.guard(blocked, "https://targum.page")
+    route = Route()
+    handle(route, Request("GET", "https://targum.page/account/sign-out"))
+    assert route.did == "abort"
+    assert blocked == ["GET /account/sign-out"]
+
+
+def test_a_signed_in_cold_load_is_a_first_visit_past_the_welcome(tmp_path: Path) -> None:
+    import json
+
+    speed = load_script()
+    saved = tmp_path / "state.json"
+    cookies = [
+        {"name": "targum_session", "value": "s"},
+        {"name": speed.KEPT_COOKIE, "value": "k"},
+    ]
+    saved.write_text(json.dumps({"cookies": cookies, "origins": []}), encoding="utf-8")
+    state = speed.signed_in(saved, "https://targum.page")
+    assert [one["name"] for one in state["cookies"]] == ["targum_session"]
+    assert state["origins"] == [
+        {"origin": "https://targum.page", "localStorage": [{"name": speed.WELCOMED, "value": "1"}]}
+    ]
+
+
+def test_a_signed_in_reader_is_opened_through_the_door_that_never_builds() -> None:
+    speed = load_script()
+    readers = [url for name, url in speed.SIGNED_IN.items() if name.startswith("reader")]
+    assert readers and all(url.startswith("/open/") for url in readers)
+
+
+def test_why_names_the_three_causes() -> None:
+    speed = load_script()
+    detail = {
+        "server": 120,
+        "script_ms": 30,
+        "style_layout_ms": 40,
+        "task_ms": 300,
+        "last_fetch": 2500,
+        "html_kb": 600,
+        "url": "/",
+        "lcp_element": "p#first-home",
+    }
+    said = speed.why([figures(1000, detail=detail)])
+    assert "server 120" in said and "script 30" in said and "last fetch 2500" in said
+    assert "p#first-home" in said
