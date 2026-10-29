@@ -519,8 +519,13 @@ under `no-store`, again on every page a visitor opened.
     laptop's noise: 0.96–1.49 s against 1.10–1.48 s over paired runs;
   - the warm-up after a stranger's first page is 188 kB in English and 272 kB in
     Russian, where the desk's whole set was about 0.9 MB.
+- **The public Library joined them on 2026-10-29** (targum-internal#558, from builder-3's
+  signed-in speed pass). `/library` signed out and its kind pages (`shelf.html.j2`) had
+  been left off the list, so they still carried 65 kB of faces and 119 kB of CSS on every
+  visit. At 1.17 s on the phone it was the public page nearest the line. It is never
+  opened off a disk either, and it warms and keeps the same public set.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
-  pages, built indexes, the shelf, the weekly and series pages, prints, cards in a host's
+  pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches
   nothing.*
 
