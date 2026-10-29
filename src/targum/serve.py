@@ -7882,7 +7882,8 @@ class Handler(BaseHTTPRequestHandler):
         # And the shared one, measured against this reader's words like their own.
         # The page shows it only to a reader with nothing of their own in that
         # language: it is where to start, not another row on a full shelf.
-        asked = (query.get("shared") or [None])[0]
+        said = query.get("shared")
+        asked = said[0] if said else None
         shared: list[dict[str, Any]] = []
         if asked != "0":
             shared = self.library.readers(self.library.shared)
