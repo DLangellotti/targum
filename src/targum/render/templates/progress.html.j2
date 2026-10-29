@@ -7,6 +7,9 @@
 {% include '_icons.html.j2' %}
 {{ styles('tokens.css', 'shared.css', 'chrome.css', 'words.css', 'library.css', 'progress.css') }}
 {{ hebrew_face() }}
+{#- The level letter's 600, a real cut and never a faked bold (design.md §12, "Your level,
+    v3", 2026-10-29). -#}
+{{ hebrew_letters_face() }}
 {{ script('keep.js') }}
 {#- The key, before anything that reads it (targum-internal#343). `building.js`, and
     the conversation's pill, the followed series and the palette in the nav, each read `window.TARGUM_KEY`
@@ -43,14 +46,15 @@
     <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you marked here as anything other than known and have since marked known.") }}</p>
   </section>
 
-  {#- Level (design.md §12, "Your level leads with what you can read", 2026-10-28): the
-      hardest level of text the reader can read on their own, the next step and one press
-      to the Library's Read it now; the texts' own levels, open, each row a shelf with the
-      count of texts at that level they could read now; and under it the
-      one level on the page, in the reader's own scale, with a bar toward the next rung
-      and no numbers. No percentage anywhere in it (David, 2026-10-28). -#}
+  {#- Your level (design.md §12, "Your level, v3", 2026-10-29). No visible heading: a hidden
+      h2 names the part. The card is the level and nothing else: the ulpan letter alone
+      with its geresh, "About B2" beside it, a bar toward the next rung with the exact
+      words to it, and the one press. The texts' own levels, A1 to Past C2, each row the
+      texts at it you can read now or the words to go. And under the card, what you knew
+      of what you read by Day, Week or Month. At a desk, two even columns: the card and
+      the chart on the left, the ladder on the right. -#}
   <section class="story level" id="where" aria-labelledby="where-section">
-    <h2 class="section-title level-section" id="where-section">{{ t("progress.level.title", "Level") }}</h2>
+    <h2 class="visually-hidden" id="where-section">{{ t("progress.level.title", "Your level") }}</h2>
     {#- Until the account answers, one quiet line, and on a failure Try again: an empty
         card said nothing, and What next said "None yet" to a reader with a record
         (targum-internal#471, B2). -#}
@@ -59,9 +63,18 @@
       <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button></p>
     <div class="level-grid" id="level-grid" hidden>
       <div class="card level-lead">
+        {#- The letter leads, at the page title's step, in ink; its name is said before
+            it and the glyph itself is hidden from a screen reader (design P0-6). The bar
+            is not spoken (§12, "See all keeps one level, and the bar is not spoken"):
+            the words line under it is, once, as text. -#}
+        <p class="level-mark" id="level-mark" hidden><span class="visually-hidden" id="level-spoken"></span><bdi class="level-big" id="level-big"></bdi><span class="level-cefr" id="level-cefr"></span></p>
         <p class="level-head" id="where-title"></p>
         <p class="level-step" id="where-step" hidden></p>
         <p class="level-known" id="where-known" hidden></p>
+        <div class="level-toward" id="level-toward" hidden>
+          <div class="level-bar" id="level-bar" aria-hidden="true"><span class="level-fill" id="level-fill"></span></div>
+          <p class="level-togo" id="level-togo"></p>
+        </div>
         <a class="btn filled level-go" id="where-go" href="/library" hidden></a>
         <p class="note level-note" id="where-note" hidden></p>
       </div>
@@ -69,27 +82,27 @@
         <p class="level-ladder-head" id="ladder-head">{{ t("progress.ladder.head", "Texts by level") }}</p>
         <ol class="touchstones" id="touchstones" aria-labelledby="ladder-head"></ol>
       </div>
-      <div class="level-foot" id="level-foot" hidden>
-        <p class="level-foot-said" id="level-said"></p>
-        <div class="level-toward" id="level-toward" hidden>
-          <div class="level-bar" id="level-bar" aria-hidden="true"><span class="level-fill" id="level-fill"></span></div>
-          <span class="level-next" id="level-next"></span>
+      {#- What the reader knew of what they read (targum-internal#291): the share of the
+          running words in each finished section that were marked known on the day it was
+          finished, kept then and never recomputed, by Day, Week or Month (design.md §12,
+          "Your level, v3"). The one figure here allowed to fall. Read from the account, so
+          absent signed out, and absent until two days have points. Drawn by
+          `progress.js`. -#}
+      <div class="card reading" id="reading" hidden>
+        <div class="reading-head">
+          <h3 class="reading-title" id="reading-title">{{ t("progress.reading.title", "Words you knew") }}</h3>
+          <div class="seg reading-by" id="reading-by" role="group" aria-label="{{ t("progress.reading.by", "Show by") }}">
+            <button type="button" data-by="day" aria-pressed="false">{{ t("progress.reading.by-day", "Day") }}</button>
+            <button type="button" data-by="week" aria-pressed="false">{{ t("progress.reading.by-week", "Week") }}</button>
+            <button type="button" data-by="month" aria-pressed="false">{{ t("progress.reading.by-month", "Month") }}</button>
+          </div>
         </div>
+        <div id="reading-line"></div>
+        <p class="visually-hidden" id="reading-live" aria-live="polite"></p>
+        <div class="reading-words" id="reading-said"></div>
+        <p class="quiet-line reading-failed" id="reading-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
+          <button type="button" class="btn ghost outline story-again" id="reading-again">{{ t("fault.try-again", "Try again") }}</button></p>
       </div>
-    </div>
-
-    {#- What the reader knew of what they read, a point a month (targum-internal#291): the
-        share of the running words in each finished section that were marked known on the
-        day it was finished, kept then and never recomputed. The one figure here allowed to
-        fall, said as a count in ten and never a percentage (§6, §12 2026-09-27). Read from
-        the account, so absent signed out. Drawn by `progress.js`. -#}
-    <div class="card reading" id="reading" hidden>
-      <h3 class="story-sub">{{ t("progress.reading.title", "How much of what you read you knew, month by month") }}</h3>
-      <div id="reading-line"></div>
-      <div class="reading-words" id="reading-said"></div>
-      {#- Said under the line, not hidden in a title a phone never shows (§14.3;
-          targum-internal#471, B1). -#}
-      <p class="note">{{ t("progress.reading.note", "We check each section you finish against the words you'd marked known that day. Sections finished before we started checking aren't counted.") }}</p>
     </div>
   </section>
 

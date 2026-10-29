@@ -316,54 +316,85 @@
     return t("charts.ulpan." + id, String(name || ""));
   }
 
-  /* The foot line: the one level on the page, the measured rung in the reader's own
-     scale, and a bar toward the next rung with no numbers on it (David, 2026-10-28).
-     Aramaic and Yiddish have no scale, and nothing is said before the first rung. */
-  function drawFoot(level) {
-    var foot = document.getElementById("level-foot");
-    var said = document.getElementById("level-said");
+  /* A sentence with several parts set as elements, each standing at its own slot
+     character in the translated line, so Russian can put them where it needs them. */
+  function sentenceWith(host, said, nodes) {
+    var rest = String(said);
+    while (rest) {
+      var at = -1;
+      var slot = "";
+      Object.keys(nodes).forEach(function (one) {
+        var found = rest.indexOf(one);
+        if (found >= 0 && (at < 0 || found < at)) {
+          at = found;
+          slot = one;
+        }
+      });
+      if (at < 0) {
+        host.appendChild(document.createTextNode(rest));
+        return;
+      }
+      if (at) host.appendChild(document.createTextNode(rest.slice(0, at)));
+      host.appendChild(nodes[slot]);
+      rest = rest.slice(at + slot.length);
+    }
+  }
+
+  /* The card (design.md §12, "Your level, v3", 2026-10-29): the level and nothing else.
+     The ulpan letter leads, "About B2" beside it; a European level leads with itself. A
+     bar toward the next rung, then the exact words to it ("637 words to ה׳"), from the
+     server's one function, so the C1 row says the same number. At the top rung, no bar
+     and no number. Before the first rung (`first`), the bar and the words to it. */
+  function drawToward(scale, share, toGo, nextLetter, nextName) {
     var toward = document.getElementById("level-toward");
-    said.textContent = "";
-    foot.hidden = !level;
+    var fill = document.getElementById("level-fill");
+    var line = document.getElementById("level-togo");
+    line.textContent = "";
     toward.hidden = true;
+    if (typeof share !== "number" || typeof toGo !== "number" || !nextLetter) return;
+    var ulpan = scale === "ulpan";
+    var amount = Math.max(0, Math.min(1, share));
+    // The bar is not spoken (§12, "See all keeps one level, and the bar is not spoken",
+    // 2026-10-29): it is aria-hidden, and the words line under it is heard once, as text.
+    fill.style.width = Math.round(amount * 100) + "%";
+    var count = el("b", "level-count", grouped(toGo));
+    var rung = ulpan ? letterRun(nextLetter) : document.createTextNode(nextName);
+    sentenceWith(
+      line,
+      tn("progress.level.to-go", toGo, "{n} word to {next}", "{n} words to {next}", {
+        n: "\u0001",
+        next: "\u0000",
+      }),
+      { "\u0001": count, "\u0000": rung }
+    );
+    toward.hidden = false;
+  }
+
+  function drawMark(level) {
+    var mark = document.getElementById("level-mark");
+    var spoken = document.getElementById("level-spoken");
+    var big = document.getElementById("level-big");
+    var cefr = document.getElementById("level-cefr");
+    mark.hidden = !level;
     if (!level) return;
     var ulpan = level.scale === "ulpan";
+    // The letter alone with its geresh, in its own right-to-left run and hidden from a
+    // screen reader, which hears its name instead; a European level is itself.
+    big.textContent = ulpan ? letterRun(level.letter).textContent : level.name;
     if (ulpan) {
-      var line = t(
-        "progress.level.ulpan",
-        "In ulpan terms you're at {name} ({letter}), about {cefr} on the European scale. Ulpan is Israel's Hebrew course for new immigrants, and its classes run from aleph to vav.",
-        { name: ulpanName(level.name), cefr: level.cefr, letter: "\u0000" }
-      );
-      sentence(said, line, "\u0000", letterRun(level.letter));
+      big.setAttribute("lang", "he");
+      big.setAttribute("dir", "rtl");
+      big.setAttribute("aria-hidden", "true");
     } else {
-      said.textContent = t(
-        "progress.level.cefr",
-        "On the European scale you're about {level}. It runs from A1, for beginners, to C2.",
-        { level: level.name }
-      );
+      big.removeAttribute("lang");
+      big.removeAttribute("dir");
+      big.removeAttribute("aria-hidden");
     }
-    if (!level.next || typeof level.toward !== "number") return;
-    var fill = document.getElementById("level-fill");
-    var next = document.getElementById("level-next");
-    var share = Math.max(0, Math.min(1, level.toward));
-    var nextName = ulpan ? ulpanName(level.next.name) : level.next.name;
-    fill.style.width = Math.round(share * 100) + "%";
-    /* The bar is a picture of the Next line beside it and carries no figure (§6), so a
-       screen reader hears the Next line once and not the bar: a progressbar's value comes
-       out as "38 percent", and naming it by the Next line read the line twice, three times
-       in Russian (targum-internal#554, qa on targum#978). The bar stays aria-hidden. */
-    next.textContent = "";
-    if (ulpan) {
-      sentence(
-        next,
-        t("progress.level.next-ulpan", "Next: {name} {letter}", { name: nextName, letter: "\u0000" }),
-        "\u0000",
-        letterRun(level.next.letter)
-      );
-    } else {
-      next.textContent = t("progress.level.next-cefr", "Next: {level}", { level: nextName });
-    }
-    toward.hidden = false;
+    spoken.textContent = ulpan
+      ? t("progress.level.spoken", "Ulpan level {name},", { name: ulpanName(level.name) })
+      : "";
+    cefr.textContent = ulpan && level.cefr ? t("progress.level.about", "About {cefr}", { cefr: level.cefr }) : "";
+    cefr.hidden = !cefr.textContent;
   }
 
   function drawWhere(code) {
@@ -385,12 +416,13 @@
     note.hidden = true;
     note.textContent = "";
     head.textContent = "";
+    drawMark(null);
+    drawToward(null);
     var said = story[code];
 
     if (signedIn === false) {
       grid.hidden = false;
       head.textContent = t("progress.level.signed-out", "Sign in to see which texts you can read on your own.");
-      drawFoot(null);
       return;
     }
     if (!said) {
@@ -398,9 +430,24 @@
       return;
     }
     grid.hidden = false;
-    drawFoot(said.level || null);
     var ladder = said.ladder || [];
+    var level = said.level || null;
+    var first = said.first || null;
+    // Aramaic's rungs are bodies of Targum, and the Library has no shelf for each, so they
+    // are said without a link and without a count to check against a shelf; it has no
+    // level of words, so its card says what it says today.
+    var shelved = code !== "arc";
+
+    if (level) {
+      // The card is the level and nothing else (design.md §12, "Your level, v3").
+      drawMark(level);
+      if (level.next) drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name);
+      go.textContent = t("progress.level.go-now", "Show texts you can read now");
+      go.href = keyed("/library#see/now");
+      go.hidden = false;
+    }
     if (!ladder.length) {
+      if (level) return;
       // Yiddish has no library, and a box without the lemma index (or a catalogue whose
       // Aramaic is not measured yet) has measured nothing: each says so, with the one
       // count it does have.
@@ -415,13 +462,27 @@
       return;
     }
 
-    // Aramaic's rungs are bodies of Targum, and the Library has no shelf for each, so they
-    // are said without a link and without a count to check against a shelf.
-    var shelved = code !== "arc";
     var here = typeof said.here === "number" ? ladder[said.here] : null;
     var next = typeof said.next === "number" ? ladder[said.next] : null;
-    if (here) {
-      // The hardest level you can read on your own, the next step, and the one press.
+    if (level) {
+      // Drawn above.
+    } else if (shelved && first) {
+      // Week one: where to start, the bar and the words to aleph, and the one press,
+      // which opens the first beginner conversation (David, 2026-10-29).
+      var start = next || ladder[0];
+      head.textContent = rungOf(start).start;
+      drawToward(first.scale, first.toward, first.toGo, first.letter, first.name);
+      if (said.conversations) {
+        go.textContent = t("progress.level.start-learning", "Start learning");
+        go.href = keyed("/library#see/kind/dialogue");
+      } else {
+        go.textContent = t("progress.level.go-first", "Show texts at this level");
+        go.href = shelfHref(start.kind, 0);
+      }
+      go.hidden = false;
+    } else if (here) {
+      // A language with no level of words, Aramaic: the hardest level you can read on
+      // your own, the next step, and the one press, as before.
       head.textContent = rungOf(here).can;
       step.textContent = next ? rungOf(next).next : t("progress.level.top", "That's the hardest level in the Library.");
       step.hidden = false;
@@ -429,17 +490,11 @@
       go.href = keyed("/library#see/now");
       go.hidden = false;
     } else {
-      // Week one: where to start, a first pick, the words marked so far, and no level.
-      var first = next || ladder[0];
-      head.textContent = rungOf(first).start;
+      // Week one with no level of words: where to start, the words marked so far.
+      var firstRow = next || ladder[0];
+      head.textContent = rungOf(firstRow).start;
       if (!shelved) {
         step.textContent = t("progress.level.why-one", "It uses the most common words, so it's the easiest place to begin.");
-        step.hidden = false;
-      } else if (said.conversations) {
-        step.textContent = t(
-          "progress.level.conversations",
-          "Conversations use the most common words, so they're a good first pick."
-        );
         step.hidden = false;
       }
       var count = said.known || 0;
@@ -457,52 +512,75 @@
         go.textContent = t("progress.level.go-easiest", "Show the easiest texts");
         go.href = keyed("/library#see/now");
       } else if (said.conversations) {
-        go.textContent = t("progress.level.open-conversation", "Open a conversation");
+        go.textContent = t("progress.level.start-learning", "Start learning");
         go.href = keyed("/library#see/kind/dialogue");
       } else {
         go.textContent = t("progress.level.go-first", "Show texts at this level");
-        go.href = shelfHref(first.kind, 0);
+        go.href = shelfHref(firstRow.kind, 0);
       }
       go.hidden = false;
     }
 
     ladder.forEach(function (rung) {
-      var item = el("li", "touch");
-      var readable = shelved && rung.readable > 0 ? rung.readable : 0;
-      var row = el(shelved ? "a" : "span", "touch-row touch-" + rung.state);
-      if (shelved) row.href = shelfHref(rung.kind, readable);
-      var mark = el("span", "touch-mark");
-      mark.innerHTML = rung.state === "easy" ? TICK : rung.state === "next" ? DOT : RING;
-      row.appendChild(mark);
-      var words = el("span", "touch-words");
-      words.appendChild(el("span", "touch-name", rungOf(rung).name));
-      var stateSaid =
-        rung.state === "easy"
-          ? t("progress.ladder.easy", "Easy for you")
-          : rung.state === "next"
-            ? t("progress.ladder.next", "Your next step")
-            : t("progress.ladder.ahead", "Not yet");
-      words.appendChild(el("span", "touch-state", stateSaid));
-      row.appendChild(words);
-      if (readable) {
-        row.appendChild(
-          el(
-            "span",
-            "touch-count",
-            tn("progress.ladder.readable", readable, "{n} you can read", "{n} you can read", { n: grouped(readable) })
-          )
-        );
-      }
-      if (shelved) {
-        var go_ = el("span", "touch-go", "›");
-        go_.setAttribute("aria-hidden", "true");
-        row.appendChild(go_);
-      }
-      if (rung.state === "next") row.setAttribute("aria-current", "step");
-      item.appendChild(row);
-      list.appendChild(item);
+      list.appendChild(ladderRow(rung, shelved));
     });
     ladderCard.hidden = false;
+  }
+
+  /* One row of Texts by level (design.md §12, "Your level, v3", 2026-10-29). A row the
+     reader's words cover says Easy for you or Next, by texts, and how many of its texts
+     they can read now. A row above their words says the words to go, exact, and no count.
+     Past C2 has no number. A row with no texts is plain text with no chevron. A language
+     with no level of words (Aramaic) keeps its climb: Easy for you, Your next step, Not
+     yet. */
+  function ladderRow(rung, shelved) {
+    var item = el("li", "touch");
+    var worded = typeof rung.covered === "boolean";
+    var state = rung.state;
+    // Easy and Next are decided by texts, as before; any other row is ahead, and says the
+    // words to go where the reader's words do not reach it.
+    var look = state === "easy" || state === "next" ? state : "ahead";
+    var linked = shelved && rung.texts > 0;
+    var counted = look !== "ahead" || (worded && rung.covered);
+    var readable = shelved && counted && rung.readable > 0 ? rung.readable : 0;
+    var row = el(linked ? "a" : "span", "touch-row touch-" + look);
+    if (linked) row.href = shelfHref(rung.kind, readable);
+    var mark = el("span", "touch-mark");
+    mark.innerHTML = look === "easy" ? TICK : look === "next" ? DOT : RING;
+    row.appendChild(mark);
+    var words = el("span", "touch-words");
+    words.appendChild(el("span", "touch-name", rungOf(rung).name));
+    var stateSaid = "";
+    if (look === "easy") {
+      stateSaid = t("progress.ladder.easy", "Easy for you");
+    } else if (look === "next") {
+      stateSaid = t("progress.ladder.next", "Next");
+    } else if (!worded) {
+      stateSaid = t("progress.ladder.ahead", "Not yet");
+    } else if (!rung.covered && typeof rung.toGo === "number") {
+      stateSaid = tn("progress.ladder.to-go", rung.toGo, "{n} word to go", "{n} words to go", {
+        n: grouped(rung.toGo),
+      });
+    }
+    words.appendChild(el("span", "touch-state", stateSaid));
+    row.appendChild(words);
+    row.appendChild(
+      el(
+        "span",
+        "touch-count",
+        readable
+          ? tn("progress.ladder.readable", readable, "{n} you can read now", "{n} you can read now", {
+              n: grouped(readable),
+            })
+          : ""
+      )
+    );
+    var chevron = el("span", "touch-go", linked ? "›" : "");
+    chevron.setAttribute("aria-hidden", "true");
+    row.appendChild(chevron);
+    if (look === "next") row.setAttribute("aria-current", "step");
+    item.appendChild(row);
+    return item;
   }
 
   // Whether the story for a language has answered, and whether its asking failed.
@@ -936,111 +1014,301 @@
 
   /* --- what you knew of what you read (targum-internal#291) -----------------------
    *
-   * One line: of the running words in the sections finished each month, the share the
-   * reader had marked known on the day they finished each one. Measured on the server
-   * when a finished section arrives and kept as it was (`reading` rows), so a word marked
-   * today does not reach back and lift August — which is what makes this a record and
-   * not a second copy of the known count.
+   * One line: of the running words in the sections finished, the share the reader had
+   * marked known on the day they finished each one. Measured on the server when a
+   * finished section arrives and kept as it was (`reading` rows), so a word marked today
+   * does not reach back and lift August — which is what makes this a record and not a
+   * second copy of the known count.
    *
-   * It is the one figure on this page that can fall, and it is allowed to: moving from a
-   * graded dialogue to Agnon is a drop, and that is the truthful picture. When the latest
-   * month is lower, one sentence says why — harder text, not lost ground — and nothing
-   * else: no apology, no encouragement. Said as a count in ten, never as a percentage, a
-   * level or a score (§6). Under two months there is no line and no part: nothing is
-   * said about a chart that is not there. Absent signed out. Drawn as the board draws it
-   * (§12, 2026-10-09): the panel's full width, a baseline, the line, a dot a month and
-   * each month's name under its dot.
+   * By Day, Week or Month (design.md §12, "Your level, v3", 2026-10-29): the server sends
+   * a bucket a day in the reader's own time zone, and weeks and months are summed here,
+   * words and never shares, so a 40-word day does not count as much as a 4,000-word one
+   * in its week. The sentence is an exact percentage of the last point and follows the
+   * tab. It is the one figure on this page that can fall, and it is allowed to: on Week
+   * and Month one sentence says why, harder text and not lost ground, and on Day nothing,
+   * or it would be said most mornings. The card is absent until two days have points,
+   * and signed out. One tab stop for the line: Left and Right move between points and a
+   * polite live region says each one.
    */
   var readingSeries = null;
+  var readingMeasurable = 20;
+  var readingFailed = false;
+  var BY_KEY = "targum.progress.reading-by";
+  //: The days a Day view reaches back: thirty at a desk, fourteen on a phone, so the
+  //: dots stay tappable (design P1-14).
+  var DAYS_DESK = 30;
+  var DAYS_PHONE = 14;
+  var WEEKS = 12;
 
-  function tenths(point) {
-    return Math.max(0, Math.min(10, Math.round((point.known / Math.max(1, point.tokens)) * 10)));
+  function percentOf(point) {
+    return Math.max(0, Math.min(100, Math.floor((point.known / Math.max(1, point.tokens)) * 100)));
+  }
+
+  function pageLanguage() {
+    return words.language || (document.documentElement && document.documentElement.lang) || "en";
+  }
+
+  function dayOf(text) {
+    var parts = String(text).split("-");
+    return new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2] || 15)));
+  }
+
+  function isoDay(date) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function todayHere() {
+    var now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+  }
+
+  //: The Monday a day's week starts on.
+  function weekOf(date) {
+    var back = (date.getUTCDay() + 6) % 7;
+    return new Date(date.getTime() - back * 86400000);
+  }
+
+  function said(date, options) {
+    options.timeZone = "UTC";
+    try {
+      return date.toLocaleDateString(pageLanguage(), options);
+    } catch (e) {
+      return isoDay(date);
+    }
   }
 
   function monthName(month, withYear) {
-    var parts = String(month).split("-");
-    var when = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1, 15));
-    var options = { month: "long", timeZone: "UTC" };
+    var options = { month: "long" };
     if (withYear) options.year = "numeric";
-    try {
-      return when.toLocaleDateString(words.language || "en", options);
-    } catch (e) {
-      return month;
-    }
+    return said(dayOf(month + "-15"), options);
   }
 
-  function inTen(point, month) {
-    var n = tenths(point);
-    if (n >= 10) {
-      return t("progress.reading.said-all", "In {month} you knew nearly every word of what you read.", { month: month });
-    }
-    if (n <= 0) {
-      return t("progress.reading.said-none", "In {month} you knew almost none of the words in what you read.", {
-        month: month,
-      });
-    }
-    return tn(
-      "progress.reading.said",
-      n,
-      "In {month} you knew about {n} word in 10 of what you read.",
-      "In {month} you knew about {n} words in 10 of what you read.",
-      { month: month }
-    );
+  function dayName(date) {
+    return said(date, { day: "numeric", month: "long" });
   }
+
+  function shortDay(date) {
+    return said(date, { day: "numeric", month: "short" });
+  }
+
+  function summed(into, day) {
+    into.tokens += Number(day.tokens) || 0;
+    into.known += Number(day.known) || 0;
+    into.sections += Number(day.sections) || 0;
+    return into;
+  }
+
+  /* The points a view draws: each with its words, the known ones among them, the sections
+     behind it and where it sits on the axis (0 to 1). A point under the measurable words
+     is left off, as the server leaves a month off. */
+  function viewOf(by, days) {
+    var today = todayHere();
+    var points = [];
+    var labels = [];
+    if (by === "month") {
+      var months = {};
+      days.forEach(function (day) {
+        var month = String(day.day).slice(0, 7);
+        months[month] = summed(months[month] || { month: month, tokens: 0, known: 0, sections: 0 }, day);
+      });
+      points = Object.keys(months)
+        .sort()
+        .map(function (month) {
+          return months[month];
+        })
+        .filter(function (point) {
+          return point.tokens >= readingMeasurable;
+        });
+      points.forEach(function (point, index) {
+        point.at = points.length > 1 ? index / (points.length - 1) : 1;
+        point.when = monthName(point.month, Number(point.month.slice(0, 4)) !== today.getUTCFullYear());
+        point.whenFull = monthName(point.month, true);
+      });
+      return { points: points, labels: null };
+    }
+    var phone = window.matchMedia && window.matchMedia("(max-width: 40rem)").matches;
+    var span = by === "week" ? WEEKS : phone ? DAYS_PHONE : DAYS_DESK;
+    var step = by === "week" ? 7 * 86400000 : 86400000;
+    var last = by === "week" ? weekOf(today) : today;
+    var firstStart = new Date(last.getTime() - (span - 1) * step);
+    var buckets = {};
+    days.forEach(function (day) {
+      var date = dayOf(day.day);
+      var start = by === "week" ? weekOf(date) : date;
+      if (start < firstStart || start > last) return;
+      var key = isoDay(start);
+      buckets[key] = summed(buckets[key] || { start: start, tokens: 0, known: 0, sections: 0 }, day);
+    });
+    points = Object.keys(buckets)
+      .sort()
+      .map(function (key) {
+        return buckets[key];
+      })
+      .filter(function (point) {
+        return point.tokens >= readingMeasurable;
+      });
+    points.forEach(function (point) {
+      point.at = span > 1 ? Math.round((point.start - firstStart) / step) / (span - 1) : 1;
+      point.when =
+        by === "week"
+          ? t("progress.reading.week-of", "Week of {day}", { day: dayName(point.start) })
+          : dayName(point.start);
+      point.whenFull = point.when;
+      point.isNow = point.start.getTime() === last.getTime();
+    });
+    labels = [shortDay(firstStart), shortDay(last)];
+    return { points: points, labels: labels };
+  }
+
+  function sentenceFor(by, point) {
+    var share = { p: percentOf(point) };
+    if (by === "day") {
+      return point.isNow
+        ? t("progress.reading.said-today", "Today you knew {p}% of the words you read.", share)
+        : t("progress.reading.said-day", "On {day} you knew {p}% of the words you read.", {
+            p: share.p,
+            day: dayName(point.start),
+          });
+    }
+    if (by === "week") {
+      return point.isNow
+        ? t("progress.reading.said-this-week", "This week you knew {p}% of the words you read.", share)
+        : t("progress.reading.said-week", "In the week of {day} you knew {p}% of the words you read.", {
+            p: share.p,
+            day: dayName(point.start),
+          });
+    }
+    var now = todayHere();
+    var current = point.month === isoDay(now).slice(0, 7);
+    return current
+      ? t("progress.reading.said-so-far", "So far in {month} you knew {p}% of the words you read.", {
+          p: share.p,
+          month: point.when,
+        })
+      : t("progress.reading.said-month", "In {month} you knew {p}% of the words you read.", {
+          p: share.p,
+          month: point.when,
+        });
+  }
+
+  function chosenBy(days) {
+    var remembered = "";
+    try {
+      remembered = localStorage.getItem(BY_KEY) || "";
+    } catch (e) {
+      remembered = "";
+    }
+    if (remembered === "day" || remembered === "week" || remembered === "month") return remembered;
+    // The coarsest view with two points (David, 2026-10-29).
+    if (viewOf("month", days).points.length >= 2) return "month";
+    if (viewOf("week", days).points.length >= 2) return "week";
+    return "day";
+  }
+
+  var readingBy = "";
 
   function drawReading(code) {
-    if (!readingSeries) return;
     var panel = document.getElementById("reading");
     var host = document.getElementById("reading-line");
-    var said = document.getElementById("reading-said");
-    if (!panel || !host || !said) return;
+    var sayHost = document.getElementById("reading-said");
+    var failed = document.getElementById("reading-failed");
+    var switcher = document.getElementById("reading-by");
+    if (!panel || !host || !sayHost) return;
     host.textContent = "";
-    said.textContent = "";
-    var mine = readingSeries[code] || { line: [], months: 0, sections: 0 };
-    var points = mine.line || [];
-    // Under two months there is nothing to draw, and the part is not there at all
-    // rather than a paragraph promising it (David, 2026-10-09: the board has no waiting
-    // state, and §6 keeps what has not happened quiet).
-    panel.hidden = points.length < 2;
+    sayHost.textContent = "";
+    if (failed) failed.hidden = !readingFailed;
+    if (readingFailed) {
+      // The chart's own fetch failed: said in its place, with Try again, as the part's.
+      panel.hidden = signedIn === false;
+      if (switcher) switcher.hidden = true;
+      return;
+    }
+    if (!readingSeries) {
+      panel.hidden = true;
+      return;
+    }
+    if (switcher) switcher.hidden = false;
+    var mine = readingSeries[code] || { days: [] };
+    var days = (mine.days || []).filter(function (day) {
+      return Number(day.tokens) > 0;
+    });
+    // Absent until two days have points: no card for a chart that isn't there.
+    var measured = days.filter(function (day) {
+      return Number(day.tokens) >= readingMeasurable;
+    });
+    panel.hidden = measured.length < 2;
     if (panel.hidden) return;
 
-    var thisYear = new Date().getUTCFullYear();
+    if (!readingBy) readingBy = chosenBy(days);
+    panel.setAttribute("data-by", readingBy);
+    Array.prototype.forEach.call(switcher ? switcher.querySelectorAll("button") : [], function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-by") === readingBy ? "true" : "false");
+    });
+    var view = viewOf(readingBy, days);
+    var points = view.points;
+
+    var W = Math.max(240, Math.round(host.clientWidth || (host.getBoundingClientRect ? host.getBoundingClientRect().width : 0) || 640));
+    var H = 120;
+    if (points.length < 2) {
+      // An empty view is a state, not a disabled button: the 120px stays, and one quiet
+      // line says what would draw it.
+      var empty = el("div", "chart chart-empty");
+      empty.appendChild(
+        el(
+          "p",
+          "reading-empty",
+          readingBy === "day"
+            ? t("progress.reading.empty-day", "We'll draw this once you've finished sections on two different days.")
+            : readingBy === "week"
+              ? t("progress.reading.empty-week", "We'll draw this once you've finished sections in two different weeks.")
+              : t("progress.reading.empty-month", "We'll draw this once you've finished sections in two different months.")
+        )
+      );
+      host.appendChild(empty);
+      return;
+    }
+
     var last = points[points.length - 1];
     var before = points[points.length - 2];
-    var lastYear = Number(String(last.month).slice(0, 4));
-    said.appendChild(el("p", "reading-said", inTen(last, monthName(last.month, lastYear !== thisYear))));
-    // Compared as the page says it, in tenths: a line that dipped inside the same count
-    // is not a fall anybody was told about, and a sentence about it would be louder than
-    // the change.
-    if (tenths(last) < tenths(before)) {
-      said.appendChild(
+    sayHost.appendChild(el("p", "reading-said", sentenceFor(readingBy, last)));
+    // "It fell because…" on Week and Month only, compared as the page says it.
+    if (readingBy !== "day" && percentOf(last) < percentOf(before)) {
+      sayHost.appendChild(
         el(
           "p",
           "reading-fell",
-          t(
-            "progress.reading.fell",
-            "It fell because what you read in {month} had more words new to you, not because you lost any.",
-            { month: monthName(last.month, lastYear !== thisYear) }
-          )
+          readingBy === "month"
+            ? t(
+                "progress.reading.fell",
+                "It fell because what you read in {month} had more words new to you, not because you lost any.",
+                { month: last.when }
+              )
+            : t(
+                "progress.reading.fell-week",
+                "It fell because what you read that week had more words new to you, not because you lost any."
+              )
         )
       );
     }
 
-    // The panel's own width in pixels, so the dots stay round and the months stay their
-    // size; redrawn on a resize (below).
-    var W = Math.max(240, Math.round(host.clientWidth || (host.getBoundingClientRect ? host.getBoundingClientRect().width : 0) || 640));
-    var H = 120;
     var pad = { top: 12, right: 20, bottom: 22, left: 20 };
     var plotW = W - pad.left - pad.right;
     var plotH = H - pad.top - pad.bottom;
     function share(point) {
       return point.known / Math.max(1, point.tokens);
     }
-    function px(index) {
-      return pad.left + (index / (points.length - 1)) * plotW;
+    function px(point) {
+      return pad.left + point.at * plotW;
     }
     function py(value) {
       return pad.top + plotH - value * plotH;
+    }
+    function spoken(point) {
+      return (
+        t("progress.reading.point", "{when}: {p}%", { when: point.whenFull, p: percentOf(point) }) +
+        " · " +
+        tn("progress.reading.sections", point.sections, "{n} section", "{n} sections")
+      );
     }
 
     var wrap = el("div", "chart");
@@ -1049,105 +1317,153 @@
       width: W,
       height: H,
       role: "img",
-      "aria-label": t("progress.reading.label", "What you knew of what you read, {first} to {last}", {
-        first: monthName(points[0].month, true),
-        last: monthName(last.month, true),
+      tabindex: "0",
+      "aria-label": t("progress.reading.label", "Words you knew, {first} to {last}", {
+        first: view.labels ? view.labels[0] : points[0].whenFull,
+        last: view.labels ? view.labels[1] : last.whenFull,
       }),
     });
     picture.appendChild(svg("line", { class: "reading-base", x1: 0, y1: H - pad.bottom + 2, x2: W, y2: H - pad.bottom + 2 }));
-
     var line = points
       .map(function (point, index) {
-        return (index ? "L" : "M") + px(index) + " " + py(share(point));
+        return (index ? "L" : "M") + px(point) + " " + py(share(point));
       })
       .join(" ");
     // Leaf, one hue, whichever way it goes: §4 gives progress to leaf, and a fall drawn in
     // clay would be the verdict the sentence under it refuses to give.
     picture.appendChild(svg("path", { class: "reading-path", d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 3 }));
-
-    // Every point carries its month, its count in ten and how many sections are behind
-    // it — on the point itself, as a title a screen reader and a long press both reach.
-    var dots = [];
-    points.forEach(function (point, index) {
-      var about = t("progress.reading.point", "{month}: about {n} in 10", {
-        month: monthName(point.month, true),
-        n: tenths(point),
-      });
-      var behind = tn("progress.reading.sections", point.sections, "{n} section", "{n} sections");
+    var dots = points.map(function (point, index) {
       var dot = svg("circle", {
         class: "reading-point",
-        cx: px(index),
+        cx: px(point),
         cy: py(share(point)),
         r: index === points.length - 1 ? 5 : 4,
         fill: "var(--leaf)",
-        tabindex: "0",
-        "aria-label": about + " · " + behind,
       });
       var title = svg("title", {});
-      title.textContent = about + " · " + behind;
+      title.textContent = spoken(point);
       dot.appendChild(title);
-      dots.push({ node: dot, about: about, behind: behind });
       picture.appendChild(dot);
+      return dot;
     });
 
-    // Each month's name under its dot, the year only where it is not this one.
-    var months = svg("g", { class: "axis" });
-    points.forEach(function (point, index) {
-      var year = Number(String(point.month).slice(0, 4));
-      var anchor = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
-      var name = svg("text", { class: "reading-month", x: px(index), y: H - 4, "text-anchor": anchor });
-      name.textContent = monthName(point.month, year !== thisYear);
-      months.appendChild(name);
-    });
-    picture.appendChild(months);
-
+    // Month: each name under its dot. Week and Day: the first and the last of the span.
+    var axis = svg("g", { class: "axis" });
+    function label(text, x, anchor) {
+      var name = svg("text", { class: "reading-month", x: x, y: H - 4, "text-anchor": anchor });
+      name.textContent = text;
+      axis.appendChild(name);
+    }
+    if (view.labels) {
+      label(view.labels[0], pad.left, "start");
+      label(view.labels[1], W - pad.right, "end");
+    } else {
+      points.forEach(function (point, index) {
+        label(point.when, px(point), index === 0 ? "start" : index === points.length - 1 ? "end" : "middle");
+      });
+    }
+    picture.appendChild(axis);
     wrap.appendChild(picture);
     host.appendChild(wrap);
     var tip = tipFor(wrap);
+    var live = document.getElementById("reading-live");
 
-    function point(index) {
+    var on = -1;
+    function point(index, announce) {
+      on = Math.max(0, Math.min(points.length - 1, index));
+      dots.forEach(function (dot, at) {
+        dot.classList.toggle("on", at === on && announce);
+      });
       var hostBox = wrap.getBoundingClientRect();
-      tip.show(
-        dots[index].about + "<br>" + dots[index].behind,
-        (px(index) / W) * hostBox.width,
-        (py(share(points[index])) / H) * hostBox.height
-      );
+      var words_ = spoken(points[on]);
+      tip.show(words_.replace(" · ", "<br>"), (px(points[on]) / W) * hostBox.width, (py(share(points[on])) / H) * hostBox.height);
+      if (announce && live) live.textContent = words_;
     }
     function nearest(event) {
       var box = picture.getBoundingClientRect();
       var atX = (event.clientX - box.left) * (W / box.width);
-      var index = Math.round(((atX - pad.left) / plotW) * (points.length - 1));
-      point(Math.max(0, Math.min(points.length - 1, index)));
+      var best = 0;
+      points.forEach(function (one, index) {
+        if (Math.abs(px(one) - atX) < Math.abs(px(points[best]) - atX)) best = index;
+      });
+      point(best, false);
     }
-    // A mouse finds the nearest month; a thumb taps for it; a keyboard focuses a point.
+    // A mouse finds the nearest point; a thumb taps for it; a keyboard moves with the
+    // arrows from the last point.
     picture.addEventListener("mousemove", nearest);
     picture.addEventListener("click", nearest);
     picture.addEventListener("mouseleave", function () {
       tip.hide();
     });
-    dots.forEach(function (dot, index) {
-      dot.node.addEventListener("focus", function () {
-        point(index);
-      });
-      dot.node.addEventListener("blur", function () {
-        tip.hide();
+    picture.addEventListener("focus", function () {
+      point(on < 0 ? points.length - 1 : on, true);
+    });
+    picture.addEventListener("blur", function () {
+      tip.hide();
+      dots.forEach(function (dot) {
+        dot.classList.remove("on");
       });
     });
+    picture.addEventListener("keydown", function (event) {
+      var key = event.key;
+      if (key === "ArrowLeft" || key === "ArrowRight" || key === "Home" || key === "End") {
+        event.preventDefault();
+        var to = key === "Home" ? 0 : key === "End" ? points.length - 1 : on + (key === "ArrowLeft" ? -1 : 1);
+        point(to, true);
+      }
+    });
+  }
+
+  function wireReadingBy() {
+    var switcher = document.getElementById("reading-by");
+    if (!switcher) return;
+    Array.prototype.forEach.call(switcher.querySelectorAll("button"), function (button) {
+      button.addEventListener("click", function () {
+        readingBy = button.getAttribute("data-by");
+        try {
+          localStorage.setItem(BY_KEY, readingBy);
+        } catch (e) {
+          /* remembered for this page only */
+        }
+        drawReading(currentCode);
+      });
+    });
+    var again = document.getElementById("reading-again");
+    if (again) {
+      again.addEventListener("click", function () {
+        readingFailed = false;
+        askReading();
+      });
+    }
+  }
+  wireReadingBy();
+
+  function readingZone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch (e) {
+      return "";
+    }
   }
 
   function askReading() {
     if (!window.fetch) return;
-    fetch(keyed("/account/reading"), { credentials: "same-origin" })
+    var zone = readingZone();
+    fetch(keyed("/account/reading" + (zone ? "?tz=" + encodeURIComponent(zone) : "")), { credentials: "same-origin" })
       .then(function (answer) {
+        if (answer.ok === false && answer.status !== 401) throw new Error(String(answer.status));
         return answer.json();
       })
       .then(function (said) {
         if (!said || !said.signedIn) return;
+        readingFailed = false;
         readingSeries = said.reading || {};
+        if (typeof said.measurable === "number") readingMeasurable = said.measurable;
         drawReading(currentCode);
       })
       .catch(function () {
-        /* no account to read is no line, which is how the page already stood */
+        readingFailed = true;
+        drawReading(currentCode);
       });
   }
 

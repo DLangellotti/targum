@@ -1083,7 +1083,7 @@ STORY = {
         {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
         {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
         {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
-        {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
+        {"kind": "B2", "name": "B2", "state": "ahead", "texts": 45, "readable": 0},
     ],
     "here": 1,
     "next": 2,
@@ -1122,12 +1122,11 @@ def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
     went = page.url
     context.close()
 
-    assert got["title"] == "Level"
+    assert got["title"] == "Your level"
     assert got["parts"] == ["How you got here", "What next"]
-    assert got["head"] == "You can read A2 texts on your own."
     assert [rung["text"] for rung in got["rungs"]][1:3] == [
-        "A2Easy for you143 you can read›",
-        "B1Your next step12 you can read›",
+        "A2Easy for you143 you can read now›",
+        "B1Next12 you can read now›",
     ]
     assert not got["credits"], "credits are the account page's"
     assert got["level"] == ["יונה91% known"], "the title alone, as the board has it"
@@ -1177,16 +1176,16 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
 ) -> None:
     """targum-internal#291. Three months draw one line across the panel, as the board
     draws it (§12, 2026-10-09), at a phone's width and on the desk; a fall is said in one
-    sentence; nothing in the block is a percentage."""
+    sentence, and the last month as an exact percentage (§12, "Your level, v3")."""
     import os
 
-    line = [
-        {"month": "2026-06", "known": 70, "tokens": 100, "sections": 3},
-        {"month": "2026-07", "known": 80, "tokens": 100, "sections": 5},
-        {"month": "2026-08", "known": 55, "tokens": 100, "sections": 2},
+    days = [
+        {"day": "2025-06-10", "known": 70, "tokens": 100, "sections": 3},
+        {"day": "2025-07-10", "known": 80, "tokens": 100, "sections": 5},
+        {"day": "2025-08-10", "known": 55, "tokens": 100, "sections": 2},
     ]
     context, page = _progress_with(
-        browser, {}, reading={"he": {"line": line, "months": 3, "sections": 10}}, width=width
+        browser, {}, reading={"he": {"line": [], "days": days, "sections": 10}}, width=width
     )
     got = page.evaluate(READING)
     shots = os.environ.get("TARGUM_SHOTS")
@@ -1195,19 +1194,26 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     context.close()
 
     assert got["shown"] and got["points"] == 3, got
-    assert got["said"][0] == "In August you knew about 6 words in 10 of what you read."
+    assert got["said"][0] == "In August 2025 you knew 55% of the words you read."
     assert got["said"][1].startswith("It fell because"), got
-    assert "%" not in got["text"]
     assert not got["sideways"], got
     assert 0 < got["width"] <= got["panelWidth"] + 0.5, got
     assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
 
 
-def test_progress_hides_the_line_under_two_months(browser) -> None:
+def test_progress_hides_the_line_under_two_days(browser) -> None:
     """No line and no paragraph about one (David, 2026-10-09): the part is absent until
-    two months can be drawn."""
+    two days can be drawn (§12, "Your level, v3")."""
     context, page = _progress_with(
-        browser, {}, reading={"he": {"line": [], "months": 1, "sections": 2}}
+        browser,
+        {},
+        reading={
+            "he": {
+                "line": [],
+                "days": [{"day": "2025-06-10", "known": 7, "tokens": 100, "sections": 2}],
+                "sections": 2,
+            }
+        },
     )
     got = page.evaluate(READING)
     context.close()

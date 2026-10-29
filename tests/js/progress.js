@@ -39,7 +39,7 @@ install({
    reports a length of zero and hands back null for every key. The page cannot be run at
    all without that, so the store is replaced here rather than in dom.js — the reader and
    library harnesses want the inert one. */
-const store = payload.stored || {};
+const store = Object.assign({}, payload.stored || {}, payload.raw || {});
 const names = Object.keys(store);
 global.localStorage = {
   get length() {
@@ -63,7 +63,9 @@ global.fetch = global.window.fetch = (url) => {
   asked.push(String(url));
   let body = { signedIn: false };
   if (String(url).indexOf("/account/reading") === 0 && payload.reading) {
-    body = { signedIn: true, reading: payload.reading };
+    body = { signedIn: true, measurable: 20, reading: payload.reading };
+  } else if (String(url).indexOf("/account/reading") === 0 && payload.readingFails) {
+    return Promise.reject(new Error("unreachable"));
   } else if (String(url).indexOf("/account/totals") === 0 && payload.totals) {
     body = { signedIn: true, kept: true, on: true, totals: payload.totals };
   } else if (String(url).indexOf("/account/story") === 0 && payload.storyFails) {
@@ -89,8 +91,6 @@ if (payload.learnedBy) {
 require(path.join(assets, "progress.js"));
 
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };
-/* An attribute the page set on an element, or null where it set none (or never touched it). */
-const attr = (id, name) => (byId[id] && byId[id].getAttribute ? byId[id].getAttribute(name) : null);
 
 /** Every count in the block, as {label: number}. */
 function counts() {
@@ -116,7 +116,7 @@ function reading() {
   const panel = at("reading");
   const line = at("reading-line").children[0];
   const picture = line ? line.children[0] : null;
-  const points = picture
+  const points = picture && picture.children
     ? picture.children.filter((node) => String(node.getAttribute && node.getAttribute("class")) === "reading-point")
     : [];
   const ticks = picture
@@ -128,9 +128,19 @@ function reading() {
     ? (picture.children.find((node) => node.getAttribute && node.getAttribute("class") === "axis") || { children: [] })
         .children.map((node) => node.textContent)
     : [];
+  const empty = line && String(line.className).indexOf("chart-empty") >= 0 ? line.children[0].textContent : "";
   return {
     shown: panel.hidden === false,
-    drawn: Boolean(picture),
+    drawn: Boolean(picture) && !empty,
+    by: (panel.getAttribute && panel.getAttribute("data-by")) || "",
+    empty: empty,
+    failed: at("reading-failed").hidden === false,
+    focusable: picture && !empty ? picture.getAttribute("tabindex") : "",
+    titles: picture && !empty
+      ? picture.children
+          .filter((node) => String(node.getAttribute && node.getAttribute("class")) === "reading-point")
+          .map((node) => (node.children[0] || { textContent: "" }).textContent)
+      : [],
     months: months,
     said: at("reading-said").children.map((node) => node.textContent),
     points: points.map((node) => node.getAttribute("aria-label")),
@@ -162,19 +172,24 @@ setImmediate(() => setImmediate(() => process.stdout.write(
       shown: at("ladder").hidden === false,
       grid: at("level-grid").hidden === false,
       note: at("where-note").hidden === false ? at("where-note").textContent : "",
-      foot: at("level-foot").hidden === false ? at("level-said").textContent : "",
-      footLetter: (function () {
-        const run = at("level-said").children.find((node) => node.tagName === "bdi");
-        return run ? { text: run.textContent, dir: run.getAttribute("dir"), lang: run.getAttribute("lang") } : null;
-      })(),
+      mark: at("level-mark").hidden === false
+        ? {
+            spoken: at("level-spoken").textContent,
+            big: at("level-big").textContent,
+            lang: at("level-big").getAttribute("lang") || "",
+            dir: at("level-big").getAttribute("dir") || "",
+            hidden: at("level-big").getAttribute("aria-hidden") || "",
+            cefr: at("level-cefr").textContent,
+          }
+        : null,
       toward: at("level-toward").hidden === false
         ? {
-            next: at("level-next").textContent,
-            label: attr("level-bar", "aria-label"),
-            said: attr("level-bar", "aria-valuetext"),
-            now: attr("level-bar", "aria-valuenow"),
-            role: attr("level-bar", "role"),
-            nextHidden: attr("level-next", "aria-hidden"),
+            line: at("level-togo").textContent,
+            number: (at("level-togo").children.find((node) => node.tagName === "b") || { textContent: "" }).textContent,
+            letter: (function () {
+              const run = at("level-togo").children.find((node) => node.tagName === "bdi");
+              return run ? { text: run.textContent, dir: run.getAttribute("dir"), lang: run.getAttribute("lang") } : null;
+            })(),
             width: at("level-fill").style.width,
           }
         : null,
@@ -184,6 +199,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
           const row = item.children[0];
           const words = row.children.find((node) => String(node.className) === "touch-words");
           const count = row.children.find((node) => String(node.className) === "touch-count");
+          const chevron = row.children.find((node) => String(node.className) === "touch-go");
           return {
             name: words ? words.children[0].textContent : "",
             said: words ? words.children[1].textContent : "",
@@ -192,6 +208,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
             tag: String(row.tagName).toLowerCase(),
             href: row.href,
             current: row.getAttribute("aria-current") || "",
+            chevron: chevron ? chevron.textContent : "",
             text: row.textContent,
           };
         }),

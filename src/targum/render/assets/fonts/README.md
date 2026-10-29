@@ -144,3 +144,25 @@ shasum -a 256 "$work/VF-source-sans-3.052R.zip"
 unzip -q "$work/VF-source-sans-3.052R.zip" -d "$work"
 .venv/bin/python scripts/cyrillic_face.py "$work/VF"
 ```
+
+### Noto Sans Hebrew's letters at 600
+
+Your Progress leads with the ulpan letter at the page title's step in 600 (design.md §12,
+"Your level, v3", 2026-10-29; targum-internal#561), and the carried Regular is 400 only, so
+a 600 asked of it is a bold the browser fakes. `NotoSansHebrew-Letters600.woff2` (2.8 kB)
+is the variable font instanced at weight 600 and full width, subset to the 27 letters with
+their finals (U+05D0–05EA), the geresh (U+05F3) and the plus. It is a second `@font-face`
+of the same family at `font-weight: 600`, carried on Your Progress only, where nothing but
+a letter, its geresh and its plus is ever set at that weight. Same licence as the Regular (SIL OFL 1.1, `LICENSE.notosanshebrew`),
+version 3.001 from Google Fonts' repository:
+
+In a scratch folder of its own, never the checkout:
+
+```
+work="$(mktemp -d)"
+curl -sSL -o "$work/NotoSansHebrew-VF.ttf" \
+  "https://github.com/google/fonts/raw/main/ofl/notosanshebrew/NotoSansHebrew%5Bwdth%2Cwght%5D.ttf"
+shasum -a 256 "$work/NotoSansHebrew-VF.ttf"
+# 7ef36a2c3593758cdb622e1bdef4f84523e92fbc3ccc667438dd80ff54c2de88
+.venv/bin/python scripts/hebrew_letter_face.py "$work/NotoSansHebrew-VF.ttf"
+```

@@ -135,11 +135,14 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .reading .reading-base { stroke: var(--rule); stroke-width: 1; }
 .reading .reading-month { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); }
 .reading .reading-point { cursor: default; }
-/* A round ring on the dot itself: the outline drew a square box round an 8px dot
-   (polish 11, targum-internal#471). */
-.reading .reading-point:focus { outline: none; }
-.reading .reading-point:focus-visible { outline: none; stroke: var(--focus); stroke-width: 2.5; }
-.reading-words p { margin: 0.5rem 0 0; max-inline-size: 40rem; font-size: 0.875rem; color: var(--ink-soft); }
+/* The point the arrows are on carries the ring (polish 11, targum-internal#471). */
+.reading .reading-point.on { stroke: var(--focus); stroke-width: 2.5; }
+/* The sentence is the figure said in words, so it is ink, not a caption. */
+.reading-words p { margin: 0.5rem 0 0; max-inline-size: 40rem; font-size: 0.9375rem; line-height: 1.5; color: var(--ink); }
+.reading-words p.reading-fell { font-size: 0.875rem; color: var(--ink-soft); }
+/* One tab stop for the whole line, and the ring on it (design P1-13). */
+.reading .chart svg:focus { outline: none; }
+.reading .chart svg:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
 
 /* --- the story (design.md §12, 2026-10-09) -------------------------------------------
@@ -171,44 +174,81 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 }
 .progress .story .note { margin: 0.25rem 0 0.75rem; }
 
-/* --- Level (design.md §12, "Your level leads with what you can read", 2026-10-28) --------
-   The section title on the desk, then cards: what you can read and the one press; the
-   texts' own levels, open, easiest first; and the foot line, the one level, on the ground with
-   its bar. At a desk the lead and the foot share the left five of the twelve columns and
-   the ladder takes the right seven; on a phone they stack, the foot last. No percentage
-   is drawn anywhere in it. */
+/* --- Your level (design.md §12, "Your level, v3", 2026-10-29) ------------------------
+   No visible heading. The card is the level: the letter at the page title's step in ink,
+   "About B2" on its baseline, the 4px leaf bar, the exact words to the next rung and the
+   one press. The ladder, A1 to Past C2. Words you knew, by Day, Week or Month. At a desk,
+   two even columns, the card with the chart under it on the left and the ladder on the
+   right; on a phone they stack card, ladder, chart. */
+.progress .visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .progress .story.level { display: grid; gap: 0.75rem; }
 .progress .level-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "lead" "ladder" "foot";
+  grid-template-areas: "lead" "ladder" "reading";
   gap: 0.75rem;
   align-items: start;
 }
 .progress .level-grid[hidden] { display: none; }
 @media (min-width: 64rem) {
   .progress .level-grid {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-    grid-template-areas: "lead ladder" "foot ladder";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "lead ladder" "reading ladder";
     grid-template-rows: auto 1fr;
-    gap: 1rem 1.5rem;
+    gap: 1.5rem;
   }
 }
 .progress .level-lead { grid-area: lead; display: grid; gap: 0.75rem; justify-items: start; padding: 1.25rem; }
 @media (min-width: 64rem) {
-  .progress .level-lead { padding: 1.75rem; gap: 0.875rem; }
+  .progress .level-lead { padding: 1.75rem; gap: 1rem; }
 }
 .progress .level-lead p { margin: 0; }
+.progress .level-lead [hidden] { display: none; }
+/* The letter at the page title's step (§5: 1.9375rem, line-height 1), Noto Sans Hebrew 600
+   carried as its own cut, in ink; the CEFR beside it, soft, on the same baseline. A
+   European level leads in the chrome's 600 at the same step. */
+.progress .level-mark { display: flex; align-items: baseline; gap: 0.75rem; }
+.progress .level-big {
+  font-family: var(--chrome);
+  font-size: 1.9375rem;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink);
+}
+.progress .level-big[lang|="he"] { font-family: var(--reading-hebrew); }
+.progress .level-cefr { font-size: 1.0625rem; color: var(--ink-soft); }
 .progress .level-head { font-size: 1.25rem; font-weight: 600; line-height: 1.3; color: var(--ink); }
 @media (min-width: 64rem) {
   .progress .level-head { font-size: 1.5rem; line-height: 1.25; }
 }
+.progress .level-head:empty { display: none; }
 .progress .level-step { font-size: 0.9375rem; line-height: 1.5; color: var(--ink); }
 .progress .level-known { font-size: 0.9375rem; line-height: 1.5; color: var(--ink-soft); }
 .progress .level-known b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.progress .level-lead .level-go { margin-block-start: 0.25rem; }
 .progress .level-lead .level-note { margin: 0; }
-.progress .level-lead [hidden] { display: none; }
+.progress .level-toward { display: grid; gap: 0.5rem; justify-self: stretch; }
+.progress .level-bar {
+  block-size: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--well) 50%, var(--desk));
+}
+.progress .level-fill { display: block; block-size: 100%; background: var(--leaf); }
+/* Only the number is 600, in tabular figures: the words around it are plain (design P2-21). */
+.progress .level-togo { font-size: 0.9375rem; line-height: 1.5; color: var(--ink); }
+@media (min-width: 64rem) {
+  .progress .level-togo { font-size: 1.0625rem; }
+}
+.progress .level-togo b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.progress .level-togo bdi { font-weight: 600; }
+.progress .level-letter { color: var(--ink); }
 
 .progress .level-ladder { grid-area: ladder; padding: 0.875rem 0.5rem 0.5rem; }
 @media (min-width: 64rem) {
@@ -224,28 +264,24 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 @media (min-width: 64rem) {
   .progress .level-ladder-head { padding-inline: 1rem; margin-block-end: 0.625rem; font-size: 1.0625rem; }
 }
-
 .progress .touchstones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
 .progress .touch { display: block; }
-/* A row: its mark, the kind and its state under it, the count, and a chevron. Forty-four
-   pixels at least everywhere (§8), fifty-two at a desk as the board draws it. */
 .progress .touch-row {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  box-sizing: border-box;
   min-block-size: 2.75rem;
   padding: 0.1875rem 0.75rem;
-  border-radius: var(--radius-row);
+  border-radius: 12px;
   color: var(--ink);
   text-decoration: none;
 }
 @media (min-width: 64rem) {
-  .progress .touch-row { min-block-size: 3.25rem; padding: 0.25rem 1rem; gap: 0.875rem; }
+  .progress .touch-row { min-block-size: 3rem; padding: 0.25rem 1rem; gap: 0.875rem; }
 }
 .progress a.touch-row:hover { background: var(--teal-wash); }
 .progress a.touch-row:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* The next step is the leaf wash (§4: progress), and says so in its own words too. */
+/* The next step on the leaf wash, carried by its dot and its word too, never colour alone. */
 .progress .touch-row.touch-next { background: color-mix(in srgb, var(--leaf) 12%, transparent); }
 .progress a.touch-row.touch-next:hover { background: color-mix(in srgb, var(--leaf) 18%, transparent); }
 .progress .touch-mark { flex: none; display: inline-flex; inline-size: 1.125rem; justify-content: center; color: var(--well); }
@@ -254,35 +290,34 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .touch-tick { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 .progress .touch-dot { inline-size: 1rem; block-size: 1rem; fill: currentColor; }
 .progress .touch-ring { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.6; }
-/* Phone: the state under the name. Desk: the board's columns, name, state, count. */
+/* A phone: the name over its state, the count right and unwrapped, the chevron last. */
 .progress .touch-words { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; }
-@media (min-width: 64rem) {
-  .progress .touch-words { flex-direction: row; align-items: center; gap: 0.875rem; }
-  .progress .touch-words .touch-name { flex: 1; }
-  .progress .touch-words .touch-state { inline-size: 9.5rem; }
-}
 .progress .touch-name { font-size: 0.9375rem; }
 .progress .touch-easy .touch-name,
 .progress .touch-next .touch-name { font-weight: 600; }
-.progress .touch-state { font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .touch-state { font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.progress .touch-state:empty { display: none; }
 .progress .touch-easy .touch-state { color: var(--leaf); }
 .progress .touch-next .touch-state { font-weight: 600; color: color-mix(in srgb, var(--leaf) 72%, var(--ink)); }
-.progress .touch-count { flex: none; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.progress .touch-go { flex: none; color: var(--ink-soft); }
+.progress .touch-count { flex: none; white-space: nowrap; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.progress .touch-go { flex: none; inline-size: 0.625rem; color: var(--ink-soft); }
+/* A desk: one grid on the list and each row a subgrid of it, so the state and the count
+   columns are as wide as their widest entry in every language (targum-internal#554). The
+   state column holds "2,041 words to go" unwrapped. */
 @media (min-width: 64rem) {
+  .progress .touch-words { flex-direction: row; align-items: center; gap: 0.875rem; }
+  .progress .touch-words .touch-name { inline-size: 8rem; flex: none; }
+  .progress .touch-words .touch-state { flex: 1; white-space: nowrap; }
+  .progress .touch-words .touch-state:empty { display: block; }
   .progress .touch-name { font-size: 1.0625rem; }
   .progress .touch-state,
   .progress .touch-count { font-size: 0.875rem; }
-  .progress .touch-count { min-inline-size: 8rem; text-align: end; }
+  .progress .touch-count { text-align: end; }
 }
-/* The board's columns line up row to row whatever the words (targum-internal#554). Each
-   row was its own flex line, so a longer count, or none, moved that row's state along: in
-   Russian «Вам легко» and «Следующий шаг» stepped down the card. One grid on the list,
-   each row a subgrid of it, so the state and the count are as wide as their widest. */
 @supports (grid-template-columns: subgrid) {
   @media (min-width: 64rem) {
     .progress .touchstones {
-      grid-template-columns: auto minmax(0, 1fr) minmax(9.5rem, max-content) max-content auto;
+      grid-template-columns: auto max-content minmax(9.5rem, max-content) minmax(0, 1fr) 0.625rem;
       column-gap: 0.875rem;
     }
     .progress .touch,
@@ -290,37 +325,32 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
     .progress .touch-row { align-items: center; }
     .progress .touch-words { display: contents; }
     .progress .touch-mark { grid-column: 1; }
-    .progress .touch-words .touch-name { grid-column: 2; }
-    .progress .touch-words .touch-state { grid-column: 3; inline-size: auto; }
+    .progress .touch-words .touch-name { grid-column: 2; inline-size: auto; }
+    .progress .touch-words .touch-state { grid-column: 3; }
     .progress .touch-count { grid-column: 4; }
     .progress .touch-go { grid-column: 5; }
   }
 }
-
-/* The foot line on the desk ground, and the bar toward the next rung: a thin leaf line on
-   the desk's track, no figure on it, the next rung named beside it. */
-.progress .level-foot { grid-area: foot; display: grid; gap: 0.625rem; padding-inline: 0.25rem; }
-.progress .level-foot[hidden] { display: none; }
-.progress .level-foot-said { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--ink-soft); }
+/* Words you knew: the title and the switch on one line at a desk; on a phone the switch
+   takes its own row at full width in thirds, 44px under a thumb (the `.seg` rule). */
+.progress .level-grid > .reading { grid-area: reading; margin: 0; }
+.reading .reading-head { display: grid; gap: 0.75rem; }
+.reading .reading-title { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.reading .reading-by { display: flex; }
+.reading .reading-by > button { flex: 1; }
 @media (min-width: 64rem) {
-  .progress .level-foot-said { font-size: 0.875rem; }
+  .reading .reading-head { grid-template-columns: 1fr auto; align-items: center; }
+  .reading .reading-title { font-size: 1.0625rem; }
+  .reading .reading-by { display: inline-flex; }
+  .reading .reading-by > button { flex: none; min-inline-size: 4rem; }
 }
-.progress .level-letter { color: var(--ink); }
-.progress .level-toward { display: flex; align-items: center; gap: 0.625rem; }
-.progress .level-toward[hidden] { display: none; }
-.progress .level-bar {
-  flex: 1;
-  block-size: 4px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--well) 50%, var(--desk));
+/* §13's 40px at a desk with a mouse; under a thumb the `.seg` rule's 44px stands. */
+@media (min-width: 64rem) and (pointer: fine) {
+  .reading .reading-by > button { min-block-size: 2.5rem; }
 }
-.progress .level-fill { display: block; block-size: 100%; background: var(--leaf); }
-.progress .level-next { flex: none; white-space: nowrap; font-size: 0.8125rem; color: var(--ink-soft); }
-@media (min-width: 64rem) {
-  .progress .level-next { font-size: 0.875rem; }
-}
-.progress .story.level > .reading { margin-block-start: 0.25rem; }
+.reading .reading-empty { margin: 0; font-size: 0.875rem; color: var(--ink-soft); }
+.reading .chart-empty { display: grid; align-items: center; block-size: 7.5rem; }
+.reading .reading-failed { margin: 0.5rem 0 0; }
 
 /* The words taken up, a column a week, each one shade of the stage ramp chosen by its
    height — lighter for fewer, leaf for the most — and no legend, as the board draws it. */

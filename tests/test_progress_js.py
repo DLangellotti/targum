@@ -49,6 +49,8 @@ def draw(
     totals: list[dict[str, Any]] | None = None,
     story_fails: bool = False,
     story_held: bool = False,
+    reading_fails: bool = False,
+    raw: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -63,6 +65,9 @@ def draw(
                     "story": story,
                     "storyFails": story_fails,
                     "storyHeld": story_held,
+                    "readingFails": reading_fails,
+                    # Stored as written, the way the page writes a remembered choice.
+                    "raw": raw or {},
                     "totals": totals,
                 }
             ),
@@ -395,107 +400,153 @@ def test_a_language_with_no_words_in_it_yet_draws_an_empty_ledger() -> None:
 # -- what you knew of what you read (targum-internal#291) -----------------------------
 
 
-def month(name: str, known: int, tokens: int = 100, sections: int = 2) -> dict[str, Any]:
-    return {"month": name, "known": known, "tokens": tokens, "sections": sections}
+def day(when: date, known: int, tokens: int = 100, sections: int = 1) -> dict[str, Any]:
+    """A day's bucket as `/account/reading` sends it (design.md §12, "Your level, v3")."""
+    return {"day": when.isoformat(), "known": known, "tokens": tokens, "sections": sections}
 
 
-def test_three_months_of_reading_draw_a_line_said_as_a_count_in_ten() -> None:
-    """One point a month, each carrying its month, its count in ten and the sections
-    behind it; the latest said in a sentence. Never a percentage, never a score."""
+def days_ago(n: int) -> date:
+    return date.today() - timedelta(days=n)
+
+
+def month_day(
+    year: int, month_: int, known: int, tokens: int = 100, sections: int = 2
+) -> dict[str, Any]:
+    """A bucket on the 10th of a past month."""
+    return day(date(year, month_, 10), known, tokens, sections)
+
+
+def reading_of(*days: dict[str, Any]) -> dict[str, Any]:
+    return {"he": {"line": [], "months": 0, "days": list(days), "sections": len(days)}}
+
+
+def test_months_of_reading_draw_a_line_said_as_an_exact_percentage() -> None:
+    """Month is the default where it has two points: a dot a month, each with its month,
+    its exact percentage and the sections behind it; the latest said in a sentence
+    (design.md §12, "Your level, v3": "In October you knew 91% of the words you read.")."""
     drawn = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={
-            "he": {
-                "line": [
-                    month("2026-06", 52),
-                    month("2026-07", 61, sections=1),
-                    month("2026-08", 70, sections=4),
-                ],
-                "months": 3,
-                "sections": 7,
-            }
-        },
+        reading=reading_of(
+            month_day(2025, 6, 52),
+            month_day(2025, 7, 61, sections=1),
+            month_day(2025, 8, 70, sections=4),
+        ),
     )["reading"]
 
-    assert drawn["shown"] and drawn["drawn"]
-    assert drawn["said"] == ["In August you knew about 7 words in 10 of what you read."]
-    assert drawn["points"] == [
-        "June 2026: about 5 in 10 · 2 sections",
-        "July 2026: about 6 in 10 · 1 section",
-        "August 2026: about 7 in 10 · 4 sections",
+    assert drawn["shown"] and drawn["drawn"] and drawn["by"] == "month"
+    assert drawn["said"] == ["In August 2025 you knew 70% of the words you read."]
+    assert drawn["titles"] == [
+        "June 2025: 52% · 2 sections",
+        "July 2025: 61% · 1 section",
+        "August 2025: 70% · 4 sections",
     ]
-    # The board's line: no grid and no scale, each month named under its dot.
     assert drawn["ticks"] == []
-    assert drawn["months"] == ["June", "July", "August"] or drawn["months"] == [
-        "June 2026",
-        "July 2026",
-        "August 2026",
-    ]
-    assert "%" not in json.dumps(drawn)
+    assert drawn["months"] == ["June 2025", "July 2025", "August 2025"]
+    assert drawn["focusable"] == "0", "the line is one tab stop"
+    assert drawn["label"] == "Words you knew, June 2025 to August 2025"
 
 
-def test_a_line_that_falls_says_why_and_nothing_else() -> None:
-    """Graded dialogue in July, Agnon in August: the line drops, and one sentence names
-    the reason — the text, not lost ground — with no apology and no encouragement."""
+def test_weeks_and_months_are_summed_from_days_by_words_not_shares() -> None:
+    """A 40-word day at 0% and a 4,000-word day at 90% in one month are 89%, not 45%."""
     drawn = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={
-            "he": {
-                "line": [month("2026-06", 70), month("2026-07", 80), month("2026-08", 55)],
-                "months": 3,
-                "sections": 6,
-            }
-        },
+        reading=reading_of(
+            day(date(2025, 6, 3), 0, tokens=40),
+            day(date(2025, 6, 4), 3600, tokens=4000),
+            month_day(2025, 7, 50),
+        ),
     )["reading"]
+    assert drawn["titles"][0] == "June 2025: 89% · 2 sections"
 
+
+def test_a_line_that_falls_says_why_on_month_and_week_and_never_on_day() -> None:
+    """Graded dialogue in July, Agnon in August: the line drops, and one sentence names
+    the reason. On Day it would be said most mornings, so it is not."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading=reading_of(month_day(2025, 6, 70), month_day(2025, 7, 80), month_day(2025, 8, 55)),
+    )["reading"]
     assert drawn["said"] == [
-        "In August you knew about 6 words in 10 of what you read.",
-        "It fell because what you read in August had more words new to you, not because you "
-        "lost any.",
+        "In August 2025 you knew 55% of the words you read.",
+        "It fell because what you read in August 2025 had more words new to you, not because "
+        "you lost any.",
     ]
     for said in drawn["said"]:
         assert "!" not in said and "don't worry" not in said.lower() and "keep" not in said
 
-    # A dip inside the same count in ten is not a fall anybody was told about.
-    level = draw(
+    daily = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={
-            "he": {
-                "line": [month("2026-06", 70), month("2026-07", 72), month("2026-08", 68)],
-                "months": 3,
-                "sections": 6,
-            }
-        },
+        reading=reading_of(day(days_ago(3), 80), day(days_ago(1), 55)),
     )["reading"]
-    assert len(level["said"]) == 1
+    assert daily["by"] == "day"
+    assert len(daily["said"]) == 1 and "fell" not in daily["said"][0]
 
 
-def test_two_months_draw_the_line() -> None:
-    """The board draws its line from two points (§12, "The mockups win on Your Progress",
-    2026-10-09)."""
-    drawn = draw(
+def test_the_coarsest_view_with_two_points_is_the_default() -> None:
+    """Month where it has two points, else Week, else Day (David, 2026-10-29)."""
+    two_days = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={"he": {"line": [month("2026-08", 80), month("2026-09", 90)], "months": 2}},
+        reading=reading_of(day(date.today(), 68), day(days_ago(1), 60)),
     )["reading"]
-    assert drawn["shown"] and drawn["drawn"] and len(drawn["points"]) == 2
+    # Two days a week apart are also two weeks; in one week, Day is the only view.
+    assert two_days["by"] in ("day", "week")
+    assert two_days["shown"] and two_days["drawn"]
+    if two_days["by"] == "day":
+        assert two_days["said"] == ["Today you knew 68% of the words you read."]
 
-
-def test_under_two_months_the_part_is_not_there() -> None:
-    """Under two points there is no line, and no paragraph promising one: the board
-    has no waiting state (David, 2026-10-09, "a wall of text"), so the part is hidden
-    until there is something to draw."""
-    drawn = draw(
+    weeks = draw(
         {"targum:vocab:he": vocab(known=3)},
-        reading={"he": {"line": [], "months": 1, "sections": 5}},
+        reading=reading_of(day(days_ago(14), 60), day(days_ago(0), 70)),
     )["reading"]
-    assert not drawn["shown"] and not drawn["drawn"]
-    assert drawn["said"] == []
+    if date.today().day > 14:
+        assert weeks["by"] == "week"
+        assert weeks["said"] == ["This week you knew 70% of the words you read."]
+
+
+def test_two_days_draw_the_card_and_one_day_does_not() -> None:
+    """The card is there once two days have points, and absent with one, with none and
+    signed out: no chart for a chart that isn't there."""
+    one = draw({"targum:vocab:he": vocab(known=3)}, reading=reading_of(day(days_ago(1), 60)))[
+        "reading"
+    ]
+    assert not one["shown"] and one["said"] == []
 
     nothing = draw({"targum:vocab:he": vocab(known=3)}, reading={})["reading"]
     assert not nothing["shown"] and nothing["said"] == []
 
     signed_out = draw({"targum:vocab:he": vocab(known=3)})["reading"]
     assert not signed_out["shown"], "absent signed out, not nought"
+
+
+def test_a_short_day_is_counted_in_its_month_but_is_no_point_of_its_own() -> None:
+    """Under twenty words a point is a guess and is left off; its words still count in
+    the week and month it is part of."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading=reading_of(day(days_ago(40), 50), day(days_ago(1), 5, tokens=10)),
+    )["reading"]
+    assert not drawn["shown"], "one measurable day is not two"
+
+
+def test_an_empty_view_says_what_would_draw_it() -> None:
+    """Old reading only: Month draws, and Day, with nothing in the last thirty days, says
+    so in the chart's place, which keeps its height."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading=reading_of(month_day(2025, 6, 52), month_day(2025, 7, 61)),
+        raw={"targum.progress.reading-by": "day"},
+    )["reading"]
+    assert drawn["shown"] and drawn["by"] == "day" and not drawn["drawn"]
+    assert drawn["empty"] == "We'll draw this once you've finished sections on two different days."
+
+
+def test_a_reading_that_cannot_be_reached_says_so_in_the_charts_place() -> None:
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading=None,
+        reading_fails=True,
+    )["reading"]
+    assert drawn["failed"] and not drawn["drawn"]
 
 
 # -- the story (design.md §12, "Your Progress is a story in three parts", 2026-10-09) ---
@@ -505,22 +556,83 @@ LADDER = {
     "library": True,
     "known": 1240,
     "ladder": [
-        {"kind": "A1", "name": "A1", "state": "easy", "texts": 120, "readable": 118},
-        {"kind": "A2", "name": "A2", "state": "easy", "texts": 150, "readable": 143},
-        {"kind": "B1", "name": "B1", "state": "next", "texts": 90, "readable": 12},
-        {"kind": "B2+", "name": "B2+", "state": "ahead", "texts": 45, "readable": 0},
+        {
+            "kind": "A1",
+            "name": "A1",
+            "state": "easy",
+            "texts": 120,
+            "readable": 118,
+            "covered": True,
+            "toGo": None,
+        },
+        {
+            "kind": "A2",
+            "name": "A2",
+            "state": "easy",
+            "texts": 150,
+            "readable": 143,
+            "covered": True,
+            "toGo": None,
+        },
+        {
+            "kind": "B1",
+            "name": "B1",
+            "state": "easy",
+            "texts": 90,
+            "readable": 41,
+            "covered": True,
+            "toGo": None,
+        },
+        {
+            "kind": "B2",
+            "name": "B2",
+            "state": "next",
+            "texts": 45,
+            "readable": 13,
+            "covered": True,
+            "toGo": None,
+        },
+        {
+            "kind": "C1",
+            "name": "C1",
+            "state": "ahead",
+            "texts": 20,
+            "readable": 2,
+            "covered": False,
+            "toGo": 637,
+        },
+        {
+            "kind": "C2",
+            "name": "C2",
+            "state": "ahead",
+            "texts": 0,
+            "readable": 0,
+            "covered": False,
+            "toGo": 2041,
+        },
+        {
+            "kind": "past-C2",
+            "name": "past-C2",
+            "state": "ahead",
+            "texts": 0,
+            "readable": 0,
+            "covered": False,
+            "toGo": None,
+        },
     ],
-    "here": 1,
-    "next": 2,
+    "here": 2,
+    "next": 3,
     "conversations": True,
     "level": {
         "scale": "ulpan",
-        "letter": "ג",
-        "name": "gimel",
-        "cefr": "B1",
-        "next": {"letter": "ד", "name": "dalet"},
-        "toward": 0.115,
+        "letter": "ד",
+        "name": "dalet",
+        "cefr": "B2",
+        "next": {"letter": "ה", "name": "hey"},
+        "toward": 0.52,
+        "toGo": 637,
     },
+    "first": None,
     "texts": [
         {
             "id": "jonah",
@@ -540,35 +652,87 @@ def story(**changes: Any) -> dict[str, Any]:
 
 
 def week_one(**changes: Any) -> dict[str, Any]:
-    """Nothing easy yet: every rung not yet but the first, the next step, and no level."""
-    ladder = [dict(rung, state="ahead", readable=0) for rung in LADDER["ladder"]]
+    """Under aleph: no letter, A1 the next step, every row above it words to go."""
+    ladder = [dict(rung, state="ahead", readable=0, covered=False) for rung in LADDER["ladder"]]
+    for rung, left in zip(ladder, (148, 1712, 3688, 4874, 6530, 8046, None), strict=True):
+        rung["toGo"] = left
     ladder[0]["state"] = "next"
+    first = {"scale": "ulpan", "letter": "א", "name": "aleph", "toward": 0.4, "toGo": 148}
     return story(
-        **{"ladder": ladder, "here": None, "next": 0, "known": 86, "level": None, **changes}
+        **{
+            "ladder": ladder,
+            "here": None,
+            "next": 0,
+            "known": 86,
+            "level": None,
+            "first": first,
+            **changes,
+        }
     )
 
 
-def test_level_leads_with_the_hardest_level_you_can_read() -> None:
-    """design.md §12, "Your level leads with what you can read" (2026-10-28): the hardest
-    level of text read on your own, the next step, and one press to Read it now."""
+def test_the_card_is_the_level_and_nothing_else() -> None:
+    """design.md §12, "Your level, v3" (2026-10-29): the letter alone with its geresh, its
+    name said before it and the glyph hidden, "About B2" beside it, no headline about
+    texts, and one press to Read it now."""
     drawn = story()["where"]
-    assert drawn["head"] == "You can read A2 texts on your own."
-    assert drawn["step"] == "Your next step is B1 texts."
-    assert drawn["go"] == "Show texts at your level"
+    assert drawn["mark"] == {
+        "spoken": "Ulpan level dalet,",
+        "big": "ד׳",
+        "lang": "he",
+        "dir": "rtl",
+        "hidden": "true",
+        "cefr": "About B2",
+    }
+    assert drawn["head"] == "" and drawn["step"] == "" and drawn["known"] == ""
+    assert drawn["go"] == "Show texts you can read now"
     assert drawn["goHref"] == "/library?k=k#see/now"
-    assert drawn["shown"] and not drawn["note"] and not drawn["known"]
+    assert drawn["shown"] and not drawn["note"]
 
 
-def test_every_row_says_its_state_in_words_and_its_count_where_it_has_one() -> None:
+def test_the_words_to_the_next_rung_are_exact() -> None:
+    """ "637 words to ה׳": no "Roughly", no "more", no rounding; the number in bold and the
+    letter in its own right-to-left run. The bar is said in words, never as a figure."""
+    toward = story()["where"]["toward"]
+    assert toward == {
+        "line": "637 words to ה׳",
+        "number": "637",
+        "letter": {"text": "ה׳", "dir": "rtl", "lang": "he"},
+        "valuetext": "Toward hey",
+        "now": "52",
+        "width": "52%",
+    }
+    one = story(level={**LADDER["level"], "toGo": 1})["where"]["toward"]
+    assert one["line"] == "1 word to ה׳"
+    many = story(level={**LADDER["level"], "toGo": 12345})["where"]["toward"]
+    assert many["line"] == "12,345 words to ה׳"
+
+
+def test_every_row_says_its_state_or_its_words_to_go() -> None:
+    """Rows the reader's words cover say Easy for you or Next and the texts they can read
+    now; rows above say the words to go, exact, with no count; Past C2 says nothing. C1's
+    number is the card's."""
     rungs = story()["where"]["rungs"]
     assert [(rung["name"], rung["said"], rung["count"]) for rung in rungs] == [
-        ("Beginner · A1", "Easy for you", "118 you can read"),
-        ("A2", "Easy for you", "143 you can read"),
-        ("B1", "Your next step", "12 you can read"),
-        ("B2 and up", "Not yet", ""),
+        ("Beginner · A1", "Easy for you", "118 you can read now"),
+        ("A2", "Easy for you", "143 you can read now"),
+        ("B1", "Easy for you", "41 you can read now"),
+        ("B2", "Next", "13 you can read now"),
+        ("C1", "637 words to go", ""),
+        ("C2", "2,041 words to go", ""),
+        ("Past C2", "", ""),
     ]
-    assert [rung["state"] for rung in rungs] == ["easy", "easy", "next", "ahead"]
-    assert rungs[2]["current"] == "step"
+    assert [rung["state"] for rung in rungs] == ["easy"] * 3 + ["next"] + ["ahead"] * 3
+    assert rungs[3]["current"] == "step"
+    assert story()["where"]["toward"]["number"] == "637" == rungs[4]["said"].split()[0]
+
+
+def test_a_row_with_no_texts_is_plain_text_with_no_chevron() -> None:
+    rungs = story()["where"]["rungs"]
+    assert [(rung["tag"], rung["chevron"]) for rung in rungs] == [("a", "›")] * 5 + [
+        ("span", ""),
+        ("span", ""),
+    ]
 
 
 def test_a_row_with_a_count_opens_exactly_the_texts_it_counted() -> None:
@@ -576,52 +740,50 @@ def test_a_row_with_a_count_opens_exactly_the_texts_it_counted() -> None:
     row with none opens every text at its level."""
     rungs = story()["where"]["rungs"]
     assert rungs[0]["href"] == "/library?k=k#see/now/level/A1"
-    assert rungs[2]["href"] == "/library?k=k#see/now/level/B1"
-    assert rungs[3]["href"] == "/library?k=k#see/level/B2%2B"
+    assert rungs[3]["href"] == "/library?k=k#see/now/level/B2"
+    assert rungs[4]["href"] == "/library?k=k#see/level/C1", "above the words: no count"
 
 
-def test_the_headline_at_b2_and_up_reads_as_a_sentence() -> None:
-    ladder = [dict(rung, state="easy") for rung in LADDER["ladder"]]
-    ladder[3]["state"] = "next"
-    drawn = story(ladder=ladder, here=2, next=3)["where"]
-    assert drawn["head"] == "You can read B1 texts on your own."
-    assert drawn["step"] == "Your next step is texts at B2 and up."
-
-
-def test_no_percentage_is_drawn_in_the_level_section() -> None:
-    """David, 2026-10-28: "no percentages anywhere"."""
+def test_no_percentage_is_drawn_in_the_level_card_or_ladder() -> None:
+    """The card and the ladder are counts; only Words you knew says a percentage."""
     for drawn in (story()["where"], week_one()["where"]):
-        said = [drawn[key] for key in ("head", "step", "known", "go", "note", "foot")]
+        said = [drawn[key] for key in ("head", "step", "known", "go", "note")]
         said += [rung["text"] for rung in drawn["rungs"]]
         if drawn["toward"]:
-            said += [drawn["toward"]["next"]]
+            said += [drawn["toward"]["line"], drawn["toward"]["valuetext"]]
+        if drawn["mark"]:
+            said += list(drawn["mark"].values())
         assert not [line for line in said if "%" in line], said
 
 
-def test_week_one_says_where_to_start_and_names_no_level() -> None:
+def test_week_one_keeps_the_bar_and_the_words_to_aleph() -> None:
+    """Under aleph: "Start with beginner texts.", the bar and "148 words to א׳", and
+    "Start learning", which opens the first beginner conversation (David, 2026-10-29)."""
     drawn = week_one()["where"]
+    assert drawn["mark"] is None
     assert drawn["head"] == "Start with beginner texts."
-    assert drawn["step"] == "Conversations use the most common words, so they're a good first pick."
-    assert drawn["known"] == "You've marked 86 words as known so far."
-    assert drawn["go"] == "Open a conversation"
+    assert drawn["step"] == "" and drawn["known"] == ""
+    assert drawn["toward"]["line"] == "148 words to א׳"
+    assert drawn["go"] == "Start learning"
     assert drawn["goHref"] == "/library?k=k#see/kind/dialogue"
-    assert drawn["foot"] == "" and drawn["toward"] is None
-    assert [rung["said"] for rung in drawn["rungs"]] == ["Your next step"] + ["Not yet"] * 3
+    assert [rung["said"] for rung in drawn["rungs"]] == [
+        "Next",
+        "1,712 words to go",
+        "3,688 words to go",
+        "4,874 words to go",
+        "6,530 words to go",
+        "8,046 words to go",
+        "",
+    ]
 
 
 def test_week_one_without_conversations_opens_the_first_level() -> None:
     drawn = week_one(conversations=False)["where"]
-    assert drawn["step"] == ""
     assert drawn["go"] == "Show texts at this level"
     assert drawn["goHref"] == "/library?k=k#see/level/A1"
 
 
-def test_one_word_marked_is_said_in_the_singular() -> None:
-    assert week_one(known=1)["where"]["known"] == "You've marked 1 word as known so far."
-
-
-def test_the_top_rung_has_no_next_step_and_no_bar() -> None:
-    ladder = [dict(rung, state="easy") for rung in LADDER["ladder"]]
+def test_the_top_rung_has_no_bar_and_no_number() -> None:
     level = {
         "scale": "ulpan",
         "letter": "ו",
@@ -629,23 +791,12 @@ def test_the_top_rung_has_no_next_step_and_no_bar() -> None:
         "cefr": "C2",
         "next": None,
         "toward": None,
+        "toGo": None,
     }
-    drawn = story(ladder=ladder, here=3, next=None, level=level)["where"]
-    assert drawn["head"] == "You can read texts at B2 and up on your own."
-    assert drawn["step"] == "That's the hardest level in the Library."
+    drawn = story(level=level)["where"]
+    assert drawn["mark"]["big"] == "ו׳" and drawn["mark"]["cefr"] == "About C2"
     assert drawn["toward"] is None
-    assert drawn["foot"].startswith(
-        "In ulpan terms you're at vav (ו׳), about C2 on the European scale."
-    )
-
-
-def test_hebrew_says_both_scales_in_one_foot_line_with_the_letter_in_its_direction() -> None:
-    drawn = story()["where"]
-    assert drawn["foot"] == (
-        "In ulpan terms you're at gimel (ג׳), about B1 on the European scale. "
-        "Ulpan is Israel's Hebrew course for new immigrants, and its classes run from aleph to vav."
-    )
-    assert drawn["footLetter"] == {"text": "ג׳", "dir": "rtl", "lang": "he"}
+    assert drawn["go"] == "Show texts you can read now"
 
 
 def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
@@ -655,42 +806,21 @@ def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
         name="aleph plus",
         cefr="A1",
         next={"letter": "ב", "name": "bet"},
+        toGo=412,
     )
     drawn = story(level=level)["where"]
-    assert drawn["footLetter"]["text"] == "א׳+"
-    assert drawn["foot"].startswith(
-        "In ulpan terms you're at aleph plus (א׳+), about A1 on the European scale."
+    assert drawn["mark"]["big"] == "א׳+"
+    assert drawn["mark"]["spoken"] == "Ulpan level aleph plus,"
+    assert drawn["toward"]["line"] == "412 words to ב׳"
+    plus_next = story(
+        level={**level, "letter": "א", "next": {"letter": "א+", "name": "aleph plus"}}
     )
-    assert drawn["toward"]["next"] == "Next: bet ב׳"
+    assert plus_next["where"]["toward"]["letter"]["text"] == "א׳+"
 
 
-def test_the_bar_toward_the_next_rung_prints_no_number() -> None:
-    """The bar is a picture of the Next line and nothing a screen reader says
-    (targum-internal#554, qa on targum#978): no role, no value to come out as "12
-    percent", no name that repeats the Next line. The Next line is said once, as text."""
-    toward = story()["where"]["toward"]
-    assert toward == {
-        "next": "Next: dalet ד׳",
-        "label": None,
-        "said": None,
-        "now": None,
-        "role": None,
-        "nextHidden": None,
-        "width": "12%",
-    }
-
-
-def test_the_bar_is_hidden_from_a_screen_reader_and_its_words_are_gone() -> None:
-    template = (HARNESS.parents[2] / "src/targum/render/templates/progress.html.j2").read_text(
-        encoding="utf-8"
-    )
-    assert '<div class="level-bar" id="level-bar" aria-hidden="true">' in template
-    for language in ("en", "ru"):
-        path = HARNESS.parents[2] / "src/targum/strings" / f"{language}.json"
-        assert "progress.level.toward" not in json.loads(path.read_text(encoding="utf-8"))
-
-
-def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
+def test_the_european_scale_leads_with_itself() -> None:
+    """French, Russian and Italian lead with the CEFR level, no second scale, words to the
+    next CEFR rung."""
     level = {
         "scale": "cefr",
         "letter": "B1",
@@ -698,16 +828,22 @@ def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
         "cefr": "",
         "next": {"letter": "B2", "name": "B2"},
         "toward": 0.4,
+        "toGo": 237,
     }
     drawn = draw(
         {"targum:vocab:fr": vocab(known=3)}, chosen="fr", story={**LADDER, "level": level}
     )["where"]
-    assert (
-        drawn["foot"]
-        == "On the European scale you're about B1. It runs from A1, for beginners, to C2."
-    )
-    assert drawn["footLetter"] is None
-    assert drawn["toward"]["next"] == "Next: B2"
+    assert drawn["mark"] == {
+        "spoken": "",
+        "big": "B1",
+        "lang": "",
+        "dir": "",
+        "hidden": "",
+        "cefr": "",
+    }
+    assert drawn["toward"]["line"] == "237 words to B2"
+    assert drawn["toward"]["letter"] is None
+    assert drawn["toward"]["valuetext"] == "Toward B2"
 
 
 def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
@@ -788,7 +924,7 @@ def test_yiddish_has_no_library_so_what_next_is_what_you_bring() -> None:
 def test_signed_out_the_story_says_what_signing_in_would_show() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)})
     assert drawn["where"]["head"] == "Sign in to see which texts you can read on your own."
-    assert not drawn["where"]["shown"] and drawn["where"]["foot"] == ""
+    assert not drawn["where"]["shown"] and drawn["where"]["mark"] is None
     assert drawn["next"]["metEmpty"].startswith("Sign in")
 
 
@@ -979,11 +1115,12 @@ def test_the_upload_row_stacks_its_aside_on_a_phone() -> None:
 
 
 def test_a_reading_point_rings_round_not_square() -> None:
-    """Polish 11: the outline drew a square box round an 8px dot. The ring is the dot's
-    own stroke, in the focus colour."""
-    ring = _rule(".reading .reading-point:focus-visible")
-    assert "outline: none" in ring
+    """Polish 11: the outline drew a square box round an 8px dot. The point the arrows are
+    on rings with the dot's own stroke, in the focus colour; the line itself is the one
+    tab stop and carries the focus ring (design.md §12, "Your level, v3")."""
+    ring = _rule(".reading .reading-point.on")
     assert "stroke: var(--focus)" in ring
+    assert "outline: 2px solid var(--focus)" in _rule(".reading .chart svg:focus-visible")
 
 
 def test_a_tip_with_no_room_above_goes_under_its_point() -> None:
@@ -1048,7 +1185,7 @@ def test_aramaic_rungs_are_said_without_a_link_count_or_level() -> None:
     assert [rung["state"] for rung in where["rungs"]] == ["easy", "next"]
     assert not any(rung.get("href") for rung in where["rungs"])
     assert [rung["count"] for rung in where["rungs"]] == ["", ""]
-    assert where["foot"] == ""
+    assert where["mark"] is None and where["toward"] is None
 
 
 def test_aramaic_week_one_starts_with_onkelos() -> None:
