@@ -2581,8 +2581,9 @@ def test_the_language_switcher_offers_only_the_readers_own_languages() -> None:
     every visitor who had never touched it — against what lang.js says it does.
     """
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
-    building = source[source.index("var all = [lang.HOME]") :]
-    building = building[: building.index("lang.order")]
+    # Asked again when `/readers` answers, after the first draw (targum-internal#557).
+    building = source[source.index("function languagesHad()") :]
+    building = building[: building.index("return had;")]
 
     assert "catalogue" not in building, "the catalogue must not widen the switcher"
     assert "readers" in building and "kept()" in building
