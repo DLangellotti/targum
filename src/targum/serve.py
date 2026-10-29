@@ -7897,7 +7897,7 @@ class Handler(BaseHTTPRequestHandler):
             holding = self.store.playlists_holding(person.id)
             for reader in (*mine, *shared):
                 reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
-        catalogue = (query.get("catalogue") or [""])[0] != "0"
+        catalogue = "0" not in query.get("catalogue", [])
         self._json(
             {
                 "readers": mine,
