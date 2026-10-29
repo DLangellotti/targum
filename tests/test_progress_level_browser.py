@@ -467,7 +467,7 @@ def a_record() -> dict[str, Any]:
     )
 
 
-@pytest.mark.parametrize("width", [1440, 390])
+@pytest.mark.parametrize("width", [1440, 1024, 390])
 def test_two_even_columns_at_a_desk_and_one_on_a_phone(chromium: Any, width: int) -> None:
     """At a desk the card with the chart under it on the left and the ladder on the right,
     even, ending at about the same height; on a phone, card, ladder, chart."""
@@ -481,6 +481,9 @@ def test_two_even_columns_at_a_desk_and_one_on_a_phone(chromium: Any, width: int
         if shots:
             page.screenshot(path=f"{shots}/level-layout-{width}.png", full_page=True)
         lead, ladder, reading = seen["lead"], seen["ladder"], seen["reading"]
+        assert page.evaluate(
+            "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+        ), "nothing sideways"
         if width > 1000:
             assert lead[0] < ladder[0] and abs(lead[1] - ladder[1]) <= 1, seen
             assert abs(lead[2] - ladder[2]) <= 2, "two even columns"
