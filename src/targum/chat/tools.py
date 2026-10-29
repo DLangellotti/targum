@@ -2796,7 +2796,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "words": words,
         "minutes": max(1, round(words / 130)),
         **shares,
-        "known_share": None if known is None else round(known, 2),
+        "known_share": level_module.page_share(known),
         "known_line": level_module.known_line(known),
         "advice": advice,
         "quote_with": url,
@@ -3138,7 +3138,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "seconds": round(item.seconds) if item.seconds else 0,
                 "has_transcript": bool(item.transcript),
                 "licence": publisher.licence,
-                "known_share": None if known is None else round(known, 2),
+                "known_share": level_module.page_share(known),
             }
             if topics:
                 row["topics"] = list(topics)

@@ -621,6 +621,15 @@ def known_percent(share: float | None) -> int | None:
     return percent
 
 
+def page_share(share: float | None) -> float | None:
+    """The share a payload carries to a page or a model: the percentage `known_percent`
+    shows, over a hundred. Rounded to two places on its own, 0.996 arrived as 1.0 and a
+    page said 100%, and 0.004 said 0% (qa on targum#993). Sent this way, every path that
+    turns it back into a percentage lands on the one `known_percent` said."""
+    percent = known_percent(share)
+    return None if percent is None else percent / 100
+
+
 def known_line(share: float | None) -> str:
     """The share said the way the page says it: "You know 72% of the words here." An exact
     percentage with no "about", never a count in ten or a level (David, 2026-10-29,

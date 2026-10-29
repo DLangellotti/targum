@@ -494,13 +494,16 @@
     if (job.stage === "ready") facts.push(wait(job));
     meta.textContent = facts.join(" · ");
     card.appendChild(meta);
-    // How much of it the reader already has, in words, never a percentage or a level
-    // (targum-internal#244). Absent where it was not measured.
+    // How much of it the reader already has, as an exact percentage, never a level
+    // (targum-internal#244, #560). Absent where it was not measured. The server's line,
+    // which applied the rule to the unrounded share; said again here only in a page
+    // language the server's English is not.
     if (job.known_line) {
       var known = document.createElement("p");
       known.className = "quote-known";
-      var line = knownLine(job.known_share);
-      known.textContent = line || job.known_line;
+      var strings = window.TargumStrings;
+      var foreign = strings && strings.language && strings.language !== "en";
+      known.textContent = (foreign && knownLine(job.known_share)) || job.known_line;
       card.appendChild(known);
     }
     // A silent text can be read aloud once it is built (targum-internal#246). One line

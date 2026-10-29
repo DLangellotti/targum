@@ -3313,6 +3313,15 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
     measured = Job(id="j", source="x", known_share=0.734)
     assert measured.state()["known_share"] == 0.73
     assert measured.state()["known_line"] == "You know 73% of the words here."
+    # Never rounded into a lie on the way to the page (qa on targum#993).
+    nearly = Job(id="n", source="x", known_share=0.996).state()
+    assert (
+        nearly["known_share"] == 0.99 and nearly["known_line"] == "You know 99% of the words here."
+    )
+    barely = Job(id="b", source="x", known_share=0.004).state()
+    assert (
+        barely["known_share"] == 0.01 and barely["known_line"] == "You know 1% of the words here."
+    )
     unmeasured = Job(id="k", source="x")
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 

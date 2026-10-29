@@ -480,3 +480,12 @@ def test_the_european_scale_counts_its_commonest_words_one_by_one() -> None:
     assert words_to(reader, 2400) == 237
     assert words_to(reader, 2750) == 587
     assert words_to(Level("yi", 0, 0, 0.0, None, None, 0, 0, 0, 0, 0), 250) == 0
+
+
+def test_the_payload_share_is_the_shown_percentage() -> None:
+    """qa on targum#993: rounded to two places, 0.996 reached a page as 1.0 and showed
+    100%. The payload carries the percentage `known_percent` said, over a hundred."""
+    assert level.page_share(0.996) == 0.99
+    assert level.page_share(0.004) == 0.01
+    assert level.page_share(1.0) == 1.0 and level.page_share(0.0) == 0.0
+    assert level.page_share(None) is None

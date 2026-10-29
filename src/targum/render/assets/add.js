@@ -1733,8 +1733,8 @@
       body.push(line);
     }
 
-    // How much of it this reader already has, in words and never a percentage or a
-    // level — the same sentence the quote card says (targum-internal#244).
+    // How much of it this reader already has, as an exact percentage and never a level:
+    // the same sentence the quote card says (targum-internal#244, #560).
     var known = bringing && bringing.knownLine ? bringing.knownLine(said.known_share) : "";
     if (known) {
       var mine = document.createElement("p");
