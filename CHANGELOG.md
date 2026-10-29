@@ -425,6 +425,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   when a page is over or records no LCP. Only GETs leave, nothing signs in, and its
   user agent ends in `targum-speed-pass`, which the visitor count now drops.
   deploy/README.md says when to run it: after a deploy that touches the public pages.
+- `scripts/speed_pass.py` measures the signed-in pages too (targum-internal#552), as the
+  box's test account and never a reader's (David's word to sign in from a script,
+  2026-10-28). `--sign-in <link> --state <file>` opens a test account's one-time link and
+  presses its button, the run's only POST; `--state` then loads home, Subscriptions, the
+  signed-in Library and two readers (through `/open/`, which never builds), and under each
+  line prints the server's time for the page, the main thread's, when the last fetch came
+  back, and when the page's `<main>` was shown: home hides its main until its script has
+  drawn it, so its LCP can be the footer's line. `--warm` measures a second load with the
+  files kept, through DevTools' own interception, because Playwright's routing turns the
+  HTTP cache off. The sign-out, which empties a test account, is refused whatever its
+  method, and service workers are blocked so no request passes the guard. The sign-in
+  runs under the same guard, letting through only its POST to `/account/enter`;
+  `--expect <address>` stops before the press when the link names another address; the
+  state file is created owner-only, and a `--state` path inside the checkout is refused.
 - Your Progress has every §14 state pinned in a browser (targum-internal#471):
   `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
   (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at

@@ -163,8 +163,22 @@ signs in, and its user agent ends in `targum-speed-pass`, which the visitor coun
 It takes about five minutes for the eight pages, and it is a heavy browser run, so it
 takes the shared lock like any other.
 
-The signed-in surfaces are not in it: measuring them needs a test account and David's
-word to sign in from a script.
+The signed-in surfaces (home, Subscriptions, the signed-in Library and two readers) are
+measured as the test account, and never as a reader (targum-internal#552; David's word to
+sign in from a script, 2026-10-28). Mint the link on the box as above, sign in once, and
+measure; the state file is a credential, so keep it out of the tree and delete it after:
+
+```
+.venv/bin/python scripts/speed_pass.py --sign-in "<link>" --state /tmp/state.json --expect <address>
+.venv/bin/python scripts/speed_pass.py --state /tmp/state.json            # first visits
+.venv/bin/python scripts/speed_pass.py --state /tmp/state.json --warm     # files kept
+```
+
+The `--sign-in` press is the run's only POST; afterwards every POST is aborted again, the
+sign-out (which empties a test account) included, and readers are opened through `/open/`,
+which never builds. Under each signed-in line it prints the server's time for the page,
+the main thread's time and when the last fetch came back, so the likely cause sits beside
+the figure.
 
 ## Backups off the box
 
