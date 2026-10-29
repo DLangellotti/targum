@@ -6471,7 +6471,9 @@ def render(
                         sound = (
                             ipa,
                             guessed(
-                                said_as, ipa, pointed=_pointed_word(pointed, sid, token, to_bare)
+                                said_as,
+                                ipa,
+                                pointed=_pointed_word(pointed, sid, token, to_bare, bare),
                             ),
                         )
                     elif token.start in heard:
@@ -7618,7 +7620,11 @@ def _write(path: Path, html: str) -> Path:
 
 
 def _pointed_word(
-    pointed: Mapping[str, str], sid: str, token: Token, to_bare: Mapping[str, list[int]]
+    pointed: Mapping[str, str],
+    sid: str,
+    token: Token,
+    to_bare: Mapping[str, list[int]],
+    bare: Mapping[str, str],
 ) -> str:
     """The word as the reader shows it pointed, for `pronounce.guessed`; "" where the
     segment has no pointing or the token falls outside it."""
@@ -7626,7 +7632,7 @@ def _pointed_word(
     if not line or sid not in to_bare:
         return ""
     start, end = map_span(token.start, token.end, to_bare[sid])
-    positions = _positions(line)
+    positions = _positions(line, bare.get(sid, ""))
     if end >= len(positions):
         return ""
     first, last = map_span(start, end, positions)
@@ -7634,8 +7640,9 @@ def _pointed_word(
 
 
 @lru_cache(maxsize=256)
-def _positions(line: str) -> list[int]:
-    """Kept for the few lines being rendered now, not the whole shelf (the box is 7.7 GB)."""
-    from ..vocalize import pointed_positions
+def _positions(line: str, bare: str) -> list[int]:
+    """Kept for the few lines being rendered now, not the whole shelf (the box is 7.7 GB).
+    Aligned on the bare line, since a scene's pointed line may have fewer letters (#568)."""
+    from ..vocalize import aligned_positions
 
-    return pointed_positions(line)
+    return aligned_positions(line, bare)

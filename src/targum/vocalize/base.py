@@ -100,6 +100,49 @@ def pointed_positions(text: str) -> list[int]:
     return positions
 
 
+def aligned_positions(text: str, bare: str) -> list[int]:
+    """Where each index of `bare` sits in `text`, where the two need not share letters.
+
+    `pointed_positions` with a fallback. A scene's pointed line is in standard ktiv
+    menukad and its plain line in full spelling (targum-internal#568), so חִבּוּר stands
+    for חיבור: one letter fewer, and offsets measured on the plain line would land a
+    letter early for every mater the pointing drops. So the two are walked together. A
+    letter both have maps to itself; a letter the pointed line left out maps to the next
+    one it kept, so a span ending on it still ends at the word's end; a letter it wrote
+    differently (אסטמה → אַסְתְּמָה) maps across one for one; and a space puts both back
+    in step, so one word's difference never reaches the next. Where the letters agree,
+    which is every text but a scene's, this is `pointed_positions` exactly.
+
+    Mirrored by `alignMap` in reader.js, which draws the browser's spans the same way.
+    """
+    positions = pointed_positions(text)
+    letters = [text[at] for at in positions[:-1]]
+    if "".join(letters) == bare:
+        return positions
+    out: list[int] = []
+    j = 0
+    for k, char in enumerate(bare):
+        here = letters[j] if j < len(letters) else ""
+        if here == char:
+            out.append(positions[j])
+            j += 1
+        elif char.isspace():
+            while j < len(letters) and not letters[j].isspace():
+                j += 1
+            out.append(positions[j])
+            if j < len(letters):
+                j += 1
+        elif here.isspace() or not here:
+            out.append(positions[j])
+        elif k + 1 < len(bare) and bare[k + 1] == here:
+            out.append(positions[j])
+        else:
+            out.append(positions[j])
+            j += 1
+    out.append(len(text))
+    return out
+
+
 def map_span(start: int, end: int, index: list[int]) -> tuple[int, int]:
     """Move one [start, end) span through either map above."""
     return index[start], index[end]

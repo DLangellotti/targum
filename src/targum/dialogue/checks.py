@@ -351,6 +351,11 @@ def inconsistent_pointing(scenes: dict[str, list[str]], least: int = 2) -> list[
 
 SEGOL, TSERE, HIRIQ, HOLAM = "ֶ", "ֵ", "ִ", "ֹ"
 
+#: The kinds that are the diacritizer's and not the writer's: a scene generator puts them
+#: through `dialogue.spelling.repair` and never sends them back to the writer, who writes
+#: without points (qa on #986). Every other kind is about the words.
+POINTING_KINDS = frozenset({"nikkud", "pointing", "homograph"})
+
 #: The letters a prefix can be: the article's ה, the prepositions, the conjunction, שֶׁ.
 PREFIX_LETTERS = "ובכלמשה"
 

@@ -452,6 +452,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so the B1 generator refuses on them. Together they find all 16 of the audit's P0s and 59
   of its 61 hand-read pointing findings; the two missed are judgements (לַקָּפֶה for an
   invitation, לְצָפוֹן said latsafon).
+- Scenes keep two spellings (targum-internal#568). A turn's `text` stays the full
+  spelling, which the plain cell, the voice, the taps and the audio clocks all read, and a
+  new `pointed` holds standard ktiv menukad for the pointed cell. A scene without one has
+  it derived by the normaliser at build, so the 127 scenes read correctly with no file
+  touched. The build takes a scene's pointed cells from the scene itself
+  (`dialogue/spelling.py`). A pointed line still in full spelling, missing a vav no rule
+  removes, or out of step with its text word for word builds that scene without vowels
+  and says why. Offsets cross between the two spellings by alignment rather than by
+  counting letters: `vocalize.aligned_positions` in the build (pronunciations, the
+  printed page) and `alignMap` in reader.js (taps, glosses, phrases, audio words). A test
+  holds the two to the same answer. Over the 127 scenes: 2,397 pointed lines, 877 whose
+  letters now differ from their text, 0 words landing on the wrong word, and 0
+  differences between the browser's map and the build's. `spelling.repair` is where a
+  generator sends `pointing` and `homograph` findings instead of back to the writer. The
+  private writer keeps every turn's `said` (the Russian) and the scene's `named` and
+  `glossed` across a rewrite, and stores both spellings. `python -m targum.vocalize.menukad
+  --pointed --out DIR` fills `pointed` in scene files.
 - `scripts/speed_pass.py`, a read-only speed pass on the live public pages for design.md
   §14 line 5 (targum-internal#551, from builder-3's pass of 2026-10-28). It loads the
   landing, the Library, three text and scene pages, /about, /privacy and /terms cold on a

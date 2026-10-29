@@ -53,7 +53,7 @@ from ..models import (
     shown,
 )
 from ..translate.prompts import BESIDE, language_name
-from ..vocalize import has_taamim, pointed_positions, strip_nikkud, strip_taamim
+from ..vocalize import aligned_positions, has_taamim, strip_nikkud, strip_taamim
 from .builder import (
     BIBLICAL_FACE,
     MODERN_FACE,
@@ -306,9 +306,9 @@ def _marked(
     carried through its bare letters onto `shown`. A meaning is set above a word the
     first time it comes in the chapter (`seen`): the second time, the reader has it."""
     bare, to_bare = strip_nikkud(text)
-    if strip_nikkud(shown)[0] != bare:
-        return None
-    onto = pointed_positions(shown)
+    # A scene's pointed line may spell a word with fewer letters (#568); aligned, its
+    # marks still land on their words.
+    onto = aligned_positions(shown, bare)
     spans: list[tuple[int, int, int, str]] = []
     for token in sorted(tokens, key=lambda one: one.start):
         if token.end > len(text):
