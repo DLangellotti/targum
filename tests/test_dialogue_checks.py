@@ -215,3 +215,90 @@ def test_the_impersonal_you_is_not_a_disagreement() -> None:
     assert list(cast_disagrees(line, 23, "f", "78-the-driving-test")) == []
     # The same line anywhere else is still a finding.
     assert list(cast_disagrees(line, 23, "f", "99-somewhere-else")) != []
+
+
+# ------------------------------------------------------------- #563, ling-he's patterns
+#
+# Made-up words and phrases, never a scene's line: the scenes are proprietary. Recall on
+# the scenes themselves is measured outside this repository and reported on the card.
+
+from targum.dialogue.checks import (  # noqa: E402
+    addressee_disagrees,
+    article_without_dagesh,
+    bit_without_dagesh,
+    check_turn,
+    homographs,
+    present_gender,
+    second_feminine_shva,
+    speaker_disagrees,
+    spurious_dagesh,
+)
+
+
+def test_second_feminine_shva() -> None:
+    assert len(list(second_feminine_shva("קָנִיתְ וְרָאִיתְ", 0))) == 2
+    assert list(second_feminine_shva("קָנִית, אָמַרְתְּ, הָיִיתִי", 0)) == []
+
+
+def test_article_without_dagesh() -> None:
+    assert len(list(article_without_dagesh("בַּצֵל וְלַקוּרְס", 0))) == 2
+    for fine in ("בַּצֵּל", "הַמְלַמֵּד", "בַּיִת", "הָאִישׁ", "בַּחוּץ", "בַּוַואטְסְאַפּ", "כַּף"):
+        assert list(article_without_dagesh(fine, 0)) == [], fine
+
+
+def test_spurious_dagesh() -> None:
+    assert len(list(spurious_dagesh("בְּגַּן תִּשְׁלְּחִי תֵּרְדִּי", 0))) == 3
+    for fine in ("שְׁתַּיִם", "יָכֹלְתִּי", "מִשְׁפָּחָה", "בְּבִּיט", "שֶׁלְּךָ", "מַלְכָּה"):
+        assert list(spurious_dagesh(fine, 0)) == [], fine
+
+
+def test_bit_takes_its_dagesh() -> None:
+    assert len(list(bit_without_dagesh("בְּבִיט וּבִיט", 0))) == 2
+    assert list(bit_without_dagesh("בְּבִּיט בִּיט", 0)) == []
+
+
+def test_a_homograph_is_flagged_only_where_the_english_asks_for_the_other_word() -> None:
+    assert [f.fix for f in homographs("תַּחְתֹּם פֶּה", "Sign here.", 0)] == ["פֹּה"]
+    assert list(homographs("פְּתַח אֶת הַפֶּה", "Open your mouth.", 0)) == []
+    assert len(list(homographs("עַל אֵיזֶה שָׁם", "Under what name?", 0))) == 1
+    assert list(homographs("הוּא גָּר שָׁם", "He lives there.", 0)) == []
+    assert len(list(homographs("לִפְנֵי חוֹדָשַׁיִם", "", 0))) == 1  # no such word
+    assert len(list(homographs("תְּשַׁלְּחִי הוֹדָעָה", "Send a message.", 0))) == 1
+    assert list(homographs("תִּשְׁלְחִי הוֹדָעָה", "Send a message.", 0)) == []
+
+
+def test_present_gender_reads_the_points() -> None:
+    assert [present_gender(w) for w in ("רוֹצֶה", "רוֹצָה", "כּוֹתֵב", "כּוֹתֶבֶת")] == [
+        "m",
+        "f",
+        "m",
+        "f",
+    ]
+    assert [present_gender(w) for w in ("מְקַוֶּה", "נִרְאֵית", "יוֹתֵר", "בַּיִת")] == [
+        "m",
+        "f",
+        "",
+        "",
+    ]
+
+
+def test_the_speaker_check_wants_the_cast_gender() -> None:
+    assert len(list(speaker_disagrees("אֲנִי לֹא רוֹצֶה", "I don't want to.", 0, "f"))) == 1
+    assert list(speaker_disagrees("אֲנִי לֹא רוֹצָה", "I don't want to.", 0, "f")) == []
+    # The object of another verb is not the speaker's present.
+    assert list(speaker_disagrees("אֲנִי אָבִיא כּוֹתֵב", "I'll bring a writer.", 0, "f")) == []
+    # Dropped אני, and the English says I'm.
+    assert len(list(speaker_disagrees("עוֹלָה.", "I'm coming up.", 0, "m"))) == 1
+
+
+def test_the_addressee_check_without_a_pronoun() -> None:
+    assert len(list(addressee_disagrees("נִרְאֵית עָיֵף.", "You look tired.", 0, "m"))) == 1
+    assert len(list(addressee_disagrees("תָּבוֹא מָחָר.", "Come tomorrow.", 0, "f"))) == 1
+    assert list(addressee_disagrees("תָּבוֹאִי מָחָר.", "Come tomorrow.", 0, "f")) == []
+    assert list(addressee_disagrees("תּוֹדָה.", "Thank you.", 0, "m")) == []
+
+
+def test_the_new_kinds_are_not_ones_a_generator_files_as_notes() -> None:
+    """The B1 generator files `nikkud` as a note and drops `gender`; these refuse."""
+    found = check_turn("אֲנִי רוֹצֶה פֶּה", "I want it here.", 0, "m", speaker="f")
+    assert {f.kind for f in found} == {"speaker", "homograph"}

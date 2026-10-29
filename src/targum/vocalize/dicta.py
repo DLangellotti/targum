@@ -40,6 +40,7 @@ middle of a build: a machine without them points with Nakdimon and says so.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -113,6 +114,8 @@ def assemble(
     shin: Sequence[int],
     classes: Sequence[str],
     shin_classes: Sequence[str],
+    *,
+    drop_matres: bool = False,
 ) -> str:
     """The pointed text from the model's per-token answers, walking the input.
 
@@ -121,17 +124,34 @@ def assemble(
     extra pieces — has none. Every character of `text` is written exactly once, whatever
     the tokenizer did to it, and a letter with no token (past the truncation ceiling) is
     written bare.
+
+    `drop_matres` writes standard ktiv menukad instead (targum-internal#563): a letter the
+    model reads as a mater lectionis is left out rather than left bare, so יופי comes back
+    יֹפִי and not יֹופִי, while שָׁלוֹם and הוּא, whose vav the model reads as a vowel
+    letter that stays, keep it. A borrowed word keeps every letter (`menukad.kept`). The
+    letters change, so this is never what `splice` is handed: it is for a caller that
+    keeps the plain text apart from the pointed.
     """
     token_of: dict[int, int] = {}
     for token, (start, end) in enumerate(offsets):
         if end - start == 1:
             token_of.setdefault(start, token)
+    borrowed: set[int] = set()
+    if drop_matres:
+        from .menukad import kept
+
+        for word in re.finditer(r"[\u05d0-\u05ea'\u05f3]+", text):
+            if kept(word.group(0)):
+                borrowed.update(range(word.start(), word.end()))
     out: list[str] = []
     for at, char in enumerate(text):
-        out.append(char)
         index = token_of.get(at)
         if index is None or ord(char) not in LETTERS:
+            out.append(char)
             continue
+        if drop_matres and classes[nikud[index]] == MAT_LECT and at not in borrowed:
+            continue
+        out.append(char)
         if char == "ש":
             out.append(shin_classes[shin[index]])
         marks = classes[nikud[index]]
@@ -155,10 +175,16 @@ def infer(
     )
 
 
-def point(model: Any, tokenizer: Any, text: str) -> str:
+def point(model: Any, tokenizer: Any, text: str, *, drop_matres: bool = False) -> str:
     offsets, nikud, shin = infer(model, tokenizer, text)
     return assemble(
-        text, offsets, nikud, shin, model.config.nikud_classes, model.config.shin_classes
+        text,
+        offsets,
+        nikud,
+        shin,
+        model.config.nikud_classes,
+        model.config.shin_classes,
+        drop_matres=drop_matres,
     )
 
 
