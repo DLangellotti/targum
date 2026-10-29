@@ -38,6 +38,8 @@ class Entry:
     named: dict[str, str] = field(default_factory=dict)
     sentence: float = 0.0
     minutes: int = 0
+    #: Long enough to be placed Native by the measure (`levelmap.NATIVE_MIN_WORDS`).
+    words: int = 1000
 
 
 def shelf() -> list[Entry]:
