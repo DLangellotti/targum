@@ -1134,6 +1134,22 @@ class Build:
             return None
         self.notify("Adding vowel points…")
         path = self.resolved_out / "vocalization.json"
+        if str(self.source).startswith("dialogue:") and segmented.language.startswith("he"):
+            # A scene carries its own pointed lines, in standard ktiv menukad beside the
+            # full spelling of its text (targum-internal#568). Read from the scene every
+            # build, uncached: it is a file read and a normaliser pass, and a corrected
+            # pointing with the text unchanged must still reach the page.
+            from .dialogue import index as dialogue_index
+            from .dialogue import spelling
+
+            try:
+                scene = dialogue_index.load(str(self.source).removeprefix("dialogue:"))
+                vocalization = spelling.vocalization(scene, segmented)
+            except TargumError as error:
+                self.notify(f"{error.message} {error.hint} Building without vowel points.")
+                return None
+            vocalization.write(path)
+            return vocalization
 
         engine = self._vocalizer
         if keeps_its_own_pointing(self.source):

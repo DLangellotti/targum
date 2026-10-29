@@ -374,6 +374,8 @@ process.stdout.write(
     pageFor: payload.pageFor
       ? reader.pageFor(payload.pageFor.index, payload.pageFor.pages)
       : null,
+    // A pointed line mapped onto the plain one it stands for (targum-internal#568).
+    align: (payload.align || []).map((pair) => reader.alignMap(pair[0], pair[1])),
     // The first-time line under the bar, after everything above.
     first: { hidden: Boolean(byId.first.hidden), text: byId.first.textContent },
     // What the page says you know of this text: the bar's "N of M known" and the list's

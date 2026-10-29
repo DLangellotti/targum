@@ -462,6 +462,45 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Pointed Hebrew in standard ktiv menukad, and four kinds of scene check from ling-he's
+  audit of 2026-10-29 (targum-internal#563). `vocalize/menukad.py` turns full spelling under
+  points into the standard spelling (חִיבּוּר → חִבּוּר, בּוֹקֶר → בֹּקֶר, and the menaked's
+  mixed יֹופִי → יֹפִי): sixteen named rules, an exceptions list (הָיִיתִי, plural ־ִיִּים,
+  consonantal vav, loanwords, qtilut nouns, cast names) and a lexicon. It is idempotent,
+  prints every change, and `residue` names what it missed:
+  `python -m targum.vocalize.menukad SCENE.json …` reads only, `--out DIR` writes copies.
+  Over both scene sets it makes 1,191 changes, matches 1,153 of the audit's 1,156
+  mechanical rows (the other three are cast names, kept on purpose), leaves 0 residue and
+  keeps every exception (107 occurrences). The menaked can do the same at the source:
+  `dicta.assemble(drop_matres=True)` drops the letters its head calls matres and keeps
+  שָׁלוֹם and הוּא whole. Neither is wired into a scene yet, because a scene keeps one
+  string and the reader's plain view is that string with the points taken off, so writing
+  defective spelling into it would change the unpointed text too. `dialogue/checks.py`
+  gains a 2fs final shva, a missing dagesh after the article, a dagesh where none can
+  stand, Bit without its dagesh, ten homographs decided by the English (פֶּה for פֹּה,
+  שָׁם for שֵׁם, צִיּוֹן for צִיּוּן …), and the speaker's gender on a present (אֲנִי רוֹצֶה
+  in a woman's mouth) and the listener's where no pronoun says it (נִרְאֵית to a man,
+  תָּבוֹא to a woman). Their kinds are `pointing`, `homograph`, `speaker` and `addressee`,
+  so the B1 generator refuses on them. Together they find all 16 of the audit's P0s and 59
+  of its 61 hand-read pointing findings; the two missed are judgements (לַקָּפֶה for an
+  invitation, לְצָפוֹן said latsafon).
+- Scenes keep two spellings (targum-internal#568). A turn's `text` stays the full
+  spelling, which the plain cell, the voice, the taps and the audio clocks all read, and a
+  new `pointed` holds standard ktiv menukad for the pointed cell. A scene without one has
+  it derived by the normaliser at build, so the 127 scenes read correctly with no file
+  touched. The build takes a scene's pointed cells from the scene itself
+  (`dialogue/spelling.py`). A pointed line still in full spelling, missing a vav no rule
+  removes, or out of step with its text word for word builds that scene without vowels
+  and says why. Offsets cross between the two spellings by alignment rather than by
+  counting letters: `vocalize.aligned_positions` in the build (pronunciations, the
+  printed page) and `alignMap` in reader.js (taps, glosses, phrases, audio words). A test
+  holds the two to the same answer. Over the 127 scenes: 2,397 pointed lines, 877 whose
+  letters now differ from their text, 0 words landing on the wrong word, and 0
+  differences between the browser's map and the build's. `spelling.repair` is where a
+  generator sends `pointing` and `homograph` findings instead of back to the writer. The
+  private writer keeps every turn's `said` (the Russian) and the scene's `named` and
+  `glossed` across a rewrite, and stores both spellings. `python -m targum.vocalize.menukad
+  --pointed --out DIR` fills `pointed` in scene files.
 - `scripts/voice_shelf.py`, which re-voices the whole scene shelf with the #566 pipeline
   (David approved it 2026-10-29: 381 scenes, 5,198 turns). It stops at a spend cap
   (`--cap`, default $30), counted per bought turn with the director included and a

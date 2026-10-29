@@ -67,6 +67,20 @@ class TestAssemble:
         out = dicta.assemble(text, [(0, 0), (0, 1), (0, 0)], [0, 7, 0], [0, 0, 0], CLASSES, SHIN)
         assert out == "אָבג"
 
+    def test_drop_matres_writes_ktiv_menukad(self) -> None:
+        """#563: a letter the head calls a mater is left out, the rest as before."""
+        text = "דיבר שם"
+        nikud = [0, 6, 1, 5, 0, 0, 7, 0, 0]
+        shin = [0, 0, 0, 0, 0, 0, 1, 0, 0]
+        out = dicta.assemble(text, _offsets(text), nikud, shin, CLASSES, SHIN, drop_matres=True)
+        assert normalize("NFC", out) == normalize("NFC", "דִּבֵר שָׂם")
+
+    def test_drop_matres_keeps_a_borrowed_word_whole(self) -> None:
+        text = "מייל"
+        nikud = [0, 5, 1, 0, 0, 0]  # מֵ, mater, י, ל
+        out = dicta.assemble(text, _offsets(text), nikud, [0] * 6, CLASSES, SHIN, drop_matres=True)
+        assert strip_nikkud(out)[0] == text
+
 
 class StubModel:
     """Answers like the menaked's head, from a table, so `point` runs without weights."""

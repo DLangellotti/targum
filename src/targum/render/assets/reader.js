@@ -1853,24 +1853,76 @@ var targumReader = function () {
   // same reason `original` and `cellText` cache where they do. It works unchanged on the
   // accented form because MARK covers accents too: what comes back either way is where
   // the consonants are, and all three cells share those.
+  //
+  // A scene's pointed cell is the one whose letters differ (targum-internal#568): it is
+  // in standard ktiv menukad and its plain cell in full spelling, so חִבּוּר stands for
+  // חיבור. There the map is aligned on the plain text instead of counted (`alignMap`).
   function markMap(cell) {
     if (!cell) return null;
     if (cell.__targumMap === undefined) {
-      var text = cellText(cell);
-      var map = [];
-      for (var i = 0; i < text.length; i++) if (!isMark(text, i)) map.push(i);
-      map.push(text.length);
-      cell.__targumMap = map;
+      cell.__targumMap = alignMap(cellText(cell), plainFor(cell));
     }
     return cell.__targumMap;
   }
 
-  // A position in a pointed cell, back to the bare text it stands for.
+  // The plain text a pointed or unaccented cell stands for, or null for any other cell.
+  function plainFor(cell) {
+    var pair = cell.closest ? cell.closest(".pair") : cell.parentNode;
+    var segmentId = pair && pair.getAttribute ? pair.getAttribute("data-id") : "";
+    if (!segmentId || !cells.plain[segmentId]) return null;
+    if (cell !== cells.pointed[segmentId] && cell !== cells.unaccented[segmentId]) return null;
+    return segmentText(segmentId);
+  }
+
+  // Where each index of `bare` sits in `text`: the base characters in order, or, where
+  // the two do not share their letters, the two walked together. A letter both have maps
+  // to itself; one the pointed line left out maps to the next it kept, so a span ending
+  // there still ends at the word's end; one it wrote differently maps one for one; and
+  // a space puts both back in step. Mirrors `vocalize.aligned_positions`, and a test
+  // runs both on the same lines.
+  function alignMap(text, bare) {
+    var map = [];
+    var letters = [];
+    for (var i = 0; i < text.length; i++) {
+      if (!isMark(text, i)) {
+        map.push(i);
+        letters.push(text[i]);
+      }
+    }
+    map.push(text.length);
+    if (bare === null || bare === undefined || letters.join("") === bare) return map;
+    var space = /\s/;
+    var out = [];
+    var j = 0;
+    for (var k = 0; k < bare.length; k++) {
+      var char = bare[k];
+      var here = j < letters.length ? letters[j] : "";
+      if (here === char) {
+        out.push(map[j]);
+        j++;
+      } else if (space.test(char)) {
+        while (j < letters.length && !space.test(letters[j])) j++;
+        out.push(map[j]);
+        if (j < letters.length) j++;
+      } else if (!here || space.test(here)) {
+        out.push(map[j]);
+      } else if (k + 1 < bare.length && bare[k + 1] === here) {
+        out.push(map[j]);
+      } else {
+        out.push(map[j]);
+        j++;
+      }
+    }
+    out.push(text.length);
+    return out;
+  }
+
+  // A position in a pointed cell, back to the bare text it stands for: the first bare
+  // index the map puts at or past it.
   function toBare(cell, offset) {
-    var text = cellText(cell);
-    var bare = 0;
-    for (var i = 0; i < offset && i < text.length; i++) if (!isMark(text, i)) bare++;
-    return bare;
+    var map = markMap(cell);
+    for (var k = 0; k < map.length; k++) if (map[k] >= offset) return k;
+    return map.length - 1;
   }
 
   // The segment's text without markup, for reading a token's surface back out of it.
@@ -9833,6 +9885,9 @@ var targumReader = function () {
     // The sentence in front of the reader, for the link home: the line a deep link
     // should open on when nothing is being spoken.
     inFront: onScreen,
+    // A pointed line's offsets on the plain one it stands for (targum-internal#568), for
+    // the test that holds it to `vocalize.aligned_positions`.
+    alignMap: alignMap,
   };
 
   /* --- the rest, from reader-rest.js ----------------------------------------
