@@ -411,7 +411,8 @@ what you read, month by month", 2026-09-27) to days and weeks.
   otherwise unrounded. The European scale counts its commonest words one by one, so its
   gap is the number. **No "Roughly", no "more", no rounding to fifties.** Then the one
   press, "Show texts you can read now". No ulpan explainer. At the top rung there is no
-  bar and no number; the press stays.
+  bar and no number; the press stays. The bar stays `aria-hidden` ("See all keeps one
+  level, and the bar is not spoken", below): the words line is what a screen reader hears.
 - **Week one** keeps the bar and "{n} words to א׳" on the "Start with beginner texts."
   card, and its button says **"Start learning"** (David, 2026-10-29), which still opens the
   first beginner conversation.

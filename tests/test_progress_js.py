@@ -692,14 +692,13 @@ def test_the_card_is_the_level_and_nothing_else() -> None:
 
 def test_the_words_to_the_next_rung_are_exact() -> None:
     """ "637 words to ה׳": no "Roughly", no "more", no rounding; the number in bold and the
-    letter in its own right-to-left run. The bar is said in words, never as a figure."""
+    letter in its own right-to-left run. The bar draws the same gap and says nothing (§12,
+    "See all keeps one level, and the bar is not spoken"): the line is what is heard."""
     toward = story()["where"]["toward"]
     assert toward == {
         "line": "637 words to ה׳",
         "number": "637",
         "letter": {"text": "ה׳", "dir": "rtl", "lang": "he"},
-        "valuetext": "Toward hey",
-        "now": "52",
         "width": "52%",
     }
     one = story(level={**LADDER["level"], "toGo": 1})["where"]["toward"]
@@ -750,7 +749,7 @@ def test_no_percentage_is_drawn_in_the_level_card_or_ladder() -> None:
         said = [drawn[key] for key in ("head", "step", "known", "go", "note")]
         said += [rung["text"] for rung in drawn["rungs"]]
         if drawn["toward"]:
-            said += [drawn["toward"]["line"], drawn["toward"]["valuetext"]]
+            said += [drawn["toward"]["line"]]
         if drawn["mark"]:
             said += list(drawn["mark"].values())
         assert not [line for line in said if "%" in line], said
@@ -843,7 +842,6 @@ def test_the_european_scale_leads_with_itself() -> None:
     }
     assert drawn["toward"]["line"] == "237 words to B2"
     assert drawn["toward"]["letter"] is None
-    assert drawn["toward"]["valuetext"] == "Toward B2"
 
 
 def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:

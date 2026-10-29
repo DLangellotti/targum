@@ -271,8 +271,7 @@ SEEN = """() => {
          family: getComputedStyle(big).fontFamily}
       : null,
     bar: shown(bar)
-      ? {role: bar.getAttribute('role'), labelledby: bar.getAttribute('aria-labelledby'),
-         valuetext: bar.getAttribute('aria-valuetext'),
+      ? {role: bar.getAttribute('role'), hidden: bar.getAttribute('aria-hidden'),
          height: box(bar).height, togo: at('level-togo').textContent}
       : null,
     titleSize: document.querySelector('.page-title')
@@ -430,8 +429,8 @@ def test_every_level_state_is_drawn_without_a_percentage(
         elif "togo" in spec:
             assert seen["bar"] is not None
             assert seen["bar"]["togo"] == spec["togo"]
-            assert seen["bar"]["role"] == "progressbar"
-            assert seen["bar"]["labelledby"] == "level-togo" and seen["bar"]["valuetext"]
+            # The bar is not spoken; the words line is, once, as text.
+            assert seen["bar"]["hidden"] == "true" and seen["bar"]["role"] is None
             assert 3 <= seen["bar"]["height"] <= 5, "a thin line"
             if spec.get("language", "he") == "he":
                 assert ["he", "rtl"] in seen["letters"]
