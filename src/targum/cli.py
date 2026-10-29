@@ -1566,6 +1566,26 @@ def _reread_quote(root: Path, languages: set[str], dry_run: bool) -> None:
         raise typer.Abort()
 
 
+def _only(folders: list[Path], names: list[str]) -> list[Path]:
+    """The targums `rebuild --only` names: by folder name, or home/name where the same
+    name sits in more than one home. A name that matches nothing, or a bare name that
+    matches several, stops the run before anything is written."""
+    picked: list[Path] = []
+    for name in names:
+        hits = [
+            folder
+            for folder in folders
+            if name in (folder.name, f"{folder.parent.name}/{folder.name}")
+        ]
+        if not hits:
+            fail(TargumError(f"No targum here is called {name}.", "Name its folder, or home/name."))
+        if len(hits) > 1:
+            homes = ", ".join(f"{folder.parent.name}/{folder.name}" for folder in hits)
+            fail(TargumError(f"{name} is in more than one home: {homes}.", "Name it as home/name."))
+        picked.extend(hit for hit in hits if hit not in picked)
+    return picked
+
+
 def _targums(where: Path) -> list[Path]:
     """Every targum under a library root, whichever home it sits in.
 
@@ -2235,11 +2255,11 @@ def rebuild(
 
     done = 0
     skipped: list[tuple[str, str]] = []
-    picked = set(only or ())
-    for folder in sorted(_targums(root)):
+    folders = sorted(_targums(root))
+    if only:
+        folders = _only(folders, only)
+    for folder in folders:
         if folder.name == "uploads":
-            continue
-        if picked and not picked & {folder.name, f"{folder.parent.name}/{folder.name}"}:
             continue
         # A weekly edition is one long targum wired to its sibling levels, and rewriting
         # one without saying so turned an issue back into a contents page and six chapter

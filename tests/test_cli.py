@@ -278,6 +278,85 @@ def test_rebuild_finds_targums_inside_homes(tmp_path: Path) -> None:
     assert "Rewrote 1 targum" in result.output, result.output
 
 
+def _tiny_targum(folder: Path) -> None:
+    from targum.models import BlockKind, Document, Segment, SegmentedDocument, Translation
+    from targum.render import render
+
+    folder.mkdir(parents=True)
+    document = Document(source="m", title="A Book", language="he", blocks=[], content_hash="h")
+    segment = Segment(
+        id="0000.000-aaa",
+        block_id="b0",
+        block_index=0,
+        index=0,
+        text="שלום",
+        kind=BlockKind.paragraph,
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="he", segmenter="t/1", segments=[segment]
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="he",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "peace"},
+    )
+    document.write(folder / "document.json")
+    segmented.write(folder / "segments.json")
+    translation.write(folder / "translations" / "null.natural.en.json")
+    render(document, segmented, [translation], folder / "reader")
+
+
+def test_rebuild_only_rewrites_the_one_named(tmp_path: Path) -> None:
+    """`--only` rewrites the targum it names and no other (targum-internal#572): a
+    re-timed video is one reader, and the box holds hundreds."""
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    out = tmp_path / "targum-out"
+    places = ("p1/video-he", "p1/book-he", "p2/video-he")
+    for where in places:
+        _tiny_targum(out / where)
+        (out / where / "reader" / "index.html").write_text("stale")
+
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out), "--only", "p1/video-he"])
+    assert result.exit_code == 0, result.output
+    assert "Rewrote 1 targum" in result.output, result.output
+    assert (out / "p1/video-he/reader/index.html").read_text() != "stale"
+    assert (out / "p1/book-he/reader/index.html").read_text() == "stale"
+    assert (out / "p2/video-he/reader/index.html").read_text() == "stale"
+
+    # A bare name that one home holds is enough.
+    result = CliRunner().invoke(app, ["rebuild", "--out", str(out), "--only", "book-he"])
+    assert result.exit_code == 0, result.output
+    assert (out / "p1/book-he/reader/index.html").read_text() != "stale"
+
+
+def test_rebuild_only_refuses_a_name_it_cannot_place(tmp_path: Path) -> None:
+    """A name that matches nothing, or a bare name two homes hold, writes nothing."""
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    out = tmp_path / "targum-out"
+    for where in ("p1/video-he", "p2/video-he"):
+        _tiny_targum(out / where)
+        (out / where / "reader" / "index.html").write_text("stale")
+
+    nothing = CliRunner().invoke(app, ["rebuild", "--out", str(out), "--only", "p3/video-he"])
+    assert nothing.exit_code != 0
+    assert "No targum here is called p3/video-he" in nothing.output, nothing.output
+
+    both = CliRunner().invoke(app, ["rebuild", "--out", str(out), "--only", "video-he"])
+    assert both.exit_code != 0
+    assert "more than one home" in both.output, both.output
+    for where in ("p1/video-he", "p2/video-he"):
+        assert (out / where / "reader" / "index.html").read_text() == "stale"
+
+
 def test_rebuild_leaves_the_weekly_as_it_was_built(tmp_path: Path) -> None:
     """An issue of the weekly is one long targum, built with `whole=True` and wired to
     its sibling levels by `targum weekly build`. The generic rewrite turned it back into

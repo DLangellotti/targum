@@ -217,3 +217,36 @@ def test_a_line_with_no_sure_word_keeps_what_its_cues_leave(tmp_path) -> None:
     assert kept_lines(
         segmented, {first: [10.0, 12.0], second: [12.0, 12.5]}, {first: [10.1, 12.8]}
     ) == {first: [10.1, 12.8]}
+
+
+def test_an_unsure_first_word_does_not_start_its_line_after_the_next_word(tmp_path) -> None:
+    """qa, #991: the part's first word is unsure and the next lands half a second before
+    their cue (inside the slack). Placed at the cue's start, the placeholder came after
+    the word lit next, and the line's span started after a word of its own was lit."""
+    built = folder(tmp_path)
+    rows = list(GOOD)
+    rows[0] = (10.1, 10.4, WORD_FLOOR - 1)
+    rows[1] = (9.5, 9.9, SURE)
+    rows[2] = (9.9, 11.6, SURE)
+    retime_folder(built, Fake(rows))
+    words = load_model(Refined, built / "audio" / "refined" / "part-001.json").paragraphs[0].words
+    assert (words[0].start, words[0].end) == (9.5, 9.5)
+    part = manifest_module.load(built).parts[0]
+    assert part.spans["10001.000-aaaaaa"][0] == 9.5
+
+
+def test_an_unsure_last_word_does_not_run_its_line_into_the_next(tmp_path) -> None:
+    """qa, #991: «הביתה.», the last word of line 1 and the first of cue 2, is unsure, and
+    line 2's first word lands 0.3 s before cue 2 opens (inside the slack). At the cue's
+    start the placeholder ran line 1 past the start of line 2."""
+    built = folder(tmp_path)
+    rows = list(GOOD)
+    rows[3] = (12.1, 12.8, WORD_FLOOR - 1)
+    rows[4] = (11.7, 12.3, SURE)
+    rows[5] = (12.3, 14.0, SURE)
+    retime_folder(built, Fake(rows))
+    part = manifest_module.load(built).parts[0]
+    first, second = part.spans["10001.000-aaaaaa"], part.spans["10001.001-bbbbbb"]
+    assert first == [10.1, 11.6]
+    assert second[0] == 11.7
+    assert first[1] <= second[0], (first, second)

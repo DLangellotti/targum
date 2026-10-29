@@ -104,30 +104,52 @@ def retimed(
 
     Raises where the cues' words are not the paragraph's, which is the one shape this
     cannot re-time without moving the text."""
+    cued: list[list[tuple[Word, str]]] = []
+    for paragraph in refined.paragraphs:
+        pieces = [(cue, piece) for cue in paragraph.words for piece in cue.text.split()]
+        if [piece for _, piece in pieces] != paragraph.text.split():
+            raise TargumError("A paragraph's cues do not spell its text.")
+        cued.append(pieces)
+    flat = [pair for pieces in cued for pair in pieces]
+    if len(flat) != len(timed):
+        raise TargumError("The aligner answered for a different number of words.")
+    sure = [
+        score >= WORD_FLOOR
+        and end > start
+        and start >= cue.start - CUE_SLACK_S
+        and end <= cue.end + CUE_SLACK_S
+        for (cue, _), (start, end, score) in zip(flat, timed, strict=True)
+    ]
+    # Where the next sure word starts, looking ahead from each word.
+    ahead: list[float | None] = [None] * len(flat)
+    following: float | None = None
+    for n in range(len(flat) - 1, -1, -1):
+        ahead[n] = following
+        if sure[n]:
+            following = timed[n][0]
     paragraphs: list[RefinedParagraph] = []
     kept = 0
     at = 0
-    clock = 0.0
-    for paragraph in refined.paragraphs:
-        cued = [(cue, piece) for cue in paragraph.words for piece in cue.text.split()]
-        if [piece for _, piece in cued] != paragraph.text.split():
-            raise TargumError("A paragraph's cues do not spell its text.")
+    clock: float | None = None
+    for paragraph, pieces in zip(refined.paragraphs, cued, strict=True):
         words: list[Word] = []
-        for cue, piece in cued:
+        for cue, piece in pieces:
             start, end, score = timed[at]
-            at += 1
-            sure = (
-                score >= WORD_FLOOR
-                and end > start
-                and start >= cue.start - CUE_SLACK_S
-                and end <= cue.end + CUE_SLACK_S
-            )
-            if sure:
+            if sure[at]:
                 clock = end
                 kept += 1
             else:
-                # No length, at the last clock before it but never before its own cue.
-                start = end = min(max(clock, cue.start), cue.end)
+                # No length, and between the sure words either side of it: at the last
+                # clock before it, or its own cue's start where there is none, and never
+                # past the next sure word. A cue's edge alone is not enough — a sure
+                # word may land up to `CUE_SLACK_S` outside its cue, and a placeholder
+                # past it would stretch its line's span over the next line.
+                place = clock if clock is not None else cue.start
+                after = ahead[at]
+                if after is not None:
+                    place = min(place, after)
+                start = end = place
+            at += 1
             words.append(
                 Word(
                     text=piece,
@@ -140,8 +162,6 @@ def retimed(
         paragraphs.append(
             RefinedParagraph(text=paragraph.text, speaker=paragraph.speaker, words=words)
         )
-    if at != len(timed):
-        raise TargumError("The aligner answered for a different number of words.")
     return (
         Refined(
             refiner=aligned_name(aligner_name),
