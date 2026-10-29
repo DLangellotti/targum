@@ -380,6 +380,28 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### See all keeps one level, and the bar is not spoken — 2026-10-29
+
+From qa's review of targum#975 (targum-internal#554), with David's word of 2026-10-29.
+
+- **See all's Level menu is gone.** It chose the band (Read it now, A stretch, Hard for
+  now) and stood beside the text level's chip ("Beginner · A1"), so "level" meant two
+  things in one row. David: "remove it, we just need the other level". What links into a
+  band still opens it: `#see/<band>` from a shelf's See all, and Your Progress's
+  `#see/now/level/<level>`. The band then shows as a chip beside the level's, in the
+  band's own name ("Read it now ×"), and clearing it keeps the level. The shelves are not
+  the menu and stay. Both chips sit on the card ground with the menus' rule, because
+  teal on the teal wash is 4.28:1, under §4.
+- **The bar toward the next rung is `aria-hidden`.** As a `progressbar` its value was
+  read as "38 percent", against the section's no-percentages rule. Named by the Next line
+  beside it, it read that line twice, and three times in Russian. The Next line is now
+  heard once, as text, and the bar says nothing. How far the reader is toward the next
+  rung is not spoken until Level v3 (targum-internal#561) adds the visible "{n} words to
+  ה׳" line David approved. #554 adds no string for it.
+
+Supersedes "a `progressbar` with its name" in "Your level leads with what you can read"
+(2026-10-28), and the three menus of See all in "The Library stands on the ground".
+
 ### The pages in front of the account load their files once — 2026-10-28
 
 Approved by David, 2026-10-28 (targum-internal#549, from builder-3's speed pass of the
@@ -493,7 +515,9 @@ comes back as one line at the foot.
 - **Under it, a bar toward the next rung, with no numbers**: a 4px leaf line on the desk's
   track, filled from this rung to the next on the measure the rung is reached by (weighted
   words for the ulpan, the commonest words for the European scale), "Next: bet ב׳" or
-  "Next: B2" beside it, a `progressbar` with its name. No bar at the top rung.
+  "Next: B2" beside it. The bar is `aria-hidden`, so a screen reader hears the Next line
+  once and no figure (2026-10-29, "See all keeps one level, and the bar is not spoken").
+  No bar at the top rung.
 - **"Conversations" replaces "Dialogue"** as the scenes' and dialogues' name: the Library's
   door, its Kind filter and a row's kind ("Conversation · 3 min"), home's cards and the
   reader's list («Разговоры», «Разговор»). David, 2026-10-28, overriding "Dialogue, Chat
@@ -3636,7 +3660,7 @@ Rows/Table switch.
   two of them side by side.
 - **See all is one card holding a table** (board SeeAllDesk): the way back, the list's
   name in the serif with its count ("All Hebrew texts 720", or "A stretch" with its range),
-  the search and three menus — Kind, Level, Language — then heads that sort it (Text,
+  the search and two menus — Kind, Language — then heads that sort it (Text,
   Length, % known), a row a text, and at the foot "50 of 720 · % known, high to low" and
   Show more. **Fifty rows a page.** A row is the picture, the Hebrew title with its English
   beside it, its kind and whose it is, the catalogue's sentence, its length **in words**

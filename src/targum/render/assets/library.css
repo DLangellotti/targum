@@ -1509,9 +1509,13 @@
   font-size: 1.0625rem;
 }
 .see-menus { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-/* The level a row of Your Progress opened the list at, a tinted pill that clears it
-   (design.md §12, "Your level leads with what you can read", 2026-10-28). */
-.see-menus .see-chip { gap: 0.375rem; }
+/* The band and the level a list is under, each a pill that clears it (design.md §12,
+   "Your level leads with what you can read", 2026-10-28; "See all keeps one level",
+   2026-10-29). On the card ground with the menus' rule, as landing.css puts its tonal
+   presses on the card: teal on the teal wash is 4.28:1, under §4's 4.5, and teal on the
+   card is 5.8:1 (qa on targum#978). */
+.see-menus .see-chip { gap: 0.375rem; background: var(--card); border: 1px solid var(--rule); }
+.see-menus .see-chip:hover:not(:disabled) { background: var(--card); border-color: var(--teal); }
 .see-menus .see-chip-x { font-size: 1.0625rem; line-height: 1; }
 @media (hover: none) and (pointer: coarse) {
   .see-menus .see-chip { min-block-size: 44px; }
