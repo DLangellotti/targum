@@ -19,7 +19,8 @@
  *   there, the saved copy answers, with the headers it was served with — its own content
  *   policy, hashes and all. When the page is a saved one and the network did answer, the
  *   saved copy is replaced by the bytes that just arrived, so a saved text is never older
- *   than the last time it was opened.
+ *   than the last time it was opened. A page that arrives needing its files beside it
+ *   (a reader opened on the site, 2026-10-29) never replaces it: the copy stays whole.
  * - **A recording or a film beside a reader** goes to the network first too, and answers
  *   from the cache when it was saved and the network is not there, in slices: a player
  *   asks for ranges, and Safari opens every film with `bytes=0-1` and will not play unless
@@ -194,8 +195,13 @@ function opening(event) {
   return asked.then(
     function (answer) {
       // A saved page that opened online is saved again as it is now: the reader is
-      // reading these bytes, and the copy for the plane should be the same one.
-      if (answer && answer.ok && answer.type === "basic" && saved && saved[key]) {
+      // reading these bytes, and the copy for the plane should be the same one. Unless
+      // the page needs its files beside it (`X-Targum-Linked`): a reader opened on the
+      // site names them since 2026-10-29 (design.md §12, "A served reader loads its files
+      // once"), and the copy for the plane must open with nothing else, so the whole one
+      // the save fetched stays.
+      var linked = answer && answer.headers.get("x-targum-linked");
+      if (answer && answer.ok && answer.type === "basic" && saved && saved[key] && !linked) {
         var copy = answer.clone();
         event.waitUntil(
           caches.open(STORE).then(function (cache) {

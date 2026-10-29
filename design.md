@@ -365,7 +365,9 @@ the reader and the desk both draw — the word's card, the thumb's reach, a refu
 
 How a page carries them (2026-10-18, §12 "A desk page loads its files once and keeps
 them"): a reader and every page that can be opened off a disk, framed by a host, printed
-or kept for offline bakes each file into itself and fetches nothing. A desk page (the
+or kept for offline bakes each file into itself and fetches nothing. A reader opened on
+the site is handed with its files named, and keeps them (2026-10-29, §12 "A served reader
+loads its files once"); the copy on disk is still whole. A desk page (the
 pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
@@ -522,7 +524,48 @@ under `no-store`, again on every page a visitor opened.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
   pages, built indexes, the shelf, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches
-  nothing.*
+  nothing.* (Amended on 2026-10-29 by the entry below: a reader on disk still fetches
+  nothing, and a reader opened on the site loads its own files from the site.)
+
+### A served reader loads its files once — 2026-10-29
+
+Approved by David, 2026-10-29 (targum-internal#559, from builder-3's signed-in speed pass
+of the same day, #552). "A reader fetches nothing" (§11 and every entry above that leans
+on it) now means **a reader on disk, and what leaves the server as a copy**. A reader
+opened on targum.page loads its stylesheets, scripts, faces and recordings as files from
+targum.page, and the browser keeps them. On the phone profile Ruth was 156 kB gzipped and
+a scene 332 kB on every open, the same files each time under `no-store`. Ruth's reader
+stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
+
+- **The page on disk does not change.** A build still writes every reader whole. It is
+  what opens off a disk, what a save keeps for offline, what a download hands over and
+  what `test_render.py` holds to fetching nothing, under the same allowlist.
+- **The server names the files on the way out** (`served_page`, `served_reader`). A
+  browser *opening* a reader (a navigation) is handed the page with each block that is
+  exactly one of today's files written as its `/assets/` address, as a desk page names
+  them, and with its recordings as `/clips/<hash>.<ext>` files behind the account. Put
+  back, the files make the page byte for byte (`carried`). A block that is not exactly
+  today's file, in a reader built before the file changed, stays inline, so a stale
+  reader still works. The first-visit rule holds too: a browser that has not kept the
+  files gets the reader whole and fetches them after `load`. A desk page warms a reader's
+  files with its own (`reader_files`).
+- **Only from the site.** Every file is same-origin, under the page's own policy (`'self'`
+  joins `script-src` and `style-src` only where the page names a file). Nothing is
+  fetched from anyone else: the outbound links a reader chooses stay the one exception.
+- **A copy for offline stays whole.** A save asks without navigating, so it gets the page
+  as it stands on disk. A page that needs its files beside it says so
+  (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
+  is no longer refreshed by being opened online: it stays as it was saved until it is
+  saved again. That is the price of a copy that opens on a plane with nothing else.
+- **Not covered:** the Torah portions' and daily cycles' readers, which strangers open
+  under their own addresses, keep their files inline, like the shared shelf's public
+  pages did before #549.
+- **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
+  scene readers served by a local `targum serve`, master against the change. With the
+  files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the
+  scene's from 0.85 s and 325 kB to 0.66 s and 14 kB (its recording waits for Play).
+  A first visit, still sent whole, went from 1.35 s to 0.97 s for Ruth and stayed at
+  0.89 s for the scene.
 
 ### On a phone, Back closes Talk before it leaves the page (2026-10-28)
 Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.

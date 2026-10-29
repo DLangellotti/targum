@@ -1263,7 +1263,9 @@ def first_visit(html: str) -> str:
         pool: Any = public_files(language)
         kept = public_set(language)
     else:
-        pool, kept = _DESK_NAMED, asset_set()
+        # The desk's set, and a served reader's files with it (2026-10-29): a reader is
+        # opened from the desk, and finds them kept.
+        pool, kept = {**_DESK_NAMED, **dict.fromkeys(reader_files())}, asset_set()
     files = [*own, *(address for address in pool if address not in own)]
     # The faces are not carried in place: about 67 kB gzipped that stood in front of the
     # page's own script and, on the Library, of its shelf (#484). They wait at the foot in
@@ -1286,6 +1288,105 @@ def first_visit(html: str) -> str:
     whole = carried(html)
     at = whole.rfind("</body>")
     return whole[:at] + tag + whole[at:] if at >= 0 else whole + tag
+
+
+# A served reader names its files (design.md §12, "A served reader loads its files once",
+# 2026-10-29, targum-internal#559; approved by David). A reader on disk is whole and stays
+# whole: it is what opens off a disk, what a save keeps for offline and what a download
+# hands over, and it fetches nothing. Opened on targum.page it was the same 156 to 332 kB
+# gzipped on every open, the faces and the stylesheets and the scripts each time, under
+# `no-store`. So the server hands a browser opening one (a navigation) the same page with
+# every block that is one of today's files put back as its address, and the browser keeps
+# them like a desk page's. A block that is not exactly one of today's files (a reader
+# built before a file changed) stays where it is, so a stale reader still works.
+
+_INLINE_BLOCK = re.compile(r"<(script|style)\b([^>]*)>(.*?)</\1>", re.S)
+#: How much of a file's text opens its entry in `_by_opening`.
+_OPENING = 160
+
+
+@cache
+def _by_opening() -> tuple[dict[str, str], dict[str, list[tuple[str, str]]]]:
+    """Today's files by their whole text (scripts), and the stylesheets by how they open:
+    a reader's `<style>` holds several sheets end to end, so it is split by finding which
+    sheet each stretch begins with."""
+    scripts: dict[str, str] = {}
+    sheets: dict[str, list[tuple[str, str]]] = {}
+    for address, (body, kind, name) in asset_files().items():
+        if not kind.startswith(("text/javascript", "text/css")):
+            continue
+        text = body.decode("utf-8")
+        # What a desk page carries inline (`CARRIED`) a served reader carries too.
+        if not text or name in CARRIED:
+            continue
+        if kind.startswith("text/javascript"):
+            scripts.setdefault(text, address)
+        elif kind.startswith("text/css"):
+            sheets.setdefault(text[:_OPENING], []).append((text, address))
+    for found in sheets.values():
+        # The longest first, so a sheet that begins another is never taken for it.
+        found.sort(key=lambda one: -len(one[0]))
+    return scripts, sheets
+
+
+def _split_sheets(body: str) -> list[str] | None:
+    """The addresses of the sheets a `<style>` holds end to end, or None if any of it is
+    not one of today's files."""
+    _, sheets = _by_opening()
+    at, found = 0, []
+    while at < len(body):
+        for text, address in sheets.get(body[at : at + _OPENING], ()):
+            if body.startswith(text, at):
+                found.append(address)
+                at += len(text)
+                break
+        else:
+            return None
+    return found
+
+
+@cache
+def reader_files() -> tuple[str, ...]:
+    """The addresses of the files a served reader names (`served_reader`), read off its
+    template: every `styles(...)` and `script(...)` in it and the faces it may wear. What
+    a desk page sent whole warms besides its own, so the first reader opened after it
+    finds them kept."""
+    template = (TEMPLATES / "reader.html.j2").read_text(encoding="utf-8")
+    names = [
+        name
+        for call in re.findall(r"\{\{\s*(?:styles|script)\(([^)]*)\)", template)
+        for name in re.findall(r"'([^']+\.(?:css|js))'", call)
+    ]
+    names += ["face-hebrew.css", "face-hebrew-biblical.css", "face-chrome-upright.css"]
+    held = {name for _, _, name in asset_files().values()}
+    return tuple(
+        asset_address(name) for name in dict.fromkeys(names) if name in held and name not in CARRIED
+    )
+
+
+def served_reader(html: str) -> str:
+    """A reader as the server hands it to a browser opening it: each block that is one of
+    today's files named by its address instead, everything else as written. `carried`
+    puts them back, so `carried(served_reader(page)) == page` for a reader built today."""
+    scripts, _ = _by_opening()
+
+    def name(match: re.Match[str]) -> str:
+        tag, attributes, body = match.group(1), match.group(2), match.group(3)
+        if tag == "script":
+            if "src=" in attributes or "type=" in attributes:
+                return match.group(0)
+            address = scripts.get(body)
+            if address is None:
+                return match.group(0)
+            return f'<script{attributes} src="{_named(address)}"></script>'
+        if attributes.strip() or not body:
+            return match.group(0)
+        addresses = _split_sheets(body)
+        if not addresses:
+            return match.group(0)
+        return "".join(f'<link rel="stylesheet" href="{_named(one)}">' for one in addresses)
+
+    return _INLINE_BLOCK.sub(name, html)
 
 
 def linked_scripts(html: str) -> str:
