@@ -211,6 +211,8 @@ SEEN = """() => {
     foot: shown(at('level-foot')) ? at('level-said').textContent : '',
     bar: shown(bar)
       ? {role: bar.getAttribute('role'), label: bar.getAttribute('aria-label'),
+         hidden: bar.getAttribute('aria-hidden'),
+         nextHidden: at('level-next').closest('[aria-hidden]') !== null,
          height: box(bar).height, next: at('level-next').textContent}
       : null,
     letters: all('bdi').map((one) => [one.getAttribute('lang'), one.getAttribute('dir')]),
@@ -317,11 +319,53 @@ def test_every_level_state_is_drawn_without_a_percentage(
             assert ["he", "rtl"] in seen["letters"] or spec.get("language") == "fr"
         if "next" in spec:
             assert seen["bar"] is not None
-            assert seen["bar"]["role"] == "progressbar" and seen["bar"]["label"]
             assert seen["bar"]["next"] == spec["next"]
+            # The bar is hidden from a screen reader and the Next line is not, so the line
+            # is heard once and no percentage at all (#554, qa on targum#978).
+            assert seen["bar"]["hidden"] == "true" and seen["bar"]["role"] is None, seen["bar"]
+            assert not seen["bar"]["nextHidden"], seen["bar"]
+            assert page.get_by_role("progressbar").count() == 0
+            tree = page.locator("#level-toward").aria_snapshot()
+            assert tree.count(spec["next"].split(" ")[-2]) == 1, tree
             assert 3 <= seen["bar"]["height"] <= 5, "a thin line"
         if spec.get("bar") is False:
             assert seen["bar"] is None
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+COLUMNS = """() => [...document.querySelectorAll('#touchstones .touch-row')]
+  .filter((row) => row.offsetParent !== null)
+  .map((row) => {
+    const at = (name) => {
+      const one = row.querySelector('.' + name);
+      return one ? [one.getBoundingClientRect().left, one.getBoundingClientRect().right] : null;
+    };
+    return {state: at('touch-state'), count: at('touch-count')};
+  })"""
+
+
+@pytest.mark.parametrize("state", ["months", "russian", "aramaic"])
+def test_the_ladder_columns_line_up_row_to_row_at_a_desk(chromium: Any, state: str) -> None:
+    """At 1440 the ladder is a board: name, state, count, each column starting where the
+    row above's did. In Russian «Вам легко» and «Следующий шаг» stepped from row to row,
+    because a longer count pushed its own row's state along; on the Aramaic ladder a row
+    with nothing to read yet has no count, and its state slid right (targum-internal#554)."""
+    spec = STATES[state]
+    context, page, thrown = open_state(chromium, state, 1440)
+    try:
+        page.goto(SITE + "/progress")
+        page.locator("#where").get_by_text(spec["says"], exact=False).first.wait_for(
+            state="visible", timeout=10_000
+        )
+        page.wait_for_load_state("networkidle")
+        rows = page.evaluate(COLUMNS)
+        assert len(rows) >= 4, rows
+        assert all(row["state"] for row in rows), rows
+        for column in ("state", "count"):
+            edges = {round(row[column][0]) for row in rows if row[column]}
+            assert len(edges) <= 1, (column, rows)
         assert not thrown, thrown
     finally:
         context.close()

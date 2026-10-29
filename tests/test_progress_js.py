@@ -594,7 +594,7 @@ def test_no_percentage_is_drawn_in_the_level_section() -> None:
         said = [drawn[key] for key in ("head", "step", "known", "go", "note", "foot")]
         said += [rung["text"] for rung in drawn["rungs"]]
         if drawn["toward"]:
-            said += [drawn["toward"]["next"], drawn["toward"]["label"]]
+            said += [drawn["toward"]["next"]]
         assert not [line for line in said if "%" in line], said
 
 
@@ -665,14 +665,29 @@ def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
 
 
 def test_the_bar_toward_the_next_rung_prints_no_number() -> None:
+    """The bar is a picture of the Next line and nothing a screen reader says
+    (targum-internal#554, qa on targum#978): no role, no value to come out as "12
+    percent", no name that repeats the Next line. The Next line is said once, as text."""
     toward = story()["where"]["toward"]
     assert toward == {
         "next": "Next: dalet ד׳",
-        "label": "Toward dalet",
-        "now": "12",
-        "role": "progressbar",
+        "label": None,
+        "said": None,
+        "now": None,
+        "role": None,
+        "nextHidden": None,
         "width": "12%",
     }
+
+
+def test_the_bar_is_hidden_from_a_screen_reader_and_its_words_are_gone() -> None:
+    template = (HARNESS.parents[2] / "src/targum/render/templates/progress.html.j2").read_text(
+        encoding="utf-8"
+    )
+    assert '<div class="level-bar" id="level-bar" aria-hidden="true">' in template
+    for language in ("en", "ru"):
+        path = HARNESS.parents[2] / "src/targum/strings" / f"{language}.json"
+        assert "progress.level.toward" not in json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
@@ -693,7 +708,6 @@ def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
     )
     assert drawn["footLetter"] is None
     assert drawn["toward"]["next"] == "Next: B2"
-    assert drawn["toward"]["label"] == "Toward B2"
 
 
 def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:

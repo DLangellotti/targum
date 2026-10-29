@@ -166,9 +166,13 @@ setTimeout(() => {
       if (box) box.children[0].fire("click", {});
       if (item) item.fire("click", {});
     }
-    /* The level chip's clear (#553): `{clearLevel: true}`. */
+    /* The level chip's clear (#553): `{clearLevel: true}`; the band chip's (#554): `{clearBand: true}`. */
     if (step.clearLevel) {
       const chip = (byId["see-menus"].children || []).find((c) => c.id === "see-level-chip");
+      if (chip) chip.fire("click", {});
+    }
+    if (step.clearBand) {
+      const chip = (byId["see-menus"].children || []).find((c) => c.id === "see-band-chip");
       if (chip) chip.fire("click", {});
     }
     /* Show more, `{more: true}`, and a column head, `{sort: "title"}`. */
@@ -258,6 +262,7 @@ setTimeout(() => {
   };
   const menuBoxes = (byId["see-menus"].children || []).filter((box) => box.getAttribute("data-menu"));
   const levelChip = (byId["see-menus"].children || []).find((box) => box.id === "see-level-chip");
+  const bandChip = (byId["see-menus"].children || []).find((box) => box.id === "see-band-chip");
   const menus = menuBoxes.map((box) => {
     const press = box.children[0];
     const list = box.children[1];
@@ -284,10 +289,12 @@ setTimeout(() => {
       listShown: !byId["picked"].hidden,
       kinds: menu("kind").options,
       kindOn: menu("kind").on,
-      fitOn: menu("level").on,
+      // The band the list is under, as its chip names it, or "" for every band (#554).
+      fitOn: bandChip ? bandChip.children[0].textContent : "",
       languageOn: menu("language").on,
       menus: menus.map((m) => m.id),
       levelChip: levelChip ? { text: levelChip.textContent, label: levelChip.getAttribute("aria-label") } : null,
+      bandChip: bandChip ? { text: bandChip.textContent, label: bandChip.getAttribute("aria-label") } : null,
       menusShown: !byId["see-menus"].hidden,
       seeTitle: byId["see-title"].hidden ? "" : byId["see-title"].textContent,
       seeing: !!(global.document.body.classList && global.document.body.classList.contains("is-seeing")),

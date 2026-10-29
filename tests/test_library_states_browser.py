@@ -834,6 +834,9 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
           title: document.querySelector('#see-title .see-title-name').textContent,
           count: document.querySelector('#see-title .see-title-count').textContent,
           chip: document.getElementById('see-level-chip').getBoundingClientRect().height,
+          band: document.getElementById('see-band-chip').getBoundingClientRect().height,
+          bandSaid: document.getElementById('see-band-chip').textContent,
+          bandMenu: !!document.querySelector('[data-menu="level"]'),
           sideways: document.scrollingElement.scrollWidth > innerWidth,
         })"""
     )
@@ -844,8 +847,10 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
     assert seen["count"].split("·")[-1].strip() == str(wanted), seen
     assert not seen["sideways"]
     if phone:
-        assert seen["chip"] >= 44, seen
+        assert seen["chip"] >= 44 and seen["band"] >= 44, seen
     assert chip.get_attribute("aria-label") == "Remove the Beginner · A1 filter"
+    # The band is a chip beside the level's, not a menu (targum-internal#554).
+    assert seen["bandSaid"] == "Read it now×" and not seen["bandMenu"], seen
 
     page.reload()
     chip.wait_for(state="visible")
@@ -865,5 +870,59 @@ def test_a_level_with_nothing_readable_is_said_with_a_way_to_every_text(browser,
     empty.wait_for(state="visible")
     assert empty.inner_text().startswith("Nothing you can read now yet.")
     assert page.locator("#see-level-chip").is_visible()
+    assert not thrown
+    context.close()
+
+
+#: WCAG contrast of an element's text against the ground it is drawn on, compositing
+#: every translucent background up the tree, as axe's colour-contrast rule does.
+CONTRAST = """(selector) => [...document.querySelectorAll(selector)].map((one) => {
+  const parse = (value) => {
+    const n = (value.match(/[\\d.]+/g) || []).map(Number);
+    return {r: n[0] || 0, g: n[1] || 0, b: n[2] || 0, a: n.length > 3 ? n[3] : 1};
+  };
+  const layers = [];
+  for (let at = one; at; at = at.parentElement) {
+    const ground = parse(getComputedStyle(at).backgroundColor);
+    if (ground.a > 0) layers.push(ground);
+    if (ground.a >= 1) break;
+  }
+  let under = {r: 255, g: 255, b: 255};
+  for (const layer of layers.reverse()) {
+    under = {r: layer.r * layer.a + under.r * (1 - layer.a),
+             g: layer.g * layer.a + under.g * (1 - layer.a),
+             b: layer.b * layer.a + under.b * (1 - layer.a)};
+  }
+  const ink = parse(getComputedStyle(one).color);
+  const light = (c) => {
+    const lin = (v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+  };
+  const [hi, lo] = [light(ink), light(under)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+})"""
+
+
+def test_the_band_and_level_chips_are_legible_on_a_band_address(browser, page_html) -> None:
+    """qa on targum#978: on `#see/now` the band chip's teal name sat on the teal wash at
+    4.28:1, under the 4.5 §4 asks (axe colour-contrast). The chips stand on the card
+    ground now, as landing.css's tonal presses do. The Level menu is gone, so nothing
+    else on the row says "level"."""
+    answers = {"/readers": {"readers": [], "shared": built(0.95), "signedIn": True}}
+    context, page, thrown, _, url = library(browser, page_html, answers, hash="#see/now/level/A1")
+    page.goto(url)
+    page.locator("#see-band-chip").wait_for(state="visible")
+    ratios = page.evaluate(CONTRAST, "#see-menus .see-chip-name")
+    assert len(ratios) == 2, ratios
+    assert all(ratio >= 4.5 for ratio in ratios), ratios
+    assert page.locator('[data-menu="level"]').count() == 0
+    page.goto(url.split("#")[0] + "#see/now")
+    page.reload()
+    page.locator("#see-band-chip").wait_for(state="visible")
+    ratios = page.evaluate(CONTRAST, "#see-menus .see-chip-name")
+    assert ratios and all(ratio >= 4.5 for ratio in ratios), ratios
     assert not thrown
     context.close()

@@ -1989,12 +1989,27 @@
     });
   }
 
-  /* The levels, as the Level menu says them: the three shelves, and any. */
-  var LEVEL_MENU = [["", t("library.filter.any", "Any")]].concat(BANDS);
+  /* A filter the list is under, as a chip that says it and clears it: a filter nobody
+     can see is a list that looks short for no reason (§14.3). */
+  function filterChip(id, name, onClear) {
+    var chip = el("button", "btn tonal see-chip");
+    chip.type = "button";
+    chip.id = id;
+    chip.appendChild(el("span", "see-chip-name", name));
+    var cross = el("span", "see-chip-x", "\u00d7");
+    cross.setAttribute("aria-hidden", "true");
+    chip.appendChild(cross);
+    chip.setAttribute("aria-label", t("library.level.clear", "Remove the {level} filter", { level: name }));
+    chip.addEventListener("click", onClear);
+    return chip;
+  }
 
-  /* Kind, Level and Language, beside the search on See all. Kind offers the kinds in
-     front of this reader, as the chips did; Level is the band, the shelf the list was
-     opened from; Language is the one the bar's menu also sets. */
+  /* Kind and Language, beside the search on See all. Kind offers the kinds in front of
+     this reader, as the chips did; Language is the one the bar's menu also sets. The
+     band had a Level menu here until David took it out (2026-10-29, targum-internal#554):
+     beside the text level's chip, "level" meant two things in one row. A See all opened
+     from a shelf, or from a Your Progress row that counts what you can read, is still
+     under its band, and says so with a chip that clears it. */
   function drawMenus(host, everything, code, codes, redraw, pickLanguage) {
     if (!host) return;
     host.textContent = "";
@@ -2012,15 +2027,6 @@
         redraw();
       })
     );
-    host.appendChild(
-      menu("level", t("library.menu.level", "Level"), LEVEL_MENU, fitWanted(), function (value) {
-        view.fit = value;
-        page = PAGE;
-        // A level named by the address stays in it, so a reload keeps both.
-        mark(SEE + (value ? "/" + value : "") + (view.cefr ? "/level/" + view.cefr : ""));
-        redraw();
-      })
-    );
     var languages = (codes || [code]).map(function (one) {
       return [one, names[one] || one];
     });
@@ -2030,28 +2036,29 @@
         pickLanguage(value);
       })
     );
-    /* The text level a Level row on Your Progress opened the list at, as a chip that says
-       it and clears it: a filter nobody can see is a list that looks short for no
-       reason (§14.3). Clearing it keeps the band and leaves the address without it. */
-    if (view.cefr && LEVEL_NAMES[view.cefr]) {
-      var chip = el("button", "btn tonal see-chip");
-      chip.type = "button";
-      chip.id = "see-level-chip";
-      chip.appendChild(el("span", "see-chip-name", LEVEL_NAMES[view.cefr]));
-      var cross = el("span", "see-chip-x", "\u00d7");
-      cross.setAttribute("aria-hidden", "true");
-      chip.appendChild(cross);
-      chip.setAttribute(
-        "aria-label",
-        t("library.level.clear", "Remove the {level} filter", { level: LEVEL_NAMES[view.cefr] })
+    /* The band the list is under. Clearing it keeps the text level in the address. */
+    var band = bandNamed(fitWanted());
+    if (band) {
+      host.appendChild(
+        filterChip("see-band-chip", band[1], function () {
+          view.fit = "";
+          page = PAGE;
+          mark(SEE + (view.cefr ? "/level/" + view.cefr : ""));
+          redraw();
+        })
       );
-      chip.addEventListener("click", function () {
-        view.cefr = "";
-        page = PAGE;
-        mark(SEE + (fitWanted() ? "/" + fitWanted() : ""));
-        redraw();
-      });
-      host.appendChild(chip);
+    }
+    /* The text level a Level row on Your Progress opened the list at. Clearing it keeps
+       the band and leaves the address without it. */
+    if (view.cefr && LEVEL_NAMES[view.cefr]) {
+      host.appendChild(
+        filterChip("see-level-chip", LEVEL_NAMES[view.cefr], function () {
+          view.cefr = "";
+          page = PAGE;
+          mark(SEE + (fitWanted() ? "/" + fitWanted() : ""));
+          redraw();
+        })
+      );
     }
   }
 
