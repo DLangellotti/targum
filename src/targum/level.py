@@ -16,6 +16,7 @@ A `Level` carries the rung so the chat can grade the Hebrew it writes; what the 
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Iterable, Set
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -215,6 +216,9 @@ class Level:
     #: The rung they named on arrival, by its arrival id ("bet-plus"), or "". A seed: see
     #: `seed`. Deliberately absent from `state()` — no page is handed it to print.
     declared: str = ""
+    #: What one more known word is reckoned to add to `weighted` (`per_word`): what turns
+    #: a weighted gap into words to go (`words_to`).
+    per_word: float = BAND_WEIGHT["easy"]
 
     def state(self) -> dict[str, Any]:
         return {
@@ -239,6 +243,66 @@ class Level:
 
 
 EMPTY = Level("he", 0, 0, 0.0, None, ULPAN[0], 0, 0, 0, 0, 0)
+
+#: How far back "the words marked known lately" reaches for `per_word` (ling-he,
+#: 2026-10-29).
+RECENT_DAYS = 30
+
+#: The bands from commonest to rarest, the order `per_word` steps up through.
+BANDS: tuple[str, ...] = tuple(BAND_WEIGHT)
+
+
+def per_word(words: Iterable[tuple[int | None, str, int]], now_ms: int) -> float:
+    """What the reader's next known word is reckoned to weigh (ling-he, 2026-10-29;
+    design.md §12, "Your level, v3").
+
+    `words` is (status, band, when marked in ms). The average weight of the words marked
+    known in the last `RECENT_DAYS`, since the next ones are most like them; failing that,
+    the weight of the band above the one most of their known words sit in (a reader who
+    knows the easy words learns the fairly easy ones next); and the commonest band's for
+    a reader with no known word yet. A known word with no band counts at
+    `UNRATED_WEIGHT`, as `reach` counts it.
+    """
+    since = now_ms - RECENT_DAYS * 24 * 60 * 60 * 1000
+    recent: list[float] = []
+    bands: dict[str, int] = {}
+    for status, band, at in words:
+        if status != KNOWN or band in NOT_VOCABULARY:
+            continue
+        if at >= since:
+            recent.append(BAND_WEIGHT.get(band, UNRATED_WEIGHT))
+        if band in BAND_WEIGHT:
+            bands[band] = bands.get(band, 0) + 1
+    if recent:
+        return sum(recent) / len(recent)
+    if not bands:
+        return BAND_WEIGHT[BANDS[0]]
+    most = max(BANDS, key=lambda band: (bands.get(band, 0), -BANDS.index(band)))
+    above = BANDS[min(BANDS.index(most) + 1, len(BANDS) - 1)]
+    return BAND_WEIGHT[above]
+
+
+def words_to(level: Level, at: int) -> int:
+    """How many more known words reach `at` on the reader's ladder: exact, never rounded
+    to a figure that looks round (David, 2026-10-29; design.md §12, "Your level, v3").
+
+    The European scale counts its commonest words one by one, so the gap is the number.
+    The ulpan counts weighted words, so the gap is divided by what the next word is
+    reckoned to weigh (`Level.per_word`) and rounded up to a whole word: the card's "637
+    words to ה׳" and the ladder's C1 row are this one function. 0 where it is reached, and
+    for a language with no ladder.
+    """
+    ladder = ladder_for(level.language)
+    if ladder is None:
+        return 0
+    if ladder.measure != "weighted":
+        return max(0, int(at) - level.common)
+    gap = at - level.weighted
+    if gap <= 0:
+        return 0
+    # Rounded to a millionth first: 509.6 / 0.8 is 637.0000000001 in floating point,
+    # which is 637 words and not 638.
+    return max(1, ceil(round(gap / max(level.per_word, 0.01), 6)))
 
 
 def seed(level: Level) -> Rung | None:
@@ -300,6 +364,9 @@ def snapshot(
         common=among,
         address=store.address(person_id) if hasattr(store, "address") else "",
         declared=store.declared(person_id) if hasattr(store, "declared") else "",
+        per_word=per_word(
+            ((status, band, at) for _, status, band, at in words), int(time.time() * 1000)
+        ),
     )
 
 

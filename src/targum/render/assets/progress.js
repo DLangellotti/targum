@@ -75,6 +75,12 @@
       next: t("progress.level.next.B2+", "Your next step is texts at B2 and up."),
       start: t("progress.level.start.B2+", "Start with texts at B2 and up."),
     },
+    /* Native split by the text ruler (design.md §12, "Your level, v3", 2026-10-29). Their
+       sentences are B2 and up's, which stay true of each. */
+    B2: { name: t("progress.rung.B2", "B2") },
+    C1: { name: t("progress.rung.C1", "C1") },
+    C2: { name: t("progress.rung.C2", "C2") },
+    "past-C2": { name: t("progress.rung.past-C2", "Past C2") },
     "onkelos": {
       name: t("progress.rung.onkelos", "Onkelos"),
       can: t("progress.level.can.onkelos", "You can read Onkelos on your own."),
@@ -269,6 +275,12 @@
   function shelfHref(level, readable) {
     return keyed("/library#see/" + (readable ? "now/" : "") + "level/" + encodeURIComponent(level));
   }
+
+  ["B2", "C1", "C2", "past-C2"].forEach(function (kind) {
+    RUNGS[kind].can = RUNGS["B2+"].can;
+    RUNGS[kind].next = RUNGS["B2+"].next;
+    RUNGS[kind].start = RUNGS["B2+"].start;
+  });
 
   function rungOf(rung) {
     return RUNGS[rung.name] || RUNGS[rung.kind] || { name: rung.kind, can: "", next: "", start: "" };

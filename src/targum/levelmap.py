@@ -42,13 +42,15 @@ import json
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from math import ceil
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .catalogue import Entry
 from .weekly.models import LEVELS, Level
 
 if TYPE_CHECKING:
+    from .coverage import Index
     from .segment import HebrewSegmenter
 
 #: Texts a language should have that meet the Easy spec in full (David, 2026-09-29).
@@ -180,6 +182,9 @@ class Shelf:
     #: (level name or UNMEASURED, medium) -> texts.
     cells: Counter[tuple[str, str]] = field(default_factory=Counter)
     easy: Counter[str] = field(default_factory=Counter)
+    #: The Native texts again, by the text ruler (`native_level`): (B2, C1, C2 or
+    #: `PAST_C2`, medium) -> texts. A Native text the ruler has not counted is on B2.
+    native: Counter[tuple[str, str]] = field(default_factory=Counter)
 
     @property
     def total(self) -> int:
@@ -200,8 +205,18 @@ def tally(
     sentence: Callable[[Entry], float],
     spoken: Callable[[str], bool],
     video: Callable[[str], bool],
+    native: Callable[[Entry], str] | None = None,
 ) -> dict[str, Shelf]:
-    """Every entry counted into its language's shelf, languages in order of size."""
+    """Every entry counted into its language's shelf, languages in order of size.
+
+    `native` places a Native text on B2, C1, C2 or Past C2 (`native_level` against the
+    lemma index beside the catalogue, by default)."""
+    if native is None:
+        index = _catalogue_index()
+
+        def native(entry: Entry) -> str:
+            return native_level(entry, index)
+
     shelves: dict[str, Shelf] = {}
     for entry in entries:
         shelf = shelves.setdefault(entry.language, Shelf(entry.language))
@@ -209,6 +224,8 @@ def tally(
         level = place(entry.difficulty, length)
         how = medium(entry.source, spoken=spoken, video=video)
         shelf.cells[(level.value if level else UNMEASURED, how)] += 1
+        if level is Level.gimel:
+            shelf.native[(native(entry), how)] += 1
         if meets_easy(entry.difficulty, length, entry.minutes):
             shelf.easy[how] += 1
     return dict(sorted(shelves.items(), key=lambda item: (-item[1].total, item[0])))
@@ -253,9 +270,12 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
 
     The ruler is the one above — three levels by hard share and sentence length — and the
     mapping is stated rather than measured: a text meeting the Easy spec in full is A1,
-    the rest of Easy is A2, Simplified is B1, and Native is one level, B2 and up, until
-    there is a better ruler than a median nobody measured (David, 2026-10-12). The Easy
-    spec is a subset of Easy, so A2 is Easy less the spec.
+    the rest of Easy is A2, Simplified is B1. The Easy spec is a subset of Easy, so A2 is
+    Easy less the spec. Native is split into B2, C1, C2 and Past C2 by the vocabulary a
+    text needs (`native_level`, design.md §12, "Your level, v3", 2026-10-29), and `B2+`
+    is still there as the four together: the stage standard's floors are stated at B2 and
+    up, and old addresses name it. So the rows do not add up to the shelf — `B2+` is the
+    last four again — and nothing should sum them.
     """
     easy = [shelf.cells[(Level.aleph.value, how)] for how in MEDIA]
     spec = [shelf.easy[how] for how in MEDIA]
@@ -266,27 +286,158 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
     def counted(cells: list[int]) -> tuple[int, int]:
         return sum(cells), sum(cells[at] for at in recorded)
 
-    return {
+    rows = {
         "A1": counted(spec),
         "A2": counted([have - met for have, met in zip(easy, spec, strict=True)]),
         "B1": counted(simplified),
-        "B2+": counted(native),
     }
+    for level in NATIVE_LEVELS:
+        rows[level] = counted([shelf.native[(level, how)] for how in MEDIA])
+    rows[NATIVE_ALIAS] = counted(native)
+    return rows
 
+
+#: The levels a Native text is split into by the text ruler, easiest first. Past C2 is
+#: a text that needs more words than the top rung of its language's ladder.
+PAST_C2 = "past-C2"
+NATIVE_LEVELS: tuple[str, ...] = ("B2", "C1", "C2", PAST_C2)
+
+#: Native as one level, B2 and up: what the Library's `#see/level/B2+` named until
+#: 2026-10-29 and what the stage standard's floors are still stated at.
+NATIVE_ALIAS = "B2+"
 
 #: A text's own level, easiest first, as `cefr_rows` names them: the rows of Your
-#: Progress's Level ladder (design.md §12, "Your level leads with what you can read",
-#: 2026-10-28) and the Library's `#see/level/<level>`.
-TEXT_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2+")
+#: Progress's Level ladder (design.md §12, "Your level, v3", 2026-10-29) and the
+#: Library's `#see/level/<level>`.
+TEXT_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", *NATIVE_LEVELS)
+
+#: The share of a Native text's ranked running words the text ruler covers (design.md §12,
+#: "Your level, v3"). Calibrated on 2026-10-29 against the laptop's built library, read
+#: only (targum-internal#561): at 95%, as first specified, 10 of 11 Hebrew Native texts
+#: and 37 of 59 texts the shelf calls A1 came out past vav, because the last few per cent
+#: of any real text is its rarest words and a lemma list's misses. At 85%, with forms the
+#: frequency list never ranked left out of the count, the shelf's A1 texts land on A2 to
+#: B1 (51 of 59 at B1 or below), its A2 texts on A2 (19 of 24 at A2+ or below) and the
+#: Native ones on B2 (7), C1 (3) and C2 (1), none past vav. `text_rung` reads a text at
+#: 90% for the same reason (2026-09-27).
+RULER_COVERAGE = 0.85
+
+#: The ladders the ruler places a Native text on: the ulpan's, whose rungs are vocabulary
+#: sizes a frequency rank can be held against. The European scale's rungs count known
+#: words among the commonest five thousand, which is not a rank: held against one, 30 of
+#: 46 Russian Native texts came out past C2 and 9 at A1. French, Russian and Italian
+#: Native texts stay on B2 until that scale has a ruler of its own.
+RULED = frozenset({"weighted"})
 
 
-def text_level(entry: Entry) -> str:
+def ruler_rank(entry_id: str, language: str, index: Index) -> int | None:
+    """The frequency rank that covers `RULER_COVERAGE` of a text's ranked running words, or
+    None.
+
+    Read off the lemma index's counts (each dictionary form and how often it comes round),
+    each form ranked by its language's frequency list. A form the list never ranked is left
+    out of the count rather than counted as past every rung: 4% of Hebrew running words on
+    the built shelf, and nearly all of them are lemma spellings the surface-form list does
+    not carry, transliterations and names the tagger missed, not rare words. None where
+    the index has no counts for the text, the language has no list or nothing in the text
+    is ranked: not measured, never easy.
+    """
+    from .annotate.frequency import rank, ranks
+
+    positions = index.texts.get(entry_id)
+    counts = index.counts.get(entry_id)
+    if not positions or counts is None or not ranks(language):
+        return None
+    weighted: list[tuple[int, int]] = []
+    for at, count in zip(positions, counts, strict=True):
+        if count <= 0:
+            continue
+        found = rank(index.words[at], language)
+        if found is not None:
+            weighted.append((found, int(count)))
+    total = sum(count for _, count in weighted)
+    if not total:
+        return None
+    # Rounded first: 0.85 * 100 is 85.00000000000001 in floating point, which is 85.
+    need = ceil(round(RULER_COVERAGE * total, 9))
+    covered = 0
+    for at, count in sorted(weighted):
+        covered += count
+        if covered >= need:
+            return at
+    return max(weighted)[0]
+
+
+def native_level(entry: Any, index: Index) -> str:
+    """Where a Native text sits: B2, C1, C2 or `PAST_C2`, by the vocabulary it needs.
+
+    The rank `ruler_rank` finds, against the thresholds the reader's level climbs: the
+    ulpan's dalet, hey and vav (`level.ladder_for`; only a ladder in `RULED`). Never below
+    B2, since the text is Native by the shelf's own ruler. B2 where the text cannot be
+    measured, and for a language whose ladder is not ruled, as before the ruler (design.md
+    §12, "Your level, v3", 2026-10-29). Cached per index, since the index is read once a file.
+    """
+    entry_id = str(getattr(entry, "id", ""))
+    language = str(getattr(entry, "language", "") or "").split("-")[0].lower()
+    held = _MEMO.get(id(index))
+    if held is None or held[0] is not index:
+        held = (index, {})
+        _MEMO.clear()
+        _MEMO[id(index)] = held
+    key = (entry_id, language)
+    if key not in held[1]:
+        held[1][key] = _native_level(entry_id, language, index)
+    return held[1][key]
+
+
+#: The last index ruled and what it said, by entry: one at a time, so a re-read index
+#: frees the old one.
+_MEMO: dict[int, tuple[Index, dict[tuple[str, str], str]]] = {}
+
+
+def _native_level(entry_id: str, language: str, index: Index) -> str:
+    from .level import ladder_for
+
+    ladder = ladder_for(language)
+    ruled = ladder is not None and ladder.measure in RULED
+    needed = ruler_rank(entry_id, language, index) if ruled else None
+    if ladder is None or needed is None:
+        return NATIVE_LEVELS[0]
+    for level in NATIVE_LEVELS[:-1]:
+        threshold = rung_at(ladder, level)
+        if threshold is not None and needed <= threshold:
+            return level
+    return PAST_C2
+
+
+def rung_at(ladder: Any, level: str) -> int | None:
+    """The words a ladder wants for a CEFR level: the first rung reckoned at it. The
+    ulpan names its CEFR beside each rung (A1 is aleph, B2 dalet, C1 hey); the European
+    scale's rungs are the levels themselves. None for a level the ladder has no rung for,
+    Past C2 among them."""
+    for rung in ladder.rungs:
+        if (rung.cefr or rung.name) == level:
+            return int(rung.at)
+    return None
+
+
+def _catalogue_index() -> Index:
+    """The lemma index beside the catalogue, or an empty one."""
+    from . import catalogue as catalogue_module
+    from .coverage import read_index
+
+    return read_index(catalogue_module.lemmas_path())
+
+
+def text_level(entry: Entry, index: Index | None = None) -> str:
     """One text's level on the rule `cefr_rows` counts by, or "" where it has none.
 
-    Only the catalogue's own measures, `difficulty` and `sentence`, so the server and the
+    The catalogue's own measures, `difficulty` and `sentence`, so the server and the
     Library's shelf files say the same thing without either reading a build: a text with
-    no sentence length yet is unmeasured, never easy. An older Hebrew is on a ladder of
-    its own (`ladder_of`) and has no modern level.
+    no sentence length yet is unmeasured, never easy. A Native text is placed on B2, C1,
+    C2 or Past C2 by `native_level`, against `index` (the lemma index beside the
+    catalogue by default). An older Hebrew is on a ladder of its own (`ladder_of`) and
+    has no modern level.
     """
     register = getattr(getattr(entry, "register", None), "value", "") or ""
     if register and register != MODERN:
@@ -299,7 +450,17 @@ def text_level(entry: Entry) -> str:
     if placed is Level.aleph:
         minutes = int(getattr(entry, "minutes", 0) or 0)
         return "A1" if meets_easy(difficulty, sentence, minutes) else "A2"
-    return "B1" if placed is Level.bet else "B2+"
+    if placed is Level.bet:
+        return "B1"
+    return native_level(entry, _catalogue_index() if index is None else index)
+
+
+def levels_named(level: str) -> tuple[str, ...]:
+    """The text levels an address's level stands for: itself, or for the `B2+` alias the
+    four Native levels, so an address written before 2026-10-29 still opens."""
+    if level == NATIVE_ALIAS:
+        return NATIVE_LEVELS
+    return (level,) if level in TEXT_LEVELS else ()
 
 
 def videos(shelf: Shelf) -> int:

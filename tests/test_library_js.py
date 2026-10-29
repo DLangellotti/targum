@@ -1118,7 +1118,7 @@ def test_a_ladder_row_with_a_count_opens_that_kind_under_read_it_now(tmp_path: P
 LEVELLED = [
     {**row, "cefr": level}
     for row, level in zip(
-        SHELF, ("A1", "A1", "A2", "A2", "A1", "B1", "B1", "B2+", "", "A2"), strict=True
+        SHELF, ("A1", "A1", "A2", "A2", "A1", "B1", "B1", "C1", "", "A2"), strict=True
     )
 ]
 
@@ -1185,6 +1185,18 @@ def test_the_menus_strings_are_gone() -> None:
         assert "library.filter.any" not in strings
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert "library.menu.level" not in source
+
+
+def test_a_native_level_opens_its_own_texts(tmp_path: Path) -> None:
+    """The text ruler split B2 and up (design.md §12, "Your level, v3", 2026-10-29): C1
+    opens C1's texts, and B2, with none, opens none. `B2+` above still opens all four."""
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/C1", catalogueKnown=BANDED)
+    assert {row["id"] for row in drawn["rows"]} == {"story-two"}
+    assert drawn["seeTitle"].startswith("C1 texts in Hebrew")
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/B2", catalogueKnown=BANDED)
+    assert drawn["rows"] == []
+    drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/past-C2", catalogueKnown=BANDED)
+    assert drawn["seeTitle"].startswith("Texts past C2 in Hebrew")
 
 
 def test_the_level_chip_clears_the_level_and_keeps_the_band(tmp_path: Path) -> None:

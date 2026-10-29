@@ -23,8 +23,9 @@ from typing import Any
 
 from .coverage import Index
 
-#: The rows of a modern ladder, easiest first: the texts' own levels.
-LEVELS = ("A1", "A2", "B1", "B2+")
+#: The rows of a modern ladder, easiest first: the texts' own levels, A1 to C2 and Past
+#: C2 since the text ruler split Native (design.md §12, "Your level, v3", 2026-10-29).
+LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2", "C1", "C2", "past-C2")
 
 #: No ladder at all. Aramaic was here from 2026-10-08, when wordfreq's missing list made
 #: every Aramaic text measure 0; it climbs `aramaic_ladder` since the shelf's own Aramaic
@@ -134,11 +135,14 @@ def in_language(entry: Any, language: str) -> bool:
 def ladder(
     entries: Iterable[Any], language: str, level_of: Callable[[Any], str] | None = None
 ) -> list[Rung]:
-    """A language's rows, easiest first: each level of text it has a measured text at.
+    """A language's rows, easiest first: each level of text, A1 to Past C2.
 
-    A level with nothing on this language's shelf is not a row. Empty for a language the
-    library has nothing measured in. Aramaic's rows are bodies of Targum
-    (`aramaic_ladder`). `level_of` says a text's level; `levelmap.text_level` by default.
+    For a language with a word ladder (`level.ladder_for`) every level is a row, with
+    texts or without, because the words to go are worth showing on a level with no texts
+    (design.md §12, "Your level, v3", 2026-10-29). Elsewhere a level with nothing on this
+    language's shelf is not a row. Empty for a language the library has nothing measured
+    in. Aramaic's rows are bodies of Targum (`aramaic_ladder`). `level_of` says a text's
+    level; `levelmap.text_level` by default.
     """
     if language in NO_LADDER:
         return []
@@ -155,11 +159,43 @@ def ladder(
         level = level_of(entry)
         if level in LEVELS:
             by_level.setdefault(level, []).append(str(entry.id))
+    if not by_level:
+        return []
+    from .level import ladder_for
+
+    every = ladder_for(language) is not None
     return [
-        Rung(kind=level, name=level, difficulty=float(at), texts=tuple(by_level[level]))
+        Rung(kind=level, name=level, difficulty=float(at), texts=tuple(by_level.get(level, ())))
         for at, level in enumerate(LEVELS)
-        if by_level.get(level)
+        if every or by_level.get(level)
     ]
+
+
+def words_to_go(rows: list[dict[str, Any]], found: Any) -> list[dict[str, Any]]:
+    """Each row of the ladder with what the reader's words say of it (design.md §12, "Your
+    level, v3", 2026-10-29): `covered` where their known words reach the level's
+    threshold, and otherwise `toGo`, the words left to it, exact, from `level.words_to` —
+    the function the card's "637 words to ה׳" comes from, so the C1 row's number is the
+    card's. Past C2 has no threshold: no number, and covered only at the ladder's top rung.
+    A language with no word ladder is left as it is.
+    """
+    from .level import ladder_for, words_to
+    from .levelmap import rung_at
+
+    ladder = ladder_for(getattr(found, "language", "") or "")
+    if ladder is None:
+        return rows
+    top = ladder.rungs[-1]
+    for row in rows:
+        at = rung_at(ladder, str(row.get("kind") or ""))
+        if at is None:
+            row["covered"] = getattr(found, "here", None) == top
+            row["toGo"] = None
+            continue
+        left = words_to(found, at)
+        row["covered"] = left == 0
+        row["toGo"] = left or None
+    return rows
 
 
 def percent(share: float) -> int:

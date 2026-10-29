@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from math import ceil
 from pathlib import Path
 from typing import Any
 
@@ -47,9 +48,13 @@ def shelf() -> list[Entry]:
         Entry("d0", "he", "dialogue", 0, "לא נמדד"),  # unmeasured
         Entry("a1", "he", "article", 17, "ידיעה", english="A report", sentence=12),  # B1
         Entry("t1", "he", "talk", 14, "הרצאה", sentence=9, minutes=10),  # A2
-        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # B2+
+        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # Native, B2 with no index
         Entry("r1", "ru", "story", 22, "Муму", sentence=15),
     ]
+
+
+#: The rows a language with a word ladder always has (design.md §12, "Your level, v3").
+EVERY = ("A1", "A2", "B1", "B2", "C1", "C2", "past-C2")
 
 
 def test_the_ladder_is_the_texts_own_levels_not_kinds() -> None:
@@ -60,13 +65,27 @@ def test_the_ladder_is_the_texts_own_levels_not_kinds() -> None:
         ("A1", ("d1",)),
         ("A2", ("d2", "t1")),
         ("B1", ("a1",)),
-        ("B2+", ("p1",)),
+        ("B2", ("p1",)),
+        ("C1", ()),
+        ("C2", ()),
+        ("past-C2", ()),
     ]
-    assert [rung.kind for rung in touchstones.ladder(shelf(), "ru")] == ["B2+"]
+    assert [(rung.kind, rung.texts) for rung in touchstones.ladder(shelf(), "ru")][3] == (
+        "B2",
+        ("r1",),
+    )
 
 
-def test_a_level_with_nothing_at_it_is_no_row() -> None:
+def test_every_level_is_a_row_where_the_language_has_a_word_ladder() -> None:
+    """2026-10-29 ("Your level, v3"): C1, C2 and Past C2 are rows with no texts, because
+    the words to go are worth showing; "a level with nothing at it is not a row" gave way."""
     rungs = touchstones.ladder([Entry("b", "he", "story", 17, sentence=12)], "he")
+    assert tuple(rung.kind for rung in rungs) == EVERY
+    assert [rung.texts for rung in rungs if rung.texts] == [("b",)]
+
+
+def test_a_level_with_nothing_at_it_is_no_row_without_a_word_ladder() -> None:
+    rungs = touchstones.ladder([Entry("b", "yi", "story", 17, sentence=12)], "yi")
     assert [rung.kind for rung in rungs] == ["B1"]
 
 
@@ -76,7 +95,7 @@ def test_a_text_in_two_languages_is_on_both_ladders() -> None:
         languages: tuple[str, ...] = ()
 
     both = Two("dan", "he", "prose", 17, sentence=12, languages=("he", "arc"))
-    assert [rung.texts for rung in touchstones.ladder([both], "he")] == [("dan",)]
+    assert [rung.texts for rung in touchstones.ladder([both], "he") if rung.texts] == [("dan",)]
 
 
 def test_aramaic_outside_the_targums_and_an_empty_library_have_no_ladder() -> None:
@@ -102,7 +121,10 @@ def test_easy_is_most_of_a_level_readable_and_the_next_step_follows() -> None:
         ("A1", "easy", 1),
         ("A2", "easy", 1),
         ("B1", "easy", 1),
-        ("B2+", "next", 0),
+        ("B2", "next", 0),
+        ("C1", "ahead", 0),
+        ("C2", "ahead", 0),
+        ("past-C2", "ahead", 0),
     ]
     assert got["here"] == 2 and got["next"] == 3
     assert "said" not in got and "share" not in got["ladder"][0], "no percentage to print"
@@ -111,7 +133,7 @@ def test_easy_is_most_of_a_level_readable_and_the_next_step_follows() -> None:
 def test_half_a_level_is_not_most_of_it() -> None:
     rungs = touchstones.ladder(shelf(), "he")
     got = touchstones.standing(rungs, {"d1": 0.5, "d2": 0.95, "t1": 0.5}.get)
-    assert [rung["state"] for rung in got["ladder"]] == ["next", "ahead", "ahead", "ahead"]
+    assert [rung["state"] for rung in got["ladder"]] == ["next"] + ["ahead"] * 6
     assert got["ladder"][1]["readable"] == 1, "counted, even where the level is not easy"
 
 
@@ -119,20 +141,26 @@ def test_a_row_below_the_hardest_easy_one_is_easy_too() -> None:
     """The ladder climbs: a reader who reads B1 on their own reads beginner texts."""
     rungs = touchstones.ladder(shelf(), "he")
     got = touchstones.standing(rungs, {"a1": 0.97}.get)
-    assert [rung["state"] for rung in got["ladder"]] == ["easy", "easy", "easy", "next"]
+    assert [rung["state"] for rung in got["ladder"]][:5] == [
+        "easy",
+        "easy",
+        "easy",
+        "next",
+        "ahead",
+    ]
 
 
 def test_with_no_row_easy_the_first_is_the_next_step() -> None:
     rungs = touchstones.ladder(shelf(), "he")
     got = touchstones.standing(rungs, {"d1": 0.4}.get)
     assert got["here"] is None and got["next"] == 0
-    assert [rung["state"] for rung in got["ladder"]] == ["next", "ahead", "ahead", "ahead"]
+    assert [rung["state"] for rung in got["ladder"]] == ["next"] + ["ahead"] * 6
 
 
 def test_the_top_row_easy_has_no_next_step() -> None:
-    rungs = touchstones.ladder(shelf(), "he")
+    rungs = touchstones.ladder([Entry("p1", "yi", "poetry", 25, sentence=20)], "yi")
     got = touchstones.standing(rungs, {"p1": 1.0}.get)
-    assert got["here"] == 3 and got["next"] is None
+    assert got["here"] == 0 and got["next"] is None
 
 
 def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
@@ -221,8 +249,32 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
         "state": "easy",
         "texts": 1,
         "readable": 0,
+        # One word known, weighing 1.0 with no band, and nothing marked in the last 30
+        # days: the next word is reckoned at the commonest band's 0.8, so (250 - 1) / 0.8
+        # is 311.25, which is 312 words to aleph (design.md §12, "Your level, v3").
+        "covered": False,
+        "toGo": 312,
     }
     assert said["ladder"][1]["readable"] == 1 and said["ladder"][1]["state"] == "easy"
+    # The rows above say their words to go, exact and growing down the ladder, and Past C2
+    # has none.
+    assert [row["toGo"] for row in said["ladder"]] == [
+        312,
+        ceil((1800 - 1) / 0.8),
+        ceil((4500 - 1) / 0.8),
+        ceil((6500 - 1) / 0.8),
+        ceil((9000 - 1) / 0.8),
+        ceil((12000 - 1) / 0.8),
+        None,
+    ]
+    # Week one: no rung, and the card's bar and words toward aleph from the same function.
+    assert said["first"] == {
+        "scale": "ulpan",
+        "letter": "א",
+        "name": "aleph",
+        "toward": 1 / 250,
+        "toGo": 312,
+    }
     assert said["conversations"] is True
     assert said["here"] == 1 and said["next"] == 2
     # One word known is no rung of the ulpan's: no foot line until the first is reached.
@@ -259,7 +311,7 @@ def test_each_ladder_count_is_its_library_shelf_count(
         Entry("t1", "he", "talk", 12, "הרצאה א", sentence=9, minutes=10),  # A2
         Entry("t2", "he", "talk", 13, "הרצאה ב", sentence=12),  # B1
         Entry("a1", "he", "article", 17, "ידיעה", sentence=12),  # B1
-        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # B2+
+        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # Native: C1 by the ruler
     ]
     known = [f"w{n}" for n in range(9)]
     lemmas = tmp_path / "lemmas.json"
@@ -292,7 +344,10 @@ def test_each_ladder_count_is_its_library_shelf_count(
     status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
     assert status == 200, said
     counts = {rung["kind"]: rung["readable"] for rung in said["ladder"]}
-    assert counts == {"A1": 2, "A2": 2, "B1": 1, "B2+": 0}
+    assert counts == {"A1": 2, "A2": 2, "B1": 1, "B2": 0, "C1": 0, "C2": 0, "past-C2": 0}
+    # p1's "w0" is on no frequency list and is not counted; "x" and "y" rank 3,231 and
+    # 7,019 in Hebrew's, so 85% of what is ranked needs 7,019 words, past dalet: C1.
+    assert {rung["kind"]: rung["texts"] for rung in said["ladder"]}["C1"] == 1
 
     status, shelf_said, _ = call(port, "GET", f"/readers?k={token}", cookie=cookie)
     assert status == 200
@@ -320,6 +375,17 @@ def test_each_ladder_count_is_its_library_shelf_count(
         )
         assert len(drawn["rows"]) == count, (level, drawn["rows"])
         assert drawn["fitOn"] == "Read it now"
+    # B2 and up, an address from before the split, still opens onto the four it became.
+    drawn = library(
+        tmp_path,
+        catalogue=rows,
+        collections=[],
+        catalogueKnown=shelf_said["catalogue"],
+        readers=shelf_said["readers"],
+        shared=shelf_said["shared"],
+        hash="#see/level/B2%2B",
+    )
+    assert [row["id"] for row in drawn["rows"]] == ["p1"], drawn["rows"]
 
 
 def test_the_foot_level_is_the_measured_rung_and_the_way_to_the_next(
@@ -353,6 +419,11 @@ def test_the_foot_level_is_the_measured_rung_and_the_way_to_the_next(
         "next": {"letter": "א+", "name": "aleph plus"},
     }
     assert level["toward"] == pytest.approx(50 / 650)
+    # 600 weighted words to aleph plus. Nothing was marked in the last 30 days and most
+    # known words are fairly easy, so the next ones are reckoned moderate, 1.3 each:
+    # 461.5, which is 462 words, exact (design.md §12, "Your level, v3", 2026-10-29).
+    assert level["toGo"] == 462
+    assert said["first"] is None, "a rung is reached, so there is no week-one bar"
 
     status, said, _ = call(port, "GET", f"/account/story?language=yi&k={token}", cookie=cookie)
     assert said["level"] is None

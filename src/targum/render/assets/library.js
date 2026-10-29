@@ -503,7 +503,7 @@
         // Hebrew and the Onkelos beside it (2026-09-14).
         languages: entry.languages || [entry.language],
         kind: entry.kind,
-        // The text's own level, A1 to B2+, or "" where it has none measured: what Your
+        // The text's own level, A1 to Past C2, or "" where it has none measured: what Your
         // Progress's Level rows open the shelf at (`#see/level/<level>`, 2026-10-28).
         cefr: entry.cefr || "",
         register: entry.register,
@@ -1434,14 +1434,26 @@
      holds what the row counted (design.md §12, "Your level leads with what you can
      read", 2026-10-28). The level lives in the address and nowhere else: any other
      address, the shelves included, lets it go. */
-  var CEFR_LEVELS = ["A1", "A2", "B1", "B2+"];
+  var CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2", "past-C2", "B2+"];
+  //: B2 and up, an address from before the text ruler split Native (design.md §12, "Your
+  //: level, v3", 2026-10-29): it still opens, onto the four levels it became.
+  var NATIVE_LEVELS = ["B2", "C1", "C2", "past-C2"];
   //: Each level as its chip says it, the names Your Progress's rows use.
   var LEVEL_NAMES = {
     A1: t("library.level.A1", "Beginner · A1"),
     A2: t("library.level.A2", "A2"),
     B1: t("library.level.B1", "B1"),
+    B2: t("library.level.B2", "B2"),
+    C1: t("library.level.C1", "C1"),
+    C2: t("library.level.C2", "C2"),
+    "past-C2": t("library.level.past-C2", "Past C2"),
     "B2+": t("library.level.B2+", "B2 and up"),
   };
+
+  //: Whether a row's own level is the one an address names.
+  function levelHolds(wanted, level) {
+    return level === wanted || (wanted === "B2+" && NATIVE_LEVELS.indexOf(level) >= 0);
+  }
 
   function levelAddressed() {
     var now = decodeURIComponent((location.hash || "").slice(1));
@@ -1799,7 +1811,7 @@
       var kinds = KIND_SETS[state.kind] || [state.kind];
       if (kinds.indexOf(row.kind) < 0) return false;
     }
-    if (state.cefr && row.cefr !== state.cefr) return false;
+    if (state.cefr && !levelHolds(state.cefr, row.cefr)) return false;
     /* The band is for choosing from the catalogue. It is not for the Beit Midrash: a tree that hid the Writings from a beginner because
        they are hard would be a tree with branches missing, and the reader came to see
        where things stand. Each row still says how much of it they know. */
@@ -3006,6 +3018,10 @@
         A1: t("library.see.level.A1", "Beginner texts in {language}", { language: names[chosen] || chosen }),
         A2: t("library.see.level.A2", "A2 texts in {language}", { language: names[chosen] || chosen }),
         B1: t("library.see.level.B1", "B1 texts in {language}", { language: names[chosen] || chosen }),
+        B2: t("library.see.level.B2", "B2 texts in {language}", { language: names[chosen] || chosen }),
+        C1: t("library.see.level.C1", "C1 texts in {language}", { language: names[chosen] || chosen }),
+        C2: t("library.see.level.C2", "C2 texts in {language}", { language: names[chosen] || chosen }),
+        "past-C2": t("library.see.level.past-C2", "Texts past C2 in {language}", { language: names[chosen] || chosen }),
         "B2+": t("library.see.level.B2+", "Texts at B2 and up in {language}", { language: names[chosen] || chosen }),
       };
       var name = view.cefr && levelTitles[view.cefr]

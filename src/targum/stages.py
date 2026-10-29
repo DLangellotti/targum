@@ -44,8 +44,10 @@ read before the next stranger arrives.
 The shelf is counted on the library's own ruler (`levelmap`), which places a text on
 three levels. CEFR is finer, and the floors are stated in CEFR by the mapping in
 `levelmap.cefr_rows`: A1 is a text meeting the Easy spec in full, A2 the rest of Easy,
-B1 is Simplified, and Native is counted as one level, B2 and up, until there is a better
-ruler than a median nobody measured (David, 2026-10-12). The counts a test reads are the
+B1 is Simplified, and Native is counted as one level, B2 and up (David, 2026-10-12). The
+text ruler splits Native into B2, C1, C2 and Past C2 for a text's own level since
+2026-10-29 (design.md §12, "Your level, v3"), and `cefr_rows` still gives `B2+` as the four
+together, which is what the floors read. The counts a test reads are the
 committed snapshot in `evals/shelf.json`, written by `targum stages --measure` from a
 catalogue, the week's published issues and the builds on disk, the way the evals ledger is
 committed and re-run.
@@ -90,7 +92,8 @@ class Stage(StrEnum):
 
 ORDER: tuple[Stage, ...] = (Stage.experimental, Stage.alpha, Stage.beta)
 
-#: The levels the shelf floors are stated at. "B2+" is Native counted as one level.
+#: The levels the shelf floors are stated at. "B2+" is Native counted as one level: B2, C1,
+#: C2 and Past C2 together (`levelmap.NATIVE_ALIAS`).
 CEFR_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", "B2+")
 
 #: The levels a learner sits at, which Alpha must furnish.

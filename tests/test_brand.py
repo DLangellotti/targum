@@ -243,6 +243,9 @@ def test_no_focus_ring_is_the_gold() -> None:
 #: `inset-inline-end: -1.9rem`, outside the pair, so its reach crosses a margin and never
 #: the words. A control that sat among them could not take this.
 THUMBED = (
+    # Every part of a `.seg`, the one switch on every surface (design.md §12, "Your
+    # level, v3", 2026-10-29): Your Progress's Day / Week / Month is one.
+    ".seg > *",
     # Shnayim mikra's presses (2026-09-13, targum-internal#202): the way it is kept, the
     # press on under a verse, and the press at the foot of a section.
     ".practice-key",

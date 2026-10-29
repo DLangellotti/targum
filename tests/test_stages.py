@@ -257,21 +257,55 @@ def test_hebrews_hard_spots_are_all_covered() -> None:
 
 
 def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
-    """A1 is the Easy spec in full, A2 the rest of Easy, B1 Simplified, and Native is one
-    level (David, 2026-10-12); recordings are audio and video."""
+    """A1 is the Easy spec in full, A2 the rest of Easy, B1 Simplified; Native is split by
+    the text ruler into B2, C1, C2 and Past C2, and `B2+` is still the four together, the
+    level the floors read (design.md §12, "Your level, v3", 2026-10-29); recordings are
+    audio and video."""
     shelf = levelmap.Shelf("xx")
     shelf.cells[("aleph", "text")] = 4
     shelf.cells[("aleph", "audio")] = 6
     shelf.cells[("bet", "video")] = 2
     shelf.cells[("gimel", "text")] = 10
     shelf.cells[("gimel", "audio")] = 1
+    shelf.native[("B2", "text")] = 7
+    shelf.native[("C1", "text")] = 2
+    shelf.native[("past-C2", "text")] = 1
+    shelf.native[("B2", "audio")] = 1
     shelf.easy["audio"] = 5
     assert levelmap.cefr_rows(shelf) == {
         "A1": (5, 5),
         "A2": (5, 1),
         "B1": (2, 2),
+        "B2": (8, 1),
+        "C1": (2, 0),
+        "C2": (0, 0),
+        "past-C2": (1, 0),
         "B2+": (11, 1),
     }
+
+
+def test_tally_splits_native_by_the_ruler_and_keeps_the_alias() -> None:
+    """`tally` places each Native text with the ruler it is handed, so `cefr_rows`' four
+    native rows add up to its `B2+`, which the floors read."""
+    from targum.catalogue import Entry
+
+    def entry(id_: str, difficulty: int, sentence: float) -> Entry:
+        return Entry(
+            id_, "t", "", "xx", f"s:{id_}", "", 100, difficulty=difficulty, sentence=sentence
+        )
+
+    entries = [entry("n1", 25, 20), entry("n2", 26, 21), entry("e1", 5, 6)]
+    placed = {"n1": "C1", "n2": "past-C2"}
+    shelves = levelmap.tally(
+        entries,
+        sentence=lambda one: one.sentence,
+        spoken=lambda _: False,
+        video=lambda _: False,
+        native=lambda one: placed[one.id],
+    )
+    rows = levelmap.cefr_rows(shelves["xx"])
+    assert rows["C1"] == (1, 0) and rows["past-C2"] == (1, 0) and rows["B2"] == (0, 0)
+    assert rows["B2+"] == (2, 0)
 
 
 def test_the_shelf_snapshot_round_trips(tmp_path: Path) -> None:

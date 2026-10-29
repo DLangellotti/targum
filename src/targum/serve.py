@@ -9290,7 +9290,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/account/totals":
             return self._totals()
         if route == "/account/reading":
-            return self._reading()
+            return self._reading(parse_qs(urlparse(self.path).query))
         if route == "/account/story":
             return self._story(parse_qs(urlparse(self.path).query))
         if route == "/account/words":
@@ -13840,25 +13840,33 @@ class Handler(BaseHTTPRequestHandler):
             return []
         return corpus.chapters_of(portion)
 
-    def _reading(self) -> None:
-        """What the reader knew of what they read, a point a month, per language
-        (targum-internal#291). `line` is empty under two points, and `months` says how
-        many there are so far, so the page can say what would draw it."""
+    def _reading(self, query: dict[str, list[str]] | None = None) -> None:
+        """What the reader knew of what they read, per language (targum-internal#291).
+
+        `line` is a point a month, empty under two points, and `months` says how many
+        there are so far, so the page can say what would draw it. `days` is a bucket a
+        day (design.md §12, "Your level, v3", 2026-10-29), which the page sums into weeks
+        and months for its Day / Week / Month switch. Both are in the time zone the page
+        names in `tz`, UTC where it names none, read off the `reading` rows' own `at`:
+        nothing new is stored, the zone included."""
         from . import coverage as coverage_module
 
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        zone = coverage_module.zone_named(str(((query or {}).get("tz") or [""])[0]))
         by_language: dict[str, list[dict[str, Any]]] = {}
         for row in self.store.readings(person.id):
             by_language.setdefault(str(row["language"]), []).append(row)
         self._json(
             {
                 "signedIn": True,
+                "measurable": coverage_module.MEASURABLE,
                 "reading": {
                     language: {
-                        "line": coverage_module.monthly(rows),
-                        "months": len(coverage_module.by_month(rows)),
+                        "line": coverage_module.monthly(rows, zone),
+                        "months": len(coverage_module.by_month(rows, zone)),
+                        "days": coverage_module.by_day(rows, zone),
                         "sections": len(rows),
                     }
                     for language, rows in by_language.items()
@@ -14255,6 +14263,11 @@ class Handler(BaseHTTPRequestHandler):
             if rungs and index.texts
             else {"ladder": [], "here": None, "next": None}
         )
+        # What the reader's words say of each row: reached, or the words left to it
+        # (design.md §12, "Your level, v3", 2026-10-29).
+        found = self._snapshot(person, language)
+        if found is not None:
+            touchstones.words_to_go(answer["ladder"], found)
         # Whether the shelf has conversations, which week one offers as the first pick.
         answer["conversations"] = any(
             str(entry.kind) == "dialogue" and touchstones.in_language(entry, language)
@@ -14262,7 +14275,10 @@ class Handler(BaseHTTPRequestHandler):
         )
         # The one level on the page, its foot line (design.md §12, "Your level leads with
         # what you can read", 2026-10-28): the measured rung and never the declared one.
-        answer["level"] = self._foot_level(person, language)
+        answer["level"] = self._foot_level(person, language, found)
+        # Week one: no rung yet, and the words left to the first (design.md §12, "Your
+        # level, v3"): the bar and "{n} words to א׳" on the Start card.
+        answer["first"] = self._first_rung(found)
         answer["texts"] = touchstones.at_level(
             entries, index, marked, language, ui_language=self._ui_language()
         )
@@ -14337,18 +14353,26 @@ class Handler(BaseHTTPRequestHandler):
 
         return known_of
 
-    def _foot_level(self, person: Any, language: str) -> dict[str, Any] | None:
-        """The rung `level.py` measures for this language, for the foot line and the bar
-        toward the next one; None for a language with no scale (Aramaic, Yiddish) and
+    def _snapshot(self, person: Any, language: str) -> Any:
+        """The reader's `level.snapshot` for a language with a word ladder, or None."""
+        from . import level as level_module
+
+        if level_module.ladder_for(language) is None or self.store is None:
+            return None
+        return level_module.snapshot(self.store, person.id, language)
+
+    def _foot_level(self, person: Any, language: str, found: Any = None) -> dict[str, Any] | None:
+        """The rung `level.py` measures for this language, for the card's letter and the
+        bar toward the next one; None for a language with no scale (Aramaic, Yiddish) and
         until the first rung is reached. Hebrew climbs the ulpan by weighted words, and
-        the European scale counts the commonest words."""
+        the European scale counts the commonest words. `toGo` is the words left to the
+        next rung, exact (design.md §12, "Your level, v3", 2026-10-29)."""
         from . import level as level_module
 
         ladder = level_module.ladder_for(language)
-        if ladder is None or self.store is None:
-            return None
-        found = level_module.snapshot(self.store, person.id, language)
-        if found.here is None:
+        if found is None:
+            found = self._snapshot(person, language)
+        if ladder is None or found is None or found.here is None:
             return None
         measure = found.weighted if ladder.measure == "weighted" else float(found.common)
         toward: float | None = None
@@ -14366,6 +14390,30 @@ class Handler(BaseHTTPRequestHandler):
                 else None
             ),
             "toward": toward,
+            "toGo": (
+                level_module.words_to(found, found.next.at) if found.next is not None else None
+            ),
+        }
+
+    @staticmethod
+    def _first_rung(found: Any) -> dict[str, Any] | None:
+        """Before the first rung: the rung, the bar toward it and the words left to it
+        (design.md §12, "Your level, v3", 2026-10-29). None once a rung is reached, and
+        for a language with no scale."""
+        from . import level as level_module
+
+        if found is None or found.here is not None or found.next is None:
+            return None
+        ladder = level_module.ladder_for(found.language)
+        if ladder is None:
+            return None
+        measure = found.weighted if ladder.measure == "weighted" else float(found.common)
+        return {
+            "scale": "ulpan" if ladder is level_module.ULPAN_LADDER else "cefr",
+            "letter": found.next.letter,
+            "name": found.next.name,
+            "toward": max(0.0, min(1.0, measure / found.next.at)) if found.next.at else 0.0,
+            "toGo": level_module.words_to(found, found.next.at),
         }
 
     def _already(self, payload: dict[str, Any]) -> None:

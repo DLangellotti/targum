@@ -23,6 +23,7 @@ from array import array
 from bisect import bisect_left
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import tzinfo
 from functools import lru_cache
 from pathlib import Path
 
@@ -511,13 +512,59 @@ POINTS = 2
 MEASURABLE = 20
 
 
-def by_month(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
+def zone_named(name: str) -> tzinfo:
+    """The time zone a browser names (`Intl…timeZone`, "Asia/Jerusalem"), or UTC for a
+    name that is empty or not one. Read per request and kept nowhere."""
+    from datetime import UTC
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+    name = (name or "").strip()
+    if not name or len(name) > 64 or ".." in name or name.startswith("/"):
+        return UTC
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, OSError):
+        return UTC
+
+
+def by_day(
+    rows: list[dict[str, int | str]], zone: tzinfo | None = None
+) -> list[dict[str, int | str]]:
+    """The reading rows of one language, a bucket a day in the reader's time zone, oldest
+    first (design.md §12, "Your level, v3", 2026-10-29), so a section finished at 23:30 in
+    Tel Aviv is that day's and not the next one's.
+
+    Each bucket is the day's running words, the known ones among them and how many
+    sections are behind it, and every day with a section is sent however short: the page
+    sums weeks and months from these, words and never shares, so a day left out would
+    take its words out of its week. The page leaves a point under `MEASURABLE` words off
+    its line.
+    """
+    from datetime import UTC, datetime
+
+    days: dict[str, dict[str, int | str]] = {}
+    for row in rows:
+        at = int(row.get("at") or 0)
+        tokens = int(row.get("tokens") or 0)
+        if at <= 0 or tokens <= 0:
+            continue
+        day = datetime.fromtimestamp(at / 1000, tz=zone or UTC).strftime("%Y-%m-%d")
+        bucket = days.setdefault(day, {"day": day, "tokens": 0, "known": 0, "sections": 0})
+        bucket["tokens"] = int(bucket["tokens"]) + tokens
+        bucket["known"] = int(bucket["known"]) + int(row.get("known") or 0)
+        bucket["sections"] = int(bucket["sections"]) + 1
+    return [days[d] for d in sorted(days)]
+
+
+def by_month(
+    rows: list[dict[str, int | str]], zone: tzinfo | None = None
+) -> list[dict[str, int | str]]:
     """The reading rows of one language, a point a month, oldest first.
 
     Each point is the month's running words added up and the known ones among them — so
     a long chapter counts for more than a short one, as it did on the page — and how many
-    sections are behind it. Months are UTC, which is what `at` is. A month under
-    `MEASURABLE` words is left out.
+    sections are behind it. Months are in `zone`, the reader's, and UTC where none is
+    named. A month under `MEASURABLE` words is left out.
     """
     from datetime import UTC, datetime
 
@@ -527,7 +574,7 @@ def by_month(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
         tokens = int(row.get("tokens") or 0)
         if at <= 0 or tokens <= 0:
             continue
-        month = datetime.fromtimestamp(at / 1000, tz=UTC).strftime("%Y-%m")
+        month = datetime.fromtimestamp(at / 1000, tz=zone or UTC).strftime("%Y-%m")
         point = months.setdefault(month, {"month": month, "tokens": 0, "known": 0, "sections": 0})
         point["tokens"] = int(point["tokens"]) + tokens
         point["known"] = int(point["known"]) + int(row.get("known") or 0)
@@ -535,10 +582,12 @@ def by_month(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
     return [months[m] for m in sorted(months) if int(months[m]["tokens"]) >= MEASURABLE]
 
 
-def monthly(rows: list[dict[str, int | str]]) -> list[dict[str, int | str]]:
+def monthly(
+    rows: list[dict[str, int | str]], zone: tzinfo | None = None
+) -> list[dict[str, int | str]]:
     """`by_month`, as a line: nothing under `POINTS` points, so the caller says what is
     missing rather than drawing a slope out of two."""
-    points = by_month(rows)
+    points = by_month(rows, zone)
     return points if len(points) >= POINTS else []
 
 
