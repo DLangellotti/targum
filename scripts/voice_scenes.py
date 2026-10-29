@@ -412,8 +412,8 @@ def tidy(direction: Any) -> str:
 
 
 def scene_key(scene: dict[str, Any]) -> str:
-    """What the director's answer depends on, hashed: the words, who says them, and the
-    brief. A re-pointed scene keeps its directions, because the pointing is stripped
+    """What the director's answer depends on, hashed: the words, their English, who says
+    them, and the brief. A re-pointed scene keeps its directions, because the pointing is stripped
     before the director reads it; a re-worded one is directed again."""
     said = {
         "model": DIRECTOR,
@@ -421,7 +421,10 @@ def scene_key(scene: dict[str, Any]) -> str:
         "title": scene.get("english") or scene.get("title", ""),
         "gloss": scene.get("gloss", ""),
         "cast": {k: [v.get("name", ""), v.get("gender", "")] for k, v in scene["cast"].items()},
-        "turns": [[t["who"], POINTS.sub("", t["text"])] for t in scene["turns"]],
+        # The English too: `brief` sends it, so a changed gloss can change a direction.
+        "turns": [
+            [t["who"], POINTS.sub("", t["text"]), t.get("english", "")] for t in scene["turns"]
+        ],
     }
     return hashlib.sha256(json.dumps(said, ensure_ascii=False).encode()).hexdigest()[:16]
 
@@ -500,7 +503,10 @@ def direct(
     bought, so neither a re-run nor a crash later in the scene pays for them twice.
 
     An answer that cannot be read is asked once more; if the second cannot be read
-    either, every turn is NEUTRAL and nothing is stored, so the next run tries again."""
+    either, every turn is NEUTRAL, and that is stored too, marked as a fallback. Left
+    unstored, the next run would direct the scene afresh, every prompt would change, and
+    every turn already bought under NEUTRAL would be bought again. Delete the file to
+    have the scene directed again."""
     cached = store / f"{scene['id']}.{scene_key(scene)}.json"
     if cached.exists():
         return json.loads(cached.read_text(encoding="utf-8"))["directions"], 0.0
@@ -514,10 +520,35 @@ def direct(
         except ValueError as unreadable:
             print(f"    director, attempt {attempt + 1}: {unreadable}", flush=True)
             continue
-        record = {"model": DIRECTOR, "version": DIRECTOR_VERSION, "directions": directions}
-        write_atomically(cached, (json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode())
+        keep(cached, directions, fallback=False)
         return directions, spent
-    return [NEUTRAL] * len(scene["turns"]), spent
+    print(f"    director: unreadable twice; every turn is {NEUTRAL!r}, kept as such", flush=True)
+    directions = [NEUTRAL] * len(scene["turns"])
+    keep(cached, directions, fallback=True)
+    return directions, spent
+
+
+def keep(cached: Path, directions: list[str], fallback: bool) -> None:
+    record = {
+        "model": DIRECTOR,
+        "version": DIRECTOR_VERSION,
+        "fallback": fallback,
+        "directions": directions,
+    }
+    write_atomically(cached, (json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode())
+
+
+class TooLong(ValueError):
+    """A prompt that cannot be brought under LONGEST. It is never sent."""
+
+
+#: The long-winded parts of `pronunciation_hints`' sentences and what they shrink to when
+#: the whole would not fit. The forms and the sounds stay; only the explanation goes.
+TERSE = [
+    (' the word for "you" to a woman — not "et", the object marker', ' not "et"'),
+    (", the feminine", ""),
+    (", the masculine", ""),
+]
 
 
 def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
@@ -531,13 +562,25 @@ def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
     other = scene["cast"]["B" if turn["who"] == "A" else "A"]
     hints = pronunciation_hints(turn["text"], other.get("gender", ""))
     guide = GUIDE.format(hints="; ".join(hints)) if hints else ""
-    # The direction gives way first: cut to its first clause, then left out. A prompt
-    # over LONGEST is the 400 the 2026-09-22 run kept hitting.
-    for how in (direction, direction.split(",")[0].strip(), ""):
+    # The direction gives way first: cut to its first clause, then left out. Then the
+    # hint is said tersely. A prompt over LONGEST is the 400 the 2026-09-22 run kept
+    # hitting, so one that still does not fit is refused here, before it is sent.
+    terse = guide
+    for long, short in TERSE:
+        terse = terse.replace(long, short)
+    for how, hint in (
+        (direction, guide),
+        (direction.split(",")[0].strip(), guide),
+        ("", guide),
+        ("", terse),
+    ):
         said = ASK.format(name=name, who=gender, how=HOW.format(direction=how) if how else "")
-        if len(said + guide) <= LONGEST or not how:
-            return said + guide
-    raise AssertionError("unreachable")
+        if len(said + hint) <= LONGEST:
+            return said + hint
+    raise TooLong(
+        f"{scene['id']} t{n}: the prompt is {len(said + terse)} characters even with no "
+        f"direction and the hint said tersely; the limit is {LONGEST}. Not sent."
+    )
 
 
 def gap(scene: dict[str, Any], n: int) -> float:
@@ -666,9 +709,11 @@ def voice(
     at = 0.0
     bought = 0.0
     last = len(scene["turns"]) - 1
+    # Every prompt first, so a TooLong stops the scene before anything in it is bought.
+    prompts = [prompt_for(scene, n, directions[n] if directions else "") for n in range(last + 1)]
     for n, turn in enumerate(scene["turns"]):
         speaker = scene["cast"][turn["who"]]["voice"]
-        prompt = prompt_for(scene, n, directions[n] if directions else "")
+        prompt = prompts[n]
         kept = take_path(takes, scene, n, speaker, prompt)
         if kept.exists():
             pcm = kept.read_bytes()
@@ -695,6 +740,30 @@ def voice(
     raw.write_bytes(wav(joined))
     encode(raw, into / f"{scene['id']}.mp3")
     return spans, len(joined) / (RATE * 2), bought
+
+
+#: Format of the `<id>.seams.json` sidecar, which `dialogue/write.py` reads.
+SEAMS_VERSION = 1
+
+
+def write_seams(into: Path, scene_id: str, spans: list[list[float]]) -> Path:
+    """The seams this run put into `<id>.mp3`, beside it, for `dialogue/write.py`.
+
+    write.py otherwise finds seams by taking the longest N-1 silences in the file. With
+    gaps as short as 0.3s that stops being safe: a pause inside a line can be longer than
+    the gap between two (qa counted 103 inside-a-turn pauses over 0.57s). These spans are
+    known, not guessed. The mp3's hash is in the file, so a sidecar left beside an mp3
+    that was replaced afterwards is ignored and write.py listens for silences again."""
+    mp3 = into / f"{scene_id}.mp3"
+    record = {
+        "version": SEAMS_VERSION,
+        "mp3_sha256": hashlib.sha256(mp3.read_bytes()).hexdigest(),
+        "turns": len(spans),
+        "spans": spans,
+    }
+    path = into / f"{scene_id}.seams.json"
+    write_atomically(path, (json.dumps(record, indent=2) + "\n").encode())
+    return path
 
 
 def lengths(prompts: list[str]) -> str:
@@ -778,10 +847,16 @@ def main() -> None:
         # which is the worst the director can do to them.
         widest = "x" * DIRECTION_MOST
         bare_, worst = [], []
+        refused: list[str] = []
         for s in scenes:
             for n in range(len(s["turns"])):
-                bare_.append(prompt_for(s, n))
-                worst.append(prompt_for(s, n, widest))
+                try:
+                    bare_.append(prompt_for(s, n))
+                    worst.append(prompt_for(s, n, widest))
+                except TooLong as long:
+                    refused.append(str(long))
+        for one in refused:
+            print(f"  REFUSED {one}")
         print(f"prompt lengths, no direction: {lengths(bare_)}")
         print(f"prompt lengths, a {DIRECTION_MOST}-char direction: {lengths(worst)}")
         shortened = sum(1 for p in worst if widest not in p)
@@ -820,7 +895,7 @@ def main() -> None:
             spans, seconds, bought = voice(
                 scene, key, into, args.spacing, args.via, args.deadline, cut.append, directions
             )
-        except CutOff as stalled:
+        except (CutOff, TooLong) as stalled:
             print(f"  not voiced this run: {stalled}", file=sys.stderr)
             continue
         except Daily as gone:
@@ -836,6 +911,7 @@ def main() -> None:
         (into / f"{scene['id']}.spans.json").write_text(
             json.dumps(spans, indent=2) + "\n", encoding="utf-8"
         )
+        write_seams(into, scene["id"], spans)
         print(f"  {seconds:.1f}s, {bought:.1f}s of it bought, ${spent:.3f} so far", flush=True)
 
     print(f"\n{voiced} of {len(scenes)} scenes into {into}. This run cost ${spent:.3f}.")

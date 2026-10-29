@@ -12,22 +12,38 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A short conversation is no longer listed at C1 (2026-10-29). "The key" (14 words) and
+  "Renting a bike" (38) were measured Native because one uncommon word is a big share of
+  a few, and the text ruler then put them on C1; before it they were "B2 and up". A
+  conversation targum wrote now keeps the level it was written at (`levelmap.AUTHORED`):
+  on the scenes path and the Russian scenes rungs 1 to 3 are A1 and rungs 4 to 6 A2, read
+  off the scene's dialogue file, and the Conversations are B1. Under 100 words
+  the measure never places a text Native, and such a text is unmeasured
+  (`levelmap.NATIVE_MIN_WORDS`; the shortest Native text that is not a scene is 143
+  words). `text_level`, `cefr_rows` and the stage floors share one rule, `level_for`.
+  On the laptop's catalogue Hebrew goes from 112 / 96 / 81 / 45 texts at A1 / A2 / B1 /
+  B2 to 175 / 70 / 66 / 40, and Russian from 93 / 100 / 124 / 100 to 130 / 63 / 124 / 99
+  (every Russian scene is rung 1 or 2). `evals/shelf.json` is not re-measured here.
 - Scene audio sounds less like a list being read (David, 2026-10-29; targum-internal#566).
   `scripts/voice_scenes.py` now has a cheap model (Haiku) read each scene once and give
   every turn a few words of direction, such as "calm, matter-of-fact", which go into
   that turn's speech prompt. Its brief says ordinary conversation is the default and
   nothing is excited unless the words call for it. The directions are cached by the
-  scene's words, so a re-run spends nothing. The fixed 0.45 s between turns is gone. A
-  reply now waits 0.6 to 0.9 s, an answer to a question 0.25 s longer, and a line that
-  carries on or cuts in 0.3 s. The gaps carry room tone at about -60 dBFS instead of
-  digital silence. Each turn is brought to -18 LUFS (EBU R128) with a -2 dB peak limiter
-  before it is joined. On he-06 the turns went from a 4.9 LU spread with a +1.0 dBTP peak
-  to 0.3 LU and -1.9 dBTP. Spans stay exact and `write.py`'s silence detection still
-  finds every seam inside its gap. Every bought turn is written to disk as soon as it
-  arrives, so a crash loses nothing and a re-run asks only for what is missing. Prompts
-  run median 75 and max 133 characters on he-06. With the longest direction allowed,
-  the corpus would be median 115 and max 180, and a direction is shortened or dropped
-  rather than going over 180.
+  scene's words and their English, so a re-run spends nothing. A scene the director
+  could not answer twice is kept as neutral, so its turns are not bought again. The
+  fixed 0.45 s between turns is gone. A reply now waits 0.6 to 0.9 s, an answer to a
+  question 0.25 s longer, and a line that carries on or cuts in 0.3 s. The gaps carry
+  room tone at about -60 dBFS instead of digital silence. Each turn is brought to -18
+  LUFS (EBU R128) with a -2 dB peak limiter before it is joined. On he-06 the turns went
+  from a 4.9 LU spread with a +1.0 dBTP peak to 0.3 LU and -1.9 dBTP. Spans stay exact,
+  and each mp3 gets a `<id>.seams.json` beside it with those spans and the mp3's hash,
+  so the shelf writer uses the known seams instead of guessing from silences, which
+  short gaps make unreliable. Every bought turn is written to disk as soon as it
+  arrives, so a crash loses nothing and a re-run asks only for what is missing. No
+  prompt over 180 characters is sent. The direction is shortened or dropped first, then
+  the pronunciation hint is said more tersely, and a prompt that still does not fit is
+  refused. Prompts on he-06 as voiced ran median 96 and max 133 characters. With the
+  longest direction allowed, the corpus would be median 115 and max 180.
 - Your Progress's Level section, three follow-ups from qa (targum-internal#554). At a
   desk the ladder's state and count line up row to row in every language: each row was
   its own flex line, so in Russian a longer count pushed «Вам легко» and «Следующий шаг»

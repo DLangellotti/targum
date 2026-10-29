@@ -4,6 +4,7 @@ thing run."""
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import math
@@ -67,13 +68,27 @@ def test_a_re_pointed_scene_keeps_its_directions_and_a_re_worded_one_does_not() 
     assert script.scene_key(worded) != script.scene_key(THREE)
 
 
-def test_an_unreadable_answer_is_asked_again_then_falls_back_and_is_not_kept(
+def test_an_unreadable_answer_is_asked_again_then_falls_back_and_the_fallback_is_kept(
     tmp_path: Path,
 ) -> None:
+    """Kept, so the next run does not direct the scene afresh, change every prompt and
+    buy again every turn already bought under NEUTRAL."""
     answers = iter(["sure!", '["one"]'])
     directions, _ = script.direct(THREE, "k", tmp_path, lambda t, k: (next(answers), 0.0))
     assert directions == [script.NEUTRAL] * 3
-    assert not list(tmp_path.iterdir())
+    (kept,) = tmp_path.iterdir()
+    assert json.loads(kept.read_text())["fallback"] is True
+
+    def never(text: str, key: str) -> tuple[str, float]:
+        raise AssertionError("asked again")
+
+    assert script.direct(THREE, "k", tmp_path, never) == ([script.NEUTRAL] * 3, 0.0)
+
+
+def test_the_english_is_in_the_key_because_the_director_reads_it() -> None:
+    glossed = json.loads(json.dumps(THREE))
+    glossed["turns"][1]["english"] = "Fine, thanks — sarcastically."
+    assert script.scene_key(glossed) != script.scene_key(THREE)
 
 
 def test_a_direction_is_tidied_and_cut_at_a_word() -> None:
@@ -83,23 +98,41 @@ def test_a_direction_is_tidied_and_cut_at_a_word() -> None:
     assert script.tidy(None) == ""
 
 
-def test_a_direction_never_pushes_a_prompt_over_the_limit_and_gives_way_first() -> None:
+def test_a_direction_gives_way_to_a_hint_and_never_pushes_a_prompt_over() -> None:
     plain = script.prompt_for(THREE, 0)
     directed = script.prompt_for(THREE, 0, "calm, a little tired")
     assert directed == plain.replace("in conversation.", "in conversation, calm, a little tired.")
-    # A line with a long pronunciation hint: the direction is shortened or dropped, the
-    # hint never.
-    hinted = scene(("B", "אָמַרְתְּ שֶׁעָזַבְתְּ וְשָׁכַחְתְּ, אַתְּ וְהַחֲבֵרָה שֶׁלָּךְ"), ("A", "כֵּן."))
+    widest = "x" * script.DIRECTION_MOST
+    hinted = scene(("B", "אַתְּ בְּטוּחָה?"), ("A", "כֵּן."))
     bare = script.prompt_for(hinted, 0)
     guide = bare[bare.index(" Read ") :]
-    assert len(guide) > 40, "the line was meant to carry a long hint"
-    widest = "x" * script.DIRECTION_MOST
+    assert len(bare) <= script.LONGEST < len(bare) + len(widest), "meant to just fit bare"
     said = script.prompt_for(hinted, 0, widest)
-    assert said.endswith(guide)
-    # A hint the corpus never reaches can be longer than the limit on its own; then the
-    # direction is the part left out, and the prompt is no longer than without it.
-    assert len(said) <= max(script.LONGEST, len(bare))
-    assert widest not in said
+    assert said.endswith(guide) and widest not in said and len(said) <= script.LONGEST
+
+
+def test_a_hint_too_long_to_fit_is_said_tersely() -> None:
+    hinted = scene(("B", "אָמַרְתְּ שֶׁעָזַבְתְּ וְשָׁכַחְתְּ, אַתְּ וְהַחֲבֵרָה שֶׁלָּךְ"), ("A", "כֵּן."))
+    said = script.prompt_for(hinted, 0, "calm")
+    assert len(said) <= script.LONGEST
+    assert '"at", not "et"' in said and '"-akh"' in said and "calm" not in said
+
+
+def test_a_prompt_that_cannot_fit_is_refused_not_sent(monkeypatch: pytest.MonkeyPatch) -> None:
+    hinted = scene(("B", "אָמַרְתְּ שֶׁעָזַבְתְּ וְשָׁכַחְתְּ, אַתְּ וְהַחֲבֵרָה שֶׁלָּךְ"), ("A", "כֵּן."))
+    monkeypatch.setattr(script, "LONGEST", 120)
+    with pytest.raises(script.TooLong, match="Not sent"):
+        script.prompt_for(hinted, 0)
+
+
+def test_the_seams_are_written_beside_the_mp3_with_its_hash(tmp_path: Path) -> None:
+    mp3 = tmp_path / "t-01.mp3"
+    mp3.write_bytes(b"ID3 not really")
+    spans = [[0.0, 1.2], [1.9, 3.0]]
+    path = script.write_seams(tmp_path, "t-01", spans)
+    said = json.loads(path.read_text())
+    assert path.name == "t-01.seams.json" and said["spans"] == spans and said["turns"] == 2
+    assert said["mp3_sha256"] == hashlib.sha256(mp3.read_bytes()).hexdigest()
 
 
 def test_the_gaps_follow_the_conversation() -> None:
