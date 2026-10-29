@@ -284,6 +284,9 @@ SEEN = """() => {
       && String(face.weight) === '600' && face.status === 'loaded'),
     scroll: document.documentElement.scrollWidth,
     client: document.documentElement.clientWidth,
+    wide: [...document.querySelectorAll('body *')]
+      .filter((one) => box(one).right > document.documentElement.clientWidth + 0.5)
+      .map((one) => one.id || one.className || one.tagName).slice(0, 8),
   };
 }"""
 
@@ -397,7 +400,7 @@ def test_every_level_state_is_drawn_without_a_percentage(
         assert seen["titleBox"][0] <= 1 and seen["titleBox"][1] <= 1, seen["titleBox"]
         assert "%" not in seen["counted"], seen["counted"]
         assert not [label for label in seen["labels"] if "%" in label], seen["labels"]
-        assert seen["scroll"] <= seen["client"], seen
+        assert seen["scroll"] <= seen["client"], seen["wide"]
         if "press" in spec:
             press = (
                 page.locator("#where")

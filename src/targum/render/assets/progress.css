@@ -205,7 +205,17 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
     gap: 1.5rem;
   }
 }
-.progress .level-lead { grid-area: lead; display: grid; gap: 0.75rem; justify-items: start; padding: 1.25rem; }
+.progress .level-lead {
+  grid-area: lead;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  justify-items: start;
+  padding: 1.25rem;
+}
+/* The press at its words' width, wrapping rather than widening the card: «Показать
+   тексты, которые можно читать уже сейчас» is wider than a phone's card. */
+.progress .level-lead .level-go { max-inline-size: 100%; white-space: normal; text-align: start; }
 @media (min-width: 64rem) {
   .progress .level-lead { padding: 1.75rem; gap: 1rem; }
 }
@@ -299,7 +309,9 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .touch-state:empty { display: none; }
 .progress .touch-easy .touch-state { color: var(--leaf); }
 .progress .touch-next .touch-state { font-weight: 600; color: color-mix(in srgb, var(--leaf) 72%, var(--ink)); }
-.progress .touch-count { flex: none; white-space: nowrap; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* Right-aligned; on a phone it may take two lines rather than push the row off the card
+   («118 текстов можно читать уже сейчас» is wider than the room beside a name). */
+.progress .touch-count { flex: 0 1 auto; max-inline-size: 55%; text-align: end; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .progress .touch-go { flex: none; inline-size: 0.625rem; color: var(--ink-soft); }
 /* A desk: one grid on the list and each row a subgrid of it, so the state and the count
    columns are as wide as their widest entry in every language (targum-internal#554). The
@@ -312,7 +324,7 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .touch-name { font-size: 1.0625rem; }
   .progress .touch-state,
   .progress .touch-count { font-size: 0.875rem; }
-  .progress .touch-count { text-align: end; }
+  .progress .touch-count { text-align: end; white-space: nowrap; max-inline-size: none; }
 }
 @supports (grid-template-columns: subgrid) {
   @media (min-width: 64rem) {
