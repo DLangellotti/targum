@@ -24,6 +24,10 @@ adds what a run of five thousand paid requests needs that a run of fourteen does
 - **A progress file.** `--into/progress.json`, rewritten atomically after every scene and
   every bought turn: what is done, what failed and why, what was spent, the last quota
   seen, and what the run is waiting for.
+- **A refusal fails one scene, not the run.** An answer with no audio (a safety or other
+  block, or an empty generation) is asked for once more; a second one marks the scene
+  `failed` with the reason the answer gave, and the run moves on. Every such answer, audio
+  taken out, is appended to `--into/refusals.jsonl` with its scene and turn.
 - **A dry run.** Counts by language, what is left to voice, requests, an estimated cost and
   time, and every prompt that would be refused for length. It calls nothing.
 
@@ -296,6 +300,21 @@ def run(
             raise CapReached(f"${progress.spent:.2f} spent, the cap is ${args.cap:.2f}")
 
     current: dict[str, Any] = {}
+    refusals = into / "refusals.jsonl"
+
+    def refused(said: vs.Refused) -> None:
+        scene_now = current["scene"]
+        turn = said.turn
+        line = {
+            "at": now(),
+            "scene": scene_now["id"],
+            "turn": turn,
+            "text": scene_now["turns"][turn]["text"] if turn is not None else None,
+            "reason": said.reason,
+            "payload": said.payload,
+        }
+        with refusals.open("a", encoding="utf-8") as log:
+            log.write(json.dumps(line, ensure_ascii=False) + "\n")
 
     def cut_off(_: vs.CutOff) -> None:
         # Nothing came back to measure, but the model may have spoken the whole line
@@ -340,6 +359,7 @@ def run(
                     directions,
                     progress.quota,
                     bought,
+                    on_refused=refused,
                 )
             except CapReached as reached:
                 progress.scene(sid, state="partial", reason=str(reached))
@@ -374,7 +394,13 @@ def run(
                 sleep(args.pause)
                 progress.set(waiting_until=None)
                 continue
-            except (vs.CutOff, vs.TooLong, RuntimeError, OSError) as failed:
+            except vs.Refused as failed:
+                progress.scene(
+                    sid, state="failed", reason=f"refused on turn {failed.turn}: {failed.reason}"
+                )
+                print(f"  failed: turn {failed.turn} {failed}", flush=True)
+                break
+            except (vs.CutOff, vs.TooLong, RuntimeError, OSError, ValueError) as failed:
                 progress.scene(sid, state="failed", reason=f"{type(failed).__name__}: {failed}")
                 print(f"  failed: {failed}", flush=True)
                 break
