@@ -275,6 +275,27 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .touch-count { font-size: 0.875rem; }
   .progress .touch-count { min-inline-size: 8rem; text-align: end; }
 }
+/* The board's columns line up row to row whatever the words (targum-internal#554). Each
+   row was its own flex line, so a longer count, or none, moved that row's state along: in
+   Russian «Вам легко» and «Следующий шаг» stepped down the card. One grid on the list,
+   each row a subgrid of it, so the state and the count are as wide as their widest. */
+@supports (grid-template-columns: subgrid) {
+  @media (min-width: 64rem) {
+    .progress .touchstones {
+      grid-template-columns: auto minmax(0, 1fr) minmax(9.5rem, max-content) max-content auto;
+      column-gap: 0.875rem;
+    }
+    .progress .touch,
+    .progress .touch-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+    .progress .touch-row { align-items: center; }
+    .progress .touch-words { display: contents; }
+    .progress .touch-mark { grid-column: 1; }
+    .progress .touch-words .touch-name { grid-column: 2; }
+    .progress .touch-words .touch-state { grid-column: 3; inline-size: auto; }
+    .progress .touch-count { grid-column: 4; }
+    .progress .touch-go { grid-column: 5; }
+  }
+}
 
 /* The foot line on the desk ground, and the bar toward the next rung: a thin leaf line on
    the desk's track, no figure on it, the next rung named beside it. */

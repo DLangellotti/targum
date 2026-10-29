@@ -169,6 +169,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
         ? {
             next: at("level-next").textContent,
             label: at("level-bar").getAttribute("aria-label"),
+            said: at("level-bar").getAttribute("aria-valuetext"),
             now: at("level-bar").getAttribute("aria-valuenow"),
             role: at("level-bar").getAttribute("role"),
             width: at("level-fill").style.width,

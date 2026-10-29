@@ -105,6 +105,7 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "In ulpan terms you're at aleph plus (א׳+), about A1 on the European scale.",
         "next": "Next: bet ב׳",
+        "said": "Toward bet",
     },
     "months": {
         "story": story(
@@ -115,6 +116,7 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "In ulpan terms you're at gimel (ג׳), about B1 on the European scale.",
         "next": "Next: dalet ד׳",
+        "said": "Toward dalet",
     },
     "top-rung": {
         "story": story(
@@ -181,6 +183,7 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "On the European scale you're about B1. It runs from A1, for beginners, to C2.",
         "next": "Next: B2",
+        "said": "Toward B2",
     },
     "russian": {
         "page": "ru",
@@ -193,6 +196,7 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "По меркам ульпана у вас уровень гимель (ג׳)",
         "next": "Дальше — уровень далет ד׳",
+        "said": "Дальше — уровень далет",
     },
 }
 
@@ -211,6 +215,8 @@ SEEN = """() => {
     foot: shown(at('level-foot')) ? at('level-said').textContent : '',
     bar: shown(bar)
       ? {role: bar.getAttribute('role'), label: bar.getAttribute('aria-label'),
+         named: (at(bar.getAttribute('aria-labelledby') || '') || {textContent: ''}).textContent,
+         said: bar.getAttribute('aria-valuetext'),
          height: box(bar).height, next: at('level-next').textContent}
       : null,
     letters: all('bdi').map((one) => [one.getAttribute('lang'), one.getAttribute('dir')]),
@@ -317,11 +323,51 @@ def test_every_level_state_is_drawn_without_a_percentage(
             assert ["he", "rtl"] in seen["letters"] or spec.get("language") == "fr"
         if "next" in spec:
             assert seen["bar"] is not None
-            assert seen["bar"]["role"] == "progressbar" and seen["bar"]["label"]
+            assert seen["bar"]["role"] == "progressbar"
             assert seen["bar"]["next"] == spec["next"]
+            # Named by the Next line and said in words, never as a percentage (#554).
+            assert seen["bar"]["named"] == spec["next"] and seen["bar"]["label"] is None
+            assert seen["bar"]["said"] == spec["said"], seen["bar"]
+            assert page.get_by_role("progressbar", name=spec["next"]).count() == 1
             assert 3 <= seen["bar"]["height"] <= 5, "a thin line"
         if spec.get("bar") is False:
             assert seen["bar"] is None
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+COLUMNS = """() => [...document.querySelectorAll('#touchstones .touch-row')]
+  .filter((row) => row.offsetParent !== null)
+  .map((row) => {
+    const at = (name) => {
+      const one = row.querySelector('.' + name);
+      return one ? [one.getBoundingClientRect().left, one.getBoundingClientRect().right] : null;
+    };
+    return {state: at('touch-state'), count: at('touch-count')};
+  })"""
+
+
+@pytest.mark.parametrize("state", ["months", "russian", "aramaic"])
+def test_the_ladder_columns_line_up_row_to_row_at_a_desk(chromium: Any, state: str) -> None:
+    """At 1440 the ladder is a board: name, state, count, each column starting where the
+    row above's did. In Russian «Вам легко» and «Следующий шаг» stepped from row to row,
+    because a longer count pushed its own row's state along; on the Aramaic ladder a row
+    with nothing to read yet has no count, and its state slid right (targum-internal#554)."""
+    spec = STATES[state]
+    context, page, thrown = open_state(chromium, state, 1440)
+    try:
+        page.goto(SITE + "/progress")
+        page.locator("#where").get_by_text(spec["says"], exact=False).first.wait_for(
+            state="visible", timeout=10_000
+        )
+        page.wait_for_load_state("networkidle")
+        rows = page.evaluate(COLUMNS)
+        assert len(rows) >= 4, rows
+        assert all(row["state"] for row in rows), rows
+        for column in ("state", "count"):
+            edges = {round(row[column][0]) for row in rows if row[column]}
+            assert len(edges) <= 1, (column, rows)
         assert not thrown, thrown
     finally:
         context.close()

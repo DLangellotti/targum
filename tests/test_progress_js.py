@@ -594,7 +594,7 @@ def test_no_percentage_is_drawn_in_the_level_section() -> None:
         said = [drawn[key] for key in ("head", "step", "known", "go", "note", "foot")]
         said += [rung["text"] for rung in drawn["rungs"]]
         if drawn["toward"]:
-            said += [drawn["toward"]["next"], drawn["toward"]["label"]]
+            said += [drawn["toward"]["next"], drawn["toward"]["said"]]
         assert not [line for line in said if "%" in line], said
 
 
@@ -665,14 +665,30 @@ def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
 
 
 def test_the_bar_toward_the_next_rung_prints_no_number() -> None:
+    """The bar says where it is going in words (targum-internal#554): aria-valuetext is
+    what a screen reader reads in place of aria-valuenow, which alone comes out as "12
+    percent". It is named by the Next line beside it, so it carries no label of its own."""
     toward = story()["where"]["toward"]
     assert toward == {
         "next": "Next: dalet ד׳",
-        "label": "Toward dalet",
+        "label": None,
+        "said": "Toward dalet",
         "now": "12",
         "role": "progressbar",
         "width": "12%",
     }
+
+
+def test_the_bar_is_said_in_russian_words() -> None:
+    """«Дальше — уровень бет», as the Next line beside it says it (targum-internal#554)."""
+    ru = HARNESS.parents[2] / "src" / "targum" / "strings" / "ru.json"
+    strings = json.loads(ru.read_text(encoding="utf-8"))
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        strings={"strings": strings, "language": "ru"},
+        story=LADDER,
+    )
+    assert drawn["where"]["toward"]["said"] == "Дальше — уровень далет"
 
 
 def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
@@ -693,7 +709,7 @@ def test_the_european_scale_alone_for_french_russian_and_italian() -> None:
     )
     assert drawn["footLetter"] is None
     assert drawn["toward"]["next"] == "Next: B2"
-    assert drawn["toward"]["label"] == "Toward B2"
+    assert drawn["toward"]["said"] == "Toward B2"
 
 
 def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:

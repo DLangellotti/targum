@@ -337,9 +337,12 @@
     var share = Math.max(0, Math.min(1, level.toward));
     var nextName = ulpan ? ulpanName(level.next.name) : level.next.name;
     fill.style.width = Math.round(share * 100) + "%";
+    /* Said in words, never as a figure (§6): a screen reader reads aria-valuetext where
+       it is given, and aria-valuenow alone comes out as "38 percent" (targum-internal#554).
+       The value stays for the bar's own sake, with the words standing in front of it. */
     bar.setAttribute("role", "progressbar");
     bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
-    bar.setAttribute("aria-label", t("progress.level.toward", "Toward {name}", { name: nextName }));
+    bar.setAttribute("aria-valuetext", t("progress.level.toward", "Toward {name}", { name: nextName }));
     next.textContent = "";
     if (ulpan) {
       sentence(
