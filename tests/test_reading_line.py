@@ -224,7 +224,14 @@ def test_a_section_finished_on_the_page_is_measured_once_on_the_push(
         words=[known],
         sections=[{"hash": "book", "section": "1", "at": ms(2026, 7), "seen": ms(2026, 7)}],
     )
-    assert reading() == {"line": [], "months": 1, "sections": 1}
+    assert reading() == {
+        "line": [],
+        "months": 1,
+        "sections": 1,
+        # A bucket a day as well, which the page sums into weeks and months (design.md
+        # §12, "Your level, v3", 2026-10-29).
+        "days": [{"day": "2026-07-10", "tokens": 20, "known": 10, "sections": 1}],
+    }
 
     # Un-finished and finished again: the row it has stands.
     sync(sections=[{"hash": "book", "section": "1", "gone": 1, "seen": ms(2026, 7, 11)}])
@@ -248,6 +255,40 @@ def test_a_section_finished_on_the_page_is_measured_once_on_the_push(
     ]
 
 
+def test_the_days_are_the_readers_own_in_the_zone_the_page_names(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """A section finished at half past midnight in Jerusalem is that day's there, and the
+    day before's in UTC; a zone that is not one is UTC. Nothing about the zone is kept."""
+    port, token, out = served
+    built(out / "shared" / "late", {1: [[word("ספר"), word("ים")] * 10]})
+    cookie = sign_in(port, postbox)
+    late = int(datetime(2026, 10, 28, 22, 30, tzinfo=UTC).timestamp() * 1000)
+    status, answer, _ = call(
+        port,
+        "POST",
+        f"/sync?k={token}",
+        {
+            "words": [{"language": "he", "lemma": "ספר", "status": KNOWN, "at": 1, "seen": 1}],
+            "sections": [{"hash": "book", "section": "1", "at": late, "seen": late}],
+        },
+        cookie=cookie,
+    )
+    assert status == 200, answer
+
+    def days(zone: str) -> list[object]:
+        query = f"&tz={zone}" if zone else ""
+        status, said, _ = call(port, "GET", f"/account/reading?k={token}{query}", cookie=cookie)
+        assert status == 200, said
+        assert said["measurable"] == 20
+        return [day["day"] for day in said["reading"]["he"]["days"]]
+
+    assert days("Asia/Jerusalem") == ["2026-10-29"]
+    assert days("") == ["2026-10-28"]
+    assert days("Not/AZone") == ["2026-10-28"]
+    assert days("..%2F..%2Fetc%2Fpasswd") == ["2026-10-28"]
+
+
 def test_a_section_nobody_can_measure_is_synced_and_keeps_no_row(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:
@@ -266,7 +307,7 @@ def test_a_section_nobody_can_measure_is_synced_and_keeps_no_row(
         "and the section itself reaches the account, which it did not before #291"
     )
     status, said, _ = call(port, "GET", f"/account/reading?k={token}", cookie=cookie)
-    assert said == {"signedIn": True, "reading": {}}
+    assert said == {"signedIn": True, "measurable": 20, "reading": {}}
 
 
 def test_the_line_is_nobodys_business_signed_out(served: tuple[int, str, Path]) -> None:

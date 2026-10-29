@@ -812,6 +812,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a credit is about a minute of audio or video; Your account by its name; subscribe, not
   follow, and news as links; we get a text ready, not "nothing is made". Russian twins
   drafted for ling-ru.
+- Your Progress's Level v3, the back end (targum-internal#561; design.md §12, "Your level,
+  v3", David 2026-10-29). A Native text is placed on B2, C1, C2 or Past C2 by the
+  vocabulary it needs: the frequency rank that covers 95% of its running words, read off
+  the lemma index beside the catalogue, against the thresholds the reader's level climbs.
+  It runs locally, stores nothing and spends nothing; a text the index has not counted
+  stays on B2. `text_level` and `cefr_rows` move together, `B2+` stays as an alias for the
+  four (old Library addresses open, and the stage floors still read B2 and up), and the
+  Library answers `#see/level/C1` and the others. `/account/story` sends, for each ladder
+  row, whether the reader's words reach it and the exact words to go if not, and on the
+  rung the exact words to the next one ("637", from the one function, so C1's row equals
+  the card's): the weighted gap over the average weight of the words marked known in the
+  last 30 days, rounded up to a whole word and no further. Week one gets the words to
+  aleph. `/account/reading` sends day buckets per language in the time zone the page
+  names (`tz`), from the rows' own times. Every `.seg` reaches 44px under a thumb.
 - Your Progress's first part is Level (targum-internal#553; design.md §12, "Your level
   leads with what you can read", 2026-10-28). Its rows are the texts' own levels,
   Beginner · A1, A2, B1 and B2 and up (`levelmap.text_level`), each "Easy for you", "Your

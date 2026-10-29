@@ -1550,6 +1550,17 @@ body.missing main.fault-page h1 { font-size: 1.9375rem; font-weight: 500; }
   font-weight: 600;
 }
 .seg > :disabled { opacity: 0.35; cursor: default; }
+/* Under a thumb every part of a `.seg` reaches 44px (§8; design.md §12, "Your level, v3",
+   2026-10-29): it was in neither coarse-pointer list, so every `.seg` on a phone was 36px.
+   Here, after the rule above, and naming its four selectors as well as `.seg > *`,
+   because that rule's are the more specific and would win from the list further up. */
+@media (hover: none) and (pointer: coarse) {
+  .seg > *,
+  .seg > button,
+  .seg > a,
+  .seg > span,
+  .seg > label { min-block-size: 44px; }
+}
 .seg > :focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .seg svg {
   display: block;

@@ -416,3 +416,55 @@ def test_the_declaration_measures_as_it_did() -> None:
     tokens = [t for t in (level._bare(w) for w in level._WORD.findall(text)) if t]
     exact = sum(1 for t in tokens if any(f in forms for f in level._forms_of(t)))
     assert level.known_share(text, forms) == pytest.approx(exact / len(tokens))
+
+
+# -- words to go (design.md §12, "Your level, v3", 2026-10-29) ------------------------
+
+
+def test_the_next_word_weighs_what_the_last_thirty_days_weighed() -> None:
+    from targum.level import KNOWN, per_word
+
+    day = 24 * 60 * 60 * 1000
+    now = 100 * day
+    words = [
+        (KNOWN, "hard", now - day),  # 1.7, lately
+        (KNOWN, "very hard", now - 2 * day),  # 2.2, lately
+        (KNOWN, "easy", now - 40 * day),  # 0.8, too long ago to count
+        (2, "extremely hard", now),  # still learning: not counted
+        (KNOWN, "name", now),  # a name is no vocabulary
+    ]
+    assert per_word(words, now) == (1.7 + 2.2) / 2
+
+
+def test_with_nothing_lately_the_next_word_is_the_band_above_most_known() -> None:
+    from targum.level import KNOWN, per_word
+
+    day = 24 * 60 * 60 * 1000
+    old = [(KNOWN, "easy", 1)] * 5 + [(KNOWN, "fairly easy", 1)] * 2
+    assert per_word(old, 100 * day) == 1.0, "most are easy, so fairly easy is next"
+    assert per_word([(KNOWN, "extremely hard", 1)], 100 * day) == 2.8, "the top band stays"
+    assert per_word([], 100 * day) == 0.8, "a reader with none starts at the commonest"
+
+
+def test_words_to_go_are_exact_and_rounded_up_to_a_whole_word() -> None:
+    """The card's "637 words to ה׳" and the C1 row are the one function: the weighted gap
+    over what the next word weighs, never rounded to a figure that looks round."""
+    from targum.level import ULPAN, Level, words_to
+
+    dalet, hey = ULPAN[5], ULPAN[6]
+    reader = Level("he", 0, 0, 8490.4, dalet, hey, 0, 0, 0, 0, 0, per_word=0.8)
+    assert words_to(reader, hey.at) == 637, "509.6 / 0.8 is 637, not 637.0000001 → 638"
+    assert words_to(Level("he", 0, 0, 8490.0, dalet, hey, 0, 0, 0, 0, 0, per_word=1.7), 9000) == 300
+    assert words_to(reader, dalet.at) == 0, "reached"
+    assert words_to(Level("he", 0, 0, 8999.9, dalet, hey, 0, 0, 0, 0, 0, per_word=2.8), 9000) == 1
+
+
+def test_the_european_scale_counts_its_commonest_words_one_by_one() -> None:
+    from targum.level import CEFR, Level, words_to
+
+    reader = Level(
+        "fr", 0, 0, 0.0, CEFR[2], CEFR[3], 0, 0, 0, 0, 0, ladder="CEFR level", common=2163
+    )
+    assert words_to(reader, 2400) == 237
+    assert words_to(reader, 2750) == 587
+    assert words_to(Level("yi", 0, 0, 0.0, None, None, 0, 0, 0, 0, 0), 250) == 0

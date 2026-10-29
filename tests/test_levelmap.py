@@ -16,6 +16,7 @@ import pytest
 from targum import levelmap
 from targum.annotate.difficulty import sentence_length
 from targum.catalogue import Entry
+from targum.coverage import Index
 from targum.models import BlockKind, Segment, SegmentedDocument
 from targum.weekly.models import Level
 
@@ -202,3 +203,91 @@ def test_nothing_on_disk_is_unmeasured(tmp_path: Path) -> None:
     sentences = levelmap.Sentences(tmp_path / "missing", tmp_path / "missing")
     assert sentences(entry("url:a", sentence=0.0)) == 0.0
     assert sentences(entry("video:zzz", sentence=0.0)) == 0.0
+
+
+# -- the text ruler (design.md §12, "Your level, v3", 2026-10-29) ---------------------
+
+
+def words_at(language: str, *places: int) -> list[str]:
+    """The word at each place in the language's frequency list."""
+    from targum.annotate.frequency import ranks
+
+    by_place = {place: word for word, place in ranks(language).items()}
+    return [by_place[place] for place in places]
+
+
+def ruled(language: str, counts: dict[str, int]) -> Index:
+    from targum.coverage import build_index
+
+    return build_index({"n": list(counts)}, {"n": counts})
+
+
+def native(language: str = "he") -> Entry:
+    return Entry(
+        id="n",
+        title="t",
+        author="a",
+        language=language,
+        source="url:n",
+        blurb="b",
+        words=2000,
+        difficulty=25,
+        sentence=20,
+    )
+
+
+@pytest.mark.parametrize(
+    ("hardest", "level"),
+    [(3000, "B2"), (6500, "B2"), (6501, "C1"), (9000, "C1"), (11_000, "C2"), (15_000, "past-C2")],
+)
+def test_a_native_text_is_placed_by_the_rank_that_covers_95_percent(
+    hardest: int, level: str
+) -> None:
+    """95 running words from the commonest hundred and five at `hardest`: the rank that
+    covers 95% is the hundredth word's, so the five rare ones decide nothing until they
+    are more than one word in twenty. Against the ulpan's dalet 6,500, hey 9,000 and vav
+    12,000, never below B2 for a Native text, and past vav is Past C2."""
+    common, rare = words_at("he", 50, hardest)
+    index = ruled("he", {common: 94, rare: 6})
+    assert levelmap.text_level(native(), index) == level
+    # Five in a hundred is inside the 95%: the common word decides.
+    assert levelmap.text_level(native(), ruled("he", {common: 95, rare: 5})) == "B2"
+
+
+def test_a_word_past_the_list_is_past_every_rung() -> None:
+    (common,) = words_at("he", 10)
+    index = ruled("he", {common: 50, "לאמילהבכלל": 50})
+    assert levelmap.ruler_rank("n", "he", index) == 10**9
+    assert levelmap.text_level(native(), index) == "past-C2"
+
+
+def test_the_european_scale_places_by_its_own_rungs() -> None:
+    """French climbs the CEFR rungs in level.py: B2 2,400, C1 2,750, C2 3,300."""
+    common, c1, c2 = words_at("fr", 20, 2600, 3200)
+    assert levelmap.text_level(native("fr"), ruled("fr", {common: 90, c1: 10})) == "C1"
+    assert levelmap.text_level(native("fr"), ruled("fr", {common: 90, c2: 10})) == "C2"
+
+
+def test_a_native_text_the_index_has_not_counted_stays_on_b2() -> None:
+    """No index, an uncounted text, or a language with no ladder: B2, as before the
+    ruler, never a guess further up."""
+    from targum.coverage import EMPTY, build_index
+
+    assert levelmap.text_level(native(), EMPTY) == "B2"
+    uncounted = build_index({"n": ["שלום"]})
+    assert levelmap.text_level(native(), uncounted) == "B2"
+    assert levelmap.text_level(native("yi"), ruled("yi", {"און": 100})) == "B2"
+
+
+def test_easier_texts_are_not_ruled() -> None:
+    """The ruler splits Native only: Easy and Simplified keep their levels."""
+    from targum.coverage import EMPTY
+
+    assert levelmap.text_level(entry(difficulty=17, sentence=12), EMPTY) == "B1"
+
+
+def test_b2_and_up_is_an_alias_for_the_four_native_levels() -> None:
+    assert levelmap.levels_named("B2+") == ("B2", "C1", "C2", "past-C2")
+    assert levelmap.levels_named("C1") == ("C1",)
+    assert levelmap.levels_named("Z9") == ()
+    assert levelmap.TEXT_LEVELS == ("A1", "A2", "B1", "B2", "C1", "C2", "past-C2")
