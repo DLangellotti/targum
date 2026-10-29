@@ -2335,7 +2335,6 @@
   "reader.preread.words-to-know-first": "Words to know first",
   "progress.reading.title": "Words you knew",
   "progress.reading.label": "Words you knew, {first} to {last}",
-  "progress.reading.tick": "{n} in 10",
   "progress.reading.point": "{when}: {p}%",
   "progress.reading.sections.one": "{n} section",
   "progress.reading.sections.other": "{n} sections",

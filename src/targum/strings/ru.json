@@ -2516,7 +2516,6 @@
   "reader.preread.words-to-know-first": "Слова перед чтением",
   "progress.reading.title": "Сколько слов вы знали",
   "progress.reading.label": "Сколько слов вы знали: {first} — {last}",
-  "progress.reading.tick": "{n} из 10",
   "progress.reading.point": "{when}: {p}%",
   "progress.reading.sections.one": "{n} раздел",
   "progress.reading.sections.few": "{n} раздела",
