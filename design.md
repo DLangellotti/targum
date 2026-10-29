@@ -423,12 +423,18 @@ what you read, month by month", 2026-09-27) to days and weeks.
   Past C2 has no threshold and no number. A row with no texts is plain text with no
   chevron. Aramaic keeps its climb of Targums.
 - **A Native text is placed by the vocabulary it needs** (the text ruler): the frequency
-  rank of the commonest words that cover 95% of its running words, read off the lemma
-  index beside the catalogue, against the same thresholds the reader's level uses
-  (Hebrew: dalet 6,500, hey 9,000, vav 12,000; the CEFR rungs in `level.py` elsewhere).
-  It is B2 at least, and past the top rung it is Past C2 (`past-C2`). It runs locally,
-  stores nothing new and spends nothing; a Native text the index has not counted stays on
-  B2. `levelmap.text_level` and `cefr_rows` move together, and `B2+` stays as an alias
+  rank of the commonest words that cover 85% of its ranked running words, read off the
+  lemma index beside the catalogue, against the thresholds the reader's level uses
+  (dalet 6,500, hey 9,000, vav 12,000). It is B2 at least, and past the top rung it is
+  Past C2 (`past-C2`). **Calibrated, not 95%** (David chose "calibrate first", same
+  day): at 95%, as first specified, 10 of 11 built Hebrew Native texts and 37 of 59 the
+  shelf calls A1 measured past vav. At 85%, with forms the frequency list never ranked
+  left out of the count (4% of Hebrew running words: lemma spellings, transliterations,
+  missed names), the shelf's A1 and A2 texts land at B1 or below and the Native ones on
+  B2, C1 and C2, none past vav. The ulpan only: the European scale's rungs count known
+  common words, not a rank, so French, Russian and Italian Native texts stay on B2 until
+  that scale has a ruler. It runs locally, stores nothing new and spends nothing; a Native
+  text the index has not counted stays on B2. `levelmap.text_level` and `cefr_rows` move together, and `B2+` stays as an alias
   for B2 to Past C2, so old Library addresses still open and the stage standard's floors,
   stated at B2 and up, still read one number.
 - **"Words you knew" draws by Day, Week or Month**, a `.seg` (44px on a coarse pointer, as

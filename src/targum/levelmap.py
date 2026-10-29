@@ -311,21 +311,38 @@ NATIVE_ALIAS = "B2+"
 #: Library's `#see/level/<level>`.
 TEXT_LEVELS: tuple[str, ...] = ("A1", "A2", "B1", *NATIVE_LEVELS)
 
-#: The share of a Native text's running words the text ruler covers (design.md §12, "Your
-#: level, v3"): the commonest words a reader would need to know 95% of it.
-RULER_COVERAGE = 0.95
+#: The share of a Native text's ranked running words the text ruler covers (design.md §12,
+#: "Your level, v3"). Calibrated on 2026-10-29 against the laptop's built library, read
+#: only (targum-internal#561): at 95%, as first specified, 10 of 11 Hebrew Native texts
+#: and 37 of 59 texts the shelf calls A1 came out past vav, because the last few per cent
+#: of any real text is its rarest words and a lemma list's misses. At 85%, with forms the
+#: frequency list never ranked left out of the count, the shelf's A1 texts land on A2 to
+#: B1 (51 of 59 at B1 or below), its A2 texts on A2 (19 of 24 at A2+ or below) and the
+#: Native ones on B2 (7), C1 (3) and C2 (1), none past vav. `text_rung` reads a text at
+#: 90% for the same reason (2026-09-27).
+RULER_COVERAGE = 0.85
+
+#: The ladders the ruler places a Native text on: the ulpan's, whose rungs are vocabulary
+#: sizes a frequency rank can be held against. The European scale's rungs count known
+#: words among the commonest five thousand, which is not a rank: held against one, 30 of
+#: 46 Russian Native texts came out past C2 and 9 at A1. French, Russian and Italian
+#: Native texts stay on B2 until that scale has a ruler of its own.
+RULED = frozenset({"weighted"})
 
 
 def ruler_rank(entry_id: str, language: str, index: Index) -> int | None:
-    """The frequency rank that covers `RULER_COVERAGE` of a text's running words, or None.
+    """The frequency rank that covers `RULER_COVERAGE` of a text's ranked running words, or
+    None.
 
     Read off the lemma index's counts (each dictionary form and how often it comes round),
-    each form ranked by its language's frequency list; a form past the list is past every
-    rung. None where the index has no counts for the text or the language has no list:
-    not measured, never easy.
+    each form ranked by its language's frequency list. A form the list never ranked is left
+    out of the count rather than counted as past every rung: 4% of Hebrew running words on
+    the built shelf, and nearly all of them are lemma spellings the surface-form list does
+    not carry, transliterations and names the tagger missed, not rare words. None where
+    the index has no counts for the text, the language has no list or nothing in the text
+    is ranked: not measured, never easy.
     """
     from .annotate.frequency import rank, ranks
-    from .level import RANKED_PAST
 
     positions = index.texts.get(entry_id)
     counts = index.counts.get(entry_id)
@@ -336,7 +353,8 @@ def ruler_rank(entry_id: str, language: str, index: Index) -> int | None:
         if count <= 0:
             continue
         found = rank(index.words[at], language)
-        weighted.append((RANKED_PAST if found is None else found, int(count)))
+        if found is not None:
+            weighted.append((found, int(count)))
     total = sum(count for _, count in weighted)
     if not total:
         return None
@@ -352,19 +370,19 @@ def ruler_rank(entry_id: str, language: str, index: Index) -> int | None:
 def native_level(entry: Any, index: Index) -> str:
     """Where a Native text sits: B2, C1, C2 or `PAST_C2`, by the vocabulary it needs.
 
-    The rank `ruler_rank` finds, against the same thresholds the reader's level climbs
-    (`level.ladder_for`: the ulpan's dalet, hey and vav for Hebrew, the CEFR rungs for
-    French, Russian and Italian). Never below B2, since the text is Native by the shelf's
-    own ruler. B2 where the text cannot be measured, as before the ruler (design.md §12,
-    "Your level, v3", 2026-10-29). Cached per index, since the index is read once a file.
+    The rank `ruler_rank` finds, against the thresholds the reader's level climbs: the
+    ulpan's dalet, hey and vav (`level.ladder_for`; only a ladder in `RULED`). Never below
+    B2, since the text is Native by the shelf's own ruler. B2 where the text cannot be
+    measured, and for a language whose ladder is not ruled, as before the ruler (design.md
+    §12, "Your level, v3", 2026-10-29). Cached per index, since the index is read once a file.
     """
     entry_id = str(getattr(entry, "id", ""))
     language = str(getattr(entry, "language", "") or "").split("-")[0].lower()
-    held = _RULED.get(id(index))
+    held = _MEMO.get(id(index))
     if held is None or held[0] is not index:
         held = (index, {})
-        _RULED.clear()
-        _RULED[id(index)] = held
+        _MEMO.clear()
+        _MEMO[id(index)] = held
     key = (entry_id, language)
     if key not in held[1]:
         held[1][key] = _native_level(entry_id, language, index)
@@ -373,14 +391,15 @@ def native_level(entry: Any, index: Index) -> str:
 
 #: The last index ruled and what it said, by entry: one at a time, so a re-read index
 #: frees the old one.
-_RULED: dict[int, tuple[Index, dict[tuple[str, str], str]]] = {}
+_MEMO: dict[int, tuple[Index, dict[tuple[str, str], str]]] = {}
 
 
 def _native_level(entry_id: str, language: str, index: Index) -> str:
     from .level import ladder_for
 
     ladder = ladder_for(language)
-    needed = ruler_rank(entry_id, language, index) if ladder is not None else None
+    ruled = ladder is not None and ladder.measure in RULED
+    needed = ruler_rank(entry_id, language, index) if ruled else None
     if ladder is None or needed is None:
         return NATIVE_LEVELS[0]
     for level in NATIVE_LEVELS[:-1]:

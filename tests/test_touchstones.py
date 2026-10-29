@@ -311,7 +311,7 @@ def test_each_ladder_count_is_its_library_shelf_count(
         Entry("t1", "he", "talk", 12, "הרצאה א", sentence=9, minutes=10),  # A2
         Entry("t2", "he", "talk", 13, "הרצאה ב", sentence=12),  # B1
         Entry("a1", "he", "article", 17, "ידיעה", sentence=12),  # B1
-        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # Native: past C2 by the ruler
+        Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # Native: C1 by the ruler
     ]
     known = [f"w{n}" for n in range(9)]
     lemmas = tmp_path / "lemmas.json"
@@ -345,8 +345,9 @@ def test_each_ladder_count_is_its_library_shelf_count(
     assert status == 200, said
     counts = {rung["kind"]: rung["readable"] for rung in said["ladder"]}
     assert counts == {"A1": 2, "A2": 2, "B1": 1, "B2": 0, "C1": 0, "C2": 0, "past-C2": 0}
-    # p1's three words are past the frequency list, so the text ruler puts it past C2.
-    assert {rung["kind"]: rung["texts"] for rung in said["ladder"]}["past-C2"] == 1
+    # p1's "w0" is on no frequency list and is not counted; "x" and "y" rank 3,231 and
+    # 7,019 in Hebrew's, so 85% of what is ranked needs 7,019 words, past dalet: C1.
+    assert {rung["kind"]: rung["texts"] for rung in said["ladder"]}["C1"] == 1
 
     status, shelf_said, _ = call(port, "GET", f"/readers?k={token}", cookie=cookie)
     assert status == 200

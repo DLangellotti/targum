@@ -814,8 +814,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drafted for ling-ru.
 - Your Progress's Level v3, the back end (targum-internal#561; design.md §12, "Your level,
   v3", David 2026-10-29). A Native text is placed on B2, C1, C2 or Past C2 by the
-  vocabulary it needs: the frequency rank that covers 95% of its running words, read off
-  the lemma index beside the catalogue, against the thresholds the reader's level climbs.
+  vocabulary it needs: the frequency rank that covers 85% of its ranked running words
+  (calibrated on the built library; 95% put 10 of 11 Hebrew Native texts past vav), read
+  off the lemma index beside the catalogue, against the ulpan's thresholds. French, Russian
+  and Italian Native texts stay on B2 until the European scale has a ruler.
   It runs locally, stores nothing and spends nothing; a text the index has not counted
   stays on B2. `text_level` and `cefr_rows` move together, `B2+` stays as an alias for the
   four (old Library addresses open, and the stage floors still read B2 and up), and the

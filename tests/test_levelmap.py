@@ -240,32 +240,79 @@ def native(language: str = "he") -> Entry:
     ("hardest", "level"),
     [(3000, "B2"), (6500, "B2"), (6501, "C1"), (9000, "C1"), (11_000, "C2"), (15_000, "past-C2")],
 )
-def test_a_native_text_is_placed_by_the_rank_that_covers_95_percent(
+def test_a_native_text_is_placed_by_the_rank_that_covers_85_percent(
     hardest: int, level: str
 ) -> None:
-    """95 running words from the commonest hundred and five at `hardest`: the rank that
-    covers 95% is the hundredth word's, so the five rare ones decide nothing until they
-    are more than one word in twenty. Against the ulpan's dalet 6,500, hey 9,000 and vav
+    """80 running words from the commonest hundred and 20 at `hardest`: the rank that
+    covers 85% is the rare word's. Against the ulpan's dalet 6,500, hey 9,000 and vav
     12,000, never below B2 for a Native text, and past vav is Past C2."""
     common, rare = words_at("he", 50, hardest)
-    index = ruled("he", {common: 94, rare: 6})
-    assert levelmap.text_level(native(), index) == level
-    # Five in a hundred is inside the 95%: the common word decides.
-    assert levelmap.text_level(native(), ruled("he", {common: 95, rare: 5})) == "B2"
+    assert levelmap.text_level(native(), ruled("he", {common: 80, rare: 20})) == level
+    # Fifteen in a hundred is inside the 85%: the common word decides.
+    assert levelmap.text_level(native(), ruled("he", {common: 85, rare: 15})) == "B2"
 
 
-def test_a_word_past_the_list_is_past_every_rung() -> None:
+def test_a_form_the_list_never_ranked_is_left_out_of_the_count() -> None:
+    """A lemma spelling, a transliteration or a missed name is not a rare word: it is not
+    counted, so it cannot push a text past vav (2026-10-29 calibration)."""
     (common,) = words_at("he", 10)
     index = ruled("he", {common: 50, "לאמילהבכלל": 50})
-    assert levelmap.ruler_rank("n", "he", index) == 10**9
-    assert levelmap.text_level(native(), index) == "past-C2"
+    assert levelmap.ruler_rank("n", "he", index) == 10
+    assert levelmap.text_level(native(), index) == "B2"
+    assert levelmap.ruler_rank("n", "he", ruled("he", {"לאמילהבכלל": 9})) is None
 
 
-def test_the_european_scale_places_by_its_own_rungs() -> None:
-    """French climbs the CEFR rungs in level.py: B2 2,400, C1 2,750, C2 3,300."""
-    common, c1, c2 = words_at("fr", 20, 2600, 3200)
-    assert levelmap.text_level(native("fr"), ruled("fr", {common: 90, c1: 10})) == "C1"
-    assert levelmap.text_level(native("fr"), ruled("fr", {common: 90, c2: 10})) == "C2"
+def test_the_european_scale_is_not_ruled_yet() -> None:
+    """The CEFR rungs count known common words, not a rank: French, Russian and Italian
+    Native texts stay on B2 until that scale has a ruler of its own."""
+    common, rare = words_at("fr", 20, 9000)
+    assert levelmap.text_level(native("fr"), ruled("fr", {common: 50, rare: 50})) == "B2"
+
+
+#: The rank that covers 85% of each built Hebrew text's ranked running words, by the
+#: level the shelf gives it, measured off the laptop's library on 2026-10-29 (numbers
+#: only: no word of any text). The calibration is pinned to these.
+MEASURED = {
+    "A1": (1002, 1069, 1127, 1149, 1172, 1429, 1491, 1618, 1699, 1764, 1786, 1993, 1993,
+           2087, 2103, 2124, 2139, 2155, 2177, 2284, 2294, 2294, 2310, 2310, 2363, 2363,
+           2363, 2456, 2462, 2464, 2494, 2618, 2642, 2649, 2753, 2854, 2935, 3012, 3138,
+           3145, 3513, 3513, 3667, 3683, 3744, 3744, 4201, 4302, 4323, 4324, 4382, 4830,
+           5030, 5047, 5168, 5203, 5299, 6332, 6508),
+    "A2": (1293, 1316, 1388, 1497, 1497, 1639, 1639, 1694, 1951, 1992, 2100, 2284, 2341,
+           2444, 2464, 2539, 2557, 2823, 2980, 3473, 3513, 3728, 5050, 5502),
+    "Native": (4910, 4933, 5097, 5168, 5590, 5881, 6468, 7333, 7347, 8871, 10496),
+}  # fmt: skip
+
+
+def rung_of(needed: int) -> str:
+    """The CEFR of the first ulpan rung whose vocabulary reaches `needed`, or past vav."""
+    from targum.level import ULPAN
+
+    return next((rung.cefr for rung in ULPAN if rung.at >= needed), "past")
+
+
+def a_text_needing(needed: int) -> Index:
+    """A text whose 85% falls on the word at rank `needed`."""
+    common, rare = words_at("he", 50, needed)
+    return ruled("he", {common: 84, rare: 16})
+
+
+def test_the_calibration_keeps_easy_texts_low_and_spreads_native_ones() -> None:
+    """Pinned on the 2026-10-29 calibration (targum-internal#561): what the shelf calls A1
+    and A2 lands at B1 or below, mostly A1 to A2+; Native texts land on B2, C1 and C2, and
+    none past vav."""
+    for shelf in ("A1", "A2"):
+        rungs = [
+            rung_of(levelmap.ruler_rank("n", "he", a_text_needing(one)) or 0)
+            for one in MEASURED[shelf]
+        ]
+        low = sum(1 for one in rungs if one in {"A1", "A2", "A2+"})
+        at_most_b1 = sum(1 for one in rungs if one in {"A1", "A2", "A2+", "B1"})
+        assert low * 2 > len(rungs), (shelf, rungs)
+        assert at_most_b1 >= 0.8 * len(rungs), (shelf, rungs)
+    placed = [levelmap.text_level(native(), a_text_needing(one)) for one in MEASURED["Native"]]
+    assert set(placed) <= {"B2", "C1", "C2"}, placed
+    assert len(set(placed)) == 3, "spread across all three"
 
 
 def test_a_native_text_the_index_has_not_counted_stays_on_b2() -> None:
