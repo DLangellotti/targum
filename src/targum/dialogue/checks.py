@@ -187,7 +187,10 @@ def addressed_gender(word: str) -> str:
     letter, marks = seen[-1]
     plain = bare(word)
     if plain == "אתה":
-        return "m"
+        # אַתָּה "you" has an a under its alef; אִתָּהּ "with her" (אִתָּה once the mappiq
+        # is lost) has a hiriq. The letters are the same, so the points decide, and a
+        # word without them is no evidence either way (scene 221, qa).
+        return "m" if PATAH in seen[0][1] or QAMATS in seen[0][1] else ""
     if plain == "את" and len(seen) == 2:
         return "f" if SHVA in marks else ""
     if letter == "ת" and len(seen) > 2:

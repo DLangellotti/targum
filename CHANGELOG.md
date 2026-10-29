@@ -12,6 +12,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The scene check reads «אִתָּהּ» ("with her") as «אִתָּהּ» again, not as «אַתָּה» ("you",
+  to a man). `checks.addressed_gender` now decides by the vowel under the alef: a qamats
+  or patah is the pronoun, a hiriq the preposition, and an unpointed אתה says nothing.
+  qa found it on scene 221 once the normaliser had turned אִיתָּהּ into אִתָּהּ. All 151
+  אַתָּה in the 267 scenes still read as addressed to a man.
 - A short conversation is no longer listed at C1 (2026-10-29). "The key" (14 words) and
   "Renting a bike" (38) were measured Native because one uncommon word is a big share of
   a few, and the text ruler then put them on C1; before it they were "B2 and up". A
