@@ -75,6 +75,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   opened under a band, from a shelf's See all or a Your Progress row that counts what you
   can read, says its band as a chip that clears it, and `#see/<band>` and
   `#see/now/level/<level>` still open as they did. The menu's two strings are deleted.
+- The signed-in Library draws its rows before `/readers` answers, and asks for its
+  catalogues in one wave (targum-internal#557). It waited for the shelf's files and the
+  account's answer together, so a returning reader whose files came from the cache still
+  waited about a second on a phone. The catalogue's order and the build file also came in
+  a second wave after the first draw. Now the head asks for all five files at once. The
+  rows are drawn as soon as the shelf is in, from a slim copy of the last answer this
+  browser kept (`targum:library-last`, which sign-out sweeps), or from nothing on a first
+  visit. What is built, how much of each text is known and the shelves that follow from
+  it are drawn again when the answer comes. While the shelf is on its way the wait holds
+  a screen's height, so arriving rows no longer push the footer down. Measured on the
+  phone profile against a local serve with a 203-reader shared shelf: warm LCP went from
+  1.47 s to 0.77 s and layout shift from 0.41 to 0.00. Cold LCP stayed about the same
+  (2.83 s to 3.00 s; the first visit's bytes still decide it), and its layout shift went
+  from 0.41 to 0.003. Live before the change, as the test account: 4.05 s cold, 1.69 s
+  warm, shift 0.41. Once the answer is in, the page is the same as before.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under

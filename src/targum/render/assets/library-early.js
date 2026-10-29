@@ -1,4 +1,4 @@
-/* The Library's first asks, from the page's head (targum-internal#484).
+/* The Library's first asks, from the page's head (targum-internal#484, #557).
  *
  * The shelf's files, `/readers`, `/jobs` and `/portions` were asked by `library.js` at the
  * foot, so they waited for the whole page to arrive, and on the phone profile the shelf
@@ -15,8 +15,12 @@ window.TARGUM_SHELF_ASKED = (function (files, account) {
   if (typeof fetch !== "function") return asked;
   var common = files ? files[""] : null;
   if (!common) return asked;
-  function ask(address) {
-    asked[address] = fetch(address, { credentials: "same-origin" });
+  function ask(address, later) {
+    var how = { credentials: "same-origin" };
+    // What the first card does not need goes out in the same wave, behind the rest where
+    // the browser weighs requests at all.
+    if (later) how.priority = "low";
+    asked[address] = fetch(address, how);
     asked[address].catch(function () {});
   }
   var code = "";
@@ -33,6 +37,11 @@ window.TARGUM_SHELF_ASKED = (function (files, account) {
   if (files[code + "." + page] || files[code + ".en"]) {
     ask(files[code + "." + page] || files[code + ".en"]);
   }
+  // The catalogue's whole order and what a Build press sends were a second wave, asked
+  // only once the first had been drawn, so on a phone they started at 2.6 s and the covers
+  // waited behind them (targum-internal#557). Asked here they share the first wave.
+  if (files.order) ask(files.order, true);
+  if (files[code + ".build"]) ask(files[code + ".build"], true);
   // And what the shelf is drawn against, asked as `library.js` asks them.
   var key = window.TARGUM_KEY || "";
   ["/readers", "/jobs", "/portions"].forEach(function (path) {
