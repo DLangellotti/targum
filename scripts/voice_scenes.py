@@ -163,7 +163,9 @@ DIRECTOR_VERSION = 1
 DIRECTION_MOST = 40
 #: What a turn is read as when the director is off or said nothing usable for it.
 NEUTRAL = "calm and natural"
-BRIEF = """You direct two voice actors reading a short everyday conversation in Hebrew \
+#: The language a scene is read in, by its `language` field, for the director's brief.
+LANGUAGES = {"he": "Hebrew", "ru": "Russian"}
+BRIEF = """You direct two voice actors reading a short everyday conversation in {language} \
 for a language-learning app. For each numbered turn write a stage direction of two to \
 six English words: the speaker's mood, how strongly, and the pace. For example: \
 "calm, a little tired", "warm, unhurried", "mildly annoyed, brisk", "relaxed, friendly".
@@ -197,8 +199,74 @@ CUTOFFS = 3
 CUTOFF_WAIT = 10
 
 
+class Quota:
+    """What a 429 said about the quota it hit, read from Google's error body.
+
+    Vertex and the Gemini API both answer a 429 with `google.rpc` details: a QuotaFailure
+    naming each limit broken (`quotaMetric`, `quotaId`, `quotaValue` — the limit itself —
+    and its dimensions, such as the model), and a RetryInfo with how long to wait. Either
+    can be missing, and then this is only the message.
+
+    A plain class, not a dataclass: the tests load this script without registering it as
+    a module, and a dataclass looks its module up."""
+
+    def __init__(
+        self,
+        message: str = "",
+        retry_after: float | None = None,
+        limits: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self.message = message
+        self.retry_after = retry_after
+        self.limits: list[dict[str, Any]] = limits or []
+
+    def __str__(self) -> str:
+        named = "; ".join(
+            f"{one.get('quotaId') or one.get('quotaMetric') or '?'}"
+            + (f" = {one['quotaValue']}" if one.get("quotaValue") else "")
+            for one in self.limits
+        )
+        wait = f", retry in {self.retry_after:.0f}s" if self.retry_after is not None else ""
+        return f"{named or self.message or 'no detail'}{wait}"
+
+
+def read_quota(detail: bytes) -> Quota:
+    try:
+        said = json.loads(detail).get("error", {})
+    except (ValueError, AttributeError):
+        return Quota()
+    quota = Quota(message=str(said.get("message", "")).strip())
+    for one in said.get("details", []) or []:
+        if not isinstance(one, dict):
+            continue
+        delay = str(one.get("retryDelay") or "")
+        if delay.endswith("s"):
+            try:
+                quota.retry_after = float(delay[:-1])
+            except ValueError:
+                pass
+        for violation in one.get("violations", []) or []:
+            if isinstance(violation, dict) and (
+                violation.get("quotaId") or violation.get("quotaMetric")
+            ):
+                quota.limits.append(violation)
+    return quota
+
+
 class Daily(RuntimeError):
     """The per-day quota is gone. Waiting will not help; tomorrow will."""
+
+    def __init__(self, message: str, quota: Quota | None = None) -> None:
+        super().__init__(message)
+        self.quota = quota or Quota(message=message)
+
+
+class Throttled(RuntimeError):
+    """A per-minute limit that backing off within one turn did not clear."""
+
+    def __init__(self, message: str, quota: Quota) -> None:
+        super().__init__(message)
+        self.quota = quota
 
 
 class CutOff(TimeoutError):
@@ -323,12 +391,17 @@ def say(
     via: str = "gemini",
     deadline: float = DEADLINE,
     on_cutoff: Callable[[CutOff], None] | None = None,
+    on_quota: Callable[[Quota], None] | None = None,
 ) -> bytes:
     """One turn. Returns raw PCM, not a WAV: these get joined before they get a header.
 
     Every request has `deadline` seconds of wall clock. One that runs past it is
     abandoned, handed to `on_cutoff` (it may have been billed), and retried after a
-    backoff, at most `CUTOFFS` times before the `CutOff` is raised."""
+    backoff, at most `CUTOFFS` times before the `CutOff` is raised.
+
+    A 429 is read for what it says about the quota and handed to `on_quota`. Its own
+    retryDelay is waited where it gives one; one over ten minutes is the per-day limit and
+    raises `Daily`; a per-minute one still there after five backoffs raises `Throttled`."""
     url = DOORS[via][0].format(model=MODEL) + f"?key={key}"
     body = {
         # Vertex requires the role; the Gemini API takes it and does not need it.
@@ -369,17 +442,20 @@ def say(
                 # seconds at a time against a quota five hours from resetting, looking
                 # for all the world like a rate limit it could out-wait.
                 detail = error.read()
-                try:
-                    said = json.loads(detail).get("error", {})
-                    for one in said.get("details", []):
-                        delay = str(one.get("retryDelay") or "")
-                        if delay.endswith("s") and float(delay[:-1]) > 600:
-                            raise Daily(said.get("message", "").strip()) from error
-                except (ValueError, KeyError):
-                    pass
+                quota = read_quota(detail)
+                if on_quota is not None:
+                    on_quota(quota)
+                if quota.retry_after is not None and quota.retry_after > 600:
+                    raise Daily(quota.message or str(quota), quota) from error
+                if attempt - cutoffs == 5:
+                    raise Throttled(f"still limited after backing off: {quota}", quota) from error
+                wait = quota.retry_after or WAIT * (2 ** (attempt - cutoffs))
+                print(f"      429 ({quota}); waiting {wait:.0f}s", flush=True)
+                time.sleep(wait)
+                continue
             # 400 is in here because it is not always what it says: see ASK.
-            detail = detail if error.code == 429 else b""
-            if error.code not in (400, 429, 500, 503) or attempt - cutoffs == 5:
+            detail = b""
+            if error.code not in (400, 500, 503) or attempt - cutoffs == 5:
                 # A bare "HTTP Error 400: Bad Request" says nothing anybody can act on,
                 # and that is what the first run of this printed after eleven good turns.
                 # The body says which field it disliked.
@@ -439,6 +515,7 @@ def brief(scene: dict[str, Any]) -> str:
         english = f" ({turn['english']})" if turn.get("english") else ""
         lines.append(f"{n + 1}. {name}, a {gender}: {POINTS.sub('', turn['text'])}{english}")
     return BRIEF.format(
+        language=LANGUAGES.get(scene.get("language") or "he", "Hebrew"),
         count=len(scene["turns"]),
         title=scene.get("english") or scene.get("title", ""),
         gloss=scene.get("gloss", ""),
@@ -560,7 +637,9 @@ def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
     # being spoken to, and passing the speaker made the "though the cast says otherwise"
     # note fire on almost every line — scene 81 hid it by having two men in it.
     other = scene["cast"]["B" if turn["who"] == "A" else "A"]
-    hints = pronunciation_hints(turn["text"], other.get("gender", ""))
+    # The hints are what Hebrew letters leave open; a Russian line has none to give.
+    hebrew = (scene.get("language") or "he") == "he"
+    hints = pronunciation_hints(turn["text"], other.get("gender", "")) if hebrew else []
     guide = GUIDE.format(hints="; ".join(hints)) if hints else ""
     # The direction gives way first: cut to its first clause, then left out. Then the
     # hint is said tersely. A prompt over LONGEST is the 400 the 2026-09-22 run kept
@@ -696,6 +775,8 @@ def voice(
     deadline: float = DEADLINE,
     on_cutoff: Callable[[CutOff], None] | None = None,
     directions: list[str] | None = None,
+    on_quota: Callable[[Quota], None] | None = None,
+    on_bought: Callable[[float], None] | None = None,
 ) -> tuple[list[list[float]], float, float]:
     """The whole scene, one turn at a time. Returns the spans, the seconds in the scene,
     and the seconds bought this run.
@@ -719,9 +800,12 @@ def voice(
             pcm = kept.read_bytes()
             fresh = False
         else:
-            pcm = say(turn["text"], speaker, key, prompt, via, deadline, on_cutoff)
+            pcm = say(turn["text"], speaker, key, prompt, via, deadline, on_cutoff, on_quota)
             write_atomically(kept, pcm)
             bought += len(pcm) / (RATE * 2)
+            if on_bought is not None:
+                # Told per turn, so a scene that stops half way still counts its spend.
+                on_bought(len(pcm) / (RATE * 2))
             fresh = True
         pcm = level(pcm)
         seconds = len(pcm) / (RATE * 2)

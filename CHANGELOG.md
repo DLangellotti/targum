@@ -462,6 +462,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `scripts/voice_shelf.py`, which re-voices the whole scene shelf with the #566 pipeline
+  (David approved it 2026-10-29: 381 scenes, 5,198 turns). It stops at a spend cap
+  (`--cap`, default $30), counted per bought turn with the director included. On a 429
+  it reads the quota Vertex names and the wait it asks for, waits that out, and resumes:
+  a per-minute limit in place, a stubborn one after `--pause`, a per-day one after
+  sleeping it off. `ru-` scenes get a Russian director brief and no Hebrew hints, and a
+  speaker with a missing or wrong-gender voice gets the usual voice for that language.
+  It writes `progress.json` after every turn and scene. `--dry-run` gives counts and a
+  price: on the laptop's shelf, 267 Hebrew and 114 Russian scenes, an estimated $9.59 at
+  today's lengths ($11.70 if reads run 25% slower), and about 10 hours at 3 s spacing.
+  `voice_scenes.say` now hands every 429's quota to a callback and waits the
+  retryDelay it gives.
 - `scripts/speed_pass.py`, a read-only speed pass on the live public pages for design.md
   §14 line 5 (targum-internal#551, from builder-3's pass of 2026-10-28). It loads the
   landing, the Library, three text and scene pages, /about, /privacy and /terms cold on a
