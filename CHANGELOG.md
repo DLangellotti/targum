@@ -19,6 +19,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   page's own keyboard whether any key reached it (`End`, `Home` and both arrows), and
   accepts the first page or the one the voice left it on. 20 runs pass out of 20 (master
   failed 4 of 20). With the bar's `stopPropagation` taken out, it fails at once.
+- Home and its Subscriptions tab stop waiting on the account before the shelf
+  (targum-internal#555). Home asked for `/readers` only after `/account/me` and the
+  push of anything owed had answered, so a reader back from a text, who always owes a
+  place, waited one or two round trips more on a phone. Now only words owed hold the shelf
+  back, because they are the one thing its figures are measured against. The shelf, the
+  builds, the places and the new items are asked from the page's head. Subscriptions is
+  shown on its own answer wherever the arrival cannot apply. The pages look the same.
 - A video whose transcript came from its subtitle file no longer bounces, and no longer
   lights the wrong word (David, 2026-10-29, on the Touring Israel interview). A subtitle
   cue runs across sentences, so neighbouring lines' spans overlap (39 of 48 in that
