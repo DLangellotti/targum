@@ -42,6 +42,7 @@ import json
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from functools import cache
 from math import ceil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -440,14 +441,43 @@ def _catalogue_index() -> Index:
 
 #: The level each series of conversations targum wrote was written at (design.md §12,
 #: "Your level, v3", 2026-10-29), by the code after `scene-` (`catalogue.scene_series`):
-#: the scenes path is `""`, the Hebrew Conversations `he` and the Russian scenes `ru`.
+#: the scenes path is `""`, the Russian scenes `ru` and the Hebrew Conversations `he`.
+#: A scene path's level is by its rung (`Dialogue.level`, 1 to 6): rungs 1 to 3 are A1
+#: and 4 to 6 A2 (David, 2026-10-29). The Conversations are B1 at every rung: they are
+#: rung 4 of their own series, not of the path.
+#:
 #: The measure cannot place them. A scene is short, so its hard share rests on a word or
 #: two ("The key", 14 words with one uncommon word, measured Native and then C1), and
-#: what kept the rest of the scenes path off A1 was falling *under* the Easy spec's
-#: floors, which are there for the weekly's writer: sentences shorter than four words or
-#: fewer than 5% hard words, easier than the floor and not harder. A series not named here
-#: is measured like any text.
-AUTHORED: dict[str, str] = {"": "A1", "ru": "A1", "he": "B1"}
+#: what kept most of the path off A1 was falling *under* the Easy spec's floors, which
+#: are there for the weekly's writer: easier than the floor, not harder. A series not
+#: named here is measured like any text.
+AUTHORED: dict[str, tuple[str, ...]] = {
+    "": ("A1", "A1", "A1", "A2", "A2", "A2"),
+    "ru": ("A1", "A1", "A1", "A2", "A2", "A2"),
+    "he": ("B1",) * 6,
+}
+
+
+@cache
+def _rungs(root: str) -> dict[str, int]:
+    """Each scene's rung, by its `dialogue:` identifier, read once a dialogue folder."""
+    found: dict[str, int] = {}
+    for path in sorted(Path(root).glob("*.json")):
+        try:
+            rung = json.loads(path.read_text(encoding="utf-8")).get("level", 1)
+        except (OSError, ValueError):
+            continue
+        if isinstance(rung, int):
+            found[path.stem] = rung
+    return found
+
+
+def scene_rung(source: str) -> int | None:
+    """The rung a `dialogue:` source was written at, or None where its file is not here."""
+    from .dialogue import index as dialogue_index
+
+    return _rungs(str(dialogue_index.root())).get(source.removeprefix("dialogue:"))
+
 
 #: Fewer running words than this and the measure never places a text Native (design.md
 #: §12, "Your level, v3", 2026-10-29; targum-internal#562). The text ruler's 85% point
@@ -458,13 +488,28 @@ AUTHORED: dict[str, str] = {"": "A1", "ru": "A1", "he": "B1"}
 NATIVE_MIN_WORDS = 100
 
 
+#: What `authored_level` says of a scene whose file is not here to give its rung.
+UNKNOWN_RUNG = "?"
+
+
 def authored_level(entry: Any) -> str:
-    """The level a conversation targum wrote was written at, or "" for any other text."""
+    """The level a conversation targum wrote was written at, "" for any other text, or
+    `UNKNOWN_RUNG` for one whose dialogue file is not on this machine."""
     source = str(getattr(entry, "source", "") or "")
     entry_id = str(getattr(entry, "id", "") or "")
     if not source.startswith("dialogue:") or not SCENE.match(entry_id):
         return ""
-    return AUTHORED.get(scene_series(entry_id), "")
+    levels = AUTHORED.get(scene_series(entry_id))
+    if levels is None:
+        return ""
+    if len(set(levels)) == 1:
+        return levels[0]
+    rung = scene_rung(source)
+    if rung is None:
+        # The scene's file is not on this machine: its rung is unknown, and a written
+        # level is not to be guessed. Its level is the measure's, short of Native.
+        return UNKNOWN_RUNG
+    return levels[min(max(rung, 1), len(levels)) - 1]
 
 
 def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
@@ -475,10 +520,11 @@ def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
     else is placed by the measure, `difficulty` and `sentence`: Easy is A1 where it meets
     the Easy spec in full and A2 otherwise, Simplified is B1, and Native is placed by
     `native` on B2, C1, C2 or Past C2, unless it is shorter than `NATIVE_MIN_WORDS`, when
-    it is unmeasured: too short to say, never easy.
+    it is unmeasured: too short to say, never easy. A scene whose rung is not on this
+    machine is measured, and never placed Native.
     """
     written = authored_level(entry)
-    if written:
+    if written and written != UNKNOWN_RUNG:
         return written
     difficulty = int(getattr(entry, "difficulty", 0) or 0)
     placed = place(difficulty, float(sentence or 0))
@@ -489,7 +535,7 @@ def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
         return "A1" if meets_easy(difficulty, float(sentence), minutes) else "A2"
     if placed is Level.bet:
         return "B1"
-    if int(getattr(entry, "words", 0) or 0) < NATIVE_MIN_WORDS:
+    if written or int(getattr(entry, "words", 0) or 0) < NATIVE_MIN_WORDS:
         return ""
     return native(entry)
 

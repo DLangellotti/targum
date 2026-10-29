@@ -439,9 +439,11 @@ what you read, month by month", 2026-09-27) to days and weeks.
   for B2 to Past C2, so old Library addresses still open and the stage standard's floors,
   stated at B2 and up, still read one number.
 - **Short and authored conversations keep their written level** (2026-10-29, after
-  "The key", 14 words, was listed at C1). A conversation targum wrote takes the level of
-  the series it was written for, never the measure: the scenes (`scene-NN`) and the
-  Russian scenes (`scene-ru-NN`) are A1, the Conversations (`scene-he-NN`) are B1. Under
+  "The key", 14 words, was listed at C1). A conversation targum wrote takes the level it
+  was written at, never the measure: on the scenes path (`scene-NN`) and the Russian
+  scenes (`scene-ru-NN`) rungs 1 to 3 are A1 and rungs 4 to 6 A2 (David, same day), and
+  the Conversations (`scene-he-NN`) are B1. A scene whose file is not on the machine has
+  no rung to read and is measured, never placed Native. Under
   100 words no text is placed Native by the measure, since the 85% point of a 14-word
   text rests on two words: below it a text with a written level takes that, and any
   other is unmeasured. The shortest Native text on the shelf that is not a scene is 143
