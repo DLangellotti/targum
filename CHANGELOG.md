@@ -828,6 +828,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   last 30 days, rounded up to a whole word and no further. Week one gets the words to
   aleph. `/account/reading` sends day buckets per language in the time zone the page
   names (`tz`), from the rows' own times. Every `.seg` reaches 44px under a thumb.
+- Your Progress's Level v3, the page (targum-internal#561; design.md §12, "Your level, v3",
+  David 2026-10-29). No visible heading; a hidden h2 names the part. The card is the level:
+  the ulpan letter alone with its geresh at the page title's step, in a carried 600 cut of
+  Noto Sans Hebrew's letters (2.8 kB, `scripts/hebrew_letter_face.py`), "About B2" beside
+  it, a bar toward the next rung, "637 words to ה׳" exact, and "Show texts you can read
+  now". French, Russian and Italian lead with their CEFR level. The ulpan explainer and the
+  foot line are gone. Texts by level runs A1 to C2 and Past C2: covered rows say Easy for
+  you or Next and "{n} you can read now", rows above say "{n} words to go", and a row with
+  no texts has no chevron. Week one keeps the bar and the words to aleph, and its button
+  says "Start learning". Words you knew draws by Day, Week or Month (`.seg`, the coarsest
+  view with two points first, the choice remembered), says an exact percentage ("In
+  October you knew 91% of the words you read."), is one tab stop with its points said by
+  the arrows, and has no footnote. At a desk, two even columns.
 - Your Progress's first part is Level (targum-internal#553; design.md §12, "Your level
   leads with what you can read", 2026-10-28). Its rows are the texts' own levels,
   Beginner · A1, A2, B1 and B2 and up (`levelmap.text_level`), each "Easy for you", "Your
