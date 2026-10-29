@@ -380,6 +380,70 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Your level, v3: the letter leads, the words to go are counted — 2026-10-29
+
+David, 2026-10-29 (targum-internal#561), three calls after a read of the v2 mockup and a
+fourth the same day on the numbers, over design's review and ling-en's, ling-he's and
+ling-ru's copy. Where those two files say "Roughly", "more", a rounding or a footnote, this
+entry wins. It reverses five lines of "Your level leads with what you can read"
+(2026-10-28) on Your Progress: the visible "Level" heading, the foot line as the only
+level, the bar with no numbers, the ulpan explainer and "Not yet". It reverses "Native is
+one level, B2 and up" ("A badge is a promise, checked", 2026-10-12) for the texts' own
+levels, and "The ladders say what they are" ("The copy audit's answers", 2026-09-28,
+which dated it 2026-08-24) on this page. It extends the reading line ("what you knew of
+what you read, month by month", 2026-09-27) to days and weeks.
+
+- **No visible heading.** A visually hidden h2, "Your level", names part 1 for a screen
+  reader, and the section is labelled by it.
+- **The card is the level and nothing else.** The ulpan letter leads alone with its
+  geresh (ד׳, never "dalet ד"), at the page title's step (1.9375rem), in Noto Sans Hebrew
+  600, in ink; hidden text before it says its name ("Ulpan level dalet") and the glyph is
+  hidden from a screen reader. "About B2" sits on its baseline in `--ink-soft`. French,
+  Russian and Italian lead with the CEFR level in Source Sans 3 600 instead, with no
+  second scale. The 600 cut is carried as a subset of the Hebrew letters, the geresh and
+  the plus, beside the Regular readers already load: never a synthesised bold, and
+  nothing fetched.
+- **A bar toward the next rung, then the exact number: "637 words to ה׳".** The bar fills
+  from this rung to the next on the measure the rung is reached by. The number is ling-he's
+  conversion of the same gap: the weighted words left, divided by the average weight of
+  the words the reader marked known in the last 30 days (failing that, the weight of the
+  band above the one most of their known words sit in), rounded up to a whole word and
+  otherwise unrounded. The European scale counts its commonest words one by one, so its
+  gap is the number. **No "Roughly", no "more", no rounding to fifties.** Then the one
+  press, "Show texts you can read now". No ulpan explainer. At the top rung there is no
+  bar and no number; the press stays.
+- **Week one** keeps the bar and "{n} words to א׳" on the "Start with beginner texts."
+  card, and its button says **"Start learning"** (David, 2026-10-29), which still opens the
+  first beginner conversation.
+- **Texts by level runs A1, A2, B1, B2, C1, C2, then Past C2**, always, for a language with
+  a word ladder ("A level with nothing at it is not a row", 2026-10-28, gives way). A row
+  the reader's words cover says "Easy for you" or "Next", decided by texts as before, and
+  "{n} you can read now". A row above the reader's words says "{n} words to go", exact,
+  from the same function as the card, so the C1 row's number is the card's ה׳ figure.
+  Past C2 has no threshold and no number. A row with no texts is plain text with no
+  chevron. Aramaic keeps its climb of Targums.
+- **A Native text is placed by the vocabulary it needs** (the text ruler): the frequency
+  rank of the commonest words that cover 95% of its running words, read off the lemma
+  index beside the catalogue, against the same thresholds the reader's level uses
+  (Hebrew: dalet 6,500, hey 9,000, vav 12,000; the CEFR rungs in `level.py` elsewhere).
+  It is B2 at least, and past the top rung it is Past C2 (`past-C2`). It runs locally,
+  stores nothing new and spends nothing; a Native text the index has not counted stays on
+  B2. `levelmap.text_level` and `cefr_rows` move together, and `B2+` stays as an alias
+  for B2 to Past C2, so old Library addresses still open and the stage standard's floors,
+  stated at B2 and up, still read one number.
+- **"Words you knew" draws by Day, Week or Month**, a `.seg` (44px on a coarse pointer, as
+  every `.seg` now is). The default is the coarsest view with two points; a choice
+  remembered in this browser wins. The sentence is an exact percentage: "In October you
+  knew 91% of the words you read." (#560 makes that the rule everywhere). "We count only
+  the sections you finish." is gone. `/account/reading` sends day buckets per language
+  in the reader's time zone, from the `reading` rows' own `at`; weeks and months are summed
+  in the browser, sums of words and never an average of shares. Nothing new is stored.
+- **At a desk, two even columns**: the card with the chart under it on the left, the
+  ladder on the right, ending at about the same height.
+
+What it keeps: every figure on the page is a real count or a stated conversion of one
+(§6), nothing on it spends, and the foot line's rung is the measured one, never the
+declared one.
 ### See all keeps one level, and the bar is not spoken — 2026-10-29
 
 From qa's review of targum#975 (targum-internal#554), with David's word of 2026-10-29.
@@ -463,6 +527,10 @@ On Your Words opened from a text, "← Back to <text>, where you stopped" stands
 The mark stays and still goes to Your targums. When the bar is out, a named back stands beside it and returns to wherever the text was opened from, or to Your targums when there's no origin. It fades with the bar and comes back the same ways, plus a tap on the top strip on a phone. In Theatre the mark and the back stay at the reader's 55% while a video plays, never invisible.
 
 ### Your level leads with what you can read — 2026-10-28
+
+*(Partly superseded on 2026-10-29 by "Your level, v3", above: the heading, the foot line
+as the only level, the bar with no numbers, the ulpan explainer and "Not yet" are gone,
+and the rows run to C2 and Past C2.)*
 
 Approved by David, 2026-10-28 (targum-internal#553), after five reviews (ling-en, ling-he,
 ling-ru, design twice) and three calls of his the same evening; the lines quoted here are
@@ -4000,7 +4068,9 @@ entry makes the three words promises to the reader, in order, and makes a test k
   better ruler than a median nobody measured. The floors were set on 2026-10-12, once the
   difficulty sweep had measured the catalogue, just under Hebrew's thinnest level for
   Beta (90 texts and 35 with a recording at every level) and at two fifths of that for
-  Alpha (36 and 14).
+  Alpha (36 and 14). *(Superseded for the texts' own levels on 2026-10-29, "Your level,
+  v3": Native is split into B2, C1, C2 and Past C2 by the vocabulary a text needs. The
+  floors still read B2 and up as one level, the sum of the four.)*
 - **One table, one test.** `stages.DECLARED` is the claim, written into every page as
   `window.TARGUM_STAGES` and read by the menu, the palette and the arrival; `tests/
   test_stages.py` fails when a claim outruns the facts in the code, the committed evals
@@ -5047,7 +5117,8 @@ old wording.
   newcomer meets "ב+" or "A2" with nothing to say which end is the start. Hebrew: "Ulpan
   classes in Israel run from aleph, for beginners, to vav." Other languages: "The
   European scale runs from A1, for beginners, to C2." The limit, "A guide, not a
-  placement", still follows each.
+  placement", still follows each. *(Superseded on Your Progress on 2026-10-29, "Your
+  level, v3": no ulpan explainer there.)*
 - **No "free" inside the product.** This applies §6 ("inside the product there is no
   price") to two places that had drifted: the refusals that ended "The library is always
   free" now say "The library still opens", and the From targum playlists (#415) now say
