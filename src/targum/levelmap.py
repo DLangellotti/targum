@@ -46,7 +46,7 @@ from math import ceil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .catalogue import Entry
+from .catalogue import SCENE, Entry, scene_series
 from .weekly.models import LEVELS, Level
 
 if TYPE_CHECKING:
@@ -220,13 +220,20 @@ def tally(
     shelves: dict[str, Shelf] = {}
     for entry in entries:
         shelf = shelves.setdefault(entry.language, Shelf(entry.language))
-        length = sentence(entry)
-        level = place(entry.difficulty, length)
         how = medium(entry.source, spoken=spoken, video=video)
-        shelf.cells[(level.value if level else UNMEASURED, how)] += 1
-        if level is Level.gimel:
-            shelf.native[(native(entry), how)] += 1
-        if meets_easy(entry.difficulty, length, entry.minutes):
+        # One decision, `level_for`, which `text_level` makes too, read back onto the
+        # weekly's three levels: A1 and A2 are Easy and A1 the Easy spec, B1 Simplified,
+        # B2 and up Native. So `cefr_rows` and the Library never disagree on a text.
+        level = level_for(entry, sentence(entry), native)
+        if not level:
+            shelf.cells[(UNMEASURED, how)] += 1
+            continue
+        if level in NATIVE_LEVELS:
+            shelf.cells[(Level.gimel.value, how)] += 1
+            shelf.native[(level, how)] += 1
+            continue
+        shelf.cells[((Level.bet if level == "B1" else Level.aleph).value, how)] += 1
+        if level == "A1":
             shelf.easy[how] += 1
     return dict(sorted(shelves.items(), key=lambda item: (-item[1].total, item[0])))
 
@@ -270,12 +277,14 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
 
     The ruler is the one above — three levels by hard share and sentence length — and the
     mapping is stated rather than measured: a text meeting the Easy spec in full is A1,
-    the rest of Easy is A2, Simplified is B1. The Easy spec is a subset of Easy, so A2 is
-    Easy less the spec. Native is split into B2, C1, C2 and Past C2 by the vocabulary a
-    text needs (`native_level`, design.md §12, "Your level, v3", 2026-10-29), and `B2+`
-    is still there as the four together: the stage standard's floors are stated at B2 and
-    up, and old addresses name it. So the rows do not add up to the shelf — `B2+` is the
-    last four again — and nothing should sum them.
+    the rest of Easy is A2, Simplified is B1. A conversation targum wrote is counted at
+    its written level instead, and a text under `NATIVE_MIN_WORDS` is never Native
+    (`level_for`, which `tally` counts by and `text_level` says). The Easy spec is a
+    subset of Easy, so A2 is Easy less the spec. Native is split into B2, C1, C2 and Past
+    C2 by the vocabulary a text needs (`native_level`, design.md §12, "Your level, v3",
+    2026-10-29), and `B2+` is still there as the four together: the stage standard's
+    floors are stated at B2 and up, and old addresses name it. So the rows do not add up
+    to the shelf — `B2+` is the last four again — and nothing should sum them.
     """
     easy = [shelf.cells[(Level.aleph.value, how)] for how in MEDIA]
     spec = [shelf.easy[how] for how in MEDIA]
@@ -429,30 +438,85 @@ def _catalogue_index() -> Index:
     return read_index(catalogue_module.lemmas_path())
 
 
-def text_level(entry: Entry, index: Index | None = None) -> str:
-    """One text's level on the rule `cefr_rows` counts by, or "" where it has none.
+#: The level each series of conversations targum wrote was written at (design.md §12,
+#: "Your level, v3", 2026-10-29), by the code after `scene-` (`catalogue.scene_series`):
+#: the scenes path is `""`, the Hebrew Conversations `he` and the Russian scenes `ru`.
+#: The measure cannot place them. A scene is short, so its hard share rests on a word or
+#: two ("The key", 14 words with one uncommon word, measured Native and then C1), and
+#: what kept the rest of the scenes path off A1 was falling *under* the Easy spec's
+#: floors, which are there for the weekly's writer: sentences shorter than four words or
+#: fewer than 5% hard words, easier than the floor and not harder. A series not named here
+#: is measured like any text.
+AUTHORED: dict[str, str] = {"": "A1", "ru": "A1", "he": "B1"}
 
-    The catalogue's own measures, `difficulty` and `sentence`, so the server and the
-    Library's shelf files say the same thing without either reading a build: a text with
-    no sentence length yet is unmeasured, never easy. A Native text is placed on B2, C1,
-    C2 or Past C2 by `native_level`, against `index` (the lemma index beside the
-    catalogue by default). An older Hebrew is on a ladder of its own (`ladder_of`) and
-    has no modern level.
-    """
-    register = getattr(getattr(entry, "register", None), "value", "") or ""
-    if register and register != MODERN:
+#: Fewer running words than this and the measure never places a text Native (design.md
+#: §12, "Your level, v3", 2026-10-29; targum-internal#562). The text ruler's 85% point
+#: in a 14-word text rests on two words, and the hard share on one. Read off the laptop's
+#: shelf on 2026-10-29: the shortest Native text that is not a scene is a 143-word
+#: Russian talk and Hebrew's is 603 words, and every row the measure placed Native under
+#: a hundred was a scene of 14 to 68 words or a 9-word picture-book page.
+NATIVE_MIN_WORDS = 100
+
+
+def authored_level(entry: Any) -> str:
+    """The level a conversation targum wrote was written at, or "" for any other text."""
+    source = str(getattr(entry, "source", "") or "")
+    entry_id = str(getattr(entry, "id", "") or "")
+    if not source.startswith("dialogue:") or not SCENE.match(entry_id):
         return ""
+    return AUTHORED.get(scene_series(entry_id), "")
+
+
+def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
+    """A text's level, A1 to Past C2, or "" where it has none: the one rule `text_level`
+    says and `tally` (and so `cefr_rows`) counts by.
+
+    A conversation targum wrote keeps its written level (`authored_level`). Anything
+    else is placed by the measure, `difficulty` and `sentence`: Easy is A1 where it meets
+    the Easy spec in full and A2 otherwise, Simplified is B1, and Native is placed by
+    `native` on B2, C1, C2 or Past C2, unless it is shorter than `NATIVE_MIN_WORDS`, when
+    it is unmeasured: too short to say, never easy.
+    """
+    written = authored_level(entry)
+    if written:
+        return written
     difficulty = int(getattr(entry, "difficulty", 0) or 0)
-    sentence = float(getattr(entry, "sentence", 0) or 0)
-    placed = place(difficulty, sentence)
+    placed = place(difficulty, float(sentence or 0))
     if placed is None:
         return ""
     if placed is Level.aleph:
         minutes = int(getattr(entry, "minutes", 0) or 0)
-        return "A1" if meets_easy(difficulty, sentence, minutes) else "A2"
+        return "A1" if meets_easy(difficulty, float(sentence), minutes) else "A2"
     if placed is Level.bet:
         return "B1"
-    return native_level(entry, _catalogue_index() if index is None else index)
+    if int(getattr(entry, "words", 0) or 0) < NATIVE_MIN_WORDS:
+        return ""
+    return native(entry)
+
+
+def text_level(entry: Entry, index: Index | None = None) -> str:
+    """One text's level on the rule `cefr_rows` counts by (`level_for`), or "" where it
+    has none.
+
+    The catalogue's own measures, `difficulty` and `sentence`, so the server and the
+    Library's shelf files say the same thing without either reading a build: a text with
+    no sentence length yet is unmeasured, never easy. A conversation targum wrote keeps
+    its written level. A Native text is placed on B2, C1, C2 or Past C2 by
+    `native_level`, against `index` (the lemma index beside the catalogue by default,
+    read only when a text is Native). An older Hebrew is on a ladder of its own
+    (`ladder_of`) and has no modern level.
+    """
+    register = getattr(getattr(entry, "register", None), "value", "") or ""
+    if register and register != MODERN:
+        return ""
+    held: list[Index] = [] if index is None else [index]
+
+    def native(one: Any) -> str:
+        if not held:
+            held.append(_catalogue_index())
+        return native_level(one, held[0])
+
+    return level_for(entry, float(getattr(entry, "sentence", 0) or 0), native)
 
 
 def levels_named(level: str) -> tuple[str, ...]:

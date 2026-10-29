@@ -9,6 +9,7 @@ build without anything fetched.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -356,3 +357,130 @@ def test_b2_and_up_is_an_alias_for_the_four_native_levels() -> None:
     assert levelmap.levels_named("C1") == ("C1",)
     assert levelmap.levels_named("Z9") == ()
     assert levelmap.TEXT_LEVELS == ("A1", "A2", "B1", "B2", "C1", "C2", "past-C2")
+
+
+# -- short and authored conversations keep their written level (design.md §12, "Your
+# level, v3", 2026-10-29) ----------------------------------------------------------------
+
+
+def scene(
+    entry_id: str,
+    *,
+    words: int,
+    difficulty: int,
+    sentence: float,
+    language: str = "he",
+) -> Entry:
+    """A conversation targum wrote, as its catalogue row reads."""
+    return Entry(
+        id=entry_id,
+        title="t",
+        author="targum",
+        language=language,
+        source="dialogue:" + entry_id.removeprefix("scene-"),
+        blurb="b",
+        words=words,
+        difficulty=difficulty,
+        sentence=sentence,
+    )
+
+
+#: The two David found under C1 in the Library, as the laptop's catalogue has them.
+THE_KEY = scene("scene-17-the-key", words=14, difficulty=21, sentence=2.3)
+THE_BIKE = scene("scene-37-the-bike", words=38, difficulty=22, sentence=3.8)
+
+
+def a_ruler_saying(level: str) -> Callable[[Entry], str]:
+    def native(_: Entry) -> str:
+        return level
+
+    return native
+
+
+def test_the_key_and_renting_a_bike_keep_their_written_level() -> None:
+    """Measured, both are Native (21% and 22% hard), and the ruler can put a 14-word text
+    anywhere: on the scenes path they are A1, whatever the index says."""
+    (rare,) = words_at("he", 11_000)
+    index = ruled("he", {rare: 100})
+    for one in (THE_KEY, THE_BIKE):
+        assert levelmap.place(one.difficulty, one.sentence) is Level.gimel
+        assert levelmap.text_level(one, index) == "A1"
+
+
+@pytest.mark.parametrize(
+    ("entry_id", "language", "level"),
+    [
+        ("scene-01-nice-to-meet-you", "he", "A1"),
+        ("scene-206-appealing-a-fine", "he", "A1"),
+        ("scene-ru-07-the-market", "ru", "A1"),
+        ("scene-he-07-the-lease", "he", "B1"),
+    ],
+)
+def test_each_series_is_written_at_one_level(entry_id: str, language: str, level: str) -> None:
+    """The scenes path and the Russian scenes are A1 and the Conversations B1, even where
+    the measure says otherwise: here it would say Simplified."""
+    from targum.coverage import EMPTY
+
+    one = scene(entry_id, words=160, difficulty=17, sentence=12, language=language)
+    assert levelmap.authored_level(one) == level
+    assert levelmap.text_level(one, EMPTY) == level
+
+
+def test_a_series_nobody_wrote_a_level_for_is_measured() -> None:
+    """A new series is measured like any text until it is named in `AUTHORED`, and a row
+    that only looks like a scene is not one."""
+    from targum.coverage import EMPTY
+
+    new = scene("scene-fr-01-bonjour", words=160, difficulty=17, sentence=12, language="fr")
+    assert levelmap.authored_level(new) == ""
+    assert levelmap.text_level(new, EMPTY) == "B1"
+    pasted = entry("url:scene-17-the-key", difficulty=17, sentence=12)
+    assert levelmap.authored_level(pasted) == ""
+
+
+def test_under_the_minimum_the_measure_never_places_a_text_native() -> None:
+    """A 38-word text with one rare word is unmeasured, never Native and never easy; at
+    the minimum it is ruled as before. Shorter Easy and Simplified texts keep their level."""
+    from targum.coverage import EMPTY
+
+    short = entry(difficulty=22, sentence=10, words=levelmap.NATIVE_MIN_WORDS - 1)
+    assert levelmap.place(short.difficulty, short.sentence) is Level.gimel
+    assert levelmap.text_level(short, EMPTY) == ""
+    enough = entry(difficulty=22, sentence=10, words=levelmap.NATIVE_MIN_WORDS)
+    assert levelmap.text_level(enough, EMPTY) == "B2"
+    assert levelmap.text_level(entry(difficulty=17, sentence=12, words=40), EMPTY) == "B1"
+    assert levelmap.text_level(entry(difficulty=10, sentence=7, words=40), EMPTY) == "A1"
+
+
+def test_the_minimum_sits_under_every_real_native_text() -> None:
+    """Calibrated on the laptop's shelf, 2026-10-29: the shortest Native text that is not a
+    scene was a 143-word Russian talk, and the scenes measured Native ran 14 to 68."""
+    assert 68 < levelmap.NATIVE_MIN_WORDS <= 143
+
+
+def test_text_level_and_cefr_rows_count_the_same_text_the_same_way() -> None:
+    """Every row the Library labels is counted on that row by `cefr_rows`, so a level's
+    count is the texts its address opens, and `B2+` is still the four Native levels."""
+    shelf_of = [
+        THE_KEY,
+        THE_BIKE,
+        scene("scene-he-07-the-lease", words=160, difficulty=12, sentence=8),
+        entry("url:a1"),
+        entry("url:a2", difficulty=3),
+        entry("url:b1", difficulty=17, sentence=12),
+        entry("url:native", difficulty=25, sentence=20, words=2000),
+        entry("url:short-native", difficulty=25, sentence=20, words=40),
+        entry("url:none", difficulty=0),
+    ]
+    ruler = a_ruler_saying("C1")
+    shelves = levelmap.tally(
+        shelf_of, sentence=lambda e: e.sentence, spoken=nothing, video=nothing, native=ruler
+    )
+    rows = levelmap.cefr_rows(shelves["he"])
+    said = [levelmap.level_for(one, one.sentence, ruler) for one in shelf_of]
+    assert said == ["A1", "A1", "B1", "A1", "A2", "B1", "C1", "", ""]
+    for level in levelmap.TEXT_LEVELS:
+        assert rows[level][0] == said.count(level), level
+    assert rows["B2+"][0] == sum(said.count(level) for level in levelmap.NATIVE_LEVELS)
+    assert shelves["he"].cells[(levelmap.UNMEASURED, "text")] == 2
+    assert shelves["he"].easy["text"] == 3

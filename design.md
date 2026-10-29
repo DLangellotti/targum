@@ -438,6 +438,14 @@ what you read, month by month", 2026-09-27) to days and weeks.
   text the index has not counted stays on B2. `levelmap.text_level` and `cefr_rows` move together, and `B2+` stays as an alias
   for B2 to Past C2, so old Library addresses still open and the stage standard's floors,
   stated at B2 and up, still read one number.
+- **Short and authored conversations keep their written level** (2026-10-29, after
+  "The key", 14 words, was listed at C1). A conversation targum wrote takes the level of
+  the series it was written for, never the measure: the scenes (`scene-NN`) and the
+  Russian scenes (`scene-ru-NN`) are A1, the Conversations (`scene-he-NN`) are B1. Under
+  100 words no text is placed Native by the measure, since the 85% point of a 14-word
+  text rests on two words: below it a text with a written level takes that, and any
+  other is unmeasured. The shortest Native text on the shelf that is not a scene is 143
+  words. `text_level`, `cefr_rows` and the stage floors read the same rule.
 - **"Words you knew" draws by Day, Week or Month**, a `.seg` (44px on a coarse pointer, as
   every `.seg` now is). The default is the coarsest view with two points; a choice
   remembered in this browser wins. The sentence is an exact percentage: "In October you

@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A short conversation is no longer listed at C1 (2026-10-29). "The key" (14 words) and
+  "Renting a bike" (38) were measured Native because one uncommon word is a big share of
+  a few, and the text ruler then put them on C1; before it they were "B2 and up". A
+  conversation targum wrote now keeps the level its series was written at: the scenes and
+  the Russian scenes are A1, the Conversations B1 (`levelmap.AUTHORED`). Under 100 words
+  the measure never places a text Native, and such a text is unmeasured
+  (`levelmap.NATIVE_MIN_WORDS`; the shortest Native text that is not a scene is 143
+  words). `text_level`, `cefr_rows` and the stage floors share one rule, `level_for`.
+  On the laptop's catalogue Hebrew goes from 112 / 96 / 81 / 45 texts at A1 / A2 / B1 /
+  B2 to 242 / 3 / 66 / 40, and Russian from 93 / 100 / 124 / 100 to 130 / 63 / 124 / 99:
+  most of the scenes were A2 only for falling under the Easy spec's floors, which are
+  the weekly writer's. `evals/shelf.json` is not re-measured here.
 - Your Progress's Level section, three follow-ups from qa (targum-internal#554). At a
   desk the ladder's state and count line up row to row in every language: each row was
   its own flex line, so in Russian a longer count pushed «Вам легко» and «Следующий шаг»
