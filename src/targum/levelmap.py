@@ -358,7 +358,8 @@ def ruler_rank(entry_id: str, language: str, index: Index) -> int | None:
     total = sum(count for _, count in weighted)
     if not total:
         return None
-    need = ceil(RULER_COVERAGE * total)
+    # Rounded first: 0.85 * 100 is 85.00000000000001 in floating point, which is 85.
+    need = ceil(round(RULER_COVERAGE * total, 9))
     covered = 0
     for at, count in sorted(weighted):
         covered += count

@@ -280,7 +280,7 @@ MEASURED = {
            5030, 5047, 5168, 5203, 5299, 6332, 6508),
     "A2": (1293, 1316, 1388, 1497, 1497, 1639, 1639, 1694, 1951, 1992, 2100, 2284, 2341,
            2444, 2464, 2539, 2557, 2823, 2980, 3473, 3513, 3728, 5050, 5502),
-    "Native": (4910, 4933, 5097, 5168, 5590, 5881, 6468, 7333, 7347, 8871, 10496),
+    "Native": (4910, 4933, 5097, 5168, 5348, 5590, 5881, 7333, 7347, 8871, 10496),
 }  # fmt: skip
 
 
@@ -291,10 +291,28 @@ def rung_of(needed: int) -> str:
     return next((rung.cefr for rung in ULPAN if rung.at >= needed), "past")
 
 
+#: The long tail every real text has: rarer ranked words, one or two each, past vav.
+TAIL = (12_500, 13_100, 13_800, 14_600, 15_400, 16_300, 17_200, 18_100, 19_000)
+
+
 def a_text_needing(needed: int) -> Index:
-    """A text whose 85% falls on the word at rank `needed`."""
-    common, rare = words_at("he", 50, needed)
-    return ruled("he", {common: 84, rare: 16})
+    """A text whose 85th percentile of ranked running words falls on the word at rank
+    `needed`, with a long tail of rarer ranked words above it, as a real text has: 84
+    running words from the commonest hundred, 2 at `needed` and 14 in the tail, and six
+    forms no list ranks. At 85% of the ranked words the ruler reads `needed`; at 95%, or
+    with the unranked forms counted as past vav, it reads the tail, which is what the
+    first setting did to the built library."""
+    common, middle = words_at("he", 50, needed)
+    tail = words_at("he", *TAIL)
+    counts = {common: 84, middle: 2}
+    for at, word in enumerate(tail):
+        counts[word] = 2 if at < 5 else 1
+    assert sum(counts.values()) == 100
+    # And forms no frequency list ranks, as the built texts carry: counted as past every
+    # rung, they would push the 85th percentile into the tail too.
+    for n in range(6):
+        counts[f"לאמילה{'א' * (n + 1)}"] = 1
+    return ruled("he", counts)
 
 
 def test_the_calibration_keeps_easy_texts_low_and_spreads_native_ones() -> None:
