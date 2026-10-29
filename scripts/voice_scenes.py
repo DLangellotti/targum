@@ -225,11 +225,16 @@ class Quota:
         """A per-day limit, by what it is called or by how long it asks to wait. The
         name decides on its own: qa got a PerDay quotaId with a 17s retryDelay, and
         treated as per-minute it was backed off five times per scene, for ever."""
+        return self.named_daily or (self.retry_after is not None and self.retry_after > 600)
+
+    @property
+    def named_daily(self) -> bool:
+        """A limit whose quotaId or quotaMetric says it is per day."""
         for one in self.limits:
             named = f"{one.get('quotaId', '')} {one.get('quotaMetric', '')}".lower()
             if "perday" in named or "per_day" in named or "per-day" in named:
                 return True
-        return self.retry_after is not None and self.retry_after > 600
+        return False
 
     def __str__(self) -> str:
         named = "; ".join(

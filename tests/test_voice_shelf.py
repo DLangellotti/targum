@@ -156,7 +156,7 @@ def test_the_cap_stops_the_run_at_the_turn_that_reaches_it(tmp_path: Path) -> No
 def test_a_per_day_limit_is_slept_off_and_the_scene_resumed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(shelf, "until_reset", lambda: 0.0)
+    monkeypatch.setattr(shelf, "until_reset", lambda: 0.0)  # a long delay waits the delay
     quota = vs.read_quota(
         json.dumps({"error": {"message": "per day", "details": [{"retryDelay": "3600s"}]}}).encode()
     )
@@ -337,3 +337,13 @@ def test_cut_off_requests_count_toward_the_cap(
     assert said["stopped"].startswith("cap") and said["cut_off"] == 3
     assert said["cut_off_estimate"] == pytest.approx(each * 3, abs=1e-6)
     assert said["spent_this_run"] == pytest.approx(each * 3, abs=1e-6)
+
+
+def test_a_long_delay_without_a_per_day_name_waits_only_that_delay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shelf, "until_reset", lambda: 50000.0)
+    quota = vs.Quota(message="later", retry_after=1200.0)
+    assert quota.daily and not quota.named_daily
+    _, slept = go(tmp_path, [scene("he-01")], Voicer(1, [vs.Daily("later", quota)]))
+    assert slept == [1200.0]

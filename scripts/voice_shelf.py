@@ -7,15 +7,16 @@ adds what a run of five thousand paid requests needs that a run of fourteen does
 
 - **A cap.** `--cap` dollars, $30 unless told otherwise, counted per turn as it is bought,
   director calls included, and a request cut off at its deadline counted at an average
-  turn's price, since it may have been billed. The run stops at the turn that reaches it, and that turn is
-  already on disk, so nothing paid for is lost and the next run picks up there.
+  turn's price, since it may have been billed. The run stops at the turn that reaches
+  the cap, and that turn is already on disk, so nothing paid for is lost and the next
+  run picks up there.
 - **The quota, as Vertex states it.** A 429's body names the limit it hit and how long to
   wait. A per-minute limit is waited out where it is and the run goes on. A limit that
   outlasts the backoff pauses the run for `--pause` seconds, then resumes the same scene.
   A per-day one, known by a PerDay quota name or a wait over ten minutes, is slept off
-  until the midnight-Pacific reset, up to `--wait-daily` hours, and the run resumes; a
-  third per-day refusal on the same scene stops the run. Every 429
-  is kept in the progress file with the limit it named.
+  (a named one until the midnight-Pacific reset), up to `--wait-daily` hours, and the
+  run resumes; a third per-day refusal on one scene stops the run. Every 429 is kept in
+  the progress file with the limit it named.
 - **Russian.** A `ru-` scene's director is told the conversation is in Russian, and its
   lines get no Hebrew pronunciation hints. A speaker whose voice is missing, unknown, or
   of the other gender gets the shelf's usual voice for that language and gender (Leda or
@@ -347,10 +348,12 @@ def run(
                 return
             except vs.Daily as gone:
                 dailies += 1
-                # A per-day limit resets at midnight Pacific, whatever retryDelay says: a
-                # PerDay quota has been seen asking for 17s. So the wait is the later of
-                # the two, and a second refusal right after a reset stops the run.
-                wait = max(gone.quota.retry_after or 0.0, until_reset())
+                # A limit named per day resets at midnight Pacific, whatever retryDelay
+                # says: one has been seen asking for 17s. So its wait is the later of the
+                # two. One known only by a long retryDelay waits that delay.
+                wait = gone.quota.retry_after or 0.0
+                if gone.quota.named_daily or not wait:
+                    wait = max(wait, until_reset())
                 if dailies > 2 or wait > args.wait_daily * 3600:
                     progress.set(stopped=f"per-day quota: {gone.quota}", current=None)
                     print(f"\nstopped: the day's quota is gone ({gone.quota})", flush=True)
