@@ -30,14 +30,15 @@
   }
 
   // How much of a text the reader already has, said in their language the way
-  // `level.words_in_ten` says it in English: a count in ten, never a percentage
-  // (targum-internal#244, #287). "" where the share was not measured.
+  // `level.known_line` says it in English: an exact percentage, never a count in ten
+  // (David, 2026-10-29, targum-internal#560). "" where the share was not measured.
   function knownLine(share) {
     if (share === null || share === undefined) return "";
-    var tenths = Math.max(0, Math.min(10, Math.round(share * 10)));
-    if (tenths >= 10) return t("bring.known.all", "You know nearly every word here.");
-    if (tenths <= 0) return t("bring.known.none", "You know almost none of the words here yet.");
-    return tn("bring.known.tenths", tenths, "You know about {n} word in 10 here.", "You know about {n} words in 10 here.");
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    // Never rounded into a lie, as `level.known_percent` keeps it.
+    if (share < 1 && percent >= 100) percent = 99;
+    if (share > 0 && percent <= 0) percent = 1;
+    return t("bring.known.share", "You know {n}% of the words here.", { n: percent });
   }
 
   var key = window.TARGUM_KEY || "";

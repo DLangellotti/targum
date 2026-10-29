@@ -341,7 +341,7 @@ def test_a_text_card_draws_one_text_in_the_host_s_theme(browser, theme: str) -> 
     assert title.get_attribute("dir") == "rtl" and title.get_attribute("lang") == "he"
     assert card.locator(".card-english").text_content() == "The Book of Ruth"
     assert card.locator(".card-minutes").text_content() == "19 min"
-    assert card.locator(".card-known").text_content() == "You know about 5 words in 10 here."
+    assert card.locator(".card-known").text_content() == "You know 48% of the words here."
     door = card.locator(".card-door")
     assert door.text_content() == "Open" and door.get_attribute("href") == RUTH["reader"]
     assert card.locator(".card-play").is_hidden(), "no recording, no button"
@@ -522,7 +522,7 @@ def test_found_articles_open_on_our_add_page(browser, theme: str) -> None:  # no
     assert title.get_attribute("dir") == "rtl" and title.get_attribute("lang") == "he"
     assert first.locator(".card-from").text_content() == "Ynet"
     assert first.locator(".card-minutes").is_hidden(), "a feed's summary gives no length"
-    assert first.locator(".card-known").text_content() == "You know about 7 words in 10 here."
+    assert first.locator(".card-known").text_content() == "You know 71% of the words here."
     assert second.locator(".card-known").is_hidden(), "nothing measured, nothing said"
     assert third.locator(".card-minutes").text_content() == "21 min"
     assert third.locator(".card-door").text_content() == "Listen on targum"

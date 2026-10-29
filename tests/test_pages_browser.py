@@ -2414,7 +2414,7 @@ def test_a_pasted_link_says_what_was_found_before_it_says_the_price(
         "the advice is written for the model: English, Hebrew-only, and it says the cost "
         "the card says again (2026-10-01)"
     )
-    assert "7 words in 10" in found_text, "how much of it the reader already has"
+    assert "You know 70% of the words" in found_text, "how much of it the reader already has"
     assert still_there, "the price is drawn under what was found, not over it"
     assert let_price_through, "the price still follows"
 

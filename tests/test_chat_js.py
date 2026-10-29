@@ -1394,7 +1394,7 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
         "title": "רות",
         "segments": 40,
         "estimate": 1,
-        "known_line": "You know about 7 words in 10 here.",
+        "known_line": "You know 72% of the words here.",
     }
     page = run(
         do=[{"type": "chip", "id": "read"}],
@@ -1410,7 +1410,7 @@ def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:
             },
         },
     )
-    assert page["cards"][0]["known"] == "You know about 7 words in 10 here."
+    assert page["cards"][0]["known"] == "You know 72% of the words here."
     assert page["cards"][0]["voice"] == "", "a card says nothing about audio unless it can"
     bare = dict(quote)
     del bare["known_line"]

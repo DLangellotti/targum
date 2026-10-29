@@ -3312,7 +3312,7 @@ def test_a_quote_carries_how_much_of_the_text_the_reader_has() -> None:
 
     measured = Job(id="j", source="x", known_share=0.734)
     assert measured.state()["known_share"] == 0.73
-    assert measured.state()["known_line"] == "You know about 7 words in 10 here."
+    assert measured.state()["known_line"] == "You know 73% of the words here."
     unmeasured = Job(id="k", source="x")
     assert unmeasured.state()["known_share"] is None and unmeasured.state()["known_line"] == ""
 

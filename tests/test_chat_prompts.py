@@ -219,7 +219,10 @@ def test_the_level_target_is_a_number_the_tools_carry() -> None:
     said = " ".join(prompts.SYSTEM.split())
     assert "known_share of 0.8 or more" in said and "0.65 or more" in said
     assert "applies the reader's own ceiling" in said
-    assert "never as a percentage or a level" in said
+    # An exact percentage since 2026-10-29 (targum-internal#560), never a count in ten.
+    assert '"You know 72% of the words here"' in said
+    assert "never as a count in ten and never as a level" in said
+    assert "words in 10" not in said
 
 
 def test_the_cold_start_names_at_most_three_recurring_rules() -> None:

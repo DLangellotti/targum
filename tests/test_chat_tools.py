@@ -381,9 +381,10 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     assert "ruth" not in ids, "already on the reader's own shelf"
     assert ids[0] == "esther", "measured coverage ranks ahead of a guess"
     assert all(row["because"] for row in got["suggestions"])
-    # Said the way the card says it: a host repeats `because`, and never a percentage.
+    # Said the way the card says it, because a host repeats `because`: an exact
+    # percentage since 2026-10-29 (targum-internal#560).
     assert got["suggestions"][0]["because"] == got["suggestions"][0]["known_line"]
-    assert "%" not in got["suggestions"][0]["because"]
+    assert got["suggestions"][0]["because"] == "You know 50% of the words here."
     assert got["suggestions"][0]["reason"]["share"] == 50, "the page's own line keeps it"
 
 
@@ -1127,7 +1128,7 @@ def test_a_recording_and_an_article_are_described(world, monkeypatch) -> None:
     # How much of it this reader has, before it is quoted (targum-internal#244): שלום is
     # on their ledger, and the page is two hundred of it.
     assert got["known_share"] is not None and got["known_share"] >= 0.97
-    assert got["known_line"] == "You know nearly every word here."
+    assert re.fullmatch(r"You know (9[7-9]|100)% of the words here\.", got["known_line"])
 
 
 def test_what_describe_refuses_is_the_door_not_the_licence(world, monkeypatch) -> None:
@@ -1835,12 +1836,12 @@ def test_search_library_applies_the_reader_s_own_ceiling_when_the_model_names_no
     assert "ceiling_applied" not in theirs
 
 
-def test_a_measured_suggestion_says_the_share_in_words(world) -> None:
+def test_a_measured_suggestion_says_the_share_as_a_percentage(world) -> None:
     library, store, person, home = world
     ctx = context(library, store, person, home)
     got = tools.suggest_next(ctx, {"limit": 3})
     top = got["suggestions"][0]
-    assert top["id"] == "esther" and top["known_line"] == "You know about 5 words in 10 here."
+    assert top["id"] == "esther" and top["known_line"] == "You know 50% of the words here."
 
 
 def test_a_bigger_ledger_is_offered_a_text_it_knows_more_of(world) -> None:

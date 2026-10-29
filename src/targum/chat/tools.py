@@ -1125,10 +1125,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         known = row.get("known_share")
         tilt = 1.0 if entry.register.value in liked else 0.0
         if known is not None:
-            row["known_line"] = level_module.words_in_ten(float(known))
-            # Said the way the card says it, because a host repeats `because` and the rule
-            # is never a percentage (prompts.py). `reason` keeps the number for the page's
-            # own line, which `because_in` draws.
+            row["known_line"] = level_module.known_line(float(known))
+            # Said the way the card says it, because a host repeats `because` (prompts.py).
+            # `reason` keeps the number for the page's own line, which `because_in` draws.
             row["because"] = (
                 row["known_line"] or f"You know {round(float(known) * 100)}% of its words."
             )
@@ -2798,7 +2797,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "minutes": max(1, round(words / 130)),
         **shares,
         "known_share": None if known is None else round(known, 2),
-        "known_line": level_module.words_in_ten(known),
+        "known_line": level_module.known_line(known),
         "advice": advice,
         "quote_with": url,
         **_licence_row(""),
