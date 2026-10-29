@@ -430,6 +430,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- Pointed Hebrew in standard ktiv menukad, and four kinds of scene check from ling-he's
+  audit of 2026-10-29 (targum-internal#563). `vocalize/menukad.py` turns full spelling under
+  points into the standard spelling (חִיבּוּר → חִבּוּר, בּוֹקֶר → בֹּקֶר, and the menaked's
+  mixed יֹופִי → יֹפִי): sixteen named rules, an exceptions list (הָיִיתִי, plural ־ִיִּים,
+  consonantal vav, loanwords, qtilut nouns, cast names) and a lexicon. It is idempotent,
+  prints every change, and `residue` names what it missed:
+  `python -m targum.vocalize.menukad SCENE.json …` reads only, `--out DIR` writes copies.
+  Over both scene sets it makes 1,191 changes, matches 1,153 of the audit's 1,156
+  mechanical rows (the other three are cast names, kept on purpose), leaves 0 residue and
+  keeps every exception (107 occurrences). The menaked can do the same at the source:
+  `dicta.assemble(drop_matres=True)` drops the letters its head calls matres and keeps
+  שָׁלוֹם and הוּא whole. Neither is wired into a scene yet, because a scene keeps one
+  string and the reader's plain view is that string with the points taken off, so writing
+  defective spelling into it would change the unpointed text too. `dialogue/checks.py`
+  gains a 2fs final shva, a missing dagesh after the article, a dagesh where none can
+  stand, Bit without its dagesh, ten homographs decided by the English (פֶּה for פֹּה,
+  שָׁם for שֵׁם, צִיּוֹן for צִיּוּן …), and the speaker's gender on a present (אֲנִי רוֹצֶה
+  in a woman's mouth) and the listener's where no pronoun says it (נִרְאֵית to a man,
+  תָּבוֹא to a woman). Their kinds are `pointing`, `homograph`, `speaker` and `addressee`,
+  so the B1 generator refuses on them. Together they find all 16 of the audit's P0s and 59
+  of its 61 hand-read pointing findings; the two missed are judgements (לַקָּפֶה for an
+  invitation, לְצָפוֹן said latsafon).
 - `scripts/speed_pass.py`, a read-only speed pass on the live public pages for design.md
   §14 line 5 (targum-internal#551, from builder-3's pass of 2026-10-28). It loads the
   landing, the Library, three text and scene pages, /about, /privacy and /terms cold on a

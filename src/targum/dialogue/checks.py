@@ -341,18 +341,438 @@ def inconsistent_pointing(scenes: dict[str, list[str]], least: int = 2) -> list[
     return out
 
 
+# ------------------------------------------------------- pointing rules (#563, pattern B)
+#
+# From ling-he's scene audit of 2026-10-29. Each is decidable from the points. The kinds
+# are `pointing`, `homograph`, `speaker` and `addressee`, not `nikkud` or `gender`, so a
+# scene generator that files those two as notes refuses on these. Full spelling under
+# points (חִיבּוּר for חִבּוּר) is not here: deciding it needs a lexicon, and it lives
+# with one in `vocalize/menukad.py`.
+
+SEGOL, TSERE, HIRIQ, HOLAM = "ֶ", "ֵ", "ִ", "ֹ"
+
+#: The letters a prefix can be: the article's ה, the prepositions, the conjunction, שֶׁ.
+PREFIX_LETTERS = "ובכלמשה"
+
+#: The six that take a soft dagesh. After a vowel or a vocal shva they take none; a dagesh
+#: in any other letter is a doubling, and a doubling needs a full vowel before it.
+BEGADKEFAT = "בגדכפת"
+
+#: The prefixes that carry a shva: the prepositions and the conjunction. Not שׁ, whose
+#: shva is a root's (שְׁתַּיִם keeps the one dagesh after a shva Hebrew has).
+SHVA_PREFIXES = "בכלו"
+
+
+def second_feminine_shva(line: str, turn: int) -> Iterator[Finding]:
+    """קָנִיתְ: a 2fs past ending in ־ִית takes no shva on the tav (קָנִית, הָיִית)."""
+    for word in words_of(line):
+        seen = units(word)
+        if len(seen) < 3:
+            continue
+        (tav, last), (yod, before), (_, vowel) = seen[-1], seen[-2], seen[-3]
+        if (
+            tav == "ת"
+            and SHVA in last
+            and yod == "י"
+            and not before
+            and (HIRIQ in vowel or TSERE in vowel)
+        ):
+            yield Finding(turn, "pointing", word, "A 2fs past in ־ית takes no shva on its tav.")
+
+
+def _after_prefixes(seen: list[tuple[str, str]]) -> int:
+    """Where the article could stand: after a leading ו and a שֶׁ, if the word has them."""
+    at = 0
+    if at < len(seen) - 2 and seen[at][0] == "ו" and (SHVA in seen[at][1] or DAGESH in seen[at][1]):
+        at += 1
+    if at < len(seen) - 2 and seen[at][0] == "ש" and SEGOL in seen[at][1]:
+        at += 1
+    return at
+
+
+def article_without_dagesh(line: str, turn: int) -> Iterator[Finding]:
+    """לַקוּרְס, בַּצֵל: the article's patah doubles the letter after it, so a non-guttural
+    with a full vowel there takes a dagesh. Before a shva the dagesh may drop (הַמְלַמֵּד),
+    so a shva is let pass, and so is י, for בַּיִת."""
+    for word in words_of(line):
+        seen = units(word)
+        at = _after_prefixes(seen)
+        if len(seen) - at < 3:
+            continue
+        (prefix, marks), (letter, after) = seen[at], seen[at + 1]
+        if prefix not in "הבלכ" or PATAH not in marks:
+            continue
+        if letter in GUTTURALS or letter == "י" or DAGESH in after:
+            continue
+        if letter == "ו" and seen[at + 2][0] == "ו":
+            continue  # a borrowed word spelled with וו (WhatsApp), not a doubled vav
+        vowel = any(v in after for v in VOWELS) or (
+            not after and at + 2 < len(seen) and seen[at + 2] in (("ו", HOLAM), ("ו", DAGESH))
+        )
+        if vowel:
+            yield Finding(
+                turn,
+                "pointing",
+                word,
+                f"The article doubles {letter}: it needs a dagesh after {prefix}{PATAH}.",
+            )
+
+
+def spurious_dagesh(line: str, turn: int) -> Iterator[Finding]:
+    """A dagesh where none can stand: in the letter after a prefix's vocal shva
+    (בְּגַּעְתּוֹן), in a letter outside begadkefat after any shva (תִּשְׁלְּחִי), and in a
+    begadkefat after the vocal shva that follows a long vowel (תֵּרְדִּי).
+
+    ב, כ and פ straight after a prefix are let pass: a borrowed word keeps its b, k or p
+    behind one (בְּבִּיט), and nothing in the points says which words are borrowed."""
+    for word in words_of(line):
+        seen = units(word)
+        for n in range(1, len(seen)):
+            letter, marks = seen[n]
+            before_letter, before = seen[n - 1]
+            if DAGESH not in marks or SHVA not in before or letter == "ו":
+                continue
+            if letter == "ה" and n == len(seen) - 1:
+                continue  # a mappiq
+            if n == 1 and before_letter in SHVA_PREFIXES:
+                wrong = letter not in "בכפ"
+            elif letter not in BEGADKEFAT:
+                wrong = True
+            else:
+                # After a tsere the shva is vocal (תֵּרְדִי). Not after a holam: יָכֹלְתִּי
+                # is right, and its shva is silent.
+                wrong = n >= 2 and TSERE in seen[n - 2][1]
+            if wrong:
+                yield Finding(
+                    turn,
+                    "pointing",
+                    word,
+                    f"A dagesh in {letter} after a shva, where none can stand.",
+                )
+                break
+
+
+def bit_without_dagesh(line: str, turn: int) -> Iterator[Finding]:
+    """Bit, the payment app, is said with a b behind any prefix: בְּבִּיט, never בְּבִיט
+    ("be-vit"). One brand, named because three scenes had it wrong."""
+    for word in words_of(line):
+        plain = bare(word)
+        seen = units(word)
+        for cut in range(3):
+            if cut and (cut >= len(plain) or plain[cut - 1] not in PREFIX_LETTERS):
+                break
+            if plain[cut:] == "ביט" and DAGESH not in seen[cut][1]:
+                yield Finding(turn, "pointing", word, "Bit takes a dagesh in its ב.")
+                break
+
+
+# ---------------------------------------------------------- homographs (#563, pattern C)
+
+
+@dataclass(frozen=True)
+class Homograph:
+    """A pointing that makes another word, and what in the English says it was meant.
+
+    `written` is the pointed form as it stands (prefixes in front of it are allowed, and
+    the first letter's dagesh, which a prefix takes away or gives); `meant` is the word
+    the English asks for. `when` must match the turn's English and `unless` must not;
+    with neither, the form is wrong wherever it stands. A closed list, like
+    `KAF_IS_YOU`: each entry is a pair the audit found, and the English is what decides
+    it, so nothing here guesses at meaning.
+    """
+
+    written: str
+    meant: str
+    gloss: str
+    when: str = ""
+    unless: str = ""
+
+
+HOMOGRAPHS = (
+    Homograph("פֶּה", "פֹּה", "פֶּה is mouth; here is פֹּה", r"\bhere\b", r"\bmouths?\b"),
+    Homograph("שָׁם", "שֵׁם", "שָׁם is there; a name is שֵׁם", r"\bnames?\b", r"\bthere\b"),
+    Homograph("מַרְאֶה", "מַרְאָה", "מַרְאֶה is appearance; a mirror is מַרְאָה", r"\bmirror"),
+    Homograph("צִיּוֹן", "צִיּוּן", "צִיּוֹן is Zion; a grade is צִיּוּן", r"\b(grade|mark|score)s?\b"),
+    Homograph("זָקֵן", "זָקָן", "זָקֵן is an old man; a beard is זָקָן", r"\bbeard"),
+    Homograph("סִפְרִי", "סַפְּרִי", "סִפְרִי is count!; tell! is סַפְּרִי", r"\btell\b"),
+    Homograph("בִּפְנִים", "בַּפָּנִים", "בִּפְנִים is inside; to my face is בַּפָּנִים", r"\bfaces?\b"),
+    Homograph("נָתְנוּ", "נָתַנּוּ", "נָתְנוּ is they gave; we gave is נָתַנּוּ", r"\bwe\b", r"\bthey\b"),
+    Homograph("חוֹדָשַׁיִם", "חׇדְשַׁיִם", "no such word: two months is חׇדְשַׁיִם"),
+    Homograph("סָבְתָא", "סַבְתָּא", "grandma is סַבְתָּא"),
+)
+
+
+def _same_form(word: str, written: str) -> bool:
+    """Whether `word` is `written` behind up to three prefix letters, the first letter's
+    dagesh aside."""
+    have, want = units(word), units(written)
+    cut = len(have) - len(want)
+    if cut < 0 or cut > 3 or any(letter not in PREFIX_LETTERS for letter, _ in have[:cut]):
+        return False
+
+    def key(pairs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+        return [
+            (letter, "".join(sorted(m for m in marks if not (n == 0 and m == DAGESH))))
+            for n, (letter, marks) in enumerate(pairs)
+        ]
+
+    return key(have[cut:]) == key(want)
+
+
+def homographs(hebrew: str, english: str, turn: int) -> Iterator[Finding]:
+    said = (english or "").lower()
+    for word in words_of(hebrew):
+        for entry in HOMOGRAPHS:
+            if not _same_form(word, entry.written):
+                continue
+            if entry.when and not re.search(entry.when, said):
+                continue
+            if entry.unless and re.search(entry.unless, said):
+                continue
+            yield Finding(turn, "homograph", word, entry.gloss + ".", entry.meant)
+    # Piel שִׁלַּח is to send away; a message is sent in qal (תִּשְׁלְחִי, שָׁלַחְתִּי).
+    if re.search(r"\b(send|sent|sending)\b", said) and re.search(
+        r"\b(messages?|texts?|e-?mails?|links?|photos?|pictures?)\b", said
+    ):
+        for word in words_of(hebrew):
+            plain, seen = bare(word), units(word)
+            at = plain.find("שלח")
+            if (
+                at >= 0
+                and DAGESH in seen[at + 1][1]
+                and (PATAH in seen[at][1] or HIRIQ in seen[at][1])
+            ):
+                yield Finding(
+                    turn,
+                    "homograph",
+                    word,
+                    "Piel שִׁלַּח is to send away; a message is sent in qal (שָׁלַח).",
+                )
+
+
+# ------------------------------------------------- the speaker's gender (#563, pattern D)
+
+
+#: Words in a present's shape that are not a present: יוֹתֵר is CוֹCֵC and means "more".
+NOT_PRESENT = frozenset({"יותר"})
+
+
+def present_gender(word: str) -> str:
+    """'m', 'f' or '' — the gender a present-tense form shows, where its points decide it.
+
+    Only the shapes that cannot be anything else: qal's CוֹCֵC / CוֹCֶCֶת and CוֹCֶה /
+    CוֹCָה, the derived stems' מְ־ forms in ־ֵC / ־ֶCֶת and ־ֶה / ־ָה, and the nifal's
+    נִCְCֶה / נִCְCֵית. A form in ־ה is feminine with a qamats and masculine with a segol,
+    which is the whole of רוֹצֶה against רוֹצָה — a difference the letters never show.
+    """
+    if bare(word).lstrip("ו") in NOT_PRESENT:
+        return ""
+    seen = units(word)
+    if len(seen) > 3 and seen[0][0] == "ו" and (SHVA in seen[0][1] or seen[0][1] == DAGESH):
+        seen = seen[1:]
+    if len(seen) < 3:
+        return ""
+    plain = "".join(letter for letter, _ in seen)
+    first = seen[0][1]
+    qal = seen[1] == ("ו", HOLAM) or HOLAM in first
+    derived = plain[0] == "מ" and any(v in first for v in (SHVA, PATAH, *HATAFS))
+    nifal = plain[0] == "נ" and HIRIQ in first and SHVA in seen[1][1]
+    last, end = seen[-1]
+    before = seen[-2][1]
+    if last == "ה" and not end:
+        stem = seen[:-1]
+        short = (len(stem) == 3 and stem[1] == ("ו", HOLAM)) or (len(stem) == 2 and HOLAM in first)
+        if short or derived or nifal:
+            if SEGOL in before:
+                return "m"
+            if QAMATS in before:
+                return "f"
+        return ""
+    if last == "ת" and not end:
+        if nifal and plain.endswith("ית") and TSERE in seen[-3][1]:
+            return "f"
+        if len(seen) >= 4 and (qal or derived):
+            if any(v in before for v in (SEGOL, PATAH)) and any(
+                v in seen[-3][1] for v in (SEGOL, PATAH)
+            ):
+                return "f"
+        return ""
+    if (not end or (last in "חע" and end == PATAH)) and TSERE in before:
+        if (len(seen) == 4 and seen[1] == ("ו", HOLAM)) or (derived and len(seen) >= 4):
+            return "m"
+    return ""
+
+
+#: What may stand between אני and its verb: negation and a closed set of adverbs. Anything
+#: else ends the search, so the object of another verb (אֲנִי אָבִיא בּוֹדֵק) is never read
+#: as the speaker's present.
+BETWEEN = frozenset(
+    "לא כבר עוד פשוט גם ממש רק תמיד עדיין באמת די קצת בדיוק סתם עכשיו כרגע אף פעם".split()
+)
+
+#: Words that stand for someone else as a subject; a sentence holding one is not about
+#: the speaker or the listener.
+OTHER_SUBJECTS = {"הוא", "היא", "אנחנו", "הם", "הן", "זה", "זאת", "זו"}
+
+_SENTENCE = re.compile(r"[^.?!…]+")
+
+
+def _sentences(text: str) -> list[str]:
+    return [s.strip() for s in _SENTENCE.findall(text or "") if s.strip()]
+
+
+def _say(gender: str) -> str:
+    return "a man" if gender == "m" else "a woman"
+
+
+def speaker_disagrees(hebrew: str, english: str, turn: int, speaker: str) -> Iterator[Finding]:
+    """אֲנִי רוֹצֶה in a woman's mouth: a first-person present that does not agree with
+    the speaker's cast gender.
+
+    The subject is אני, with the present within three words after it in the same
+    sentence. Hebrew drops אני in a running commentary (עוֹלָה אֵלֶיהָ, "I'm going up");
+    there the English decides it, where the turn has as many sentences in each language
+    and the matching English one begins with "I'm" or "I am"."""
+    if speaker not in ("m", "f"):
+        return
+    flagged: set[str] = set()
+    for sentence in _sentences(hebrew):
+        words = list(words_of(sentence))
+        for at, word in enumerate(words):
+            if bare(word).lstrip("ו") != "אני":
+                continue
+            for after in words[at + 1 : at + 4]:
+                gender = present_gender(after)
+                if not gender:
+                    if bare(after) in BETWEEN:
+                        continue
+                    break
+                if gender:
+                    if gender != speaker and after not in flagged:
+                        flagged.add(after)
+                        yield Finding(
+                            turn,
+                            "speaker",
+                            after,
+                            f"The form for {_say(gender)}, but the speaker is {_say(speaker)}.",
+                        )
+                    break
+    hebrew_sentences, english_sentences = _sentences(hebrew), _sentences(english)
+    if len(hebrew_sentences) != len(english_sentences):
+        return
+    for sentence, said in zip(hebrew_sentences, english_sentences, strict=True):
+        words = list(words_of(sentence))
+        if not words or not re.match(r"i('m|’m| am)\b", said.strip("\"'“” ").lower()):
+            continue
+        gender = present_gender(words[0])
+        if gender and gender != speaker and words[0] not in flagged:
+            flagged.add(words[0])
+            yield Finding(
+                turn,
+                "speaker",
+                words[0],
+                f"The form for {_say(gender)}, but the speaker is {_say(speaker)}.",
+            )
+
+
+#: English verbs a scene's imperative opens with. A list rather than a test of the word's
+#: shape, because "Valid is what the system accepts" and "Nineteen years" open on a word
+#: that is not a verb, and the Hebrew beside them (תַּקִּין, תֵּשַׁע) starts with ת as a
+#: future does.
+IMPERATIVES = frozenset(
+    "come go tell take give send wait look call bring put sit close open try write sign "
+    "keep stop check pay leave show say ask get make do eat drink buy turn read listen "
+    "remember forget hold stay move meet help use think start walk drive park choose pick "
+    "wear run finish enter press click fill charge return cancel book order explain speak "
+    "talk answer find let don't be have".split()
+)
+
+
+def addressee_disagrees(hebrew: str, english: str, turn: int, addressee: str) -> Iterator[Finding]:
+    """A present or a future pointed for the wrong listener where no אתה or את says so,
+    which `cast_disagrees` cannot see. Only where the turn has as many sentences in each
+    language, and in two shapes:
+
+    - the English sentence says "you" and no other subject, the Hebrew one names no
+      subject and holds exactly one present whose points decide it (נִרְאֵית to a man);
+    - the English sentence is an imperative and the Hebrew one opens on a second-person
+      future: ת־ with no ending is a man (תָּבוֹא), with ־י a woman (תָּבוֹאִי).
+    """
+    if addressee not in ("m", "f"):
+        return
+    hebrew_sentences, english_sentences = _sentences(hebrew), _sentences(english)
+    if len(hebrew_sentences) != len(english_sentences):
+        return
+    for sentence, said in zip(hebrew_sentences, english_sentences, strict=True):
+        words = list(words_of(sentence))
+        if not words:
+            continue
+        plain = [bare(w).lstrip("ו") for w in words]
+        tokens = re.findall(r"[a-z’']+", said.lower())
+        if (
+            re.search(
+                r"\byou(’re|'re| are| were| look\w*| seem\w*| sound\w*| feel\w*)\b", said.lower()
+            )
+            and not {"i", "he", "she", "it", "we", "they", "i'm", "i’m"} & set(tokens)
+            and not ({"אני", "אתה", "את"} | OTHER_SUBJECTS) & set(plain)
+        ):
+            genders = [(w, g) for w in words if (g := present_gender(w))]
+            if len(genders) == 1 and genders[0][1] != addressee:
+                word, gender = genders[0]
+                yield Finding(
+                    turn,
+                    "addressee",
+                    word,
+                    f"The form for {_say(gender)}, but the listener is {_say(addressee)}.",
+                )
+                continue
+        if not tokens or tokens[0] not in IMPERATIVES:
+            continue
+        seen = units(words[0])
+        if (
+            len(seen) >= 3
+            and seen[0][0] == "ת"
+            and any(v in seen[0][1] for v in (QAMATS, HIRIQ, PATAH, SEGOL, TSERE))
+            and plain[0][-1] not in "הו"
+            and not plain[0].endswith(("ות", "ים"))
+        ):
+            gender = "f" if plain[0].endswith("י") else "m"
+            if gender != addressee:
+                yield Finding(
+                    turn,
+                    "addressee",
+                    words[0],
+                    f"Pointed as said to {_say(gender)}, but the listener is {_say(addressee)}.",
+                )
+
+
 # ----------------------------------------------------------------------------- all
 
 
 def check_turn(
-    hebrew: str, english: str, turn: int, addressee: str = "", scene: str = ""
+    hebrew: str,
+    english: str,
+    turn: int,
+    addressee: str = "",
+    scene: str = "",
+    speaker: str = "",
 ) -> list[Finding]:
-    """Everything decidable about one turn."""
+    """Everything decidable about one turn. `speaker` is the cast gender of whoever says
+    it; without it the speaker check is skipped, as the listener's are without
+    `addressee`."""
     found: list[Finding] = []
     found += impossible_dagesh(hebrew, turn)
     found += hataf_on_non_guttural(hebrew, turn)
     found += cast_disagrees(hebrew, turn, addressee, scene)
     found += scales_disagree(hebrew, english, turn)
+    found += second_feminine_shva(hebrew, turn)
+    found += article_without_dagesh(hebrew, turn)
+    found += spurious_dagesh(hebrew, turn)
+    found += bit_without_dagesh(hebrew, turn)
+    found += homographs(hebrew, english, turn)
+    found += speaker_disagrees(hebrew, english, turn, speaker)
+    if (scene, turn) not in GENERIC_YOU:
+        found += addressee_disagrees(hebrew, english, turn, addressee)
     return found
 
 
