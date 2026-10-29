@@ -726,6 +726,16 @@ def test_every_row_says_its_state_or_its_words_to_go() -> None:
     assert story()["where"]["toward"]["number"] == "637" == rungs[4]["said"].split()[0]
 
 
+def test_a_covered_level_with_no_texts_takes_the_tick() -> None:
+    """At the top rung C2 is reached but has no texts to decide by: it is easy, not a
+    hollow ring that looks unreached (qa on #983)."""
+    ladder = [dict(rung, covered=rung["kind"] != "past-C2", toGo=None) for rung in LADDER["ladder"]]
+    rungs = story(ladder=ladder)["where"]["rungs"]
+    c2 = rungs[5]
+    assert (c2["state"], c2["said"], c2["tag"]) == ("easy", "Easy for you", "span")
+    assert rungs[6]["state"] == "ahead" and rungs[6]["said"] == ""
+
+
 def test_a_row_with_no_texts_is_plain_text_with_no_chevron() -> None:
     rungs = story()["where"]["rungs"]
     assert [(rung["tag"], rung["chevron"]) for rung in rungs] == [("a", "›")] * 5 + [

@@ -467,11 +467,15 @@ def a_record() -> dict[str, Any]:
     )
 
 
+@pytest.mark.parametrize("state", ["months", "russian"])
 @pytest.mark.parametrize("width", [1440, 1024, 390])
-def test_two_even_columns_at_a_desk_and_one_on_a_phone(chromium: Any, width: int) -> None:
+def test_two_even_columns_at_a_desk_and_one_on_a_phone(
+    chromium: Any, width: int, state: str
+) -> None:
     """At a desk the card with the chart under it on the left and the ladder on the right,
-    even, ending at about the same height; on a phone, card, ladder, chart."""
-    context, page, thrown, _ = open_state(chromium, "months", width, reading=a_record())
+    even, ending at the same height with no empty band; on a phone, card, ladder, chart.
+    Nothing sideways in English or Russian, whose counts are the longest (qa on #983)."""
+    context, page, thrown, _ = open_state(chromium, state, width, reading=a_record())
     try:
         page.goto(SITE + "/progress")
         page.locator("#reading").wait_for(state="visible", timeout=10_000)
@@ -479,7 +483,7 @@ def test_two_even_columns_at_a_desk_and_one_on_a_phone(chromium: Any, width: int
         seen = page.evaluate(LAYOUT)
         shots = os.environ.get("TARGUM_SHOTS")
         if shots:
-            page.screenshot(path=f"{shots}/level-layout-{width}.png", full_page=True)
+            page.screenshot(path=f"{shots}/level-layout-{state}-{width}.png", full_page=True)
         lead, ladder, reading = seen["lead"], seen["ladder"], seen["reading"]
         assert page.evaluate(
             "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
@@ -488,7 +492,7 @@ def test_two_even_columns_at_a_desk_and_one_on_a_phone(chromium: Any, width: int
             assert lead[0] < ladder[0] and abs(lead[1] - ladder[1]) <= 1, seen
             assert abs(lead[2] - ladder[2]) <= 2, "two even columns"
             assert abs(reading[0] - lead[0]) <= 1 and reading[1] > lead[3], seen
-            assert abs(reading[3] - ladder[3]) <= 200, "they end at about the same height"
+            assert abs(reading[3] - ladder[3]) <= 2, ("no empty band", reading, ladder)
         else:
             assert lead[3] <= ladder[1] and ladder[3] <= reading[1], seen
         assert not thrown, thrown

@@ -540,6 +540,9 @@
     // Easy and Next are decided by texts, as before; any other row is ahead, and says the
     // words to go where the reader's words do not reach it.
     var look = state === "easy" || state === "next" ? state : "ahead";
+    // A level the reader's words reach with no texts at it to decide by (C2 at the top
+    // rung) is reached all the same: the tick, not a hollow ring (qa on #983).
+    if (look === "ahead" && worded && rung.covered && !rung.texts) look = "easy";
     var linked = shelved && rung.texts > 0;
     var counted = look !== "ahead" || (worded && rung.covered);
     var readable = shelved && counted && rung.readable > 0 ? rung.readable : 0;
