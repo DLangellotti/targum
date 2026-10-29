@@ -6,12 +6,15 @@ approved the whole shelf: 381 scenes, 5,198 turns, Hebrew and Russian
 adds what a run of five thousand paid requests needs that a run of fourteen does not.
 
 - **A cap.** `--cap` dollars, $30 unless told otherwise, counted per turn as it is bought,
-  director calls included. The run stops at the turn that reaches it, and that turn is
+  director calls included, and a request cut off at its deadline counted at an average
+  turn's price, since it may have been billed. The run stops at the turn that reaches it, and that turn is
   already on disk, so nothing paid for is lost and the next run picks up there.
 - **The quota, as Vertex states it.** A 429's body names the limit it hit and how long to
   wait. A per-minute limit is waited out where it is and the run goes on. A limit that
   outlasts the backoff pauses the run for `--pause` seconds, then resumes the same scene.
-  A per-day one is slept off, up to `--wait-daily` hours, and the run resumes. Every 429
+  A per-day one, known by a PerDay quota name or a wait over ten minutes, is slept off
+  until the midnight-Pacific reset, up to `--wait-daily` hours, and the run resumes; a
+  third per-day refusal on the same scene stops the run. Every 429
   is kept in the progress file with the limit it named.
 - **Russian.** A `ru-` scene's director is told the conversation is in Russian, and its
   lines get no Hebrew pronunciation hints. A speaker whose voice is missing, unknown, or
@@ -44,9 +47,10 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -77,6 +81,14 @@ WAIT_DAILY = 26.0
 
 class CapReached(RuntimeError):
     """The spend cap is reached. The turn that reached it is on disk."""
+
+
+def until_reset(at: datetime | None = None) -> float:
+    """Seconds to the next midnight Pacific, when Google's per-day quotas reset."""
+    pacific = ZoneInfo("America/Los_Angeles")
+    here = (at or datetime.now(UTC)).astimezone(pacific)
+    midnight = (here + timedelta(days=1)).replace(hour=0, minute=5, second=0, microsecond=0)
+    return (midnight - here).total_seconds()
 
 
 def now() -> str:
@@ -282,8 +294,23 @@ def run(
         if progress.spent >= args.cap:
             raise CapReached(f"${progress.spent:.2f} spent, the cap is ${args.cap:.2f}")
 
+    current: dict[str, Any] = {}
+
     def cut_off(_: vs.CutOff) -> None:
-        progress.set(cut_off=int(progress.data["cut_off"]) + 1)
+        # Nothing came back to measure, but the model may have spoken the whole line
+        # before the answer stalled, so it counts toward the cap at an average turn of
+        # this scene, read SLOWER.
+        scene_now = current["scene"]
+        guess = speech_seconds(scene_now) / len(scene_now["turns"]) * SLOWER / 60 * vs.PER_MINUTE
+        progress.set(
+            cut_off=int(progress.data["cut_off"]) + 1,
+            cut_off_estimate=round(float(progress.data.get("cut_off_estimate", 0.0)) + guess, 6),
+        )
+        progress.spend(guess)
+        if progress.spent >= args.cap:
+            raise CapReached(
+                f"${progress.spent:.2f} spent (cut-offs included), cap ${args.cap:.2f}"
+            )
 
     for count, scene in enumerate(left, 1):
         sid = scene["id"]
@@ -293,7 +320,9 @@ def run(
             return
         print(f"\n[{count}/{len(left)}] {sid}", flush=True)
         progress.set(current=sid)
+        current["scene"] = scene
         pauses = 0
+        dailies = 0
         while True:
             try:
                 directions, cost = direct(scene, director_key, store) if director_key else (None, 0)
@@ -317,8 +346,12 @@ def run(
                 print(f"\nstopped: {reached}. The turns bought are kept.", flush=True)
                 return
             except vs.Daily as gone:
-                wait = gone.quota.retry_after
-                if wait is None or wait > args.wait_daily * 3600:
+                dailies += 1
+                # A per-day limit resets at midnight Pacific, whatever retryDelay says: a
+                # PerDay quota has been seen asking for 17s. So the wait is the later of
+                # the two, and a second refusal right after a reset stops the run.
+                wait = max(gone.quota.retry_after or 0.0, until_reset())
+                if dailies > 2 or wait > args.wait_daily * 3600:
                     progress.set(stopped=f"per-day quota: {gone.quota}", current=None)
                     print(f"\nstopped: the day's quota is gone ({gone.quota})", flush=True)
                     return

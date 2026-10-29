@@ -153,7 +153,10 @@ def test_the_cap_stops_the_run_at_the_turn_that_reaches_it(tmp_path: Path) -> No
     assert states == {"he-01": "done", "he-02": "partial"}
 
 
-def test_a_per_day_limit_is_slept_off_and_the_scene_resumed(tmp_path: Path) -> None:
+def test_a_per_day_limit_is_slept_off_and_the_scene_resumed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shelf, "until_reset", lambda: 0.0)
     quota = vs.read_quota(
         json.dumps({"error": {"message": "per day", "details": [{"retryDelay": "3600s"}]}}).encode()
     )
@@ -237,3 +240,100 @@ def test_a_dry_run_counts_and_prices_and_writes_nothing(
     out = capsys.readouterr().out
     assert "2 scenes: 1 he, 1 ru" in out and "4 turns, so 4 TTS requests" in out
     assert "estimated $" in out and not into.exists()
+
+
+GEMINI = "generativelanguage.googleapis.com"
+PER_DAY_429 = {
+    "error": {
+        "code": 429,
+        "message": "Quota exceeded",
+        "details": [
+            {
+                "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                "violations": [
+                    {
+                        "quotaMetric": GEMINI + "/generate_requests_per_model_per_day",
+                        "quotaId": "GenerateRequestsPerDayPerProjectPerModel",
+                        "quotaValue": "100",
+                    }
+                ],
+            },
+            {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "17s"},
+        ],
+    }
+}
+
+
+def test_a_per_day_quota_is_daily_by_its_name_whatever_the_delay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """qa's probe: PerDay with a 17s retryDelay was backed off as per-minute, five times
+    a scene, and the run never stopped."""
+    quota = vs.read_quota(json.dumps(PER_DAY_429).encode())
+    assert quota.retry_after == 17.0 and quota.daily
+    assert not vs.read_quota(json.dumps(VERTEX_429).encode()).daily
+
+    asked: list[int] = []
+
+    def fetch(request: Any, deadline: float) -> bytes:
+        asked.append(1)
+        raise urllib.error.HTTPError(
+            "u",
+            429,
+            "Too Many",
+            email.message.Message(),
+            io.BytesIO(json.dumps(PER_DAY_429).encode()),
+        )
+
+    monkeypatch.setattr(vs, "fetch", fetch)
+    monkeypatch.setattr(vs.time, "sleep", lambda s: None)
+    with pytest.raises(vs.Daily):
+        vs.say("שלום", "Leda", "k", "Read.", "vertex")
+    assert len(asked) == 1, "not backed off as if per-minute"
+
+
+def test_a_per_day_wait_is_until_the_reset_not_the_short_delay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shelf, "until_reset", lambda: 5000.0)
+    quota = vs.read_quota(json.dumps(PER_DAY_429).encode())
+    said, slept = go(tmp_path, [scene("he-01")], Voicer(1, [vs.Daily("per day", quota)]))
+    assert slept == [5000.0] and said["scenes"]["he-01"]["state"] == "done"
+
+
+def test_a_per_day_refusal_after_the_reset_stops_the_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shelf, "until_reset", lambda: 5000.0)
+    quota = vs.read_quota(json.dumps(PER_DAY_429).encode())
+    refusals: list[Exception] = [vs.Daily("per day", quota) for _ in range(3)]
+    said, slept = go(tmp_path, [scene("he-01"), scene("he-02")], Voicer(1, refusals))
+    assert slept == [5000.0, 5000.0] and said["stopped"].startswith("per-day quota")
+
+
+def test_the_reset_is_midnight_pacific() -> None:
+    from datetime import UTC, datetime
+
+    # 06:00 UTC on 30 October is 23:00 the day before in Los Angeles (PDT).
+    assert shelf.until_reset(datetime(2026, 10, 30, 6, 0, tzinfo=UTC)) == pytest.approx(3900)
+
+
+class CuttingVoicer(Voicer):
+    """Every request is cut off, so nothing is measured and everything may be billed."""
+
+    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any) -> Any:
+        cut_off = rest[3]
+        while True:
+            cut_off(vs.CutOff(90.0, 10, 90.0))
+
+
+def test_cut_off_requests_count_toward_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shelf, "DIRECTOR_EACH", 0.0)
+    # The scene has 3.5s of speech in two turns: a cut-off is guessed at 1.75s x 1.25.
+    each = 3.5 / 2 * shelf.SLOWER / 60 * vs.PER_MINUTE
+    said, _ = go(tmp_path, [scene("he-01")], CuttingVoicer(), cap=each * 2.5)
+    assert said["stopped"].startswith("cap") and said["cut_off"] == 3
+    assert said["cut_off_estimate"] == pytest.approx(each * 3, abs=1e-6)
+    assert said["spent_this_run"] == pytest.approx(each * 3, abs=1e-6)

@@ -220,6 +220,17 @@ class Quota:
         self.retry_after = retry_after
         self.limits: list[dict[str, Any]] = limits or []
 
+    @property
+    def daily(self) -> bool:
+        """A per-day limit, by what it is called or by how long it asks to wait. The
+        name decides on its own: qa got a PerDay quotaId with a 17s retryDelay, and
+        treated as per-minute it was backed off five times per scene, for ever."""
+        for one in self.limits:
+            named = f"{one.get('quotaId', '')} {one.get('quotaMetric', '')}".lower()
+            if "perday" in named or "per_day" in named or "per-day" in named:
+                return True
+        return self.retry_after is not None and self.retry_after > 600
+
     def __str__(self) -> str:
         named = "; ".join(
             f"{one.get('quotaId') or one.get('quotaMetric') or '?'}"
@@ -445,7 +456,7 @@ def say(
                 quota = read_quota(detail)
                 if on_quota is not None:
                     on_quota(quota)
-                if quota.retry_after is not None and quota.retry_after > 600:
+                if quota.daily:
                     raise Daily(quota.message or str(quota), quota) from error
                 if attempt - cutoffs == 5:
                     raise Throttled(f"still limited after backing off: {quota}", quota) from error

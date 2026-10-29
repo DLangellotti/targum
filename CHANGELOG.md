@@ -464,10 +464,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   0 on the box, 13 on the laptop's `targum-out`.
 - `scripts/voice_shelf.py`, which re-voices the whole scene shelf with the #566 pipeline
   (David approved it 2026-10-29: 381 scenes, 5,198 turns). It stops at a spend cap
-  (`--cap`, default $30), counted per bought turn with the director included. On a 429
+  (`--cap`, default $30), counted per bought turn with the director included and a
+  cut-off request priced as an average turn. On a 429
   it reads the quota Vertex names and the wait it asks for, waits that out, and resumes:
-  a per-minute limit in place, a stubborn one after `--pause`, a per-day one after
-  sleeping it off. `ru-` scenes get a Russian director brief and no Hebrew hints, and a
+  a per-minute limit in place, a stubborn one after `--pause`, and a per-day one (by its
+  PerDay quota name, whatever its retryDelay) after the midnight-Pacific reset. `ru-` scenes get a Russian director brief and no Hebrew hints, and a
   speaker with a missing or wrong-gender voice gets the usual voice for that language.
   It writes `progress.json` after every turn and scene. `--dry-run` gives counts and a
   price: on the laptop's shelf, 267 Hebrew and 114 Russian scenes, an estimated $9.59 at
