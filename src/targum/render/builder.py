@@ -2707,8 +2707,8 @@ def build_text_card(language: str = "en") -> str:
     about each text — title, length, how much of it the reader knows — is drawn from the
     tool's own rows; its doors and any recording arrive beside them in the result's
     `_meta` (`mcp_http.text_card_meta`). The known share is said the way the app says it
-    (`level.words_in_ten`), from the same catalogue keys, every tenth rendered here in the
-    reader's language and plural so the script only picks one.
+    (`level.known_line`), an exact percentage from the same catalogue key in the reader's
+    language, filled in by the script.
 
     Beside `search_sources` too (2026-10-06): an article a publisher put out, with who
     published it, and a door named for what the reader will do there (read, watch,
@@ -2717,29 +2717,12 @@ def build_text_card(language: str = "en") -> str:
     from ..catalogue import READING_WORDS_PER_MINUTE
 
     t = page_words(language)
-    tn = page_counts(language)
-    tenths = [
-        str(t("bring.known.none", "You know almost none of the words here yet.")),
-        *(
-            str(
-                tn(
-                    "bring.known.tenths",
-                    n,
-                    "You know about {n} word in 10 here.",
-                    "You know about {n} words in 10 here.",
-                )
-            )
-            for n in range(1, 10)
-        ),
-        str(t("bring.known.all", "You know nearly every word here.")),
-    ]
     return (
         _environment()
         .get_template("card-text.html.j2")
         .render(
             t=t,
             page_language=_page_language(language),
-            tenths=json.dumps(tenths, ensure_ascii=False),
             pace=READING_WORDS_PER_MINUTE,
             # Each kind in one everyday word, the desk's own (design.md §12, "The boards
             # are the desk"), so a row says "Dialogue · 3 min" as the board draws it.

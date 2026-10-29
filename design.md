@@ -484,6 +484,31 @@ From qa's review of targum#975 (targum-internal#554), with David's word of 2026-
 
 Supersedes "a `progressbar` with its name" in "Your level leads with what you can read"
 (2026-10-28), and the three menus of See all in "The Library stands on the ground".
+### How much of a text you know is an exact percentage — 2026-10-29
+
+David, 2026-10-29 (targum-internal#560): "show exact percentages - as a general rule,
+remove all this 'of every' language in what we do." Where targum tells a reader how much
+of a text's words they know, it gives the exact share as a whole percentage, with no
+"about" and no count in ten: "You know 72% of the words here." / «Вы знаете здесь 72%
+слов.» This reverses the count in ten that the press card, the text card, the add page's
+found rows and the chat said since 2026-09-27. The Tanakh map's sum says "90% of the
+words or more", not "nine words in ten".
+
+- **One sentence everywhere.** `level.known_line` says it in English for the chat's
+  tools and home's suggestion. `bring.js`, `card-text.js` and the add page say it from
+  the same catalogue key in the page's language. The chat prompt tells the model to say
+  it the same way.
+- **Exact, and never rounded into a lie.** A share under 100% never shows as 100%, and
+  a share above nothing never shows as 0%. Only a text the reader knows all of says 100%,
+  and only one they know none of says 0%.
+- **What stays.** "Never a level and never a score" (§6) holds: a percentage of a text's
+  words is a fact about the text and this reader's list, not a grade. Your Progress's
+  month-by-month line went exact the same day with Level v3 (targum-internal#561). The
+  landing page's "no percentages" rule was about other figures and is untouched.
+
+Supersedes the count in ten in "A haser word counts as the male word the reader knows"
+(2026-09-27), the text card's sentence in "A card in someone else's chat" (2026-10-06),
+and "The count in ten stays on the press card" in the shelf-row entry.
 
 ### The pages in front of the account load their files once — 2026-10-28
 
@@ -4745,7 +4770,8 @@ one card a text and a short stack of them for a list, as many as the tool return
 says its title in the reading face, the English title where there is one, its length in
 minutes (a shelf text's words at the library's 130 a minute), how much of it the reader
 knows in the app's own sentence ("You know about 7 words in 10 here", from the same
-catalogue keys), and one door: Open, to the short link, or Open in the library for a
+catalogue keys; *superseded 2026-10-29: an exact percentage, "You know 72% of the words
+here"*), and one door: Open, to the short link, or Open in the library for a
 library text not yet on the shelf, which goes to our library page where it is got ready.
 Beside `search_sources` it draws each article a publisher put out, a text not yet on
 targum, with who published it, and its door (Read on targum, or Watch or Listen for a
@@ -5762,7 +5788,8 @@ What it does not change: a reader still cannot settle, and a model is never a ju
 
 ### A haser word counts as the male word the reader knows — 2026-09-27
 
-The press card's "You know about 6 words in 10 here", and the number the chat ranks
+The press card's "You know about 6 words in 10 here" (*an exact percentage since
+2026-10-29, "How much of a text you know is an exact percentage"*), and the number the chat ranks
 articles and feed items by, come from `level.known_share`: the text's tokens, bare of
 points, against the reader's known forms and the commonest words. Taking the points off
 a pointed page leaves ktiv haser (ארועים), while the common words and most of what a
@@ -6231,6 +6258,7 @@ no cards, and from ⌘K.
   level; a whole text's coverage is.
 - **Known share is a percentage on the shelf**, as it already is on the library's cards
   ("You know 72%"). The count in ten stays on the press card, where it came from.
+  *(Superseded 2026-10-29: the press card says an exact percentage too.)*
 - **Status is three words:** New, a part count while reading ("3 of 6"), and Finished,
   with the leaf check that "Recently read" already uses.
 - **A video import gets a picture:** one frame from its own cut, kept beside the reader

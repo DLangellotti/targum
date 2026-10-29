@@ -65,12 +65,6 @@
   var HEBREW = /[֐-׿]/;
   // What `mcp_http.TEXT_CARD_META` names: the rows' doors and recordings.
   var META = "targum.page/texts";
-  var TENTHS = [];
-  try {
-    TENTHS = JSON.parse(list.getAttribute("data-tenths") || "[]");
-  } catch (error) {
-    TENTHS = [];
-  }
   var PACE = Number(list.getAttribute("data-pace")) || 130;
 
   var bridge = null;
@@ -85,11 +79,16 @@
     return text;
   }
 
-  // How much of it the reader knows, in tenths, the way `level.words_in_ten` says it.
+  // How much of it the reader knows, as an exact percentage, the way `level.known_line`
+  // says it (targum-internal#560), and never rounded into a lie.
   function known(share) {
     if (share === null || share === undefined || share === "") return "";
-    var tenths = Math.max(0, Math.min(10, Math.round(Number(share) * 10)));
-    return isNaN(tenths) ? "" : TENTHS[tenths] || "";
+    var value = Number(share);
+    if (isNaN(value)) return "";
+    var percent = Math.max(0, Math.min(100, Math.round(value * 100)));
+    if (value < 1 && percent >= 100) percent = 99;
+    if (value > 0 && percent <= 0) percent = 1;
+    return said("known", { n: percent });
   }
 
   // The minutes the library gives, or a shelf text's words at the library's own pace,

@@ -97,7 +97,8 @@ def test_the_results_carry_more_than_one_medium() -> None:
     # And each says what it is worth knowing before choosing: how long, and how much of
     # it this reader already knows.
     assert "15:00" in drawn
-    assert "You know about 7 words in 10" in drawn
+    assert "You know 70% of the words" in drawn
+    assert "in 10" not in drawn
 
 
 def test_a_search_says_no_cost_because_chatting_is_included() -> None:
@@ -234,3 +235,60 @@ def test_words_that_are_not_a_reference_go_on_as_they_did() -> None:
     said = run(typed="something funny about food", answers=FOUND)
     assert "/torah/" not in str(said["went"]), "it went nowhere"
     assert "/already" in [one["path"] for one in said["asked"]]
+
+
+def test_the_chat_card_says_an_exact_percentage() -> None:
+    """David, 2026-10-29 (targum-internal#560): the chat's press card says how much of a
+    text you know as an exact percentage, the way `level.known_line` does, and never
+    rounds into a lie."""
+    bring = HARNESS.parents[2] / "src/targum/render/assets/bring.js"
+    source = bring.read_text(encoding="utf-8")
+    start = source.index("  function knownLine(share) {")
+    end = source.index("\n  }\n", start) + 4
+    stubs = "var t = function (k, e, fill) { return e.replace('{n}', fill ? fill.n : '{n}'); };"
+    shares = [0.72, 0.123, 1, 0, 0.996, 0.004, None]
+    script = (
+        stubs
+        + source[start:end]
+        + f"console.log(JSON.stringify({json.dumps(shares)}.map(knownLine)));"
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == [
+        "You know 72% of the words here.",
+        "You know 12% of the words here.",
+        "You know 100% of the words here.",
+        "You know 0% of the words here.",
+        "You know 99% of the words here.",
+        "You know 1% of the words here.",
+        "",
+    ]
+
+
+def test_the_found_rows_never_round_into_a_lie() -> None:
+    """qa on targum#993: 0.996 is never 100% and 0.004 never 0%, on the add page as in
+    `level.known_percent`."""
+    found = json.loads(json.dumps(FOUND))
+    rows = found["/chat/turn/c1/1"]["found"]
+    rows[0]["known_share"] = 0.996
+    rows[1]["known_share"] = 0.004
+    said = run(typed="something funny about food", answers=found)
+    drawn = " ".join(" ".join(card) for card in said["cards"])
+    assert "You know 99% of the words" in drawn and "You know 1% of the words" in drawn
+    assert "100%" not in drawn and " 0%" not in drawn
+
+
+def test_the_text_card_never_rounds_into_a_lie() -> None:
+    """card-text.js keeps the same rule as `level.known_percent` (qa on targum#993)."""
+    card = HARNESS.parents[2] / "src/targum/render/assets/card-text.js"
+    source = card.read_text(encoding="utf-8")
+    start = source.index("  function known(share) {")
+    end = source.index("\n  }\n", start) + 4
+    stubs = "var said = function (name, fill) { return fill.n + '%'; };"
+    shares = [0.996, 0.004, 1, 0, 0.72, None, ""]
+    script = (
+        stubs + source[start:end] + f"console.log(JSON.stringify({json.dumps(shares)}.map(known)));"
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == ["99%", "1%", "100%", "0%", "72%", "", ""]

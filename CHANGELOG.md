@@ -75,6 +75,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   opened under a band, from a shelf's See all or a Your Progress row that counts what you
   can read, says its band as a chip that clears it, and `#see/<band>` and
   `#see/now/level/<level>` still open as they did. The menu's two strings are deleted.
+- How much of a text you know is an exact percentage, not a count in ten (David,
+  2026-10-29; targum-internal#560; design.md §12). The chat's press card, the text card
+  beside `find_text`, the add page's found rows, home's suggestion and the chat itself
+  said "You know about 7 words in 10 here". They now say "You know 72% of the words
+  here." / «Вы знаете здесь 72% слов.», with no "about". A share under all of it never
+  shows as 100% and one above none never shows as 0%. The Tanakh map's sum says "90% of
+  the words or more" in place of "nine words in ten". `level.words_in_ten` is
+  `level.known_line` now. Your Progress's monthly line went exact with targum-internal#561.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under
