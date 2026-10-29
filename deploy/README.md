@@ -169,7 +169,7 @@ sign in from a script, 2026-10-28). Mint the link on the box as above, sign in o
 measure; the state file is a credential, so keep it out of the tree and delete it after:
 
 ```
-.venv/bin/python scripts/speed_pass.py --sign-in "<link>" --state /tmp/state.json
+.venv/bin/python scripts/speed_pass.py --sign-in "<link>" --state /tmp/state.json --expect <address>
 .venv/bin/python scripts/speed_pass.py --state /tmp/state.json            # first visits
 .venv/bin/python scripts/speed_pass.py --state /tmp/state.json --warm     # files kept
 ```

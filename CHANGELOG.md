@@ -435,7 +435,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn it, so its LCP can be the footer's line. `--warm` measures a second load with the
   files kept, through DevTools' own interception, because Playwright's routing turns the
   HTTP cache off. The sign-out, which empties a test account, is refused whatever its
-  method, and service workers are blocked so no request passes the guard.
+  method, and service workers are blocked so no request passes the guard. The sign-in
+  runs under the same guard, letting through only its POST to `/account/enter`;
+  `--expect <address>` stops before the press when the link names another address; the
+  state file is created owner-only, and a `--state` path inside the checkout is refused.
 - Your Progress has every §14 state pinned in a browser (targum-internal#471):
   `tests/test_progress_states_browser.py` loads the page signed out, empty, with a lot
   (5,000 words, 500 texts, 200 days), with the story failing and offline, at 1440 and at

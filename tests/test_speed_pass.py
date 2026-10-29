@@ -159,3 +159,38 @@ def test_why_names_the_three_causes() -> None:
     said = speed.why([figures(1000, detail=detail)])
     assert "server 120" in said and "script 30" in said and "last fetch 2500" in said
     assert "p#first-home" in said
+
+
+def test_the_sign_in_lets_only_its_own_press_through() -> None:
+    speed = load_script()
+    blocked: list[str] = []
+    handle = speed.entering(blocked, "https://targum.page")
+    for method, url, expect in (
+        ("POST", "https://targum.page/account/enter", "continue"),
+        ("POST", "https://targum.page/account/enter?lang=ru", "continue"),
+        ("GET", "https://targum.page/account/enter?t=x", "continue"),
+        ("POST", "https://targum.page/sync", "abort"),
+        ("POST", "https://elsewhere.example/account/enter", "abort"),
+        ("POST", "https://targum.page/account/sign-out", "abort"),
+    ):
+        route = Route()
+        handle(route, Request(method, url))
+        assert route.did == expect, (method, url)
+
+
+def test_the_link_must_name_the_expected_address() -> None:
+    speed = load_script()
+    said = "Sign in as tester​@example.com"
+    assert speed.heading_names(said, "Tester@example.com")
+    assert not speed.heading_names(said, "reader@example.com")
+
+
+def test_the_state_is_owner_only_and_never_in_the_tree(tmp_path: Path) -> None:
+    speed = load_script()
+    keep = tmp_path / "state.json"
+    keep.write_text("old", encoding="utf-8")
+    keep.chmod(0o644)
+    speed.keep_state(keep, {"cookies": []})
+    assert keep.stat().st_mode & 0o777 == 0o600
+    assert speed.inside_tree(SCRIPT.parent / "state.json")
+    assert not speed.inside_tree(tmp_path / "state.json")

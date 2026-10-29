@@ -2,8 +2,8 @@
 
     .venv/bin/python scripts/speed_pass.py                     # the eight public pages
     .venv/bin/python scripts/speed_pass.py --page /library/ruth --json speed.json
-    .venv/bin/python scripts/speed_pass.py --sign-in "<link>" --state state.json  # once
-    .venv/bin/python scripts/speed_pass.py --state state.json --warm              # signed in
+    .venv/bin/python scripts/speed_pass.py --sign-in LINK --state /tmp/state.json --expect ADDRESS
+    .venv/bin/python scripts/speed_pass.py --state /tmp/state.json --warm   # signed in
 
 §14 line 5: "On a phone profile the surface is useful in under 1.5 s". Useful is read as
 the largest contentful paint (LCP), with the first contentful paint beside it. Each page
@@ -34,9 +34,11 @@ built or spent.
 **Signed in** (targum-internal#552; David's word to sign in from a script, 2026-10-28).
 Only ever the box's test account (deploy/README.md, "A test account"), never a reader's:
 `targum test-account <address> --link` on the box prints a one-time link, and
-`--sign-in <link> --state state.json` opens it, presses its one button (the run's only
-POST) and keeps the session in `state.json`, which is a credential: keep it out of the
-tree and delete it after. `--state` then measures home, Subscriptions, the signed-in
+`--sign-in <link> --state /tmp/state.json --expect <address>` opens it, checks that its
+heading names that address, presses its one button (the run's only POST, and the only one
+its guard lets through) and keeps the session owner-only in the state file. It is a
+credential: keep it in /tmp or ~/.targum, never in the tree (a path inside the checkout is
+refused), and delete it after. `--state` then measures home, Subscriptions, the signed-in
 Library and two readers through `/open/`, which never builds (`Handler._open_entry`).
 The guard still aborts every POST, so nothing a page does after it loads is written, and
 the sign-out, which empties a test account, cannot leave. Pages fill from the JSON they
@@ -58,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 from dataclasses import dataclass, field
@@ -87,6 +90,8 @@ SIGNED_IN = {
 }
 #: The browser's note that its reader answered the welcome (`home.js`, `arriving`).
 WELCOMED = "targum:welcomed"
+#: The one POST the pass sends: the press on a test account's sign-in link.
+ENTER = "/account/enter"
 #: Refused outright, whatever the method: signing out empties a test account.
 NEVER = ("/account/sign-out",)
 #: Left out of a signed-in state, so a cold load is a first visit (`Handler._has_kept`).
@@ -387,17 +392,58 @@ def kept(context: Any, page: Any, most_ms: int = 60_000) -> bool:
     return False
 
 
-def sign_in(browser: Any, link: str, keep: Path) -> int:
+def entering(blocked: list[str], site: str) -> Any:
+    """The sign-in's guard: `guard`, except the one POST that presses the link's button."""
+    others = guard(blocked, site)
+
+    def handle(route: Any, request: Any) -> Any:
+        url = request.url.split("?")[0]
+        if request.method == "POST" and url == site + ENTER:
+            return route.continue_()
+        return others(route, request)
+
+    return handle
+
+
+def heading_names(said: str, expect: str) -> bool:
+    """Whether the link's heading ("Sign in as <address>") names the expected address."""
+    return expect.strip().lower() in said.replace("\u200b", "").lower().split()
+
+
+def keep_state(keep: Path, state: dict[str, Any]) -> None:
+    """Write the session owner-only from the first byte: it is a credential."""
+    if keep.exists():
+        keep.unlink()
+    handle = os.open(keep, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(handle, "w", encoding="utf-8") as out:
+        out.write(json.dumps(state))
+
+
+def inside_tree(path: Path) -> bool:
+    """Whether a path is inside this checkout, where a credential must never be kept."""
+    tree = Path(__file__).resolve().parent.parent
+    return path.resolve().is_relative_to(tree)
+
+
+def sign_in(browser: Any, site: str, link: str, keep: Path, expect: str = "") -> int:
     """Open a test account's one-time link, press its one button, keep the session.
 
-    The only POST the pass ever sends. The page names the address it signs in; the run
+    The only POST the pass ever sends, to `/account/enter`; the guard aborts anything
+    else, and service workers are blocked. The page names the address it signs in; with
+    `expect` the run stops before the press when it names another, and either way it
     prints it, so a link that is not the test account's is seen at once.
     """
-    context = browser.new_context(user_agent=AGENTS["desk"])
+    context = browser.new_context(user_agent=AGENTS["desk"], service_workers="block")
+    blocked: list[str] = []
+    context.route("**/*", entering(blocked, site))
     page = context.new_page()
     try:
         page.goto(link, wait_until="load", timeout=60_000)
-        print(page.locator("h1").first.inner_text().replace("\u200b", ""))
+        said = page.locator("h1").first.inner_text().replace("\u200b", "")
+        print(said)
+        if expect and not heading_names(said, expect):
+            print(f"The link is not for {expect}; nothing was pressed.")
+            return 1
         page.locator("form.enter button[type=submit]").first.click()
         page.wait_for_load_state("load")
         state = context.storage_state()
@@ -406,8 +452,7 @@ def sign_in(browser: Any, link: str, keep: Path) -> int:
     if not any(one["name"] == "targum_session" for one in state["cookies"]):
         print("No session came back: the link was used or has run out.")
         return 1
-    keep.write_text(json.dumps(state), encoding="utf-8")
-    keep.chmod(0o600)
+    keep_state(keep, state)
     print(f"Signed in; the session is in {keep}. It is a credential: delete it after.")
     return 0
 
@@ -476,6 +521,9 @@ def main(argv: list[str] | None = None) -> int:
         "--sign-in", dest="link", help="a test account's one-time link: sign in, keep --state"
     )
     parser.add_argument(
+        "--expect", default="", help="the test account's address: refuse a link for another"
+    )
+    parser.add_argument(
         "--warm", action="store_true", help="measure a second load, with the files kept"
     )
     args = parser.parse_args(argv)
@@ -483,13 +531,15 @@ def main(argv: list[str] | None = None) -> int:
     from playwright.sync_api import sync_playwright
 
     site = args.site.rstrip("/")
+    if args.state and inside_tree(args.state):
+        parser.error("--state is a credential: keep it in /tmp or ~/.targum, not the tree")
     if args.link:
         if not args.state:
             parser.error("--sign-in needs --state, the file to keep the session in")
         with sync_playwright() as driver:
             browser = driver.chromium.launch()
             try:
-                return sign_in(browser, args.link, args.state)
+                return sign_in(browser, site, args.link, args.state, args.expect)
             finally:
                 browser.close()
     state = signed_in(args.state, site) if args.state else None
