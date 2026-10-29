@@ -105,7 +105,6 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "In ulpan terms you're at aleph plus (א׳+), about A1 on the European scale.",
         "next": "Next: bet ב׳",
-        "said": "Toward bet",
     },
     "months": {
         "story": story(
@@ -116,7 +115,6 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "In ulpan terms you're at gimel (ג׳), about B1 on the European scale.",
         "next": "Next: dalet ד׳",
-        "said": "Toward dalet",
     },
     "top-rung": {
         "story": story(
@@ -183,7 +181,6 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "On the European scale you're about B1. It runs from A1, for beginners, to C2.",
         "next": "Next: B2",
-        "said": "Toward B2",
     },
     "russian": {
         "page": "ru",
@@ -196,7 +193,6 @@ STATES: dict[str, dict[str, Any]] = {
         "rows": 4,
         "foot": "По меркам ульпана у вас уровень гимель (ג׳)",
         "next": "Дальше — уровень далет ד׳",
-        "said": "Дальше — уровень далет",
     },
 }
 
@@ -215,8 +211,8 @@ SEEN = """() => {
     foot: shown(at('level-foot')) ? at('level-said').textContent : '',
     bar: shown(bar)
       ? {role: bar.getAttribute('role'), label: bar.getAttribute('aria-label'),
-         named: (at(bar.getAttribute('aria-labelledby') || '') || {textContent: ''}).textContent,
-         said: bar.getAttribute('aria-valuetext'),
+         hidden: bar.getAttribute('aria-hidden'),
+         nextHidden: at('level-next').closest('[aria-hidden]') !== null,
          height: box(bar).height, next: at('level-next').textContent}
       : null,
     letters: all('bdi').map((one) => [one.getAttribute('lang'), one.getAttribute('dir')]),
@@ -323,12 +319,14 @@ def test_every_level_state_is_drawn_without_a_percentage(
             assert ["he", "rtl"] in seen["letters"] or spec.get("language") == "fr"
         if "next" in spec:
             assert seen["bar"] is not None
-            assert seen["bar"]["role"] == "progressbar"
             assert seen["bar"]["next"] == spec["next"]
-            # Named by the Next line and said in words, never as a percentage (#554).
-            assert seen["bar"]["named"] == spec["next"] and seen["bar"]["label"] is None
-            assert seen["bar"]["said"] == spec["said"], seen["bar"]
-            assert page.get_by_role("progressbar", name=spec["next"]).count() == 1
+            # The bar is hidden from a screen reader and the Next line is not, so the line
+            # is heard once and no percentage at all (#554, qa on targum#978).
+            assert seen["bar"]["hidden"] == "true" and seen["bar"]["role"] is None, seen["bar"]
+            assert not seen["bar"]["nextHidden"], seen["bar"]
+            assert page.get_by_role("progressbar").count() == 0
+            tree = page.locator("#level-toward").aria_snapshot()
+            assert tree.count(spec["next"].split(" ")[-2]) == 1, tree
             assert 3 <= seen["bar"]["height"] <= 5, "a thin line"
         if spec.get("bar") is False:
             assert seen["bar"] is None

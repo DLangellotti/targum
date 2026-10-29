@@ -331,18 +331,15 @@
       );
     }
     if (!level.next || typeof level.toward !== "number") return;
-    var bar = document.getElementById("level-bar");
     var fill = document.getElementById("level-fill");
     var next = document.getElementById("level-next");
     var share = Math.max(0, Math.min(1, level.toward));
     var nextName = ulpan ? ulpanName(level.next.name) : level.next.name;
     fill.style.width = Math.round(share * 100) + "%";
-    /* Said in words, never as a figure (§6): a screen reader reads aria-valuetext where
-       it is given, and aria-valuenow alone comes out as "38 percent" (targum-internal#554).
-       The value stays for the bar's own sake, with the words standing in front of it. */
-    bar.setAttribute("role", "progressbar");
-    bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
-    bar.setAttribute("aria-valuetext", t("progress.level.toward", "Toward {name}", { name: nextName }));
+    /* The bar is a picture of the Next line beside it and carries no figure (§6), so a
+       screen reader hears the Next line once and not the bar: a progressbar's value comes
+       out as "38 percent", and naming it by the Next line read the line twice, three times
+       in Russian (targum-internal#554, qa on targum#978). The bar stays aria-hidden. */
     next.textContent = "";
     if (ulpan) {
       sentence(

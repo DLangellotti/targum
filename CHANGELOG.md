@@ -16,11 +16,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   desk the ladder's state and count line up row to row in every language: each row was
   its own flex line, so in Russian a longer count pushed «Вам легко» and «Следующий шаг»
   along, and on the Aramaic ladder a row with nothing to read slid its state right. The
-  rows are now subgrids of one grid. The bar toward the next rung is said in words,
-  "Toward bet" / «Дальше — уровень бет», through aria-valuetext, so a screen reader no
-  longer reads it as a percentage, and it is named by the Next line beside it. The
-  Connect page's example asks for "a short conversation" / «короткий разговор», not a
-  dialogue.
+  rows are now subgrids of one grid. The bar toward the next rung is hidden from screen
+  readers: as a progressbar it was read as a percentage, and named by the Next line it
+  read that line twice. The Next line beside it is heard once, and nothing says a
+  figure. The Connect page's example asks for "a short conversation" / «короткий
+  разговор», not a dialogue. See all's Level menu (Read it now / A stretch / Hard for now) is gone (David,
+  2026-10-29): beside the text level's chip, "level" meant two things in one row. A list
+  opened under a band, from a shelf's See all or a Your Progress row that counts what you
+  can read, says its band as a chip that clears it, and `#see/<band>` and
+  `#see/now/level/<level>` still open as they did. The menu's two strings are deleted.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under

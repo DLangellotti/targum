@@ -834,6 +834,9 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
           title: document.querySelector('#see-title .see-title-name').textContent,
           count: document.querySelector('#see-title .see-title-count').textContent,
           chip: document.getElementById('see-level-chip').getBoundingClientRect().height,
+          band: document.getElementById('see-band-chip').getBoundingClientRect().height,
+          bandSaid: document.getElementById('see-band-chip').textContent,
+          bandMenu: !!document.querySelector('[data-menu="level"]'),
           sideways: document.scrollingElement.scrollWidth > innerWidth,
         })"""
     )
@@ -844,8 +847,10 @@ def test_a_level_address_lists_exactly_that_level_with_a_chip_that_clears_it(
     assert seen["count"].split("·")[-1].strip() == str(wanted), seen
     assert not seen["sideways"]
     if phone:
-        assert seen["chip"] >= 44, seen
+        assert seen["chip"] >= 44 and seen["band"] >= 44, seen
     assert chip.get_attribute("aria-label") == "Remove the Beginner · A1 filter"
+    # The band is a chip beside the level's, not a menu (targum-internal#554).
+    assert seen["bandSaid"] == "Read it now×" and not seen["bandMenu"], seen
 
     page.reload()
     chip.wait_for(state="visible")

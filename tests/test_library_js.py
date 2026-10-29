@@ -957,13 +957,15 @@ def browse(tmp_path: Path, **payload: Any) -> dict[str, Any]:
     return draw(tmp_path, view=view, **payload)
 
 
-def test_see_all_is_one_table_with_three_menus(tmp_path: Path) -> None:
+def test_see_all_is_one_table_with_two_menus(tmp_path: Path) -> None:
     """Board SeeAllDesk (design.md §12, "The Library stands on the ground"): one
-    table whose heads sort it, and Kind, Level and Language as menus beside the search.
-    The Rows/Table switch, the subjects and the folded filters are gone, and a view that
-    kept one of them lets it go rather than narrowing the list unseen."""
+    table whose heads sort it, and Kind and Language as menus beside the search. The
+    band's Level menu went on 2026-10-29 (targum-internal#554). The Rows/Table switch, the
+    subjects and the folded filters are gone, and a view that kept one of them lets it go
+    rather than narrowing the list unseen."""
     fresh = draw(tmp_path, firstVisit=True)
-    assert fresh["menus"] == ["kind", "level", "language"]
+    assert fresh["menus"] == ["kind", "language"]
+    assert fresh["bandChip"] is None and fresh["fitOn"] == ""
     assert fresh["menusShown"] and fresh["seeing"]
     assert fresh["columns"] == ["Text", "Length", "% known ↓"]
     assert fresh["seeTitle"].startswith("All Hebrew texts")
@@ -1003,7 +1005,7 @@ def test_a_stranger_is_shown_everything_rather_than_a_guess(tmp_path: Path) -> N
     text and not about the reader. A page greeting somebody it knows nothing about with
     "showing the 358 you can read now" would be making a claim it cannot support."""
     drawn = browse(tmp_path, readers=[])
-    assert drawn["fitOn"] == "Any"
+    assert drawn["fitOn"] == ""
     assert drawn["seeTitle"] == f"All Hebrew texts{len(SHELF)}"
     assert len(drawn["rows"]) == len(SHELF)
 
@@ -1085,7 +1087,7 @@ def test_a_touchstone_address_opens_that_kind_in_every_band(tmp_path: Path) -> N
     See all list, narrowed to that kind of text and to no band."""
     drawn = browse(tmp_path, hash="#see/kind/article", catalogueKnown=BANDED)
     assert drawn["shelving"] is False
-    assert drawn["fitOn"] == "Any"
+    assert drawn["fitOn"] == ""
     assert drawn["kindOn"] == "News"
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:4]}
 
@@ -1104,7 +1106,7 @@ def test_a_ladder_row_with_a_count_opens_that_kind_under_read_it_now(tmp_path: P
     assert {row["id"] for row in drawn["rows"]} == {row["id"] for row in SHELF[:3]}
 
     every = browse(tmp_path, hash="#see/kind/article", catalogueKnown=BANDED)
-    assert every["fitOn"] == "Any" and len(every["rows"]) == 4
+    assert every["fitOn"] == "" and len(every["rows"]) == 4
 
     searched = browse(
         tmp_path, hash="#see/now/kind/article", catalogueKnown=BANDED, view={"find": "ליגה"}
@@ -1139,9 +1141,50 @@ def test_a_level_row_with_a_count_opens_that_level_under_read_it_now(tmp_path: P
 
 def test_a_level_row_with_no_count_opens_every_text_at_its_level(tmp_path: Path) -> None:
     drawn = browse(tmp_path, catalogue=LEVELLED, hash="#see/level/B2%2B", catalogueKnown=BANDED)
-    assert drawn["fitOn"] == "Any"
+    assert drawn["fitOn"] == ""
     assert {row["id"] for row in drawn["rows"]} == {"story-two"}
     assert drawn["seeTitle"].startswith("Texts at B2 and up in Hebrew")
+
+
+def test_a_band_address_is_a_chip_not_a_menu(tmp_path: Path) -> None:
+    """The band's menu is gone (David, 2026-10-29, targum-internal#554), and what links
+    into a band still opens it: `#see/<band>` from a shelf's See all, and Your Progress's
+    `#see/now/level/<level>`. The band says so as a chip beside the level's, and
+    clearing it keeps the level."""
+    banded = browse(tmp_path, hash="#see/stretch", catalogueKnown=BANDED)
+    assert "level" not in banded["menus"]
+    assert banded["bandChip"] == {"text": "A stretch×", "label": "Remove the A stretch filter"}
+    assert {row["id"] for row in banded["rows"]} == {row["id"] for row in SHELF[3:6]}
+    assert banded["seeTitle"].startswith("A stretch")
+
+    both = browse(tmp_path, catalogue=LEVELLED, hash="#see/now/level/A1", catalogueKnown=BANDED)
+    assert both["bandChip"]["text"] == "Read it now×"
+    assert both["levelChip"]["text"] == "Beginner · A1×"
+
+    cleared = browse(
+        tmp_path,
+        catalogue=LEVELLED,
+        hash="#see/now/level/A1",
+        catalogueKnown=BANDED,
+        do=[{"clearBand": True}],
+    )
+    assert cleared["bandChip"] is None and cleared["fitOn"] == ""
+    assert cleared["hash"] == "#see/level/A1"
+    assert cleared["levelChip"]["text"] == "Beginner · A1×"
+    # Every A1 text now, the stretch's physics with them.
+    assert {row["id"] for row in cleared["rows"]} == {"news-one", "news-two", "physics"}
+
+
+def test_the_menus_strings_are_gone() -> None:
+    """Nothing says the band's menu any more, so its words went with it (#554)."""
+    for language in ("en", "ru"):
+        strings = json.loads(
+            (ASSETS.parent.parent / "strings" / f"{language}.json").read_text(encoding="utf-8")
+        )
+        assert "library.menu.level" not in strings
+        assert "library.filter.any" not in strings
+    source = (ASSETS / "library.js").read_text(encoding="utf-8")
+    assert "library.menu.level" not in source
 
 
 def test_the_level_chip_clears_the_level_and_keeps_the_band(tmp_path: Path) -> None:
@@ -1381,7 +1424,7 @@ def test_being_sent_to_a_text_lifts_the_subject_and_the_band(tmp_path: Path) -> 
         hash="#story-four",
     )
     assert drawn["pointed"] == ["סיפור רביעי"], drawn["pointed"]
-    assert drawn["fitOn"] == "Any"
+    assert drawn["fitOn"] == ""
 
 
 def test_a_collection_is_a_card_of_its_own_shape(tmp_path: Path) -> None:
@@ -1882,19 +1925,12 @@ def test_the_heads_sort_the_table(tmp_path: Path) -> None:
     assert by_known["tally"].endswith("% known, high to low")
 
 
-def test_the_menus_choose_a_kind_and_a_level(tmp_path: Path) -> None:
-    """Kind and Level are menus of the desk's own, not native selects; Level is the
-    band, and choosing one writes its address."""
+def test_the_kind_menu_chooses_a_kind(tmp_path: Path) -> None:
+    """Kind is a menu of the desk's own, not a native select."""
     kind = browse(tmp_path, do=[{"menu": "kind", "pick": "talk"}])
     assert kind["kindOn"] == "Videos"
     assert {row["id"] for row in kind["rows"]} == {"physics", "chemistry"}
-
-    level = browse(tmp_path, catalogueKnown=BANDED, do=[{"menu": "level", "pick": "stretch"}])
-    assert level["fitOn"] == "A stretch"
-    assert level["hash"] == "#see/stretch"
-    assert {row["id"] for row in level["rows"]} == {row["id"] for row in SHELF[3:6]}
-    assert level["seeTitle"].startswith("A stretch")
-    assert level["languageOn"] == "Hebrew"
+    assert kind["languageOn"] == "Hebrew"
 
     source = (ASSETS / "library.js").read_text(encoding="utf-8")
     assert 'el("select"' not in source, "no native select on the page"

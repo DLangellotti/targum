@@ -89,6 +89,8 @@ if (payload.learnedBy) {
 require(path.join(assets, "progress.js"));
 
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };
+/* An attribute the page set on an element, or null where it set none (or never touched it). */
+const attr = (id, name) => (byId[id] && byId[id].getAttribute ? byId[id].getAttribute(name) : null);
 
 /** Every count in the block, as {label: number}. */
 function counts() {
@@ -168,10 +170,11 @@ setImmediate(() => setImmediate(() => process.stdout.write(
       toward: at("level-toward").hidden === false
         ? {
             next: at("level-next").textContent,
-            label: at("level-bar").getAttribute("aria-label"),
-            said: at("level-bar").getAttribute("aria-valuetext"),
-            now: at("level-bar").getAttribute("aria-valuenow"),
-            role: at("level-bar").getAttribute("role"),
+            label: attr("level-bar", "aria-label"),
+            said: attr("level-bar", "aria-valuetext"),
+            now: attr("level-bar", "aria-valuenow"),
+            role: attr("level-bar", "role"),
+            nextHidden: attr("level-next", "aria-hidden"),
             width: at("level-fill").style.width,
           }
         : null,
