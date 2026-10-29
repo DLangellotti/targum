@@ -6008,13 +6008,23 @@ def test_the_link_home_opens_at_the_line_in_front_of_the_reader(browser, tmp_pat
 # -- a text that carries media opens as its media ---------------------------------------
 
 
-def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.webm") -> Path:
+def video_reader(
+    tmp_path: Path,
+    spans=None,
+    lines: int = 2,
+    film: str = "tiny.webm",
+    texts: list[str] | None = None,
+    words: dict[int, list[list[float]]] | None = None,
+) -> Path:
     """A one-part reader whose import kept its picture, built the way a real one is.
 
     `spans` puts the lines somewhere the fixture film actually reaches — it is one
     second long, and the default spans are minutes in, which is right for the tests
     about the panel and useless for the ones about the subtitle. `lines` makes the text
     long enough to be cut into pages, for the test about the room the dock takes.
+    `texts` gives the lines words of their own, annotated so each is a tappable word,
+    and `words` their clocks by line number from 0: `[charStart, charEnd, start, end]`,
+    as the manifest stores them.
     """
     import wave
 
@@ -6043,11 +6053,10 @@ def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.w
         (Path(__file__).parent / "fixtures" / film).read_bytes()
     )
 
+    said = texts or [f"שורה {n}" for n in range(1, lines + 1)]
     segments = [
-        Segment(
-            id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=0, text=f"שורה {n}"
-        )
-        for n in range(1, lines + 1)
+        Segment(id=f"{n:04d}.000-aaaaaa", block_id=f"b{n:04d}", block_index=n, index=0, text=text)
+        for n, text in enumerate(said, start=1)
     ]
     placed = spans or [[2.0, 4.0], [5.0, 7.0]]
     manifest_module.write(
@@ -6068,6 +6077,7 @@ def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.w
                         segment.id: list(placed[n])
                         for n, segment in enumerate(segments[: len(placed)])
                     },
+                    words={segments[n].id: rows for n, rows in (words or {}).items()},
                 )
             ],
         ),
@@ -6086,7 +6096,33 @@ def video_reader(tmp_path: Path, spans=None, lines: int = 2, film: str = "tiny.w
         provider="null",
         segments={segment.id: "A line." for segment in segments},
     )
-    return render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    annotation = None
+    if texts:
+        tokens: dict[str, list[Token]] = {}
+        for segment in segments:
+            offset = 0
+            tokens[segment.id] = []
+            for word in segment.text.split(" "):
+                tokens[segment.id].append(
+                    Token(start=offset, end=offset + len(word), surface=word, lemma=word, band=1)
+                )
+                offset += len(word) + 1
+        annotation = Annotation(
+            document_hash="h",
+            language="he",
+            annotator="test/1",
+            method="frequency",
+            method_note="a test",
+            tokens=tokens,
+        )
+    return render(
+        document,
+        segmented,
+        [translation],
+        tmp_path / "reader",
+        annotation=annotation,
+        folder=tmp_path,
+    )[0]
 
 
 # The picture's own tests — how it stands, its controls, the line under it, the step back

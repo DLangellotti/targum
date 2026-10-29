@@ -533,22 +533,11 @@ var targumPlayer = function () {
       trackEl.setAttribute("aria-valuetext", clocked(now) + " of " + clocked(length));
     });
     if (filmPaint) filmPaint(now, length);
-    caption(heldAt(now));
+    caption(lineAt(now));
   }
 
-  /* Which line the voice is inside, or none: `at` below answers with the first line
-     where this answers with nothing. */
-  function saidAt(seconds) {
-    for (var i = 0; i < order.length; i++) {
-      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
-    }
-    return null;
-  }
-
-  /* The line under the picture (targum-internal#422): the last one the voice has begun,
-     held through the silence after it, or the first before anything has been said. It is
-     a line of the transcript set large, not a caption over a film, so it stays put while
-     nothing is said rather than blinking out between sentences. */
+  /* The last line the voice has begun, held through the silence after it, or the first
+     before anything has been said. `lineAt` below is what asks it. */
   function heldAt(seconds) {
     var held = order.length ? order[0].id : null;
     for (var i = 0; i < order.length; i++) {
@@ -556,6 +545,72 @@ var targumPlayer = function () {
       else break;
     }
     return held;
+  }
+
+  /* What the word clocks can say (2026-10-29). A recording aligned word by word gives
+     each word a clock of its own. A transcript taken from a subtitle file gives every
+     word of a cue the cue's clock (`ingest.subtitles.refined_from`), and a cue runs
+     across sentences, so neighbouring lines' spans overlap: 39 of 48 in the first part of
+     the Touring Israel interview. Read as word clocks, those lit a cue's first word for
+     the whole cue; read as spans, two rules for the line being said disagreed inside the
+     overlap and the transcript was scrolled back and forth four times a second.
+
+     Read once here: `own`, the clocks that are one word's own, which are the only ones
+     that light a word (design.md §12: the chip is "where the recording was aligned word
+     by word"); and `said`, where each line is being said — a clock shared by several
+     words split between them by their letters, which says when the voice crosses from
+     one line to the next without claiming to know when any one word was said. */
+  var heardTable = null;
+  function heard() {
+    if (heardTable) return heardTable;
+    var rows = [];
+    Object.keys(wordClocks).forEach(function (id) {
+      (wordClocks[id] || []).forEach(function (row) {
+        rows.push({ id: id, row: row });
+      });
+    });
+    var own = {};
+    var said = [];
+    var i = 0;
+    while (i < rows.length) {
+      var start = rows[i].row[2];
+      var end = rows[i].row[3];
+      var j = i + 1;
+      while (j < rows.length && rows[j].row[2] === start && rows[j].row[3] === end) j++;
+      if (j - i === 1) {
+        (own[rows[i].id] = own[rows[i].id] || []).push(rows[i].row);
+        said.push({ id: rows[i].id, start: start, end: end });
+      } else {
+        var letters = 0;
+        for (var k = i; k < j; k++) letters += Math.max(1, rows[k].row[1] - rows[k].row[0]);
+        var from = start;
+        var last = null;
+        for (k = i; k < j; k++) {
+          var to = from + ((end - start) * Math.max(1, rows[k].row[1] - rows[k].row[0])) / letters;
+          if (last && last.id === rows[k].id) last.end = to;
+          else said.push((last = { id: rows[k].id, start: from, end: to }));
+          from = to;
+        }
+        last.end = end;
+      }
+      i = j;
+    }
+    heardTable = { own: own, said: said };
+    return heardTable;
+  }
+
+  /* The line being said, and the one answer to it: the transcript's lit line, the line
+     under the picture, the band on the hairline, Loop and the word lit all ask here.
+     Where the word clocks place the voice, the line they place it in; otherwise the last
+     line begun. The line under the picture (targum-internal#422) is a line of the
+     transcript set large, not a caption over a film, so it stays put while nothing is
+     said rather than blinking out between sentences. */
+  function lineAt(seconds) {
+    var said = heard().said;
+    for (var i = 0; i < said.length; i++) {
+      if (seconds >= said[i].start && seconds < said[i].end) return said[i].id;
+    }
+    return heldAt(seconds);
   }
 
   /* The form of a line the reader has on show — pointed, plain or unaccented — because a
@@ -666,8 +721,10 @@ var targumPlayer = function () {
   function starts() {
     if (wordStarts) return wordStarts;
     var all = [];
-    Object.keys(wordClocks).forEach(function (id) {
-      var rows = wordClocks[id];
+    // A word's own clocks only: a subtitle cue's is five seconds of several words.
+    var own = heard().own;
+    Object.keys(own).forEach(function (id) {
+      var rows = own[id];
       for (var i = 0; i < rows.length; i++) all.push(rows[i][2]);
     });
     all.sort(function (a, b) { return a - b; });
@@ -932,7 +989,7 @@ var targumPlayer = function () {
   }
 
   function follow(id) {
-    var rows = wordClocks[id];
+    var rows = heard().own[id];
     if (!rows || !rows.length || !window.requestAnimationFrame) return;
     function tick() {
       litFrame = 0;
@@ -1025,10 +1082,7 @@ var targumPlayer = function () {
   /* The whole scene: play, and pause where it stands rather than starting over. A
      control that only restarts is a control nobody presses twice. */
   function at(seconds) {
-    for (var i = 0; i < order.length; i++) {
-      if (seconds >= order[i].start && seconds < order[i].end) return order[i].id;
-    }
-    return order[0].id;
+    return lineAt(seconds);
   }
 
   // A click hands this an event, so only a literal `true` is quiet.
@@ -1071,10 +1125,9 @@ var targumPlayer = function () {
        written on every tick is not what this is. */
     if (Date.now() - keptAt > 5000) keepHeard();
     if (!following) return;
-    var now = audio.currentTime;
-    for (var i = 0; i < order.length; i++) {
-      if (now >= order[i].start && now < order[i].end) { mark(order[i].id); return; }
-    }
+    // The same line `paint` just gave the picture's caption: two rules here took turns
+    // where spans overlap, and each turn scrolled the transcript (2026-10-29).
+    mark(lineAt(audio.currentTime));
   }
 
   /* Attached through a function because the instrument can be swapped once: a page
@@ -1285,6 +1338,7 @@ var targumPlayer = function () {
       wordClocks = found.words || {};
       order = ordered(spans);
       wordStarts = null;
+      heardTable = null;
       labelSteps();
       heardOf = found === recordings[0] ? spokenOf : spokenOf + "|" + found.key;
       // A new source puts the element back to its default speed; the reader's is kept.
@@ -1778,9 +1832,9 @@ var targumPlayer = function () {
       subLit = null;
     };
     var wordNow = function (now) {
-      var id = saidAt(now);
+      var id = lineAt(now);
       if (!id) return null;
-      var rows = wordClocks[id];
+      var rows = heard().own[id];
       if (!rows) return null;
       for (var i = 0; i < rows.length; i++) {
         if (now >= rows[i][2] && now < rows[i][3]) return { id: id, from: rows[i][0], to: rows[i][1] };
@@ -1837,7 +1891,7 @@ var targumPlayer = function () {
       if (filmLength) filmLength.textContent = clocked(length);
       if (filmLengthSaid && !filmLengthSaid.textContent) filmLengthSaid.textContent = clocked(length);
       // The faint band on the line is the line being said — or held, while it loops.
-      var id = loopSpan ? null : heldAt(now);
+      var id = loopSpan ? null : lineAt(now);
       var band = loopSpan || (id && spans[id]) || null;
       if (filmLine) {
         filmLine.hidden = !band;
@@ -1850,7 +1904,7 @@ var targumPlayer = function () {
 
     var loop = function (on) {
       if (on) {
-        var id = heldAt(audio.currentTime);
+        var id = lineAt(audio.currentTime);
         loopSpan = id && spans[id] ? spans[id].slice() : null;
         if (!loopSpan) on = false;
       } else {
@@ -2304,7 +2358,7 @@ var targumPlayer = function () {
        there are no words to walk, so ← → step lines as well, the way the page reads. */
     var stepLine = function (by) {
       if (!order.length) return;
-      var id = heldAt(audio.currentTime);
+      var id = lineAt(audio.currentTime);
       var i = 0;
       for (var n = 0; n < order.length; n++) {
         if (order[n].id === id) {
@@ -2518,7 +2572,7 @@ var targumPlayer = function () {
     if (inList) view = "theatre";
     panel = false;
     showVideo(inList || !putAway, false);
-    drawSub(heldAt(audio.currentTime || 0));
+    drawSub(lineAt(audio.currentTime || 0));
     subId = subFor ? subFor.getAttribute("data-id") : null;
     whenKnown(function () {
       paint();

@@ -12,6 +12,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A video whose transcript came from its subtitle file no longer bounces, and no longer
+  lights the wrong word (David, 2026-10-29, on the Touring Israel interview). A subtitle
+  cue runs across sentences, so neighbouring lines' spans overlap (39 of 48 in that
+  video's first part). Inside an overlap, `timeupdate` lit the first line holding the
+  clock and the line under the picture lit the last line begun. The lit line swapped
+  twice per tick and the transcript was scrolled to each in turn: 108 scrolls and 46
+  reversals in 30 s, measured on a copy of the reader. Every one of those choices now
+  asks `lineAt`. Where a cue holds the end of one line and the start of the next, it
+  is split between them by their letters. A cue's clock, shared by its words, lit the
+  cue's first word for the whole cue. Now only a word with a clock of its own is lit
+  (design.md §12: "where the recording was aligned word by word"), and the step
+  buttons say five seconds on such a text. Following word by word there needs the
+  subtitles aligned to the recording.
 - The scene check reads «אִתָּהּ» ("with her") as «אִתָּהּ» again, not as «אַתָּה» ("you",
   to a man). `checks.addressed_gender` now decides by the vowel under the alef: a qamats
   or patah is the pronoun, a hiriq the preposition, and an unpointed אתה says nothing.
