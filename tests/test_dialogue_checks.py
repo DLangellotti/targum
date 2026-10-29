@@ -302,3 +302,13 @@ def test_the_new_kinds_are_not_ones_a_generator_files_as_notes() -> None:
     """The B1 generator files `nikkud` as a note and drops `gender`; these refuse."""
     found = check_turn("אֲנִי רוֹצֶה פֶּה", "I want it here.", 0, "m", speaker="f")
     assert {f.kind for f in found} == {"speaker", "homograph"}
+
+
+def test_ata_is_told_from_ita_by_the_alef_s_vowel() -> None:
+    """qa: «אִתָּהּ» (with her) was read as «אַתָּה» (you, a man) and flagged."""
+    assert addressed_gender("אַתָּה") == "m"
+    assert addressed_gender("אִתָּהּ") == ""
+    assert addressed_gender("אִתָּה") == ""
+    assert addressed_gender("אתה") == ""  # unpointed: no evidence
+    assert list(cast_disagrees("דִּבַּרְתִּי אִתָּהּ אֶתְמוֹל", 0, "f")) == []
+    assert len(list(cast_disagrees("אַתָּה בָּא?", 0, "f"))) == 1
