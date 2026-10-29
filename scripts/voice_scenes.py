@@ -21,8 +21,18 @@ The cost is the same. It is the same seconds of speech either way, and the rate 
 second. What it buys instead is prosody: two separate requests do not hand each other a
 conversation's rhythm. So each turn is given the line before it as context and told it
 is answering — measurably worse than one request would be at turn-taking, and the trade
-is deliberate. `write.py` still finds its seams, because the gaps written between turns
-are digital silence and it is looking for 0.18s at -35dB.
+is deliberate.
+
+**And each line is directed, timed and levelled** (targum-internal#566, David 2026-10-29:
+"not much space between the lines… excited when they shouldn't be"). A cheap text model
+reads the whole scene once and writes each turn a few words of direction — "calm, a little
+tired" — so a line knows its mood without the line before it in the prompt, and the
+default it is told to keep is ordinary conversation. The gaps vary with what happened: a
+reply waits 0.6–0.9s, an answer to a question a little longer, a line that cuts in or
+carries on about 0.3s. Each turn is brought to the same EBU R128 loudness before it is
+joined, so no line jumps out, and the gaps carry a low room tone instead of digital
+silence. The tone sits some 25dB under `write.py`'s -35dB floor, and its shortest gap is
+over its 0.18s, so a shelf rebuilt from silences still finds every seam.
 
 **And it is told how to read the pointing.** Gemini ignores nikkud, so `עזבת` is a coin
 toss between *azavta* and *azavt* — and a learner hears the wrong form in the one channel
@@ -32,18 +42,25 @@ into an instruction the engine will take.
 It spends. `--dry-run` prices it and calls nothing.
 
     python3 scripts/voice_scenes.py --from ~/…/dialogues --only 48-the-cleaning --dry-run
-    TARGUM_TTS_KEY=… python3 scripts/voice_scenes.py --from ~/…/dialogues \\
-        --into ./voiced --only 48-the-cleaning
+    op run --env-file op.env -- python3 scripts/voice_scenes.py --from ~/…/dialogues \\
+        --into ./voiced --only 48-the-cleaning --via vertex --spacing 3
+
+It needs `ANTHROPIC_API_KEY` for the director as well as the TTS key, unless
+`--no-direction` is passed.
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import http.client
 import io
 import json
+import math
 import os
+import re
+import statistics
 import struct
 import subprocess
 import sys
@@ -65,10 +82,38 @@ PER_MINUTE = 0.03
 #: 24 kHz mono 16-bit, which is what the API answers with.
 RATE = 24000
 
-#: The quiet written between turns. Comfortably over `write.py`'s 0.18s floor, so its
-#: silence detection cannot fail to find every seam, and short enough to sound like a
-#: reply rather than a pause for thought.
-GAP = 0.45
+#: The quiet between turns, which used to be a flat 0.45s and sounded like a machine
+#: reading a list (David, 2026-10-29). A reply to the other speaker waits somewhere in
+#: BETWEEN, drawn per seam from the scene id so a re-run lands on the same timing; an
+#: answer to a question waits AFTER_QUESTION longer, because a question is thought
+#: about; a line that carries on the same speaker's, or cuts in on a dash, waits SAME.
+#: Every one of them is over `write.py`'s 0.18s floor.
+BETWEEN = (0.6, 0.9)
+AFTER_QUESTION = 0.25
+SAME = 0.3
+
+#: The room the gaps are recorded in: pink noise, band-limited, at about -60 dBFS RMS
+#: (peaks near -48) once mixed. Digital silence between two voices reads as a cut; a
+#: floor this low is heard as air. It runs under the whole scene, not only the gaps, so
+#: the floor does not switch on and off at every seam, and it stays far under
+#: `write.py`'s -35dB.
+TONE = ",".join(
+    [
+        "anoisesrc=color=pink:sample_rate={rate}:amplitude=0.009:seed=566",
+        "highpass=f=120",
+        "lowpass=f=3000",
+    ]
+)
+
+#: Each turn is brought to this integrated loudness before it is joined, so no line jumps
+#: out. The shelf before this measured -16.4 LUFS with a true peak of +1.0 dBTP (he-06,
+#: 2026-10-29), which is clipping, and its turns spread over 4.9 LU. It is done by gain,
+#: with a limiter at CEILING that only touches the odd peak: by gain alone, a line with
+#: one loud consonant could not be raised and he-06 t13 sat 3 LU under the rest. The
+#: limiter's delay is compensated and the turn is cut back to its own sample count, so
+#: the spans cannot move.
+LOUDNESS = -18.0
+CEILING = -2.0
 
 #: Seconds between requests, and the first backoff step. The model is limited per
 #: minute; pacing costs nothing and a 429 costs the whole scene.
@@ -90,11 +135,49 @@ WAIT = 30
 #: rejection is not a rejection — the request is well formed and the same request
 #: sometimes works — so the only lever is to ask for less. The line before this turn
 #: used to be included for prosody and was the first thing cut.
-ASK = "Read aloud as {name}, a {who}, in conversation. Only the line, nothing else."
+ASK = "Read aloud as {name}, a {who}, in conversation{how}. Only the line, nothing else."
+#: How the director's few words join ASK: "…in conversation, calm, a little tired."
+HOW = ", {direction}"
 
 #: What the pointing knows and the engine will not read. Joined into one sentence
 #: rather than a list, for the same reason.
 GUIDE = " Read {hints}."
+
+#: No prompt longer than this goes out. The corpus ran median 73 and max 180 before the
+#: director, and 180 has never failed; the cliff is somewhere past 200 and well before
+#: 497. A direction that would push a prompt over is cut back to its first clause, and
+#: dropped if even that does not fit: a pronunciation hint is worth more than a mood.
+LONGEST = 180
+
+#: The director. One request per scene, cached by the scene's text, so a re-run spends
+#: nothing and a re-worded scene is directed again. Haiku because the job is a few words
+#: per line and it is the cheapest model the laptop's key already pays for.
+DIRECTOR = "claude-haiku-4-5"
+#: USD per million tokens in and out, as `translate/anthropic_provider.py` prices it.
+DIRECTOR_PRICE = (1.0, 5.0)
+#: Part of the cache key: change it when the brief below changes, and every scene is
+#: directed afresh on its next run.
+DIRECTOR_VERSION = 1
+#: The longest direction kept, in characters: "a little impatient, quick, clipped" fits,
+#: and so does ASK with it under LONGEST on almost every line.
+DIRECTION_MOST = 40
+#: What a turn is read as when the director is off or said nothing usable for it.
+NEUTRAL = "calm and natural"
+BRIEF = """You direct two voice actors reading a short everyday conversation in Hebrew \
+for a language-learning app. For each numbered turn write a stage direction of two to \
+six English words: the speaker's mood, how strongly, and the pace. For example: \
+"calm, a little tired", "warm, unhurried", "mildly annoyed, brisk", "relaxed, friendly".
+
+The default is relaxed, ordinary conversation between adults. Never excited, \
+enthusiastic, cheerful or emphatic unless the words plainly call for it: greetings, \
+thanks, agreement and politeness are calm. Keep a speaker's mood steady from turn to \
+turn unless something in the conversation changes it.
+
+Answer with only a JSON array of {count} strings, one per turn, in order.
+
+{title} — {gloss}
+
+{lines}"""
 
 
 #: Wall-clock seconds one request may take, from opening the connection to the last
@@ -314,41 +397,250 @@ def say(
     raise RuntimeError("unreachable")
 
 
-def prompt_for(scene: dict[str, Any], n: int) -> str:
+POINTS = re.compile("[֑-ׇ]")
+
+
+def tidy(direction: Any) -> str:
+    """A direction as it goes into a prompt: a few lowercase words, no quotes, no full
+    stop, and no longer than DIRECTION_MOST — cut at a word, not inside one."""
+    if not isinstance(direction, str):
+        return ""
+    said = " ".join(direction.replace('"', "").replace("'", "").split()).strip(" .;:").lower()
+    if len(said) > DIRECTION_MOST:
+        said = said[: DIRECTION_MOST + 1].rsplit(" ", 1)[0].rstrip(" ,;")
+    return said
+
+
+def scene_key(scene: dict[str, Any]) -> str:
+    """What the director's answer depends on, hashed: the words, who says them, and the
+    brief. A re-pointed scene keeps its directions, because the pointing is stripped
+    before the director reads it; a re-worded one is directed again."""
+    said = {
+        "model": DIRECTOR,
+        "version": DIRECTOR_VERSION,
+        "title": scene.get("english") or scene.get("title", ""),
+        "gloss": scene.get("gloss", ""),
+        "cast": {k: [v.get("name", ""), v.get("gender", "")] for k, v in scene["cast"].items()},
+        "turns": [[t["who"], POINTS.sub("", t["text"])] for t in scene["turns"]],
+    }
+    return hashlib.sha256(json.dumps(said, ensure_ascii=False).encode()).hexdigest()[:16]
+
+
+def brief(scene: dict[str, Any]) -> str:
+    """The director's whole request: the scene unpointed, with its English beside it."""
+    lines = []
+    for n, turn in enumerate(scene["turns"]):
+        who = scene["cast"][turn["who"]]
+        name = who.get("name") or turn["who"]
+        gender = "man" if who.get("gender") == "m" else "woman"
+        english = f" ({turn['english']})" if turn.get("english") else ""
+        lines.append(f"{n + 1}. {name}, a {gender}: {POINTS.sub('', turn['text'])}{english}")
+    return BRIEF.format(
+        count=len(scene["turns"]),
+        title=scene.get("english") or scene.get("title", ""),
+        gloss=scene.get("gloss", ""),
+        lines="\n".join(lines),
+    )
+
+
+def read_directions(answer: str, count: int) -> list[str]:
+    """The model's answer as `count` directions, or ValueError. A blank one is NEUTRAL."""
+    start, end = answer.find("["), answer.rfind("]")
+    if start < 0 or end < start:
+        raise ValueError(f"no JSON array in the director's answer: {answer[:120]!r}")
+    said = json.loads(answer[start : end + 1])
+    if not isinstance(said, list) or len(said) != count:
+        raise ValueError(f"the director gave {len(said)} directions for {count} turns")
+    return [tidy(one) or NEUTRAL for one in said]
+
+
+def ask_director(text: str, key: str) -> tuple[str, float]:
+    """One request to the director. Returns its text and what it cost in USD."""
+    body = {
+        "model": DIRECTOR,
+        "max_tokens": 1024,
+        "temperature": 0,
+        "messages": [{"role": "user", "content": text}],
+    }
+    request = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        json.dumps(body).encode("utf-8"),
+        {
+            "Content-Type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+        },
+    )
+    payload = json.loads(fetch(request, DEADLINE))
+    used = payload.get("usage", {})
+    cost = (
+        used.get("input_tokens", 0) * DIRECTOR_PRICE[0]
+        + used.get("output_tokens", 0) * DIRECTOR_PRICE[1]
+    ) / 1e6
+    said = "".join(b.get("text", "") for b in payload.get("content", []) if b.get("type") == "text")
+    return said, cost
+
+
+def write_atomically(path: Path, data: bytes) -> None:
+    """Beside the target, then renamed: a kill mid-write leaves the old file or none."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".part")
+    temporary.write_bytes(data)
+    temporary.replace(path)
+
+
+def direct(
+    scene: dict[str, Any],
+    key: str,
+    store: Path,
+    ask: Callable[[str, str], tuple[str, float]] = ask_director,
+) -> tuple[list[str], float]:
+    """A direction for every turn, and what getting them cost. Read from `store` when
+    this scene's words have been directed before, and written there the moment they are
+    bought, so neither a re-run nor a crash later in the scene pays for them twice.
+
+    An answer that cannot be read is asked once more; if the second cannot be read
+    either, every turn is NEUTRAL and nothing is stored, so the next run tries again."""
+    cached = store / f"{scene['id']}.{scene_key(scene)}.json"
+    if cached.exists():
+        return json.loads(cached.read_text(encoding="utf-8"))["directions"], 0.0
+    spent = 0.0
+    text = brief(scene)
+    for attempt in range(2):
+        answer, cost = ask(text, key)
+        spent += cost
+        try:
+            directions = read_directions(answer, len(scene["turns"]))
+        except ValueError as unreadable:
+            print(f"    director, attempt {attempt + 1}: {unreadable}", flush=True)
+            continue
+        record = {"model": DIRECTOR, "version": DIRECTOR_VERSION, "directions": directions}
+        write_atomically(cached, (json.dumps(record, ensure_ascii=False, indent=2) + "\n").encode())
+        return directions, spent
+    return [NEUTRAL] * len(scene["turns"]), spent
+
+
+def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
     turn = scene["turns"][n]
     who = scene["cast"][turn["who"]]
-    said = ASK.format(
-        name=who.get("name") or turn["who"],
-        who="man" if who.get("gender") == "m" else "woman",
-    )
+    name = who.get("name") or turn["who"]
+    gender = "man" if who.get("gender") == "m" else "woman"
     # The addressee's gender, not the speaker's. A second-person form is about who is
     # being spoken to, and passing the speaker made the "though the cast says otherwise"
     # note fire on almost every line — scene 81 hid it by having two men in it.
     other = scene["cast"]["B" if turn["who"] == "A" else "A"]
     hints = pronunciation_hints(turn["text"], other.get("gender", ""))
-    if hints:
-        said += GUIDE.format(hints="; ".join(hints))
-    return said
+    guide = GUIDE.format(hints="; ".join(hints)) if hints else ""
+    # The direction gives way first: cut to its first clause, then left out. A prompt
+    # over LONGEST is the 400 the 2026-09-22 run kept hitting.
+    for how in (direction, direction.split(",")[0].strip(), ""):
+        said = ASK.format(name=name, who=gender, how=HOW.format(direction=how) if how else "")
+        if len(said + guide) <= LONGEST or not how:
+            return said + guide
+    raise AssertionError("unreachable")
 
 
-def encode(raw: Path, into: Path) -> None:
-    """To mp3 at 48k mono, which is the bitrate the rest of the shelf's speech is at."""
-    subprocess.run(
+def gap(scene: dict[str, Any], n: int) -> float:
+    """Seconds of room between turn `n` and the one after it."""
+    turns = scene["turns"]
+    before, after = turns[n], turns[n + 1]
+    said = POINTS.sub("", before["text"]).rstrip(" \"'”»)")
+    if before["who"] == after["who"] or said.endswith(("—", "–", "-")):
+        return SAME
+    # Drawn from the seam itself, so the same scene is timed the same way every run.
+    draw = int(hashlib.sha256(f"{scene['id']}#{n}".encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
+    seconds = BETWEEN[0] + (BETWEEN[1] - BETWEEN[0]) * draw
+    if said.endswith("?"):
+        seconds += AFTER_QUESTION
+    return round(seconds, 2)
+
+
+def loudness(pcm: bytes) -> tuple[float, float]:
+    """Integrated loudness (LUFS) and true peak (dBTP) of one turn, by ffmpeg's EBU R128
+    meter. A turn too short or too quiet to measure says -inf, and is left as it is."""
+    run = subprocess.run(
         [
             "ffmpeg",
             "-nostdin",
-            "-v",
-            "error",
-            "-y",
-            "-i",
-            str(raw),
+            "-hide_banner",
+            "-f",
+            "s16le",
+            "-ar",
+            str(RATE),
             "-ac",
             "1",
-            "-b:a",
-            "48k",
-            str(into),
+            "-i",
+            "-",
+            "-af",
+            "loudnorm=print_format=json",
+            "-f",
+            "null",
+            "-",
         ],
+        input=pcm,
+        capture_output=True,
         check=True,
+    )
+    err = run.stderr.decode("utf-8", "replace")
+    said = json.loads(err[err.rindex("{") : err.rindex("}") + 1])
+
+    def number(field: str) -> float:
+        try:
+            return float(said[field])
+        except (KeyError, ValueError):
+            return -math.inf
+
+    return number("input_i"), number("input_tp")
+
+
+def level(pcm: bytes) -> bytes:
+    """One turn at LOUDNESS: a single gain, and a limiter for the peaks it would push
+    over CEILING. The same number of samples comes out as went in, always."""
+    integrated, _ = loudness(pcm)
+    if not math.isfinite(integrated) or integrated < -60:
+        return pcm
+    limit = 10 ** (CEILING / 20)
+    chain = (
+        f"volume={LOUDNESS - integrated:.2f}dB,"
+        f"alimiter=limit={limit:.4f}:level=disabled:latency=1:attack=5:release=50"
+    )
+    raw = ["-f", "s16le", "-ar", str(RATE), "-ac", "1"]
+    run = subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", *raw, "-i", "-", "-af", chain, *raw, "-"],
+        input=pcm,
+        capture_output=True,
+        check=True,
+    )
+    out = run.stdout[: len(pcm)]
+    return out + b"\0" * (len(pcm) - len(out))
+
+
+def encode(raw: Path, into: Path, tone: bool = True) -> None:
+    """To mp3 at 48k mono, which is the bitrate the rest of the shelf's speech is at, with
+    the room tone laid under the whole of it."""
+    mix: list[str] = []
+    if tone:
+        mix = [
+            "-f",
+            "lavfi",
+            "-i",
+            TONE.format(rate=RATE),
+            "-filter_complex",
+            "[0:a][1:a]amix=inputs=2:duration=first:normalize=0",
+        ]
+    subprocess.run(
+        ["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", str(raw), *mix]
+        + ["-ac", "1", "-ar", str(RATE), "-b:a", "48k", str(into)],
+        check=True,
+    )
+
+
+def take_path(store: Path, scene: dict[str, Any], n: int, voice_: str, prompt: str) -> Path:
+    """Where one turn's bought audio is kept: named by everything that made it, so a
+    changed line, voice or prompt is bought again and an unchanged one never is."""
+    made = json.dumps([MODEL, voice_, prompt, scene["turns"][n]["text"]], ensure_ascii=False)
+    return (
+        store / str(scene["id"]) / f"{n:02d}.{hashlib.sha256(made.encode()).hexdigest()[:12]}.pcm"
     )
 
 
@@ -360,37 +652,58 @@ def voice(
     via: str = "gemini",
     deadline: float = DEADLINE,
     on_cutoff: Callable[[CutOff], None] | None = None,
-) -> tuple[list[list[float]], float]:
-    """The whole scene, one turn at a time. Returns the spans and the seconds spoken."""
-    quiet = b"\0" * int(RATE * GAP) * 2
+    directions: list[str] | None = None,
+) -> tuple[list[list[float]], float, float]:
+    """The whole scene, one turn at a time. Returns the spans, the seconds in the scene,
+    and the seconds bought this run.
+
+    Every turn is written to `into/turns/` the moment it comes back, before the next is
+    asked for, so a run that dies keeps what it paid for and the next run asks only for
+    what is missing."""
+    takes = into / "turns"
     pieces: list[bytes] = []
     spans: list[list[float]] = []
     at = 0.0
-    for n in range(len(scene["turns"])):
-        turn = scene["turns"][n]
-        pcm = say(
-            turn["text"],
-            scene["cast"][turn["who"]]["voice"],
-            key,
-            prompt_for(scene, n),
-            via,
-            deadline,
-            on_cutoff,
-        )
+    bought = 0.0
+    last = len(scene["turns"]) - 1
+    for n, turn in enumerate(scene["turns"]):
+        speaker = scene["cast"][turn["who"]]["voice"]
+        prompt = prompt_for(scene, n, directions[n] if directions else "")
+        kept = take_path(takes, scene, n, speaker, prompt)
+        if kept.exists():
+            pcm = kept.read_bytes()
+            fresh = False
+        else:
+            pcm = say(turn["text"], speaker, key, prompt, via, deadline, on_cutoff)
+            write_atomically(kept, pcm)
+            bought += len(pcm) / (RATE * 2)
+            fresh = True
+        pcm = level(pcm)
         seconds = len(pcm) / (RATE * 2)
         spans.append([round(at, 2), round(at + seconds, 2)])
         pieces.append(pcm)
         at += seconds
-        if n != len(scene["turns"]) - 1:
-            pieces.append(quiet)
-            at += GAP
-        print(f"    t{n} {seconds:5.2f}s  {turn['who']}", flush=True)
-        time.sleep(spacing)
+        if n != last:
+            pause = gap(scene, n)
+            pieces.append(b"\0\0" * int(RATE * pause))
+            at += int(RATE * pause) / RATE
+        print(f"    t{n} {seconds:5.2f}s  {turn['who']}  {len(prompt)}ch  {prompt}", flush=True)
+        if fresh and n != last:
+            time.sleep(spacing)
     joined = b"".join(pieces)
     raw = into / f"{scene['id']}.wav"
     raw.write_bytes(wav(joined))
     encode(raw, into / f"{scene['id']}.mp3")
-    return spans, len(joined) / (RATE * 2)
+    return spans, len(joined) / (RATE * 2), bought
+
+
+def lengths(prompts: list[str]) -> str:
+    sizes = sorted(len(p) for p in prompts)
+    over = sum(1 for s in sizes if s > LONGEST)
+    return (
+        f"median {statistics.median(sizes):.0f}, p95 {sizes[int(len(sizes) * 0.95)]}, "
+        f"max {sizes[-1]}, over {LONGEST}: {over}"
+    )
 
 
 def main() -> None:
@@ -406,6 +719,12 @@ def main() -> None:
     parser.add_argument("--spacing", type=float, default=SPACING, help="seconds between requests")
     parser.add_argument(
         "--deadline", type=float, default=DEADLINE, help="wall-clock seconds per request"
+    )
+    parser.add_argument(
+        "--no-direction", action="store_true", help="read every turn as NEUTRAL; no director"
+    )
+    parser.add_argument(
+        "--directions", type=Path, help="where directions are cached; default --into/directions"
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -453,10 +772,24 @@ def main() -> None:
     )
     print(f"{hinted} of {turns} turns carry a pronunciation the letters do not decide")
 
+    store = (args.directions or into / "directions").expanduser().resolve()
     if args.dry_run:
+        # The lengths with no direction, and with the longest one allowed on every turn,
+        # which is the worst the director can do to them.
+        widest = "x" * DIRECTION_MOST
+        bare_, worst = [], []
+        for s in scenes:
+            for n in range(len(s["turns"])):
+                bare_.append(prompt_for(s, n))
+                worst.append(prompt_for(s, n, widest))
+        print(f"prompt lengths, no direction: {lengths(bare_)}")
+        print(f"prompt lengths, a {DIRECTION_MOST}-char direction: {lengths(worst)}")
+        shortened = sum(1 for p in worst if widest not in p)
+        print(f"  {shortened} of {len(worst)} turns would lose or shorten that direction")
         for scene in scenes[:1]:
             print(f"\nthe prompt for {scene['id']} t0:\n")
-            print(prompt_for(scene, 0))
+            print(prompt_for(scene, 0, NEUTRAL))
+            print(f"\nthe gaps: {[gap(scene, n) for n in range(len(scene['turns']) - 1)]}")
         print("Nothing was called. Drop --dry-run to run it.")
         return
 
@@ -464,6 +797,12 @@ def main() -> None:
     key = (args.key.read_text().strip() if args.key else "") or os.environ.get(named, "")
     if not key:
         sys.exit(f"no key: set {named} or pass --key <file>")
+    director = "" if args.no_direction else os.environ.get("ANTHROPIC_API_KEY", "")
+    if not args.no_direction and not director:
+        sys.exit(
+            "no ANTHROPIC_API_KEY for the director: run under "
+            "`op run --env-file op.env --`, or pass --no-direction"
+        )
 
     into.mkdir(parents=True, exist_ok=True)
     spent = 0.0
@@ -471,9 +810,15 @@ def main() -> None:
     voiced = 0
     for scene in scenes:
         print(f"\n{scene['id']}:", flush=True)
+        directions: list[str] | None = None
+        if director:
+            directions, cost = direct(scene, director, store)
+            spent += cost
+            for n, one in enumerate(directions):
+                print(f"    direction t{n}: {one}", flush=True)
         try:
-            spans, seconds = voice(
-                scene, key, into, args.spacing, args.via, args.deadline, cut.append
+            spans, seconds, bought = voice(
+                scene, key, into, args.spacing, args.via, args.deadline, cut.append, directions
             )
         except CutOff as stalled:
             print(f"  not voiced this run: {stalled}", file=sys.stderr)
@@ -485,15 +830,15 @@ def main() -> None:
                 f"when it resets; what is voiced is skipped."
             )
             return
-        spent += seconds / 60 * PER_MINUTE
+        spent += bought / 60 * PER_MINUTE
         voiced += 1
         # Written per scene, so a run that dies keeps what it paid for.
         (into / f"{scene['id']}.spans.json").write_text(
             json.dumps(spans, indent=2) + "\n", encoding="utf-8"
         )
-        print(f"  {seconds:.1f}s, ${spent:.2f} so far", flush=True)
+        print(f"  {seconds:.1f}s, {bought:.1f}s of it bought, ${spent:.3f} so far", flush=True)
 
-    print(f"\n{voiced} of {len(scenes)} scenes into {into}. This run cost ${spent:.2f}.")
+    print(f"\n{voiced} of {len(scenes)} scenes into {into}. This run cost ${spent:.3f}.")
     if cut:
         # Not in the figure above, because nothing came back to measure; but asked for,
         # and possibly billed, so said.
