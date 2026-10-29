@@ -2083,6 +2083,16 @@ def rebuild(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="With --reread: say what it would cost, and stop.")
     ] = False,
+    only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--only",
+            help=(
+                "Rewrite only this targum: its folder name, or home/name (p1/abc-he). "
+                "Again for more."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -2225,8 +2235,11 @@ def rebuild(
 
     done = 0
     skipped: list[tuple[str, str]] = []
+    picked = set(only or ())
     for folder in sorted(_targums(root)):
         if folder.name == "uploads":
+            continue
+        if picked and not picked & {folder.name, f"{folder.parent.name}/{folder.name}"}:
             continue
         # A weekly edition is one long targum wired to its sibling levels, and rewriting
         # one without saying so turned an issue back into a contents page and six chapter
@@ -2604,6 +2617,51 @@ def refs(
         return
     console.print(f"[green]{filled}[/green] given their refs[dim], {skipped} left alone.[/dim]")
     console.print("[dim]Now `targum rebuild` to write the pages with their audio in.[/dim]")
+
+
+@app.command(name="align-subtitles")
+def align_subtitles(
+    folder: Annotated[Path, typer.Argument(help="One targum's folder: its audio.json beside it.")],
+    part: Annotated[
+        list[int] | None,
+        typer.Option("--part", help="Only this part. Again for more. Default: every one."),
+    ] = None,
+) -> None:
+    """Time each word of a video whose transcript came from its subtitle file.
+
+    A subtitle file times cues, so such a video lights the line being said and no word.
+    This lines the subtitles' own words up with the recording, on this machine, with the
+    forced aligner (targum-internal#572): free, and minutes a part. A word the aligner was
+    not sure of keeps no clock. It rewrites the parts' refinements and the manifest and
+    nothing else — the text and its words are untouched — so `targum rebuild --only` is
+    what writes the page after it.
+    """
+    from .audio.align import CtcAligner
+    from .audio.manifest import load as load_manifest
+    from .audio.subtitle_words import retime_folder
+
+    found = load_manifest(folder)
+    if found is None:
+        fail(TargumError(f"No recording in {folder}.", "Point it at one targum's folder."))
+    aligner = CtcAligner(found.language)
+    usable, hint = aligner.available()
+    if not usable:
+        fail(TargumError("The forced aligner is not here.", hint))
+    report = retime_folder(
+        folder, aligner, parts=part, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+    )
+    for row in report.parts:
+        if row.skipped:
+            console.print(f"[dim]Part {row.number}: left as it was — {row.skipped}.[/dim]")
+        else:
+            console.print(
+                f"Part {row.number}: [green]{row.kept}[/green] of {row.words} words timed"
+                f"[dim] in {row.seconds / 60:.1f} min.[/dim]"
+            )
+    console.print(
+        f"[green]{report.kept}[/green] of {report.words} words timed"
+        f"[dim], {sum(row.seconds for row in report.parts) / 60:.1f} min of aligning.[/dim]"
+    )
 
 
 @app.command()

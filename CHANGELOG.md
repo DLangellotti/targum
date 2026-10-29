@@ -467,6 +467,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `targum align-subtitles <folder>` times each word of a video whose transcript came from
+  its subtitle file (David, 2026-10-29: "Align on the laptop"; targum-internal#572). It
+  runs the local forced aligner over the subtitles' own words, part by part, on the
+  laptop, because the box has no torchaudio. It is free and takes about 2 minutes per
+  8.5 minutes of audio. A word keeps its clock only if its letters scored at least -3
+  (`subtitle_words.WORD_FLOOR`) and it landed within a second of its own cue. Any other
+  word gets no clock, so the page lights nothing there rather than the wrong word. A
+  line with no sure word keeps the part of its cue that its neighbours leave. It
+  rewrites `audio/refined/` and the manifest, never the text. `targum rebuild --only
+  p1/<name>` then rewrites that one reader. The Touring Israel interview's first three
+  parts keep 3,242 of 3,602 words, and no line spans overlap.
 - Pointed Hebrew in standard ktiv menukad, and four kinds of scene check from ling-he's
   audit of 2026-10-29 (targum-internal#563). `vocalize/menukad.py` turns full spelling under
   points into the standard spelling (חִיבּוּר → חִבּוּר, בּוֹקֶר → בֹּקֶר, and the menaked's
