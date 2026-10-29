@@ -794,7 +794,26 @@
     return at === -1 ? 0 : at / (DECLARED_RUNGS.length - 1);
   }
 
+  /* A month's name as a date says it: the genitive in Russian («октября», as in «С начала
+     октября»), the month's own name in English. Read off a day-and-month date with the
+     day taken out, so no table of forms is kept. `month` is 0 for January. */
+  function monthInDate(month, language) {
+    var when = new Date(Date.UTC(2026, month, 1));
+    try {
+      var parts = new Intl.DateTimeFormat(language || "en", {
+        day: "numeric",
+        month: "long",
+        timeZone: "UTC",
+      }).formatToParts(when);
+      for (var i = 0; i < parts.length; i++) if (parts[i].type === "month") return parts[i].value;
+    } catch (e) {
+      /* below */
+    }
+    return when.toLocaleDateString("en", { month: "long", timeZone: "UTC" });
+  }
+
   window.TargumCharts = {
+    monthInDate: monthInDate,
     el: el,
     targets: targets,
     meaningLanguage: meaningLanguage,

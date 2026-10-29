@@ -548,6 +548,7 @@ def _environment() -> Environment:
     env.globals["data_uri"] = _data_uri
     # The faces likewise: a stylesheet by address on a desk page, a `<style>` elsewhere.
     env.globals["hebrew_face"] = _page_hebrew_face
+    env.globals["hebrew_letters_face"] = _page_hebrew_letters_face
     env.globals["scripture_face"] = _page_scripture_face
     env.globals["chrome_face"] = _page_chrome_face
     env.globals["legal_is_public"] = legal_is_public
@@ -940,6 +941,7 @@ def _faces() -> dict[str, Markup]:
     return {
         "face-hebrew.css": _hebrew_face(),
         "face-hebrew-biblical.css": _hebrew_face(biblical=True),
+        "face-hebrew-letters.css": _hebrew_letters_face(),
         "face-scripture.css": _scripture_face(),
         "face-chrome.css": _chrome_face(),
         "face-chrome-upright.css": _chrome_face(italic=False),
@@ -1113,6 +1115,11 @@ def _sheet(context: Context, name: str, inline: Markup) -> Markup:
 def _page_hebrew_face(context: Context, biblical: bool = False) -> Markup:
     name = "face-hebrew-biblical.css" if biblical else "face-hebrew.css"
     return _sheet(context, name, _hebrew_face(biblical))
+
+
+@pass_context
+def _page_hebrew_letters_face(context: Context) -> Markup:
+    return _sheet(context, "face-hebrew-letters.css", _hebrew_letters_face())
 
 
 @pass_context
@@ -1322,6 +1329,12 @@ def linked_scripts(html: str) -> str:
 # outright, as Frank Ruhl Libre's OFL did before it.
 BIBLICAL_FACE = ("Taamey Frank CLM", "fonts/TaameyFrankCLM-Medium.woff2")
 MODERN_FACE = ("Noto Sans Hebrew", "fonts/NotoSansHebrew-Regular.woff2")
+#: The letters, the geresh and the plus at 600, for Your Progress's level letter (design.md
+#: §12, "Your level, v3", 2026-10-29): a second face of the modern family at that weight,
+#: so the letter is drawn in a real 600 and never a synthesised bold. 2.8 kB, cut by
+#: `scripts/hebrew_letter_face.py`.
+#: No `unicode-range`: the 600 is only ever asked of a letter, its geresh and its plus.
+LETTERS_600 = "fonts/NotoSansHebrew-Letters600.woff2"
 
 # What a page falls back through if it somehow carries no face of its own. Kept in step
 # with `--reading-hebrew` in reader.css.
@@ -1361,6 +1374,18 @@ def _hebrew_face(biblical: bool = False) -> Markup:
         f'@font-face{{font-family:"{family}";'
         f'src:url({_data_uri(file)}) format("woff2");font-display:block}}'
         f':root{{--reading-hebrew:"{family}", {_FALLBACK}}}'
+        "</style>"
+    )
+
+
+@cache
+def _hebrew_letters_face() -> Markup:
+    """The modern face's letters at 600, beside the Regular `_hebrew_face` carries."""
+    family = MODERN_FACE[0]
+    return Markup(
+        "<style>"
+        f'@font-face{{font-family:"{family}";font-weight:600;font-style:normal;'
+        f'src:url({_data_uri(LETTERS_600)}) format("woff2");font-display:block}}'
         "</style>"
     )
 

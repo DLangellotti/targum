@@ -152,8 +152,10 @@ def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
     explained under the totals and outside part 2's time and words, which is hidden
     signed out, with recording stopped or with no record, while the figure always shows."""
     progress = PAGES["progress"]
+    # "Words you knew" carries no footnote since 2026-10-29 (design.md §12, "Your level,
+    # v3"): its sentence says what it counts.
+    assert "We check each section you finish" not in progress
     for said in (
-        "We check each section you finish against the words",
         "We count a word as read when you turn past its page",
         "counts the words you marked here as anything other than known",
     ):

@@ -171,26 +171,26 @@ def test_under_two_months_there_is_no_line() -> None:
     assert [point["month"] for point in coverage.monthly(two)] == ["2026-08", "2026-09"]
 
 
-def test_the_block_says_no_percentage_no_level_and_no_score() -> None:
-    """§6: a count in ten, never a percentage, a level or a score — in every language the
-    page speaks, and in the script that draws it."""
+def test_the_block_says_an_exact_percentage_and_no_level_or_score() -> None:
+    """§12 2026-10-29: an exact percentage, never a count in ten and never "about", and
+    still no level or score — in every language the page speaks, and in its script."""
     root = Path(__file__).resolve().parents[1] / "src" / "targum"
     for code in ("en", "ru"):
         said = json.loads((root / "strings" / f"{code}.json").read_text(encoding="utf-8"))
         block = {k: v for k, v in said.items() if k.startswith("progress.reading.")}
-        # Twelve since 2026-10-09: the two "we'll draw this" sentences went with the
-        # waiting state, which is now no part at all.
         assert len(block) >= 12, code
         for key, text in block.items():
             lowered = text.lower()
-            assert "%" not in text and "!" not in text, f"{code}: {key}"
-            for banned in ("percent", "score", "level", "points", "xp", "процент", "балл",
-                           "уровень", "keep going", "great", "don't worry"):  # fmt: skip
+            assert "!" not in text, f"{code}: {key}"
+            assert "%" not in text or "{p}%" in text, f"{code}: {key} says a figure it isn't given"
+            for banned in ("in 10", "из 10", "about", "примерно", "score", "level",
+                           "points", "xp", "балл", "уровень", "keep going", "great",
+                           "don't worry"):  # fmt: skip
                 assert banned not in lowered, f"{code}: {key} says {banned!r}"
     script = (root / "render" / "assets" / "progress.js").read_text(encoding="utf-8")
-    drawn = script[script.index("function tenths(") : script.index("function askReading(")]
-    assert "%" not in re.sub(r"//.*|/\*.*?\*/", "", drawn, flags=re.S)
-    assert "clay" not in re.sub(r"//.*|/\*.*?\*/", "", drawn, flags=re.S), "a fall is not a verdict"
+    head = script[: script.index("function askReading(")]
+    drawn = re.sub(r"//.*|/\*.*?\*/", "", head, flags=re.S)
+    assert "clay" not in drawn, "a fall is not a verdict"
 
 
 def test_a_section_finished_on_the_page_is_measured_once_on_the_push(

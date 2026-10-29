@@ -411,7 +411,8 @@ what you read, month by month", 2026-09-27) to days and weeks.
   otherwise unrounded. The European scale counts its commonest words one by one, so its
   gap is the number. **No "Roughly", no "more", no rounding to fifties.** Then the one
   press, "Show texts you can read now". No ulpan explainer. At the top rung there is no
-  bar and no number; the press stays.
+  bar and no number; the press stays. The bar stays `aria-hidden` ("See all keeps one
+  level, and the bar is not spoken", below): the words line is what a screen reader hears.
 - **Week one** keeps the bar and "{n} words to א׳" on the "Start with beginner texts."
   card, and its button says **"Start learning"** (David, 2026-10-29), which still opens the
   first beginner conversation.
@@ -444,6 +445,8 @@ what you read, month by month", 2026-09-27) to days and weeks.
   the sections you finish." is gone. `/account/reading` sends day buckets per language
   in the reader's time zone, from the `reading` rows' own `at`; weeks and months are summed
   in the browser, sums of words and never an average of shares. Nothing new is stored.
+  **A fall is drawn and not explained** (David, 2026-10-29): the "It fell because…" line
+  is cut in every language, reversing that sentence of 2026-09-27.
 - **At a desk, two even columns**: the card with the chart under it on the left, the
   ladder on the right, ending at about the same height.
 
