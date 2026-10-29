@@ -1186,7 +1186,9 @@
     return current
       ? t("progress.reading.said-so-far", "So far in {month} you knew {p}% of the words you read.", {
           p: share.p,
-          month: point.when,
+          // «С начала октября»: the month as a date says it, which in Russian is the
+          // genitive and in English the month's own name.
+          month: charts.monthInDate(Number(point.month.slice(5, 7)) - 1, pageLanguage()),
         })
       : t("progress.reading.said-month", "In {month} you knew {p}% of the words you read.", {
           p: share.p,
@@ -1272,27 +1274,9 @@
     }
 
     var last = points[points.length - 1];
-    var before = points[points.length - 2];
+    // One sentence, the last point's. A fall is drawn and not explained (David,
+    // 2026-10-29: the "It fell because…" line is cut in every language).
     sayHost.appendChild(el("p", "reading-said", sentenceFor(readingBy, last)));
-    // "It fell because…" on Week and Month only, compared as the page says it.
-    if (readingBy !== "day" && percentOf(last) < percentOf(before)) {
-      sayHost.appendChild(
-        el(
-          "p",
-          "reading-fell",
-          readingBy === "month"
-            ? t(
-                "progress.reading.fell",
-                "It fell because what you read in {month} had more words new to you, not because you lost any.",
-                { month: last.when }
-              )
-            : t(
-                "progress.reading.fell-week",
-                "It fell because what you read that week had more words new to you, not because you lost any."
-              )
-        )
-      );
-    }
 
     var pad = { top: 12, right: 20, bottom: 22, left: 20 };
     var plotW = W - pad.left - pad.right;

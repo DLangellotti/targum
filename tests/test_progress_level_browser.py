@@ -237,7 +237,7 @@ STATES: dict[str, dict[str, Any]] = {
         "story": story(known=4730, ladder=MONTHS, here=2, next=3, level=ULPAN_DALET),
         "title": "Ваш уровень",
         "says": "637 слов до уровня ה׳",
-        "press": "Показать тексты, которые можно читать уже сейчас",
+        "press": "Тексты, которые вы уже можете читать",
         "rows": 7,
         "mark": ("ד׳", "Примерно B2"),
         "togo": "637 слов до уровня ה׳",

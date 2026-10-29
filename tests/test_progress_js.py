@@ -459,27 +459,36 @@ def test_weeks_and_months_are_summed_from_days_by_words_not_shares() -> None:
     assert drawn["titles"][0] == "June 2025: 89% · 2 sections"
 
 
-def test_a_line_that_falls_says_why_on_month_and_week_and_never_on_day() -> None:
-    """Graded dialogue in July, Agnon in August: the line drops, and one sentence names
-    the reason. On Day it would be said most mornings, so it is not."""
+def test_a_line_that_falls_is_drawn_and_not_explained() -> None:
+    """Graded dialogue in July, Agnon in August: the line drops, and the page says the
+    last month's figure and nothing about why (David, 2026-10-29: the "It fell because…"
+    line is cut in every language)."""
     drawn = draw(
         {"targum:vocab:he": vocab(known=3)},
         reading=reading_of(month_day(2025, 6, 70), month_day(2025, 7, 80), month_day(2025, 8, 55)),
     )["reading"]
-    assert drawn["said"] == [
-        "In August 2025 you knew 55% of the words you read.",
-        "It fell because what you read in August 2025 had more words new to you, not because "
-        "you lost any.",
-    ]
-    for said in drawn["said"]:
-        assert "!" not in said and "don't worry" not in said.lower() and "keep" not in said
+    assert drawn["said"] == ["In August 2025 you knew 55% of the words you read."]
 
-    daily = draw(
-        {"targum:vocab:he": vocab(known=3)},
-        reading=reading_of(day(days_ago(3), 80), day(days_ago(1), 55)),
-    )["reading"]
-    assert daily["by"] == "day"
-    assert len(daily["said"]) == 1 and "fell" not in daily["said"][0]
+
+def months_in(language: str) -> list[str]:
+    with tempfile.TemporaryDirectory() as where:
+        payload = Path(where) / "payload.json"
+        payload.write_text(json.dumps({"monthsIn": language}), encoding="utf-8")
+        done = subprocess.run(
+            ["node", str(HARNESS), str(payload)], capture_output=True, text=True, timeout=60
+        )
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+def test_so_far_says_the_month_in_the_genitive_in_russian() -> None:
+    """«С начала октября»: the month as a date says it, for all twelve; English keeps the
+    month's own name."""
+    assert months_in("ru") == [
+        "января", "февраля", "марта", "апреля", "мая", "июня",
+        "июля", "августа", "сентября", "октября", "ноября", "декабря",
+    ]  # fmt: skip
+    assert months_in("en")[9] == "October"
 
 
 def test_the_coarsest_view_with_two_points_is_the_default() -> None:

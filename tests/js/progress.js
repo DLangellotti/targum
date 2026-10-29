@@ -82,6 +82,13 @@ require(path.join(assets, "strings.js"));
 require(path.join(assets, "charts.js"));
 // The rule that writes the flag the "learned on targum" tile counts, asked of pairs of
 // stages with no page: [stage it held (null for never on the list), stage it went to].
+// A month's name as a date says it, for each month in a language: [language, months].
+if (payload.monthsIn) {
+  process.stdout.write(
+    JSON.stringify([...Array(12).keys()].map((month) => window.TargumCharts.monthInDate(month, payload.monthsIn)))
+  );
+  process.exit(0);
+}
 if (payload.learnedBy) {
   process.stdout.write(
     JSON.stringify(payload.learnedBy.map(([was, now]) => window.TargumCharts.learnedBy(was, now)))

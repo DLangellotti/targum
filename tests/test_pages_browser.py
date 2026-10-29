@@ -1175,8 +1175,8 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
     browser, width: int
 ) -> None:
     """targum-internal#291. Three months draw one line across the panel, as the board
-    draws it (§12, 2026-10-09), at a phone's width and on the desk; a fall is said in one
-    sentence, and the last month as an exact percentage (§12, "Your level, v3")."""
+    draws it (§12, 2026-10-09), at a phone's width and on the desk; the last month is said
+    as an exact percentage and a fall is not explained (§12, "Your level, v3")."""
     import os
 
     days = [
@@ -1195,7 +1195,7 @@ def test_progress_draws_what_you_knew_of_what_you_read_at_phone_and_desk(
 
     assert got["shown"] and got["points"] == 3, got
     assert got["said"][0] == "In August 2025 you knew 55% of the words you read."
-    assert got["said"][1].startswith("It fell because"), got
+    assert len(got["said"]) == 1, "a fall is drawn and not explained (David, 2026-10-29)"
     assert not got["sideways"], got
     assert 0 < got["width"] <= got["panelWidth"] + 0.5, got
     assert got["width"] >= got["panelWidth"] - 2, "the panel's full width, as the board"
