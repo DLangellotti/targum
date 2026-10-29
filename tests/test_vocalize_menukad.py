@@ -97,6 +97,24 @@ def test_residue_names_a_lost_vav() -> None:
     assert menukad.residue("בֹּקֶר טוֹב", source="בּוֹקֶר טוֹב") == []
 
 
+def test_a_hifil_keeps_its_hiriq_male() -> None:
+    """ling-he, audit 2 (P0): the yod of הִגִּיעוּ is the binyan's, not a mater."""
+    for word in ("הִגִּיעוּ", "יַגִּיעוּ", "הִצְלִיחוּ"):
+        assert menukad.normalise_word(word) == (word, ())
+    assert norm("לְשִׁיעוּר") == nfc("לְשִׁעוּר")
+
+
+def test_audit_two_loans_and_the_geminate() -> None:
+    for word in ("אַקְמוֹל", "בְּקִיֶּיב", "שְׁוַוארְמָה"):
+        assert menukad.normalise_word(word) == (word, ())
+    assert norm("מְעַיְיפִים") == nfc("מְעַיְּפִים")
+    assert norm("מֵיְיל") == nfc("מֵייל")
+    assert norm("לְמֶיְילִים") == nfc("לְמֵיילִים")
+    assert norm("בֶּיְיבִּיסִיטֶר") == nfc("בֶּייבִּיסִיטֶר")
+    assert menukad.residue("מֵיְיל") == [("loanword pointing", "מֵיְיל")]
+    assert menukad.residue("מֵייל") == []
+
+
 def test_a_cast_name_is_left_alone() -> None:
     assert menukad.normalise_word("עִידּוֹ", frozenset({"עידו"})) == ("עִידּוֹ", ())
     assert norm("עִידּוֹ") == nfc("עִדּוֹ")

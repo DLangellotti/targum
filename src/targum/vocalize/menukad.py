@@ -126,6 +126,12 @@ LOANWORDS = (
     "טיקטוק",
     "ג'וב",
     "פוקוס",
+    # From ling-he's second audit (2026-10-29): a brand, a loan, a city.
+    "אקמול",
+    "בייביסיט",
+    "קייב",
+    "שווארמ",
+    "שוארמ",
 )
 
 #: Loanwords too short to look for inside other words (לגזום is not Zoom): matched as
@@ -170,6 +176,22 @@ NOT_FUTURE = frozenset(
         "אשקלון",
     }
 )
+
+
+#: How a loanword is pointed, put right even though the word is otherwise kept: מייל with a
+#: shva on its first yod reads "mey-yl" (ling-he, audit 2: six lines).
+_LOAN_POINTING = (
+    (re.compile(f"מ({DAGESH}?)[{TSERE}{SEGOL}]י{SHVA}י(?![{P}])"), f"מ\\1{TSERE}יי"),
+    # and any loan's ey written the same way: בֶּיְיבִּיסִיטֶר → בֶּייבִּיסִיטֶר
+    (re.compile(f"([{TSERE}{SEGOL}])י{SHVA}י(?![{P}])"), "\\1יי"),
+)
+
+
+def loan_pointing(word: str) -> str:
+    w = reorder(word)
+    for rx, new in _LOAN_POINTING:
+        w = rx.sub(new, w)
+    return w
 
 
 def kept(word: str, names: frozenset[str] = frozenset()) -> bool:
@@ -250,7 +272,12 @@ RULES: tuple[Rule, ...] = (
     ("final -ay with two yods", _sub(f"([{PATAH}{QAMATS}])יי(?![{P}])(?![{L}])", r"\1י")),
     ("hataf qamats + bare vav", _sub(f"{HATAF_QAMATS}ו(?![{P}])", HATAF_QAMATS)),
     # נִיהוּל → נִהוּל, שִׁיעוּר → שִׁעוּר: a piel noun before a guttural, no dagesh to see.
-    ("hiriq + bare yod before a guttural", _sub(f"{HIRIQ}י(?![{P}])(?=[החע]ו{DAGESH})", HIRIQ)),
+    # Only where the word goes on after the shuruk: a hif'il plural ends there (הִגִּיעוּ,
+    # יַצְלִיחוּ), and its hiriq male is the binyan's, not a mater (ling-he, audit 2: P0).
+    (
+        "hiriq + bare yod before a guttural",
+        _sub(f"{HIRIQ}י(?![{P}])(?=[החע]ו{DAGESH}[{L}])", HIRIQ),
+    ),
     # הַכּוֹל → הַכֹּל: the word itself behind its prefixes, never the end of אֶשְׁכּוֹל.
     (
         "kol",
@@ -363,6 +390,8 @@ _LEXICON_SOURCE: tuple[tuple[str, str], ...] = (
     ("מְדוּזוֹת", "מֵדוּזוֹת"),
     ("מְדוּזָה", "מֵדוּזָה"),
     ("ג'וֹנְיוֹר", "ג'וּנְיוֹר"),
+    # a pi'el whose doubled yod is a geminate: one yod, with its dagesh
+    ("מְעַיְיפ", "מְעַיְּפ"),
     # holam haser that no rule reaches once a holam is back on its vav
     ("יוֹפִי", "יֹפִי"),
     ("מְטוֹרָף", "מְטֹרָף"),
@@ -413,7 +442,12 @@ class Change:
 
 def normalise_word(word: str, names: frozenset[str] = frozenset()) -> tuple[str, tuple[str, ...]]:
     """The word in standard ktiv menukad, and the rules that changed it (none: as it was)."""
-    if not _MARK.search(word) or kept(word, names):
+    if not _MARK.search(word):
+        return word, ()
+    if kept(word, names):
+        loaned = unicodedata.normalize("NFC", loan_pointing(word))
+        if loaned != unicodedata.normalize("NFC", word):
+            return loaned, ("loanword pointing",)
         return word, ()
     w = reorder(word)
     fired: list[str] = []
@@ -511,6 +545,9 @@ def residue(
                 out.append(("lost vav", new))
     for match in _WORD.finditer(text):
         word = match.group(0)
+        if _MARK.search(word) and kept(word, keep) and reorder(word) != loan_pointing(word):
+            out.append(("loanword pointing", word))
+            continue
         if not _MARK.search(word) or kept(word, keep) or "'" in word or "׳" in word:
             continue
         w = reorder(word)
