@@ -12,6 +12,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- `test_the_bar_takes_the_keyboard_and_turns_no_page` no longer fails about one run in
+  five (targum-internal#573). The bar always kept its keys. The page it saw turn was
+  the voice's: `End` plays the recording out, and the voice turns to the last line's
+  page on its way out whenever its tick lands before `Home`. The test now asks the
+  page's own keyboard whether any key reached it (`End`, `Home` and both arrows), and
+  accepts the first page or the one the voice left it on. 20 runs pass out of 20 (master
+  failed 4 of 20). With the bar's `stopPropagation` taken out, it fails at once.
 - A video whose transcript came from its subtitle file no longer bounces, and no longer
   lights the wrong word (David, 2026-10-29, on the Touring Israel interview). A subtitle
   cue runs across sentences, so neighbouring lines' spans overlap (39 of 48 in that
