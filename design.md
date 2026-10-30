@@ -399,14 +399,14 @@ line of "Your level, v3" (2026-10-29), "No visible heading", and nothing else in
 ### How much Hebrew you understand is measured on a fixed yardstick — 2026-10-30
 
 David, 2026-10-30 (targum-internal#575). Mockup:
-https://claude.ai/artifact/5AnMG45gazXFYkGP26XykC. Decided, not built. It waits on the
-word lists' licence check (ling-he, `yardstick-sources-2026-10-30.md`). When it is built
+https://claude.ai/artifact/5AnMG45gazXFYkGP26XykC. Decided, not built. The sources
+below follow ling-he's licence report (`yardstick-sources-2026-10-30.md`). When it is built
 it replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Progress.
 **It is a new metric**, not a new drawing of the old one.
 
 - **The card is "How much Hebrew you understand"**, with the subtitle "Words you know in
   [picker ▾]". The picker offers four yardsticks: everyday conversation, a news article,
-  literature and the Bible. Each option shows its own percentage, and the card draws one
+  classic literature and the Bible. Each option shows its own percentage, and the card draws one
   line at a time.
 - **News is the default for everyone.** Nothing about the reader picks a yardstick for
   them.
@@ -425,8 +425,17 @@ it replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your P
 - **Exact percentages**, under "How much of a text you know is an exact percentage"
   (2026-10-29) and with its functions (`level.known_percent`, `level.page_share`). Under
   100% never shows as 100%, and above 0% never shows as 0%.
-- **No word list ships until its licence is checked.** A register with no usable list
-  is not offered.
+- **We count every yardstick ourselves** with the DICTA lemmatizer, never from a
+  ready-made spelling list (David, same day, on ling-he's licence report). Conversation
+  is OPUS OpenSubtitles v2024 Hebrew, cited. News is our own news feeds, the ones
+  `search_sources` reads, with only the counts stored and never an article's text.
+  Classic literature is Project Ben-Yehuda's public-domain dump. The Bible is our own
+  count from OSHB, written out by `scripts/count_tanakh.py`, and that must not rename the
+  annotator.
+- **Function words and names are left out** of the weighting.
+- **The yardsticks keep up.** As shared library texts and news-feed texts are imported,
+  their counts are added. A reader's private import is never counted until David decides
+  otherwise ("private imports never train").
 
 What it keeps: every figure is a real count over a stated list (§6), nothing on it
 spends, and "never a level and never a score" holds. A share of a fixed list's words is
