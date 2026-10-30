@@ -46,15 +46,15 @@
     <p class="note ledger-note" id="learned-note">{{ t("progress.count.learned.note", "“Learned on targum” counts the words you marked here as anything other than known and have since marked known.") }}</p>
   </section>
 
-  {#- Your level (design.md §12, "Your level, v3", 2026-10-29). No visible heading: a hidden
-      h2 names the part. The card is the level and nothing else: the ulpan letter alone
+  {#- Your level (design.md §12, "Your level, v3", 2026-10-29). The card's own heading,
+      "Reading level", names the part (§12, "The level card says Reading level",
+      2026-10-30). The card is the level and nothing else: the ulpan letter alone
       with its geresh, "About B2" beside it, a bar toward the next rung with the exact
       words to it, and the one press. The texts' own levels, A1 to Past C2, each row the
       texts at it you can read now or the words to go. And under the card, what you knew
       of what you read by Day, Week or Month. At a desk, two even columns: the card and
       the chart on the left, the ladder on the right. -#}
   <section class="story level" id="where" aria-labelledby="where-section">
-    <h2 class="visually-hidden" id="where-section">{{ t("progress.level.title", "Your level") }}</h2>
     {#- Until the account answers, one quiet line, and on a failure Try again: an empty
         card said nothing, and What next said "None yet" to a reader with a record
         (targum-internal#471, B2). -#}
@@ -63,6 +63,9 @@
       <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button></p>
     <div class="level-grid" id="level-grid" hidden>
       <div class="card level-lead">
+        {#- Visible, as the ladder's and the chart's heads are, and the one heading: the
+            hidden h2 it replaces is gone (§12, "The level card says Reading level"). -#}
+        <h2 class="level-title" id="where-section">{{ t("progress.level.title", "Reading level") }}</h2>
         {#- The letter leads, at the page title's step, in ink; its name is said before
             it and the glyph itself is hidden from a screen reader (design P0-6). The bar
             is not spoken (§12, "See all keeps one level, and the bar is not spoken"):
