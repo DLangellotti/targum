@@ -4846,14 +4846,17 @@ def tables_sweep(
     """
     from time import monotonic
 
-    from .tables import sweep
+    from .tables import no_models, sweep
 
     store = _tables_store()
     root = library or Path.cwd() / "targum-out"
     if not root.is_dir():
         fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
     started = monotonic()
-    result = sweep(root, store)
+    # The box runs this nightly beside the service's DICTA (targum-internal#587): it must
+    # never load a second model, whatever the fold comes to import.
+    with no_models():
+        result = sweep(root, store)
     took = monotonic() - started
     console.print(
         f"[green]Counted[/green] {result.folded} texts, {result.unchanged} unchanged,"
@@ -4864,25 +4867,122 @@ def tables_sweep(
         console.print(f"  {register}: {texts}")
 
 
+#: The box's corpus ledger, where `targum tables push` imports the laptop's rows.
+BOX_LEDGER = "/var/lib/targum/corpus.db"
+
+
+@tables_app.command("export")
+def tables_export(
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write here. Default: standard output.")
+    ] = None,
+    origin: Annotated[str, typer.Option("--origin", help="Whose rows: laptop or box.")] = "laptop",
+) -> None:
+    """Write the language tables' rows one machine made as JSON lines
+    (targum-internal#587): what `targum tables push` carries to the box.
+
+    Lemmas and counts only: no sentence and no reader is in any row.
+    """
+    store = _tables_store()
+    lines = store.export(origin)
+    if out is None:
+        for line in lines:
+            sys.stdout.write(line + "\n")
+        return
+    written = 0
+    with out.open("w", encoding="utf-8") as handle:
+        for line in lines:
+            handle.write(line + "\n")
+            written += 1
+    console.print(f"[green]Wrote[/green] {written} contributions to {out}")
+
+
+@tables_app.command("import")
+def tables_import(
+    file: Annotated[Path, typer.Argument(help="JSON lines from `tables export`, or - for stdin.")],
+    ledger: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="The corpus ledger to import into. Default: TARGUM_LEDGER"),
+    ] = None,
+) -> None:
+    """Take the laptop's language-table rows into this machine's ledger
+    (targum-internal#587).
+
+    Run twice, it changes nothing: a row already here is left as it is. On the box, run
+    it as targum, never as root: a root-owned ledger fails every write after it.
+    """
+    from .tables import Store, no_models
+
+    store = Store(ledger) if ledger is not None else _tables_store()
+    with no_models():
+        if str(file) == "-":
+            result = store.import_rows(sys.stdin)
+        else:
+            if not file.is_file():
+                fail(TargumError(f"There is no file at {file}."))
+            with file.open(encoding="utf-8") as handle:
+                result = store.import_rows(handle)
+    console.print(
+        f"[green]Imported[/green] {result.added} contributions, {result.history} as history,"
+        f" {result.unchanged} already here, {result.refused} refused [dim]{store.file}[/dim]"
+    )
+    if result.refused:
+        raise typer.Exit(1)
+
+
+@tables_app.command("push")
+def tables_push(
+    host: Annotated[
+        str, typer.Option("--host", envvar="TARGUM_HOST", help="Where the box is.")
+    ] = "root@targum.page",
+) -> None:
+    """Carry the laptop's language-table rows to the box (targum-internal#587).
+
+    Exports every row this laptop wrote and imports it there over SSH as the targum user,
+    never as root. Safe to run again: the box keeps what it already holds.
+    """
+    import tempfile
+
+    store = _tables_store()
+    if store.origin() != "laptop":
+        fail(TargumError("This ledger is the box's own.", "Run push from the laptop."))
+    remote = f"sudo -u targum /usr/local/bin/targum tables import --ledger {BOX_LEDGER} -"
+    with tempfile.TemporaryFile("w+", encoding="utf-8") as handle:
+        written = 0
+        for line in store.export("laptop"):
+            handle.write(line + "\n")
+            written += 1
+        if not written:
+            console.print("Nothing to push: this laptop has written no rows.")
+            return
+        handle.seek(0)
+        done = subprocess.run(["ssh", "-C", host, remote], stdin=handle, check=False)
+    if done.returncode != 0:
+        fail(TargumError(f"The import on {host} failed ({done.returncode}).", "See above."))
+    console.print(f"[green]Pushed[/green] {written} contributions to {host}")
+
+
 @tables_app.command("top")
 def tables_top(
     register: Annotated[str, typer.Option("--register", help="news, bible, literature…")],
     phrases: Annotated[
         bool, typer.Option("--phrases", help="Runs of two and three lemmas, not words.")
     ] = False,
+    roots: Annotated[bool, typer.Option("--roots", help="Verb roots, not words.")] = False,
     raw: Annotated[
         bool, typer.Option("--raw", help="Keep function words, names and numbers.")
     ] = False,
     limit: Annotated[int, typer.Option("--limit", help="How many rows.")] = 50,
 ) -> None:
-    """The commonest words, or phrases, in one register now (targum-internal#577).
+    """The commonest words, phrases or verb roots in one register now
+    (targum-internal#577).
 
     Function words, names and numbers are counted but left out here unless --raw.
     """
-    from .tables.words import PHRASES, WORDS
+    from .tables.words import PHRASES, ROOTS, WORDS
 
     store = _tables_store()
-    table = PHRASES if phrases else WORDS
+    table = ROOTS if roots else PHRASES if phrases else WORDS
     rows = store.top(table, register, limit=limit, weighed=not raw)
     if not rows:
         known = ", ".join(store.registers(table)) or "none yet"

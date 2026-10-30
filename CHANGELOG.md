@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A Hebrew verb's root on the word card is right more often and there more often
+  (targum-internal#589, David's decisions of 2026-10-30). About 75 roots measured wrong
+  against Wiktionary (used to find them, never shipped) are no longer drawn: a
+  three-letter lemma that is not a qal given itself as its root (הקל, הכה), an adjective
+  spelled like a nif'al with its own נ stripped (נזיר), a root starting with ו. A verb the
+  annotator gave no root takes one from the CC0 paradigm table where every verb the table
+  finds agrees. On the laptop's 212 modern texts, verb tokens with a root go from 63.6% to
+  81.6%, and 99.7% of the checkable ones agree with Wiktionary. "From the same root" and
+  "N words from this root met" follow, and a vetoed root has no family. All of it is at
+  page-build and table time: no annotator rename, no `SCHEMA_VERSION` bump, no model run.
+  The language tables gain `roots` beside `words`, by register, fed by the same fold and
+  `public_text` guard (`targum tables top --roots`).
 - A Russian verb's card names only its true aspect partner (David, 2026-10-30). For the
   300 commonest verbs in the built Russian texts, targum's own reviewed list answers
   before OpenRussian: видеть is увидеть's partner and not завидеть's, and знать, стоять,
@@ -34,6 +46,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   page's own keyboard whether any key reached it (`End`, `Home` and both arrows), and
   accepts the first page or the one the voice left it on. 20 runs pass out of 20 (master
   failed 4 of 20). With the bar's `stopPropagation` taken out, it fails at once.
+- Home and its Subscriptions tab stop waiting on the account before the shelf
+  (targum-internal#555). Home asked for `/readers` only after `/account/me` and the
+  push of anything owed had answered, so a reader back from a text, who always owes a
+  place, waited one or two round trips more on a phone. Now only words owed hold the shelf
+  back, because they are the one thing its figures are measured against. The shelf, the
+  builds, the places and the new items are asked from the page's head. Subscriptions is
+  shown on its own answer wherever the arrival cannot apply. The pages look the same.
 - A video whose transcript came from its subtitle file no longer bounces, and no longer
   lights the wrong word (David, 2026-10-29, on the Touring Israel interview). A subtitle
   cue runs across sentences, so neighbouring lines' spans overlap (39 of 48 in that
@@ -105,6 +124,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   shows as 100% and one above none never shows as 0%. The Tanakh map's sum says "90% of
   the words or more" in place of "nine words in ten". `level.words_in_ten` is
   `level.known_line` now. Your Progress's monthly line went exact with targum-internal#561.
+- The signed-out Library loads its files once too (targum-internal#558). `/library` and its
+  kind pages were left off #549's list and still carried 65 kB of faces and 119 kB of CSS
+  inline on every visit. They now work like the other public pages: whole on a first visit,
+  named by address once kept, warming the same public set. Measured locally on the phone
+  profile: a first visit's LCP from 1.02 s to 0.76 s (Russian 1.14 to 0.72), a second
+  visit from 0.96 s and 83 kB to 0.64 s and 21 kB. Screenshots are identical at 390 and
+  1440 in both languages once the faces are on.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under
@@ -526,6 +552,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no current count, running no annotator and spending nothing. `targum tables top
   --register R [--phrases] [--raw]` prints the commonest rows, leaving out the
   `weights.EXCLUDED` classes, names and numbers unless `--raw` is passed.
+- The language tables keep growing on the box by themselves (targum-internal#587, David
+  approved 2026-10-30). `deploy/targum-tables.timer` runs `targum tables sweep --library
+  /var/lib/targum/targums` at 02:30 UTC, before the 04:00 backup, as targum and never as
+  root, with `TARGUM_LEDGER` from `targum.env`. It runs at idle CPU and disk priority
+  under a memory cap of its own (`MemoryHigh=600M`, `MemoryMax=1G`, no swap), so it can
+  never push the service out of memory, and logs to the journal. Every deploy installs and
+  enables it. The sweep reads `annotation.json` files and never ran a model; it now
+  refuses to import one too (`tables.no_models`: torch, transformers, stanza, onnxruntime
+  and the rest), so no later change to the fold can start a second DICTA beside the
+  service's. The laptop's rows reach the box with `targum tables push`, which writes them
+  with `targum tables export` and imports them over SSH as `sudo -u targum targum tables
+  import`. The import is idempotent: a contribution id is a content hash, a row already
+  there is left alone, and the newer of two counts for one text wins while the other stays
+  as history. It refuses rows the box wrote, malformed lines, and any unit the box's ledger
+  holds as private. `deploy/RESTORE.md` now says what `corpus.db` holds that no cache does.
 - `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
   (targum-internal#507 part 2): a read-only query for every Tanakh copy on the box whose
   verses carry no refs, then `targum refs`, a marked annotator name and `rebuild --words`,

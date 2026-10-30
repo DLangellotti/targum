@@ -19,26 +19,32 @@ from targum import ledger, tables
 from targum.cli import app
 from targum.tables import registers, weights
 from targum.tables.store import Store
-from targum.tables.words import PHRASES, WORDS, count
+from targum.tables.words import PHRASES, ROOTS, TABLES, WORDS, count
 
 H = {name: name * 64 for name in "abcdef"}
 
 
-def _token(lemma: str, pos: str, entity: str | None = None) -> dict[str, Any]:
+def _token(
+    lemma: str, pos: str, entity: str | None = None, root: str | None = None
+) -> dict[str, Any]:
     token: dict[str, Any] = {"start": 0, "end": 1, "surface": lemma, "lemma": lemma, "band": 1}
     token["pos"] = pos
     if entity is not None:
         token["entity"] = entity
+    if root is not None:
+        token["root"] = root
+        token["binyan"] = "b1"
     return token
 
 
-#: Two segments: "w1 of w2 w3" and "name and w1". Lemmas only, no text.
+#: Two segments: "w1 of w2 w3" and "name and w1". Lemmas only, no text; the verb's root
+#: is a placeholder too.
 TOKENS = {
     "s0": [
         _token("w1", "NOUN"),
         _token("f1", "ADP"),
         _token("w2", "NOUN"),
-        _token("w3", "VERB"),
+        _token("w3", "VERB", root="r3"),
     ],
     "s1": [
         _token("n1", "PROPN", "B-PER"),
@@ -107,10 +113,28 @@ def test_a_home_writes_nothing_and_the_shelf_writes_rows(book: Path, library: Pa
     assert text is not None
 
     store = Store(book)
-    assert tables.fold(text, _annotation(H["b"]), store) == 2
+    assert tables.fold(text, _annotation(H["b"]), store) == len(TABLES)
     assert store.total(WORDS) == WORD_COUNT
     with sqlite3.connect(book) as db:
         units = {row[0] for row in db.execute("SELECT unit FROM contribution")}
+    assert units == {H["b"]}
+
+
+def test_a_private_text_writes_no_root_rows(book: Path, library: Path) -> None:
+    store = Store(book)
+    _built(library / "p1" / "x", H["a"])
+    _built(library / "local" / "x", H["c"])
+    assert tables.sweep(library, store).private == 2
+    assert store.total(ROOTS) == 0
+    assert _rows(book, "tally") == 0
+
+    # The same annotation on the shelf counts its verb's root, under the root's own rule.
+    text = tables.public_text(_built(library / "shared" / "y", H["b"]), library)
+    assert text is not None
+    assert tables.fold(text, _annotation(H["b"]), store) == len(TABLES)
+    assert store.top(ROOTS, registers.UNFILED) == [("r3", 1)]
+    with sqlite3.connect(book) as db:
+        units = {row[0] for row in db.execute("SELECT unit FROM contribution WHERE tbl = 'roots'")}
     assert units == {H["b"]}
 
 
@@ -173,10 +197,10 @@ def test_a_new_annotator_name_supersedes_rather_than_doubles(book: Path, library
     text = tables.public_text(_built(library / "shared" / "y", H["b"]), library)
     assert text is not None
 
-    assert tables.fold(text, _annotation(H["b"], "dicta/test/1"), store) == 2
+    assert tables.fold(text, _annotation(H["b"], "dicta/test/1"), store) == len(TABLES)
     assert tables.fold(text, _annotation(H["b"], "dicta/test/1"), store) == 0
-    assert _rows(book, "contribution") == 2
-    assert tables.fold(text, _annotation(H["b"], "dicta/test/2"), store) == 2
+    assert _rows(book, "contribution") == len(TABLES)
+    assert tables.fold(text, _annotation(H["b"], "dicta/test/2"), store) == len(TABLES)
 
     assert store.total(WORDS) == WORD_COUNT
     with sqlite3.connect(book) as db:
@@ -188,9 +212,9 @@ def test_a_new_annotator_name_supersedes_rather_than_doubles(book: Path, library
     assert sorted(held) == [("dicta/test/1", 0), ("dicta/test/2", 1)]
 
     # Renamed back, the first is current again, and still nothing doubles.
-    assert tables.fold(text, _annotation(H["b"], "dicta/test/1"), store) == 2
+    assert tables.fold(text, _annotation(H["b"], "dicta/test/1"), store) == len(TABLES)
     assert store.total(WORDS) == WORD_COUNT
-    assert _rows(book, "contribution") == 4
+    assert _rows(book, "contribution") == 2 * len(TABLES)
 
 
 def test_the_sweep_sees_a_rename_on_disk(book: Path, library: Path) -> None:

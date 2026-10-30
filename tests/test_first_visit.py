@@ -371,6 +371,7 @@ def test_a_public_page_warms_only_what_the_public_pages_use(language: str) -> No
     for html in (
         builder.front_page(language, "https://targum.page"),
         builder.about_page(language, "https://targum.page"),
+        builder.shelf_page("https://targum.page", language),
     ):
         files, kept = _warmed(first_visit(html))
         assert set(files) == set(builder.public_files(language)), files

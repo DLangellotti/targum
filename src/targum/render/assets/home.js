@@ -43,11 +43,19 @@
     if (key) head["X-Targum-Key"] = key;
     return head;
   }
+  /* What the page's head already asked for, by address, each taken once
+     (`home-early.js`, targum-internal#555). */
+  var askedEarly = window.TARGUM_HOME_ASKED || {};
   function ask(path) {
-    return (path === "/account/me" ? meOnce : fetch)(keyed(path), {
-      credentials: "same-origin",
-      headers: keyHeaders({ "Content-Type": "application/json" }),
-    }).then(function (response) {
+    var early = askedEarly[path];
+    delete askedEarly[path];
+    var sent =
+      early ||
+      (path === "/account/me" ? meOnce : fetch)(keyed(path), {
+        credentials: "same-origin",
+        headers: keyHeaders({ "Content-Type": "application/json" }),
+      });
+    return sent.then(function (response) {
       if (!response.ok) throw new Error(String(response.status));
       return response.json();
     });
@@ -957,6 +965,23 @@
     });
   }
 
+  /* Whether the arrival may still be asked, on what this browser alone says: false once
+     it has said no, as `arriving` would. True where only the account or the shelf could
+     say (targum-internal#555): a page that waits on them before showing must still wait. */
+  function mayArrive() {
+    try {
+      if (window.sessionStorage.getItem(ARRIVAL_OVER)) return false;
+    } catch (e) {
+      return false;
+    }
+    try {
+      if (localStorage.getItem("targum:arrived") || localStorage.getItem("targum:welcomed")) return false;
+    } catch (e) {
+      /* no store: the account decides */
+    }
+    return !Object.keys(stored("targum:opened")).length;
+  }
+
   /* --- putting it together ------------------------------------------------------------------ */
 
   var me = ask("/account/me").catch(function () {
@@ -1110,6 +1135,7 @@
 
   window.TargumHome = {
     draw: draw,
+    mayArrive: mayArrive,
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
     next: nextUnfinished,

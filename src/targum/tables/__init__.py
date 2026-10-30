@@ -2,27 +2,43 @@
 language, left behind by everything targum builds, kept in the corpus ledger and never
 published.
 
-Slice 1 is the store (`store`), the fold for `words` and `phrases` (`words`), the sweep
-over the texts already built, and the guard: `public_text` is the only way into a fold,
+Slice 1 is the store (`store`), the fold for `words` and `phrases` (`words`) and, by
+the same fold, `roots` (`roots`, sublexical slice 1), the sweep over the texts already
+built, and the guard: `public_text` is the only way into a fold,
 and it fails closed on anything a reader imported. No page shows a table, no export
 carries one, and no row names a reader or holds a sentence.
 """
 
 from __future__ import annotations
 
+import importlib.abc
+import importlib.machinery
 import json
 import logging
 import re
+import sys
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
 from .registers import register_of
-from .store import Store
+from .store import ImportResult, Store
 from .words import TABLES, contribution_for, fold
 
-__all__ = ["PublicText", "Store", "SweepResult", "fold", "public_text", "register_of", "sweep"]
+__all__ = [
+    "ImportResult",
+    "PublicText",
+    "Store",
+    "SweepResult",
+    "fold",
+    "no_models",
+    "public_text",
+    "register_of",
+    "sweep",
+]
 
 log = logging.getLogger(__name__)
 
@@ -161,3 +177,38 @@ def sweep(library: Path, store: Store) -> SweepResult:
         else:
             result.unchanged += 1
     return result
+
+
+#: The packages that load a model. A sweep or an import reads files and writes rows; on
+#: the box it runs beside the service's own DICTA, and a second copy of a model is what
+#: killed the service before (memory: box OOM was DICTA batching).
+MODEL_PACKAGES = frozenset(
+    {"onnxruntime", "sentence_transformers", "stanza", "tokenizers", "torch", "transformers"}
+)
+
+
+class _NoModels(importlib.abc.MetaPathFinder):
+    def find_spec(
+        self, fullname: str, path: Sequence[str] | None, target: object = None
+    ) -> importlib.machinery.ModuleSpec | None:
+        if fullname.split(".")[0] in MODEL_PACKAGES:
+            raise ImportError(
+                f"tables: {fullname} loads a model, and a sweep never runs one"
+                " (targum-internal#587)"
+            )
+        return None
+
+
+@contextmanager
+def no_models() -> Iterator[None]:
+    """Refuse to import any of `MODEL_PACKAGES` while inside: the nightly sweep reads
+    `annotation.json` files the pipeline already wrote and must never start an annotator,
+    whatever a later change to the fold reaches for. A module already imported is not
+    unloaded, so this guards a fresh process, which is what the timer starts.
+    """
+    finder = _NoModels()
+    sys.meta_path.insert(0, finder)
+    try:
+        yield
+    finally:
+        sys.meta_path.remove(finder)

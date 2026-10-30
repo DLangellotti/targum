@@ -208,7 +208,8 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
   deploy/targum-visits.service deploy/targum-visits.timer \
   deploy/targum-weekly-watch.service deploy/targum-weekly-watch.timer \
   deploy/targum-subscriptions.service deploy/targum-subscriptions.timer \
-  deploy/targum-subscriptions-mail.service deploy/targum-subscriptions-mail.timer "$HOST:/tmp/targum-units/"
+  deploy/targum-subscriptions-mail.service deploy/targum-subscriptions-mail.timer \
+  deploy/targum-tables.service deploy/targum-tables.timer "$HOST:/tmp/targum-units/"
 # The library's cover pictures, drawn on this machine by `targum thumbs` and served from
 # beside the shelf. Content, like the catalogue, and nothing carried them: they went over
 # by hand on 2026-10-08. Read from the main checkout's targum-out by default, so a deploy
@@ -491,12 +492,14 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # each live subscription's source put out; the server gets a channel's or a podcast's
   # new item ready inside its cap. With no subscriptions it looks at nothing. And once a
   # day, the one mail with everything new.
-  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer; do
+  # And the language tables' nightly sweep (targum-internal#587): it counts the public
+  # texts nobody has counted yet into corpus.db, runs no model and spends nothing.
+  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer targum-tables.service targum-tables.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done
   rm -rf /tmp/targum-units
   systemctl daemon-reload
-  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer targum-subscriptions.timer targum-subscriptions-mail.timer
+  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer targum-subscriptions.timer targum-subscriptions-mail.timer targum-tables.timer
   rm -f /etc/cron.d/targum-backup
   # The two tools the off-box copy needs: age seals a copy to a public key, rclone carries
   # it. Installed when missing and never fatal here, because the backup names whichever is

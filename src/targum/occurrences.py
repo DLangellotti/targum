@@ -69,8 +69,9 @@ if TYPE_CHECKING:
 OCCURRENCES = "occurrences.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is then rebuilt,
-#: which is free — it is read off the annotation, not off a model. 2 added the roots.
-VERSION = 2
+#: which is free — it is read off the annotation, not off a model. 2 added the roots; 3
+#: drew them as the page does (`annotate.verb_roots`), so the card and the count agree.
+VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -174,6 +175,7 @@ def count_text(folder: Path) -> Occurrences | None:
     claim from a text with no words.
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
+    from .annotate.verb_roots import root_for
     from .ingest import post as post_module
     from .models import SegmentedDocument, read_artifact
 
@@ -198,6 +200,7 @@ def count_text(folder: Path) -> Occurrences | None:
             continue
         spans = unwordly.get(segment.id)
         key = (section_of.get(segment.id, 1), segment.ref or "")
+        language = segment.language_in(segmented.language)
         for token in found:
             lemma = str(token.get("lemma") or "")
             if lemma in NOT_A_WORD or not_vocabulary(token.get("pos"), token.get("entity")):
@@ -209,8 +212,10 @@ def count_text(folder: Path) -> Occurrences | None:
             at = place_at.setdefault(key, len(place_at))
             row = tally.setdefault(lemma, {})
             row[at] = row.get(at, 0) + 1
-            if token.get("root") and lemma not in roots:
-                roots[lemma] = str(token["root"])
+            if lemma not in roots and (
+                found_root := root_for(lemma, token.get("root"), token.get("pos"), language)
+            ):
+                roots[lemma] = found_root
     # Drop the parsed annotation before building the answer: Jeremiah's is 10 MB on disk
     # and several times that as objects, and it is the one large thing here.
     del tokens

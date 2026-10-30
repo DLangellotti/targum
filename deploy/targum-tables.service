@@ -1,0 +1,53 @@
+# /etc/systemd/system/targum-tables.service — installed by deploy.sh, started by
+# targum-tables.timer at 02:30 UTC (targum-internal#587, David approved 2026-10-30).
+#
+# The language tables' nightly sweep: counts the words, phrases and verb roots of every
+# public text on the shelf whose annotation has no current count yet, into the corpus
+# ledger (TARGUM_LEDGER, from targum.env). It catches what the laptop built and shipped,
+# since a shipped folder never ran the box's pipeline. It reads the annotation.json files
+# already written and runs no annotator: `tables sweep` refuses to import a model package
+# at all (`tables.no_models`), so it can never load a second DICTA beside the service's.
+# A reader's home is skipped, whatever it holds. Nothing is fetched and nothing is spent.
+# Run again, it counts only what is new, so a missed night costs nothing.
+#
+# Before the backup at 04:00, so the night's rows are in the night's copy of corpus.db.
+# `tables snapshot` follows it here once slice 3 builds it.
+#
+#   systemctl start targum-tables      # one now, by hand
+#   journalctl -u targum-tables -n 20
+
+[Unit]
+Description=targum language tables sweep
+# The ledger is a file the service writes too; SQLite's lock keeps the two apart.
+After=targum.service
+
+[Service]
+Type=oneshot
+# As targum, never as root: a root-owned corpus.db, or a root-owned __pycache__ in the
+# tool's tree, breaks the service's writes and the next deploy.
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum tables sweep --library /var/lib/targum/targums
+# Out of the way of readers: a count can wait, a page cannot.
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+# A cap of its own, so a sweep that grows is killed inside its own cgroup and never
+# pushes the service out of memory. The largest annotation on the laptop (42 MB) folds
+# in under 300 MB; MemoryHigh throttles well before the hard cap, and no swap, so it
+# cannot crowd the service's pages out to disk either.
+MemoryHigh=600M
+MemoryMax=1G
+MemorySwapMax=0
+OOMPolicy=kill
+TimeoutStartSec=2h
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum
+# It talks to nothing.
+PrivateNetwork=true

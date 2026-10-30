@@ -38,6 +38,14 @@ And since targum-internal#162's backup step, a third:
   It moves the old file aside and clears its `-wal`/`-shm`. Run as root by mistake, it
   gives the restored file to the folder's owner.
 
+  Since the language tables (targum-internal#577, #587) it also holds what no cache
+  holds and no rebuild brings back: the counts of the external backfills (corpora counted
+  on the laptop and then deleted), the laptop's rows pushed with `targum tables push`,
+  and, once it is built, the pooled difficulty. The box's own counts can be swept again
+  (`targum-tables.timer` does it nightly, and the first night after a restore counts
+  whatever the copy lacks), but those cannot, so the nightly corpus snapshot is the only
+  copy of them and matters as much as the database's.
+
 It does **not** copy language models, and that is not an oversight: they are downloads.
 A restored box fetches them again with `targum models fetch scripture`, which also
 brings STEP Bible's brief Tanakh glosses (`tbesh.json`; without it the cards fall back to

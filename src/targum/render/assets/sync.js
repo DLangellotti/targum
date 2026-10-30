@@ -1143,6 +1143,17 @@
       );
     },
 
+    /* Of those, the words alone: the one thing the shelf's figures are measured against
+       (`Store.marked`), so the one thing home waits to push before it asks for the shelf
+       (targum-internal#555). A place, a day or an opened text owed changes no figure on it,
+       and waiting on them cost every reader back from a text a round trip or two. */
+    owedWords: function () {
+      var was = state();
+      if (!was.email) return 0;
+      var since = Number(was.pushed || 0);
+      return localWords(since).length + tombstones(since).words.length;
+    },
+
     /* Everything owed, now: what the connection coming back asks for. A page that was
        opened with no connection never heard who is signed in, so it asks first, and
        the first exchange after that sends whatever was kept meanwhile. Resolves once
