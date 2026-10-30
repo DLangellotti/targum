@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- Your Progress's level card has a visible heading, "Reading level" (David, 2026-10-30;
+  targum-internal#574). It is the card's own h2, set as "Texts by level" and "Words you
+  knew" are beside it, and the visually hidden "Your level" h2 is gone, so the part still
+  has one heading. The Russian, «Уровень чтения», is ling-ru's draft and waits for
+  David's read. design.md §12 also records the next card, #575: "How much Hebrew you
+  understand", measured on a fixed yardstick.
 - `test_the_bar_takes_the_keyboard_and_turns_no_page` no longer fails about one run in
   five (targum-internal#573). The bar always kept its keys. The page it saw turn was
   the voice's: `End` plays the recording out, and the voice turns to the last line's
