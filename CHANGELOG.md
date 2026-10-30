@@ -12,6 +12,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A Hebrew verb's root is denied where no Hebrew has it, and kept where the first list
+  was wrong to deny it (ling-he's review of targum-internal#589, 2026-10-30;
+  `verb_roots.VERSION` 2). Five entries come off the deny list because their roots are
+  right: נצב, חוב, הגיח, שורה, המרה (נצב alone is 103 tokens). The CC0 table's
+  hof'als filed as pu'als with the binyan's ה read as a radical (הושג under השג) and its
+  three פ"י hif'ils filed under נ (הציע under נצע) are denied for every lemma, 29
+  strings; הגר, הדק, הדר, הון and הסה stay, because they are roots. Nine lemma entries
+  join: השתנה, נשתנה and משתנה under שתן, התיש and מתיש under נתש, דן under דון, עט under
+  עטט, אלה (mostly a mis-lemmatised הללו) and נרגן. A four-letter root with a ו or a י,
+  or ending in ה or ת, is a word handed back as its own root (קראה, גדול) and is denied;
+  a real quadriliteral (פרסם, תכנן) has neither. A root on ו is kept only for ותר, ודא and
+  וסת, in any form, so the present מוותר keeps it and a wayyiqtol וילך does not. On the
+  laptop's 469 Hebrew texts, verb tokens with a root go from 83.3% to 83.2%: wrong roots
+  become gaps.
 - A Hebrew verb's root on the word card is right more often and there more often
   (targum-internal#589, David's decisions of 2026-10-30). About 75 roots measured wrong
   against Wiktionary (used to find them, never shipped) are no longer drawn: a
