@@ -1,19 +1,22 @@
 """The bible register's backfill (targum-internal#578): the Tanakh's counts, which
 `scripts/count_tanakh.py` used to work out and throw away, kept as contributions.
 
-Both keyings go in, each under its own table so the bible register's `words` total is
-one count of the book and not two:
+Both keyings go in, each under a table of its own, and neither under `words`. The bible
+register's `words` rows are already the whole Tanakh: the sweep folded the shelf's 39
+books under the annotator a reader's taps on them are filed by (the Open Scriptures
+lookup, DICTA where it could not line a verse up). A third count of the same book in
+`words` would double the register, so these sit beside it:
 
-- **`words`**, the DICTA lemmas, read from the per-book cache `count_tanakh.py` already
-  keeps. These are the reader's own word identity, the key every other register's
-  `words` rows are filed under, and so the keying a yardstick reads. The cache holds a
-  lemma and a count and nothing else, so the variant is empty: no part of speech was
-  kept, and none is guessed here.
+- **`lemmas`**, the DICTA lemmas, read from the per-book cache `count_tanakh.py` already
+  keeps: the key a word met in a modern text is filed under, and so the keying a reader's
+  modern vocabulary is measured against the Bible in. The cache holds a lemma and a count
+  and nothing else, so the variant is empty: no part of speech was kept, and none is
+  guessed here.
 - **`lexemes`**, the Open Scriptures headwords, through `scripture.headword_of`, the
   function the lookup files a word by. The variant is a Universal POS worked out from the
-  tagging's own code, which people made, so it is the better answer where it exists.
+  tagging's own code, which people made.
 
-The Aramaic chapters (`ARAMAIC_VERSES`) are counted under the variant `ARAMAIC`, so the
+The Aramaic chapters (`_ARAMAIC_RANGES`) are counted under the variant `ARAMAIC`, so the
 yardstick can leave them out and the totals still add up to the whole book. The DICTA
 cache holds a book and not its verses, so its Aramaic share is the Aramaic verses read
 once more on their own (`count_tanakh.py` caches it beside the books); what that read
@@ -40,11 +43,11 @@ if TYPE_CHECKING:
 SOURCE = "oshb-wlc"
 LICENCE = "CC BY 4.0 (morphology); WLC public domain"
 
-#: DICTA's lemmas go in `words`, beside every other register's.
-WORDS = "words"
-#: The Open Scriptures headwords, a table of their own so no total counts the book twice.
+#: DICTA's lemmas over the whole book, beside the sweep's `words` and never added to it.
+LEMMAS = "lemmas"
+#: The Open Scriptures headwords over the whole book.
 LEXEMES = "lexemes"
-TABLES = (WORDS, LEXEMES)
+TABLES = (LEMMAS, LEXEMES)
 
 #: The variant an Aramaic word is counted under, whichever keying counted it.
 ARAMAIC = "arc"

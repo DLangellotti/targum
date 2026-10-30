@@ -116,23 +116,24 @@ def test_counts_writes_both_keyings_and_leaves_the_table_alone(tanakh: dict[str,
 
     store = Store(tanakh["ledger"])
     books = len(oshb.BOOKS)
-    assert store.total(bible.WORDS, "bible") == 3 * books
+    assert store.total(bible.LEMMAS, "bible") == 3 * books
     assert store.total(bible.LEXEMES, "bible") == 2 * books
-    assert store.registers(bible.WORDS) == {"bible": books}
+    assert store.registers(bible.LEMMAS) == {"bible": books}
+    assert store.total("words") == 0, "the shelf's own Tanakh is the sweep's, never doubled"
     with sqlite3.connect(tanakh["ledger"]) as db:
         provenance = set(db.execute("SELECT source, licence FROM contribution"))
         aramaic = db.execute(
             "SELECT c.tbl, t.key, t.n FROM tally t JOIN contribution c"
             " ON c.id = t.contribution_id WHERE t.variant = 'arc' ORDER BY c.tbl, t.key"
         ).fetchall()
-        tools = {row[0] for row in db.execute("SELECT tool FROM contribution WHERE tbl = 'words'")}
+        tools = {row[0] for row in db.execute("SELECT tool FROM contribution WHERE tbl = 'lemmas'")}
     assert provenance == {(bible.SOURCE, bible.LICENCE)}
-    assert aramaic == [("lexemes", "w1", 1), ("lexemes", "w2", 1), ("words", "w2", 1)]
+    assert aramaic == [("lemmas", "w2", 1), ("lexemes", "w1", 1), ("lexemes", "w2", 1)]
     assert tools == {"dicta/test/1"}, "filed under the name the cache was read by"
 
     # Run again, nothing new: every contribution is a content hash.
     assert _script().counts(tanakh["cache"], tanakh["table"], tanakh["ledger"], said.append) == 0
-    assert store.total(bible.WORDS, "bible") == 3 * books
+    assert store.total(bible.LEMMAS, "bible") == 3 * books
 
 
 def test_counts_stops_when_a_book_is_missing_from_the_cache(tanakh: dict[str, Any]) -> None:

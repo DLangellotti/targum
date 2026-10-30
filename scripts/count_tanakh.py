@@ -205,13 +205,13 @@ def counts(cache: Path, table_file: Path, ledger: Path, say: Callable[[str], Non
     oshb_tool = ScriptureLemmatizer(nameless).name.split("+")[0] + "/headword_of"  # type: ignore[arg-type]
     aramaic = aramaic_lemmas(cache, say)
     store = Store(ledger)
-    totals = {bible.WORDS: collections.Counter[str](), bible.LEXEMES: collections.Counter[str]()}
-    lemmas: dict[str, set[str]] = {bible.WORDS: set(), bible.LEXEMES: set()}
+    totals = {bible.LEMMAS: collections.Counter[str](), bible.LEXEMES: collections.Counter[str]()}
+    lemmas: dict[str, set[str]] = {bible.LEMMAS: set(), bible.LEXEMES: set()}
     written = 0
     for code in oshb.BOOKS.values():
         book = json.loads((cache / f"{code}.json").read_text(encoding="utf-8"))
         keyings = {
-            bible.WORDS: (dicta_tool, bible.split_lemmas(book, aramaic.get(code))),
+            bible.LEMMAS: (dicta_tool, bible.split_lemmas(book, aramaic.get(code))),
             bible.LEXEMES: (oshb_tool, bible.count_lexemes(oshb.verses(code))),
         }
         for table, (tool, tally) in keyings.items():
