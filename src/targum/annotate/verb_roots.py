@@ -25,9 +25,12 @@ gap.
 from __future__ import annotations
 
 import unicodedata
-from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from .hebrew import FINALS
+
+if TYPE_CHECKING:
+    from .paradigms import Table
 
 #: The version of what this module answers. A change to `WRONG`, the ו rule or the fill
 #: is a new number, so the `roots` table counts every text again under it.
@@ -152,19 +155,27 @@ _CITED = (
 )
 
 
-@lru_cache(maxsize=1)
-def _roots_by_verb() -> dict[str, frozenset[str]]:
-    """Every root the CC0 table files each of its verbs under (`Table._root_index`)."""
-    from .paradigms import table
+#: Every root the CC0 table files each of its verbs under (`Table._root_index`), and
+#: the fills worked out from it, kept for the one table they were worked out from: a
+#: table swapped in (a test's, a rebuilt one) is never answered from another's.
+_HELD: dict[int, tuple[object, dict[str, frozenset[str]], dict[str, str]]] = {}
 
-    out: dict[str, set[str]] = {}
-    for (root, _binyan), verbs in table()._root_index().items():
+
+def _held(book: Table) -> tuple[dict[str, frozenset[str]], dict[str, str]]:
+    found = _HELD.get(id(book))
+    if found is not None and found[0] is book:
+        return found[1], found[2]
+    by_verb: dict[str, set[str]] = {}
+    for (root, _binyan), verbs in book._root_index().items():
         for lid in verbs:
-            out.setdefault(lid, set()).add(root)
-    return {lid: frozenset(roots) for lid, roots in out.items()}
+            by_verb.setdefault(lid, set()).add(root)
+    roots = {lid: frozenset(found) for lid, found in by_verb.items()}
+    fills: dict[str, str] = {}
+    _HELD.clear()
+    _HELD[id(book)] = (book, roots, fills)
+    return roots, fills
 
 
-@lru_cache(maxsize=20000)
 def filled(lemma: str) -> str:
     """The root the CC0 paradigm table gives a verb lemma, or "".
 
@@ -173,13 +184,21 @@ def filled(lemma: str) -> str:
     lemma matching only another verb's future or second person (אישר is also "I will
     straighten") is not that verb.
     """
-    from .paradigms import bare, table
+    from .paradigms import table
+
+    book = table()
+    by_verb, fills = _held(book)
+    if lemma not in fills:
+        fills[lemma] = _fill(lemma, book, by_verb)
+    return fills[lemma]
+
+
+def _fill(lemma: str, book: Table, by_verb: dict[str, frozenset[str]]) -> str:
+    from .paradigms import bare
 
     word = _letters(lemma)
     if not word:
         return ""
-    book = table()
-    by_verb = _roots_by_verb()
     found: set[str] = set()
     # The table is keyed on the letters as written, final forms and all.
     for lid in book.candidates(bare(lemma)):

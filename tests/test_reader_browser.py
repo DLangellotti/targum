@@ -7926,7 +7926,8 @@ def test_a_hebrew_verb_says_what_it_takes_and_its_argument_the_verb(
     verb = page.evaluate(FACTS, "דיבר")
     noun = page.evaluate(FACTS, "המנהל")
     context.close()
-    assert verb[-2:] == ["Takes", "עם"], verb
+    # The root after it, filled from the CC0 table for the plene pi'el (targum-internal#589).
+    assert verb[-4:] == ["Takes", "עם", "Root", "ד־ב־ר"], verb
     assert noun[-2:] == ["Goes with", "דיבר עם"], noun
 
 
