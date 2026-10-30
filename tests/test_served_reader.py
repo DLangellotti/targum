@@ -181,3 +181,69 @@ def test_the_worker_never_keeps_a_named_page_as_the_copy_for_the_plane() -> None
     assert 'var linked = answer && answer.headers.get("x-targum-linked");' in opening
     assert "saved[key] && !linked" in opening
     assert LINKED_HEADER.lower() == "x-targum-linked"
+
+
+# -- the rule under all of it (design.md §12, "A reader fetches nothing from any other
+# site", 2026-10-30): from the site, only the site; off a disk, nothing at all. ----------
+
+#: What a page would fetch by itself: a script, a stylesheet, a picture, a recording.
+_FETCHED = re.compile(r"""(?:\bsrc|<link\b[^>]*?\bhref)\s*=\s*["']([^"']*)["']""", re.I)
+#: The directives that say where a page may fetch from. `frame-ancestors` and `form-action`
+#: say who may frame it and where a press may go, not what it fetches.
+_FETCH_DIRECTIVES = (
+    "default-src",
+    "script-src",
+    "style-src",
+    "img-src",
+    "font-src",
+    "media-src",
+    "connect-src",
+    "worker-src",
+    "manifest-src",
+    "object-src",
+)
+
+
+def _code_out(html: str) -> str:
+    """The page with its scripts' bodies taken out, so a string inside a script is not
+    read as an address the page fetches."""
+    return re.sub(r"(<script\b[^>]*>).*?(</script>)", r"\1\2", html, flags=re.S | re.I)
+
+
+def test_a_reader_on_disk_names_nothing_to_fetch(tmp_path: Path) -> None:
+    """`test_render.py` holds a built reader to no address on another site; this holds it
+    to none on its own either, so a reader off a disk has nothing to ask for at all."""
+    reader = book(tmp_path / "a-book")
+    for page in sorted(reader.glob("*.html")):
+        whole = page.read_text(encoding="utf-8")
+        assert not names_files(whole), page.name
+        bare = _code_out(whole)
+        for address in _FETCHED.findall(bare):
+            assert address.startswith(("data:", "blob:", "#")), f"{page.name}: {address!r}"
+        for address in re.findall(r"url\(\s*[\"']?([^\"')]+)", bare):
+            assert address.startswith(("data:", "#")), f"{page.name}: {address!r}"
+
+
+def test_a_served_reader_asks_nothing_of_another_site(served: tuple[int, Path]) -> None:  # noqa: F811
+    port, out = served
+    reader = book(out / "local" / "book-he")
+    for page in sorted(reader.glob("*.html")):
+        status, head, body = _get(
+            port, f"/reader/book-he/reader/{page.name}?k={TOKEN}", navigate=True
+        )
+        assert status == 200, page.name
+        bare = _code_out(body.decode("utf-8"))
+        for address in _FETCHED.findall(bare):
+            same_site = address.startswith("/") and not address.startswith("//")
+            assert same_site or address.startswith(("data:", "blob:", "#")), (
+                f"{page.name}: {address!r}"
+            )
+        for address in re.findall(r"url\(\s*[\"']?([^\"')]+)", bare):
+            assert not re.match(r"(https?:)?//", address), f"{page.name}: {address!r}"
+        for directive, sources in _policy(head).items():
+            if directive not in _FETCH_DIRECTIVES:
+                continue
+            for source in sources:
+                assert source.startswith("'") or source in ("data:", "blob:"), (
+                    f"{page.name}: {directive} names {source!r}, a host"
+                )

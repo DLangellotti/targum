@@ -367,7 +367,8 @@ How a page carries them (2026-10-18, §12 "A desk page loads its files once and 
 them"): a reader and every page that can be opened off a disk, framed by a host, printed
 or kept for offline bakes each file into itself and fetches nothing. A reader opened on
 the site is handed with its files named, and keeps them (2026-10-29, §12 "A served reader
-loads its files once"); the copy on disk is still whole. A desk page (the
+loads its files once"); the copy on disk is still whole. The rule under both is §12's of
+2026-10-30: a reader fetches nothing from any other site, and nothing at all off a disk. A desk page (the
 pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
@@ -381,6 +382,32 @@ the desk page whole (2026-10-19, §12 "A first visit gets the page whole").
 Each entry below was a deliberate decision with a date, kept here so nobody "corrects"
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
+
+### A reader fetches nothing from any other site — 2026-10-30
+
+David, 2026-10-30, so that "A served reader loads its files once" (2026-10-29,
+targum-internal#559) could merge after QA passed it. The rule every entry below leans on,
+*readers must fetch nothing*, is restated. Where an older entry says a reader fetches
+nothing, read it as this.
+
+- **A reader fetches nothing from any other site.** No script, stylesheet, font, image
+  or recording comes from anybody else's origin, on any page, ever.
+- **Opened in the browser from targum.page,** a reader may load its own stylesheets,
+  scripts and recordings from targum's own origin, and the browser keeps them.
+- **A reader saved for offline, or opened from disk, still fetches nothing at all.** The
+  copy a save keeps and the file a build writes are whole, as they were.
+- **Outbound links a reader chooses to click** stay the one exception for other sites,
+  and `test_render.py`'s allowlist still pins them.
+- **Why:** on the phone profile, opening a reader again cost the same 250 kB every time,
+  under `no-store`. QA measured Ruth's returning visit at 824 → 644 ms LCP and
+  252 → 39 kB once its files were kept (Obadiah 828 → 644 ms, 250 → 36 kB), with no
+  request to another origin across eight request lists, and the reader off a disk at
+  0 requests.
+- **What holds it:** `test_render.py` (a built reader names nothing to fetch, and only
+  the allowlist's links), `test_served_reader.py` (every file a served reader names is
+  same-origin, its policy names no other host, and a save gets the page whole) and
+  `test_offline_browser.py` (a reader off a disk and a saved copy opened offline make no
+  request; a served reader asks only its own origin).
 
 ### The level card says Reading level — 2026-10-30
 
@@ -622,7 +649,8 @@ under `no-store`, again on every page a visitor opened.
 
 Approved by David, 2026-10-29 (targum-internal#559, from builder-3's signed-in speed pass
 of the same day, #552). "A reader fetches nothing" (§11 and every entry above that leans
-on it) now means **a reader on disk, and what leaves the server as a copy**. A reader
+on it) now means **a reader on disk, and what leaves the server as a copy**. (Restated
+as a rule on 2026-10-30, the entry "A reader fetches nothing from any other site".) A reader
 opened on targum.page loads its stylesheets, scripts, faces and recordings as files from
 targum.page, and the browser keeps them. On the phone profile Ruth was 156 kB gzipped and
 a scene 332 kB on every open, the same files each time under `no-store`. Ruth's reader
@@ -8587,7 +8615,7 @@ already knows.
 the chrome's face, the board's word card, menus as sheets — since 2026-10-09: §12, "The boards are the desk", 2026-10-09. What
 follows still holds for the page's lines, and a reader still fetches nothing.)* The page tone, the serif, the hairlines between lines, the
 brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
-nothing — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+nothing from any other site, and nothing at all off a disk (§12, 2026-10-30) — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 

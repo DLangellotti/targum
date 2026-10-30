@@ -34,7 +34,8 @@ substitutes the entire cluster — so the letter itself changed size. A verse ca
 two fonts at once.
 
 A font a page merely names is a font some readers do not have. The only fix is to carry it,
-which is also what `readers must fetch nothing` already requires of every other asset here.
+which is also what a reader that fetches nothing from any other site, and nothing at all
+off a disk, already requires of every other asset here.
 
 `tests/test_render.py` checks that each face can draw the whole repertoire, so a face that
 cannot never reaches a reader again.
