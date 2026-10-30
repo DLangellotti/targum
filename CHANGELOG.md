@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A Hebrew verb's root on the word card is right more often and there more often
+  (targum-internal#589, David's decisions of 2026-10-30). About 75 roots measured wrong
+  against Wiktionary (used to find them, never shipped) are no longer drawn: a
+  three-letter lemma that is not a qal given itself as its root (הקל, הכה), an adjective
+  spelled like a nif'al with its own נ stripped (נזיר), a root starting with ו. A verb the
+  annotator gave no root takes one from the CC0 paradigm table where every verb the table
+  finds agrees. On the laptop's 212 modern texts, verb tokens with a root go from 63.6% to
+  81.6%, and 99.7% of the checkable ones agree with Wiktionary. "From the same root" and
+  "N words from this root met" follow, and a vetoed root has no family. All of it is at
+  page-build and table time: no annotator rename, no `SCHEMA_VERSION` bump, no model run.
+  The language tables gain `roots` beside `words`, by register, fed by the same fold and
+  `public_text` guard (`targum tables top --roots`).
 - Your Progress's level card has a visible heading, "Reading level" (David, 2026-10-30;
   targum-internal#574). It is the card's own h2, set as "Texts by level" and "Words you
   knew" are beside it, and the visually hidden "Your level" h2 is gone, so the part still
