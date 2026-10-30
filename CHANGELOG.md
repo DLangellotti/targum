@@ -524,6 +524,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `annotation.json` would empty the page, what it costs (nothing but `--gloss`'s cents), and
   how long (about 25 minutes of re-rendering plus seconds a book). Counted on 2026-10-22:
   0 on the box, 13 on the laptop's `targum-out`.
+- `voice_shelf.py --hint scene:turn=text` says how one turn's word is read, after the
+  line's own pronunciation hints (targum-internal#566; qa's listening check, 2026-10-29).
+  It is repeatable, held in memory only, and the scene files are never written. Only the
+  direction and the automatic hints give way for it under the 180-character limit. A
+  hinted scene counts as changed, so `--only` re-voices it, and only the hinted turn is
+  bought: every other prompt is unchanged, and so is the key of every scene without a
+  hint. A hint for a scene or turn that is not there stops the run before anything is
+  bought. It re-bought 12 flagged lines for $0.03 on 2026-10-30.
 - `targum align-subtitles <folder>` times each word of a video whose transcript came from
   its subtitle file (David, 2026-10-29: "Align on the laptop"; targum-internal#572). It
   runs the local forced aligner over the subtitles' own words, part by part, on the

@@ -742,6 +742,12 @@ def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
     hebrew = (scene.get("language") or "he") == "he"
     hints = pronunciation_hints(turn["text"], other.get("gender", "")) if hebrew else []
     guide = GUIDE.format(hints="; ".join(hints)) if hints else ""
+    # A hint given by hand, for a word the pointing does not settle or the engine got
+    # wrong anyway (qa's listening check, 2026-10-29). It is said after the automatic
+    # ones and kept whole: only the direction and the automatic hints give way for it.
+    extra = str(turn.get("hint") or "").strip()
+    if extra:
+        guide += " " + (extra if extra.endswith((".", "!", "?")) else extra + ".")
     # The direction gives way first: cut to its first clause, then left out. Then the
     # hint is said tersely. A prompt over LONGEST is the 400 the 2026-09-22 run kept
     # hitting, so one that still does not fit is refused here, before it is sent.
