@@ -1918,6 +1918,12 @@ body.is-seeing .page-head { display: none; }
   margin: 2rem 0;
   color: var(--ink-soft);
   font-size: 0.9375rem;
+  /* The shelves' room, held while they are asked for (targum-internal#557): the page
+     stood one line tall with the footer under it, and the shelves arriving pushed the
+     footer a screen down, most of the 0.41 layout shift on a phone. A screen is less than
+     the shelves take, so nothing below moves where it can be seen. */
+  min-block-size: 100vh;
+  min-block-size: 100svh;
 }
 .lib-waiting[hidden], .lib-fault[hidden] { display: none; }
 /* A language whose shelf could not be fetched while another's is drawn (#484): the same

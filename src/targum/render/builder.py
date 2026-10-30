@@ -5405,7 +5405,7 @@ def shelf_files(
 
     `""` is what every shelf needs: the collections and the sets. `"order"` is every
     row's id in the catalogue's order (where a row sits is the only evidence of arrival
-    most rows have), asked once the page has drawn. Each language's file is its rows,
+    most rows have), asked from the head beside the rows (#557). Each language's file is its rows,
     each carrying its `place` in that order, so a row in two
     languages is in both files and the page merges them back into one order. The page
     asks for the shelf it opens on and another only when the reader moves to it
@@ -5420,7 +5420,7 @@ def shelf_files(
     in another language asks for the English after it has drawn, for search.
 
     What only a Build press reads, a row's `source` and `translations`, is
-    `"<code>.build"`, asked after the first draw too, and waited for by a press that
+    `"<code>.build"`, asked beside the rows from the head too (#557), and waited for by a press that
     comes before it.
     """
     by_language: dict[str, list[dict[str, Any]]] = {}
@@ -5437,7 +5437,7 @@ def shelf_files(
     files = {
         "": data_file("catalogue.json", {"collections": groups, "sets": sets}),
         # Every row's id in the catalogue's order, which only the line under a language
-        # with no shelf reads: asked after the first draw (11.6 kB gzipped, #484).
+        # with no shelf reads: asked beside the rows from the head (11.6 kB gzipped, #484, #557).
         "order": data_file("catalogue-order.json", {"ids": [entry["id"] for entry in entries]}),
     }
     for code in sorted(by_language):
