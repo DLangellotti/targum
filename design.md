@@ -439,6 +439,28 @@ meeting and don't know yet" and "Texts at your level now", stay as they were.
 - Hebrew only. No plan, no target and no run of days anywhere in it.
 - **The Russian strings are drafts** and wait for David's read.
 
+### A stretch played says whether its text was on the screen — 2026-10-30
+
+The research (ling-he, "listening vs watching", 2026-10-30) draws its line at whether the
+text is on the screen, not at whether a picture is: reading while listening and captioned
+video sit on one side, ears alone on the other. targum's two time figures split at the
+picture, so nothing it kept could say how much of a reader's listening was without the
+text. **Each `play` now records `text_on_screen`**, yes or no:
+
+- **no** while the page is hidden (a locked phone, another app in front), while the
+  listening view is open, and while Hear first holds the line's text back;
+- **yes** otherwise, a film's picture included, since there is no captions-off state;
+- **unknown** (NULL) on every play recorded before this and on every other kind, never
+  filled in as a no.
+
+Any of the three changing while the voice goes ends one stretch and starts the next, as
+the picture does since "A part finished out of sight is heard, not read". The privacy
+notice changed first: David approved clause 3.6's new words on 2026-10-30 ("…whether its
+picture was shown, and whether its text was shown on the screen"), and the account page's
+plain account says it in a line of its own. **Nothing on Your Progress reads it yet.** The
+"N% of it without the text" line waits for enough of a record to be honest.
+targum-internal#602.
+
 ### How you got here: two figures, the days active and the words of the period — 2026-10-30
 
 David, 2026-10-30 (targum-internal#603, board 3 "Effort"), approving ling-he's research on

@@ -4084,6 +4084,52 @@ def test_where_readers_stall_in_one_text_can_be_read_back(tmp_path: Path) -> Non
     assert again == found
 
 
+def test_a_stretch_played_says_whether_its_text_was_on_the_screen(tmp_path: Path) -> None:
+    """targum-internal#602, clause 3.6 as amended 2026-10-30. A `play` keeps the page's
+    yes or no; anything else from the page, and every other kind, is unknown (NULL),
+    because a page cached from before the field says nothing and nothing is not a no."""
+    import sqlite3
+
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("one@example.com"))
+    assert signed is not None
+    person = signed[0]
+    day = "2026-10-30"
+    kept = store.add_events(
+        person,
+        [
+            {"kind": "play", "day": day, "amount": 5, "medium": "listen", "text": True},
+            {"kind": "play", "day": day, "amount": 6, "medium": "listen", "text": False},
+            {"kind": "play", "day": day, "amount": 7, "medium": "listen"},
+            {"kind": "play", "day": day, "amount": 8, "medium": "listen", "text": "yes"},
+            {"kind": "page", "day": day, "amount": 9, "text": True},
+            {"kind": "control", "day": day, "control": "x", "width": "desk", "text": False},
+        ],
+    )
+    assert kept == 6
+    rows = store.db.execute("SELECT kind, amount, text_on_screen FROM event ORDER BY id").fetchall()
+    assert [(r["kind"], r["text_on_screen"]) for r in rows] == [
+        ("play", 1),
+        ("play", 0),
+        ("play", None),
+        ("play", None),
+        ("page", None),
+        ("control", None),
+    ]
+
+    # A database from before the column gains it on the next open, NULL on every row.
+    old = tmp_path / "old.db"
+    Store(old)
+    with sqlite3.connect(old) as db:
+        db.execute("ALTER TABLE event DROP COLUMN text_on_screen")
+        db.execute("INSERT INTO event (person, kind, day, amount) VALUES (1, 'play', ?, 3)", (day,))
+    reopened = Store(old)
+    found = reopened.db.execute("SELECT text_on_screen FROM event").fetchall()
+    assert [r["text_on_screen"] for r in found] == [None]
+
+
 def test_a_correction_is_refused_without_the_grant_and_kept_with_it(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:

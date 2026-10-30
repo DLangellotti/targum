@@ -113,6 +113,9 @@
       row.medium = event.medium || "read";
       row.segment = event.segment || "";
       row.amount = event.amount || 0;
+      // Whether the text was on the screen while it played (clause 3.6, 2026-10-30):
+      // only a stretch played says so, and it says yes or no, never nothing.
+      if (event.kind === "play" && typeof event.text === "boolean") row.text = event.text;
       // A look-up names its word, in the language of the row it was met in: Onkelos
       // beside a Hebrew text is Aramaic (targum-internal#105). Nothing else names one.
       if (event.kind === "lookup" && event.word) {
