@@ -543,6 +543,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no current count, running no annotator and spending nothing. `targum tables top
   --register R [--phrases] [--raw]` prints the commonest rows, leaving out the
   `weights.EXCLUDED` classes, names and numbers unless `--raw` is passed.
+- The language tables keep growing on the box by themselves (targum-internal#587, David
+  approved 2026-10-30). `deploy/targum-tables.timer` runs `targum tables sweep --library
+  /var/lib/targum/targums` at 02:30 UTC, before the 04:00 backup, as targum and never as
+  root, with `TARGUM_LEDGER` from `targum.env`. It runs at idle CPU and disk priority
+  under a memory cap of its own (`MemoryHigh=600M`, `MemoryMax=1G`, no swap), so it can
+  never push the service out of memory, and logs to the journal. Every deploy installs and
+  enables it. The sweep reads `annotation.json` files and never ran a model; it now
+  refuses to import one too (`tables.no_models`: torch, transformers, stanza, onnxruntime
+  and the rest), so no later change to the fold can start a second DICTA beside the
+  service's. The laptop's rows reach the box with `targum tables push`, which writes them
+  with `targum tables export` and imports them over SSH as `sudo -u targum targum tables
+  import`. The import is idempotent: a contribution id is a content hash, a row already
+  there is left alone, and the newer of two counts for one text wins while the other stays
+  as history. It refuses rows the box wrote, malformed lines, and any unit the box's ledger
+  holds as private. `deploy/RESTORE.md` now says what `corpus.db` holds that no cache does.
 - `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
   (targum-internal#507 part 2): a read-only query for every Tanakh copy on the box whose
   verses carry no refs, then `targum refs`, a marked annotator name and `rebuild --words`,

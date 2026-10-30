@@ -289,3 +289,15 @@ proxy and the token minter), held to the subscription's monthly cap, and claimed
 04:30 UTC, `targum-subscriptions-mail.timer` runs `targum subscriptions mail`: one mail a
 reader with everything new, the daily cycles included and the weekly left to its Monday
 mail (`journalctl -u targum-subscriptions-mail -n 20`).
+
+The language tables (targum-internal#587) have one timer too. At 02:30 UTC
+`targum-tables.timer` runs `targum tables sweep --library /var/lib/targum/targums` as
+targum, which counts every public text nobody has counted yet into the corpus ledger
+(`TARGUM_LEDGER`), before the 04:00 backup copies it. It reads the `annotation.json` files
+already written and refuses to import a model package, so it never loads a second DICTA
+beside the service's; it runs at the lowest CPU and disk priority under a 1 GB memory
+cap of its own, and it talks to nothing. Every deploy installs and enables the timer;
+`journalctl -u targum-tables -n 20` says what each night counted. The laptop's own rows
+(its parasha, Russian and scene shelves, and the external backfills) reach the box with
+`targum tables push` from the laptop: it imports them over SSH as targum, never as
+root, and a push run twice changes nothing.
