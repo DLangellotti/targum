@@ -4028,7 +4028,7 @@
   "library.see.level.C2": "C2 texts in {language}",
   "library.see.level.past-C2": "Texts past C2 in {language}",
   "progress.where.most.article": "You'd follow most of a news article",
-  "progress.level.title": "Your level",
+  "progress.level.title": "Reading level",
   "progress.level.signed-out": "Sign in to see which texts you can read on your own.",
   "progress.level.why-one": "It uses the most common words, so it's the easiest place to begin.",
   "progress.level.marked.one": "You've marked {n} word as known so far.",
