@@ -38,6 +38,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   page-build and table time: no annotator rename, no `SCHEMA_VERSION` bump, no model run.
   The language tables gain `roots` beside `words`, by register, fed by the same fold and
   `public_text` guard (`targum tables top --roots`).
+- A Russian verb's card names only its true aspect partner (David, 2026-10-30). For the
+  300 commonest verbs in the built Russian texts, targum's own reviewed list answers
+  before OpenRussian: видеть is увидеть's partner and not завидеть's, and знать, стоять,
+  ходить and помнить have none. A new "related:" line names the verbs beside it that are
+  not partners, with what each adds, as in "запла́кать (begin) · попла́кать (for a
+  while)". `scripts/eval_aspect_partners.py` scores the line on the top 100 verbs: whole
+  lines right went from 0.660 to 1.000 of verb tokens, and partner precision from 0.735
+  to 1.000, against the list itself. The list and the Russian strings are ling-ru's
+  drafts and wait for David's read. design.md §12.
 - Your Progress's level card has a visible heading, "Reading level" (David, 2026-10-30;
   targum-internal#574). It is the card's own h2, set as "Texts by level" and "Words you
   knew" are beside it, and the visually hidden "Your level" h2 is gone, so the part still

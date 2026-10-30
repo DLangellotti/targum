@@ -918,5 +918,13 @@
     "system": "stress-rule/2",
     "at_least": 0.97,
     "why": "first scored 2026-10-21 against ling-he's hand-read gold of 300 segolate firings on the shelf's modern texts (evals/stress-modern-gold.tsv; 0.983 before הַחַג and שֶׁאֶת were listed) (targum-internal#454)"
+  },
+  {
+    "stage": "partners",
+    "corpus": "ru-built-top-verbs",
+    "metric": "partner_line_right",
+    "system": "aspect-partners/1",
+    "at_least": 0.99,
+    "why": "1.0000 on 2026-10-30, by construction: the card draws the reviewed list on the verbs it covers, and a fall means the list stopped winning"
   }
 ]

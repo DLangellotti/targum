@@ -6046,7 +6046,9 @@ def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_ar
 
     monkeypatch.setattr(openrussian, "lexicon", lambda: None)
     html, data = page("without")
-    assert "partners" not in data.get("extensions", {}) and "OpenRussian" not in html
+    # взять is on targum's own list (2026-10-30), which needs no tables and owes no credit.
+    assert data["extensions"]["partners"] == ["брать", ""]
+    assert "stress" not in data["extensions"] and "OpenRussian" not in html
 
     lexicon = openrussian.Lexicon()
     lexicon.entries = {
@@ -6058,11 +6060,79 @@ def test_a_russian_reader_carries_partners_and_moving_stress_where_the_tables_ar
     }
     monkeypatch.setattr(openrussian, "lexicon", lambda: lexicon)
     html, data = page("with")
-    assert data["extensions"]["partners"] == ["бра́ть", ""]
+    assert data["extensions"]["partners"] == ["брать", ""], "the list wins over the tables"
     assert data["extensions"]["stress"] == ["", "рука́ · ру́ку"]
     assert "OpenRussian.org" in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)
+
+
+def test_a_russian_reader_takes_partners_from_targums_list_and_the_rest_from_the_tables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reviewed list answers for the verbs it covers, a none included, and carries
+    the related verbs beside them; OpenRussian answers for a verb off the list, and only
+    then is it credited (David, 2026-10-30; `annotate/aspect_partners.py`)."""
+    from targum.annotate import openrussian
+    from targum.models import Annotation, Token
+
+    text = "Он стоял, плакал и трогал."
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0000", block_index=0, index=0, text=text)
+    segmented = SegmentedDocument(
+        document_hash="h", language="ru", segmenter="fake/1", segments=[segment]
+    )
+    document = Document(source="m", title="T", language="ru", blocks=[], content_hash="h")
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="ru",
+        target_language="en",
+        provider="null",
+        segments={segment.id: "He stood, cried and touched."},
+    )
+    words = [("стоял", "стоять"), ("плакал", "плакать"), ("трогал", "трогать")]
+    tokens, cursor = [], 0
+    for surface, lemma in words:
+        start = text.index(surface, cursor)
+        cursor = start + len(surface)
+        tokens.append(Token(start=start, end=cursor, surface=surface, lemma=lemma, band=1))
+    annotation = Annotation(
+        document_hash="h",
+        language="ru",
+        annotator="t",
+        method="frequency",
+        method_note="note",
+        tokens={segment.id: tokens},
+    )
+    lexicon = openrussian.Lexicon()
+    lexicon.entries = {
+        "стоять": [openrussian.Entry("verb", "стоя'ть", "imperfective", ("постоять",))],
+        "трогать": [openrussian.Entry("verb", "тро'гать", "imperfective", ("тронуть",))],
+    }
+
+    def page(folder: str) -> tuple[str, dict[str, Any]]:
+        html = render(document, segmented, [translation], tmp_path / folder, annotation=annotation)[
+            0
+        ].read_text(encoding="utf-8")
+        found = re.search(r'id="targum-data"[^>]*>(.*?)</script>', html, re.S)
+        assert found is not None
+        return html, json.loads(found.group(1))
+
+    monkeypatch.setattr(openrussian, "lexicon", lambda: lexicon)
+    html, data = page("with")
+    extensions = data["extensions"]
+    assert extensions["partners"] == ["", "", "тронуть"], "постоять is no partner of стоять"
+    assert extensions["related"] == [
+        "постоя́ть:while",
+        "запла́кать:start · попла́кать:while",
+        "",
+    ]
+    assert "OpenRussian.org" in html, "трогать's partner was quoted from the tables"
+
+    lexicon.entries.pop("трогать")
+    html, data = page("listed-only")
+    assert "partners" not in data["extensions"] and "OpenRussian.org" not in html
+    assert data["extensions"]["related"][0] == "постоя́ть:while"
 
 
 def test_a_russian_reader_says_which_way_a_verb_of_motion_goes(tmp_path: Path) -> None:
