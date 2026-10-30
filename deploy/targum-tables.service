@@ -11,13 +11,19 @@
 # Run again, it counts only what is new, so a missed night costs nothing.
 #
 # Before the backup at 04:00, so the night's rows are in the night's copy of corpus.db.
-# `tables snapshot` follows it here once slice 3 builds it.
+#
+# Then `tables snapshot` (targum-internal#579): the yardsticks "How much Hebrew you
+# understand" measures readers against, one JSON file per register in
+# /var/lib/targum/tables. It writes a register's list only when it has none yet or the
+# month has turned, so on most nights it reads the files' dates and does nothing; the
+# monthly snapshot rides the nightly unit rather than a timer of its own. It runs after
+# the sweep has succeeded, and a failed sweep leaves last month's lists standing.
 #
 #   systemctl start targum-tables      # one now, by hand
 #   journalctl -u targum-tables -n 20
 
 [Unit]
-Description=targum language tables sweep
+Description=targum language tables sweep and yardsticks
 # The ledger is a file the service writes too; SQLite's lock keeps the two apart.
 After=targum.service
 
@@ -30,6 +36,7 @@ Group=targum
 Environment=HOME=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
 ExecStart=/usr/local/bin/targum tables sweep --library /var/lib/targum/targums
+ExecStart=/usr/local/bin/targum tables snapshot --out /var/lib/targum/tables
 # Out of the way of readers: a count can wait, a page cannot.
 Nice=19
 CPUSchedulingPolicy=idle

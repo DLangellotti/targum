@@ -47,7 +47,9 @@ def test_the_sweep_runs_nightly_as_targum_with_the_ledger_and_a_low_priority() -
     assert backup > timer["OnCalendar"][0], "the night's rows are in the night's backup"
     service = _unit("targum-tables.service")
     assert service["ExecStart"] == [
-        "/usr/local/bin/targum tables sweep --library /var/lib/targum/targums"
+        "/usr/local/bin/targum tables sweep --library /var/lib/targum/targums",
+        # The yardsticks after it, once a month by their own rule (targum-internal#579).
+        "/usr/local/bin/targum tables snapshot --out /var/lib/targum/tables",
     ]
     assert service["User"] == ["targum"] and service["Group"] == ["targum"], "never root"
     assert service["EnvironmentFile"] == ["/etc/targum/targum.env"], "TARGUM_LEDGER is there"

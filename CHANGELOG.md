@@ -640,6 +640,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no current count, running no annotator and spending nothing. `targum tables top
   --register R [--phrases] [--raw]` prints the commonest rows, leaving out the
   `weights.EXCLUDED` classes, names and numbers unless `--raw` is passed.
+- The yardsticks (targum-internal#579, for #575): `targum tables snapshot` writes
+  `yardstick-<register>-v<N>.json` for conversation, news, literature and the Bible
+  (never scenes or the weekly): the commonest 20,000 content lemmas, each with its share
+  of the list's running words, and the provenance by licence and tool. The files go to
+  `/var/lib/targum/tables/` on the box and `~/.targum/tables/` elsewhere
+  (`TARGUM_TABLES_DIR` overrides), never the repository. A register's list stands until
+  the month turns (David, 2026-10-30), an unchanged list is never written twice, and a
+  register under 50,000 counted words gets none yet. `--force` writes now. The nightly
+  `targum-tables` unit runs it after the sweep. `level.coverage_on(register, known)` is
+  the share of a list a reader's known words cover, None with no list.
+  `level.coverage_days` gives the share before the word records began and each day's
+  gain after, recomputed against the current list from `word.known_at`.
 - Topic tagging, the pilot (David approved 2026-10-30; targum-internal#605, epic #609).
   `scripts/tag_topics.py` tags Hebrew lemmas with up to two of 16 topics, or `general`,
   on Sonnet 5.5 and Opus 5.5 through the Batches API. It sends the lemma, its pointed
