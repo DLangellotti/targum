@@ -31,6 +31,7 @@ import threading
 import time
 import traceback
 import webbrowser
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -96,6 +97,7 @@ from .render.builder import (
     parasha_page,
     press_page,
     public_kept,
+    served_reader,
     set_page,
     shelf_page,
     signin_page,
@@ -5634,6 +5636,103 @@ KEPT_DAYS = 365
 # set's hash, the same for everybody on this build.
 
 
+#: Said on a page that names its files (`names_files`), so the worker never keeps it as a
+#: saved copy: one of those must open with nothing else (design.md §12, 2026-10-29).
+LINKED_HEADER = "X-Targum-Linked"
+
+#: Where a served reader's recordings are named instead of carried (`served_page`).
+CLIP_ROUTE = "/clips/"
+CLIP_KINDS = {
+    "mp3": "audio/mpeg",
+    "mpeg": "audio/mpeg",
+    "ogg": "audio/ogg",
+    "opus": "audio/ogg",
+    "wav": "audio/wav",
+    "m4a": "audio/mp4",
+    "mp4": "audio/mp4",
+    "webm": "audio/webm",
+    "aac": "audio/aac",
+}
+_CLIP_URI = re.compile(r"data:audio/([a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)")
+_CLIP_EXTENSIONS = {"mpeg": "mp3", "mp4": "m4a", "x-wav": "wav"}
+
+
+def clips_dir() -> Path:
+    """Where a served reader's recordings wait: derived from the readers, so in the
+    cache, which is safe to delete (a reader served again writes them again)."""
+    from .paths import cache_dir
+
+    return cache_dir() / "clips"
+
+
+def _clip_address(match: re.Match[str]) -> str:
+    """A recording carried as a data URI, written once to `clips_dir` by the hash of its
+    bytes, and its address there. The URI as it was where it cannot be written."""
+    import base64
+    import hashlib
+
+    subtype = match.group(1)
+    extension = _CLIP_EXTENSIONS.get(subtype, subtype)
+    if extension not in CLIP_KINDS:
+        return match.group(0)
+    try:
+        raw = base64.b64decode(match.group(2), validate=True)
+    except ValueError:
+        return match.group(0)
+    name = f"{hashlib.sha256(raw).hexdigest()[:32]}.{extension}"
+    path = clips_dir() / name
+    try:
+        if not path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Beside it and renamed, so a second thread never reads half of one.
+            temporary = path.with_name(f".{name}.{os.getpid()}.{threading.get_ident()}.tmp")
+            try:
+                temporary.write_bytes(raw)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+    except OSError:
+        return match.group(0)
+    return CLIP_ROUTE + name
+
+
+def _served(text: str) -> str:
+    return _CLIP_URI.sub(_clip_address, served_reader(text))
+
+
+#: The last readers handed out named, by file and its state on disk: a book's pages are
+#: opened one after another, and each is worked out once while it stays as it is.
+_SERVED: OrderedDict[tuple[str, int, int], bytes] = OrderedDict()
+_SERVED_MOST = 64
+_SERVED_LOCK = threading.Lock()
+
+
+def served_page(path: Path, body: bytes) -> bytes:
+    """A reader as a browser opening it is handed it (design.md §12, "A served reader
+    loads its files once", 2026-10-29): today's stylesheets, scripts and faces named by
+    address (`served_reader`) and its recordings as files of their own, so the browser
+    keeps them. The page on disk is untouched, whole, and is what a save keeps."""
+    try:
+        state = path.stat()
+    except OSError:
+        return body
+    key = (str(path), state.st_mtime_ns, state.st_size)
+    with _SERVED_LOCK:
+        found = _SERVED.get(key)
+        if found is not None:
+            _SERVED.move_to_end(key)
+            return found
+    try:
+        named = _served(body.decode("utf-8")).encode("utf-8")
+    except UnicodeDecodeError:
+        return body
+    with _SERVED_LOCK:
+        _SERVED[key] = named
+        while len(_SERVED) > _SERVED_MOST:
+            _SERVED.popitem(last=False)
+    return named
+
+
 def kept_cookie(value: str, address: str) -> str:
     """The kept-files cookie, in the session cookie's style: HttpOnly (no script reads
     it), SameSite=Lax, the whole site, and Secure where the site is served over https."""
@@ -6283,6 +6382,11 @@ class Handler(BaseHTTPRequestHandler):
             body = first_visit(body.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        if two_ways:
+            # A page that needs its files beside it: named, or sent whole with its faces
+            # waiting to be fetched. The worker never keeps either as a saved copy, which
+            # has to open with nothing else (`sw.js`, `opening`; design.md §12, 2026-10-29).
+            self.send_header(LINKED_HEADER, "1")
         if cookie:
             self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
@@ -9115,6 +9219,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith(CLIP_ROUTE):
+            return self._clip(route[len(CLIP_ROUTE) :])
         if route.startswith("/r/"):
             return self._short_reader(route[len("/r/") :])
         if route.startswith("/open/"):
@@ -16212,6 +16318,19 @@ class Handler(BaseHTTPRequestHandler):
         body, kind, _ = found
         return self._send(200, body, kind, cache=self.ASSET_CACHE)
 
+    def _clip(self, name: str) -> None:
+        """One recording a served reader names instead of carrying (`served_page`): by
+        the hash of its bytes, so it is the same file for as long as it is anything, and
+        kept for a year. Behind the account like the reader it came out of."""
+        found = re.fullmatch(r"([0-9a-f]{32})\.([a-z0-9]{2,5})", name)
+        kind = CLIP_KINDS.get(found.group(2)) if found else None
+        if found is None or kind is None:
+            return self._send(404, b"not found", "text/plain")
+        path = clips_dir() / name
+        if not path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        return self._send(200, path.read_bytes(), kind, cache=self.ASSET_CACHE)
+
     def _offline_files(self) -> None:
         """What saving a text for offline would keep: every page of it and every sidecar
         beside them, with their sizes, so the menu can say how much room it takes before
@@ -16679,9 +16798,16 @@ class Handler(BaseHTTPRequestHandler):
                 if moving:
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+                body = target.read_bytes()
+                # A browser opening a reader is handed it with its files named, and keeps
+                # them (design.md §12, "A served reader loads its files once", 2026-10-29).
+                # Anything else, a save for offline above all, gets the page whole, as it
+                # stands on disk.
+                if target.suffix == ".html" and self._navigating():
+                    body = served_page(target, body)
                 # Framed by the front page as a picture of itself (design.md §13,
                 # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
-                return self._send(200, target.read_bytes(), kind, frames="out")
+                return self._send(200, body, kind, frames="out")
         # A part the text does not have — an old link, or a number typed by hand — opens
         # the text's first part, and the page says the part asked for is not there
         # (`gone=`, read by `reader.js`), rather than a page that says only that nothing is

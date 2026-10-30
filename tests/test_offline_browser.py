@@ -26,7 +26,8 @@ from test_offline import TOKEN, book  # noqa: E402
 from test_reader_browser import browser, video_reader  # noqa: E402, F401
 
 from targum.accounts import Store  # noqa: E402
-from targum.serve import Handler, Library  # noqa: E402
+from targum.render.builder import asset_set, names_files  # noqa: E402
+from targum.serve import KEPT_COOKIE, Handler, Library  # noqa: E402
 
 
 class Served:
@@ -307,6 +308,110 @@ def test_a_page_opened_off_the_disk_registers_nothing(browser, tmp_path: Path) -
         page.goto(sorted(reader.glob("*.html"))[-1].as_uri())
         page.wait_for_selector(".pair")
         assert page.evaluate("() => window.TargumOffline.able") is False
+    finally:
+        context.close()
+
+
+# -- from the site, only the site; off a disk, nothing at all (design.md §12, "A reader
+# fetches nothing from any other site", 2026-10-30) ---------------------------------------
+
+
+#: What a page fetches as a file of its own, as Playwright names a request's kind.
+_FILES = ("script", "stylesheet", "font", "image", "media", "manifest")
+
+
+def _network(urls: list[str], *, but: str = "") -> list[str]:
+    """What went past the page itself: every request but the document and inline data."""
+    return [
+        url
+        for url in urls
+        if url.split("?")[0] != but.split("?")[0] and not url.startswith(("data:", "blob:"))
+    ]
+
+
+def test_a_reader_opened_off_the_disk_makes_no_request(browser, tmp_path: Path) -> None:  # noqa: F811
+    reader = book(tmp_path / "book-he")
+    context = browser.new_context(service_workers="allow")
+    asked: list[str] = []
+    context.on("request", lambda request: asked.append(request.url))
+    page = context.new_page()
+    try:
+        for built in sorted(reader.glob("*.html")):
+            before = len(asked)
+            page.goto(built.as_uri())
+            page.wait_for_selector(".pair, .toc", state="attached")
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(300)
+            assert _network(asked[before:], but=built.as_uri()) == [], built.name
+    finally:
+        context.close()
+
+
+def test_a_served_reader_asks_only_its_own_site(browser, served: Served) -> None:  # noqa: F811
+    book(served.out / "local" / "book-he")
+    origin = f"http://127.0.0.1:{served.port}"
+    context = browser.new_context(service_workers="block")
+    context.add_cookies([{"name": KEPT_COOKIE, "value": asset_set(), "url": origin}])
+    asked: list[str] = []
+    context.on("request", lambda request: asked.append(request.url))
+    page = context.new_page()
+    try:
+        for name in ("sec-0001.html", "sec-0002.html", "index.html"):
+            page.goto(served.url(f"/reader/book-he/reader/{name}"))
+            page.wait_for_selector(".pair, .toc", state="attached")
+            page.wait_for_load_state("load")
+            page.wait_for_timeout(500)
+        assert any("/assets/" in url for url in asked), "the files were named and fetched"
+        elsewhere = [url for url in _network(asked) if not url.startswith(origin + "/")]
+        assert elsewhere == [], elsewhere
+    finally:
+        context.close()
+
+
+def test_a_saved_copy_opened_offline_makes_no_request(browser, served: Served) -> None:  # noqa: F811
+    """Opened on the site, the reader is named; saved, the copy is the page whole; and
+    opened from that copy with no network, it asks for no file: no script, stylesheet,
+    face, picture or recording. (What it asks of the account, as `/account/me`, is the
+    reader's own talk with targum, unanswered on a plane and unchanged by #981.)"""
+    book(served.out / "local" / "book-he")
+    origin = f"http://127.0.0.1:{served.port}"
+    context = browser.new_context(service_workers="allow")
+    context.add_cookies([{"name": KEPT_COOKIE, "value": asset_set(), "url": origin}])
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        page.wait_for_function(
+            "() => navigator.serviceWorker && navigator.serviceWorker.controller !== null",
+            timeout=10000,
+        )
+        assert page.evaluate(
+            "() => [...document.querySelectorAll('script[src], link[rel=stylesheet]')]"
+            ".some((e) => (e.src || e.href).includes('/assets/'))"
+        ), "opened on the site, it names its files"
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept = page.evaluate(
+            """async () => {
+                 const cache = await caches.open('targum-offline');
+                 const hit = (await cache.keys()).find((r) => r.url.endsWith('/sec-0001.html'));
+                 return hit ? await (await cache.match(hit)).text() : '';
+               }"""
+        )
+        assert kept and not names_files(kept), "the copy for the plane is the page whole"
+
+        served.gone()
+        context.set_offline(True)
+        files: list[str] = []
+        fresh = context.new_page()
+        fresh.on(
+            "request",
+            lambda request: files.append(request.url) if request.resource_type in _FILES else None,
+        )
+        address = served.url("/reader/book-he/reader/sec-0001.html")
+        fresh.goto(address)
+        fresh.wait_for_selector(".pair")
+        fresh.wait_for_timeout(500)
+        assert _network(files, but=address) == [], files
+        assert fresh.evaluate("() => document.fonts.size") > 0, "its faces came with it"
     finally:
         context.close()
 
