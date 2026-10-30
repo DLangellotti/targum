@@ -2745,6 +2745,8 @@ def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
     assert looked.get("word"), looked
     played = next(event for event in sent if event["kind"] == "play")
     assert played["medium"] == "listen" and 1 <= played["amount"] <= 5, played
+    # And whether its text was on the screen (clause 3.6, 2026-10-30): it was.
+    assert played["text"] is True, played
 
     for press in (event for event in sent if event["kind"] == "control"):
         assert set(press) == {"kind", "day", "control", "width"}, press
@@ -8562,3 +8564,62 @@ def test_a_verb_s_forms_and_a_text_s_renames_ride_after_reader_js(browser, tmp_p
         assert page.locator("#gloss-card .card-conj .conj-form.here").count() >= 1
     finally:
         context.close()
+
+
+# -- whether the text was on the screen (targum-internal#602, clause 3.6, 2026-10-30) ---
+
+#: Every `play` the player hands the record, caught before `events.js` asks the account.
+CATCH_PLAYS = """
+() => {
+  window.__plays = [];
+  window.TargumEvents = { note: (e) => { if (e.kind === 'play') window.__plays.push(e); } };
+}
+"""
+
+#: The page put out of sight, the way a locked phone does it.
+HIDE = """
+() => {
+  Object.defineProperty(document, 'hidden', { get: () => true, configurable: true });
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+"""
+
+
+def _stretches(scene, between: str) -> list[dict]:
+    """Play the scene looping, do `between` part way, pause, and answer the stretches."""
+    scene.evaluate(CATCH_PLAYS)
+    scene.evaluate("() => { window.TargumPlayer.element().loop = true; }")
+    scene.click(".player-play")
+    scene.wait_for_function("() => !window.TargumPlayer.paused()")
+    scene.wait_for_timeout(1500)
+    scene.evaluate(between)
+    scene.wait_for_timeout(1500)
+    scene.evaluate("() => window.TargumPlayer.element().pause()")
+    scene.wait_for_timeout(250)
+    return scene.evaluate("() => window.__plays")
+
+
+@pytest.mark.parametrize(
+    "between",
+    [HIDE, "() => document.body.classList.add('listening')"],
+    ids=["the-page-hidden", "the-listening-view"],
+)
+def test_a_stretch_says_whether_its_text_was_on_the_screen(scene, between: str) -> None:
+    """The page hidden or the listening view opened while the voice goes ends the stretch
+    with the text on the screen and starts one without it."""
+    plays = _stretches(scene, between)
+    assert [p["text"] for p in plays] == [True, False], plays
+    assert all(p["amount"] >= 1 and p["medium"] == "listen" for p in plays), plays
+
+
+def test_a_line_heard_first_is_played_without_its_text(scene) -> None:
+    """Hear first holds the line's text back while it plays, so its stretch says so."""
+    scene.evaluate(CATCH_PLAYS)
+    scene.click(".player-slower")
+    scene.click(".player-slower")
+    scene.click(".player-first")
+    scene.locator(".pair.voiced .say").first.click()
+    scene.wait_for_function(STILL_SAYING, timeout=int(TURN * 5000))
+    scene.wait_for_timeout(250)
+    plays = scene.evaluate("() => window.__plays")
+    assert plays and all(p["text"] is False for p in plays), plays

@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A stretch of a recording played says whether its text was on the screen (David,
+  2026-10-30; targum-internal#602). It was not while the page was hidden, the listening
+  view was open or Hear first held the line back. A change to any of them while the voice
+  goes splits the stretch. Kept as `event.text_on_screen` (account schema 51), unknown on
+  everything recorded before. The privacy notice's clause 3.6 and the account page say
+  so. Nothing on Your Progress shows it yet.
 - A part finished out of sight no longer counts as words read (David, 2026-10-30;
   targum-internal#602). A playlist running on with the phone locked, or Play on in the
   listening view, finished the part and added its whole transcript to "words read" as
