@@ -37,17 +37,30 @@ the headword is the content piece's, and DICTA reports a prefix as a piece rathe
 lemma. Paragraph markers are out, the way `_verse` leaves them out. The band rule is
 `biblical.bands_from_counts`, kept beside the reader so the rule that produced the file
 is the rule the module documents.
+
+    TARGUM_LEDGER=~/.targum/corpus.db python scripts/count_tanakh.py --counts
+
+`--counts` keeps the counts instead (targum-internal#578): both keyings go into the
+language tables' bible register as contributions (`targum.tables.bible`), read from the
+per-book cache, and `tanakh.json` is not written, so nothing is renamed and nothing is
+re-annotated. It stops if any book's cache is missing rather than read the Tanakh
+through the model again. The one read it does make is the Aramaic chapters on their
+own, 269 verses, so the Aramaic can be told apart in a cache that holds whole books;
+that is cached too (`aramaic.json`), and a minute or two.
 """
 
 from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
+import os
 import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
+from types import SimpleNamespace
 
 from targum.annotate import oshb
 from targum.annotate.biblical import COVERAGE, bands_from_counts
@@ -136,6 +149,88 @@ def count_dicta(
     return counts, books, lemmatizer.name
 
 
+ARAMAIC_CACHE = "aramaic.json"
+
+
+def aramaic_lemmas(cache: Path, say: Callable[[str], None]) -> dict[str, dict[str, int]]:
+    """DICTA's lemmas over the Aramaic verses alone, by book: read once and cached, so
+    `--counts` can take them out of a cache that holds whole books."""
+    from targum.tables.bible import is_aramaic
+
+    held = cache / ARAMAIC_CACHE
+    if held.is_file():
+        loaded: dict[str, dict[str, int]] = json.loads(held.read_text(encoding="utf-8"))
+        return loaded
+    from targum.annotate.dicta import DictaLemmatizer
+
+    lemmatizer = DictaLemmatizer(other=None)
+    out: dict[str, dict[str, int]] = {}
+    for code in oshb.BOOKS.values():
+        verses = [verse for verse in _verses(code) if is_aramaic(verse.ref)]
+        if not verses:
+            continue
+        started = time.monotonic()
+        read = lemmatizer.lemmas(verses, "he")
+        out[code] = dict(
+            collections.Counter(
+                token.lemma
+                for tokens in read.values()
+                for token in tokens
+                if token.lemma and token.pos not in NOT_COUNTED
+            )
+        )
+        say(f"  {code}: {len(verses)} Aramaic verses in {time.monotonic() - started:.0f}s")
+    held.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    return out
+
+
+def counts(cache: Path, table_file: Path, ledger: Path, say: Callable[[str], None]) -> int:
+    """Write both keyings into the bible register of the language tables, from the cache,
+    and leave `table_file` exactly as it was (targum-internal#578)."""
+    from targum.annotate.scripture import ScriptureLemmatizer
+    from targum.tables import bible
+    from targum.tables.store import Store
+
+    missing = [code for code in oshb.BOOKS.values() if not (cache / f"{code}.json").is_file()]
+    if missing:
+        say(f"The DICTA cache at {cache} is missing {len(missing)} books: {', '.join(missing)}.")
+        say("Stopped: --counts reads the cache and never runs the two-hour count.")
+        return 1
+    before = hashlib.sha256(table_file.read_bytes()).hexdigest()
+    counted = json.loads(table_file.read_text(encoding="utf-8"))["counted"]
+    # The name the cache was read under, which `tanakh.json` recorded when it was.
+    dicta_tool = str(counted["dicta"]["by"])
+    # The tagging's version, without the fallback model's name: no model reads a verse here.
+    nameless = SimpleNamespace(name="")
+    oshb_tool = ScriptureLemmatizer(nameless).name.split("+")[0] + "/headword_of"  # type: ignore[arg-type]
+    aramaic = aramaic_lemmas(cache, say)
+    store = Store(ledger)
+    totals = {bible.WORDS: collections.Counter[str](), bible.LEXEMES: collections.Counter[str]()}
+    lemmas: dict[str, set[str]] = {bible.WORDS: set(), bible.LEXEMES: set()}
+    written = 0
+    for code in oshb.BOOKS.values():
+        book = json.loads((cache / f"{code}.json").read_text(encoding="utf-8"))
+        keyings = {
+            bible.WORDS: (dicta_tool, bible.split_lemmas(book, aramaic.get(code))),
+            bible.LEXEMES: (oshb_tool, bible.count_lexemes(oshb.verses(code))),
+        }
+        for table, (tool, tally) in keyings.items():
+            written += bible.write(store, table, code, tool, tally)
+            for (key, variant), n in tally.items():
+                totals[table]["aramaic" if variant == bible.ARAMAIC else "hebrew"] += n
+                lemmas[table].add(key)
+    for table, total in totals.items():
+        say(
+            f"{table}: {sum(total.values())} tokens ({total['aramaic']} Aramaic),"
+            f" {len(lemmas[table])} keys"
+        )
+    say(f"{written} contributions written to {ledger}, register {bible.BIBLE}")
+    if hashlib.sha256(table_file.read_bytes()).hexdigest() != before:
+        say(f"{table_file} changed during the run, which --counts must never do.")
+        return 1
+    return 0
+
+
 def merge(*keyings: dict[str, int]) -> dict[str, int]:
     """One table from several, the easier band standing where a spelling is in more
     than one. Each keying is banded by its own coverage first, so a name the tagging
@@ -155,6 +250,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--tagging-only", action="store_true", help="skip the DICTA half (a check, not a table)"
     )
+    parser.add_argument(
+        "--counts",
+        action="store_true",
+        help="write the counts into the language tables from the cache; leave the table alone",
+    )
+    parser.add_argument(
+        "--ledger",
+        type=Path,
+        default=Path(os.environ["TARGUM_LEDGER"]) if os.environ.get("TARGUM_LEDGER") else None,
+        help="the corpus ledger --counts writes to (default: TARGUM_LEDGER)",
+    )
     args = parser.parse_args(argv)
 
     if not oshb.available():
@@ -166,6 +272,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     say = lambda line: print(line, flush=True)  # noqa: E731
+
+    if args.counts:
+        if args.ledger is None:
+            print("--counts needs a ledger: set TARGUM_LEDGER or pass --ledger.", file=sys.stderr)
+            return 1
+        return counts(args.cache, args.out, args.ledger, say)
 
     tagged, tagged_books = count_tagging()
     tagged_bands = bands_from_counts(tagged)
