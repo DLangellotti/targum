@@ -17,8 +17,8 @@ line fixed now, and the procedural verbs on a line of their own, never as a part
 **It is targum's own judgement**, written by ling-ru and shipped under targum's licence.
 English Wiktionary and OpenRussian, both CC BY-SA, were read beside it as checks and
 nothing of theirs is in it. Stress is marked as print marks it: U+0301 on a word of more
-than one vowel, nothing on ё or on a word of one. **David has not read it yet**, and
-`reviewed` says so until he has.
+than one vowel, nothing on ё or on a word of one. David read it on 2026-10-30, and
+`reviewed` records that.
 
 A verb on the list takes its partners from the list, even where the list says none; a
 verb off it falls back to OpenRussian as before. Render time only: nothing is

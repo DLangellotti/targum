@@ -1,6 +1,6 @@
 {
  "about": "Russian aspect partners for the commonest verbs in targum's built Russian texts, and the verbs beside them that are not partners: for a while, begin, once. targum's own judgement, written 2026-10-30 by ling-ru; English Wiktionary and OpenRussian (both CC BY-SA) were read beside it as checks only, and nothing was copied from them; OpenCorpora's export was unreachable that day. Shipped under targum's licence. See annotate/aspect_partners.py.",
- "reviewed": "",
+ "reviewed": "David, 2026-10-30: the whole list and the card strings, as drafted",
  "measured": "tokens: verb tokens over the 129 Russian texts built on the laptop, 2026-10-30",
  "entries": [
   {"verb": "быть", "tokens": 1436, "partners": [], "note": "no aspect partner"},
