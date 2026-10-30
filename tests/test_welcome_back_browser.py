@@ -7,6 +7,7 @@ week away", 2026-10-09; boards WelcomeBackDesk and WelcomeBackPhone).
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -124,8 +125,10 @@ def test_a_week_away_is_welcomed_back_at_the_text_they_stopped_in(browser, tmp_p
         # The text in the large card is not repeated in Continue.
         titles = page.locator("#continue-cards .home-card-title").all_inner_texts()
         assert titles == ["רות"]
-        # The page says nothing about how long they were gone.
-        said = page.locator("#welcome-back").inner_text()
+        # The page says nothing about how long they were gone. It names the
+        # day they stopped, which on the 30th of a month is "15 October": the
+        # date is taken out first, so the count is checked and not the calendar.
+        said = re.sub(r"\bon \d{1,2} [A-Z][a-z]+\b", "", page.locator("#welcome-back").inner_text())
         for counted in ("15", "days", "week", "streak"):
             assert counted not in said
         assert not thrown, thrown
