@@ -98,8 +98,9 @@ anything is not a lesser reader.
 - `design.md` governs every visible surface, and `tests/test_brand.py` enforces the half
   a machine can check. When a brand test fails, the code is wrong, not the test.
 - A reader fetches nothing from any other site. Opened from targum.page it may load its
-  own files from targum's origin; saved for offline or opened from disk it fetches nothing
-  at all. `tests/test_render.py` pins the allowlist of outbound links.
+  own files from targum's origin; saved for offline or opened from disk it loads no files
+  from anywhere, and a saved copy's calls to the reader's own account go to targum's
+  origin only. `tests/test_render.py` pins the allowlist of outbound links.
 - Do not bump `SCHEMA_VERSION` to invalidate one stage. It keys the cache for every
   stage, so it forces paid re-translation of every text. To make a new word-level
   feature reach existing readers, change the annotator's name instead.

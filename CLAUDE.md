@@ -207,9 +207,11 @@ wrong. There is; it is just not in the environment of a fresh shell.
   news topic brings spends; their items are links with a press each.
 - **A reader fetches nothing from any other site.** No script, stylesheet, font or image
   from anybody else's origin. Opened in the browser from targum.page, a reader may load
-  its own stylesheets, scripts and recordings from targum's own origin; a reader saved
-  for offline, or opened from disk, still fetches nothing at all (design.md §12,
-  2026-10-30). Outbound links a reader chooses to click are the one exception for other
+  its own stylesheets, scripts and recordings from targum's own origin. A reader saved
+  for offline, or opened from disk, loads no files from anywhere. When offline, a saved
+  copy's calls to the reader's own account (the signed-in check, text edits, voice) go to
+  targum's own origin only, and wait or fail quietly (design.md §12, 2026-10-30).
+  Nothing ever comes from another site. Outbound links a reader chooses to click are the one exception for other
   sites, and `test_render.py` pins the allowlist.
 
 ## Skill routing

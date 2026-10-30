@@ -184,7 +184,7 @@ def test_the_worker_never_keeps_a_named_page_as_the_copy_for_the_plane() -> None
 
 
 # -- the rule under all of it (design.md §12, "A reader fetches nothing from any other
-# site", 2026-10-30): from the site, only the site; off a disk, nothing at all. ----------
+# site", 2026-10-30): from the site, only the site; saved or off a disk, no files. -------
 
 #: What a page would fetch by itself: a script, a stylesheet, a picture, a recording.
 _FETCHED = re.compile(r"""(?:\bsrc|<link\b[^>]*?\bhref)\s*=\s*["']([^"']*)["']""", re.I)
@@ -212,7 +212,8 @@ def _code_out(html: str) -> str:
 
 def test_a_reader_on_disk_names_nothing_to_fetch(tmp_path: Path) -> None:
     """`test_render.py` holds a built reader to no address on another site; this holds it
-    to none on its own either, so a reader off a disk has nothing to ask for at all."""
+    to none on its own either, so a reader off a disk or saved loads no files from
+    anywhere."""
     reader = book(tmp_path / "a-book")
     for page in sorted(reader.glob("*.html")):
         whole = page.read_text(encoding="utf-8")

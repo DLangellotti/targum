@@ -368,7 +368,8 @@ them"): a reader and every page that can be opened off a disk, framed by a host,
 or kept for offline bakes each file into itself and fetches nothing. A reader opened on
 the site is handed with its files named, and keeps them (2026-10-29, §12 "A served reader
 loads its files once"); the copy on disk is still whole. The rule under both is §12's of
-2026-10-30: a reader fetches nothing from any other site, and nothing at all off a disk. A desk page (the
+2026-10-30: a reader fetches nothing from any other site, and saved for offline or
+opened off a disk it loads no files from anywhere. A desk page (the
 pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
@@ -394,8 +395,13 @@ nothing, read it as this.
   or recording comes from anybody else's origin, on any page, ever.
 - **Opened in the browser from targum.page,** a reader may load its own stylesheets,
   scripts and recordings from targum's own origin, and the browser keeps them.
-- **A reader saved for offline, or opened from disk, still fetches nothing at all.** The
+- **A reader saved for offline, or opened from disk, loads no files from anywhere.** The
   copy a save keeps and the file a build writes are whole, as they were.
+- **A saved copy's calls to the reader's own account** — the signed-in check, text
+  edits, voice — go to targum's own origin only. Offline they wait or fail quietly
+  (David, 2026-10-30, choosing to word the rule to what readers already did rather than
+  change it). A reader opened from disk makes none.
+- **Nothing ever comes from another site.**
 - **Outbound links a reader chooses to click** stay the one exception for other sites,
   and `test_render.py`'s allowlist still pins them.
 - **Why:** on the phone profile, opening a reader again cost the same 250 kB every time,
@@ -407,7 +413,7 @@ nothing, read it as this.
   the allowlist's links), `test_served_reader.py` (every file a served reader names is
   same-origin, its policy names no other host, and a save gets the page whole) and
   `test_offline_browser.py` (a reader off a disk makes no request at all, a saved copy
-  opened offline asks for no file, and a served reader asks only its own origin).
+  opened offline loads no file, and a served reader asks only its own origin).
 
 ### The level card says Reading level — 2026-10-30
 
@@ -8638,7 +8644,8 @@ already knows.
 the chrome's face, the board's word card, menus as sheets — since 2026-10-09: §12, "The boards are the desk", 2026-10-09. What
 follows still holds for the page's lines, and a reader still fetches nothing.)* The page tone, the serif, the hairlines between lines, the
 brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
-nothing from any other site, and nothing at all off a disk (§12, 2026-10-30) — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+nothing from any other site and, saved or off a disk, loads no files from anywhere (§12,
+2026-10-30) — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 
