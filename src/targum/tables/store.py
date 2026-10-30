@@ -215,6 +215,19 @@ class Store:
             )
         return True
 
+    def counted(self, contribution: str) -> dict[str, int]:
+        """What one contribution counted, key by key over its variants."""
+        if not self.file.is_file():
+            return {}
+        with closing(self._connect()) as db:
+            return {
+                str(key): int(n)
+                for key, n in db.execute(
+                    "SELECT key, SUM(n) FROM tally WHERE contribution_id = ? GROUP BY key",
+                    (contribution,),
+                )
+            }
+
     def total(self, table: str, register: str | None = None) -> int:
         """The current count of everything in one table, in one register or all."""
         if not self.file.is_file():
