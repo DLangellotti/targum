@@ -580,20 +580,30 @@ def shares(
 #: Three made-up readers, from the tables alone, so the formula and the floors can be
 #: seen before any real reader is: (who, register, how many of its commonest lemmas they
 #: know). No real account is ever read for this.
-SYNTHETIC: dict[str, tuple[str, str, int]] = {
-    "beginner": ("A beginner: the 400 commonest words of conversation", "conversation", 400),
+SYNTHETIC: dict[str, tuple[str, tuple[str, ...], int]] = {
+    "beginner": (
+        "A beginner: the 400 commonest words of conversation",
+        ("conversation", "scenes"),
+        400,
+    ),
     "oleh": (
         "An oleh after a year: the 2,500 commonest words of conversation",
-        "conversation",
+        ("conversation", "scenes"),
         2500,
     ),
-    "news": ("A news reader: the 4,000 commonest words of the news", "news", 4000),
+    "news": ("A news reader: the 4,000 commonest words of the news", ("news",), 4000),
 }
 
 
 def synthetic_known(store: Store, person: str) -> list[str]:
-    """What one synthetic reader knows."""
+    """What one synthetic reader knows: the commonest lemmas of the first of its registers
+    the tables hold anything for. Conversation falls back to targum's own scenes, which
+    are modern conversation too, where no conversation is counted yet."""
     from .tables.words import WORDS
 
-    _, register, depth = SYNTHETIC[person]
-    return [key for key, _ in store.top(WORDS, register, limit=depth)]
+    _, registers, depth = SYNTHETIC[person]
+    for register in registers:
+        top = store.top(WORDS, register, limit=depth)
+        if top:
+            return [key for key, _ in top]
+    return []

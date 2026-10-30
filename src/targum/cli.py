@@ -5007,6 +5007,10 @@ def topics_share(
         Path | None,
         typer.Option("--lexicon", help="A topics file. Default: ~/.targum/topics.json."),
     ] = None,
+    registers: Annotated[
+        str,
+        typer.Option("--registers", help="The registers a lemma is weighed by, comma-separated."),
+    ] = "news,conversation,literature",
 ) -> None:
     """Print one synthetic reader's share of each topic's words (targum-internal#605).
 
@@ -5029,7 +5033,7 @@ def topics_share(
         fail(TargumError("There is no topics file.", "Pass --lexicon FILE from a tagging run."))
     store = _tables_store()
     known = topics.synthetic_known(store, person)
-    modern = topics.weights(store, topics.MODERN)
+    modern = topics.weights(store, [r.strip() for r in registers.split(",") if r.strip()])
     bible = topics.weights(store, (topics.BIBLE,))
     console.print(f"{topics.SYNTHETIC[person][0]} ({len(known)} words known)")
     if len(known) < topics.READER_FLOOR:
