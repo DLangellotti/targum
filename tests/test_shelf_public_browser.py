@@ -19,7 +19,7 @@ from typing import Any
 import pytest
 
 from targum.catalogue import Entry, Kind
-from targum.render.builder import kind_page, shelf_page, text_page
+from targum.render.builder import carried, kind_page, shelf_page, text_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -128,7 +128,9 @@ def _open(browser: Any, html: str, width: int) -> tuple[dict[str, Any], list[str
 
     def answer(route: Any, request: Any) -> None:
         if request.url == "http://door.test/library":
-            route.fulfill(status=200, content_type="text/html; charset=utf-8", body=html)
+            # The public Library names its files by address since targum-internal#558, so
+            # it is read as a browser that kept them draws it, with them put back in place.
+            route.fulfill(status=200, content_type="text/html; charset=utf-8", body=carried(html))
         else:
             fetched.append(request.url)
             route.abort()
@@ -203,7 +205,7 @@ def test_a_pressed_russian_stays_russian_on_the_next_click(browser: Any, a_big_s
             entry = by_id(parts[1])
             assert entry is not None, url.path
             html = text_page(entry, "https://targum.page", language=language)
-        route.fulfill(status=200, content_type="text/html; charset=utf-8", body=html)
+        route.fulfill(status=200, content_type="text/html; charset=utf-8", body=carried(html))
 
     context = browser.new_context(viewport={"width": 1440, "height": 900}, locale="en-US")
     page = context.new_page()

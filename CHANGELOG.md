@@ -96,6 +96,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   shows as 100% and one above none never shows as 0%. The Tanakh map's sum says "90% of
   the words or more" in place of "nine words in ten". `level.words_in_ten` is
   `level.known_line` now. Your Progress's monthly line went exact with targum-internal#561.
+- The signed-out Library loads its files once too (targum-internal#558). `/library` and its
+  kind pages were left off #549's list and still carried 65 kB of faces and 119 kB of CSS
+  inline on every visit. They now work like the other public pages: whole on a first visit,
+  named by address once kept, warming the same public set. Measured locally on the phone
+  profile: a first visit's LCP from 1.02 s to 0.76 s (Russian 1.14 to 0.72), a second
+  visit from 0.96 s and 83 kB to 0.64 s and 21 kB. Screenshots are identical at 390 and
+  1440 in both languages once the faces are on.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under

@@ -3,10 +3,10 @@ desk page loads its files once and keeps them", 2026-10-18, targum-internal#484)
 
 The desk names its files under `/assets/<name>.<hash>.<ext>`, served for a year as
 immutable. Everything else still carries its files inline and fetches nothing: readers,
-contents pages, the shelf, the series pages, a card in a host's frame, a printed page, and
+contents pages, the series pages, a card in a host's frame, a printed page, and
 Saved on this device, the one desk page a worker keeps for offline. The public pages in
 front of the account (the front door, a text's page, About, the legal pages) joined the
-desk on 2026-10-28 (targum-internal#549)."""
+desk on 2026-10-28 (targum-internal#549), and the public Library on 2026-10-29 (#558)."""
 
 from __future__ import annotations
 
@@ -52,7 +52,6 @@ STAYS_INLINE = {
     "card-build.html.j2",
     "card-offer.html.j2",
     "card-text.html.j2",
-    "shelf.html.j2",
     "series.html.j2",
     "weekly-note.html.j2",
     "how.html.j2",
@@ -226,7 +225,7 @@ def test_the_policy_lets_a_desk_page_load_its_own_files_and_nothing_else() -> No
 
 
 def test_a_page_that_names_no_file_is_held_to_its_hashes() -> None:
-    for page in (saved_page(TOKEN), builder.shelf_page()):
+    for page in (saved_page(TOKEN), builder.holding_page()):
         directives = _directives(Handler._policy(page.encode("utf-8")))
         assert "'self'" not in directives["script-src"]
         assert "'self'" not in directives["style-src"]
@@ -261,6 +260,9 @@ def _public_pages() -> dict[str, str]:
         "privacy": builder.legal_page("privacy", "https://targum.page"),
         "terms": builder.legal_page("terms", "https://targum.page"),
         "a text's page": builder.text_page(entry, "https://targum.page"),
+        # Missed in #549 and added on 2026-10-29 (targum-internal#558).
+        "the public Library": builder.shelf_page("https://targum.page"),
+        "a kind's page": builder.kind_page("he", "story", "https://targum.page") or "",
     }
 
 

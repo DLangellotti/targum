@@ -13,7 +13,14 @@ from html import unescape
 import pytest
 
 from targum.catalogue import CATALOGUE, Kind, Tag, beit_midrash
-from targum.render.builder import SHELF_ROWS, kind_page, shelf_page, text_page
+from targum.render.builder import (
+    SHELF_ROWS,
+    carried,
+    first_visit,
+    kind_page,
+    shelf_page,
+    text_page,
+)
 
 ADDRESS = "https://targum.page"
 
@@ -247,8 +254,13 @@ def test_the_library_wears_the_front_door_and_carries_no_script(
     html = shelf_page(ADDRESS)
     assert '<body class="landing">' in html
     assert '<header class="bar">' in html
-    assert "Source Sans 3" in html
+    # Its faces ride as files since targum-internal#558, so they are read put back in place.
+    assert "Source Sans 3" in carried(html)
     assert "<script" not in html.replace('<script type="application/ld+json">', "")
+    # A first visit is sent whole with the one loader that fetches its files after `load`
+    # (design.md §12, "A first visit gets the page whole"), and still nothing that draws.
+    whole = first_visit(html)
+    assert whole.count("<script") - html.count("<script") == 1, "only the loader"
 
 
 def test_a_kind_has_a_page_of_its_own_that_is_not_indexed(
