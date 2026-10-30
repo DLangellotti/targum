@@ -1225,3 +1225,26 @@ def test_aramaic_week_one_starts_with_onkelos() -> None:
     assert drawn["head"] == "Start with Onkelos."
     assert drawn["step"] == "It uses the most common words, so it's the easiest place to begin."
     assert drawn["go"] == "Show the easiest texts"
+
+
+def test_the_reading_percentage_is_never_rounded_into_a_lie() -> None:
+    """qa on targum#993: a month whose share is above none never says 0%, and rounding
+    down never says 100% of a share under all of it (`level.known_percent`)."""
+    source = (HARNESS.parents[2] / "src/targum/render/assets/progress.js").read_text(
+        encoding="utf-8"
+    )
+    start = source.index("  function percentOf(point) {")
+    end = source.index("\n  }\n", start) + 4
+    points = [
+        {"known": 2, "tokens": 1000},
+        {"known": 999, "tokens": 1000},
+        {"known": 1000, "tokens": 1000},
+        {"known": 0, "tokens": 1000},
+        {"known": 723, "tokens": 1000},
+    ]
+    script = (
+        source[start:end] + f"console.log(JSON.stringify({json.dumps(points)}.map(percentOf)));"
+    )
+    done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) == [1, 99, 100, 0, 72]

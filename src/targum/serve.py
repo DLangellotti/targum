@@ -1415,8 +1415,8 @@ class Job:
             # How long one of these has taken here lately. Zero means "not enough
             # finished builds to say", and the card shows nothing rather than a guess.
             "usually": round(self.usually, 1),
-            "known_share": None if self.known_share is None else round(self.known_share, 2),
-            "known_line": level_module.words_in_ten(self.known_share),
+            "known_share": level_module.page_share(self.known_share),
+            "known_line": level_module.known_line(self.known_share),
             # Where the text is from, so the card can link to it (2026-09-11: "don't
             # see the link to the article"). A link for a page on the web; a fetcher
             # id or a filename otherwise, which the page shows no link for.

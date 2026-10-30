@@ -285,7 +285,7 @@ def test_the_squares_take_their_shade_and_the_card_says_what_one_is(
     assert page.evaluate(step, "Genesis 4") is None, "not in the answer is not measured"
     assert page.evaluate(step, "Daniel 3") is None
     assert "week" in page.get_attribute("[data-ref='Genesis 12']", "class")
-    assert page.inner_text("#tanakh-sum").startswith("2 chapters")
+    assert page.inner_text("#tanakh-sum") == "2 chapters where you know 90% of the words or more."
 
     page.hover("[data-ref='Genesis 12']")
     card = page.inner_text("#tanakh-card")

@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
+    from .tables import Store
     from .vocalize import Vocalizer
     from .weekly.models import Edition, Issue
 
@@ -53,6 +54,7 @@ cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
 export_app = typer.Typer(no_args_is_help=True, help="A text in another form.")
 corpus_app = typer.Typer(no_args_is_help=True, help="The corpus ledger as a dataset.")
+tables_app = typer.Typer(no_args_is_help=True, help="The language tables, which stay private.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
@@ -61,6 +63,7 @@ app.add_typer(daily_app, name="daily")
 app.add_typer(video_app, name="video")
 app.add_typer(export_app, name="export")
 app.add_typer(corpus_app, name="corpus")
+app.add_typer(tables_app, name="tables")
 
 console = Console()
 err = Console(stderr=True)
@@ -1566,6 +1569,26 @@ def _reread_quote(root: Path, languages: set[str], dry_run: bool) -> None:
         raise typer.Abort()
 
 
+def _only(folders: list[Path], names: list[str]) -> list[Path]:
+    """The targums `rebuild --only` names: by folder name, or home/name where the same
+    name sits in more than one home. A name that matches nothing, or a bare name that
+    matches several, stops the run before anything is written."""
+    picked: list[Path] = []
+    for name in names:
+        hits = [
+            folder
+            for folder in folders
+            if name in (folder.name, f"{folder.parent.name}/{folder.name}")
+        ]
+        if not hits:
+            fail(TargumError(f"No targum here is called {name}.", "Name its folder, or home/name."))
+        if len(hits) > 1:
+            homes = ", ".join(f"{folder.parent.name}/{folder.name}" for folder in hits)
+            fail(TargumError(f"{name} is in more than one home: {homes}.", "Name it as home/name."))
+        picked.extend(hit for hit in hits if hit not in picked)
+    return picked
+
+
 def _targums(where: Path) -> list[Path]:
     """Every targum under a library root, whichever home it sits in.
 
@@ -2083,6 +2106,16 @@ def rebuild(
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="With --reread: say what it would cost, and stop.")
     ] = False,
+    only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--only",
+            help=(
+                "Rewrite only this targum: its folder name, or home/name (p1/abc-he). "
+                "Again for more."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Rewrite every reader from what is already on disk.
 
@@ -2225,7 +2258,10 @@ def rebuild(
 
     done = 0
     skipped: list[tuple[str, str]] = []
-    for folder in sorted(_targums(root)):
+    folders = sorted(_targums(root))
+    if only:
+        folders = _only(folders, only)
+    for folder in folders:
         if folder.name == "uploads":
             continue
         # A weekly edition is one long targum wired to its sibling levels, and rewriting
@@ -2604,6 +2640,51 @@ def refs(
         return
     console.print(f"[green]{filled}[/green] given their refs[dim], {skipped} left alone.[/dim]")
     console.print("[dim]Now `targum rebuild` to write the pages with their audio in.[/dim]")
+
+
+@app.command(name="align-subtitles")
+def align_subtitles(
+    folder: Annotated[Path, typer.Argument(help="One targum's folder: its audio.json beside it.")],
+    part: Annotated[
+        list[int] | None,
+        typer.Option("--part", help="Only this part. Again for more. Default: every one."),
+    ] = None,
+) -> None:
+    """Time each word of a video whose transcript came from its subtitle file.
+
+    A subtitle file times cues, so such a video lights the line being said and no word.
+    This lines the subtitles' own words up with the recording, on this machine, with the
+    forced aligner (targum-internal#572): free, and minutes a part. A word the aligner was
+    not sure of keeps no clock. It rewrites the parts' refinements and the manifest and
+    nothing else — the text and its words are untouched — so `targum rebuild --only` is
+    what writes the page after it.
+    """
+    from .audio.align import CtcAligner
+    from .audio.manifest import load as load_manifest
+    from .audio.subtitle_words import retime_folder
+
+    found = load_manifest(folder)
+    if found is None:
+        fail(TargumError(f"No recording in {folder}.", "Point it at one targum's folder."))
+    aligner = CtcAligner(found.language)
+    usable, hint = aligner.available()
+    if not usable:
+        fail(TargumError("The forced aligner is not here.", hint))
+    report = retime_folder(
+        folder, aligner, parts=part, notify=lambda line: console.print(f"[dim]{line}[/dim]")
+    )
+    for row in report.parts:
+        if row.skipped:
+            console.print(f"[dim]Part {row.number}: left as it was — {row.skipped}.[/dim]")
+        else:
+            console.print(
+                f"Part {row.number}: [green]{row.kept}[/green] of {row.words} words timed"
+                f"[dim] in {row.seconds / 60:.1f} min.[/dim]"
+            )
+    console.print(
+        f"[green]{report.kept}[/green] of {report.words} words timed"
+        f"[dim], {sum(row.seconds for row in report.parts) / 60:.1f} min of aligning.[/dim]"
+    )
 
 
 @app.command()
@@ -4732,6 +4813,84 @@ def corpus_export(
         fail(TargumError("The export was not written.", str(error)))
     rows = ", ".join(f"{count} {table}" for table, count in sheet["rows"].items())
     console.print(f"[green]Wrote[/green] {rows} [dim]{to}[/dim]")
+
+
+def _tables_store() -> Store:
+    """The language tables in the corpus ledger, or a failure saying the ledger is off."""
+    from .tables import Store
+
+    store = Store.from_env()
+    if store is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the ledger file, then run this again.",
+            )
+        )
+    return store
+
+
+@tables_app.command("sweep")
+def tables_sweep(
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Count every public text's words and phrases into the language tables
+    (targum-internal#577).
+
+    Reads each built folder's `annotation.json`: no annotator runs and nothing is
+    fetched or spent. A reader's home is skipped, whatever it holds. Run again, it
+    counts only what is new or was annotated under a new name since.
+    """
+    from time import monotonic
+
+    from .tables import sweep
+
+    store = _tables_store()
+    root = library or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+    started = monotonic()
+    result = sweep(root, store)
+    took = monotonic() - started
+    console.print(
+        f"[green]Counted[/green] {result.folded} texts, {result.unchanged} unchanged,"
+        f" {result.private} in readers' homes left out, {result.unreadable} unreadable"
+        f" [dim]{took:.0f} s, {store.file}[/dim]"
+    )
+    for register, texts in sorted(result.by_register.items()):
+        console.print(f"  {register}: {texts}")
+
+
+@tables_app.command("top")
+def tables_top(
+    register: Annotated[str, typer.Option("--register", help="news, bible, literature…")],
+    phrases: Annotated[
+        bool, typer.Option("--phrases", help="Runs of two and three lemmas, not words.")
+    ] = False,
+    raw: Annotated[
+        bool, typer.Option("--raw", help="Keep function words, names and numbers.")
+    ] = False,
+    limit: Annotated[int, typer.Option("--limit", help="How many rows.")] = 50,
+) -> None:
+    """The commonest words, or phrases, in one register now (targum-internal#577).
+
+    Function words, names and numbers are counted but left out here unless --raw.
+    """
+    from .tables.words import PHRASES, WORDS
+
+    store = _tables_store()
+    table = PHRASES if phrases else WORDS
+    rows = store.top(table, register, limit=limit, weighed=not raw)
+    if not rows:
+        known = ", ".join(store.registers(table)) or "none yet"
+        console.print(f"Nothing counted under {register}. Registers counted: {known}.")
+        return
+    total = store.total(table, register)
+    for key, n in rows:
+        console.print(f"{n:>9}  {n / total:6.2%}  {key}")
 
 
 @export_app.command("pdf")

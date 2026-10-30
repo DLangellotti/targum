@@ -3178,8 +3178,22 @@ def test_the_bar_says_a_clock_rather_than_a_percentage(scene) -> None:
 
 def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
     """The arrows walk the text a word at a time. A reader whose focus is on the bar
-    means the bar, so the key stops there."""
+    means the bar, so the key stops there.
+
+    What is held is the key, not the page. A jump to the end moves the voice to the last
+    line, and the voice turns to its line's page by design (QA 2026-10-05, B1), on its
+    next tick. Read straight after `Home`, the page was sometimes still the one `End`
+    sent the voice to: about one run in five (targum-internal#573). So the page's own
+    keyboard is asked whether a key reached it, and the page must be the first or the
+    one the voice left it on."""
     before = paged_scene.evaluate(PAGE)
+    # Every key that gets past the bar to the page, where the arrows would turn it.
+    paged_scene.evaluate(
+        """() => {
+          window.__reached = [];
+          document.addEventListener('keydown', (event) => window.__reached.push(event.key));
+        }"""
+    )
     paged_scene.click(".player-play")
     paged_scene.wait_for_function(
         "() => document.getElementById('player').classList.contains('playing')"
@@ -3195,7 +3209,23 @@ def test_the_bar_takes_the_keyboard_and_turns_no_page(paged_scene) -> None:
     assert ended["at"] >= ended["length"] - 0.3, ended
     paged_scene.keyboard.press("Home")
     assert paged_scene.evaluate(ALONG)["at"] < 0.3, "Home is the beginning"
-    assert paged_scene.evaluate(PAGE)["first"] == before["first"], "and no page turned"
+    # The arrows too: the page turns on them when the bar does not keep them.
+    paged_scene.keyboard.press("ArrowRight")
+    paged_scene.keyboard.press("ArrowLeft")
+    assert paged_scene.evaluate("() => window.__reached") == [], "no key got past the bar"
+    # And the page is the first, or the last: `End` plays the recording out, and the
+    # voice turns to the last line's page on its way out when its tick comes before
+    # `Home` (QA 2026-10-05, B1). A seek after it has stopped lights no line, so the page
+    # stays where the voice left it. Any other page was turned by something else.
+    seen = paged_scene.evaluate(
+        """() => {
+          const pairs = [...document.querySelectorAll('.pair')];
+          const voiced = [...document.querySelectorAll('.pair.voiced')];
+          return { first: pairs.findIndex((pair) => !pair.hidden),
+                   last: !voiced[voiced.length - 1].hidden };
+        }"""
+    )
+    assert seen["first"] == before["first"] or seen["last"], f"a page turned: {seen}"
 
 
 def test_a_step_says_what_size_it_is(scene) -> None:

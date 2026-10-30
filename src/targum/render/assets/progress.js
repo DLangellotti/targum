@@ -1043,8 +1043,14 @@
   var DAYS_PHONE = 14;
   var WEEKS = 12;
 
+  /* Never rounded into a lie, as `level.known_percent` keeps it (targum-internal#560,
+     qa on targum#993): a share above none is never 0%, and rounding down never says
+     100% of a share under all of it. */
   function percentOf(point) {
-    return Math.max(0, Math.min(100, Math.floor((point.known / Math.max(1, point.tokens)) * 100)));
+    var share = point.known / Math.max(1, point.tokens);
+    var percent = Math.max(0, Math.min(100, Math.floor(share * 100)));
+    if (share > 0 && percent <= 0) percent = 1;
+    return percent;
   }
 
   function pageLanguage() {

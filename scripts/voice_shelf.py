@@ -24,6 +24,10 @@ adds what a run of five thousand paid requests needs that a run of fourteen does
 - **A progress file.** `--into/progress.json`, rewritten atomically after every scene and
   every bought turn: what is done, what failed and why, what was spent, the last quota
   seen, and what the run is waiting for.
+- **A refusal fails one scene, not the run.** An answer with no audio (a safety or other
+  block, or an empty generation) is asked for once more; a second one marks the scene
+  `failed` with the reason the answer gave, and the run moves on. Every such answer, audio
+  taken out, is appended to `--into/refusals.jsonl` with its scene and turn.
 - **A dry run.** Counts by language, what is left to voice, requests, an estimated cost and
   time, and every prompt that would be refused for length. It calls nothing.
 
@@ -131,10 +135,15 @@ def cast_for(scene: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 def scene_key(scene: dict[str, Any]) -> str:
     """The words and voices a scene was voiced from, so a done scene that has since
     changed is done again."""
-    made = (
+    made: tuple[Any, ...] = (
         [[t["who"], t["text"]] for t in scene["turns"]],
         {k: v.get("voice") for k, v in scene["cast"].items()},
     )
+    # A hint changes what is asked for, so a done scene given one is done again. Left out
+    # when there are none, so every key made before hints existed still matches.
+    hinted = {str(n): t["hint"] for n, t in enumerate(scene["turns"]) if t.get("hint")}
+    if hinted:
+        made += (hinted,)
     return hashlib.sha256(json.dumps(made, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
@@ -238,6 +247,32 @@ def load(source: Path, languages: list[str], only: list[str]) -> list[dict[str, 
     return scenes
 
 
+def read_hints(given: list[str]) -> dict[tuple[str, int], str]:
+    """`--hint scene:turn=text`, each to one turn, as {(scene, turn): text}."""
+    hints: dict[tuple[str, int], str] = {}
+    for one in given:
+        where, sep, text = one.partition("=")
+        sid, colon, turn = where.rpartition(":")
+        if not sep or not colon or not sid or not turn.strip().lstrip("t").isdigit():
+            raise ValueError(f"--hint {one!r}: expected scene:turn=text, e.g. 65-the-leak:22=...")
+        if not text.strip():
+            raise ValueError(f"--hint {one!r}: the hint is empty")
+        hints[(sid.strip(), int(turn.strip().lstrip("t")))] = text.strip()
+    return hints
+
+
+def give_hints(scenes: list[dict[str, Any]], hints: dict[tuple[str, int], str]) -> None:
+    """Put each hint on its turn, in memory; the scene files are never written. A hint
+    for a scene or turn that is not there stops the run before anything is bought."""
+    by_id = {s["id"]: s for s in scenes}
+    for (sid, n), text in hints.items():
+        if sid not in by_id:
+            raise ValueError(f"--hint for {sid}: not among the scenes asked for")
+        if not 0 <= n < len(by_id[sid]["turns"]):
+            raise ValueError(f"--hint for {sid}:{n}: it has {len(by_id[sid]['turns'])} turns")
+        by_id[sid]["turns"][n]["hint"] = text
+
+
 def dry_run(
     scenes: list[dict[str, Any]], into: Path, progress: Progress, spacing: float, cap: float
 ) -> None:
@@ -296,6 +331,21 @@ def run(
             raise CapReached(f"${progress.spent:.2f} spent, the cap is ${args.cap:.2f}")
 
     current: dict[str, Any] = {}
+    refusals = into / "refusals.jsonl"
+
+    def refused(said: vs.Refused) -> None:
+        scene_now = current["scene"]
+        turn = said.turn
+        line = {
+            "at": now(),
+            "scene": scene_now["id"],
+            "turn": turn,
+            "text": scene_now["turns"][turn]["text"] if turn is not None else None,
+            "reason": said.reason,
+            "payload": said.payload,
+        }
+        with refusals.open("a", encoding="utf-8") as log:
+            log.write(json.dumps(line, ensure_ascii=False) + "\n")
 
     def cut_off(_: vs.CutOff) -> None:
         # Nothing came back to measure, but the model may have spoken the whole line
@@ -340,6 +390,7 @@ def run(
                     directions,
                     progress.quota,
                     bought,
+                    on_refused=refused,
                 )
             except CapReached as reached:
                 progress.scene(sid, state="partial", reason=str(reached))
@@ -374,7 +425,13 @@ def run(
                 sleep(args.pause)
                 progress.set(waiting_until=None)
                 continue
-            except (vs.CutOff, vs.TooLong, RuntimeError, OSError) as failed:
+            except vs.Refused as failed:
+                progress.scene(
+                    sid, state="failed", reason=f"refused on turn {failed.turn}: {failed.reason}"
+                )
+                print(f"  failed: turn {failed.turn} {failed}", flush=True)
+                break
+            except (vs.CutOff, vs.TooLong, RuntimeError, OSError, ValueError) as failed:
                 progress.scene(sid, state="failed", reason=f"{type(failed).__name__}: {failed}")
                 print(f"  failed: {failed}", flush=True)
                 break
@@ -410,6 +467,13 @@ def main() -> None:
     parser.add_argument("--pause", type=float, default=PAUSE, help="seconds, when throttled")
     parser.add_argument("--wait-daily", type=float, default=WAIT_DAILY, help="hours at most")
     parser.add_argument("--no-direction", action="store_true")
+    parser.add_argument(
+        "--hint",
+        action="append",
+        default=[],
+        help="scene:turn=text, a pronunciation said after the line's own; repeatable. "
+        "e.g. 65-the-leak:22='Read עוֹשָׂה as \"osa\", the feminine'",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -420,6 +484,10 @@ def main() -> None:
     scenes = load(source, args.language, args.only)
     if not scenes:
         sys.exit(f"No scenes in {source}.")
+    try:
+        give_hints(scenes, read_hints(args.hint))
+    except ValueError as wrong:
+        sys.exit(str(wrong))
     progress_path = into / "progress.json"
     if args.dry_run:
         # Read, never written: a dry run leaves no trace.
