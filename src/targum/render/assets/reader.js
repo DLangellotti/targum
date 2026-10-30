@@ -2923,6 +2923,12 @@ var targumReader = function () {
       sayListFull();
       return LIST_FULL;
     }
+    // A prefix or a function word never goes on the list (design.md §12, 2026-10-30):
+    // not from a key, and not by writing it a meaning. One already there moves and
+    // comes off as before.
+    if (isLearning(status) && !(vocab[lemma] && isLearning(vocab[lemma].status)) && notToLearnAt(index)) {
+      return false;
+    }
     recordUndo(index, lemma, surface);
     if (status === null || status === undefined || isLearning(status)) delete justSaid[lemma];
     else justSaid[lemma] = true;
@@ -4333,6 +4339,38 @@ var targumReader = function () {
 
   function isName(token) {
     return !!(token[6] && KIND_NAMES[token[6]]);
+  }
+
+  // Not a word to learn (David, 2026-10-30; design.md §12): a clitic DICTA split off —
+  // ו ה ב כ ל מ ש, a lemma of one letter — or a closed-class word, the parts of speech
+  // `tables.weights.EXCLUDED` names. Its card still says what it means (כ is "like, as")
+  // and offers no stage to put it on the list; the sync refuses one too
+  // (`accounts.Store.push`). One letter is counted as `touchstones.a_word` counts it,
+  // letters only, points left out.
+  var CLOSED_CLASS = { ADP: 1, CCONJ: 1, SCONJ: 1, DET: 1, PRON: 1, AUX: 1, PART: 1 };
+
+  function oneLetter(lemma) {
+    return (String(wordOf(lemma) || "").match(/\p{L}/gu) || []).length < 2;
+  }
+
+  function closedRow(row) {
+    return !!row && row.length > 8 && !!CLOSED_CLASS[feat(grammarTable[row[8]] || "", "UPOS")];
+  }
+
+  // Asked of the lemma across the page, as `occurrences.Occurrences.function` asks it of
+  // a text: one letter, or every token of it here a closed-class word.
+  function notToLearnAt(index) {
+    if (oneLetter(lemmas[index])) return true;
+    var seen = false;
+    var open = false;
+    Object.keys(wordData).forEach(function (segment) {
+      (wordData[segment] || []).forEach(function (row) {
+        if (row[4] !== index) return;
+        seen = true;
+        if (!closedRow(row)) open = true;
+      });
+    });
+    return seen && !open;
   }
 
   // What the named-entity reader called a word, where it called it anything the card
@@ -6586,9 +6624,15 @@ var targumReader = function () {
     if (round) card.appendChild(round);
 
     // A name or a number takes no scale: neither is vocabulary, and the reader's key
-    // for either is `i`. Everything else keeps the editor exactly as it was.
+    // for either is `i`. Nor does a prefix or a function word (design.md §12,
+    // 2026-10-30): its meaning above is the whole card, unless it is on the list
+    // already, where the scale stays so it can be moved or taken off. Everything else
+    // keeps the editor exactly as it was.
     var level = levelOf(word);
-    if (!(row && isName(row))) card.appendChild(statusRow(index, surface, level));
+    var noScale =
+      (row && isName(row)) ||
+      (statusOf(lemma) === undefined && (closedRow(row) || notToLearnAt(index)));
+    if (!noScale) card.appendChild(statusRow(index, surface, level));
     // The word said, at the end of the stage control (board WordCardDesk): the press a
     // reader makes after reading the meaning, beside the one they make after hearing it.
     var steps = card.querySelector(".vocab-editor .levels");
@@ -6612,7 +6656,7 @@ var targumReader = function () {
       }
     }
     // A stage pressed with no connection is kept here and goes when there is one.
-    if (away() && !(row && isName(row))) {
+    if (away() && !noScale) {
       var held = document.createElement("span");
       held.className = "card-held";
       held.textContent = t("offline.held", "Saved here, sent when you're back");
