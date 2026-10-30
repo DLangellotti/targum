@@ -63,7 +63,9 @@ def test_the_switch_moves_no_word_and_saves_the_same_word(
     off_words, off_texts = page.evaluate(WORDS), page.evaluate(TEXTS)
     assert page.evaluate("() => document.body.classList.contains('said-on')") is False
     assert reading(page, "Les") == "lez‿", "the card says les as it is said here, in French"
-    off_saved = saved(page, "Les")
+    # Saved on enfants: les is a determiner, which has no stage (design.md §12, 2026-10-30).
+    off_reading = reading(page, "enfants")
+    off_saved = saved(page, "enfants")
     context.close()
 
     context, page = open_reader(browser, reader)
@@ -95,7 +97,8 @@ def test_the_switch_moves_no_word_and_saves_the_same_word(
     assert page.evaluate(TEXTS) == off_texts, "not a letter added to the text"
     assert page.evaluate(WORDS) == off_words, "every word where it was, filed where it was"
     assert reading(page, "Les") == "lez‿"
-    assert saved(page, "Les") == off_saved, "the same word, saved the same way"
+    assert reading(page, "enfants") == off_reading
+    assert saved(page, "enfants") == off_saved, "the same word, saved the same way"
 
     # And off again, the ties are there to be drawn and drawn as nothing.
     page.keyboard.press("n")
