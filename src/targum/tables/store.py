@@ -50,8 +50,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS contribution_current
     ON contribution (tbl, unit) WHERE superseded_at IS NULL;
 CREATE INDEX IF NOT EXISTS contribution_by_register
     ON contribution (tbl, register) WHERE superseded_at IS NULL;
--- What it counted: a key (a lemma, a sequence of lemmas) in a variant (its part of
--- speech, or theirs), n times.
+-- What it counted: a key (a lemma, a sequence of lemmas, a root) in a variant (its part
+-- of speech, or theirs, or a root's binyan), n times.
 CREATE TABLE IF NOT EXISTS tally (
     contribution_id TEXT NOT NULL REFERENCES contribution (id),
     key             TEXT NOT NULL,

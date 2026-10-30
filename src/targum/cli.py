@@ -4870,19 +4870,21 @@ def tables_top(
     phrases: Annotated[
         bool, typer.Option("--phrases", help="Runs of two and three lemmas, not words.")
     ] = False,
+    roots: Annotated[bool, typer.Option("--roots", help="Verb roots, not words.")] = False,
     raw: Annotated[
         bool, typer.Option("--raw", help="Keep function words, names and numbers.")
     ] = False,
     limit: Annotated[int, typer.Option("--limit", help="How many rows.")] = 50,
 ) -> None:
-    """The commonest words, or phrases, in one register now (targum-internal#577).
+    """The commonest words, phrases or verb roots in one register now
+    (targum-internal#577).
 
     Function words, names and numbers are counted but left out here unless --raw.
     """
-    from .tables.words import PHRASES, WORDS
+    from .tables.words import PHRASES, ROOTS, WORDS
 
     store = _tables_store()
-    table = PHRASES if phrases else WORDS
+    table = ROOTS if roots else PHRASES if phrases else WORDS
     rows = store.top(table, register, limit=limit, weighed=not raw)
     if not rows:
         known = ", ".join(store.registers(table)) or "none yet"

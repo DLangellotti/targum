@@ -2,8 +2,9 @@
 language, left behind by everything targum builds, kept in the corpus ledger and never
 published.
 
-Slice 1 is the store (`store`), the fold for `words` and `phrases` (`words`), the sweep
-over the texts already built, and the guard: `public_text` is the only way into a fold,
+Slice 1 is the store (`store`), the fold for `words` and `phrases` (`words`) and, by
+the same fold, `roots` (`roots`, sublexical slice 1), the sweep over the texts already
+built, and the guard: `public_text` is the only way into a fold,
 and it fails closed on anything a reader imported. No page shows a table, no export
 carries one, and no row names a reader or holds a sentence.
 """

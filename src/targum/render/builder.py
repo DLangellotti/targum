@@ -6368,6 +6368,8 @@ def render(
         # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
         # only where it differs, like `paradigms_here`, and its table rides there.
         binyanim_here: dict[str, list[list[object]]] = {}
+        from ..annotate.verb_roots import root_for
+
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -6422,7 +6424,16 @@ def render(
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
                         heads.append(token.head)
-                        roots.append(token.root or "")
+                        # Less the roots known to be wrong, and filled from the CC0
+                        # table where the annotator gave none (`annotate.verb_roots`).
+                        roots.append(
+                            root_for(
+                                token.lemma,
+                                token.root,
+                                token.pos,
+                                "he" if hebrew_at.get(sid) else segmented.language,
+                            )
+                        )
                         binyanim.append(token.binyan or "")
                         # The other verbs built on this one's root, each with its binyan
                         # (targum-internal#301). Worked out from the same CC0 table the

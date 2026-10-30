@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from . import weights
+from . import roots, weights
 from .store import Contribution, Store
 
 if TYPE_CHECKING:
@@ -20,7 +20,10 @@ if TYPE_CHECKING:
 
 WORDS = "words"
 PHRASES = "phrases"
-TABLES = (WORDS, PHRASES)
+ROOTS = roots.ROOTS
+#: Every table one fold writes. `roots` (sublexical slice 1) rides the same fold and the
+#: same guard, so a text is read once for all three.
+TABLES = (WORDS, PHRASES, ROOTS)
 
 #: The version of the counting rule below. A change to what is counted is a new number,
 #: so every text is counted again under it and supersedes what the old rule gave.
@@ -81,7 +84,7 @@ def count(tokens: Mapping[str, Sequence[Mapping[str, Any]]]) -> dict[str, Counte
 
 def fold(text: PublicText, annotation: Mapping[str, Any], store: Store | None = None) -> int:
     """Count one public text's annotation into the tables. Returns the contributions
-    written: 0 when both are already current, when the ledger is off, or for a language
+    written: 0 when every one is already current, when the ledger is off, or for a language
     not folded.
 
     `text` must come from `tables.public_text`, which is the only way to get one, so a
@@ -113,7 +116,7 @@ def fold(text: PublicText, annotation: Mapping[str, Any], store: Store | None = 
         if store.is_current(contribution.id):
             continue
         if counted is None:
-            counted = count(tokens)
+            counted = {**count(tokens), ROOTS: roots.count(tokens, language)}
         if store.write(contribution, counted[table]):
             written += 1
     return written
@@ -128,5 +131,5 @@ def contribution_for(text: PublicText, table: str, tool: str) -> Contribution:
         source=text.source,
         licence=text.licence,
         tool=tool,
-        rule=RULE,
+        rule=roots.rule() if table == ROOTS else RULE,
     )

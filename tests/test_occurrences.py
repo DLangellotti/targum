@@ -328,7 +328,9 @@ def rooted(folder: Path) -> Path:
 def test_a_text_keeps_the_root_its_annotation_gave_and_caches_it(tmp_path: Path) -> None:
     folder = rooted(_jonah(tmp_path / "jonah"))
     counted = text_occurrences(folder)
-    assert counted is not None and counted.roots == ROOTS
+    # And the verb the annotation gave no root, filled from the CC0 table as the page
+    # fills it (`annotate.verb_roots`), so the card and the count still agree.
+    assert counted is not None and counted.roots == {**ROOTS, "היה": "היה"}
     occurrences._cached.cache_clear()
     assert text_occurrences(folder) == counted, "read back from the cache, roots and all"
 
@@ -342,7 +344,7 @@ def test_a_cache_from_before_the_roots_is_counted_again(tmp_path: Path) -> None:
     del cached["roots"]
     (folder / OCCURRENCES).write_text(json.dumps(cached), encoding="utf-8")
     occurrences._cached.cache_clear()
-    assert (text_occurrences(folder) or pytest.fail()).roots == ROOTS
+    assert (text_occurrences(folder) or pytest.fail()).roots == {**ROOTS, "היה": "היה"}
 
 
 def test_a_family_is_the_forms_of_a_root_met_in_finished_sections(tmp_path: Path) -> None:
@@ -357,7 +359,9 @@ def test_a_family_is_the_forms_of_a_root_met_in_finished_sections(tmp_path: Path
     assert family("ימם", both, folder_for) == ["ים", "דג"]
     assert family("ימם", both, folder_for, language="arc") == []
     assert family("", both, folder_for) == [], "no root, no family"
-    assert family("היה", both, folder_for) == [], "a form the annotation gave no root has none"
+    assert family("בן", both, folder_for) == [], "a noun the annotation gave no root has none"
+    # A verb it gave none is filled from the CC0 table, as the page fills it.
+    assert family("היה", both, folder_for) == ["היה"]
 
 
 def meeting(document: str, section: int, ref: str, at: int) -> Meeting:
