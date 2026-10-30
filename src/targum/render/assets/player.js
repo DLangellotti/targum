@@ -215,16 +215,29 @@ var targumPlayer = function () {
      with its picture put away was listened to. Under a second is a mis-press.
      The picture is read when a stretch starts, and putting it up or away while the sound
      goes ends one stretch and starts the next (targum-internal#602): read only at the end,
-     a film watched for forty minutes and put away for the last one was all "listened". */
+     a film watched for forty minutes and put away for the last one was all "listened".
+     And whether the text was on the screen (targum-internal#602, privacy notice clause
+     3.6 as amended 2026-10-30): not with the page hidden (a locked phone, another app),
+     not with the listening view open, and not while Hear first holds the line's text
+     back. The line the research draws is there, not at the picture; a later figure says
+     how much of the time was without the text. Any of the three changing while the sound
+     goes ends one stretch and starts the next, as the picture does. */
   var begun = 0;
   var begunWatching = false;
+  var begunText = true;
   function pictureUp() {
     var panel = document.getElementById("video");
     return !!(panel && !panel.hidden);
   }
+  function textShown() {
+    if (document.hidden) return false;
+    if (document.body && document.body.classList.contains("listening")) return false;
+    return !hearing;
+  }
   function stretchBegins() {
     begun = Date.now();
     begunWatching = pictureUp();
+    begunText = textShown();
   }
   function stretchOver() {
     if (!begun) return;
@@ -237,18 +250,29 @@ var targumPlayer = function () {
       amount: seconds,
       medium: begunWatching ? "watch" : "listen",
       segment: saying ? saying.getAttribute("data-id") || "" : "",
+      text: begunText,
     });
+  }
+  /* Something the stretch is told apart by has moved: close it and, if the sound is
+     still going, open the next. */
+  function restand() {
+    if (!begun) return;
+    if (pictureUp() === begunWatching && textShown() === begunText) return;
+    stretchOver();
+    if (!audio.paused) stretchBegins();
   }
   audio.addEventListener("playing", function () {
     if (!begun) stretchBegins();
   });
-  if (videoBox && typeof MutationObserver === "function") {
-    new MutationObserver(function () {
-      if (!begun || pictureUp() === begunWatching) return;
-      stretchOver();
-      if (!audio.paused) stretchBegins();
-    }).observe(videoBox, { attributes: true, attributeFilter: ["hidden"] });
+  if (typeof MutationObserver === "function") {
+    var restanding = new MutationObserver(restand);
+    if (videoBox) restanding.observe(videoBox, { attributes: true, attributeFilter: ["hidden"] });
+    // The listening view says itself on the body (`listen.js`).
+    if (document.body) {
+      restanding.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    }
   }
+  document.addEventListener("visibilitychange", restand);
   audio.addEventListener("pause", stretchOver);
   audio.addEventListener("ended", stretchOver);
   window.addEventListener("pagehide", stretchOver);
@@ -284,7 +308,7 @@ var targumPlayer = function () {
     audio.pause();
     unlight();
     /* Hear first: the line is over, however it ended, so its text comes back. */
-    if (hearing) { hearing.classList.remove("hearing"); hearing = null; }
+    if (hearing) { hearing.classList.remove("hearing"); hearing = null; restand(); }
     if (playing) { playing.classList.remove("saying"); playing = null; }
     if (following) {
       following = false;
@@ -962,7 +986,7 @@ var targumPlayer = function () {
       hearFirsts.forEach(function (each) {
         each.setAttribute("aria-pressed", on ? "true" : "false");
       });
-      if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; }
+      if (!on && hearing) { hearing.classList.remove("hearing"); hearing = null; restand(); }
       var reader = window.TargumReader;
       if (reader && reader.say) {
         reader.say(
@@ -1047,6 +1071,7 @@ var targumPlayer = function () {
     if (hearFirst && hearFirst.getAttribute("aria-pressed") === "true") {
       hearing = button.closest ? button.closest(".pair") : null;
       if (hearing) hearing.classList.add("hearing");
+      restand();
     }
     play(span[0]);
     follow(button.getAttribute("data-id"));

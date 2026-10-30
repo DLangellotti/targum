@@ -321,10 +321,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    on every row that was known already. known_at is in MIGRATIONS; the two tables are
 #    new, so `CREATE TABLE IF NOT EXISTS` makes them.
 #
+# 50→51: event.text_on_screen — whether the text was on the screen while a stretch of a
+#    recording played (targum-internal#602, privacy notice clause 3.6 as amended
+#    2026-10-30): 1 or 0 on a `play`, NULL on every other kind and on every play recorded
+#    before it, which is the truth: nobody knows. On a table every box has, so it is in
+#    MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 50
+SCHEMA_VERSION = 51
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -496,7 +502,8 @@ CREATE TABLE IF NOT EXISTS event (
   amount    REAL    NOT NULL DEFAULT 0,
   control   TEXT    NOT NULL DEFAULT '',
   width     TEXT    NOT NULL DEFAULT '',
-  word      TEXT    NOT NULL DEFAULT ''
+  word      TEXT    NOT NULL DEFAULT '',
+  text_on_screen INTEGER
 );
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
@@ -508,6 +515,18 @@ EVENT_KINDS = ("lookup", "play", "replay", "page", "section", "stop", "control")
 #: What a text is, to whoever is at it (targum-internal#337).
 EVENT_MEDIA = ("read", "listen", "watch")
 EVENT_WIDTHS = ("phone", "narrow", "desk")
+
+
+def _on_screen(said: object) -> int | None:
+    """A page's yes or no about the text being on the screen, or None for anything else:
+    a page cached from before the field says nothing, and nothing is not a no."""
+    if said is True:
+        return 1
+    if said is False:
+        return 0
+    return None
+
+
 #: The most one request may hand over. A sitting is a few hundred events; a page that
 #: sends more than this is broken or is not a page.
 EVENT_BATCH = 500
@@ -658,6 +677,9 @@ MIGRATIONS: tuple[str, ...] = (
     # the ledger keys a word on, so a week's look-ups meet the reader's own words and
     # meanings. Empty on every lookup recorded before it and on every other kind.
     "ALTER TABLE event ADD COLUMN word TEXT NOT NULL DEFAULT ''",
+    # Whether the text was on the screen while a stretch played (schema 51,
+    # targum-internal#602). NULL where nobody knows: every other kind, every play before it.
+    "ALTER TABLE event ADD COLUMN text_on_screen INTEGER",
     # Bumped by every write to the record that `revision` does not stamp (2026-10-06):
     # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
     # is a key like any other.
@@ -2169,6 +2191,9 @@ class Store:
                     width if control and width in EVENT_WIDTHS else "",
                     # Which word, and only for a look-up: nothing else is about a word.
                     str(raw.get("word") or "")[:80] if kind == "lookup" else "",
+                    # Whether the text was on the screen, and only for a stretch played
+                    # (clause 3.6, 2026-10-30); unknown unless the page said yes or no.
+                    _on_screen(raw.get("text")) if kind == "play" else None,
                 )
             )
         if not rows:
@@ -2176,8 +2201,8 @@ class Store:
         with self.write() as db:
             db.executemany(
                 "INSERT INTO event (person, kind, day, at, language, medium, document, "
-                "segment, amount, control, width, word)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "segment, amount, control, width, word, text_on_screen)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         return len(rows)

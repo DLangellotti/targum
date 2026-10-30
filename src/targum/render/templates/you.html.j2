@@ -297,6 +297,9 @@
         <span class="row-main">
           <span class="acct-name">{{ t("you.page.what-we-record", "What we record as you go") }}</span>
           <span class="acct-says">{{ t("you.page.record-short", "We note the words you look up and the sections you finish, so Your Progress can say how far you've come. We keep it as long as you keep your account.") }}</span>
+          {#- A stretch played, as Privacy Notice clause 3.6 says since 2026-10-30
+              (targum-internal#602): its picture, and whether its text was on the screen. -#}
+          <span class="acct-says">{{ t("you.page.record-play", "When you play a recording, we note how long it played and whether its picture and its text were on your screen.") }}</span>
           {#- What the account keeps with the words for "How you got here" (design.md §12,
               2026-10-30; Privacy Notice clause 3.2): not this record, so neither the switch
               nor Erase reaches it. -#}
