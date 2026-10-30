@@ -2751,6 +2751,64 @@ def test_a_sitting_reaches_the_account_and_says_nothing_it_should_not(
         assert press["width"] in {"phone", "narrow", "desk"}
 
 
+def _finished(browser, tmp_path, monkeypatch, out_of_sight: str) -> list[dict]:
+    """Open a scene, finish its section without marking, as a playlist that runs on does,
+    and answer with the `section` events the page handed to `/events`."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(tmp_path / "dialogues", tmp_path / "reader", words=True)
+    context = opened(browser)
+    page = context.new_page()
+    sent: list[dict] = []
+    me = {"signedIn": True, "email": "r@x.test", "events": {"kept": True, "on": True}}
+
+    def answer(route, request):
+        if "/account/me" in request.url:
+            return route.fulfill(status=200, content_type="application/json", body=json.dumps(me))
+        if "/events" in request.url:
+            sent.extend(json.loads(request.post_data or "{}").get("events", []))
+            return route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=json.dumps({"signedIn": True, "kept": 1, "keeping": True}),
+            )
+        return route.continue_()
+
+    page.route("**/account/me*", answer)
+    page.route("**/events*", answer)
+    page.goto(address(built))
+    strip_up(page)
+    page.wait_for_timeout(400)  # the account's answer, which decides everything
+    if out_of_sight == "hidden":
+        page.evaluate(
+            "() => Object.defineProperty(document, 'hidden',"
+            " { get: () => true, configurable: true })"
+        )
+    elif out_of_sight == "listening":
+        page.evaluate("() => document.body.classList.add('listening')")
+    page.evaluate("() => window.TargumReader.press(false)")
+    page.evaluate("() => window.TargumEvents.flush()")
+    page.wait_for_timeout(300)
+    context.close()
+    return [event for event in sent if event["kind"] == "section"]
+
+
+@pytest.mark.parametrize("out_of_sight", ["hidden", "listening"])
+def test_a_section_finished_out_of_sight_counts_no_words(
+    browser, tmp_path, monkeypatch, out_of_sight: str
+) -> None:
+    """targum-internal#602: a playlist running on with the phone locked, or Play on in the
+    listening view, finishes the part. Its minutes are "listened"; its transcript never
+    reached a screen, so it is not "words read" as well."""
+    assert _finished(browser, tmp_path, monkeypatch, out_of_sight) == []
+
+
+def test_a_section_finished_on_screen_still_counts_its_words(
+    browser, tmp_path, monkeypatch
+) -> None:
+    sections = _finished(browser, tmp_path, monkeypatch, "")
+    assert len(sections) == 1 and sections[0]["amount"] > 0, sections
+
+
 @pytest.mark.parametrize(
     "me",
     [

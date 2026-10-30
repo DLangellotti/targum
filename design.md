@@ -415,6 +415,21 @@ nothing, read it as this.
   `test_offline_browser.py` (a reader off a disk makes no request at all, a saved copy
   opened offline loads no file, and a served reader asks only its own origin).
 
+### A part finished out of sight is heard, not read — 2026-10-30
+
+"A word is read when its page was turned past or its section was marked done" (Time and
+words, 2026-09-20) had a hole the ling-he research found: a playlist that runs on with
+the phone locked, or Play on with the listening view open, finishes the part, and the
+finish counted its whole transcript as read on top of its minutes listened. A podcast in
+a pocket was words read that never reached a screen. **A section finished while the page
+is hidden or the listening view is open adds no words**; its time is still "listened".
+A video finished with its picture up still counts its transcript, which was on screen.
+
+And **the picture is read when a stretch starts**: putting it up or away while the sound
+goes ends one stretch and starts the next, so a film watched and then put away is
+"watched" up to that moment and "listened" after it, not all of it whichever way it stood
+at the pause. targum-internal#602. The display is unchanged here (targum-internal#603).
+
 ### The level card says Reading level — 2026-10-30
 
 David, 2026-10-30 (targum-internal#574), approving the linguists' words. It reverses one
