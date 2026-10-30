@@ -496,6 +496,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
+  corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
+  served. `contribution` and `tally` rows are append-only, with source, licence, tool and
+  origin on each. A text folded again under a new annotator name supersedes its old
+  count, so totals never double. `tables.fold` counts DICTA lemmas, with the part of
+  speech as the variant, and the 2- and 3-lemma runs inside a segment. A run made only
+  of function words is skipped, and a name is counted as `<NAME>`. The register comes
+  from the catalogue entry. Our own scenes count under `scenes`, outside every
+  yardstick, until open question 3 is answered (`registers.SCENES_COUNT_AS`).
+  `tables.public_text` is the only way into a fold. It returns None for a `p<id>` or
+  `local` home, for a ledger row marked private, and when no library root is known.
+  `targum tables sweep [--library DIR]` folds every public `annotation.json` that has
+  no current count, running no annotator and spending nothing. `targum tables top
+  --register R [--phrases] [--raw]` prints the commonest rows, leaving out the
+  `weights.EXCLUDED` classes, names and numbers unless `--raw` is passed.
 - `deploy/REINGEST-TANAKH.md`, the step that runs after the next approved deploy
   (targum-internal#507 part 2): a read-only query for every Tanakh copy on the box whose
   verses carry no refs, then `targum refs`, a marked annotator name and `rebuild --words`,
