@@ -132,8 +132,29 @@ def built(known: float, count: int = 400) -> list[dict[str, Any]]:
     ]
 
 
+HELD_ROWS = "/assets/catalogue-he.ffffffffffffffff.json"
+
+
+def holding_rows(html: str) -> tuple[str, str]:
+    """The page with Hebrew's rows at an address the conftest's desk files do not answer,
+    so a test can hold them; and the real address, to answer them from when it lets go."""
+    found = re.search(r"/assets/catalogue-he\.[0-9a-f]{16}\.json", html)
+    assert found
+    return html.replace(found.group(0), HELD_ROWS), found.group(0)
+
+
+def let_rows_go(route: Any, real: str) -> None:
+    from targum.render.builder import asset_files
+
+    body, kind, _ = asset_files()[real]
+    route.fulfill(status=200, content_type=kind, body=body)
+
+
 def test_the_wait_is_said_and_said_again_after_three_seconds(browser, page_html) -> None:
-    context, page, thrown, held, url = library(browser, page_html, {"/readers": "hold"})
+    # The rows wait for the shelf's files alone since targum-internal#557, so the wait is
+    # theirs.
+    html, _ = holding_rows(page_html)
+    context, page, thrown, held, url = library(browser, html, {HELD_ROWS: "hold"})
     page.clock.install()
     page.goto(url)
     waiting = page.locator("#lib-waiting")
@@ -142,6 +163,83 @@ def test_the_wait_is_said_and_said_again_after_three_seconds(browser, page_html)
     page.clock.run_for(3100)
     assert waiting.inner_text() == "We're still opening the Library."
     assert page.locator("#lib-fault").is_hidden()
+    assert not thrown
+    context.close()
+
+
+def test_the_wait_holds_a_screen_so_the_shelves_do_not_push_the_page(browser, page_html) -> None:
+    """targum-internal#557: the page stood one line tall while the shelf was asked for,
+    and the shelves arriving pushed the footer a screen down, a layout shift of 0.41 on a
+    phone. The wait holds a screen's room."""
+    html, _ = holding_rows(page_html)
+    context, page, thrown, held, url = library(browser, html, {HELD_ROWS: "hold"}, phone=True)
+    page.goto(url)
+    waiting = page.locator("#lib-waiting")
+    assert waiting.is_visible()
+    box = waiting.bounding_box()
+    assert box and box["height"] >= page.viewport_size["height"] - 1
+    assert not thrown
+    context.close()
+
+
+def test_the_rows_are_drawn_before_readers_and_filled_in_after(browser, page_html) -> None:
+    """targum-internal#557: the rows waited for `/readers`, a second on a phone, though
+    the shelf's files came from the cache. They are drawn from the shelf alone, and what
+    the answer says, how much of each text is known and the shelves that go by it, is
+    drawn when it comes; the answer is kept for the next visit's first draw."""
+    context, page, thrown, held, url = library(browser, page_html, {"/readers": "hold"})
+    page.goto(url)
+    page.locator("#shelves .band-item").first.wait_for()
+    assert page.locator("#lib-waiting").is_hidden()
+    assert page.locator("#lib-fault").is_hidden()
+    assert "95% known" not in page.locator("#shelves").inner_text()
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"readers": [], "shared": built(0.95), "signedIn": True}),
+    )
+    page.wait_for_function("document.getElementById('shelves').innerText.includes('95% known')")
+    assert page.locator('#shelves [data-band="now"]').count() == 1
+    kept = page.evaluate("JSON.parse(localStorage.getItem('targum:library-last'))")
+    assert kept["signedIn"] is True
+    assert kept["shared"][0]["known"] == 0.95
+    assert set(kept["shared"][0]) <= {
+        "entry",
+        "document",
+        "name",
+        "language",
+        "languages",
+        "known",
+        "drawn",
+        "built",
+        "shared",
+    }, "only what a row reads"
+    assert not thrown
+    context.close()
+
+
+def test_a_returning_reader_s_first_draw_is_what_they_were_told_last(browser, page_html) -> None:
+    """The next visit draws from what this browser kept while `/readers` is asked, so a
+    reader with words marked does not see the shelves go by the texts' own words first
+    and then move (targum-internal#557)."""
+    kept = {
+        "readers": [],
+        "shared": [
+            {key: one[key] for key in ("entry", "document", "name", "language", "known", "shared")}
+            for one in built(0.95)
+        ],
+        "catalogue": {},
+        "covers": False,
+        "signedIn": True,
+    }
+    context, page, thrown, held, url = library(browser, page_html, {"/readers": "hold"})
+    context.add_init_script(
+        f"localStorage.setItem('targum:library-last', {json.dumps(json.dumps(kept))});"
+    )
+    page.goto(url)
+    page.locator("#shelves .band-item").first.wait_for()
+    assert "95% known" in page.locator("#shelves").inner_text()
+    assert page.locator('#shelves [data-band="now"]').count() == 1
     assert not thrown
     context.close()
 
@@ -416,7 +514,7 @@ def two_shelves_html() -> str:
 
 def shelf_asked(page: Any) -> list[str]:
     """The shelf's files the page asked for, less the order and the build files, which
-    are asked after the first draw (and so may or may not have gone yet)."""
+    go out beside them for the language the head guessed (targum-internal#557)."""
     return [
         name
         for name in (
@@ -545,7 +643,7 @@ def test_the_head_asks_for_the_shelf_and_library_js_takes_each_answer_once(
     """The shelf's files, `/readers`, `/jobs` and `/portions` waited for the whole page
     when `library.js` asked for them from the foot; `library-early.js` asks from the
     head. Each is asked once, `library.js` takes every answer it was handed, and the
-    catalogue's order follows the first draw."""
+    catalogue's order and the build file go out in the same wave (targum-internal#557)."""
     asked: list[str] = []
     context, page, thrown, _, url = library(browser, page_html, {}, hash="#see")
     page.on("request", lambda request: asked.append(request.url[len(SITE) :].split("?")[0]))
@@ -556,6 +654,9 @@ def test_the_head_asks_for_the_shelf_and_library_js_takes_each_answer_once(
     for path in ("/readers", "/portions"):
         assert asked.count(path) == 1, (path, asked)
     files = [name for name in asked if name.startswith("/assets/catalogue")]
+    asked_early = page.evaluate("Object.keys(window.TARGUM_SHELF_FILES)")
+    assert "order" in asked_early and "he.build" in asked_early
+    assert any("catalogue-he-build" in name for name in files), files
     assert len(files) == len(set(files)), files
     early = re.search(r"/assets/library-early\.[0-9a-f]{16}\.js", page_html)
     assert early and early.start() < page_html.index("</head>"), "asked from the head"
@@ -574,19 +675,15 @@ def test_a_library_sent_whole_puts_its_faces_on_after_the_shelf_is_drawn(
     shelf is drawn, so their 67 kB never stand in front of the shelf's (#484)."""
     from targum.render.builder import first_visit
 
-    whole = first_visit(page_html)
+    whole, real = holding_rows(first_visit(page_html))
     assert '<template id="late-faces">' in whole
-    context, page, thrown, held, url = library(browser, whole, {"/readers": "hold"}, hash="#see")
+    context, page, thrown, held, url = library(browser, whole, {HELD_ROWS: "hold"}, hash="#see")
     page.goto(url)
     page.wait_for_load_state("load")
     page.wait_for_timeout(300)
     assert _faces_on(page) == 0, "not while the shelf is still coming"
     assert page.evaluate("document.fonts.check('16px \"Source Sans 3\"')") is not None
-    held[0].fulfill(
-        status=200,
-        content_type="application/json",
-        body=json.dumps({"readers": [], "shared": [], "signedIn": True}),
-    )
+    let_rows_go(held[0], real)
     page.locator("#catalogue > li").first.wait_for()
     page.wait_for_function("document.head.querySelector('link[href*=\"/assets/face-\"]')")
     assert _faces_on(page) >= 1
@@ -682,11 +779,13 @@ def test_faces_go_on_at_once_when_the_shelf_was_drawn_before_warm_js_ran(
     cannot be what put them on, and the shelf is held, so the event never comes."""
     from targum.render.builder import first_visit
 
-    whole = first_visit(page_html).replace(
-        '<template id="late-faces">',
-        '<script>window.TARGUM_DRAWN = true;</script><template id="late-faces">',
+    whole, _ = holding_rows(
+        first_visit(page_html).replace(
+            '<template id="late-faces">',
+            '<script>window.TARGUM_DRAWN = true;</script><template id="late-faces">',
+        )
     )
-    context, page, thrown, _, url = library(browser, whole, {"/readers": "hold"}, hash="#see")
+    context, page, thrown, _, url = library(browser, whole, {HELD_ROWS: "hold"}, hash="#see")
     page.clock.install()
     page.goto(url)
     page.wait_for_load_state("domcontentloaded")

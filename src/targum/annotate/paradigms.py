@@ -275,9 +275,12 @@ def family_of(lemma: str, binyan: str | None) -> tuple[tuple[str, str], ...]:
     root is this verb's alone. The verb itself is never in its own family.
     """
     from .hebrew import root_of
+    from .verb_roots import denied
 
     root = root_of(lemma, binyan) if binyan else None
-    if not root:
+    # A root known to be wrong for this lemma has no family either (`verb_roots.WRONG`):
+    # הטיל came back as נ־ט־ל, and the card named נָטַל's verbs as its kin.
+    if not root or denied(lemma, root):
         return ()
     # By binyan, not by spelling. A root has one verb per binyan, so the tapped verb's
     # own binyan is the one to drop — and that also drops it where the annotator points

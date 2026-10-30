@@ -135,10 +135,15 @@ def cast_for(scene: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 def scene_key(scene: dict[str, Any]) -> str:
     """The words and voices a scene was voiced from, so a done scene that has since
     changed is done again."""
-    made = (
+    made: tuple[Any, ...] = (
         [[t["who"], t["text"]] for t in scene["turns"]],
         {k: v.get("voice") for k, v in scene["cast"].items()},
     )
+    # A hint changes what is asked for, so a done scene given one is done again. Left out
+    # when there are none, so every key made before hints existed still matches.
+    hinted = {str(n): t["hint"] for n, t in enumerate(scene["turns"]) if t.get("hint")}
+    if hinted:
+        made += (hinted,)
     return hashlib.sha256(json.dumps(made, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
@@ -240,6 +245,32 @@ def load(source: Path, languages: list[str], only: list[str]) -> list[dict[str, 
             continue
         scenes.append(scene)
     return scenes
+
+
+def read_hints(given: list[str]) -> dict[tuple[str, int], str]:
+    """`--hint scene:turn=text`, each to one turn, as {(scene, turn): text}."""
+    hints: dict[tuple[str, int], str] = {}
+    for one in given:
+        where, sep, text = one.partition("=")
+        sid, colon, turn = where.rpartition(":")
+        if not sep or not colon or not sid or not turn.strip().lstrip("t").isdigit():
+            raise ValueError(f"--hint {one!r}: expected scene:turn=text, e.g. 65-the-leak:22=...")
+        if not text.strip():
+            raise ValueError(f"--hint {one!r}: the hint is empty")
+        hints[(sid.strip(), int(turn.strip().lstrip("t")))] = text.strip()
+    return hints
+
+
+def give_hints(scenes: list[dict[str, Any]], hints: dict[tuple[str, int], str]) -> None:
+    """Put each hint on its turn, in memory; the scene files are never written. A hint
+    for a scene or turn that is not there stops the run before anything is bought."""
+    by_id = {s["id"]: s for s in scenes}
+    for (sid, n), text in hints.items():
+        if sid not in by_id:
+            raise ValueError(f"--hint for {sid}: not among the scenes asked for")
+        if not 0 <= n < len(by_id[sid]["turns"]):
+            raise ValueError(f"--hint for {sid}:{n}: it has {len(by_id[sid]['turns'])} turns")
+        by_id[sid]["turns"][n]["hint"] = text
 
 
 def dry_run(
@@ -436,6 +467,13 @@ def main() -> None:
     parser.add_argument("--pause", type=float, default=PAUSE, help="seconds, when throttled")
     parser.add_argument("--wait-daily", type=float, default=WAIT_DAILY, help="hours at most")
     parser.add_argument("--no-direction", action="store_true")
+    parser.add_argument(
+        "--hint",
+        action="append",
+        default=[],
+        help="scene:turn=text, a pronunciation said after the line's own; repeatable. "
+        "e.g. 65-the-leak:22='Read עוֹשָׂה as \"osa\", the feminine'",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -446,6 +484,10 @@ def main() -> None:
     scenes = load(source, args.language, args.only)
     if not scenes:
         sys.exit(f"No scenes in {source}.")
+    try:
+        give_hints(scenes, read_hints(args.hint))
+    except ValueError as wrong:
+        sys.exit(str(wrong))
     progress_path = into / "progress.json"
     if args.dry_run:
         # Read, never written: a dry run leaves no trace.

@@ -885,8 +885,8 @@ def worker_script() -> str:
 # `/assets/<name>.<hash>.<ext>` and the browser keeps them for a year. The hash is of the
 # file as served, so a changed file is a new address and nothing stale is ever kept.
 #
-# Everything else still carries its files inline: readers, contents pages, the shelf, the
-# series pages, a card in a host's frame, a printed page, and the one desk page a worker
+# Everything else still carries its files inline: readers, contents pages, the series
+# pages, a card in a host's frame, a printed page, and the one desk page a worker
 # keeps for offline (Saved on this device), whose saved copy must open with nothing else
 # in the cache. The public pages in front of the account joined the desk on 2026-10-28
 # (`PUBLIC_PAGES`). A page is linked only when it is named here; one left out is inline.
@@ -898,7 +898,12 @@ ASSET_ROUTE = "/assets/"
 #: or kept by the worker, and a stranger who opens a second one paid for the faces and the
 #: stylesheets again on every page: 65 to 122 kB of faces and up to 290 kB of CSS under
 #: `no-store`. A first visit still gets each of them whole (`first_visit`).
-PUBLIC_PAGES = frozenset({"about.html.j2", "landing.html.j2", "legal.html.j2", "text.html.j2"})
+#: The public Library and its kind pages (`shelf.html.j2`) joined them on 2026-10-29
+#: (targum-internal#558): missed in #549, so it still carried 65 kB of faces and 119 kB of
+#: CSS on every visit, the public page nearest §14's 1.5 s on a phone.
+PUBLIC_PAGES = frozenset(
+    {"about.html.j2", "landing.html.j2", "legal.html.j2", "shelf.html.j2", "text.html.j2"}
+)
 
 #: What a public page says on its `<html>`, so a first visit to it warms only the files
 #: the public pages use (`public_files`), never the desk's whole set.
@@ -1188,6 +1193,7 @@ def public_files(language: str) -> tuple[str, ...]:
         front_page(language),
         about_page(language),
         text_page(entry, language=language),
+        shelf_page(language=language),
         *(legal_page(which) for which in LEGAL),
     ]
     named = (address for html in pages for address in named_files(html))
@@ -5399,7 +5405,7 @@ def shelf_files(
 
     `""` is what every shelf needs: the collections and the sets. `"order"` is every
     row's id in the catalogue's order (where a row sits is the only evidence of arrival
-    most rows have), asked once the page has drawn. Each language's file is its rows,
+    most rows have), asked from the head beside the rows (#557). Each language's file is its rows,
     each carrying its `place` in that order, so a row in two
     languages is in both files and the page merges them back into one order. The page
     asks for the shelf it opens on and another only when the reader moves to it
@@ -5414,7 +5420,7 @@ def shelf_files(
     in another language asks for the English after it has drawn, for search.
 
     What only a Build press reads, a row's `source` and `translations`, is
-    `"<code>.build"`, asked after the first draw too, and waited for by a press that
+    `"<code>.build"`, asked beside the rows from the head too (#557), and waited for by a press that
     comes before it.
     """
     by_language: dict[str, list[dict[str, Any]]] = {}
@@ -5431,7 +5437,7 @@ def shelf_files(
     files = {
         "": data_file("catalogue.json", {"collections": groups, "sets": sets}),
         # Every row's id in the catalogue's order, which only the line under a language
-        # with no shelf reads: asked after the first draw (11.6 kB gzipped, #484).
+        # with no shelf reads: asked beside the rows from the head (11.6 kB gzipped, #484, #557).
         "order": data_file("catalogue-order.json", {"ids": [entry["id"] for entry in entries]}),
     }
     for code in sorted(by_language):
@@ -6368,6 +6374,8 @@ def render(
         # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
         # only where it differs, like `paradigms_here`, and its table rides there.
         binyanim_here: dict[str, list[list[object]]] = {}
+        from ..annotate.verb_roots import root_for
+
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -6422,7 +6430,16 @@ def render(
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
                         heads.append(token.head)
-                        roots.append(token.root or "")
+                        # Less the roots known to be wrong, and filled from the CC0
+                        # table where the annotator gave none (`annotate.verb_roots`).
+                        roots.append(
+                            root_for(
+                                token.lemma,
+                                token.root,
+                                token.pos,
+                                "he" if hebrew_at.get(sid) else segmented.language,
+                            )
+                        )
                         binyanim.append(token.binyan or "")
                         # The other verbs built on this one's root, each with its binyan
                         # (targum-internal#301). Worked out from the same CC0 table the

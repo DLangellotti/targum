@@ -1122,7 +1122,7 @@ def test_progress_tells_its_story_in_three_parts(browser, width: int) -> None:
     went = page.url
     context.close()
 
-    assert got["title"] == "Your level"
+    assert got["title"] == "Reading level"
     assert got["parts"] == ["How you got here", "What next"]
     assert [rung["text"] for rung in got["rungs"]][1:3] == [
         "A2Easy for you143 you can read now›",

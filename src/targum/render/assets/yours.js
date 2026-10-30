@@ -57,12 +57,25 @@
     }
   );
 
+  /* What home's head already asked for (`home-early.js`, targum-internal#555), each taken
+     once and only by `askFirst`: every later ask, a build's poll among them, is fresh. */
+  var askedEarly = window.TARGUM_HOME_ASKED || {};
+  function early(path) {
+    var going = askedEarly[path];
+    delete askedEarly[path];
+    return going;
+  }
+  function askFirst(path) {
+    return ask(path, early(path));
+  }
+
   /* A refusal is not an answer (home QA, 2026-10-18): a 500 whose body happened to be
      JSON was read as a shelf with nothing on it, and home told a reader with six texts
      "Nothing here yet". Every caller catches, so a refusal lands where a dropped
      connection does. */
-  function ask(path) {
-    return fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) }).then(
+  function ask(path, sent) {
+    var going = sent || fetch(keyed(path), { headers: keyHeaders({ "Content-Type": "application/json" }) });
+    return going.then(
       function (response) {
         if (!response.ok) {
           var refused = new Error(String(response.status));
@@ -402,23 +415,46 @@
      (QA, 2026-10-12). The first Done in a language comes straight here, and its marks were
      still on their way: the line said "+79 known · 98%" over a card that said "You know
      0%". Only when something is owed, so a home with nothing new asks at once, and never
-     for longer than a few seconds: a slow push costs the figure, not the page. */
+     for longer than a few seconds: a slow push costs the figure, not the page.
+
+     Only words owed (targum-internal#555): the figures are measured against the account's
+     words and nothing else, and a place or an opened text is owed by every reader back
+     from a text, which held the shelf a round trip or two behind the account. Null when
+     nothing is waited for, so the shelf the page's head asked for is the one used. Before
+     the account has answered, the push is the one its first answer makes (`settled`),
+     rather than a second start of its own. */
   var CAUGHT_UP_MS = 4000;
   function caughtUp() {
     var sync = window.TargumSync;
     var owed = 0;
     try {
-      owed = sync && sync.owed && sync.flush ? sync.owed() : 0;
+      owed = sync && sync.flush ? (sync.owedWords ? sync.owedWords() : sync.owed ? sync.owed() : 0) : 0;
     } catch (e) {
       owed = 0;
     }
-    if (!owed) return Promise.resolve();
+    if (!owed) return null;
+    var pushing = !sync.who && sync.settled ? sync.settled() : sync.flush();
     return Promise.race([
-      Promise.resolve(sync.flush()).catch(function () {}),
+      Promise.resolve(pushing).catch(function () {}),
       new Promise(function (resolve) {
         setTimeout(resolve, CAUGHT_UP_MS);
       }),
     ]);
+  }
+
+  /* The shelf as home draws it (targum-internal#556): the reader's own texts, the shared
+     ones they have had open, and no catalogue. Worked out once, by `home-early.js` in the
+     page's head, which asks for it there; the same function here, so a later ask (a
+     build done, the account's answer) names what this browser has opened by then. A page
+     without the head's script asks for the whole shared shelf, as before. */
+  function shelfAddress() {
+    return window.TargumShelfAddress ? window.TargumShelfAddress() : "/readers?catalogue=0";
+  }
+  /* The first shelf is the one the head asked for, by the address it asked for: what was
+     opened may have changed since (the account's first answer writes its places), and a
+     second address would leave the head's answer unused and ask the shelf twice. */
+  function firstShelfAddress() {
+    return window.TARGUM_HOME_SHELF || shelfAddress();
   }
 
   /* Home drawn again in place once the account has answered (2026-10-18). A browser that
@@ -428,41 +464,64 @@
      texts were opened, the places, the words), so the shelf, Continue and the counts are
      drawn again from it, and nothing the server already answered is asked again. Set
      once home is drawn; an answer that comes before then is kept for it. */
-  /* The shelf as home draws it (targum-internal#556): the reader's own texts, and of the
-     shared shelf only what they have had open, which is all of it that `gather` keeps.
-     The whole shared shelf was ~430 kB of the answer, measured on the server, for a few
-     rows. Each opened text is named by the start of its hash; the server adds what the
-     account knows was opened on other devices. A browser that has opened more than an
-     address should carry asks for the whole shelf, as before. No catalogue: only the
-     Library draws it. */
-  var OPENED_PREFIX = 12;
-  var OPENED_NAMED_AT_MOST = 300;
-  function shelfAddress() {
-    var named = {};
-    [stored("targum:opened"), stored("targum:places")].forEach(function (record) {
-      Object.keys(record).forEach(function (hash) {
-        if (/^[0-9a-f]{12,}$/i.test(hash)) named[hash.slice(0, OPENED_PREFIX).toLowerCase()] = true;
-      });
-    });
-    var starts = Object.keys(named);
-    if (starts.length > OPENED_NAMED_AT_MOST) return "/readers?catalogue=0";
-    // "-" names none, and still has the account's added: an empty value is no value.
-    return "/readers?catalogue=0&shared=" + (starts.join(".") || "-");
-  }
-
   var redrawHome = null;
   var owedRedraw = false;
 
+  /* Subscriptions shown on its own answer (targum-internal#555). Nothing of the shelf is
+     on that tab: Continue, the side and the welcome back stand down under `is-subscribing`
+     (home.css), and the table is `subs.js`'s, from `/subscriptions.json`, which is asked
+     as the page opens. So it waited on `/readers` for nothing. The page is shown here with
+     the tab and its table as they will be once the shelf is in, and the shelf's own draw
+     after it leaves the table as it found it.
+
+     Not where home may yet send this reader on to the arrival (`home.js`, `arriving`),
+     which takes the shelf to decide: a page shown and then left is a flash. */
+  var subsDrawnFirst = false;
+  function subscriptionsFirst() {
+    if (view.tab !== "subscriptions") return;
+    var home = window.TargumHome;
+    var subs = window.TargumSubs;
+    var panel = document.getElementById("subs-panel");
+    if (!home || !home.mayArrive || home.mayArrive() || !subs || !panel) return;
+    var tabStrip = document.getElementById("yours-tabs");
+    var top = document.getElementById("yours-top");
+    panel.hidden = false;
+    document.getElementById("shelf-panel").hidden = true;
+    if (tabStrip) {
+      tabStrip.hidden = false;
+      if (top && tabStrip.parentNode !== top) top.appendChild(tabStrip);
+    }
+    if (top) top.hidden = false;
+    if (document.body && document.body.classList) document.body.classList.add("is-subscribing");
+    Array.prototype.forEach.call(document.querySelectorAll("#yours-tabs [data-tab]"), function (link) {
+      if (link.getAttribute("data-tab") === view.tab) link.setAttribute("aria-current", "page");
+      else if (link.getAttribute("data-tab") !== "playlists") link.removeAttribute("aria-current");
+    });
+    subs.drawTab(panel);
+    subsDrawnFirst = true;
+    var waiting = document.getElementById("home-waiting");
+    if (waiting) waiting.hidden = true;
+    document.getElementById("page").hidden = false;
+  }
+
   function drawTexts() {
     var opened = stored("targum:opened");
-    var jobs = function () {
-      return ask("/jobs").catch(function () {
+    var jobs = function (first) {
+      return (first ? askFirst : ask)("/jobs").catch(function () {
         return {};
       });
     };
-    return Promise.all([caughtUp().then(function () {
-      return ask(shelfAddress());
-    }), jobs(), accountPlaces()]).then(function (both) {
+    // The shelf asked by the page's head, unless words are owed: then that answer was
+    // measured before them, and the shelf is asked again once they are pushed.
+    var pushing = caughtUp();
+    var shelfAnswer = pushing
+      ? (early(firstShelfAddress()),
+        pushing.then(function () {
+          return ask(shelfAddress());
+        }))
+      : askFirst(firstShelfAddress());
+    subscriptionsFirst();
+    return Promise.all([shelfAnswer, jobs(true), accountPlaces()]).then(function (both) {
       var theirPlaces = both[2];
       var readers = gather(both[0], opened, theirPlaces);
       var trash = (both[0] && both[0].trash) || [];
@@ -504,6 +563,11 @@
       function drawSubscriptions() {
         var subs = window.TargumSubs;
         if (!subsPanel || !subs) return;
+        // Drawn already, on the same answer, before the shelf came in.
+        if (subsDrawnFirst) {
+          subsDrawnFirst = false;
+          return;
+        }
         subs.drawTab(subsPanel);
       }
 

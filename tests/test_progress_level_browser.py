@@ -235,7 +235,7 @@ STATES: dict[str, dict[str, Any]] = {
     "russian": {
         "page": "ru",
         "story": story(known=4730, ladder=MONTHS, here=2, next=3, level=ULPAN_DALET),
-        "title": "Ваш уровень",
+        "title": "Уровень чтения",
         "says": "637 слов до уровня ה׳",
         "press": "Тексты, которые вы уже можете читать",
         "rows": 7,
@@ -260,6 +260,10 @@ SEEN = """() => {
     counted: [lead, ladder].filter(shown).map((one) => one.innerText).join('\\n'),
     title: at('where-section').textContent,
     titleBox: [box(at('where-section')).width, box(at('where-section')).height],
+    titleShown: shown(at('where-section')),
+    leadShown: shown(lead),
+    titleInLead: !!lead && lead.contains(at('where-section')),
+    headings: all('h2').length,
     labels: all('[aria-label]').map((one) => one.getAttribute('aria-label')),
     rows: all('#touchstones .touch-row').filter(shown).map((one) => box(one).height),
     states: all('#touchstones .touch-state').map((one) => one.textContent),
@@ -394,9 +398,13 @@ def test_every_level_state_is_drawn_without_a_percentage(
         if shots:
             page.screenshot(path=f"{shots}/level-{state}-{width}.png", full_page=True)
 
-        # No visible heading: the h2 is there for a screen reader and nobody else.
-        assert seen["title"] == spec.get("title", "Your level")
-        assert seen["titleBox"][0] <= 1 and seen["titleBox"][1] <= 1, seen["titleBox"]
+        # The card's own visible heading, and the part's only h2 (design.md §12, "The level
+        # card says Reading level", 2026-10-30): wherever the card shows, so does it.
+        assert seen["title"] == spec.get("title", "Reading level")
+        assert seen["titleInLead"] and seen["headings"] == 1
+        assert seen["titleShown"] == seen["leadShown"], seen
+        if seen["titleShown"]:
+            assert seen["titleBox"][0] > 1 and seen["titleBox"][1] > 1, seen["titleBox"]
         assert "%" not in seen["counted"], seen["counted"]
         assert not [label for label in seen["labels"] if "%" in label], seen["labels"]
         assert seen["scroll"] <= seen["client"], seen["wide"]

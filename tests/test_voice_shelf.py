@@ -440,3 +440,44 @@ def test_a_refused_turn_fails_its_scene_and_the_run_goes_on(
     logged = [json.loads(line) for line in (tmp_path / "refusals.jsonl").read_text().splitlines()]
     assert [(one["scene"], one["turn"]) for one in logged] == [("he-01", 1), ("he-01", 1)]
     assert logged[0]["payload"] == NO_PARTS and logged[0]["text"] == "שָׁלוֹם"
+
+
+def test_a_hint_is_said_after_the_line_and_only_on_its_turn() -> None:
+    one = scene("ru-03", "ru", ("Kore", "Orus"))
+    plain = [vs.prompt_for(one, n, "calm") for n in range(2)]
+    shelf.give_hints([one], shelf.read_hints(["ru-03:1=Say «Кнез», not князь"]))
+    assert vs.prompt_for(one, 0, "calm") == plain[0], "an unhinted turn asks as before"
+    hinted = vs.prompt_for(one, 1, "calm")
+    assert hinted.endswith(" Say «Кнез», not князь.") and hinted.startswith(plain[1])
+
+
+def test_a_hint_gives_way_to_nothing_but_the_direction() -> None:
+    one = scene("he-04")
+    shelf.give_hints([one], shelf.read_hints(["he-04:t0=" + "x" * 60]))
+    said = vs.prompt_for(one, 0, "a long direction, with clauses, " * 3)
+    assert said.endswith("x" * 60 + ".") and len(said) <= vs.LONGEST
+    shelf.give_hints([one], shelf.read_hints(["he-04:0=" + "x" * 200]))
+    with pytest.raises(vs.TooLong):
+        vs.prompt_for(one, 0, "calm")
+
+
+def test_a_hinted_scene_is_done_again_and_an_unhinted_key_is_unchanged() -> None:
+    one = scene("he-05")
+    before = shelf.scene_key(one)
+    shelf.give_hints([one], {("he-05", 1): "Say be-bit"})
+    assert shelf.scene_key(one) != before
+    del one["turns"][1]["hint"]
+    assert shelf.scene_key(one) == before
+
+
+@pytest.mark.parametrize("bad", ["he-01=x", "he-01:a=x", "he-01:1=", ":1=x"])
+def test_a_hint_that_cannot_be_read_is_refused(bad: str) -> None:
+    with pytest.raises(ValueError):
+        shelf.read_hints([bad])
+
+
+def test_a_hint_for_a_turn_that_is_not_there_is_refused() -> None:
+    with pytest.raises(ValueError, match="2 turns"):
+        shelf.give_hints([scene("he-06")], {("he-06", 5): "x"})
+    with pytest.raises(ValueError, match="not among"):
+        shelf.give_hints([scene("he-06")], {("he-07", 0): "x"})

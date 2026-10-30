@@ -4346,7 +4346,7 @@
   "library.see.level.C2": "Тексты уровня C2 {language:in}",
   "library.see.level.past-C2": "Тексты выше уровня C2 {language:in}",
   "progress.where.most.article": "Вы поймёте большую часть новостной статьи",
-  "progress.level.title": "Ваш уровень",
+  "progress.level.title": "Уровень чтения",
   "progress.level.signed-out": "Войдите, и мы покажем, какие тексты вы можете читать сами.",
   "progress.level.why-one": "В нём самые частые слова, поэтому с него проще всего начать.",
   "progress.level.marked.one": "Вы уже отметили {n} слово как «знаю».",
