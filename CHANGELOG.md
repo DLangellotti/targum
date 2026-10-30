@@ -67,6 +67,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   page's own keyboard whether any key reached it (`End`, `Home` and both arrows), and
   accepts the first page or the one the voice left it on. 20 runs pass out of 20 (master
   failed 4 of 20). With the bar's `stopPropagation` taken out, it fails at once.
+- `/readers` sends only what a page draws (targum-internal#556). Every caller got the
+  whole shared shelf of ~455 texts, each measured against the reader's words: about
+  430 kB of a 460 kB answer, and most of its time on the server. Home now asks for the
+  shared texts the reader has had open and no catalogue, and a reader's contents page
+  asks for its own row only. The Library and the arrival still get the whole answer, with
+  the same fields as before.
 - Home and its Subscriptions tab stop waiting on the account before the shelf
   (targum-internal#555). Home asked for `/readers` only after `/account/me` and the
   push of anything owed had answered, so a reader back from a text, who always owes a
