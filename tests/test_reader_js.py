@@ -396,14 +396,10 @@ def test_the_last_word_you_saved_is_at_the_top() -> None:
     """ "The last word you saved should go to the top of the list on the left." It went to
     the bottom, which in a list longer than the panel was off the screen."""
     rows = listed(
-        ["aa", "bb", "cc"],
-        levels=[
-            {"word": "aa", "status": 1},
-            {"word": "bb", "status": 2},
-            {"word": "cc", "status": 1},
-        ],
+        ["a", "b", "c"],
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 2}, {"word": "c", "status": 1}],
     )
-    assert [row["lemma"] for row in rows] == ["cc", "bb", "aa"]
+    assert [row["lemma"] for row in rows] == ["c", "b", "a"]
 
 
 def test_a_word_saved_as_known_stays_in_sight() -> None:
@@ -411,23 +407,19 @@ def test_a_word_saved_as_known_stays_in_sight() -> None:
     the one you finished with just now. A word that vanished the moment you said you knew
     it read as a save that had failed."""
     rows = listed(
-        ["aa", "bb", "cc"],
-        vocab={"cc": 9},
-        levels=[
-            {"word": "aa", "status": 1},
-            {"word": "bb", "status": 1},
-            {"word": "aa", "status": 9},
-        ],
+        ["a", "b", "c"],
+        vocab={"c": 9},
+        levels=[{"word": "a", "status": 1}, {"word": "b", "status": 1}, {"word": "a", "status": 9}],
     )
     assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [
-        ("bb", 1, False),
-        ("aa", 9, True),
+        ("b", 1, False),
+        ("a", 9, True),
     ], "the finished word keeps its place; the one known before you came is not listed"
 
 
 def test_a_word_you_ignore_stays_in_sight_too() -> None:
-    rows = listed(["aa", "bb"], levels=[{"word": "aa", "status": 0}])
-    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [("aa", 0, True)]
+    rows = listed(["a", "b"], levels=[{"word": "a", "status": 0}])
+    assert [(row["lemma"], row["status"], row["done"]) for row in rows] == [("a", 0, True)]
 
 
 # -- the first time ---------------------------------------------------------------
@@ -436,11 +428,11 @@ def test_a_word_you_ignore_stays_in_sight_too() -> None:
 def test_the_first_time_says_what_to_do() -> None:
     """A reader who has never marked a word is told the one thing the page is for, and
     the first word they mark turns that into the keys. Then it is gone for good."""
-    words, lemmas = chapter(["aa", "bb"])
+    words, lemmas = chapter(["a", "b"])
     before = run([], chapter=words, lemmas=lemmas, vocab={})["first"]
     assert before == {"hidden": False, "text": "Tap a word to say how well you know it."}
 
-    after = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "aa", "status": 1}])
+    after = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 1}])
     assert after["first"]["hidden"] is False
     assert after["first"]["text"].startswith("k known · 1 2 3")
 
@@ -459,8 +451,8 @@ def test_the_marking_press_says_both_halves_and_does_both() -> None:
     press says Done and marks nothing; the words you never marked are offered under it, in
     a quiet press that says both halves before it is pressed — offered, never done for
     you. The ones you are working on are left alone."""
-    words, lemmas = chapter(["aa", "bb", "cc"])
-    before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "aa", "status": 2}])
+    words, lemmas = chapter(["a", "b", "c"])
+    before = run([], chapter=words, lemmas=lemmas, vocab={}, levels=[{"word": "a", "status": 2}])
     assert before["foot"] == {
         "press": "Done",
         "pressHidden": False,
@@ -472,12 +464,10 @@ def test_the_marking_press_says_both_halves_and_does_both() -> None:
         chapter=words,
         lemmas=lemmas,
         vocab={},
-        levels=[{"word": "aa", "status": 2}],
+        levels=[{"word": "a", "status": 2}],
         presses=[True],
     )
-    assert [item["lemma"] for item in after["queue"]] == ["aa"], (
-        "still learning aa; bb and cc known"
-    )
+    assert [item["lemma"] for item in after["queue"]] == ["a"], "still learning a; b and c known"
     assert after["finished"]["at"] > 0, "and the section is finished by the same press"
     assert after["foot"]["finished"] is True and after["foot"]["pressHidden"] is True
 

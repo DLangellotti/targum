@@ -239,8 +239,7 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
         {"language": "he", "lemma": "ים", "status": KNOWN, "at": 1, "seen": 1},
         {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
         # Tapped while reading, so on the list and still being learned; never words to
-        # learn, so never words they keep meeting. The sync refuses כ now
-        # (`Store._not_to_learn`); one kept from before is `learning`'s to leave out.
+        # learn, so never words they keep meeting.
         {"language": "he", "lemma": "כ", "status": 1, "at": 1, "seen": 1},
         {"language": "he", "lemma": "של", "status": 1, "at": 1, "seen": 1},
         # A name and a number marked known: not vocabulary, so not counted, as the

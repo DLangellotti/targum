@@ -202,8 +202,7 @@ def test_the_words_page_says_where_each_word_was_met_and_offers_lines(
         {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
         {"language": "he", "lemma": "עיר", "status": 1, "at": 1, "seen": 1},
         # Tapped while reading and still being learned, and never words to practise: של
-        # is only ever an ADP here, and כ is one letter (2026-10-30). The sync refuses
-        # כ now (`Store._not_to_learn`); one kept from before is `touchstones.learning`'s.
+        # is only ever an ADP here, and כ is one letter (2026-10-30).
         {"language": "he", "lemma": "של", "status": 1, "at": 1, "seen": 1},
         {"language": "he", "lemma": "כ", "status": 1, "at": 1, "seen": 1},
     ]

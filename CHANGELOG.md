@@ -19,12 +19,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one-letter form and a form met only as a closed-class word (`tables.weights.EXCLUDED`:
   של, את). The occurrences cache records those forms (version 5, rebuilt free on first
   read). The rows of Your Words still show every word on the reader's own list.
-- A prefix or a function word has a meaning and no stage (David, 2026-10-30). Tapping a
-  split-off ו ה ב כ ל מ ש, or a closed-class word (`tables.weights.EXCLUDED`), still
-  shows what it means (כ "like, as"), with no stage control and no "Add your meaning";
-  the keys and writing a meaning do not put it on the list either. The sync refuses a
-  one-letter word going onto the list, so a page cached from before cannot add one. A
-  word already on it stays, moves between stages and can be taken off.
 - A stretch of a recording played says whether its text was on the screen (David,
   2026-10-30; targum-internal#602). It was not while the page was hidden, the listening
   view was open or Hear first held the line back. A change to any of them while the voice

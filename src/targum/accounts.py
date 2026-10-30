@@ -3942,8 +3942,6 @@ class Store:
                         and self._over_cap(db, person, item, word_cap)
                     ):
                         continue
-                    if name == "words" and self._not_to_learn(db, person, item):
-                        continue
                     self._merge(db, person, kind, item, stamp)
             return stamp
 
@@ -3967,33 +3965,6 @@ class Store:
             (person.id,),
         ).fetchone()
         return int(held["n"]) >= cap
-
-    @staticmethod
-    def _not_to_learn(db: sqlite3.Connection, person: Person, item: dict[str, Any]) -> bool:
-        """Whether this would put a prefix letter on the list (design.md §12, 2026-10-30).
-
-        The reader's card offers no stage for a clitic DICTA split off, ו ה ב כ ל מ ש,
-        or for a closed-class word. This is the same refusal for a page cached from
-        before that, asked of the one thing a pushed row carries that says so, its shape
-        (`touchstones.a_word`): a row names no part of speech, so a closed-class word of
-        two letters or more is the page's to refuse. A word already on the list moves
-        between stages and comes off as before, and known or ignored are never held:
-        nothing a reader kept is taken from them.
-        """
-        from .touchstones import a_word
-
-        try:
-            status = int(item.get("status"))  # type: ignore[arg-type]
-        except (TypeError, ValueError):
-            return False
-        lemma = str(item.get("lemma") or "")
-        if item.get("gone") or status not in LISTED or a_word(lemma):
-            return False
-        was = db.execute(
-            "SELECT status, gone FROM word WHERE person = ? AND language = ? AND lemma = ?",
-            (person.id, str(item.get("language") or ""), lemma),
-        ).fetchone()
-        return not (was is not None and not was["gone"] and was["status"] in LISTED)
 
     def listed_words(self, person_id: int) -> int:
         """How many words this reader is learning (stages 1 to 3), across every language:
