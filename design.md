@@ -406,8 +406,8 @@ nothing, read it as this.
 - **What holds it:** `test_render.py` (a built reader names nothing to fetch, and only
   the allowlist's links), `test_served_reader.py` (every file a served reader names is
   same-origin, its policy names no other host, and a save gets the page whole) and
-  `test_offline_browser.py` (a reader off a disk and a saved copy opened offline make no
-  request; a served reader asks only its own origin).
+  `test_offline_browser.py` (a reader off a disk makes no request at all, a saved copy
+  opened offline asks for no file, and a served reader asks only its own origin).
 
 ### The level card says Reading level — 2026-10-30
 

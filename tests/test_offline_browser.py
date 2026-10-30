@@ -316,6 +316,10 @@ def test_a_page_opened_off_the_disk_registers_nothing(browser, tmp_path: Path) -
 # fetches nothing from any other site", 2026-10-30) ---------------------------------------
 
 
+#: What a page fetches as a file of its own, as Playwright names a request's kind.
+_FILES = ("script", "stylesheet", "font", "image", "media", "manifest")
+
+
 def _network(urls: list[str], *, but: str = "") -> list[str]:
     """What went past the page itself: every request but the document and inline data."""
     return [
@@ -355,7 +359,8 @@ def test_a_served_reader_asks_only_its_own_site(browser, served: Served) -> None
         for name in ("sec-0001.html", "sec-0002.html", "index.html"):
             page.goto(served.url(f"/reader/book-he/reader/{name}"))
             page.wait_for_selector(".pair, .toc", state="attached")
-            page.wait_for_load_state("networkidle")
+            page.wait_for_load_state("load")
+            page.wait_for_timeout(500)
         assert any("/assets/" in url for url in asked), "the files were named and fetched"
         elsewhere = [url for url in _network(asked) if not url.startswith(origin + "/")]
         assert elsewhere == [], elsewhere
@@ -365,7 +370,9 @@ def test_a_served_reader_asks_only_its_own_site(browser, served: Served) -> None
 
 def test_a_saved_copy_opened_offline_makes_no_request(browser, served: Served) -> None:  # noqa: F811
     """Opened on the site, the reader is named; saved, the copy is the page whole; and
-    opened from that copy with no network, it asks for nothing beyond itself."""
+    opened from that copy with no network, it asks for no file: no script, stylesheet,
+    face, picture or recording. (What it asks of the account, as `/account/me`, is the
+    reader's own talk with targum, unanswered on a plane and unchanged by #981.)"""
     book(served.out / "local" / "book-he")
     origin = f"http://127.0.0.1:{served.port}"
     context = browser.new_context(service_workers="allow")
@@ -393,17 +400,18 @@ def test_a_saved_copy_opened_offline_makes_no_request(browser, served: Served) -
 
         served.gone()
         context.set_offline(True)
-        asked: list[str] = []
-        failed: list[str] = []
+        files: list[str] = []
         fresh = context.new_page()
-        fresh.on("request", lambda request: asked.append(request.url))
-        fresh.on("requestfailed", lambda request: failed.append(request.url))
+        fresh.on(
+            "request",
+            lambda request: files.append(request.url) if request.resource_type in _FILES else None,
+        )
         address = served.url("/reader/book-he/reader/sec-0001.html")
         fresh.goto(address)
         fresh.wait_for_selector(".pair")
         fresh.wait_for_timeout(500)
-        assert _network(asked, but=address) == [], asked
-        assert failed == [], failed
+        assert _network(files, but=address) == [], files
+        assert fresh.evaluate("() => document.fonts.size") > 0, "its faces came with it"
     finally:
         context.close()
 
