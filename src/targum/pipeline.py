@@ -2066,8 +2066,7 @@ class Build:
         from .audio import manifest as manifest_module
         from .audio import parts as parts_module
         from .audio import probe as probe_module
-        from .audio.spans import spans_for, word_spans_for
-        from .ids import audio_block_id
+        from .audio.spans import part_timings
         from .ingest.audio import refined_path
         from .transcribe.models import Refined
         from .transcribe.models import load as load_model
@@ -2120,20 +2119,9 @@ class Build:
                     entry.transcribed = True
                     entry.provider = refined.provider
                     entry.refiner = refined.refiner
-                    prefix = f"part {span.number}:"
-                    by_block: dict[str, list[Segment]] = {}
-                    for segment in segmented.segments:
-                        if segment.ref.startswith(prefix) and not segment.ref.endswith(":waiting"):
-                            by_block.setdefault(segment.block_id, []).append(segment)
-                    for n, paragraph in enumerate(refined.paragraphs, start=1):
-                        lines = by_block.get(audio_block_id(span.number, n), [])
-                        if not lines:
-                            continue
-                        entry.spans |= spans_for(lines, paragraph.words)
-                        entry.words |= word_spans_for(lines, paragraph.words)
-                        if paragraph.speaker:
-                            for line in lines:
-                                entry.speakers[line.id] = paragraph.speaker
+                    entry.spans, entry.words, entry.speakers = part_timings(
+                        segmented.segments, span.number, refined.paragraphs
+                    )
             entries.append(entry)
 
         # A later part is built from the file already beside the reader, which has no

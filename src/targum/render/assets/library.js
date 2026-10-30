@@ -2664,9 +2664,10 @@
   }
 
   /* What a Build press sends, a row's source and its published translations: a file per
-     language (`"<code>.build"`), asked after the first draw. A press that comes first
-     waits for it; one after it failed asks again; and a press is never sent without a
-     source: when the file still does not arrive, the row says it could not start. */
+     language (`"<code>.build"`), asked from the head beside the rows (#557). A press
+     that comes first waits for it; one after it failed asks again; and a press is never
+     sent without a source: when the file still does not arrive, the row says it could
+     not start. */
   var buildCodes = {};
   var buildAsked = {};
   function askBuild(code) {
@@ -2777,27 +2778,71 @@
     shelfHere = Promise.reject(new Error("no shelf"));
   }
 
-  Promise.all([
+  /* The rows before `/readers` (targum-internal#557). The page waited for the shelf's
+     files and the account's answer together, so a returning reader whose files came from
+     the cache in a millisecond still waited a second on a phone for `/readers`, and the
+     shelves then arrived all at once under a page that had already painted (a layout
+     shift of 0.41). Now the rows are drawn as soon as the shelf's files are in, from what
+     this browser was told last time (`LAST`), or from nothing on a first visit; when the
+     answer comes, what is built, how much of each text is known and the shelves that go
+     by it are drawn again from it, and that is the page as it always ended.
+
+     `LAST` keeps only what drawing a row reads, a few dozen bytes a text, and it is a
+     `targum:` key, so a sign-out sweeps it with the rest (`sync.js`). */
+  var LAST = "targum:library-last";
+  var READER_FIELDS = ["entry", "document", "name", "language", "languages", "known", "drawn", "built", "shared"];
+
+  function slimReader(reader) {
+    var out = {};
+    READER_FIELDS.forEach(function (field) {
+      if (reader[field] !== undefined && reader[field] !== null) out[field] = reader[field];
+    });
+    return out;
+  }
+
+  function slimAnswer(data) {
+    var known = {};
+    Object.keys(data.catalogue || {}).forEach(function (id) {
+      var one = data.catalogue[id];
+      if (one && typeof one.known === "number") known[id] = { known: one.known };
+    });
+    return {
+      readers: (data.readers || []).map(slimReader),
+      shared: (data.shared || []).map(slimReader),
+      catalogue: known,
+      covers: !!data.covers,
+      signedIn: !!data.signedIn,
+    };
+  }
+
+  function lastAnswer() {
+    try {
+      var kept = JSON.parse(localStorage.getItem(LAST) || "null");
+      return kept && typeof kept === "object" ? kept : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function keepAnswer(data) {
+    try {
+      localStorage.setItem(LAST, JSON.stringify(slimAnswer(data)));
+    } catch (e) {}
+  }
+
+  var answers = Promise.all([
     askShelf("/readers"),
     ask("/jobs").catch(function () { return {}; }),
     ask("/portions").catch(function () { return {}; }),
-    // Its failure is the chain's: the same card, with the press that asks again.
-    shelfHere,
-  ]).then(function (both) {
+  ]);
+  // Read below once the rows are drawn; a shelf that never arrived leaves it unread.
+  answers.catch(function () {});
+
+  // Its failure is the chain's: the same card, with the press that asks again.
+  shelfHere.then(function () {
     waited();
-    var data = both[0] || {};
-    buildingNow = (both[1] && both[1].jobs) || [];
-    portionShelf = both[2] && both[2].portions ? both[2] : null;
-    portionsAt = {};
-    ((portionShelf && portionShelf.portions) || []).forEach(function (one) {
-      if (one.id && one.href) portionsAt[one.id] = one.href;
-    });
-    drawPortions();
-    var readers = data.readers || [];
-    var shared = data.shared || [];
-    // What is on the shared shelf, for which of targum's playlists can be opened here.
-    sharedNow = shared;
-    catalogueKnown = data.catalogue || {};
+    var readers = [];
+    var shared = [];
     /* Whether this reader has marked anything at all, which decides what "at my level"
        is a measure of. With words marked it is the share of a text this reader knows;
        with none, every row would answer 0% and the page would open on an empty list —
@@ -2824,27 +2869,40 @@
         }
       });
     }
-    measureKnown();
-    anyKnown = !!knownIn[lang.HOME];
-    // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
-    // answers "" once their marked words reach a rung of their own.
-    seeded = "";
-    if (!anyKnown && window.TargumCharts) {
-      var ledger = window.TargumCharts.collect(window.TargumCharts.meaningLanguage(lang.HOME))[lang.HOME];
-      seeded = window.TargumCharts.seed(ledger && ledger.words, lang.HOME);
-    }
-    canDraw = !!data.covers;
-    signedIn = !!data.signedIn;
-    var opened = stored("targum:opened");
-    readers.concat(shared).forEach(function (reader) {
-      reader.opened = opened[reader.document] || 0;
-    });
-    if (window.TargumScenes) {
-      nextRow = window.TargumScenes.next(shared, finishedDocs);
-      anyFinished = shared.some(function (reader) {
-        return window.TargumScenes.onPath(reader.entry, "he") && window.TargumScenes.finished(reader, finishedDocs);
+
+    /* What `/readers` said, or what this browser kept of it, into the page's state. */
+    function take(data) {
+      readers = data.readers || [];
+      shared = data.shared || [];
+      // What is on the shared shelf, for which of targum's playlists can be opened here.
+      sharedNow = shared;
+      catalogueKnown = data.catalogue || {};
+      knownIn = {};
+      measureKnown();
+      anyKnown = !!knownIn[lang.HOME];
+      // The rung they named on arrival, while it is all the page has to go on. `charts.seed`
+      // answers "" once their marked words reach a rung of their own.
+      seeded = "";
+      if (!anyKnown && window.TargumCharts) {
+        var ledger = window.TargumCharts.collect(window.TargumCharts.meaningLanguage(lang.HOME))[lang.HOME];
+        seeded = window.TargumCharts.seed(ledger && ledger.words, lang.HOME);
+      }
+      canDraw = !!data.covers;
+      signedIn = !!data.signedIn;
+      var opened = stored("targum:opened");
+      readers.concat(shared).forEach(function (reader) {
+        reader.opened = opened[reader.document] || 0;
       });
+      nextRow = null;
+      anyFinished = false;
+      if (window.TargumScenes) {
+        nextRow = window.TargumScenes.next(shared, finishedDocs);
+        anyFinished = shared.some(function (reader) {
+          return window.TargumScenes.onPath(reader.entry, "he") && window.TargumScenes.finished(reader, finishedDocs);
+        });
+      }
     }
+    take(lastAnswer() || {});
 
     var everything = rows(readers, shared);
     var host = document.getElementById("catalogue");
@@ -3433,14 +3491,18 @@
     // have kept words in. The catalogue deliberately does not add to this list. It
     // holds one Russian novel, and letting it in put Russian in front of every visitor
     // who had never touched it — which is the opposite of what this switcher is for.
-    var all = [lang.HOME];
-    readers.concat(kept()).forEach(function (thing) {
-      var codes = thing.languages && thing.languages.length ? thing.languages : [thing.language];
-      codes.forEach(function (one) {
-        var code = base(one);
-        if (code && all.indexOf(code) < 0) all.push(code);
+    function languagesHad() {
+      var had = [lang.HOME];
+      readers.concat(kept()).forEach(function (thing) {
+        var codes = thing.languages && thing.languages.length ? thing.languages : [thing.language];
+        codes.forEach(function (one) {
+          var code = base(one);
+          if (code && had.indexOf(code) < 0) had.push(code);
+        });
       });
-    });
+      return had;
+    }
+    var all = languagesHad();
     codes = lang.order(all, names);
     chosen = lang.current(codes);
     view = viewFor(chosen);
@@ -3656,6 +3718,61 @@
       });
       window.TargumSync.start();
     }
+
+    /* And the account's answer, when it comes (targum-internal#557): drawn again from it,
+       which is the page as it always ended. Kept for the next visit's first draw. */
+    answers.then(
+      function (both) {
+        var data = both[0] || {};
+        keepAnswer(data);
+        buildingNow = (both[1] && both[1].jobs) || [];
+        portionShelf = both[2] && both[2].portions ? both[2] : null;
+        portionsAt = {};
+        ((portionShelf && portionShelf.portions) || []).forEach(function (one) {
+          if (one.id && one.href) portionsAt[one.id] = one.href;
+        });
+        drawPortions();
+        take(data);
+        everything = rows(readers, shared);
+        all = languagesHad();
+        var before = codes.join();
+        codes = lang.order(all, names);
+        /* A language the reader has texts in joins the switcher. Where it is the one they
+           last chose, the page opens on it, as it did when it waited for this answer;
+           otherwise the one on screen stays. */
+        var switched = codes.join() !== before;
+        var next = switched ? lang.current(codes) : chosen;
+        if (showing !== null) {
+          // Another language's rows are on their way, and `whenShelved` draws them.
+          if (switched) {
+            lang.switcher(document.getElementById("langs"), codes, names, showing, show, {
+              wait: whenShelved,
+            });
+          }
+        } else if (next !== chosen) {
+          show(next);
+        } else {
+          if (switched) {
+            lang.switcher(document.getElementById("langs"), codes, names, chosen, show, {
+              wait: whenShelved,
+            });
+          }
+          anyKnown = !!knownIn[base(chosen)];
+          redraw();
+        }
+        follow();
+      },
+      function (why) {
+        /* The shelves were drawn from what this browser kept, or from nothing, and the
+           answer that says what is true did not come: they go, and the card says why,
+           rather than standing as if no word had been marked (Library QA, 2026-10-20). */
+        ["shelves", "picked", "cards", "portions", "no-shelf"].forEach(function (id) {
+          var one = document.getElementById(id);
+          if (one) one.hidden = true;
+        });
+        couldNot(why);
+      }
+    );
   })
     // Nothing to list, because nothing could be asked: said, with the press that asks
     // again (Library QA, 2026-10-20). It was swallowed, and the page stood empty under

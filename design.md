@@ -382,6 +382,67 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The level card says Reading level — 2026-10-30
+
+David, 2026-10-30 (targum-internal#574), approving the linguists' words. It reverses one
+line of "Your level, v3" (2026-10-29), "No visible heading", and nothing else in it.
+
+- **"Reading level" heads the level card**, visible, as the card's own h2, above the
+  letter. It is set as the ladder's "Texts by level" and the chart's "Words you knew" are
+  beside it: the chrome's sans, 600, ink, 0.9375rem on a phone and 1.0625rem at a desk
+  (§13). The section is labelled by it.
+- **One heading, not two.** The visually hidden "Your level" h2 is gone. The key stays
+  `progress.level.title`, and its English is now "Reading level".
+- **The Russian, «Уровень чтения», is ling-ru's draft** and waits for David's read. The
+  heading ships with it meanwhile, and David's read may still change it.
+- While the card loads, or fails to, it is not drawn, and neither is its heading. The
+  wait line and Try again stand alone, as before.
+
+### How much Hebrew you understand is measured on a fixed yardstick — 2026-10-30
+
+David, 2026-10-30 (targum-internal#575). Mockup:
+https://claude.ai/artifact/5AnMG45gazXFYkGP26XykC. Decided, not built. The sources
+below follow ling-he's licence report (`yardstick-sources-2026-10-30.md`). When it is built
+it replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Progress.
+**It is a new metric**, not a new drawing of the old one.
+
+- **The card is "How much Hebrew you understand"**, with the subtitle "Words you know in
+  [picker ▾]". The picker offers four yardsticks: everyday conversation, a news article,
+  classic literature and the Bible. Each option shows its own percentage, and the card draws one
+  line at a time.
+- **News is the default for everyone.** Nothing about the reader picks a yardstick for
+  them.
+- **The choice changes this card only.** It never moves the reading level, the letter,
+  the words to the next rung or Texts by level. Those keep their own measure.
+- **The measure is coverage on a fixed list.** For each register there is a fixed
+  word-frequency list. The figure is the share of that list's running words, weighted by
+  frequency, that the reader's known words cover. The yardstick does not move, so the
+  line moves only when the reader learns words, never because of what they chose to
+  read. That is the difference from "Words you knew", which was the share of what they
+  read, so it could fall when they read something harder.
+- **What they read stays, as one small line.** The sentence is "You know 87% of the
+  words in a typical news article, up from 79% in August.", with "In what you read this
+  month you knew 91% of the words." under it, small.
+- **Week or Month.** Day is removed from this card's `.seg`.
+- **Exact percentages**, under "How much of a text you know is an exact percentage"
+  (2026-10-29) and with its functions (`level.known_percent`, `level.page_share`). Under
+  100% never shows as 100%, and above 0% never shows as 0%.
+- **We count every yardstick ourselves** with the DICTA lemmatizer, never from a
+  ready-made spelling list (David, same day, on ling-he's licence report). Conversation
+  is OPUS OpenSubtitles v2024 Hebrew, cited. News is our own news feeds, the ones
+  `search_sources` reads, with only the counts stored and never an article's text.
+  Classic literature is Project Ben-Yehuda's public-domain dump. The Bible is our own
+  count from OSHB, written out by `scripts/count_tanakh.py`, and that must not rename the
+  annotator.
+- **Function words and names are left out** of the weighting.
+- **The yardsticks keep up.** As shared library texts and news-feed texts are imported,
+  their counts are added. A reader's private import is never counted until David decides
+  otherwise ("private imports never train").
+
+What it keeps: every figure is a real count over a stated list (§6), nothing on it
+spends, and "never a level and never a score" holds. A share of a fixed list's words is
+a fact about that list and this reader's words.
+
 ### Your level, v3: the letter leads, the words to go are counted — 2026-10-29
 
 David, 2026-10-29 (targum-internal#561), three calls after a read of the v2 mockup and a
@@ -486,6 +547,31 @@ From qa's review of targum#975 (targum-internal#554), with David's word of 2026-
 
 Supersedes "a `progressbar` with its name" in "Your level leads with what you can read"
 (2026-10-28), and the three menus of See all in "The Library stands on the ground".
+### How much of a text you know is an exact percentage — 2026-10-29
+
+David, 2026-10-29 (targum-internal#560): "show exact percentages - as a general rule,
+remove all this 'of every' language in what we do." Where targum tells a reader how much
+of a text's words they know, it gives the exact share as a whole percentage, with no
+"about" and no count in ten: "You know 72% of the words here." / «Вы знаете здесь 72%
+слов.» This reverses the count in ten that the press card, the text card, the add page's
+found rows and the chat said since 2026-09-27. The Tanakh map's sum says "90% of the
+words or more", not "nine words in ten".
+
+- **One sentence everywhere.** `level.known_line` says it in English for the chat's
+  tools and home's suggestion. `bring.js`, `card-text.js` and the add page say it from
+  the same catalogue key in the page's language. The chat prompt tells the model to say
+  it the same way.
+- **Exact, and never rounded into a lie.** A share under 100% never shows as 100%, and
+  a share above nothing never shows as 0%. Only a text the reader knows all of says 100%,
+  and only one they know none of says 0%.
+- **What stays.** "Never a level and never a score" (§6) holds: a percentage of a text's
+  words is a fact about the text and this reader's list, not a grade. Your Progress's
+  month-by-month line went exact the same day with Level v3 (targum-internal#561). The
+  landing page's "no percentages" rule was about other figures and is untouched.
+
+Supersedes the count in ten in "A haser word counts as the male word the reader knows"
+(2026-09-27), the text card's sentence in "A card in someone else's chat" (2026-10-06),
+and "The count in ten stays on the press card" in the shelf-row entry.
 
 ### The pages in front of the account load their files once — 2026-10-28
 
@@ -521,8 +607,13 @@ under `no-store`, again on every page a visitor opened.
     laptop's noise: 0.96–1.49 s against 1.10–1.48 s over paired runs;
   - the warm-up after a stranger's first page is 188 kB in English and 272 kB in
     Russian, where the desk's whole set was about 0.9 MB.
+- **The public Library joined them on 2026-10-29** (targum-internal#558, from builder-3's
+  signed-in speed pass). `/library` signed out and its kind pages (`shelf.html.j2`) had
+  been left off the list, so they still carried 65 kB of faces and 119 kB of CSS on every
+  visit. At 1.17 s on the phone it was the public page nearest the line. It is never
+  opened off a disk either, and it warms and keeps the same public set.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
-  pages, built indexes, the shelf, the weekly and series pages, prints, cards in a host's
+  pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches
   nothing.* (Amended on 2026-10-29 by the entry below: a reader on disk still fetches
   nothing, and a reader opened on the site loads its own files from the site.)
@@ -4788,7 +4879,8 @@ one card a text and a short stack of them for a list, as many as the tool return
 says its title in the reading face, the English title where there is one, its length in
 minutes (a shelf text's words at the library's 130 a minute), how much of it the reader
 knows in the app's own sentence ("You know about 7 words in 10 here", from the same
-catalogue keys), and one door: Open, to the short link, or Open in the library for a
+catalogue keys; *superseded 2026-10-29: an exact percentage, "You know 72% of the words
+here"*), and one door: Open, to the short link, or Open in the library for a
 library text not yet on the shelf, which goes to our library page where it is got ready.
 Beside `search_sources` it draws each article a publisher put out, a text not yet on
 targum, with who published it, and its door (Read on targum, or Watch or Listen for a
@@ -5805,7 +5897,8 @@ What it does not change: a reader still cannot settle, and a model is never a ju
 
 ### A haser word counts as the male word the reader knows — 2026-09-27
 
-The press card's "You know about 6 words in 10 here", and the number the chat ranks
+The press card's "You know about 6 words in 10 here" (*an exact percentage since
+2026-10-29, "How much of a text you know is an exact percentage"*), and the number the chat ranks
 articles and feed items by, come from `level.known_share`: the text's tokens, bare of
 points, against the reader's known forms and the commonest words. Taking the points off
 a pointed page leaves ktiv haser (ארועים), while the common words and most of what a
@@ -6274,6 +6367,7 @@ no cards, and from ⌘K.
   level; a whole text's coverage is.
 - **Known share is a percentage on the shelf**, as it already is on the library's cards
   ("You know 72%"). The count in ten stays on the press card, where it came from.
+  *(Superseded 2026-10-29: the press card says an exact percentage too.)*
 - **Status is three words:** New, a part count while reading ("3 of 6"), and Finished,
   with the leaf check that "Recently read" already uses.
 - **A video import gets a picture:** one frame from its own cut, kept beside the reader

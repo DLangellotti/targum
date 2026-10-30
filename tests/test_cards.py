@@ -332,13 +332,11 @@ def test_the_text_card_says_nothing_it_should_not() -> None:
         visible = re.sub(r"<[^>]+>", " ", visible)
         assert "!" not in visible
         assert "Targum" not in visible
-    # The known share is said the way the app says it, every tenth of it.
+    # The known share is said the way the app says it, an exact percentage the script
+    # fills in from the one sentence (targum-internal#560).
     page = build_text_card()
-    from targum.level import words_in_ten
-
-    for tenths in range(11):
-        said = words_in_ten(tenths / 10).replace("'", "&#39;")
-        assert said in page, said
+    assert 'data-known="You know {n}% of the words here."' in page
+    assert "in 10" not in page and "data-tenths" not in page
 
 
 def test_the_text_card_carries_both_readings_of_the_palette() -> None:
@@ -351,7 +349,8 @@ def test_the_text_card_carries_both_readings_of_the_palette() -> None:
 def test_the_text_card_s_labels_follow_the_reader_s_language() -> None:
     page = build_text_card("ru")
     assert '<html lang="ru">' in page and "Открыть" in page and "Слушать" in page
-    assert "примерно 5 слов из 10" in page
+    assert 'data-known="Вы знаете здесь {n}% слов."' in page
+    assert "из 10" not in page
 
 
 @pytest.fixture

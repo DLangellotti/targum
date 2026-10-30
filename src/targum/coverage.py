@@ -370,8 +370,8 @@ def write_index(path: Path, index: Index) -> None:
 # was marked, and the line drawn from it would be a second copy of the known count rather
 # than a record of what reading was like.
 #
-# Running words rather than distinct ones. "You knew about 7 words in 10 of what you
-# read" is a claim about the page as it was read, where the commonest words come round
+# Running words rather than distinct ones. "You knew 72% of the words you read" is a
+# claim about the page as it was read, where the commonest words come round
 # again and again; a share of distinct forms would weigh a word met once the same as one
 # met on every line, and read as harder than the page was.
 

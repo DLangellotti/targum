@@ -219,6 +219,12 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .level-lead { padding: 1.75rem; gap: 1rem; }
 }
 .progress .level-lead p { margin: 0; }
+/* The card's heading, as the ladder's and the chart's heads beside it are: chrome sans,
+   600, ink, at their steps (design.md §12, "The level card says Reading level"). */
+.progress .level-title { margin: 0; font-size: 0.9375rem; font-weight: 600; line-height: 1.3; color: var(--ink); }
+@media (min-width: 64rem) {
+  .progress .level-title { font-size: 1.0625rem; }
+}
 .progress .level-lead [hidden] { display: none; }
 /* The letter at the page title's step (§5: 1.9375rem, line-height 1), Noto Sans Hebrew 600
    carried as its own cut, in ink; the CEFR beside it, soft, on the same baseline. A

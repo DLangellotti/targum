@@ -73,15 +73,15 @@
         <div class="cn-k">
           <p class="cn-k-head"><span class="cn-k-mark" aria-hidden="true"><i></i><i></i></span><b>targum</b><span aria-hidden="true">·</span><span>{{ t("card.text.title", "Something to read") }}</span></p>
           {%- for id, title, english, minutes, known in [
-              ('scene-02-in-a-cafe', 'בבית קפה', t("connect.example.cafe", "In a café"), 3, 9),
-              ('scene-14-on-the-bus', 'באוטובוס', t("connect.example.bus", "On the bus"), 2, 9),
-              ('scene-11-what-time-is-it', 'מה השעה?', t("connect.example.time", "What time is it?"), 2, 9)] %}
+              ('scene-02-in-a-cafe', 'בבית קפה', t("connect.example.cafe", "In a café"), 3, 91),
+              ('scene-14-on-the-bus', 'באוטובוס', t("connect.example.bus", "On the bus"), 2, 94),
+              ('scene-11-what-time-is-it', 'מה השעה?', t("connect.example.time", "What time is it?"), 2, 88)] %}
           <div class="cn-k-row">
             <span class="cn-k-tile" lang="he" dir="rtl" aria-hidden="true">{{ title[:1] }}<img src="/cover/{{ id }}" alt="" loading="lazy" decoding="async"></span>
             <div class="cn-k-body">
               <p class="cn-k-t" lang="he" dir="rtl">{{ title }}</p>
               <p class="cn-k-en">{{ english }}</p>
-              <p class="cn-k-f">{{ t("home.kind.dialogue", "Conversation") }} · {{ t("library.minutes", "{n} min", n=minutes) }} · {{ t("add.found.known.other", "You know about {n} words in 10", n=known) }}<span class="cn-k-meter" aria-hidden="true"><span></span></span></p>
+              <p class="cn-k-f">{{ t("home.kind.dialogue", "Conversation") }} · {{ t("library.minutes", "{n} min", n=minutes) }} · {{ t("add.found.share", "You know {n}% of the words", n=known) }}<span class="cn-k-meter" aria-hidden="true"><span></span></span></p>
             </div>
             <span class="cn-k-play" aria-hidden="true">{{ glyph('play') }}</span>
             <span class="cn-k-door">{{ t("card.text.open", "Open") }}{{ glyph('out') }}</span>

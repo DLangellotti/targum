@@ -11,9 +11,11 @@ from __future__ import annotations
 import difflib
 import re
 import unicodedata
+from collections.abc import Sequence
 
+from ..ids import audio_block_id
 from ..models import Segment
-from ..transcribe.models import Word
+from ..transcribe.models import RefinedParagraph, Word
 
 #: Nikkud, taamim and every other combining mark a transcript or a text may carry.
 _MARKS = re.compile(r"[֑-ׇ]")
@@ -116,3 +118,30 @@ def spans_for(segments: list[Segment], words: list[Word]) -> dict[str, list[floa
         if end > start:
             out[segment.id] = [round(start, 3), round(end, 3)]
     return out
+
+
+def part_timings(
+    segments: Sequence[Segment], number: int, paragraphs: Sequence[RefinedParagraph]
+) -> tuple[dict[str, list[float]], dict[str, list[list[float]]], dict[str, str]]:
+    """One part's spans, word clocks and speakers, by segment id: what the manifest keeps
+    for it. Paragraph n of part p is the text's block `audio_block_id(p, n)`, and its
+    segments are matched to the paragraph's timed words. Shared by the build and by
+    `subtitle_words`, which re-times a part on the laptop and has to write the same."""
+    prefix = f"part {number}:"
+    by_block: dict[str, list[Segment]] = {}
+    for segment in segments:
+        if segment.ref.startswith(prefix) and not segment.ref.endswith(":waiting"):
+            by_block.setdefault(segment.block_id, []).append(segment)
+    spans: dict[str, list[float]] = {}
+    words: dict[str, list[list[float]]] = {}
+    speakers: dict[str, str] = {}
+    for n, paragraph in enumerate(paragraphs, start=1):
+        lines = by_block.get(audio_block_id(number, n), [])
+        if not lines:
+            continue
+        spans |= spans_for(lines, paragraph.words)
+        words |= word_spans_for(lines, paragraph.words)
+        if paragraph.speaker:
+            for line in lines:
+                speakers[line.id] = paragraph.speaker
+    return spans, words, speakers

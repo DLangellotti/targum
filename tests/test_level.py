@@ -228,13 +228,25 @@ def test_known_share_answers_a_page_inside_its_budget() -> None:
     assert worst < 50.0, f"known_share took {worst:.1f} ms on a 500-word page"
 
 
-def test_the_share_is_said_in_words_never_a_percentage() -> None:
-    assert level.words_in_ten(0.72) == "You know about 7 words in 10 here."
-    assert level.words_in_ten(0.12) == "You know about 1 word in 10 here."
-    assert level.words_in_ten(0.97) == "You know nearly every word here."
-    assert level.words_in_ten(0.02) == "You know almost none of the words here yet."
-    assert level.words_in_ten(None) == ""
-    assert "%" not in level.words_in_ten(0.5)
+def test_the_share_is_said_as_an_exact_percentage() -> None:
+    """David, 2026-10-29 (targum-internal#560): "show exact percentages". No "about" and
+    no count in ten."""
+    assert level.known_line(0.72) == "You know 72% of the words here."
+    assert level.known_line(0.123) == "You know 12% of the words here."
+    assert level.known_line(1.0) == "You know 100% of the words here."
+    assert level.known_line(0.0) == "You know 0% of the words here."
+    assert level.known_line(None) == ""
+    for share in (0.05, 0.5, 0.95):
+        assert "about" not in level.known_line(share)
+        assert " in 10" not in level.known_line(share)
+
+
+def test_the_percentage_is_never_rounded_into_a_lie() -> None:
+    """Under all of it never says 100%, and above none of it never says 0%."""
+    assert level.known_percent(0.996) == 99
+    assert level.known_percent(0.004) == 1
+    assert level.known_percent(0.725) in (72, 73)
+    assert level.known_percent(None) is None
 
 
 def test_the_reader_s_own_ceiling_follows_the_ladder() -> None:
@@ -468,3 +480,12 @@ def test_the_european_scale_counts_its_commonest_words_one_by_one() -> None:
     assert words_to(reader, 2400) == 237
     assert words_to(reader, 2750) == 587
     assert words_to(Level("yi", 0, 0, 0.0, None, None, 0, 0, 0, 0, 0), 250) == 0
+
+
+def test_the_payload_share_is_the_shown_percentage() -> None:
+    """qa on targum#993: rounded to two places, 0.996 reached a page as 1.0 and showed
+    100%. The payload carries the percentage `known_percent` said, over a hundred."""
+    assert level.page_share(0.996) == 0.99
+    assert level.page_share(0.004) == 0.01
+    assert level.page_share(1.0) == 1.0 and level.page_share(0.0) == 0.0
+    assert level.page_share(None) is None
