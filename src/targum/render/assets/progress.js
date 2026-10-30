@@ -1553,7 +1553,9 @@
       if (switcher) switcher.hidden = true;
       return;
     }
-    if (!readingSeries) {
+    // Where the language has a yardstick, "How much Hebrew you understand" stands in
+    // this card's place (targum-internal#575).
+    if (!readingSeries || understands(code)) {
       panel.hidden = true;
       return;
     }
@@ -1770,14 +1772,561 @@
         if (!said || !said.signedIn) return;
         readingFailed = false;
         readingSeries = said.reading || {};
+        understandSeries = said.understand || {};
         if (typeof said.measurable === "number") readingMeasurable = said.measurable;
         drawReading(currentCode);
+        drawUnderstand(currentCode);
       })
       .catch(function () {
         readingFailed = true;
         drawReading(currentCode);
       });
   }
+
+  /* --- how much Hebrew you understand (targum-internal#575) ------------------------
+   *
+   * design.md §12, "How much Hebrew you understand is measured on a fixed yardstick"
+   * (2026-10-30). The share of a fixed word list's running words, weighted by frequency,
+   * that the reader's known words cover, on one of four yardsticks: everyday
+   * conversation, a news article, classic literature, the Bible. News opens for
+   * everyone; a yardstick with no list yet is left out of the picker, never shown as 0%.
+   * The choice changes this card and nothing else.
+   *
+   * The server sends, per yardstick, the exact percentage now, `base` (what the words
+   * known before the word records began cover) and each day's `gain` since, all against
+   * the current list (`level.coverage_days`). A point is `base` plus every gain up to the
+   * end of its week or month, so the line moves only when the reader learns a word, and
+   * never falls. Nothing before `began` is drawn: the record cannot say when those words
+   * were learned, and the card says from when it counts.
+   */
+  var understandSeries = null;
+  var UNDERSTAND_ORDER = ["conversation", "news", "literature", "bible"];
+  var UNDERSTAND_KEY = "targum.progress.understand";
+  var UNDERSTAND_BY_KEY = "targum.progress.understand-by";
+  var UNDERSTAND_SPAN = 12;
+  var YARDSTICKS = {
+    conversation: {
+      option: t("progress.understand.option.conversation", "Everyday conversation"),
+      chosen: t("progress.understand.chosen.conversation", "everyday conversation"),
+      said: function (p) {
+        return t("progress.understand.said.conversation", "You know {p}% of the words in everyday conversation.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.conversation", "You know {p}% of the words in everyday conversation, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    news: {
+      option: t("progress.understand.option.news", "A news article"),
+      chosen: t("progress.understand.chosen.news", "a news article"),
+      said: function (p) {
+        return t("progress.understand.said.news", "You know {p}% of the words in a typical news article.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.news", "You know {p}% of the words in a typical news article, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    literature: {
+      option: t("progress.understand.option.literature", "Classic literature"),
+      chosen: t("progress.understand.chosen.literature", "classic literature"),
+      said: function (p) {
+        return t("progress.understand.said.literature", "You know {p}% of the words in classic literature.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.literature", "You know {p}% of the words in classic literature, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    bible: {
+      option: t("progress.understand.option.bible", "The Bible"),
+      chosen: t("progress.understand.chosen.bible", "the Bible"),
+      said: function (p) {
+        return t("progress.understand.said.bible", "You know {p}% of the words in the Bible.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.bible", "You know {p}% of the words in the Bible, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+  };
+
+  /* The whole percentage a share is shown as, by `level.known_percent`'s rule (design.md
+     §12, "How much of a text you know is an exact percentage", 2026-10-29): rounded, but
+     under all of it never 100 and above none of it never 0. */
+  function exactPercent(share) {
+    var value = Number(share) || 0;
+    var percent = Math.max(0, Math.min(100, Math.round(value * 100)));
+    if (value < 1 && percent >= 100) return 99;
+    if (value > 0 && percent <= 0) return 1;
+    return percent;
+  }
+
+  function remembered(key, allowed) {
+    try {
+      var said = localStorage.getItem(key) || "";
+      return allowed.indexOf(said) >= 0 ? said : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function keep(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (e) {
+      /* remembered for this page only */
+    }
+  }
+
+  function understandOf(code) {
+    var mine = understandSeries && understandSeries[code];
+    if (!mine || !mine.registers) return null;
+    var present = UNDERSTAND_ORDER.filter(function (one) {
+      return mine.registers[one];
+    });
+    return present.length ? { began: Number(mine.began) || 0, registers: mine.registers, present: present } : null;
+  }
+
+  //: Whether a language has a yardstick to show; "Words you knew" stands where it has none.
+  function understands(code) {
+    var mine = understandOf(code);
+    if (!mine) return false;
+    // Nothing known on any list yet: no card, as "Words you knew" had none before a point.
+    return mine.present.some(function (one) {
+      var entry = mine.registers[one];
+      return Number(entry.base) > 0 || (entry.days || []).length > 0;
+    });
+  }
+
+  var understandRegister = "";
+  var understandBy = "";
+
+  function chosenRegister(mine) {
+    if (understandRegister && mine.present.indexOf(understandRegister) >= 0) return understandRegister;
+    var kept = remembered(UNDERSTAND_KEY, mine.present);
+    if (kept) return kept;
+    // News for everyone (David, 2026-10-30); the next in the picker's order where news
+    // has no list yet.
+    return mine.present.indexOf("news") >= 0 ? "news" : mine.present[0];
+  }
+
+  /* The points of one yardstick by Week or Month: the share at the end of each period
+     since the records began, the current one's being now and the server's own figure. */
+  function understandPoints(by, mine, register) {
+    var entry = mine.registers[register];
+    var gains = (entry.days || []).slice().sort(function (a, b) {
+      return a.day < b.day ? -1 : a.day > b.day ? 1 : 0;
+    });
+    function shareBy(day) {
+      var share = Number(entry.base) || 0;
+      gains.forEach(function (one) {
+        if (one.day <= day) share += Number(one.gain) || 0;
+      });
+      return share;
+    }
+    var today = todayHere();
+    var beganDay = mine.began ? dayOf(localDay(new Date(mine.began))) : null;
+    var points = [];
+    if (by === "month") {
+      var first = beganDay || today;
+      var y = first.getUTCFullYear();
+      var m = first.getUTCMonth();
+      while (y < today.getUTCFullYear() || (y === today.getUTCFullYear() && m <= today.getUTCMonth())) {
+        var start = new Date(Date.UTC(y, m, 1));
+        var end = new Date(Date.UTC(y, m + 1, 0));
+        var current = end >= today;
+        var month = isoDay(start).slice(0, 7);
+        points.push({
+          start: start,
+          share: shareBy(isoDay(current ? today : end)),
+          isNow: current,
+          month: month,
+          when: monthName(month, y !== today.getUTCFullYear()),
+          whenFull: monthName(month, true),
+          then: t("progress.understand.then-month", "in {month}", {
+            month: charts.monthInDate(m, pageLanguage()),
+          }),
+        });
+        m += 1;
+        if (m > 11) {
+          m = 0;
+          y += 1;
+        }
+      }
+    } else {
+      var week = weekOf(beganDay || today);
+      var last = weekOf(today);
+      while (week <= last) {
+        var weekEnd = new Date(week.getTime() + 6 * 86400000);
+        var now = week.getTime() === last.getTime();
+        var lastWeek = week.getTime() === last.getTime() - 7 * 86400000;
+        points.push({
+          start: week,
+          share: shareBy(isoDay(now ? today : weekEnd)),
+          isNow: now,
+          when: now
+            ? t("progress.understand.this-week", "This week")
+            : lastWeek
+              ? t("progress.understand.last-week", "Last week")
+              : shortDay(week),
+          whenFull: now
+            ? t("progress.understand.this-week", "This week")
+            : lastWeek
+              ? t("progress.understand.last-week", "Last week")
+              : t("progress.reading.week-of", "Week of {day}", { day: dayName(week) }),
+          then: lastWeek
+            ? t("progress.understand.then-last-week", "last week")
+            : t("progress.understand.then-week", "in the week of {day}", { day: dayName(week) }),
+        });
+        week = new Date(week.getTime() + 7 * 86400000);
+      }
+    }
+    points = points.slice(-UNDERSTAND_SPAN);
+    points.forEach(function (point, index) {
+      point.percent = point.isNow ? Number(entry.percent) : exactPercent(point.share);
+      point.at = points.length > 1 ? index / (points.length - 1) : 1;
+    });
+    return points;
+  }
+
+  function chosenUnderstandBy(mine, register) {
+    var kept = remembered(UNDERSTAND_BY_KEY, ["week", "month"]);
+    if (kept) return kept;
+    // The coarsest view with two points (David, 2026-10-29), Week before there are two.
+    return understandPoints("month", mine, register).length >= 2 ? "month" : "week";
+  }
+
+  function closeUnderstandList(focusButton) {
+    var list = document.getElementById("understand-list");
+    var open = document.getElementById("understand-open");
+    if (!list || list.hidden) return;
+    list.hidden = true;
+    if (open) {
+      open.setAttribute("aria-expanded", "false");
+      if (focusButton) open.focus();
+    }
+  }
+
+  function drawUnderstandList(mine, register) {
+    var list = document.getElementById("understand-list");
+    var open = document.getElementById("understand-open");
+    var chosen = document.getElementById("understand-chosen");
+    if (!list || !open || !chosen) return;
+    chosen.textContent = YARDSTICKS[register].chosen;
+    open.setAttribute(
+      "aria-label",
+      t("progress.understand.open", "Compare with: {yardstick}", { yardstick: YARDSTICKS[register].chosen })
+    );
+    list.textContent = "";
+    mine.present.forEach(function (one) {
+      var option = el("li", "understand-option");
+      option.id = "understand-" + one;
+      option.setAttribute("role", "option");
+      option.setAttribute("data-register", one);
+      option.setAttribute("aria-selected", one === register ? "true" : "false");
+      var tick = el("span", "understand-tick", one === register ? "\u2713" : "");
+      tick.setAttribute("aria-hidden", "true");
+      option.appendChild(tick);
+      option.appendChild(el("span", "understand-name", YARDSTICKS[one].option));
+      option.appendChild(el("span", "understand-figure", Number(mine.registers[one].percent) + "%"));
+      option.addEventListener("click", function () {
+        pickUnderstand(one);
+      });
+      list.appendChild(option);
+    });
+    list.setAttribute("aria-activedescendant", "understand-" + register);
+  }
+
+  function pickUnderstand(register) {
+    understandRegister = register;
+    keep(UNDERSTAND_KEY, register);
+    closeUnderstandList(true);
+    drawUnderstand(currentCode);
+  }
+
+  function drawUnderstand(code) {
+    var panel = document.getElementById("understand");
+    var host = document.getElementById("understand-line");
+    var said = document.getElementById("understand-said");
+    var read = document.getElementById("understand-read");
+    var since_ = document.getElementById("understand-since");
+    var switcher = document.getElementById("understand-by");
+    if (!panel || !host || !said) return;
+    var mine = understandOf(code);
+    panel.hidden = !understands(code);
+    if (panel.hidden) return;
+    var register = chosenRegister(mine);
+    if (!understandBy) understandBy = chosenUnderstandBy(mine, register);
+    panel.setAttribute("data-by", understandBy);
+    panel.setAttribute("data-register", register);
+    Array.prototype.forEach.call(switcher ? switcher.querySelectorAll("button") : [], function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-by") === understandBy ? "true" : "false");
+    });
+    drawUnderstandList(mine, register);
+
+    var stick = YARDSTICKS[register];
+    var points = understandPoints(understandBy, mine, register);
+    var last = points[points.length - 1];
+    var firstPoint = points[0];
+    var up = points.length > 1 && last.percent > firstPoint.percent;
+    said.textContent = "";
+    var figure = el("b", "", last.percent + "%");
+    sentenceWith(
+      said,
+      up ? stick.up("\u0001", firstPoint.percent, firstPoint.then) : stick.said("\u0001"),
+      { "\u0001%": figure, "\u0001": figure }
+    );
+
+    // What they read, as one small line: the reading record's own share for the period.
+    if (read) {
+      var from = understandBy === "week" ? isoDay(weekOf(todayHere())) : isoDay(todayHere()).slice(0, 7) + "-01";
+      var sum = { tokens: 0, known: 0 };
+      ((readingSeries && readingSeries[code] && readingSeries[code].days) || []).forEach(function (day) {
+        if (String(day.day) < from) return;
+        sum.tokens += Number(day.tokens) || 0;
+        sum.known += Number(day.known) || 0;
+      });
+      read.hidden = sum.tokens < readingMeasurable;
+      if (!read.hidden) {
+        var p = exactPercent(sum.known / Math.max(1, sum.tokens));
+        read.textContent =
+          understandBy === "week"
+            ? t("progress.understand.read-week", "In what you read this week you knew {p}% of the words.", { p: p })
+            : t("progress.understand.read-month", "In what you read this month you knew {p}% of the words.", { p: p });
+      }
+    }
+
+    // From when it counts, where the view would reach back past it.
+    if (since_) {
+      var beganDay = mine.began ? localDay(new Date(mine.began)) : "";
+      since_.hidden = !beganDay || points.length >= UNDERSTAND_SPAN;
+      if (!since_.hidden) {
+        since_.textContent = t("progress.understand.since", "Counted since {date}.", { date: shortDay(dayOf(beganDay)) });
+      }
+    }
+
+    host.textContent = "";
+    var W = Math.max(240, Math.round(host.clientWidth || (host.getBoundingClientRect ? host.getBoundingClientRect().width : 0) || 508));
+    var H = 120;
+    if (points.length < 2) {
+      var empty = el("div", "chart chart-empty");
+      empty.appendChild(
+        el(
+          "p",
+          "reading-empty",
+          understandBy === "week"
+            ? t("progress.understand.empty-week", "We'll draw the line once there are two weeks to show.")
+            : t("progress.understand.empty-month", "We'll draw the line once there are two months to show.")
+        )
+      );
+      host.appendChild(empty);
+      return;
+    }
+
+    // The scale reaches 100% at the top and starts at a round tenth under the lowest
+    // point, so a line that climbs from 79% to 87% is not drawn flat.
+    var lowest = Math.min.apply(null, points.map(function (one) { return one.share; }));
+    var floor = lowest < 0.5 ? 0 : Math.max(0, Math.floor((lowest - 0.05) * 10) / 10);
+    var pad = { top: 12, right: 20, bottom: 22, left: 20 };
+    var plotW = W - pad.left - pad.right;
+    var plotH = H - pad.top - pad.bottom;
+    function px(point) {
+      return pad.left + point.at * plotW;
+    }
+    function py(value) {
+      return pad.top + plotH - ((value - floor) / (1 - floor)) * plotH;
+    }
+    function spoken(point) {
+      return t("progress.reading.point", "{when}: {p}%", { when: point.whenFull, p: point.percent });
+    }
+    var wrap = el("div", "chart");
+    var picture = svg("svg", {
+      viewBox: "0 0 " + W + " " + H,
+      width: W,
+      height: H,
+      role: "img",
+      tabindex: "0",
+      "aria-label": t("progress.understand.label", "Words you know in {yardstick}, {first} to {last}", {
+        yardstick: stick.chosen,
+        first: firstPoint.whenFull,
+        last: last.whenFull,
+      }),
+    });
+    picture.appendChild(svg("line", { class: "reading-base", x1: 0, y1: H - pad.bottom + 2, x2: W, y2: H - pad.bottom + 2 }));
+    picture.appendChild(svg("line", { class: "understand-top", x1: 0, y1: pad.top, x2: W, y2: pad.top }));
+    var full = svg("text", { class: "reading-month understand-full", x: 0, y: pad.top - 3 });
+    full.textContent = "100%";
+    picture.appendChild(full);
+    var line = points
+      .map(function (point, index) {
+        return (index ? "L" : "M") + px(point) + " " + py(point.share);
+      })
+      .join(" ");
+    var area = line + " L" + px(last) + " " + (H - pad.bottom + 2) + " L" + px(firstPoint) + " " + (H - pad.bottom + 2) + " Z";
+    picture.appendChild(svg("path", { class: "understand-area", d: area }));
+    picture.appendChild(svg("path", { class: "reading-path", d: line, fill: "none", stroke: "var(--leaf)", "stroke-width": 3 }));
+    var labelled = points.length <= 6;
+    var dots = points.map(function (point, index) {
+      var dot = svg("circle", {
+        class: "reading-point",
+        cx: px(point),
+        cy: py(point.share),
+        r: index === points.length - 1 ? 5 : 4,
+        fill: "var(--leaf)",
+      });
+      var title = svg("title", {});
+      title.textContent = spoken(point);
+      dot.appendChild(title);
+      picture.appendChild(dot);
+      if (labelled || index === 0 || index === points.length - 1) {
+        var anchor = index === 0 ? "start" : index === points.length - 1 ? "end" : "middle";
+        var figure_ = svg("text", {
+          class: "understand-figure" + (index === points.length - 1 ? " now" : ""),
+          x: px(point),
+          y: py(point.share) - 10,
+          "text-anchor": anchor,
+        });
+        figure_.textContent = point.percent + "%";
+        picture.appendChild(figure_);
+      }
+      return dot;
+    });
+    var axis = svg("g", { class: "axis" });
+    points.forEach(function (point, index) {
+      if (!labelled && index !== 0 && index !== points.length - 1) return;
+      var name = svg("text", {
+        class: "reading-month",
+        x: px(point),
+        y: H - 4,
+        "text-anchor": index === 0 ? "start" : index === points.length - 1 ? "end" : "middle",
+      });
+      name.textContent = point.when;
+      axis.appendChild(name);
+    });
+    picture.appendChild(axis);
+    wrap.appendChild(picture);
+    host.appendChild(wrap);
+    var tip = tipFor(wrap);
+    var live = document.getElementById("understand-live");
+    var on = -1;
+    function point(index, announce) {
+      on = Math.max(0, Math.min(points.length - 1, index));
+      dots.forEach(function (dot, at) {
+        dot.classList.toggle("on", at === on && announce);
+      });
+      var hostBox = wrap.getBoundingClientRect();
+      tip.show(spoken(points[on]), (px(points[on]) / W) * hostBox.width, (py(points[on].share) / H) * hostBox.height);
+      if (announce && live) live.textContent = spoken(points[on]);
+    }
+    function nearest(event) {
+      var box = picture.getBoundingClientRect();
+      var atX = (event.clientX - box.left) * (W / box.width);
+      var best = 0;
+      points.forEach(function (one, index) {
+        if (Math.abs(px(one) - atX) < Math.abs(px(points[best]) - atX)) best = index;
+      });
+      point(best, false);
+    }
+    picture.addEventListener("mousemove", nearest);
+    picture.addEventListener("click", nearest);
+    picture.addEventListener("mouseleave", function () {
+      tip.hide();
+    });
+    picture.addEventListener("focus", function () {
+      point(on < 0 ? points.length - 1 : on, true);
+    });
+    picture.addEventListener("blur", function () {
+      tip.hide();
+      dots.forEach(function (dot) {
+        dot.classList.remove("on");
+      });
+    });
+    picture.addEventListener("keydown", function (event) {
+      var key_ = event.key;
+      if (key_ === "ArrowLeft" || key_ === "ArrowRight" || key_ === "Home" || key_ === "End") {
+        event.preventDefault();
+        var to = key_ === "Home" ? 0 : key_ === "End" ? points.length - 1 : on + (key_ === "ArrowLeft" ? -1 : 1);
+        point(to, true);
+      }
+    });
+  }
+
+  function wireUnderstand() {
+    var switcher = document.getElementById("understand-by");
+    var open = document.getElementById("understand-open");
+    var list = document.getElementById("understand-list");
+    var pick = document.getElementById("understand-pick");
+    if (switcher) {
+      Array.prototype.forEach.call(switcher.querySelectorAll("button"), function (button) {
+        button.addEventListener("click", function () {
+          understandBy = button.getAttribute("data-by");
+          keep(UNDERSTAND_BY_KEY, understandBy);
+          drawUnderstand(currentCode);
+        });
+      });
+    }
+    if (!open || !list) return;
+    function options() {
+      return Array.prototype.slice.call(list.querySelectorAll(".understand-option"));
+    }
+    function active() {
+      var id = list.getAttribute("aria-activedescendant");
+      var all = options();
+      for (var i = 0; i < all.length; i++) if (all[i].id === id) return i;
+      return 0;
+    }
+    function activate(index) {
+      var all = options();
+      if (!all.length) return;
+      var at = Math.max(0, Math.min(all.length - 1, index));
+      all.forEach(function (one, i) {
+        one.classList.toggle("active", i === at);
+      });
+      list.setAttribute("aria-activedescendant", all[at].id);
+    }
+    function show() {
+      list.hidden = false;
+      open.setAttribute("aria-expanded", "true");
+      var all = options();
+      var selected = 0;
+      all.forEach(function (one, i) {
+        if (one.getAttribute("aria-selected") === "true") selected = i;
+      });
+      activate(selected);
+      list.focus();
+    }
+    open.addEventListener("click", function (event) {
+      event.stopPropagation();
+      if (list.hidden) show();
+      else closeUnderstandList(true);
+    });
+    open.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        show();
+      }
+    });
+    list.addEventListener("keydown", function (event) {
+      var key_ = event.key;
+      if (key_ === "ArrowDown" || key_ === "ArrowUp") {
+        event.preventDefault();
+        activate(active() + (key_ === "ArrowDown" ? 1 : -1));
+      } else if (key_ === "Home" || key_ === "End") {
+        event.preventDefault();
+        activate(key_ === "Home" ? 0 : options().length - 1);
+      } else if (key_ === "Enter" || key_ === " ") {
+        event.preventDefault();
+        var chosen = options()[active()];
+        if (chosen) pickUnderstand(chosen.getAttribute("data-register"));
+      } else if (key_ === "Escape") {
+        event.preventDefault();
+        closeUnderstandList(true);
+      } else if (key_ === "Tab") {
+        closeUnderstandList(false);
+      }
+    });
+    document.addEventListener("click", function (event) {
+      if (pick && !pick.contains(event.target)) closeUnderstandList(false);
+    });
+  }
+  wireUnderstand();
 
   function show(code) {
     currentCode = code;
@@ -1794,6 +2343,7 @@
     drawLedger(document.getElementById("counts"), data[code], readingDays, code);
     drawWhere(code);
     drawReading(code);
+    drawUnderstand(code);
     drawHowTitle(code);
     drawHow(code);
     drawNext(code);
@@ -1849,6 +2399,7 @@
     clearTimeout(redrawing);
     redrawing = setTimeout(function () {
       drawReading(currentCode);
+      drawUnderstand(currentCode);
     }, 150);
   });
 })();

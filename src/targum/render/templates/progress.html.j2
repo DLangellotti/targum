@@ -106,6 +106,36 @@
         <p class="quiet-line reading-failed" id="reading-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
           <button type="button" class="btn ghost outline story-again" id="reading-again">{{ t("fault.try-again", "Try again") }}</button></p>
       </div>
+      {#- How much Hebrew you understand (targum-internal#575, design.md §12, "How much
+          Hebrew you understand is measured on a fixed yardstick", 2026-10-30): the share
+          of a fixed word list's running words the reader's known words cover, on the
+          yardstick they pick, by Week or Month. In the place of "Words you knew", which
+          stays for a language with no yardstick. Each choice in the picker shows its own
+          percentage; a yardstick with no list yet is left out of it. Drawn by
+          `progress.js`. -#}
+      <div class="card reading understand" id="understand" hidden>
+        <div class="reading-head understand-head">
+          <div class="understand-titles">
+            <h3 class="reading-title" id="understand-title">{{ t("progress.understand.title", "How much Hebrew you understand") }}</h3>
+            <div class="understand-pick" id="understand-pick">
+              <span class="understand-in" id="understand-in">{{ t("progress.understand.in", "Words you know in") }}</span>
+              <button type="button" class="understand-open" id="understand-open" aria-haspopup="listbox" aria-expanded="false" aria-controls="understand-list"><span id="understand-chosen"></span><span class="understand-caret" aria-hidden="true"></span></button>
+              <ul class="understand-list" id="understand-list" role="listbox" tabindex="-1" aria-label="{{ t("progress.understand.list", "Compare with") }}" hidden></ul>
+            </div>
+          </div>
+          <div class="seg reading-by understand-by" id="understand-by" role="group" aria-label="{{ t("progress.reading.by", "Show by") }}">
+            <button type="button" data-by="week" aria-pressed="false">{{ t("progress.reading.by-week", "Week") }}</button>
+            <button type="button" data-by="month" aria-pressed="false">{{ t("progress.reading.by-month", "Month") }}</button>
+          </div>
+        </div>
+        <div id="understand-line"></div>
+        <p class="visually-hidden" id="understand-live" aria-live="polite"></p>
+        <div class="reading-words understand-words">
+          <p class="understand-said" id="understand-said"></p>
+          <p class="understand-read" id="understand-read" hidden></p>
+          <p class="understand-since" id="understand-since" hidden></p>
+        </div>
+      </div>
     </div>
   </section>
 
