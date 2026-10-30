@@ -68,6 +68,9 @@ STAGES = (
     # tool calls, result sizes and the contract, from scripts/eval_connector.py. It
     # writes its own rows under evals/connector/ rather than the ledger.
     "connector",
+    # The card's Russian aspect partner line against ling-ru's reviewed list
+    # (2026-10-30), from scripts/eval_aspect_partners.py.
+    "partners",
 )
 
 
@@ -100,6 +103,7 @@ SCRIPTS = {
     "rail": "eval_rail.py",
     "said": "eval_liaison.py",
     "connector": "eval_connector.py",
+    "partners": "eval_aspect_partners.py",
 }
 
 

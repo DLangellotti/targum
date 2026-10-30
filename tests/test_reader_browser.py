@@ -6602,10 +6602,15 @@ def test_a_reader_left_with_the_drawer_open_closes_it_on_a_phone(
         assert state == {"open": True, "dimmed": False, "remembered": "open"}, state
 
 
-def russian(out: Path, stressed: bool = False) -> Path:
+def russian(
+    out: Path,
+    stressed: bool = False,
+    lines: list[str] | None = None,
+    words: dict[int, list[tuple[str, str, str]]] | None = None,
+) -> Path:
     """A Russian reader whose words carry the tagger's grammar (targum-internal#258)."""
-    lines = ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
-    words = {
+    lines = lines or ["Он взял её за руку.", "Рука болела, и рукой он брал хлеб."]
+    words = words or {
         0: [
             ("Он", "он", "UPOS=PRON|Case=Nom|Gender=Masc|Number=Sing|Person=3"),
             (
@@ -6704,6 +6709,7 @@ CARD_LINES = """
     use: line('.use'),
     forms: line('.forms-here'),
     partner: line('.partner'),
+    related: line('.related'),
     moves: line('.stress-moves'),
   };
 }
@@ -6725,7 +6731,9 @@ def test_a_russian_card_says_the_case_and_the_other_forms_here(
     assert shown["forms"] == "here also as рука · рукой"
     verb = page.evaluate(CARD_LINES, "взял")
     assert verb["use"] == "past · perfective · m" and verb["forms"] is None, "nothing to list"
-    assert verb["partner"] is None and verb["moves"] is None, "built without the tables"
+    assert verb["moves"] is None, "built without the tables"
+    # взять is on targum's own list (2026-10-30), which needs none.
+    assert verb["partner"] == "the other aspect: братьread брал here"
     context.close()
 
 
@@ -6783,12 +6791,40 @@ def test_a_russian_verb_names_its_partner_and_goes_to_it(
     assert "OpenRussian.org" in html
     context, page = open_reader(browser, reader)
     verb = page.evaluate(CARD_LINES, "взял")
-    assert verb["partner"] == "the other aspect: бра́тьread брал here"
+    assert verb["partner"] == "the other aspect: братьread брал here", "the list wins"
     assert page.evaluate(CARD_LINES, "руку")["moves"] == "stress moves: рука́ · ру́ку"
     page.evaluate(CARD_LINES, "взял")
     page.click(".gloss-card .partner .here")
     page.wait_for_timeout(300)
     assert page.evaluate("() => document.querySelector('.gloss-card').hidden"), "gone to read it"
+    context.close()
+
+
+def test_a_russian_verb_names_the_verbs_beside_it_apart_from_its_partner(
+    browser, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """постоять is not стоять's other aspect: the card names no partner for стоять and
+    says on a line of its own what each related verb adds, and постоять's own card names
+    the verb it is made from, bare (David, 2026-10-30; `annotate/aspect_partners.py`)."""
+    from targum.annotate import openrussian
+
+    monkeypatch.setattr(openrussian, "lexicon", lambda: None)
+    verb = "UPOS=VERB|Gender=Masc|Number=Sing|Aspect=Imp|Tense=Past|VerbForm=Fin"
+    reader = russian(
+        tmp_path / "reader",
+        lines=["Он стоял и плакал.", "Потом он постоял."],
+        words={
+            0: [("стоял", "стоять", verb), ("плакал", "плакать", verb)],
+            1: [("постоял", "постоять", verb.replace("Imp", "Perf"))],
+        },
+    )
+    context, page = open_reader(browser, reader)
+    stood = page.evaluate(CARD_LINES, "стоял")
+    assert stood["partner"] is None
+    assert stood["related"] == "related: постоя́ть (for a while)"
+    cried = page.evaluate(CARD_LINES, "плакал")
+    assert cried["related"] == "related: запла́кать (begin) · попла́кать (for a while)"
+    assert page.evaluate(CARD_LINES, "постоял")["related"] == "related: стоя́ть"
     context.close()
 
 

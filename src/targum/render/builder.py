@@ -6575,10 +6575,23 @@ def render(
 
         if is_on() and segmented.language.split("-")[0].lower() == "fr":
             friends = [friend_of(lemma) for lemma in lemmas]
+        # A verb's aspect partner, and apart from it the verbs that are not partners but
+        # stand beside it — постоять for a while, заплакать begin (David, 2026-10-30).
+        # targum's own list answers for the verbs it covers, a none included; OpenRussian
+        # answers for the rest, where this machine has it (`annotate/aspect_partners.py`).
         partners: list[str] = []
+        related: list[str] = []
         stresses: list[str] = []
+        partners_quoted = False
+        if segmented.language.split("-")[0].lower() == "ru":
+            from ..annotate.aspect_partners import partner_line, related_line
+
+            for lemma in lemmas:
+                partner_names, from_tables = partner_line(lemma, lexicon, PARTNERS)
+                partners.append(" · ".join(partner_names))
+                partners_quoted = partners_quoted or from_tables
+            related = [related_line(lemma) for lemma in lemmas]
         if lexicon is not None:
-            partners = [" · ".join(lexicon.partners(lemma)[:PARTNERS]) for lemma in lemmas]
             stresses = [" · ".join(lexicon.stress_line(lemma)) for lemma in lemmas]
         extensions = {
             name: table
@@ -6602,6 +6615,7 @@ def render(
                     [name for name, _ in sorted(feature_at.items(), key=lambda kv: kv[1])],
                 ),
                 ("partners", partners),
+                ("related", related),
                 ("motion", motions),
                 ("stress", stresses),
                 ("friends", friends),
@@ -6796,7 +6810,8 @@ def render(
             false_friends="friends" in extensions,
             # CC BY-SA asks the same naming, on a page that quoted the tables — which the
             # stress marks do too, since every mark was confirmed against them.
-            lexicon_credit="partners" in extensions
+            # A partner from targum's own list quotes nothing of theirs.
+            lexicon_credit=partners_quoted
             or "stress" in extensions
             or bool(machine and segmented.language.split("-")[0].lower() == "ru"),
             # How the French is said (targum-internal#266): the switch, its script and its

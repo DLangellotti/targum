@@ -396,6 +396,29 @@ line of "Your level, v3" (2026-10-29), "No visible heading", and nothing else in
 - While the card loads, or fails to, it is not drawn, and neither is its heading. The
   wait line and Try again stand alone, as before.
 
+### A Russian verb's related verbs stand apart from its partner — 2026-10-30
+
+David, 2026-10-30, on ling-ru's sublexical report: fix the aspect partner line now, and
+give the for-a-while, begin and once verbs a line of their own. "The other aspect:
+постоять" on стоять's card taught a learner something false, and on the 100 commonest
+verbs OpenRussian's line was right as a whole for 66% of verb tokens.
+
+- **The other aspect names true partners only.** For the 300 commonest verbs in the built
+  Russian texts, targum's own reviewed list answers (`annotate/aspect_partners.json`),
+  and where it says a verb has none — знать, стоять, ходить, помнить — no partner line is
+  drawn. Every other verb falls back to OpenRussian as before.
+- **A new line under it, "related:"**, names the verbs made from this one that are not
+  its partner, each with what it adds, in brackets: "related: запла́кать (begin) ·
+  попла́кать (for a while)". The kinds are for a while, a little, begin, once, there and
+  back, and the whole time. On постоять's own card the line names стоять bare. It is set
+  as the partner line is, the card's `verb` line, and the verbs are in the text's
+  language.
+- **The Russian interface strings are ling-ru's drafts** and wait for David's read:
+  «родственные: », «какое-то время», «немного», «начать», «один раз», «туда и обратно»,
+  «всё время». So does the list itself (`reviewed` is empty until he has).
+- OpenRussian is credited only on a page that quoted it: a partner from targum's list
+  quotes nothing of theirs. Render time only; no text is re-annotated.
+
 ### How much Hebrew you understand is measured on a fixed yardstick — 2026-10-30
 
 David, 2026-10-30 (targum-internal#575). Mockup:

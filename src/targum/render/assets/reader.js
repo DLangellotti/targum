@@ -319,6 +319,9 @@ var targumReader = function () {
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
+  // And the verbs beside it that are not partners, each with what it adds:
+  // "постоя́ть:while · запла́кать:start", from targum's own list (annotate/aspect_partners.py).
+  var relatedVerbs = extensions.related || [];
   // Which way a Russian verb of motion goes, and its pair: "one:ходить", "both:идти".
   var motions = extensions.motion || [];
   var stressLines = extensions.stress || [];
@@ -5423,6 +5426,18 @@ var targumReader = function () {
 
   // The first place in this text a partner verb is used, and the form it takes there. A
   // partner is named stressed and matched bare, the way the lemmas are stored.
+  // What a related verb adds, in the reader's own interface language. `from` names the
+  // verb it is made from, which needs no words.
+  function relatedSense(kind) {
+    if (kind === "while") return t("reader.card.related-while", "for a while");
+    if (kind === "bit") return t("reader.card.related-bit", "a little");
+    if (kind === "start") return t("reader.card.related-start", "begin");
+    if (kind === "once") return t("reader.card.related-once", "once");
+    if (kind === "trip") return t("reader.card.related-trip", "there and back");
+    if (kind === "through") return t("reader.card.related-through", "the whole time");
+    return "";
+  }
+
   function partnerHere(named) {
     var wanted = named.split(" · ").map(function (one) {
       return lemmas.indexOf(one.replace(/\u0301/g, "").toLowerCase());
@@ -6486,6 +6501,30 @@ var targumReader = function () {
         other.appendChild(go);
       }
       card.appendChild(other);
+    }
+
+    // The verbs that are not its partner but stand beside it: for a while, begin, once
+    // (David, 2026-10-30). A partner line that named постоять for стоять taught something
+    // false, so they have a line of their own, each with what it adds. On постоять's own
+    // card the verb it is made from is named bare.
+    var relatedLine = relatedVerbs[index] || "";
+    if (relatedLine) {
+      var beside = document.createElement("span");
+      beside.className = "verb related";
+      beside.appendChild(document.createTextNode(t("reader.card.related", "related: ")));
+      relatedLine.split(" · ").forEach(function (item, at) {
+        var cut = item.lastIndexOf(":");
+        var verb = cut > 0 ? item.slice(0, cut) : item;
+        var kind = cut > 0 ? item.slice(cut + 1) : "";
+        if (at) beside.appendChild(document.createTextNode(" · "));
+        var one = document.createElement("bdi");
+        one.setAttribute("lang", language);
+        one.textContent = verb;
+        beside.appendChild(one);
+        var adds = relatedSense(kind);
+        if (adds) beside.appendChild(document.createTextNode(" (" + adds + ")"));
+      });
+      card.appendChild(beside);
     }
 
     // A verb of motion: which way it goes, and the verb that goes the other way. Both
