@@ -425,7 +425,9 @@ and words are three serif figures" in "The mockups win on Your Progress" (2026-1
   the first time, met as `occurrences.met` means it: inside a section the reader
   finished. **Saved** is words put on the list in the period, as the retired chart
   counted them (names, numbers and ignored words left out). **Now known** is words whose
-  known date falls in the period. The period is in the reader's own days.
+  known date falls in the period. Both leave out the words ticked off in bulk on "Words
+  you may already know" (`source = 'claimed'`; David, 2026-10-30): hundreds in a minute,
+  and none of them new. The period is in the reader's own days.
 - **Two records start on 2026-10-30, and neither is filled from before it.**
   - `word.known_at`: set by the account when a word's status becomes known, cleared when
     it leaves known, and synced with the word. Words that were known before it existed
@@ -438,6 +440,9 @@ and words are three serif figures" in "The mockups win on Your Progress" (2026-1
   - Both count from the box's first start with this code (`began`). A period that starts
     before it says so in one line under the bars, "Counted since 30 Oct."; where the
     account has no such date the bar is left out rather than drawn at nought.
+  - The privacy notice names both in clause 3.2 (2026-10-30), and the account page's
+    "What we record as you go" says they are kept with the word list, outside the record
+    its switch and Erase reach.
   - Both are the reader's own: exported with everything else, wiped with the account,
     and read by nothing that is shared. The `met` rows never reach the language tables
     or anything measured across readers ("private imports never train").

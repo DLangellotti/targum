@@ -181,3 +181,15 @@ def test_a_finished_section_keeps_its_first_meetings_and_the_page_is_answered_th
     assert sum(day["met"] for day in he) == 2
     assert sum(day["known"] for day in he) == 1
     assert sum(day["saved"] for day in he) == 1
+
+
+def test_a_bulk_claim_is_neither_saved_nor_now_known(tmp_path: Path) -> None:
+    """David, 2026-10-30: the words ticked off on "Words you may already know" are left
+    out of Saved and Now known; a word met in a text and marked known counts."""
+    store, person = _store(tmp_path)
+    noon = store.began() + 1000
+    claimed = [_word(f"ידוע{n}", KNOWN, noon + n, source="claimed") for n in range(40)]
+    store.push(person, {"words": [*claimed, _word("ספר", KNOWN, noon + 50)]})
+    days = store.words_by_day(person.id)
+    assert sum(day["saved"] for day in days) == 1
+    assert sum(day["known"] for day in days) == 1

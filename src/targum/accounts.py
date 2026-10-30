@@ -4291,8 +4291,10 @@ class Store:
         in `zone`; UTC where it names none.
 
         Saved counts as the retired weekly chart counted (`charts.kept`): ignored words,
-        names and numbers left out. Met and known count only from `began`, so a day before
-        it is never a nought the record could not have seen.
+        names and numbers left out; and saved and known both leave out the words ticked off
+        in bulk on "Words you may already know" (`source = 'claimed'`). Met and known count
+        only from `began`, so a day before it is never a nought the record could not have
+        seen.
         """
         from datetime import UTC, datetime
 
@@ -4315,7 +4317,10 @@ class Store:
             add(int(row["at"]), str(row["language"]), "met")
         for row in self.db.execute(
             "SELECT language, at, known_at, status FROM word WHERE person = ? AND gone = 0"
-            " AND COALESCE(status, 1) != 0 AND COALESCE(band, '') NOT IN ('name', 'number')",
+            " AND COALESCE(status, 1) != 0 AND COALESCE(band, '') NOT IN ('name', 'number')"
+            # A bulk claim on "Words you may already know" is neither saved nor come to
+            # know in its period (David, 2026-10-30): hundreds in a minute, all old.
+            " AND source != 'claimed'",
             (person_id,),
         ):
             if int(row["at"] or 0) > 0:

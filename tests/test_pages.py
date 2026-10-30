@@ -155,11 +155,10 @@ def test_the_progress_page_says_what_its_figures_count_on_the_page() -> None:
     # "Words you knew" carries no footnote since 2026-10-29 (design.md §12, "Your level,
     # v3"): its sentence says what it counts.
     assert "We check each section you finish" not in progress
-    for said in (
-        "We count a word as read when you turn past its page",
-        "counts the words you marked here as anything other than known",
-    ):
-        assert said in progress, said
+    # Nor does "Words read" since 2026-10-30 (design.md §12, "How you got here: two
+    # figures, the days active and the words of the period"): the note is gone.
+    assert "We count a word as read when you turn past its page" not in progress
+    assert "counts the words you marked here as anything other than known" in progress
     spent = re.search(r'<div class="spent" id="spent" hidden>.*?\n    </div>', progress, re.S)
     assert spent is not None
     assert 'id="learned-note"' not in spent.group(0)

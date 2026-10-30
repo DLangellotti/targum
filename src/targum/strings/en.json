@@ -4171,5 +4171,6 @@
   "progress.words.met": "New words met",
   "progress.words.saved": "Saved",
   "progress.words.known": "Now known",
-  "progress.words.since": "Words met and known are counted from {date}."
+  "progress.words.since": "Words met and known are counted from {date}.",
+  "you.page.record-words": "With your word list we also keep the day each word became known, and the day you first met each word in a section you finished. They aren't part of this record, so they stay until you delete your account."
 }
