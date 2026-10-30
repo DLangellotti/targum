@@ -1222,7 +1222,7 @@ def test_the_progress_page_stands_on_its_own() -> None:
     assert '<h1 class="page-title">Your Progress</h1>' in html
     # A story in three parts (§12, 2026-10-09): where you are, how you got here, what next.
     assert 'id="touchstones"' in html  # where you are
-    assert 'id="weeks"' in html  # the words taken up, week by week
+    assert 'id="how-by"' in html  # how you got here, by Week, Month or All time
     assert 'id="met-rows"' in html and 'id="level-rows"' in html  # what next
 
     # The same three stores the reader writes, and no fourth copy of anything. The

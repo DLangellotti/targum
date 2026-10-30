@@ -19,6 +19,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   open, a section now adds no words. And putting a film's picture up or away while it
   plays splits the stretch, so the time before is "watched" and the time after
   "listened", where the whole stretch used to go by how the picture stood at the pause.
+- Your Progress, "How you got here", is board 3 "Effort" (David, 2026-10-30;
+  targum-internal#603). Two figures: words read, and time listening with watching counted
+  in it and "Including 4 h 1 min of video" under it (one Watched figure where a language
+  has no recordings). Each has a line against the period before ("▲ 12% vs. last 30
+  days", a fall ▼ in soft ink), with none on All time or with nothing to compare. Week |
+  Month | All time is a `.seg` at the head's end, in place of the pills. "Days active · N
+  of 30" is a square a day, any day read, listened or watched, with no grid on All time.
+  "Words this month" has three bars: new words met, saved, now known. Two records start
+  today for those bars and are not filled from before: `word.known_at`, set by the account
+  when a word becomes known and cleared when it leaves known, and `met`, the first
+  finished section each word was met in, written when the section is measured on the push
+  (schema 50). The note about what counts as read and the week-by-week chart are gone.
 - A Hebrew verb's root is denied where no Hebrew has it, and kept where the first list
   was wrong to deny it (ling-he's review of targum-internal#589, 2026-10-30;
   `verb_roots.VERSION` 2). Five entries come off the deny list because their roots are

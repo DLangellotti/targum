@@ -3,7 +3,7 @@
  *   node tests/js/progress.js payload.json
  *
  * The page's arithmetic is the thing worth running: the totals, the touchstones the
- * account's story places the reader on, the words taken up week by week, and what next.
+ * account's story places the reader on, how you got here, and what next.
  * Everything, including `collect()`, is the page's own code.
  */
 
@@ -66,8 +66,14 @@ global.fetch = global.window.fetch = (url) => {
     body = { signedIn: true, measurable: 20, reading: payload.reading };
   } else if (String(url).indexOf("/account/reading") === 0 && payload.readingFails) {
     return Promise.reject(new Error("unreachable"));
-  } else if (String(url).indexOf("/account/totals") === 0 && payload.totals) {
-    body = { signedIn: true, kept: true, on: true, totals: payload.totals };
+  } else if (String(url).indexOf("/account/totals") === 0 && (payload.totals || payload.words)) {
+    body = {
+      signedIn: true,
+      kept: true,
+      on: !payload.recordOff,
+      totals: payload.recordOff ? [] : payload.totals || [],
+      words: payload.words || null,
+    };
   } else if (String(url).indexOf("/account/story") === 0 && payload.storyFails) {
     return Promise.reject(new Error("unreachable"));
   } else if (String(url).indexOf("/account/story") === 0 && payload.storyHeld) {
@@ -95,6 +101,18 @@ if (payload.learnedBy) {
   );
   process.exit(0);
 }
+/* The period's three presses come from the template, which a stub document has none of:
+   made here, class "button" so the stub's selector finds them, before the page wires them. */
+// Hidden in the template until the account says recording is stopped.
+global.document.getElementById("spent-off").hidden = true;
+const howBy = global.document.getElementById("how-by");
+["7", "30", ""].forEach((period) => {
+  const press = element("button");
+  press.className = "button";
+  press.setAttribute("data-period", period);
+  press.setAttribute("aria-pressed", period === "30" ? "true" : "false");
+  howBy.appendChild(press);
+});
 require(path.join(assets, "progress.js"));
 
 const at = (id) => byId[id] || { textContent: "", children: [], hidden: true };
@@ -163,7 +181,62 @@ function rows(id) {
   }));
 }
 
-setImmediate(() => setImmediate(() => process.stdout.write(
+/** Section 2, as drawn: the figures with their lines, the days, the words. */
+function how() {
+  const figures = at("spent-figures").children.map((one) => {
+    const part = (name) => one.children.find((node) => String(node.className).split(" ")[0] === name);
+    const vs = part("spent-vs");
+    return {
+      amount: (part("spent-amount") || { textContent: "" }).textContent,
+      label: (part("spent-label") || { textContent: "" }).textContent,
+      vs: vs ? vs.textContent : "",
+      way: vs ? String(vs.className).replace("spent-vs", "").trim() : "",
+      under: (part("spent-under") || { textContent: "" }).textContent,
+    };
+  });
+  return {
+    shown: at("how").hidden === false,
+    by: at("how-by").hidden === false,
+    pressed: at("how-by").children.map((press) => press.getAttribute("aria-pressed")),
+    spent: at("spent").hidden === false,
+    figures: figures,
+    off: at("spent-off").hidden === false,
+    days: at("how-days").hidden === false
+      ? {
+          title: at("days-title").textContent,
+          label: at("days-grid").getAttribute("aria-label"),
+          squares: at("days-grid").children.map((node) => (String(node.className) === "day on" ? 1 : 0)),
+          range: at("days-range").textContent,
+        }
+      : null,
+    words: at("how-words").hidden === false
+      ? {
+          title: at("words-title").textContent,
+          bars: at("words-bars").children.map((line) => ({
+            label: line.children[0].textContent,
+            count: line.children[2].textContent,
+            width: line.children[1].children[0].style.width,
+          })),
+          since: at("words-since").hidden === false ? at("words-since").textContent : "",
+        }
+      : null,
+  };
+}
+
+function settle(then) {
+  setImmediate(() => setImmediate(then));
+}
+
+settle(() => {
+  if (payload.period !== undefined) {
+    const press = howBy.children.find((node) => node.getAttribute("data-period") === payload.period);
+    if (press) press.fire("click");
+  }
+  report();
+});
+
+function report() {
+  process.stdout.write(
   JSON.stringify({
     reading: reading(),
     nothing: at("nothing").hidden === false,
@@ -221,26 +294,7 @@ setImmediate(() => setImmediate(() => process.stdout.write(
         }),
     },
     how: at("how-title").textContent,
-    weeks: (function () {
-      const bars = at("weeks").children[0];
-      if (!bars || bars.tagName !== "ol") {
-        return { columns: 0, said: (bars || { textContent: "" }).textContent, label: "", shades: [] };
-      }
-      return {
-        columns: bars.children.length,
-        label: bars.getAttribute("aria-label"),
-        said: "",
-        shades: bars.children.map((bar) => (bar.children[0] ? bar.children[0].style.background : "")),
-        titles: bars.children.map((bar) => bar.title),
-        dates: at("weeks")
-          .children.filter((node) => String(node.className) === "weeks-dates")
-          .map((node) => node.children.map((span) => span.textContent))[0] || [],
-        datesSpan: at("weeks")
-          .children.filter((node) => String(node.className) === "weeks-dates")
-          .map((node) => node.style.getPropertyValue ? node.style.getPropertyValue("--weeks") : node.style["--weeks"])[0] || "",
-        legend: at("weeks").children.filter((node) => String(node.className) !== "weeks-dates").length > 1,
-      };
-    })(),
+    effort: how(),
     next: {
       wordsTitle: at("next-words-title").textContent,
       met: rows("met-rows"),
@@ -256,4 +310,5 @@ setImmediate(() => setImmediate(() => process.stdout.write(
       moreHref: at("more-texts").href,
     },
   })
-)));
+);
+}

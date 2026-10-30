@@ -36,14 +36,6 @@
   var t = words.t;
   var tn = words.tn;
 
-  var KNOWN = 9;
-  var STEPS = [
-    { status: 1, name: t("progress.status.1", "new to you"), slot: "--step-1" },
-    { status: 2, name: t("progress.status.2", "still learning"), slot: "--step-2" },
-    { status: 3, name: t("progress.status.3", "almost known"), slot: "--step-3" },
-    { status: KNOWN, name: t("progress.status.9", "known"), slot: "--step-4" },
-  ];
-
   /* The rows, each with its name on the ladder and the sentences the card can say
      (design.md §12, "Your level leads with what you can read", 2026-10-28). The rows are
      the texts' own levels, not kinds of text: an easy video and a hard one sit in
@@ -633,18 +625,17 @@
 
   /* --- 2 · how you got here ------------------------------------------------------
    *
-   * Time and words (targum-internal#339): the account's reading of its own log, a row a
-   * day, language and medium, so they add up across devices. Filtered by period only
-   * (§12, 2026-10-09): the three figures already say the medium. A figure that is nought
-   * is not drawn, and the part is absent where there is no record at all.
+   * design.md §12, "How you got here: two figures, the days active and the words of the
+   * period" (2026-10-30). Words read and time listening are the account's reading of its
+   * own log (targum-internal#339), a row a day, language and medium, so they add up
+   * across devices; listening and watching are one figure, with the watched part said
+   * under it. Each is set against the period of the same length before. Under them the
+   * days active and the period's words — met, saved, become known — which the account
+   * counts in the reader's own days. Week | Month | All time narrows all of it.
    */
   var spentRows = null;
+  var wordDays = null;
   var spentPeriod = "30";
-  var PERIODS = [
-    ["30", t("progress.spent.month", "Last 30 days")],
-    ["7", t("progress.spent.week", "Last 7 days")],
-    ["", t("progress.spent.ever", "All time")],
-  ];
 
   function clock(seconds) {
     var minutes = Math.round(seconds / 60);
@@ -658,13 +649,18 @@
       : t("progress.spent.hours", "{h} h", { h: hours });
   }
 
-  function since(days) {
-    var then = new Date();
-    then.setDate(then.getDate() - (days - 1));
+  function localDay(date) {
     var two = function (n) {
       return (n < 10 ? "0" : "") + n;
     };
-    return then.getFullYear() + "-" + two(then.getMonth() + 1) + "-" + two(then.getDate());
+    return date.getFullYear() + "-" + two(date.getMonth() + 1) + "-" + two(date.getDate());
+  }
+
+  //: The first of the last `days` days, today the last of them, in this browser's days.
+  function since(days) {
+    var then = new Date();
+    then.setDate(then.getDate() - (days - 1));
+    return localDay(then);
   }
 
   //: Whether the account's record holds anything at all in this language.
@@ -697,163 +693,269 @@
           : t("progress.how.all", "Reading, listening and watching");
   }
 
-  function drawSpent(code) {
-    var panel = document.getElementById("spent");
-    var figures = document.getElementById("spent-figures");
-    var chips = document.getElementById("spent-period");
-    if (!panel || !figures) return;
-    // Drawn whenever the record holds anything in this language, and absent where it
-    // holds nothing: the board has no waiting state (§12, 2026-10-09).
-    panel.hidden = !recorded(code);
-    if (panel.hidden) return;
-    chips.textContent = "";
-    PERIODS.forEach(function (pair) {
-      var chip = el("button", "chip", pair[1]);
-      chip.type = "button";
-      chip.setAttribute("aria-pressed", spentPeriod === pair[0] ? "true" : "false");
-      chip.addEventListener("click", function () {
-        spentPeriod = pair[0];
-        drawSpent(currentCode);
-      });
-      chips.appendChild(chip);
-    });
-    var from = spentPeriod ? since(Number(spentPeriod)) : "";
+  //: Words, seconds listened and seconds watched in this language from `from` up to,
+  //: not including, `to`; either end left open by "".
+  function spentBetween(code, from, to) {
     var sums = { listened: 0, watched: 0, words: 0 };
-    spentRows.forEach(function (row) {
+    (spentRows || []).forEach(function (row) {
       if (row.language && row.language !== code) return;
       if (from && row.day < from) return;
+      if (to && row.day >= to) return;
       sums.listened += row.listened || 0;
       sums.watched += row.watched || 0;
       sums.words += row.words || 0;
     });
+    return sums;
+  }
+
+  /* Never rounded into a lie, as `level.known_percent` keeps it: a change that is not
+     nothing is never 0%, and one that is not exactly a hundred is never 100%. */
+  function changePercent(now, before) {
+    var exact = (Math.abs(now - before) / before) * 100;
+    var whole = Math.round(exact);
+    if (whole <= 0) return 1;
+    if (whole === 100 && exact !== 100) return exact < 100 ? 99 : 101;
+    return whole;
+  }
+
+  //: The line under a figure, against the period before; null on All time, or where the
+  //: period before holds nothing — no "new" and no "∞".
+  function comparison(now, before) {
+    if (!spentPeriod || !before) return null;
+    var week = spentPeriod === "7";
+    var line = el("span", "spent-vs");
+    if (now === before) {
+      line.textContent = week
+        ? t("progress.spent.same-week", "Same as last 7 days")
+        : t("progress.spent.same-month", "Same as last 30 days");
+      return line;
+    }
+    var up = now > before;
+    line.className += up ? " up" : " down";
+    line.appendChild(el("span", "spent-arrow", up ? "▲" : "▼")).setAttribute("aria-hidden", "true");
+    line.appendChild(
+      el("span", "visually-hidden", up ? t("progress.spent.up", "Up") : t("progress.spent.down", "Down"))
+    );
+    var n = changePercent(now, before);
+    line.appendChild(
+      document.createTextNode(
+        " " +
+          (week
+            ? t("progress.spent.vs-week", "{n}% vs. last 7 days", { n: n })
+            : t("progress.spent.vs-month", "{n}% vs. last 30 days", { n: n }))
+      )
+    );
+    return line;
+  }
+
+  function drawSpent(code) {
+    var panel = document.getElementById("spent");
+    var figures = document.getElementById("spent-figures");
+    if (!panel || !figures) return false;
+    // Drawn whenever the record holds anything in this language, and absent where it
+    // holds nothing: the board has no waiting state (§12, 2026-10-09).
+    panel.hidden = !recorded(code);
+    if (panel.hidden) return false;
+    var days = Number(spentPeriod);
+    var from = spentPeriod ? since(days) : "";
+    var sums = spentBetween(code, from, "");
+    var before = spentPeriod ? spentBetween(code, since(days * 2), from) : null;
     figures.textContent = "";
-    function figure(amount, label) {
+    function figure(amount, label, now, then, under) {
       var one = el("div", "spent-figure");
       one.appendChild(el("span", "spent-amount", amount));
       one.appendChild(el("span", "spent-label", label));
+      var line = before ? comparison(now, then) : null;
+      if (line) one.appendChild(line);
+      if (under) one.appendChild(el("span", "spent-under", under));
       figures.appendChild(one);
     }
-    // The board's three, always: a nought is a figure of the period, not a gap in it.
-    figure(grouped(sums.words), tn("progress.spent.words", sums.words, "word read", "words read"));
-    if (!SILENT[code]) figure(clock(sums.listened), t("progress.spent.listened", "listened"));
-    figure(clock(sums.watched), t("progress.spent.watched", "watched"));
+    // A nought is a figure of the period, not a gap in it.
+    figure(
+      grouped(sums.words),
+      tn("progress.spent.words-read", sums.words, "Word read", "Words read"),
+      sums.words,
+      before ? before.words : 0
+    );
+    if (SILENT[code]) {
+      // No recordings in this language: what it has is films, so the one figure stays.
+      figure(clock(sums.watched), t("progress.spent.watched-label", "Watched"), sums.watched, before ? before.watched : 0);
+    } else {
+      var heard = sums.listened + sums.watched;
+      figure(
+        clock(heard),
+        t("progress.spent.time-listening", "Time listening"),
+        heard,
+        before ? before.listened + before.watched : 0,
+        sums.watched ? t("progress.spent.of-video", "Including {time} of video", { time: clock(sums.watched) }) : ""
+      );
+    }
+    return true;
   }
+
+  //: Whether this language's record has anything for one day: read, listened or watched.
+  function activeDays(code) {
+    var out = {};
+    (spentRows || []).forEach(function (row) {
+      if (row.language && row.language !== code) return;
+      if ((row.listened || 0) + (row.watched || 0) + (row.words || 0) > 0) out[row.day] = true;
+    });
+    return out;
+  }
+
+  /* A square a day of the period, leaf where the reader read, listened or watched (David,
+     2026-10-30: "active"). One count of days and nothing about runs of them. Not drawn
+     on All time: the day strip was retired on 2026-10-09, and a field of ninety squares
+     under "All time" would bring it back while describing ninety days, not all of them. */
+  function drawDays(code) {
+    var box = document.getElementById("how-days");
+    if (!box) return false;
+    box.hidden = !spentPeriod || !recorded(code);
+    if (box.hidden) return false;
+    var total = Number(spentPeriod);
+    var active = activeDays(code);
+    var grid = document.getElementById("days-grid");
+    grid.textContent = "";
+    var count = 0;
+    var first = "";
+    var last = "";
+    for (var back = total - 1; back >= 0; back--) {
+      var date = new Date();
+      date.setDate(date.getDate() - back);
+      var day = localDay(date);
+      if (!first) first = day;
+      last = day;
+      var on = Boolean(active[day]);
+      if (on) count += 1;
+      grid.appendChild(el("span", on ? "day on" : "day"));
+    }
+    var title = document.getElementById("days-title");
+    title.textContent = "";
+    title.appendChild(document.createTextNode(t("progress.days.title", "Days active")));
+    title.appendChild(el("span", "how-count", " " + t("progress.days.of", "· {n} of {all}", { n: count, all: total })));
+    grid.setAttribute(
+      "aria-label",
+      t("progress.days.label", "You were active on {n} of the last {all} days.", { n: count, all: total })
+    );
+    document.getElementById("days-range").textContent = shortDay(dayOf(first)) + " → " + shortDay(dayOf(last));
+    return true;
+  }
+
+  /* The period's words: met for the first time, saved, and become known, as exact counts,
+     each bar the length of its count against the longest. Met and known are counted from
+     the day the account began keeping them (`began`, 2026-10-30), and a period that
+     starts before it says so; with no such day those two bars are left out, never drawn
+     at nought. */
+  function drawWords(code) {
+    var box = document.getElementById("how-words");
+    if (!box) return false;
+    box.hidden = !wordDays;
+    if (box.hidden) return false;
+    var from = spentPeriod ? since(Number(spentPeriod)) : "";
+    var sums = { met: 0, saved: 0, known: 0 };
+    (wordDays.days || []).forEach(function (row) {
+      if (row.language !== code) return;
+      if (from && row.day < from) return;
+      sums.met += row.met || 0;
+      sums.saved += row.saved || 0;
+      sums.known += row.known || 0;
+    });
+    var began = Number(wordDays.began) || 0;
+    var rows = [];
+    if (began) rows.push(["met", t("progress.words.met", "New words met"), sums.met, "--step-1"]);
+    rows.push(["saved", t("progress.words.saved", "Saved"), sums.saved, "--step-2"]);
+    if (began) rows.push(["known", t("progress.words.known", "Now known"), sums.known, "--step-4"]);
+    document.getElementById("words-title").textContent =
+      spentPeriod === "7"
+        ? t("progress.words.week", "Words this week")
+        : spentPeriod
+          ? t("progress.words.month", "Words this month")
+          : t("progress.words.ever", "Words all time");
+    var most = rows.reduce(function (top, row) {
+      return Math.max(top, row[2]);
+    }, 0);
+    var bars = document.getElementById("words-bars");
+    bars.textContent = "";
+    rows.forEach(function (row) {
+      var line = el("div", "how-bar how-bar-" + row[0]);
+      line.appendChild(el("span", "how-bar-label", row[1]));
+      var track = el("span", "how-bar-track");
+      track.setAttribute("aria-hidden", "true");
+      var fill = el("span", "how-bar-fill");
+      fill.style.width = (most ? Math.round((row[2] / most) * 1000) / 10 : 0) + "%";
+      fill.style.background = "var(" + row[3] + ")";
+      track.appendChild(fill);
+      line.appendChild(track);
+      line.appendChild(el("span", "how-bar-count", grouped(row[2])));
+      bars.appendChild(line);
+    });
+    var note = document.getElementById("words-since");
+    var beganDay = began ? localDay(new Date(began)) : "";
+    note.hidden = !beganDay || Boolean(from && from >= beganDay);
+    if (!note.hidden) {
+      note.textContent = t("progress.words.since", "Words met and known are counted from {date}.", {
+        date: shortDay(dayOf(beganDay)),
+      });
+    }
+    return true;
+  }
+
+  function drawHow(code) {
+    var spent = drawSpent(code);
+    var days = drawDays(code);
+    var wordsDrawn = drawWords(code);
+    var off = document.getElementById("spent-off");
+    var by = document.getElementById("how-by");
+    if (by) by.hidden = !(spent || wordsDrawn);
+    var lower = document.getElementById("how-lower");
+    if (lower) {
+      lower.hidden = !(days || wordsDrawn);
+      lower.classList.toggle("ruled", spent);
+    }
+    // Nothing to say signed out, and no heading standing over nothing.
+    var how = document.getElementById("how");
+    if (how) how.hidden = !(spent || wordsDrawn || (off && !off.hidden));
+  }
+
+  function wireHowBy() {
+    var by = document.getElementById("how-by");
+    if (!by) return;
+    Array.prototype.forEach.call(by.querySelectorAll("button"), function (button) {
+      button.addEventListener("click", function () {
+        spentPeriod = button.getAttribute("data-period") || "";
+        Array.prototype.forEach.call(by.querySelectorAll("button"), function (other) {
+          other.setAttribute("aria-pressed", other === button ? "true" : "false");
+        });
+        drawHow(currentCode);
+      });
+    });
+  }
+  wireHowBy();
 
   function askSpent() {
     if (!window.fetch) return;
-    fetch(keyed("/account/totals"), { credentials: "same-origin" })
+    var zone = readingZone();
+    fetch(keyed("/account/totals" + (zone ? "?tz=" + encodeURIComponent(zone) : "")), { credentials: "same-origin" })
       .then(function (answer) {
         return answer.json();
       })
       .then(function (said) {
         if (!said || !said.signedIn) return;
+        // The words are the account's own, kept whether or not the record of use is on.
+        wordDays = said.words || null;
         if (!said.on) {
           var off = document.getElementById("spent-off");
           if (off) off.hidden = false;
-          return;
+        } else {
+          // Read wherever there is a record, kept or not kept any more (§12, 2026-10-09).
+          spentRows = said.totals && said.totals.length ? said.totals : null;
         }
-        // Read wherever there is a record, kept or not kept any more (§12, 2026-10-09).
-        spentRows = said.totals && said.totals.length ? said.totals : null;
-        if (!spentRows) return;
-        drawSpent(currentCode);
-        drawLedger(document.getElementById("counts"), data[currentCode], readingDays, currentCode);
+        drawHow(currentCode);
+        if (spentRows) drawLedger(document.getElementById("counts"), data[currentCode], readingDays, currentCode);
       })
       .catch(function () {
         /* no record to read is no figures, which is how the page already stood */
       });
-  }
-
-  /* The words taken up, a column a week over the last twelve weeks, from the first week
-     with anything in it. "Came to know" is what the board says; nothing records the day a
-     word reached known, only the day it was saved, so the chart draws what was kept (§12,
-     2026-10-09). Each column is one shade of the stage ramp chosen by its height — lighter
-     for fewer, leaf for the most — and there is no legend, as the board draws it. */
-  var WEEKS = 12;
-  var DAY = 24 * 60 * 60 * 1000;
-
-  function drawWeeks(host, list) {
-    host.textContent = "";
-    var today = new Date();
-    today.setHours(0, 0, 0, 0);
-    // Weeks end today, so the last column is the seven days up to now.
-    var end = today.getTime() + DAY;
-    var start = end - WEEKS * 7 * DAY;
-    var columns = [];
-    for (var w = 0; w < WEEKS; w++) columns.push({ 1: 0, 2: 0, 3: 0, 9: 0, all: 0 });
-    charts.kept(list).forEach(function (word) {
-      if (!word.at || word.at < start || word.at >= end) return;
-      var at = Math.floor((word.at - start) / (7 * DAY));
-      var step = word.status === KNOWN ? KNOWN : word.status;
-      if (!columns[at] || columns[at][step] === undefined) return;
-      columns[at][step] += 1;
-      columns[at].all += 1;
-    });
-    var most = columns.reduce(function (top, column) {
-      return Math.max(top, column.all);
-    }, 0);
-    if (!most) {
-      host.appendChild(el("p", "empty", t("progress.weeks.none", "No words saved in the last twelve weeks.")));
-      return;
-    }
-    var bars = el("ol", "weeks");
-    var weekLabels = [];
-    var weekDates = [];
-    var total = 0;
-    var first = 0;
-    while (first < columns.length && !columns[first].all) first += 1;
-    columns.forEach(function (column, index) {
-      total += column.all;
-      if (index < first) return;
-      var bar = el("li", "week");
-      var from = new Date(start + index * 7 * DAY);
-      var dated = from.toLocaleDateString(words.language || "en", { day: "numeric", month: "short" });
-      weekDates.push(dated);
-      var label = tn("progress.weeks.week", column.all, "Week of {date}: {n} word", "Week of {date}: {n} words", {
-        date: dated,
-      });
-      bar.title = label;
-      weekLabels.push(label);
-      var share = column.all / most;
-      // A week with nothing in it keeps its place and draws nothing.
-      if (!column.all) {
-        bars.appendChild(bar);
-        return;
-      }
-      var shade = el("span", "week-bar");
-      shade.style.height = Math.round(share * 100) + "%";
-      shade.style.background = "var(" + rampFor(share) + ")";
-      bar.appendChild(shade);
-      bars.appendChild(bar);
-    });
-    bars.setAttribute("role", "img");
-    // Each week's count in the chart's own label, which a screen reader says: a title on
-    // a bar inside an image was reached by nothing (polish 2; §14, nothing is hover-only).
-    bars.setAttribute(
-      "aria-label",
-      [tn("progress.weeks.label", total, "{n} word saved in the last twelve weeks", "{n} words saved in the last twelve weeks")]
-        .concat(weekLabels)
-        .join(". ")
-    );
-    // This week at the end edge whatever came before it, so the newest column is always
-    // in the same place (polish 2, targum-internal#471).
-    host.appendChild(bars);
-    // The first and the last week's dates under the chart, as the month line names its
-    // months: the bars had no dates at all (polish 2). The label above already says each
-    // week, so these are for the eye only.
-    var dates = el("p", "weeks-dates");
-    dates.setAttribute("aria-hidden", "true");
-    dates.style.setProperty("--weeks", String(weekDates.length));
-    dates.appendChild(el("span", "", weekDates[0]));
-    if (weekDates.length > 1) dates.appendChild(el("span", "", weekDates[weekDates.length - 1]));
-    host.appendChild(dates);
-  }
-
-  //: The step of the ramp a column of this share of the tallest is drawn in.
-  function rampFor(share) {
-    if (share >= 0.9) return STEPS[3].slot;
-    if (share >= 0.75) return STEPS[2].slot;
-    if (share >= 0.6) return STEPS[1].slot;
-    return STEPS[0].slot;
   }
 
   /* --- 3 · what next ------------------------------------------------------------ */
@@ -1476,8 +1578,7 @@
     drawWhere(code);
     drawReading(code);
     drawHowTitle(code);
-    drawSpent(code);
-    drawWeeks(document.getElementById("weeks"), data[code].words);
+    drawHow(code);
     drawNext(code);
     askStory(code);
   }

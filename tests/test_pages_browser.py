@@ -1007,73 +1007,48 @@ def _progress_with(
     return context, page
 
 
-@pytest.mark.parametrize("weeks", [1, 2])
-@pytest.mark.parametrize("language", ["en", "ru"])
-def test_progress_week_dates_stay_inside_the_card(browser, language: str, weeks: int) -> None:
-    """qa-claude on #870: with one or two weeks the dates' box was the weeks' width, and at
-    390 in Russian "15 окт." ran past the card's edge. Measured in a browser, because the
-    CSS-string tests could not see it."""
-    from datetime import date, datetime, time, timedelta
-
-    words = {}
-    for back in range(weeks):
-        day = date.today() - timedelta(days=7 * back)
-        at = int(datetime.combine(day, time(12, 0)).timestamp() * 1000)
-        for i in range(3):
-            words[f"w{back}-{i}"] = {"status": 9, "surface": f"w{back}-{i}", "at": at + i}
-    context, page = _progress_with(browser, {}, width=390, language=language, vocab=words)
-    page.wait_for_selector(".progress .weeks-dates span")
-    got = page.evaluate(
-        """() => {
-          const dates = document.querySelector('.progress .weeks-dates');
-          const column = dates.parentElement.getBoundingClientRect();
-          const spans = [...dates.querySelectorAll('span')].map((s) => s.getBoundingClientRect());
-          return {said: dates.textContent, start: Math.min(...spans.map((s) => s.left)),
-                  end: Math.max(...spans.map((s) => s.right)),
-                  left: column.left, right: column.right,
-                  apart: spans.length < 2 || spans[0].right <= spans[1].left,
-                  sideways: document.documentElement.scrollWidth > window.innerWidth};
-        }"""
-    )
-    context.close()
-    assert len(got["said"]) > 0, got
-    assert got["end"] <= got["right"] + 0.5 and got["start"] >= got["left"] - 0.5, got
-    assert got["apart"], got
-    assert not got["sideways"], got
-
-
 SPENT = """() => ({
   shown: !document.getElementById('spent').hidden,
   off: !document.getElementById('spent-off').hidden,
   figures: [...document.querySelectorAll('.spent-figure')].map(
-    (f) => [...f.children].map((c) => c.textContent).join(' ')
+    (f) => [...f.children].map((c) => c.textContent).join(' | ')
   ),
+  pressed: [...document.querySelectorAll('#how-by button')].map(
+    (b) => b.textContent + ':' + b.getAttribute('aria-pressed')
+  ),
+  days: document.getElementById('how-days').hidden
+    ? null : document.getElementById('days-grid').getAttribute('aria-label'),
   sideways: document.documentElement.scrollWidth > window.innerWidth,
 })"""
 
 
-def test_progress_says_time_listened_watched_and_words_read_and_narrows_them(browser) -> None:
-    """targum-internal#339: "track hours/minutes listened/watched + words read… displayed
-    and filterable on Progress." Read off the account's own record, in the page's language
-    (the Russian row is not counted here), in hours and minutes and words — no invented
-    unit. The board's three figures, always, a nought said as one. Filtered by period
-    only, the last 30 days first (§12, 2026-10-09)."""
-    context, page = _progress_with(browser, {})
+@pytest.mark.parametrize("width", [390, 1440])
+def test_progress_says_words_read_and_time_listening_and_narrows_them(browser, width: int) -> None:
+    """design.md §12, 2026-10-30: two figures, listening and watching as one with the
+    watched part under it, read off the account's own record in the page's language (the
+    Russian row is not counted here). Week | Month | All time is a `.seg` that a keyboard
+    presses and a screen reader hears pressed; the days active go on All time."""
+    context, page = _progress_with(browser, {}, width=width)
     month = page.evaluate(SPENT)
-    page.locator("#spent-period .chip", has_text="All time").click()
+    page.locator("#how-by button", has_text="All time").focus()
+    page.keyboard.press("Enter")
     ever = page.evaluate(SPENT)
-    page.locator("#spent-period .chip", has_text="Last 7 days").click()
-    lately = page.evaluate(SPENT)
-    medium = page.locator("#spent-medium").count()
+    page.locator("#how-by button", has_text="Week").click()
+    week = page.evaluate(SPENT)
     context.close()
 
-    assert month["shown"] and not month["sideways"]
-    assert month["figures"] == ["0 words read", "1 h 35 min listened", "25 min watched"], (
-        "the book was two months ago"
-    )
-    assert ever["figures"] == ["12,400 words read", "1 h 35 min listened", "25 min watched"]
-    assert lately["figures"] == month["figures"]
-    assert medium == 0, "the three figures say the medium"
+    assert month["shown"] and not month["sideways"], month
+    assert month["pressed"] == ["Week:false", "Month:true", "All time:false"]
+    assert month["figures"] == [
+        "0 | Words read",
+        "2 h | Time listening | Including 25 min of video",
+    ], "the book was two months ago, and nothing before it to compare with"
+    assert month["days"] == "You were active on 1 of the last 30 days."
+    assert ever["pressed"] == ["Week:false", "Month:false", "All time:true"]
+    assert ever["figures"][0] == "12,400 | Words read"
+    assert ever["days"] is None, "no grid on All time"
+    assert week["days"] == "You were active on 1 of the last 7 days."
+    assert not week["sideways"]
 
 
 STORY = {
@@ -3570,47 +3545,6 @@ def test_a_pressed_shelf_card_asks_inside_itself(browser, width: int) -> None:
         assert page.locator(".band-ask").count() == 0
     finally:
         context.close()
-
-
-@pytest.mark.parametrize("width", [390, 1280])
-def test_a_first_week_of_words_is_one_column_not_a_block(browser, width: int) -> None:
-    """Signed-in walk 2026-10-12, m7: the chart starts at the first week with anything in
-    it (§12), so on a first day its one week stretched across the whole card as one solid
-    block, which a newcomer read as broken. A week is a twelfth of the row however few
-    there are yet."""
-    from targum.render.builder import progress_page
-
-    html = progress_page(TOKEN)
-
-    def answer(route, request):
-        if request.resource_type == "document":
-            return route.fulfill(status=200, content_type="text/html", body=html)
-        route.fulfill(status=200, content_type="application/json", body="{}")
-
-    context = browser.new_context(viewport={"width": width, "height": 844})
-    page = context.new_page()
-    try:
-        page.add_init_script(
-            "const v = {}; for (let i = 0; i < 40; i++) v['w' + i] = {surface: 'w' + i,"
-            " status: 9, band: 'easy', at: Date.now() - 3600000};"
-            " localStorage.setItem('targum:vocab:he', JSON.stringify(v));"
-            " localStorage.setItem('targum:language', 'he')"
-        )
-        page.route("http://progress.test/**", answer)
-        page.goto(f"http://progress.test/progress?k={TOKEN}")
-        page.wait_for_selector("#weeks .week-bar")
-        got = page.evaluate(
-            """() => {
-              const row = document.querySelector('#weeks .weeks').getBoundingClientRect();
-              const bars = [...document.querySelectorAll('#weeks .week')];
-              return {row: row.width, columns: bars.length,
-                      bar: bars[0].getBoundingClientRect().width};
-            }"""
-        )
-    finally:
-        context.close()
-    assert got["columns"] == 1, got
-    assert got["bar"] <= got["row"] / 12 + 1, f"one week is a twelfth of the row: {got}"
 
 
 RULE = "The letters added before and after the root say who; their pattern says when."

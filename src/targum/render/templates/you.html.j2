@@ -297,6 +297,10 @@
         <span class="row-main">
           <span class="acct-name">{{ t("you.page.what-we-record", "What we record as you go") }}</span>
           <span class="acct-says">{{ t("you.page.record-short", "We note the words you look up and the sections you finish, so Your Progress can say how far you've come. We keep it as long as you keep your account.") }}</span>
+          {#- What the account keeps with the words for "How you got here" (design.md §12,
+              2026-10-30; Privacy Notice clause 3.2): not this record, so neither the switch
+              nor Erase reaches it. -#}
+          <span class="acct-says">{{ t("you.page.record-words", "With your word list we also keep the day each word became known, and the day you first met each word in a section you finished. They aren't part of this record, so they stay until you delete your account.") }}</span>
         </span>
         <span class="acct-end">
           <button type="button" class="btn ghost outline" id="record-switch" aria-pressed="true"></button>
