@@ -188,7 +188,17 @@ def test_a_word_met_once_is_not_one_you_keep_meeting() -> None:
 
 
 def test_only_the_words_still_being_learned_are_asked_about() -> None:
-    assert sorted(touchstones.learning({"a": 1, "b": 3, "c": KNOWN, "d": 0})) == ["a", "b"]
+    marked = {"אב": 1, "בת": 3, "גן": KNOWN, "דג": 0}
+    assert sorted(touchstones.learning(marked)) == ["אב", "בת"]
+
+
+@pytest.mark.parametrize("letter", list("והבכלמש") + ["כְּ", "x"])
+def test_a_one_letter_form_is_never_a_word_to_learn(letter: str) -> None:
+    """A clitic DICTA split off has a lemma of one letter, pointed or not, and a reader
+    who tapped it has it on their list; "כ" headed "Words you keep meeting" on
+    2026-10-30. Any one-letter form, in any language, is left out."""
+    assert not touchstones.a_word(letter)
+    assert touchstones.learning({letter: 1, "ספר": 1}) == ["ספר"]
 
 
 # -- /account/story, end to end ---------------------------------------------------------
@@ -215,9 +225,11 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     monkeypatch.setattr(catalogue_module, "everything", shelf)
     monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
 
-    # Two finished texts, each with ספר in its first section.
+    # Two finished texts, each with ספר in its first section, and a כ DICTA split off a
+    # word and a של, both closed-class (2026-10-30: "כ" headed the list on the box).
     for name in ("one", "two"):
-        folder = built(out / "shared" / name, {1: [[word("ספר"), word("ים")] * 3]})
+        line = [word("ספר"), word("ים")] * 3 + [word("כ", "ADP"), word("של", "ADP")]
+        folder = built(out / "shared" / name, {1: [line]})
         facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
         facts["content_hash"] = name
         (folder / "document.json").write_text(json.dumps(facts), encoding="utf-8")
@@ -226,6 +238,10 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     words = [
         {"language": "he", "lemma": "ים", "status": KNOWN, "at": 1, "seen": 1},
         {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
+        # Tapped while reading, so on the list and still being learned; never words to
+        # learn, so never words they keep meeting.
+        {"language": "he", "lemma": "כ", "status": 1, "at": 1, "seen": 1},
+        {"language": "he", "lemma": "של", "status": 1, "at": 1, "seen": 1},
         # A name and a number marked known: not vocabulary, so not counted, as the
         # ledger above does not count them (audit Q8, 2026-10-09: 1,743 against 1,688).
         {"language": "he", "lemma": "דוד", "status": KNOWN, "at": 1, "seen": 1, "band": "name"},

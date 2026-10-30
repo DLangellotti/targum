@@ -12,6 +12,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A prefix letter is never a word to learn (2026-10-30). Your Progress's "Words you
+  keep meeting and don't know yet" showed a bare כ: DICTA splits a clitic off as its own
+  token, a reader who tapped it had it on their list, and the list counted every token.
+  That list, the practice card on Your Words and the Sentences gaps now leave out a
+  one-letter form and a form met only as a closed-class word (`tables.weights.EXCLUDED`:
+  של, את). The occurrences cache records those forms (version 5, rebuilt free on first
+  read). The rows of Your Words still show every word on the reader's own list.
 - A stretch of a recording played says whether its text was on the screen (David,
   2026-10-30; targum-internal#602). It was not while the page was hidden, the listening
   view was open or Hear first held the line back. A change to any of them while the voice
