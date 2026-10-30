@@ -5040,6 +5040,70 @@ def tables_snapshot(
             console.print(f"  {one.register}: v{one.version} {one.outcome}")
 
 
+@tables_app.command("count-corpus")
+def tables_count_corpus(
+    file: Annotated[Path, typer.Argument(help="The corpus: one sentence a line, UTF-8.")],
+    register: Annotated[str, typer.Option("--register", help="conversation, literature, bible.")],
+    source: Annotated[
+        str,
+        typer.Option(
+            "--source", help="The corpus's name on every row, e.g. opus-opensubtitles-v2024."
+        ),
+    ],
+    licence: Annotated[str, typer.Option("--licence", help="The licence line on every row.")],
+    tokens: Annotated[
+        int | None, typer.Option("--tokens", help="Stop once this many words are counted.")
+    ] = None,
+    chunk: Annotated[int, typer.Option("--chunk", help="Sentences to a chunk.")] = 10_000,
+    min_free_gb: Annotated[
+        float, typer.Option("--min-free-gb", help="Stop before a chunk with less disk free.")
+    ] = 5.0,
+) -> None:
+    """Count an outside corpus into the language tables (targum-internal#580, #581).
+
+    Annotates the file a chunk at a time with the DICTA annotator a build uses, and keeps
+    lemmas and counts with the corpus's source and licence: no sentence is stored. A
+    chunk is the checkpoint, so a run started again on the same file resumes. Delete the
+    file once this is done; the counts are all that is kept.
+    """
+    import shutil
+    from time import monotonic
+
+    from .tables.corpus import REGISTERS, count_corpus
+
+    if register not in REGISTERS:
+        fail(TargumError(f"An outside corpus is filed under {', '.join(REGISTERS)}."))
+    if not file.is_file():
+        fail(TargumError(f"There is no file at {file}."))
+    store = _tables_store()
+
+    def stop() -> str:
+        free = shutil.disk_usage(store.file.parent).free / 1e9
+        return f"{free:.1f} GB free, under {min_free_gb:g}" if free < min_free_gb else ""
+
+    started = monotonic()
+    with file.open(encoding="utf-8", errors="replace") as handle:
+        result = count_corpus(
+            handle,
+            store,
+            register=register,
+            source=source,
+            licence=licence,
+            size=chunk,
+            tokens=tokens,
+            stop=stop,
+            say=lambda line: console.print(f"[dim]{line}[/dim]"),
+        )
+    took = (monotonic() - started) / 60
+    console.print(
+        f"[green]Counted[/green] {result.tokens} words, {len(result.lemmas)} distinct lemmas,"
+        f" {result.sentences} sentences: {result.counted} chunks now, {result.held} already"
+        f" counted [dim]{took:.0f} min, {register}, {store.file}[/dim]"
+    )
+    if result.stopped:
+        console.print(f"Stopped early: {result.stopped}. Run it again to carry on.")
+
+
 @topics_app.command("share")
 def topics_share(
     person: Annotated[
