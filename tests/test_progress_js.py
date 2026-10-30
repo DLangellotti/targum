@@ -51,6 +51,9 @@ def draw(
     story_held: bool = False,
     reading_fails: bool = False,
     raw: dict[str, str] | None = None,
+    words: dict[str, Any] | None = None,
+    period: str | None = None,
+    record_off: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -69,6 +72,9 @@ def draw(
                     # Stored as written, the way the page writes a remembered choice.
                     "raw": raw or {},
                     "totals": totals,
+                    "words": words,
+                    "recordOff": record_off,
+                    **({} if period is None else {"period": period}),
                 }
             ),
             encoding="utf-8",
@@ -187,7 +193,7 @@ def test_a_name_marked_known_is_not_a_word_marked_known() -> None:
     assert tile(drawn, "words known") == 4
     assert tile(drawn, "saved words") == 6
     assert tile(drawn, "learned on targum") == 0
-    assert drawn["weeks"] == plain["weeks"], "nor among the words taken up"
+    assert drawn["counts"] == {**plain["counts"]}, "nor anywhere else on the page"
 
 
 # --- what targum taught, and what you already had -----------------------------
@@ -977,31 +983,6 @@ def test_the_story_is_asked_for_the_language_on_the_page() -> None:
     assert any(url.startswith("/account/story?language=ru") for url in drawn["asked"])
 
 
-def test_the_words_taken_up_are_a_column_a_week_shaded_by_height() -> None:
-    """By the week a word was saved: nothing records the day a word became known (§12,
-    2026-10-09). From the first week with anything in it, each column one shade of the
-    stage ramp by its height, leaf for the tallest, and no legend (the board's)."""
-    today = date.today()
-    words: dict[str, Any] = {}
-    words |= _on(today, 3, "now")
-    words |= _on(today - timedelta(days=8), 2, "last")
-    words["last-0"]["status"] = 2
-    words |= _on(today - timedelta(days=200), 40, "long-ago")
-    drawn = draw({"targum:vocab:he": words})["weeks"]
-    assert drawn["columns"] == 2, "from the first week with a word in it"
-    assert drawn["label"].startswith("5 words saved in the last twelve weeks. Week of ")
-    assert drawn["shades"] == ["var(--step-2)", "var(--step-4)"]
-    assert drawn["titles"][-1].endswith(": 3 words")
-    assert not drawn["legend"]
-
-
-def test_no_words_lately_is_said_rather_than_drawn_flat() -> None:
-    words = _on(date.today() - timedelta(days=300), 4, "old")
-    assert draw({"targum:vocab:he": words})["weeks"]["said"] == (
-        "No words saved in the last twelve weeks."
-    )
-
-
 def test_words_read_joins_the_totals_where_the_account_keeps_a_record() -> None:
     today = date.today().isoformat()
     totals = [
@@ -1050,6 +1031,16 @@ CSS = (
 ).read_text(encoding="utf-8")
 
 
+TEMPLATE = (
+    Path(__file__).resolve().parent.parent
+    / "src"
+    / "targum"
+    / "render"
+    / "templates"
+    / "progress.html.j2"
+).read_text(encoding="utf-8")
+
+
 def _rule(selector: str, css: str = CSS) -> str:
     """The body of the first rule whose selector is exactly `selector`."""
     plain = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
@@ -1059,44 +1050,20 @@ def _rule(selector: str, css: str = CSS) -> str:
     raise AssertionError(f"no rule for {selector}")
 
 
-def test_the_week_chart_names_its_first_and_last_week_under_it() -> None:
-    """Polish 2: the bars had no dates. The first and the last week's dates sit under
-    them, as wide as the weeks drawn, and are for the eye: the label says every week."""
-    today = date.today()
-    words: dict[str, Any] = {}
-    words |= _on(today, 3, "now")
-    words |= _on(today - timedelta(days=15), 2, "earlier")
-    drawn = draw({"targum:vocab:he": words})["weeks"]
-    assert drawn["columns"] == 3
-    assert len(drawn["dates"]) == 2, "the first week's date and the last's"
-    assert drawn["titles"][0].startswith(f"Week of {drawn['dates'][0]}:")
-    assert drawn["titles"][-1].startswith(f"Week of {drawn['dates'][1]}:")
-    assert drawn["datesSpan"] == "3", "as wide as the three weeks drawn"
-    assert not drawn["legend"]
-
-
-def test_one_week_of_words_names_one_date() -> None:
-    drawn = draw({"targum:vocab:he": _on(date.today(), 2, "now")})["weeks"]
-    assert len(drawn["dates"]) == 1
-
-
-def test_this_week_is_always_at_the_end_edge() -> None:
-    """Polish 2: bars started at the left, so this week moved with how many came before."""
-    assert "justify-content: flex-end" in _rule(".progress .weeks")
-    dates = _rule(".progress .weeks-dates")
-    assert "margin-inline-start: auto" in dates and "var(--weeks" in dates
-
-
-def test_the_period_chips_are_tinted_pills_at_the_control_size() -> None:
-    """Polish 4 (§12 "The mockups win" and "The boards are the desk"; §13 controls):
-    tinted on the wash with no border, the chosen one teal, 0.9375rem and 40px."""
-    chip = _rule(".progress .spent .chip")
-    assert "background: var(--teal-wash)" in chip
-    assert "border: 0" in chip
-    assert "font-size: 0.9375rem" in chip
-    assert "min-block-size: 2.5rem" in chip
-    chosen = _rule('.progress .spent .chip[aria-pressed="true"]')
-    assert "background: var(--teal)" in chosen
+def test_the_period_is_the_reading_cards_seg_at_the_heads_end() -> None:
+    """design.md §12, 2026-10-30: Week | Month | All time, the same `.seg` as the reading
+    card's Day | Week | Month, at the head's end, 40px at a desk with a mouse. The pills
+    are gone."""
+    html = TEMPLATE
+    by = re.search(r'<div class="seg how-by" id="how-by" role="group"[^>]*>(.*?)</div>', html, re.S)
+    assert by, "the period is a .seg group"
+    presses = re.findall(
+        r'<button type="button" data-period="(\d*)" aria-pressed="(\w+)"', by.group(1)
+    )
+    assert presses == [("7", "false"), ("30", "true"), ("", "false")], "Month opens"
+    assert ".progress .spent .chip" not in CSS
+    head = _rule(".progress .how-head")
+    assert "justify-content: space-between" in head
 
 
 def test_a_story_step_is_a_label_on_the_scale() -> None:
@@ -1248,3 +1215,163 @@ def test_the_reading_percentage_is_never_rounded_into_a_lie() -> None:
     done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
     assert done.returncode == 0, done.stderr
     assert json.loads(done.stdout) == [1, 99, 100, 0, 72]
+
+
+# --- how you got here (design.md §12, 2026-10-30) ----------------------------------
+
+
+def _ago(days: int) -> str:
+    return (date.today() - timedelta(days=days)).isoformat()
+
+
+def _row(
+    day: str, words: int = 0, listened: int = 0, watched: int = 0, language: str = "he"
+) -> dict[str, Any]:
+    return {
+        "day": day,
+        "language": language,
+        "medium": "read",
+        "words": words,
+        "listened": listened,
+        "watched": watched,
+    }
+
+
+def effort(totals: list[dict[str, Any]], **options: Any) -> dict[str, Any]:
+    stored = options.pop("stored", {"targum:vocab:he": vocab(known=3)})
+    return draw(stored, totals=totals, **options)["effort"]
+
+
+def test_two_figures_with_the_watched_part_under_time_listening() -> None:
+    """Listening and watching are one figure, the watched part a line under it, left out
+    when it is nought; each figure against the 30 days before, ▲ in leaf on ink."""
+    drawn = effort(
+        [
+            _row(_ago(1), words=1120, listened=3600, watched=1800),
+            _row(_ago(40), words=1000, listened=1800),
+        ]
+    )
+    assert drawn["shown"] and drawn["by"] and drawn["pressed"] == ["false", "true", "false"]
+    words, heard = drawn["figures"]
+    assert (words["amount"], words["label"]) == ("1,120", "Words read")
+    assert words["vs"] == "▲Up 12% vs. last 30 days" and words["way"] == "up"
+    assert (heard["amount"], heard["label"]) == ("1 h 30 min", "Time listening")
+    assert heard["vs"] == "▲Up 200% vs. last 30 days"
+    assert heard["under"] == "Including 30 min of video"
+    plain = effort([_row(_ago(1), words=10, listened=60)])
+    assert plain["figures"][1]["under"] == "", "no video, no line"
+
+
+def test_a_fall_is_muted_and_never_rounds_to_nought_or_a_hundred() -> None:
+    drawn = effort([_row(_ago(1), words=1999), _row(_ago(31), words=2000)])
+    assert drawn["figures"][0]["vs"] == "▼Down 1% vs. last 30 days"
+    assert drawn["figures"][0]["way"] == "down"
+    drawn = effort([_row(_ago(1), words=1), _row(_ago(31), words=1000)])
+    assert drawn["figures"][0]["vs"] == "▼Down 99% vs. last 30 days", "not 100%"
+    drawn = effort([_row(_ago(1), words=500), _row(_ago(31), words=500)])
+    assert drawn["figures"][0]["vs"] == "Same as last 30 days"
+
+
+def test_no_comparison_on_all_time_or_with_nothing_before() -> None:
+    """No "new", no "∞": a period whose earlier one holds nothing has no line."""
+    drawn = effort([_row(_ago(1), words=100, listened=60)])
+    assert [one["vs"] for one in drawn["figures"]] == ["", ""]
+    drawn = effort([_row(_ago(1), words=100), _row(_ago(40), words=50)], period="")
+    assert [one["vs"] for one in drawn["figures"]] == ["", ""]
+    assert drawn["pressed"] == ["false", "false", "true"]
+    assert drawn["figures"][0]["amount"] == "150"
+
+
+def test_week_compares_with_the_seven_days_before() -> None:
+    drawn = effort(
+        [_row(_ago(2), words=110), _row(_ago(9), words=100), _row(_ago(20), words=999)], period="7"
+    )
+    assert drawn["figures"][0]["amount"] == "110"
+    assert drawn["figures"][0]["vs"] == "▲Up 10% vs. last 7 days"
+
+
+def test_a_language_with_no_recordings_keeps_one_watched_figure() -> None:
+    drawn = effort(
+        [_row(_ago(1), words=10, watched=600, language="yi")],
+        stored={"targum:vocab:yi": vocab(known=3)},
+        chosen="yi",
+    )
+    assert [one["label"] for one in drawn["figures"]] == ["Words read", "Watched"]
+    assert drawn["figures"][1]["amount"] == "10 min"
+
+
+def test_the_days_active_are_any_day_read_listened_or_watched() -> None:
+    """A square a day of the period; a day counts for reading, listening or watching. No
+    run of days anywhere; one sentence for a screen reader."""
+    drawn = effort(
+        [
+            _row(_ago(0), words=5),
+            _row(_ago(3), listened=60),
+            _row(_ago(5), watched=60),
+            _row(_ago(6), words=0, listened=0),
+            _row(_ago(45), words=5),
+        ]
+    )
+    days = drawn["days"]
+    assert days["title"] == "Days active · 3 of 30"
+    assert days["label"] == "You were active on 3 of the last 30 days."
+    assert len(days["squares"]) == 30 and sum(days["squares"]) == 3
+    assert days["squares"][-1] == 1, "today is the last square"
+    assert "→" in days["range"]
+    week = effort([_row(_ago(0), words=5)], period="7")["days"]
+    assert week["title"] == "Days active · 1 of 7" and len(week["squares"]) == 7
+    assert effort([_row(_ago(0), words=5)], period="")["days"] is None, "no grid on All time"
+    for said in (days["title"], days["label"]):
+        assert "row" not in said and "streak" not in said
+
+
+def _words_days(began_days_ago: int = 3) -> dict[str, Any]:
+    began = datetime.combine(date.today() - timedelta(days=began_days_ago), time(12, 0))
+    return {
+        "began": int(began.timestamp() * 1000),
+        "days": [
+            {"day": _ago(1), "language": "he", "met": 1240, "saved": 312, "known": 186},
+            {"day": _ago(10), "language": "he", "met": 0, "saved": 8, "known": 0},
+            {"day": _ago(1), "language": "ru", "met": 7, "saved": 7, "known": 7},
+        ],
+    }
+
+
+def test_the_periods_words_are_three_bars_with_exact_counts() -> None:
+    drawn = effort([_row(_ago(1), words=5)], words=_words_days())["words"]
+    assert drawn["title"] == "Words this month"
+    assert [(bar["label"], bar["count"]) for bar in drawn["bars"]] == [
+        ("New words met", "1,240"),
+        ("Saved", "320"),
+        ("Now known", "186"),
+    ]
+    assert drawn["bars"][0]["width"] == "100%"
+    assert drawn["bars"][2]["width"] == "15%"
+    assert drawn["since"].startswith("Words met and known are counted from ")
+    week = effort([_row(_ago(1), words=5)], words=_words_days(), period="7")["words"]
+    assert week["title"] == "Words this week" and week["bars"][1]["count"] == "312"
+
+
+def test_a_period_inside_the_record_says_nothing_about_when_it_began() -> None:
+    drawn = effort([_row(_ago(1), words=5)], words=_words_days(began_days_ago=60), period="7")
+    assert drawn["words"]["since"] == ""
+
+
+def test_with_no_record_start_met_and_known_are_left_out_not_nought() -> None:
+    days = _words_days()
+    days["began"] = 0
+    drawn = effort([_row(_ago(1), words=5)], words=days)["words"]
+    assert [bar["label"] for bar in drawn["bars"]] == ["Saved"]
+
+
+def test_the_words_are_drawn_with_the_record_of_use_stopped() -> None:
+    """The words are the account's own and not the record of use: stopped, the figures
+    and the days go, the quiet line says why, and the words stay."""
+    drawn = effort([], words=_words_days(), record_off=True)
+    assert drawn["off"] and not drawn["spent"] and drawn["days"] is None
+    assert drawn["words"] and drawn["by"]
+
+
+def test_signed_out_the_part_is_not_drawn() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3)})["effort"]
+    assert not drawn["shown"]

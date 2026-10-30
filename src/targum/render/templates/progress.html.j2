@@ -109,22 +109,38 @@
     </div>
   </section>
 
-  {#- 2 · How you got here. Time and words (targum-internal#339), read off the account's
-      record of what happened in each text (#127), filtered by period; then the words
-      taken up week by week. -#}
+  {#- 2 · How you got here (design.md §12, "How you got here: two figures, the days active
+      and the words of the period", 2026-10-30): the period at the head's end; words read
+      and time listening, read off the account's record of what happened in each text
+      (#127), each against the period before; the days active; and the period's words. -#}
   <section class="panel story" id="how" aria-labelledby="how-title">
-    <p class="story-step">{{ t("progress.story.how", "How you got here") }}</p>
-    <h2 id="how-title" class="section-title story-head"></h2>
+    <div class="how-head">
+      <div class="how-titles">
+        <p class="story-step">{{ t("progress.story.how", "How you got here") }}</p>
+        <h2 id="how-title" class="section-title story-head"></h2>
+      </div>
+      <div class="seg how-by" id="how-by" role="group" aria-label="{{ t("progress.reading.by", "Show by") }}" hidden>
+        <button type="button" data-period="7" aria-pressed="false">{{ t("progress.reading.by-week", "Week") }}</button>
+        <button type="button" data-period="30" aria-pressed="true">{{ t("progress.reading.by-month", "Month") }}</button>
+        <button type="button" data-period="" aria-pressed="false">{{ t("progress.spent.ever", "All time") }}</button>
+      </div>
+    </div>
     <div class="spent" id="spent" hidden>
-      <div class="chips" id="spent-period" role="group" aria-label="{{ t("progress.spent.when", "When") }}"></div>
-      {#- What counts as read, under the figures as a quiet line: it rode on them as a
-          title, which a phone and a keyboard never show (targum-internal#471, B1). -#}
       <div class="spent-figures" id="spent-figures"></div>
-      <p class="note">{{ t("progress.spent.note", "We count a word as read when you turn past its page or mark its section done.") }}</p>
     </div>
     <p class="note" id="spent-off" hidden>{{ t("progress.spent.off", "We're not showing time and words because recording is stopped. You can start it again in Your account.") }}</p>
-    <h3 class="story-sub" id="weeks-title">{{ t("progress.weeks.title", "The words you saved, week by week") }}</h3>
-    <div id="weeks"></div>
+    <div class="how-lower" id="how-lower" hidden>
+      <div class="how-days" id="how-days" hidden>
+        <h3 class="how-sub" id="days-title"></h3>
+        <div class="days" id="days-grid" role="img"></div>
+        <p class="days-range" id="days-range" aria-hidden="true"></p>
+      </div>
+      <div class="how-words" id="how-words" hidden>
+        <h3 class="how-sub" id="words-title"></h3>
+        <div class="how-bars" id="words-bars"></div>
+        <p class="how-since" id="words-since" hidden></p>
+      </div>
+    </div>
   </section>
 
   {#- 3 · What next: the words still being learned that keep coming round, and texts at

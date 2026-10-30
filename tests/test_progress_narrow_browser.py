@@ -109,7 +109,9 @@ def test_the_time_figures_never_overlap_or_push_the_page_sideways(
         page.wait_for_selector("#spent:not([hidden]) .spent-amount")
         page.wait_for_load_state("networkidle")
         amounts = page.locator("#spent-figures .spent-amount").all_inner_texts()
-        assert "9 ч 28 мин" in amounts, amounts
+        # Listening and watching are one figure (design.md §12, 2026-10-30), so a language
+        # with recordings says the two together; one without says the watched alone.
+        assert ("9 ч 28 мин" if language in ("arc", "yi") else "18 ч 56 мин") in amounts, amounts
         measured = page.evaluate(
             """() => ({
               scroll: document.documentElement.scrollWidth,

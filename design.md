@@ -380,6 +380,67 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### How you got here: two figures, the days active and the words of the period — 2026-10-30
+
+David, 2026-10-30 (targum-internal#603, board 3 "Effort"), approving ling-he's research on
+listening and watching the same day. It amends "2 · How you got here" in "Your Progress is
+a story in three parts" (2026-10-09), its line "the three figures say the medium", "Time
+and words are three serif figures" in "The mockups win on Your Progress" (2026-10-09), and
+"Time and words on Your Progress, read from the account" (2026-09-20).
+
+- **Two figures, not three: "Words read" and "Time listening".** Time listening is
+  listening and watching added together, and under it one quiet line, "Including 4 h 1
+  min of video", is left out when the watched part is nought. The research found the line
+  that matters for a learner is whether the *text* was on screen, not whether a picture
+  was: captioned viewing and reading while listening are on one side, ears only on the
+  other, and a targum film always has its Hebrew on screen. Two time figures suggested a
+  difference targum does not measure. The comparable products count one input figure in
+  hours (Dreaming merges watching and listening; LingQ counts video as listening if at
+  all), and keep reading in words. Watching is not added to words read: time is not
+  words. A language with no recordings (`SILENT` in `progress.js`, Aramaic and Yiddish)
+  keeps its one "Watched" figure.
+- **A comparison line under each figure**, against the period of the same length before:
+  "▲ 12% vs. last 30 days", "vs. last 7 days" on Week. The percentage is exact, by the
+  rule of "How much of a text you know is an exact percentage": a change that is not
+  nothing never rounds to 0%, and one that is not exactly 100% never shows 100%. A fall is
+  ▼ in the soft ink, never clay; a rise is leaf mixed on ink, as the board draws it. All
+  time has no comparison, and neither has a period whose earlier one holds nothing: no
+  "new", no "∞". The arrow is hidden from a screen reader, which hears "Up" or "Down".
+- **The period is a `.seg` at the head's end**, Week | Month | All time, the same control
+  as the reading card's Day | Week | Month, `aria-pressed` on the live part. It replaces
+  the tinted pills. Month opens.
+- **"Days active · 21 of 30"**: a square a day of the period, 7 on Week and 30 on Month,
+  leaf where the reader read, listened or watched that day in this language, by the
+  account's record (David, 2026-10-30: "active", not "you read"). Its label is one
+  sentence, "You were active on 21 of the last 30 days." No run of days is counted or
+  named anywhere in it. **On All time the grid is not drawn**: "the day strip" of
+  twelve weeks of squares was retired here on 2026-10-09, and ninety squares under "All
+  time" would bring it back while describing ninety days rather than all of them.
+- **"Words this month"** (this week, all time): three bars with exact counts, each the
+  length of its count against the longest. **New words met** is dictionary forms met for
+  the first time, met as `occurrences.met` means it: inside a section the reader
+  finished. **Saved** is words put on the list in the period, as the retired chart
+  counted them (names, numbers and ignored words left out). **Now known** is words whose
+  known date falls in the period. The period is in the reader's own days.
+- **Two records start on 2026-10-30, and neither is filled from before it.**
+  - `word.known_at`: set by the account when a word's status becomes known, cleared when
+    it leaves known, and synced with the word. Words that were known before it existed
+    stay NULL; it is never guessed from `seen`, which moves with any edit.
+  - `met`: one row per reader, language and dictionary form, with the first finish it
+    was met in. Written when a finished section is measured on the push that carries it
+    (`_measure_finished`), so nothing is worked out when the page loads. The first time a
+    reader's language is written, the sections they finished before are read once, so a
+    word met then is never counted as new.
+  - Both count from the box's first start with this code (`began`). A period that starts
+    before it says so in one line under the bars, "Counted since 30 Oct."; where the
+    account has no such date the bar is left out rather than drawn at nought.
+  - Both are the reader's own: exported with everything else, wiped with the account,
+    and read by nothing that is shared. The `met` rows never reach the language tables
+    or anything measured across readers ("private imports never train").
+- **Gone**: the note "We count a word as read when…" and "The words you saved, week by
+  week". The labels are capitalised, as the board sets them.
+- **The Russian strings are drafts** and wait for David's read.
+
 ### The level card says Reading level — 2026-10-30
 
 David, 2026-10-30 (targum-internal#574), approving the linguists' words. It reverses one
@@ -3680,7 +3741,10 @@ menu's language, as everywhere):
   from our own shelf, and this line stands only until it is built. See "Aramaic climbs from
   Onkelos to the daf", above.)* **Yiddish has no library**, so no ladder either, and its
   part 3 offers Upload and the reader's own texts instead of the Library's.
-- **2 · How you got here.** Time and words (2026-09-20), filtered by period only — Last 30
+- **2 · How you got here.** *(Since 2026-10-30 two figures, the days active and the
+  words of the period, Week | Month | All time: "How you got here: two figures, the days
+  active and the words of the period", above. The weekly chart below is gone.)* Time and
+  words (2026-09-20), filtered by period only — Last 30
   days, Last 7 days, All time; the medium chips are gone, the three figures say the
   medium. Under it, **the words you took up, week by week**. The board says "Words you
   came to know, week by week", and nothing records the day a word reached known — only
@@ -3721,7 +3785,9 @@ title and the tinted pills every desk page's)*:
   `--iris-bright`. A figure of nought is still drawn, and still takes no hue.
 - **The period filter is three tinted pills**, the chosen one filled teal. §4 keeps a
   chosen filter in quiet ink everywhere else; here the board's teal wins.
-- **Time and words are three serif figures** at the title's size, all three drawn
+- **Time and words are three serif figures** *(two since 2026-10-30, listening and
+  watching added together: "How you got here: two figures, the days active and the words
+  of the period")* at the title's size, all three drawn
   whenever the account holds any record in that language, a nought said as "0 min".
   The record is read wherever it exists: a box that has stopped keeping new events
   (`TARGUM_EVENTS` off) still shows a reader what was kept while it was on.
@@ -7073,6 +7139,10 @@ What is not here yet, and is the rest of the list David settled the same day: br
 own, talking to targum, and "targum remembers what you're having trouble with", which
 waits for the events of targum-internal#127. targum-internal#335.
 ### Time and words on Your Progress, read from the account — 2026-09-20
+
+*(Amended 2026-10-30: two figures, listened and watched as one "Time listening", and the
+note under them gone. See "How you got here: two figures, the days active and the words of
+the period".)*
 
 "I believe we should track hours and minutes a user has listened and watched, and words
 read," David wrote; "this data should be displayed and filterable on Progress."

@@ -314,10 +314,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    #544, David 2026-10-27: a flagged row is turned off, never deleted, and undoable).
 #    On a table every box has, so they are in MIGRATIONS; nought and empty before them.
 #
+# 49→50: word.known_at, and the met and began tables (targum-internal#603, design.md §12,
+#    "How you got here: two figures, the days active and the words of the period",
+#    2026-10-30). When a word became known, and the first finished section each word was
+#    met in, both counted from `began` and never filled from before it: known_at is NULL
+#    on every row that was known already. known_at is in MIGRATIONS; the two tables are
+#    new, so `CREATE TABLE IF NOT EXISTS` makes them.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 49
+SCHEMA_VERSION = 50
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -380,6 +387,8 @@ WIPED = (
     "section",
     "place",
     "reading",
+    # The first section each word was met in (targum-internal#603).
+    "met",
     "event",
     "chosen",
     "slip",
@@ -514,6 +523,9 @@ CREATE TABLE IF NOT EXISTS chosen (
 """
 
 MIGRATIONS: tuple[str, ...] = (
+    # When a word became known (targum-internal#603, 2026-10-30). NULL on every row it
+    # finds: a word known before the column existed has no date, and none is guessed.
+    "ALTER TABLE word ADD COLUMN known_at INTEGER",
     "ALTER TABLE person ADD COLUMN leaving INTEGER",
     # The language a deletion was asked for in (schema 44): the last mail's.
     "ALTER TABLE person ADD COLUMN said TEXT NOT NULL DEFAULT ''",
@@ -774,7 +786,29 @@ CREATE TABLE IF NOT EXISTS word (
   seen     INTEGER NOT NULL DEFAULT 0,
   gone     INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,
+  -- When the word became known, set by the account at the push that made it so and
+  -- cleared when it leaves known; NULL for a word known before 2026-10-30.
+  known_at INTEGER,
   PRIMARY KEY (person, language, lemma)
+);
+
+-- The first finished section each word was met in, per reader and language
+-- (targum-internal#603): "met" as `occurrences.met` means it. Written when a finished
+-- section is measured on the push that carries it, the earliest finish kept. The
+-- reader's own: nothing shared reads it.
+CREATE TABLE IF NOT EXISTS met (
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL,
+  lemma    TEXT    NOT NULL,
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (person, language, lemma)
+);
+
+-- When a record began on this box: the first start of the code that keeps it. Not
+-- anybody's: a period before it is one the record cannot speak for.
+CREATE TABLE IF NOT EXISTS began (
+  what TEXT    NOT NULL PRIMARY KEY,
+  at   INTEGER NOT NULL
 );
 
 -- A phrase belongs to the sentence it was cut from, so it carries the document and
@@ -1619,6 +1653,9 @@ def _kept(row: sqlite3.Row) -> Kept:
 # data rather than four near-identical functions, because the merge is the same
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
+#: Fields that stay NULL when nothing is known, rather than nought or empty.
+NULLABLE = frozenset({"status", "known_at"})
+
 NUMERIC = frozenset(
     {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
 )
@@ -1688,12 +1725,24 @@ class Kind:
 #: The word stages that put a word on the list: being learned. Known (9) and ignored (0)
 #: are not on it (`plans.LISTED` says the same for the pages).
 LISTED = (1, 2, 3)
+#: The stage that is known (`vocab.js` KNOWN): what `word.known_at` dates.
+KNOWN_STATUS = 9
 
 KINDS: dict[str, Kind] = {
     "words": Kind(
         table="word",
         key=("language", "lemma"),
-        fields=("surface", "status", "meaning", "note", "band", "learned", "source", "at"),
+        fields=(
+            "surface",
+            "status",
+            "meaning",
+            "note",
+            "band",
+            "learned",
+            "source",
+            "at",
+            "known_at",
+        ),
     ),
     "meanings": Kind(
         table="meaning",
@@ -1764,6 +1813,9 @@ class Store:
         self.db.executescript(EVENTS)
         self._migrate()
         self._adopt_reads()
+        # The day the word records began here (targum-internal#603): kept once, at the
+        # first start that has them, and never moved.
+        self.db.execute("INSERT OR IGNORE INTO began (what, at) VALUES ('words', ?)", (now(),))
         self.db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def _migrate(self) -> None:
@@ -3757,6 +3809,8 @@ class Store:
                     "section",
                     # And what they knew of each one (targum-internal#291).
                     "reading",
+                    # And where they first met each word (targum-internal#603).
+                    "met",
                     # And where they left off in each text (targum-internal#430).
                     "place",
                     # And what they did in each text (targum-internal#127).
@@ -3927,7 +3981,10 @@ class Store:
                 return item[name]
             if existing is not None:
                 return existing[name]
-            return None if name == "status" else (0 if name in NUMERIC else "")
+            return None if name in NULLABLE else (0 if name in NUMERIC else "")
+
+        if kind.table == "word":
+            item = {**item, "known_at": self._known_at(item, existing, seen)}
 
         columns = ["person", *kind.key, *kind.fields, "seen", "gone", "revision"]
         row = [
@@ -3943,6 +4000,35 @@ class Store:
             f"INSERT OR REPLACE INTO {kind.table} ({', '.join(columns)}) VALUES ({marks})",
             row,
         )
+
+    def _known_at(
+        self, item: dict[str, Any], existing: sqlite3.Row | None, seen: int
+    ) -> int | None:
+        """When the word became known, as this push leaves it (targum-internal#603).
+
+        The account decides, not the page: no page sends it. A word that is not known has
+        none. One known already keeps the date it had, which is NULL for a word known
+        before the record began. One becoming known at this push takes this edit's time,
+        `seen`, which is the moment it was marked, and only from `began` on: a word
+        first arriving with an older edit (a browser signing in with its own list) was
+        marked before anything was counted, and is left NULL rather than dated by a
+        guess.
+        """
+        try:
+            status = int(item.get("status"))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None
+        if status != KNOWN_STATUS or item.get("gone"):
+            return None
+        if existing is not None and existing["status"] == KNOWN_STATUS and not existing["gone"]:
+            kept = existing["known_at"]
+            return None if kept is None else int(kept)
+        return seen if seen >= self.began() else None
+
+    def began(self) -> int:
+        """When the word records began on this box, in milliseconds (targum-internal#603)."""
+        row = self.db.execute("SELECT at FROM began WHERE what = 'words'").fetchone()
+        return int(row["at"]) if row is not None else 0
 
     def pull(self, person: Person, since: int = 0) -> dict[str, Any]:
         """Everything that changed after `since`, and the revision that reaches.
@@ -4097,6 +4183,14 @@ class Store:
         # (targum-internal#291). Derived, but not derivable later: the ledger it was
         # measured against has moved on since.
         out["readings"] = self.readings(person.id)
+        # And the first section each word was met in (targum-internal#603).
+        out["met"] = [
+            dict(row)
+            for row in self.db.execute(
+                "SELECT language, lemma, at FROM met WHERE person = ? ORDER BY at, lemma",
+                (person.id,),
+            )
+        ]
         # And the Telegram chats they bound (targum-internal#328): which, and since when.
         out["telegram"] = self.telegram_chats(person.id)
         # And the lists they kept, each with what is in it.
@@ -4158,6 +4252,78 @@ class Store:
                 ),
             )
             return bool(done.rowcount)
+
+    def has_met(self, person: Person, language: str) -> bool:
+        """Whether any first meeting is kept for this reader in this language yet."""
+        row = self.db.execute(
+            "SELECT 1 FROM met WHERE person = ? AND language = ? LIMIT 1",
+            (person.id, language.split("-")[0].lower()),
+        ).fetchone()
+        return row is not None
+
+    def keep_met(self, person: Person, language: str, first: dict[str, int]) -> int:
+        """Keep the first finish each word was met in (targum-internal#603).
+
+        `first` maps a dictionary form to the finish it was met in. An earlier finish
+        replaces a later one, so a section finished on a phone that syncs a day late
+        still counts from the day it was read. How many rows were written or moved.
+        """
+        rows = [
+            (person.id, language.split("-")[0].lower(), lemma, int(at))
+            for lemma, at in first.items()
+            if lemma and at > 0
+        ]
+        if not rows:
+            return 0
+        with self.write() as db:
+            before = db.total_changes
+            db.executemany(
+                "INSERT INTO met (person, language, lemma, at) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT (person, language, lemma) DO UPDATE SET at = excluded.at"
+                " WHERE excluded.at < met.at",
+                rows,
+            )
+            return db.total_changes - before
+
+    def words_by_day(self, person_id: int | None, zone: Any = None) -> list[dict[str, Any]]:
+        """The words of each day since the records began, by language: met for the first
+        time, saved, and become known (targum-internal#603). A day is the reader's own,
+        in `zone`; UTC where it names none.
+
+        Saved counts as the retired weekly chart counted (`charts.kept`): ignored words,
+        names and numbers left out. Met and known count only from `began`, so a day before
+        it is never a nought the record could not have seen.
+        """
+        from datetime import UTC, datetime
+
+        if person_id is None:
+            return []
+        began = self.began()
+        days: dict[tuple[str, str], dict[str, Any]] = {}
+
+        def add(at: int, language: str, what: str) -> None:
+            day = datetime.fromtimestamp(at / 1000, tz=zone or UTC).strftime("%Y-%m-%d")
+            key = (day, language)
+            bucket = days.setdefault(
+                key, {"day": day, "language": language, "met": 0, "saved": 0, "known": 0}
+            )
+            bucket[what] += 1
+
+        for row in self.db.execute(
+            "SELECT language, at FROM met WHERE person = ? AND at >= ?", (person_id, began)
+        ):
+            add(int(row["at"]), str(row["language"]), "met")
+        for row in self.db.execute(
+            "SELECT language, at, known_at, status FROM word WHERE person = ? AND gone = 0"
+            " AND COALESCE(status, 1) != 0 AND COALESCE(band, '') NOT IN ('name', 'number')",
+            (person_id,),
+        ):
+            if int(row["at"] or 0) > 0:
+                add(int(row["at"]), str(row["language"]), "saved")
+            known_at = row["known_at"]
+            if row["status"] == KNOWN_STATUS and known_at is not None and known_at >= began:
+                add(int(known_at), str(row["language"]), "known")
+        return [days[key] for key in sorted(days)]
 
     def readings(self, person_id: int | None, language: str = "") -> list[dict[str, Any]]:
         """Every kept measurement, oldest first; one language's where one is named."""

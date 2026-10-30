@@ -429,6 +429,25 @@ def texts_met(
     return out
 
 
+def first_met(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "",
+) -> dict[str, int]:
+    """Each dictionary form met in `finished`, with the earliest finish it was met in:
+    what Your Progress keeps as a word's first meeting (targum-internal#603). Met is
+    `met`'s, inside a section finished. A finish with no time is left out."""
+    out: dict[str, int] = {}
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        section_at = [sections.get(section) for section, _ref in counted.places]
+        for lemma, flat in counted.lemmas.items():
+            for place in flat[0::2]:
+                at = section_at[place] if place < len(section_at) else None
+                if at and (lemma not in out or at < out[lemma]):
+                    out[lemma] = at
+    return out
+
+
 def _finished_texts(
     finished: Iterable[tuple[str, str, int]],
     folder_for: FolderFor,

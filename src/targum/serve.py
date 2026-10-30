@@ -9288,7 +9288,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/account/me":
             return self._me()
         if route == "/account/totals":
-            return self._totals()
+            return self._totals(parse_qs(urlparse(self.path).query))
         if route == "/account/reading":
             return self._reading(parse_qs(urlparse(self.path).query))
         if route == "/account/story":
@@ -12295,11 +12295,22 @@ class Handler(BaseHTTPRequestHandler):
             }
         )
 
-    def _totals(self) -> None:
-        """Time listened, time watched and words read, by day, language and medium."""
+    def _totals(self, query: dict[str, list[str]] | None = None) -> None:
+        """Time listened, time watched and words read, by day, language and medium; and
+        the words of each day — met, saved, become known — in the reader's own days, the
+        zone the page names in `tz` (design.md §12, "How you got here: two figures, the
+        days active and the words of the period", 2026-10-30).
+
+        The words are not the record of use: they are read off what the account keeps
+        anyway, so they are answered whether or not that record is on. `began` is when
+        their counting began here, which the page says where a period starts before it.
+        """
+        from . import coverage as coverage_module
+
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
+        zone = coverage_module.zone_named(str(((query or {}).get("tz") or [""])[0]))
         # Read wherever a record exists, not only while the box keeps new events: a
         # reader's own figures from the weeks it was on are still theirs (design.md §12,
         # "The mockups win on Your Progress", 2026-10-09). Stopped by the reader, nothing.
@@ -12310,6 +12321,10 @@ class Handler(BaseHTTPRequestHandler):
                 "kept": keeps_events(),
                 "on": on,
                 "totals": self.store.totals(person.id) if on else [],
+                "words": {
+                    "began": self.store.began(),
+                    "days": self.store.words_by_day(person.id, zone),
+                },
             }
         )
 
@@ -13582,6 +13597,8 @@ class Handler(BaseHTTPRequestHandler):
         }
         homes = [self.library.home(person), self.library.shared, self.library.weekly]
         ledgers: dict[str, dict[str, int]] = {}
+        # The sections finished now, by language, for the first meetings kept after.
+        met_now: dict[str, list[tuple[str, str, int]]] = {}
         for hash_, section in fresh:
             try:
                 number = int(section)
@@ -13597,6 +13614,9 @@ class Handler(BaseHTTPRequestHandler):
                 measured = coverage_module.section_reading(folder, number, ledgers[language])
                 if measured is None:
                     continue
+                met_now.setdefault(language, []).append(
+                    (hash_, section, when.get((hash_, section)) or now())
+                )
                 self.store.keep_reading(
                     person,
                     language,
@@ -13608,6 +13628,43 @@ class Handler(BaseHTTPRequestHandler):
                 )
             except Exception:  # noqa: BLE001 - a measurement never costs the reader a sync
                 log.exception("could not measure section %s of %s", section, hash_)
+        for language, sections in met_now.items():
+            try:
+                self._keep_met(person, language, sections, homes)
+            except Exception:  # noqa: BLE001 - nor does keeping where a word was first met
+                log.exception("could not keep the words met in %s", language)
+
+    def _keep_met(
+        self,
+        person: Person,
+        language: str,
+        sections: list[tuple[str, str, int]],
+        homes: list[Path],
+    ) -> None:
+        """Keep the first meeting of each word in the sections just finished
+        (targum-internal#603; design.md §12, "How you got here: two figures, the days
+        active and the words of the period", 2026-10-30).
+
+        Read here, once, while the finish is measured, so the page never works it out.
+        The first time a reader's language is kept, every section they finished before is
+        read too, at its own finish: a word met then is not new now, and with no row for
+        it the next section would count it as if it were. The rows are the reader's own;
+        nothing shared reads them.
+        """
+        from . import occurrences as occurrences_module
+
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        source = (
+            sections if self.store.has_met(person, language) else self.store.finished(person.id)
+        )
+        first = occurrences_module.first_met(source, folder_for, language)
+        self.store.keep_met(person, language, first)
 
     #: The most dictionary forms a page may say it holds as known. A section of Psalms has
     #: a few hundred; this is a ceiling on a request, not a figure anybody reaches.
