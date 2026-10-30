@@ -390,3 +390,55 @@ def test_the_card_names_verses_by_reference_and_the_rest_by_title() -> None:
     assert "Jonah 2:1" not in named and "Jonah 1:4" in named
     assert more == 0
     assert places_named([], str) == ([], 0)
+
+
+# -- the verb forms Your Progress's Grammar grid is drawn from (targum-internal#604) ------
+
+
+def verbed(folder: Path) -> Path:
+    """The annotation as a build leaves it for verbs: a binyan and a tense in `feats`."""
+    tokens = json.loads((folder / "annotation.json").read_text(encoding="utf-8"))
+    for found in tokens["tokens"].values():
+        for token in found:
+            if token["lemma"] == "היה":
+                token.update(binyan="פעל", feats="UPOS=VERB|Tense=Past")
+    (folder / "annotation.json").write_text(json.dumps(tokens), encoding="utf-8")
+    return folder
+
+
+def test_a_text_keeps_each_verbs_binyan_and_tense_and_caches_them(tmp_path: Path) -> None:
+    folder = verbed(_jonah(tmp_path / "jonah"))
+    counted = text_occurrences(folder)
+    assert counted is not None
+    assert set(counted.verbs) == {"paal|past|היה"}
+    occurrences._cached.cache_clear()
+    assert text_occurrences(folder) == counted, "read back from the cache, verbs and all"
+
+
+def test_a_cache_from_before_the_verbs_is_counted_again(tmp_path: Path) -> None:
+    """Version 3 had no verb forms. It is rebuilt, which is free."""
+    folder = verbed(_jonah(tmp_path / "jonah"))
+    text_occurrences(folder)
+    cached = json.loads((folder / OCCURRENCES).read_text(encoding="utf-8"))
+    cached.update(version=3)
+    del cached["verbs"]
+    (folder / OCCURRENCES).write_text(json.dumps(cached), encoding="utf-8")
+    occurrences._cached.cache_clear()
+    assert set((text_occurrences(folder) or pytest.fail()).verbs) == {"paal|past|היה"}
+
+
+def test_verb_forms_are_the_ones_met_in_finished_sections(tmp_path: Path) -> None:
+    folder = verbed(_jonah(tmp_path / "jonah"))
+    counted = text_occurrences(folder) or pytest.fail()
+    sections = {place.section for place in counted.where("היה")}
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "jonah-hash" else None
+
+    read = [("jonah-hash", str(section), 10) for section in sections]
+    assert occurrences.verb_forms(read, folder_for) == {
+        ("paal", "past"): {"היה": counted.count("היה")}
+    }
+    unread = [("jonah-hash", "99", 10)]
+    assert occurrences.verb_forms(unread, folder_for) == {}
+    assert occurrences.verb_forms(read, folder_for, language="arc") == {}

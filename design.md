@@ -384,6 +384,61 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### What next leads with your biggest grammar gap — 2026-10-30
+
+David, 2026-10-30 (targum-internal#604, board 4B). It amends "3 · What next" in "Your
+Progress is a story in three parts" (2026-10-09). The two lists under it, "Words you keep
+meeting and don't know yet" and "Texts at your level now", stay as they were.
+
+- **The headline names one verb pattern**: "Your biggest gap: הִתְפַּעֵל verbs", the
+  binyan pointed, then one sentence, "You know 31% of the hitpa'el forms you meet,
+  against 80% for the other common patterns." The other common patterns are the other
+  binyanim with enough forms, pooled. After it, a short gloss of what the pattern does
+  (written once per binyan, in the catalogue) and two words of that pattern the reader
+  has met, from their own reading. A word on their list carries its meaning; one that is
+  not is shown bare. Nothing is invented: with no word met, no examples.
+- **The Grammar grid.** Rows are the seven binyanim, pointed, with the transliteration
+  beside them. Columns are Past, Present, Future, Imperative and Infinitive. A square is
+  the share of the verb tokens of that binyan and tense, in sections the reader finished
+  (met as `occurrences.met` means it), whose dictionary form they have marked known. A
+  word set aside as ignored comes out of the count, as it does from a text's share. The
+  exact percentage is in the square, by "How much of a text you know is an exact
+  percentage". The fill is leaf mixed into the card in proportion to the share, from 8%
+  of leaf at nothing to 60% at all of it, so ink text reads on every square (7:1 at the
+  darkest); the board's paper text on the darker squares fell under 4.5:1. A participle
+  with no tense counts as Present.
+- **The floor is 10 forms a square and 30 a pattern.** A square with fewer than 10 verb
+  tokens shows "—", and the note under the grid says so. A pattern needs 30 tokens across
+  its row to be named the gap. The gap is the pattern with the lowest share among those,
+  and its row is outlined in teal. With one such pattern there is nothing to set it
+  against, so the headline and the outline are left out and the grid stays. With none,
+  the headline and the grid are both left out and the two lists stand alone, under the
+  old title.
+- **A square opens its words.** Each square with a figure is a button. Pressing it opens
+  one plain list under the grid, the words of that square, most met first, each saying
+  whether it is known. It is a real table with scoped headers, so a screen reader says
+  "hitpa'el, Past, 38%".
+- **Topics has a slot and nothing in it.** The column beside the grid is built for
+  "Topics" and stays hidden until topic tagging exists, which is a card of its own. No
+  topic figure is drawn from anything else in the meantime.
+- **Where the data comes from.** A modern verb token in `annotation.json` already
+  carries its tense in `feats` (`Tense`, and `VerbForm` for the infinitive and the
+  participle). Its binyan is the annotation's where it named one, but since the DICTA
+  swap that is only pa'al and hitpa'el (`dicta._binyan_of` reads the two shapes that
+  cannot be anything else). Elsewhere it is the CC0 paradigm table's, taken only where
+  every verb the table finds for the lemma is in the same binyan, the rule
+  `verb_roots.filled` keeps for roots (`gaps.filled_binyan`). Measured on the laptop's
+  165 Hebrew texts of one shelf on 2026-10-30: of 36,775 verb tokens with a tense, the
+  annotation names a binyan for 14,160, the table fills 14,606 more, and 8,009 stay
+  uncounted; where both answer they agree on 98%. The Tanakh's tokens carry no tense
+  and are not counted. The occurrences cache keeps each form beside its places
+  (`VERSION` 4, and a change to the fill is a new version), read off the annotation for
+  free. Nothing is run through DICTA, the annotator keeps its name, and
+  `SCHEMA_VERSION` is untouched. A verb with no binyan or no tense is left out rather
+  than guessed, so the grid speaks for the verbs it can name.
+- Hebrew only. No plan, no target and no run of days anywhere in it.
+- **The Russian strings are drafts** and wait for David's read.
+
 ### A stretch played says whether its text was on the screen — 2026-10-30
 
 The research (ling-he, "listening vs watching", 2026-10-30) draws its line at whether the
