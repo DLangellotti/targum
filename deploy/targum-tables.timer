@@ -1,0 +1,15 @@
+# /etc/systemd/system/targum-tables.timer — installed and enabled by deploy.sh.
+#
+# 02:30 UTC is the box's quietest hour (04:30 or 05:30 in Israel) and clear of every
+# other timer; the backup follows at 04:00 and carries what it wrote.
+
+[Unit]
+Description=targum language tables sweep, nightly
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
