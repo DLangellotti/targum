@@ -14454,6 +14454,7 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import catalogue as catalogue_module
         from . import coverage as coverage_module
+        from . import gaps as gaps_module
         from . import occurrences as occurrences_module
         from . import touchstones
 
@@ -14513,10 +14514,21 @@ class Handler(BaseHTTPRequestHandler):
                 folders[hash_] = self.library.document_folder(homes, hash_)
             return folders[hash_]
 
-        met = occurrences_module.texts_met(
-            still, self.store.finished(person.id), folder_for, language
-        )
+        finished = self.store.finished(person.id)
+        met = occurrences_module.texts_met(still, finished, folder_for, language)
         answer["words"] = touchstones.met_often(still, lambda lemma: met.get(lemma, 0))
+
+        # The Grammar grid and the biggest gap (design.md §12, "What next leads with your
+        # biggest grammar gap", 2026-10-30): Hebrew verbs only, met the same way, read off
+        # the occurrences cache. None where no binyan has enough forms to say anything.
+        answer["grammar"] = (
+            gaps_module.grid(
+                occurrences_module.verb_forms(finished, folder_for, language),
+                marked,
+            )
+            if language == "he"
+            else None
+        )
 
         # A language with no library has nothing to offer at its level but what the
         # reader brought (board ProgressYi): their own texts, measured as the shelf does.

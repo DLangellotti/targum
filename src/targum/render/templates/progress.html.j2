@@ -143,11 +143,50 @@
     </div>
   </section>
 
-  {#- 3 · What next: the words still being learned that keep coming round, and texts at
-      the reader's level now. -#}
+  {#- 3 · What next: the biggest grammar gap and the Grammar grid (design.md §12, "What
+      next leads with your biggest grammar gap", 2026-10-30, board 4B), then the words
+      still being learned that keep coming round, and texts at the reader's level now.
+      The title is the gap's headline where there is a gap, and the old title where there
+      is none. -#}
   <section class="panel story" id="next" aria-labelledby="next-title">
     <p class="story-step">{{ t("progress.story.next", "What next") }}</p>
     <h2 id="next-title" class="section-title story-head">{{ t("progress.next.title", "The words and texts that would help most") }}</h2>
+    <div class="gap" id="gap" hidden>
+      <p class="gap-said" id="gap-said" hidden></p>
+      <div class="gap-halves" id="gap-halves">
+        <div class="gap-grammar">
+          <h3 class="gap-sub" id="grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
+          {#- A real table, its headers scoped, so a screen reader says "hitpa'el, Past,
+              38%". A square with a figure is a button that opens its words below. On a
+              phone the columns say their short names, and the long ones stay spoken. -#}
+          <table class="grammar" id="grammar" aria-labelledby="grammar-title" aria-describedby="grammar-note grammar-floor">
+            <thead>
+              <tr>
+                <td></td>
+                <th scope="col"><span class="tense-long">{{ t("progress.gap.past", "Past") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.past-short", "Past") }}</span></th>
+                <th scope="col"><span class="tense-long">{{ t("progress.gap.present", "Present") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.present-short", "Pres.") }}</span></th>
+                <th scope="col"><span class="tense-long">{{ t("progress.gap.future", "Future") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.future-short", "Fut.") }}</span></th>
+                <th scope="col"><span class="tense-long">{{ t("progress.gap.imperative", "Imperative") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.imperative-short", "Imp.") }}</span></th>
+                <th scope="col"><span class="tense-long">{{ t("progress.gap.infinitive", "Infinitive") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.infinitive-short", "Inf.") }}</span></th>
+              </tr>
+            </thead>
+            <tbody id="grammar-rows"></tbody>
+          </table>
+          <p class="gap-note" id="grammar-note">{{ t("progress.gap.note", "Share of the verb forms you met that you know. Tap a square to see its words.") }}</p>
+          <p class="gap-note" id="grammar-floor"></p>
+          <div class="grammar-words" id="grammar-words" hidden>
+            <h4 class="grammar-words-title" id="grammar-words-title"></h4>
+            <ul class="next-rows" id="grammar-word-rows" aria-labelledby="grammar-words-title"></ul>
+          </div>
+        </div>
+        {#- Topics: the slot and its layout, hidden until topic tagging exists (a card of
+            its own). Nothing is drawn here from anything else in the meantime. -#}
+        <div class="gap-topics" id="gap-topics" hidden>
+          <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
+          <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
+        </div>
+      </div>
+    </div>
     <div class="next-halves">
       <div class="next-half" id="next-words">
         <h3 class="story-sub" id="next-words-title">{{ t("progress.next.words", "Words you keep meeting and don't know yet") }}</h3>

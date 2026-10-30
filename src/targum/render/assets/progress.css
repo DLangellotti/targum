@@ -457,12 +457,79 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .next-half .quiet-line { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--ink-soft); }
 .progress .next-more { display: inline-block; margin-block-start: 0.9rem; font-weight: 600; color: var(--teal); }
 
+/* What next's biggest grammar gap (design.md §12, "What next leads with your biggest
+   grammar gap", 2026-10-30, board 4B): the sentence under the headline, the Grammar grid
+   and, once topic tagging exists, Topics beside it; a hairline before the two lists. */
+.progress .gap {
+  margin-block-end: 1.5rem;
+  padding-block-end: 1.5rem;
+  border-block-end: 1px solid var(--rule);
+}
+.progress .gap[hidden], .progress .gap-said[hidden], .progress .gap-topics[hidden],
+.progress .grammar-words[hidden] { display: none; }
+.progress .gap-pattern { font-family: var(--reading-hebrew); }
+.progress .gap-said { margin: -0.5rem 0 1.25rem; max-inline-size: 64ch; color: var(--ink); line-height: 1.5; }
+.progress .gap-said bdi[lang="he"] { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
+.progress .gap-halves { display: grid; grid-template-columns: minmax(0, 36rem); gap: 1.5rem 3rem; align-items: start; }
+.progress .gap-halves.with-topics { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.progress .gap-sub { margin: 0 0 0.5rem; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
+.progress .grammar { inline-size: 100%; border-collapse: separate; border-spacing: 0.25rem; table-layout: fixed; }
+.progress .grammar thead th {
+  padding-block-end: 0.25rem;
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.progress .grammar thead td { inline-size: 8.5rem; }
+.progress .grammar .tense-short { display: none; }
+.progress .grammar-binyan { padding-inline-end: 0.5rem; font-weight: 400; text-align: start; white-space: nowrap; }
+.progress .grammar-he { font-family: var(--reading-hebrew); font-size: 1.0625rem; color: var(--ink); }
+.progress .grammar-name { font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .grammar-square { padding: 0; text-align: center; }
+.progress .grammar-square.empty { color: var(--ink-soft); }
+/* Leaf mixed into the card in proportion to the share, 8% at nothing and 60% at all of
+   it, so ink reads on every square (§12). The figure is the square's text. */
+.progress .grammar-cell {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 2.125rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--leaf) calc(8% + var(--share, 0) * 0.52%), var(--card));
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.progress .grammar-cell:hover { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.progress .grammar-cell[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+/* The weakest row, outlined in teal as the board draws it. */
+.progress .grammar-row.weakest { outline: 2px solid var(--focus); outline-offset: 1px; }
+.progress .gap-note { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .grammar-words { margin-block-start: 1rem; }
+.progress .grammar-words-title { margin: 0 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
+.progress .topic-rows { list-style: none; margin: 0; padding: 0; }
+
 @media (max-width: 40rem) {
   .progress .ledger { padding: 1.1rem 1rem; }
   .progress .ledger .counts { gap: 1rem 0.75rem; }
   .progress .story-head { font-size: 1.25rem; }
   .progress .panel.story { padding: 1.125rem; }
   .progress .next-halves { grid-template-columns: minmax(0, 1fr); }
+  .progress .gap-halves.with-topics { grid-template-columns: minmax(0, 1fr); }
+  /* At 390 the columns say their short names; the long ones stay for a screen reader. */
+  .progress .grammar .tense-short { display: inline; }
+  .progress .grammar .tense-long {
+    position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  .progress .grammar thead td { inline-size: 5.25rem; }
+  .progress .grammar { border-spacing: 0.1875rem; }
+  .progress .grammar-binyan { padding-inline-end: 0.25rem; white-space: normal; line-height: 1.2; }
+  .progress .grammar-name { display: block; }
   .progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem; font-size: 1.75rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -481,6 +548,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 @media (hover: none) and (pointer: coarse) {
   .next-more { display: inline-flex; align-items: center; min-block-size: 44px; }
   .next-link { flex: 1; align-self: stretch; min-block-size: 2.75rem; }
+  /* A square of the Grammar grid opens its words. */
+  .progress .grammar-cell { min-block-size: 44px; }
 }
 .next-more[hidden] { display: none; }
 .story-wait[hidden],

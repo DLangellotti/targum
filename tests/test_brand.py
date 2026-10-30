@@ -542,6 +542,8 @@ THUMBED = (
     ".next-more",
     ".next-link",
     ".fault-act",
+    # Its Grammar grid's squares, each of which opens its words (targum-internal#604).
+    ".grammar-cell",
     # Listening's finish (targum-internal#474, B7): a playlist row's title, the way back,
     # Add from…, the sheet's × and the Listening view's position.
     "a.item-title",

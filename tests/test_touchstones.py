@@ -289,6 +289,53 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     assert said["ladder"] == [] and said["library"] is False and said["uploads"] == []
 
 
+def test_the_story_draws_the_grammar_grid_from_verbs_met_in_finished_sections(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What next's Grammar grid (design.md §12, "What next leads with your biggest grammar
+    gap", 2026-10-30): read off the binyan and tense each verb token already carries, met
+    inside a finished section, and never for a language other than Hebrew."""
+    from targum import catalogue as catalogue_module
+
+    port, token, out = served
+    monkeypatch.setattr(catalogue_module, "everything", list)
+
+    def verb(lemma: str, binyan: str) -> dict[str, str]:
+        return {"lemma": lemma, "pos": "VERB", "binyan": binyan, "feats": "UPOS=VERB|Tense=Past"}
+
+    folder = built(
+        out / "shared" / "verbs",
+        {
+            1: [[verb("כתב", "פעל")] * 30 + [verb("התלבש", "התפעל")] * 30],
+            # Unfinished: none of these is met.
+            2: [[verb("נכנס", "נפעל")] * 40],
+        },
+    )
+    facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    facts["content_hash"] = "verbs"
+    (folder / "document.json").write_text(json.dumps(facts), encoding="utf-8")
+
+    cookie = sign_in(port, postbox)
+    words = [{"language": "he", "lemma": "כתב", "status": KNOWN, "at": 1, "seen": 1}]
+    sections = [{"hash": "verbs", "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"words": words, "sections": sections}, cookie=cookie
+    )
+    assert status == 200, answer
+
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    rows = {row["binyan"]: row for row in said["grammar"]["rows"]}
+    assert rows["paal"]["cells"]["past"]["known"] == 100
+    assert rows["hitpael"]["cells"]["past"]["known"] == 0
+    assert rows["nifal"]["tokens"] == 0, "a section not finished is not met"
+    assert said["grammar"]["gap"]["binyan"] == "hitpael"
+    assert said["grammar"]["gap"]["examples"] == ["התלבש"]
+
+    status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)
+    assert said["grammar"] is None
+
+
 def test_each_ladder_count_is_its_library_shelf_count(
     served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

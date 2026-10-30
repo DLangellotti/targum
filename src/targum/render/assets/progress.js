@@ -992,8 +992,225 @@
     return item;
   }
 
+  /* --- 3 · what next: your biggest grammar gap ---------------------------------------
+   *
+   * design.md §12, "What next leads with your biggest grammar gap" (2026-10-30, board
+   * 4B). The account sends `grammar`: a row a binyan, a square a tense, each square the
+   * share of the verb tokens met in finished sections whose word is known, or null under
+   * the floor; and `gap`, the binyan with the lowest share among those with enough
+   * forms, or null. Nothing is worked out here but what to say.
+   */
+
+  // Each binyan pointed, its transliteration and what it does, said once each.
+  var BINYANIM = {
+    paal: {
+      he: "פָּעַל",
+      name: t("progress.gap.binyan.paal", "pa'al"),
+      does: t("progress.gap.does.paal", "Pa'al is the simple, basic pattern most verbs start from."),
+    },
+    nifal: {
+      he: "נִפְעַל",
+      name: t("progress.gap.binyan.nifal", "nif'al"),
+      does: t("progress.gap.does.nifal", "Nif'al verbs are often passive, or say that something happened to someone."),
+    },
+    piel: {
+      he: "פִּעֵל",
+      name: t("progress.gap.binyan.piel", "pi'el"),
+      does: t("progress.gap.does.piel", "Pi'el verbs are often active verbs made stronger, or made from a noun."),
+    },
+    pual: {
+      he: "פֻּעַל",
+      name: t("progress.gap.binyan.pual", "pu'al"),
+      does: t("progress.gap.does.pual", "Pu'al is the passive of pi'el."),
+    },
+    hifil: {
+      he: "הִפְעִיל",
+      name: t("progress.gap.binyan.hifil", "hif'il"),
+      does: t("progress.gap.does.hifil", "Hif'il verbs are often causative: making something happen."),
+    },
+    hufal: {
+      he: "הֻפְעַל",
+      name: t("progress.gap.binyan.hufal", "huf'al"),
+      does: t("progress.gap.does.hufal", "Huf'al is the passive of hif'il."),
+    },
+    hitpael: {
+      he: "הִתְפַּעֵל",
+      name: t("progress.gap.binyan.hitpael", "hitpa'el"),
+      does: t("progress.gap.does.hitpael", "Hitpa'el verbs are often reflexive or mutual."),
+    },
+  };
+  var TENSES = ["past", "present", "future", "imperative", "infinitive"];
+  var TENSE_NAMES = {
+    past: t("progress.gap.past", "Past"),
+    present: t("progress.gap.present", "Present"),
+    future: t("progress.gap.future", "Future"),
+    imperative: t("progress.gap.imperative", "Imperative"),
+    infinitive: t("progress.gap.infinitive", "Infinitive"),
+  };
+
+  function hebrew(text, className) {
+    var run = el("bdi", className || "", text);
+    run.setAttribute("lang", "he");
+    run.setAttribute("dir", "rtl");
+    return run;
+  }
+
+  // A word the reader met, with its meaning where it is on their list: never invented.
+  function example(code, lemma) {
+    var holder = el("span", "gap-example");
+    var word = meaningOf(code, lemma);
+    holder.appendChild(hebrew((word && word.term) || lemma));
+    var meaning = word ? word.note || word.meaning : "";
+    if (meaning) holder.appendChild(document.createTextNode(" " + t("progress.gap.meaning", "“{meaning}”", { meaning: meaning })));
+    return holder;
+  }
+
+  var openSquare = null;
+
+  function shutWords() {
+    var box = document.getElementById("grammar-words");
+    if (box) box.hidden = true;
+    if (openSquare) openSquare.setAttribute("aria-expanded", "false");
+    openSquare = null;
+  }
+
+  function showWords(code, button, binyan, tense, cell) {
+    if (openSquare === button) {
+      shutWords();
+      return;
+    }
+    shutWords();
+    var box = document.getElementById("grammar-words");
+    var title = document.getElementById("grammar-words-title");
+    var list = document.getElementById("grammar-word-rows");
+    title.textContent = t("progress.gap.words-title", "{pattern}, {tense}: the words you met", {
+      pattern: BINYANIM[binyan].name,
+      tense: TENSE_NAMES[tense],
+    });
+    list.textContent = "";
+    (cell.words || []).forEach(function (one) {
+      var word = meaningOf(code, one.lemma);
+      row(
+        list,
+        (word && word.term) || one.lemma,
+        code,
+        word ? word.note || word.meaning : "",
+        one.known
+          ? t("progress.gap.word-known", "known")
+          : tn("progress.gap.word-met", one.count, "met once", "met {n} times"),
+        null,
+        one.known
+      );
+    });
+    box.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    openSquare = button;
+  }
+
+  function drawGap(code) {
+    var said = story[code];
+    var grammar = (said && said.grammar) || null;
+    var box = document.getElementById("gap");
+    var title = document.getElementById("next-title");
+    var lead = document.getElementById("gap-said");
+    var rows = document.getElementById("grammar-rows");
+    var topics = document.getElementById("gap-topics");
+    var halves = document.getElementById("gap-halves");
+    if (!box || !title) return;
+    shutWords();
+    rows.textContent = "";
+    lead.textContent = "";
+    title.textContent = t("progress.next.title", "The words and texts that would help most");
+    var gap = grammar && grammar.gap && BINYANIM[grammar.gap.binyan] ? grammar.gap : null;
+    box.hidden = !grammar;
+    lead.hidden = !gap;
+    if (!grammar) return;
+
+    if (gap) {
+      var named = BINYANIM[gap.binyan];
+      title.textContent = "";
+      sentenceWith(title, t("progress.gap.title", "Your biggest gap: {pattern} verbs"), {
+        "{pattern}": hebrew(named.he, "gap-pattern"),
+      });
+      lead.appendChild(
+        document.createTextNode(
+          t(
+            "progress.gap.said",
+            "You know {n}% of the {pattern} forms you meet, against {m}% for the other common patterns.",
+            { n: gap.known, m: gap.others, pattern: named.name }
+          ) +
+            " " +
+            named.does
+        )
+      );
+      // Two words of the pattern the reader met, from their own reading; those on their
+      // list first, since those can carry a meaning.
+      var met = gap.examples || [];
+      var mine = met.filter(function (lemma) {
+        return !!meaningOf(code, lemma);
+      });
+      var two = mine.concat(met.filter(function (lemma) { return mine.indexOf(lemma) < 0; })).slice(0, 2);
+      if (two.length === 2) {
+        lead.appendChild(document.createTextNode(" "));
+        sentenceWith(lead, t("progress.gap.examples", "You've met {first} and {second}."), {
+          "{first}": example(code, two[0]),
+          "{second}": example(code, two[1]),
+        });
+      } else if (two.length === 1) {
+        lead.appendChild(document.createTextNode(" "));
+        sentenceWith(lead, t("progress.gap.example", "You've met {first}."), { "{first}": example(code, two[0]) });
+      }
+    }
+
+    document.getElementById("grammar-floor").textContent = t(
+      "progress.gap.floor",
+      "A dash means fewer than {n} forms met, too few to say.",
+      { n: grammar.cellFloor }
+    );
+
+    (grammar.rows || []).forEach(function (line) {
+      var named = BINYANIM[line.binyan];
+      if (!named) return;
+      var tr = el("tr", "grammar-row" + (gap && gap.binyan === line.binyan ? " weakest" : ""));
+      var head = el("th", "grammar-binyan");
+      head.setAttribute("scope", "row");
+      head.appendChild(hebrew(named.he, "grammar-he"));
+      head.appendChild(document.createTextNode(" "));
+      head.appendChild(el("span", "grammar-name", named.name));
+      tr.appendChild(head);
+      TENSES.forEach(function (tense) {
+        var cell = (line.cells || {})[tense];
+        var td = el("td", "grammar-square");
+        if (!cell) {
+          td.className += " empty";
+          td.appendChild(el("span", "", "—"));
+          tr.appendChild(td);
+          return;
+        }
+        var square = el("button", "grammar-cell", t("progress.gap.percent", "{n}%", { n: cell.known }));
+        square.type = "button";
+        square.setAttribute("aria-expanded", "false");
+        square.setAttribute("aria-controls", "grammar-words");
+        // The fill is leaf mixed into the card in proportion to the share (§12).
+        square.style.setProperty("--share", String(cell.known));
+        square.addEventListener("click", function () {
+          showWords(code, square, line.binyan, tense, cell);
+        });
+        td.appendChild(square);
+        tr.appendChild(td);
+      });
+      rows.appendChild(tr);
+    });
+
+    // Topics: hidden until topic tagging sends something (a card of its own).
+    var topicRows = (said && said.topics) || [];
+    topics.hidden = !topicRows.length;
+    halves.classList.toggle("with-topics", !!topicRows.length);
+  }
+
   function drawNext(code) {
     var said = story[code];
+    drawGap(code);
     var met = document.getElementById("met-rows");
     var metEmpty = document.getElementById("met-empty");
     var level = document.getElementById("level-rows");

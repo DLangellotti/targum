@@ -24,6 +24,8 @@ build already writes beside each reader, and can be thrown away and rebuilt from
   `in_tanakh` sums the chapter file that already ships in the package.
 - **Where a reader met it** — `met`, from the sections they have finished; and `family`,
   the words of one root a reader has met, from the root the annotation already carries.
+- **Which verb forms a reader met** — `verb_forms`, each Hebrew verb's binyan and tense
+  as the annotation already carries them, for Your Progress's Grammar grid (`gaps.py`).
 
 **"Met" means a section the reader finished.** Three definitions were on the table, and
 the store holds the data for each:
@@ -70,8 +72,10 @@ OCCURRENCES = "occurrences.json"
 
 #: The file's shape. Bumped when the encoding changes; an older file is then rebuilt,
 #: which is free — it is read off the annotation, not off a model. 2 added the roots; 3
-#: drew them as the page does (`annotate.verb_roots`), so the card and the count agree.
-VERSION = 3
+#: drew them as the page does (`annotate.verb_roots`), so the card and the count agree; 4
+#: added each verb's binyan and tense (`gaps.verb_form`, targum-internal#604); a change
+#: to how `gaps.verb_form` fills a binyan is a new number too.
+VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -90,12 +94,15 @@ class Occurrences:
 
     `places` is the text's places in reading order, as (section, ref); `lemmas` maps a
     dictionary form to a flat run of (place, count) pairs into it, in the same order;
-    `roots` maps a form to the root its annotation gave it, where it gave one.
+    `roots` maps a form to the root its annotation gave it, where it gave one; `verbs`
+    maps "binyan|tense|form" to the same flat run, for the verb tokens that carry both
+    (`gaps.verb_form`).
     """
 
     places: tuple[tuple[int, str], ...]
     lemmas: dict[str, tuple[int, ...]]
     roots: dict[str, str] = field(default_factory=dict)
+    verbs: dict[str, tuple[int, ...]] = field(default_factory=dict)
 
     def count(self, lemma: str) -> int:
         """How many running words in the text have this dictionary form."""
@@ -163,7 +170,12 @@ def _from(loaded: object) -> Occurrences | None:
         if isinstance(flat, list) and len(flat) % 2 == 0
     }
     roots = {str(lemma): str(root) for lemma, root in (loaded.get("roots") or {}).items()}
-    return Occurrences(places=places, lemmas=lemmas, roots=roots)
+    verbs = {
+        str(form): tuple(int(n) for n in flat)
+        for form, flat in (loaded.get("verbs") or {}).items()
+        if isinstance(flat, list) and len(flat) % 2 == 0
+    }
+    return Occurrences(places=places, lemmas=lemmas, roots=roots, verbs=verbs)
 
 
 def count_text(folder: Path) -> Occurrences | None:
@@ -176,6 +188,7 @@ def count_text(folder: Path) -> Occurrences | None:
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
     from .annotate.verb_roots import root_for
+    from .gaps import verb_form
     from .ingest import post as post_module
     from .models import SegmentedDocument, read_artifact
 
@@ -194,6 +207,7 @@ def count_text(folder: Path) -> Occurrences | None:
     # lemma -> place -> count, insertion-ordered, so a lemma's places stay in reading order.
     tally: dict[str, dict[int, int]] = {}
     roots: dict[str, str] = {}
+    verbs: dict[str, dict[int, int]] = {}
     for segment in segmented.segments:
         found = tokens.get(segment.id)
         if not found:
@@ -212,6 +226,9 @@ def count_text(folder: Path) -> Occurrences | None:
             at = place_at.setdefault(key, len(place_at))
             row = tally.setdefault(lemma, {})
             row[at] = row.get(at, 0) + 1
+            if form := verb_form(token):
+                verb = verbs.setdefault(f"{form[0]}|{form[1]}|{lemma}", {})
+                verb[at] = verb.get(at, 0) + 1
             if lemma not in roots and (
                 found_root := root_for(lemma, token.get("root"), token.get("pos"), language)
             ):
@@ -226,6 +243,10 @@ def count_text(folder: Path) -> Occurrences | None:
             for lemma, row in tally.items()
         },
         roots=roots,
+        verbs={
+            form: tuple(n for at, count in row.items() for n in (at, count))
+            for form, row in verbs.items()
+        },
     )
 
 
@@ -268,6 +289,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> Occurrences | None:
                     "places": [list(place) for place in counted.places],
                     "lemmas": {lemma: list(flat) for lemma, flat in counted.lemmas.items()},
                     "roots": counted.roots,
+                    "verbs": {form: list(flat) for form, flat in counted.verbs.items()},
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -426,6 +448,33 @@ def texts_met(
         for lemma in wanted:
             if lemma in counted.lemmas and counted.where(lemma, sections):
                 out[lemma] = out.get(lemma, 0) + 1
+    return out
+
+
+def verb_forms(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "he",
+) -> dict[tuple[str, str], dict[str, int]]:
+    """The verb tokens a reader met, by (binyan, tense) and dictionary form: what Your
+    Progress's Grammar grid is drawn from (`gaps.grid`, targum-internal#604). Met is
+    `met`'s, inside a section finished, and every token counts, so a verb met five times
+    weighs five."""
+    out: dict[tuple[str, str], dict[str, int]] = {}
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        if not counted.verbs:
+            continue
+        inside = [section in sections for section, _ref in counted.places]
+        for form, flat in counted.verbs.items():
+            binyan, tense, lemma = form.split("|", 2)
+            n = sum(
+                count
+                for at, count in zip(flat[0::2], flat[1::2], strict=True)
+                if at < len(inside) and inside[at]
+            )
+            if n:
+                cell = out.setdefault((binyan, tense), {})
+                cell[lemma] = cell.get(lemma, 0) + n
     return out
 
 

@@ -31,6 +31,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   when a word becomes known and cleared when it leaves known, and `met`, the first
   finished section each word was met in, written when the section is measured on the push
   (schema 50). The note about what counts as read and the week-by-week chart are gone.
+- Your Progress, "What next", leads with your biggest grammar gap, board 4B (David,
+  2026-10-30; targum-internal#604). "Your biggest gap: הִתְפַּעֵל verbs", then "You know
+  31% of the hitpa'el forms you meet, against 80% for the other common patterns", what
+  the pattern does, and two of its words you met. Under it a Grammar grid, the seven
+  binyanim by Past, Present, Future, Imperative and Infinitive: each square the exact
+  share of the verb tokens you met in finished sections whose word you know, shaded in
+  proportion, "—" under 10 tokens, the weakest row outlined, and a square opening its
+  words. A pattern needs 30 tokens to be named the gap; with none, the two lists stand
+  alone as before. A real table for a screen reader. A Topics slot is built and hidden
+  until topic tagging exists. The binyan is the annotation's or, where it named none,
+  the CC0 paradigm table's where every verb it finds agrees; the occurrences cache keeps
+  each verb's binyan and tense (`occurrences.VERSION` 4, rebuilt for free). No annotator
+  rename, no `SCHEMA_VERSION` bump.
 - A Hebrew verb's root is denied where no Hebrew has it, and kept where the first list
   was wrong to deny it (ling-he's review of targum-internal#589, 2026-10-30;
   `verb_roots.VERSION` 2). Five entries come off the deny list because their roots are
