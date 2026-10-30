@@ -82,7 +82,12 @@ def count(tokens: Mapping[str, Sequence[Mapping[str, Any]]]) -> dict[str, Counte
     return {WORDS: words, PHRASES: phrases}
 
 
-def fold(text: PublicText, annotation: Mapping[str, Any], store: Store | None = None) -> int:
+def fold(
+    text: PublicText,
+    annotation: Mapping[str, Any],
+    store: Store | None = None,
+    languages: Sequence[str] = LANGUAGES,
+) -> int:
     """Count one public text's annotation into the tables. Returns the contributions
     written: 0 when every one is already current, when the ledger is off, or for a language
     not folded.
@@ -90,6 +95,10 @@ def fold(text: PublicText, annotation: Mapping[str, Any], store: Store | None = 
     `text` must come from `tables.public_text`, which is the only way to get one, so a
     reader's import cannot reach this by any path. The annotation must be that text's:
     one naming another document is refused rather than filed under this one's licence.
+
+    `languages` is `LANGUAGES` everywhere a table is kept. Only the root-lexicon generator
+    passes another (`root_lexicon.russian_store`), into a store file of its own, so a
+    Russian lemma never sits in a register the Hebrew yardsticks read.
     """
     from . import PublicText
 
@@ -98,7 +107,7 @@ def fold(text: PublicText, annotation: Mapping[str, Any], store: Store | None = 
     if str(annotation.get("document_hash") or "") != text.document_hash:
         raise ValueError("the annotation is of another document")
     language = str(annotation.get("language") or "")
-    if not any(language == one or language.startswith(f"{one}-") for one in LANGUAGES):
+    if not any(language == one or language.startswith(f"{one}-") for one in languages):
         return 0
     store = store if store is not None else Store.from_env()
     if store is None:

@@ -26,7 +26,7 @@ from typing import Any
 from .. import ledger as ledger_module
 from .registers import register_of
 from .store import ImportResult, Store
-from .words import TABLES, contribution_for, fold
+from .words import LANGUAGES, TABLES, contribution_for, fold
 
 __all__ = [
     "ImportResult",
@@ -144,10 +144,12 @@ def _head(file: Path) -> tuple[str, str] | None:
     return found_hash.group(1), str(tool)
 
 
-def sweep(library: Path, store: Store) -> SweepResult:
+def sweep(library: Path, store: Store, languages: Sequence[str] = LANGUAGES) -> SweepResult:
     """Fold every public `annotation.json` under `library` that has no current
     contribution. Reads files and writes the tables; runs no annotator and spends
     nothing. Every reader's home is skipped, whatever lies beneath it.
+
+    `languages` is passed to `fold`; see there for the one caller that changes it.
     """
     result = SweepResult()
     for folder in ledger_module.text_folders(library):
@@ -166,7 +168,7 @@ def sweep(library: Path, store: Store) -> SweepResult:
                 continue
         try:
             annotation = json.loads(annotation_file.read_text(encoding="utf-8"))
-            written = fold(text, annotation, store)
+            written = fold(text, annotation, store, languages)
         except (OSError, ValueError, TypeError, AttributeError) as error:
             log.warning("tables: %s not folded: %s", folder, error)
             result.unreadable += 1
