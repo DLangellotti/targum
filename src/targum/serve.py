@@ -31,6 +31,7 @@ import threading
 import time
 import traceback
 import webbrowser
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -96,6 +97,7 @@ from .render.builder import (
     parasha_page,
     press_page,
     public_kept,
+    served_reader,
     set_page,
     shelf_page,
     signin_page,
@@ -5634,6 +5636,103 @@ KEPT_DAYS = 365
 # set's hash, the same for everybody on this build.
 
 
+#: Said on a page that names its files (`names_files`), so the worker never keeps it as a
+#: saved copy: one of those must open with nothing else (design.md §12, 2026-10-29).
+LINKED_HEADER = "X-Targum-Linked"
+
+#: Where a served reader's recordings are named instead of carried (`served_page`).
+CLIP_ROUTE = "/clips/"
+CLIP_KINDS = {
+    "mp3": "audio/mpeg",
+    "mpeg": "audio/mpeg",
+    "ogg": "audio/ogg",
+    "opus": "audio/ogg",
+    "wav": "audio/wav",
+    "m4a": "audio/mp4",
+    "mp4": "audio/mp4",
+    "webm": "audio/webm",
+    "aac": "audio/aac",
+}
+_CLIP_URI = re.compile(r"data:audio/([a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)")
+_CLIP_EXTENSIONS = {"mpeg": "mp3", "mp4": "m4a", "x-wav": "wav"}
+
+
+def clips_dir() -> Path:
+    """Where a served reader's recordings wait: derived from the readers, so in the
+    cache, which is safe to delete (a reader served again writes them again)."""
+    from .paths import cache_dir
+
+    return cache_dir() / "clips"
+
+
+def _clip_address(match: re.Match[str]) -> str:
+    """A recording carried as a data URI, written once to `clips_dir` by the hash of its
+    bytes, and its address there. The URI as it was where it cannot be written."""
+    import base64
+    import hashlib
+
+    subtype = match.group(1)
+    extension = _CLIP_EXTENSIONS.get(subtype, subtype)
+    if extension not in CLIP_KINDS:
+        return match.group(0)
+    try:
+        raw = base64.b64decode(match.group(2), validate=True)
+    except ValueError:
+        return match.group(0)
+    name = f"{hashlib.sha256(raw).hexdigest()[:32]}.{extension}"
+    path = clips_dir() / name
+    try:
+        if not path.is_file():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            # Beside it and renamed, so a second thread never reads half of one.
+            temporary = path.with_name(f".{name}.{os.getpid()}.{threading.get_ident()}.tmp")
+            try:
+                temporary.write_bytes(raw)
+                temporary.replace(path)
+            finally:
+                temporary.unlink(missing_ok=True)
+    except OSError:
+        return match.group(0)
+    return CLIP_ROUTE + name
+
+
+def _served(text: str) -> str:
+    return _CLIP_URI.sub(_clip_address, served_reader(text))
+
+
+#: The last readers handed out named, by file and its state on disk: a book's pages are
+#: opened one after another, and each is worked out once while it stays as it is.
+_SERVED: OrderedDict[tuple[str, int, int], bytes] = OrderedDict()
+_SERVED_MOST = 64
+_SERVED_LOCK = threading.Lock()
+
+
+def served_page(path: Path, body: bytes) -> bytes:
+    """A reader as a browser opening it is handed it (design.md §12, "A served reader
+    loads its files once", 2026-10-29): today's stylesheets, scripts and faces named by
+    address (`served_reader`) and its recordings as files of their own, so the browser
+    keeps them. The page on disk is untouched, whole, and is what a save keeps."""
+    try:
+        state = path.stat()
+    except OSError:
+        return body
+    key = (str(path), state.st_mtime_ns, state.st_size)
+    with _SERVED_LOCK:
+        found = _SERVED.get(key)
+        if found is not None:
+            _SERVED.move_to_end(key)
+            return found
+    try:
+        named = _served(body.decode("utf-8")).encode("utf-8")
+    except UnicodeDecodeError:
+        return body
+    with _SERVED_LOCK:
+        _SERVED[key] = named
+        while len(_SERVED) > _SERVED_MOST:
+            _SERVED.popitem(last=False)
+    return named
+
+
 def kept_cookie(value: str, address: str) -> str:
     """The kept-files cookie, in the session cookie's style: HttpOnly (no script reads
     it), SameSite=Lax, the whole site, and Secure where the site is served over https."""
@@ -6283,6 +6382,11 @@ class Handler(BaseHTTPRequestHandler):
             body = first_visit(body.decode("utf-8")).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", kind)
+        if two_ways:
+            # A page that needs its files beside it: named, or sent whole with its faces
+            # waiting to be fetched. The worker never keeps either as a saved copy, which
+            # has to open with nothing else (`sw.js`, `opening`; design.md §12, 2026-10-29).
+            self.send_header(LINKED_HEADER, "1")
         if cookie:
             self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
@@ -7853,6 +7957,98 @@ class Handler(BaseHTTPRequestHandler):
             if code != "x-default"
         )
 
+    def _readers(self, query: dict[str, list[str]]) -> None:
+        """The shelf: the reader's own texts, the shared ones, what they took off it, and
+        the figures each is measured with. Not "/library": that name belongs to the page
+        a person opens.
+
+        Whole by default, which is what the Library and the arrival draw. A page that
+        draws less says so (targum-internal#556), because the shared shelf is ~455 texts
+        measured against this reader's words, most of the answer and most of its time,
+        and home and a reader drew none of it:
+
+        - `shared=0`: none of the shared shelf.
+        - `shared=<hash>.<hash>…`: only the shared texts this reader has had open, which
+          are what home puts on Recent. Each is the start of a text's hash, from this
+          browser's own record; the account's own record (`opened_documents`) and its
+          places are added here, so a text opened on another device is never left out.
+        - `catalogue=0`: no catalogue measured. Only the Library draws it.
+        - `name=<folder>`: of the reader's own, only that one, and nothing taken off the
+          shelf: what a reader's contents page asks about itself.
+        """
+        home = self._home()
+        person = self._person()
+        name = (query.get("name") or [""])[0]
+        mine = self.library.readers(home)
+        if name:
+            mine = [reader for reader in mine if reader.get("name") == name]
+        self._measure(home, mine)
+        # And the shared one, measured against this reader's words like their own.
+        # The page shows it only to a reader with nothing of their own in that
+        # language: it is where to start, not another row on a full shelf.
+        said = query.get("shared")
+        asked = said[0] if said else None
+        shared: list[dict[str, Any]] = []
+        if asked != "0":
+            shared = self.library.readers(self.library.shared)
+            if asked is not None:
+                shared = self._opened_of(shared, asked, person)
+            for reader in shared:
+                reader["shared"] = True
+            self._measure(self.library.shared, shared)
+        # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
+        if person is not None and self.store is not None:
+            holding = self.store.playlists_holding(person.id)
+            for reader in (*mine, *shared):
+                reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
+        catalogue = "0" not in query.get("catalogue", [])
+        self._json(
+            {
+                "readers": mine,
+                "shared": shared,
+                "trash": [] if name else self.library.readers(home, trashed=True),
+                # Whether this reader is offered a conversation in Hebrew — the same
+                # word `/chat/list` gives, decided the same way (`Library.talks`).
+                "talk": self.library.talks(home, person.id if person else None),
+                # Whether this deployment can draw a cover at all. A page with no
+                # image key offers nothing rather than offering and failing.
+                "covers": self.library.can_draw(),
+                # Every catalogue text measured against this reader's words, built or
+                # not (targum-internal#293). Keyed by entry id; a built copy's own
+                # measurement above wins, because that is the text they actually have.
+                "catalogue": self._measure_catalogue() if catalogue else {},
+                # Whether somebody is signed in: a Library row's Subscribe is the
+                # account's, so it is offered only to an account.
+                "signedIn": person is not None,
+            }
+        )
+
+    #: The shortest start of a hash `/readers?shared=` takes: twelve hex digits tell 455
+    #: texts apart with room to spare, and a hundred of them stay a short address.
+    OPENED_PREFIX = 12
+
+    def _opened_of(
+        self, shared: list[dict[str, Any]], asked: str, person: Person | None
+    ) -> list[dict[str, Any]]:
+        """The shared texts this reader has had open: those the page named by the start of
+        their hash, and those the account knows of, by `doc` or by place."""
+        starts = {
+            one[: self.OPENED_PREFIX].lower()
+            for one in asked.split(".")
+            if len(one) >= self.OPENED_PREFIX
+        }
+        if person is not None and self.store is not None:
+            known = set(self.store.opened_documents(person.id))
+            known.update(
+                str(place.get("hash") or "") for place in self.store.places(person.id, limit=20)
+            )
+            starts.update(one[: self.OPENED_PREFIX].lower() for one in known if one)
+        return [
+            reader
+            for reader in shared
+            if str(reader.get("document") or "")[: self.OPENED_PREFIX].lower() in starts
+        ]
+
     def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
         """Say how much of each targum the reader already knows.
 
@@ -9115,6 +9311,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, STALE.encode("utf-8"), "text/html; charset=utf-8")
         if route.startswith("/reader/"):
             return self._serve_reader(route[len("/reader/") :])
+        if route.startswith(CLIP_ROUTE):
+            return self._clip(route[len(CLIP_ROUTE) :])
         if route.startswith("/r/"):
             return self._short_reader(route[len("/r/") :])
         if route.startswith("/open/"):
@@ -9248,43 +9446,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith("/sentence/"):
             return self._sentence(route[len("/sentence/") :])
         if route == "/readers":
-            # Not "/library": that name belongs to the page a person opens.
-            home = self._home()
-            mine = self.library.readers(home)
-            self._measure(home, mine)
-            # And the shared one, measured against this reader's words like their own.
-            # The page shows it only to a reader with nothing of their own in that
-            # language: it is where to start, not another row on a full shelf.
-            shared = self.library.readers(self.library.shared)
-            for reader in shared:
-                reader["shared"] = True
-            self._measure(self.library.shared, shared)
-            person = self._person()
-            # The playlists each text is in, named on its row (design.md §12, 2026-09-24).
-            if person is not None and self.store is not None:
-                holding = self.store.playlists_holding(person.id)
-                for reader in (*mine, *shared):
-                    reader["playlists"] = holding.get(str(reader.get("name") or ""), [])
-            return self._json(
-                {
-                    "readers": mine,
-                    "shared": shared,
-                    "trash": self.library.readers(home, trashed=True),
-                    # Whether this reader is offered a conversation in Hebrew — the same
-                    # word `/chat/list` gives, decided the same way (`Library.talks`).
-                    "talk": self.library.talks(home, person.id if person else None),
-                    # Whether this deployment can draw a cover at all. A page with no
-                    # image key offers nothing rather than offering and failing.
-                    "covers": self.library.can_draw(),
-                    # Every catalogue text measured against this reader's words, built or
-                    # not (targum-internal#293). Keyed by entry id; a built copy's own
-                    # measurement above wins, because that is the text they actually have.
-                    "catalogue": self._measure_catalogue(),
-                    # Whether somebody is signed in: a Library row's Subscribe is the
-                    # account's, so it is offered only to an account.
-                    "signedIn": person is not None,
-                }
-            )
+            return self._readers(parse_qs(urlparse(self.path).query))
         if route == "/account/me":
             return self._me()
         if route == "/account/totals":
@@ -16269,6 +16431,19 @@ class Handler(BaseHTTPRequestHandler):
         body, kind, _ = found
         return self._send(200, body, kind, cache=self.ASSET_CACHE)
 
+    def _clip(self, name: str) -> None:
+        """One recording a served reader names instead of carrying (`served_page`): by
+        the hash of its bytes, so it is the same file for as long as it is anything, and
+        kept for a year. Behind the account like the reader it came out of."""
+        found = re.fullmatch(r"([0-9a-f]{32})\.([a-z0-9]{2,5})", name)
+        kind = CLIP_KINDS.get(found.group(2)) if found else None
+        if found is None or kind is None:
+            return self._send(404, b"not found", "text/plain")
+        path = clips_dir() / name
+        if not path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        return self._send(200, path.read_bytes(), kind, cache=self.ASSET_CACHE)
+
     def _offline_files(self) -> None:
         """What saving a text for offline would keep: every page of it and every sidecar
         beside them, with their sizes, so the menu can say how much room it takes before
@@ -16736,9 +16911,16 @@ class Handler(BaseHTTPRequestHandler):
                 if moving:
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+                body = target.read_bytes()
+                # A browser opening a reader is handed it with its files named, and keeps
+                # them (design.md §12, "A served reader loads its files once", 2026-10-29).
+                # Anything else, a save for offline above all, gets the page whole, as it
+                # stands on disk.
+                if target.suffix == ".html" and self._navigating():
+                    body = served_page(target, body)
                 # Framed by the front page as a picture of itself (design.md §13,
                 # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
-                return self._send(200, target.read_bytes(), kind, frames="out")
+                return self._send(200, body, kind, frames="out")
         # A part the text does not have — an old link, or a number typed by hand — opens
         # the text's first part, and the page says the part asked for is not there
         # (`gone=`, read by `reader.js`), rather than a page that says only that nothing is

@@ -129,6 +129,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 }
 .progress .how-days, .progress .how-words { display: grid; gap: 0.75rem; align-content: start; }
 .progress .how-days[hidden], .progress .how-words[hidden] { display: none; }
+/* On All time there is no grid, and the words take the row, to the figures' width. */
+.progress .how-days[hidden] + .how-words { grid-column: 1 / -1; max-inline-size: 47.5rem; }
 .progress .how-sub { margin: 0; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
 .progress .how-count { font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 /* A square a day, ten to a row: 7 on Week is one row, 30 on Month three. */
@@ -490,7 +492,7 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
    columns of 91px once ran "9 ч 28 мин" into the next figure and pushed the page sideways
    (targum-internal#522, §14.2). */
 @media (max-width: 40rem) {
-  .spent-figures { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
+  .spent-figures { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
 }
 
 /* First visit (polish 8, targum-internal#471): the line and the one filled press, in a

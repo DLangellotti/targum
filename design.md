@@ -365,7 +365,11 @@ the reader and the desk both draw — the word's card, the thumb's reach, a refu
 
 How a page carries them (2026-10-18, §12 "A desk page loads its files once and keeps
 them"): a reader and every page that can be opened off a disk, framed by a host, printed
-or kept for offline bakes each file into itself and fetches nothing. A desk page (the
+or kept for offline bakes each file into itself and fetches nothing. A reader opened on
+the site is handed with its files named, and keeps them (2026-10-29, §12 "A served reader
+loads its files once"); the copy on disk is still whole. The rule under both is §12's of
+2026-10-30: a reader fetches nothing from any other site, and saved for offline or
+opened off a disk it loads no files from anywhere. A desk page (the
 pages in `DESK_PAGES`, `render/builder.py`) names them instead, by address under
 `/assets/<name>.<hash>.<ext>`, and the browser keeps them. Templates say which files a
 page wants with `styles(...)` and `script(...)`, and the page decides how they ride, so
@@ -440,6 +444,52 @@ and words are three serif figures" in "The mockups win on Your Progress" (2026-1
 - **Gone**: the note "We count a word as read when…" and "The words you saved, week by
   week". The labels are capitalised, as the board sets them.
 - **The Russian strings are drafts** and wait for David's read.
+
+### A reader fetches nothing from any other site — 2026-10-30
+
+David, 2026-10-30, so that "A served reader loads its files once" (2026-10-29,
+targum-internal#559) could merge after QA passed it. The rule every entry below leans on,
+*readers must fetch nothing*, is restated. Where an older entry says a reader fetches
+nothing, read it as this.
+
+- **A reader fetches nothing from any other site.** No script, stylesheet, font, image
+  or recording comes from anybody else's origin, on any page, ever.
+- **Opened in the browser from targum.page,** a reader may load its own stylesheets,
+  scripts and recordings from targum's own origin, and the browser keeps them.
+- **A reader saved for offline, or opened from disk, loads no files from anywhere.** The
+  copy a save keeps and the file a build writes are whole, as they were.
+- **A saved copy's calls to the reader's own account** — the signed-in check, text
+  edits, voice — go to targum's own origin only. Offline they wait or fail quietly
+  (David, 2026-10-30, choosing to word the rule to what readers already did rather than
+  change it). A reader opened from disk makes none.
+- **Nothing ever comes from another site.**
+- **Outbound links a reader chooses to click** stay the one exception for other sites,
+  and `test_render.py`'s allowlist still pins them.
+- **Why:** on the phone profile, opening a reader again cost the same 250 kB every time,
+  under `no-store`. QA measured Ruth's returning visit at 824 → 644 ms LCP and
+  252 → 39 kB once its files were kept (Obadiah 828 → 644 ms, 250 → 36 kB), with no
+  request to another origin across eight request lists, and the reader off a disk at
+  0 requests.
+- **What holds it:** `test_render.py` (a built reader names nothing to fetch, and only
+  the allowlist's links), `test_served_reader.py` (every file a served reader names is
+  same-origin, its policy names no other host, and a save gets the page whole) and
+  `test_offline_browser.py` (a reader off a disk makes no request at all, a saved copy
+  opened offline loads no file, and a served reader asks only its own origin).
+
+### A part finished out of sight is heard, not read — 2026-10-30
+
+"A word is read when its page was turned past or its section was marked done" (Time and
+words, 2026-09-20) had a hole the ling-he research found: a playlist that runs on with
+the phone locked, or Play on with the listening view open, finishes the part, and the
+finish counted its whole transcript as read on top of its minutes listened. A podcast in
+a pocket was words read that never reached a screen. **A section finished while the page
+is hidden or the listening view is open adds no words**; its time is still "listened".
+A video finished with its picture up still counts its transcript, which was on screen.
+
+And **the picture is read when a stretch starts**: putting it up or away while the sound
+goes ends one stretch and starts the next, so a film watched and then put away is
+"watched" up to that moment and "listened" after it, not all of it whichever way it stood
+at the pause. targum-internal#602. The display is unchanged here (targum-internal#603).
 
 ### The level card says Reading level — 2026-10-30
 
@@ -697,7 +747,49 @@ under `no-store`, again on every page a visitor opened.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
   pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches
-  nothing.*
+  nothing.* (Amended on 2026-10-29 by the entry below: a reader on disk still fetches
+  nothing, and a reader opened on the site loads its own files from the site.)
+
+### A served reader loads its files once — 2026-10-29
+
+Approved by David, 2026-10-29 (targum-internal#559, from builder-3's signed-in speed pass
+of the same day, #552). "A reader fetches nothing" (§11 and every entry above that leans
+on it) now means **a reader on disk, and what leaves the server as a copy**. (Restated
+as a rule on 2026-10-30, the entry "A reader fetches nothing from any other site".) A reader
+opened on targum.page loads its stylesheets, scripts, faces and recordings as files from
+targum.page, and the browser keeps them. On the phone profile Ruth was 156 kB gzipped and
+a scene 332 kB on every open, the same files each time under `no-store`. Ruth's reader
+stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
+
+- **The page on disk does not change.** A build still writes every reader whole. It is
+  what opens off a disk, what a save keeps for offline, what a download hands over and
+  what `test_render.py` holds to fetching nothing, under the same allowlist.
+- **The server names the files on the way out** (`served_page`, `served_reader`). A
+  browser *opening* a reader (a navigation) is handed the page with each block that is
+  exactly one of today's files written as its `/assets/` address, as a desk page names
+  them, and with its recordings as `/clips/<hash>.<ext>` files behind the account. Put
+  back, the files make the page byte for byte (`carried`). A block that is not exactly
+  today's file, in a reader built before the file changed, stays inline, so a stale
+  reader still works. The first-visit rule holds too: a browser that has not kept the
+  files gets the reader whole and fetches them after `load`. A desk page warms a reader's
+  files with its own (`reader_files`).
+- **Only from the site.** Every file is same-origin, under the page's own policy (`'self'`
+  joins `script-src` and `style-src` only where the page names a file). Nothing is
+  fetched from anyone else: the outbound links a reader chooses stay the one exception.
+- **A copy for offline stays whole.** A save asks without navigating, so it gets the page
+  as it stands on disk. A page that needs its files beside it says so
+  (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
+  is no longer refreshed by being opened online: it stays as it was saved until it is
+  saved again. That is the price of a copy that opens on a plane with nothing else.
+- **Not covered:** the Torah portions' and daily cycles' readers, which strangers open
+  under their own addresses, keep their files inline, like the shared shelf's public
+  pages did before #549.
+- **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
+  scene readers served by a local `targum serve`, master against the change. With the
+  files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the
+  scene's from 0.85 s and 325 kB to 0.66 s and 14 kB (its recording waits for Play).
+  A first visit, still sent whole, went from 1.35 s to 0.97 s for Ruth and stayed at
+  0.89 s for the scene.
 
 ### On a phone, Back closes Talk before it leaves the page (2026-10-28)
 Opening the sheet adds one step to the history, the only one a panel adds. Back closes the sheet; the next Back leaves. Closing it any other way removes that step.
@@ -8637,7 +8729,8 @@ already knows.
 the chrome's face, the board's word card, menus as sheets — since 2026-10-09: §12, "The boards are the desk", 2026-10-09. What
 follows still holds for the page's lines, and a reader still fetches nothing.)* The page tone, the serif, the hairlines between lines, the
 brown, the glyphs in §7, the per-line controls, and the rule that a reader fetches
-nothing — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
+nothing from any other site and, saved or off a disk, loads no files from anywhere (§12,
+2026-10-30) — the drawer in a served reader (2026-09-11) has no address until it is opened. The reader's own chrome — its bar, the word card, the keys, its sheets on a
 phone — takes the desk's corners, tiers and glass since 2026-09-11 (phase 5); the
 page's lines keep §8 as written.
 

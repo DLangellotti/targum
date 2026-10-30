@@ -442,6 +442,21 @@
     ]);
   }
 
+  /* The shelf as home draws it (targum-internal#556): the reader's own texts, the shared
+     ones they have had open, and no catalogue. Worked out once, by `home-early.js` in the
+     page's head, which asks for it there; the same function here, so a later ask (a
+     build done, the account's answer) names what this browser has opened by then. A page
+     without the head's script asks for the whole shared shelf, as before. */
+  function shelfAddress() {
+    return window.TargumShelfAddress ? window.TargumShelfAddress() : "/readers?catalogue=0";
+  }
+  /* The first shelf is the one the head asked for, by the address it asked for: what was
+     opened may have changed since (the account's first answer writes its places), and a
+     second address would leave the head's answer unused and ask the shelf twice. */
+  function firstShelfAddress() {
+    return window.TARGUM_HOME_SHELF || shelfAddress();
+  }
+
   /* Home drawn again in place once the account has answered (2026-10-18). A browser that
      had never synced reloaded the whole page when `/sync` came back, and with a big shelf
      that made a first visit about five seconds: two loads, the second of everything the
@@ -500,11 +515,11 @@
     // measured before them, and the shelf is asked again once they are pushed.
     var pushing = caughtUp();
     var shelfAnswer = pushing
-      ? (early("/readers"),
+      ? (early(firstShelfAddress()),
         pushing.then(function () {
-          return ask("/readers");
+          return ask(shelfAddress());
         }))
-      : askFirst("/readers");
+      : askFirst(firstShelfAddress());
     subscriptionsFirst();
     return Promise.all([shelfAnswer, jobs(true), accountPlaces()]).then(function (both) {
       var theirPlaces = both[2];
@@ -778,7 +793,7 @@
               if (home) home.draw(shown, readers, building);
               return follow();
             }
-            return ask("/readers").then(function (data) {
+            return ask(shelfAddress()).then(function (data) {
               readers = gather(data, stored("targum:opened"), theirPlaces);
               trash = (data && data.trash) || trash;
               render();

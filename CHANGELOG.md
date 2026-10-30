@@ -12,6 +12,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A part finished out of sight no longer counts as words read (David, 2026-10-30;
+  targum-internal#602). A playlist running on with the phone locked, or Play on in the
+  listening view, finished the part and added its whole transcript to "words read" as
+  well as its minutes to "listened". Finished with the page hidden or the listening view
+  open, a section now adds no words. And putting a film's picture up or away while it
+  plays splits the stretch, so the time before is "watched" and the time after
+  "listened", where the whole stretch used to go by how the picture stood at the pause.
 - Your Progress, "How you got here", is board 3 "Effort" (David, 2026-10-30;
   targum-internal#603). Two figures: words read, and time listening with watching counted
   in it and "Including 4 h 1 min of video" under it (one Watched figure where a language
@@ -72,6 +79,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   page's own keyboard whether any key reached it (`End`, `Home` and both arrows), and
   accepts the first page or the one the voice left it on. 20 runs pass out of 20 (master
   failed 4 of 20). With the bar's `stopPropagation` taken out, it fails at once.
+- `/readers` sends only what a page draws (targum-internal#556). Every caller got the
+  whole shared shelf of ~455 texts, each measured against the reader's words: about
+  430 kB of a 460 kB answer, and most of its time on the server. Home now asks for the
+  shared texts the reader has had open and no catalogue, and a reader's contents page
+  asks for its own row only. The Library and the arrival still get the whole answer, with
+  the same fields as before.
 - Home and its Subscriptions tab stop waiting on the account before the shelf
   (targum-internal#555). Home asked for `/readers` only after `/account/me` and the
   push of anything owed had answered, so a reader back from a text, who always owes a
@@ -172,6 +185,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2.83 s to 3.00 s; the first visit's bytes still decide it), and its layout shift went
   from 0.41 to 0.003. Live before the change, as the test account: 4.05 s cold, 1.69 s
   warm, shift 0.41. Once the answer is in, the page is the same as before.
+- A reader opened on targum.page loads its files once (targum-internal#559; design.md
+  §12, approved by David 2026-10-29). The server hands a browser opening a reader the
+  page with today's stylesheets, scripts and faces named under `/assets/` and its
+  recordings under `/clips/`, so they are kept; the reader on disk, a save for offline
+  and a download stay whole and fetch nothing, and the worker never keeps a page that
+  needs its files as the copy for the plane. Measured locally on the phone profile with
+  the files kept: Ruth 1.34 s / 159 kB to 0.69 s / 14 kB, a scene 0.85 s / 325 kB to
+  0.66 s / 14 kB.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under

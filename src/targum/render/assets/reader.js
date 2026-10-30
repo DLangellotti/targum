@@ -795,7 +795,16 @@ var targumReader = function () {
       });
     }
   }
+  /* A section finished out of sight was heard, not read (targum-internal#602): a playlist
+     that runs on with the phone in a pocket, or Play on with the listening view open,
+     finishes the part, and its words never reached a screen. Its minutes are already in
+     "listened"; counting its transcript as read as well counted it twice. */
+  function outOfSight() {
+    if (document.hidden) return true;
+    return !!(document.body && document.body.classList.contains("listening"));
+  }
   function sectionRead() {
+    if (outOfSight()) return;
     var words = wordsIn(0, pairs.length - 1);
     if (words) happened({ kind: "section", amount: words, segment: sectionId });
   }
