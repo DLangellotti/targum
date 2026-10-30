@@ -633,6 +633,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   no current count, running no annotator and spending nothing. `targum tables top
   --register R [--phrases] [--raw]` prints the commonest rows, leaving out the
   `weights.EXCLUDED` classes, names and numbers unless `--raw` is passed.
+- Topic tagging, the pilot (David approved 2026-10-30; targum-internal#605, epic #609).
+  `scripts/tag_topics.py` tags Hebrew lemmas with up to two of 16 topics, or `general`,
+  on Sonnet 5.5 and Opus 5.5 through the Batches API. It sends the lemma, its pointed
+  citation form, its part of speech and its cached English gloss, never a sentence. The
+  lemmas come only from the language tables (`topics.universe` over `Store.top`, with
+  the new `Store.variants` for the part of speech), never from `word` rows or the gloss
+  cache. `--cap` is hard: a batch is sent only when the most it could cost fits under
+  the cap with what is spent. `--dry-run` quotes. A batch's id and every raw answer are
+  written atomically to `~/.targum/research/topics/<run>/`, and the agreed tags go to a
+  private topics file under `~/.targum/`. `--blind N --blind-out FILE` writes a
+  stratified set with no model tags for ling-he to label. `targum topics share --person
+  beginner|oleh|news` prints a synthetic reader's frequency-weighted share of each topic.
+  It never reads a real account. Nothing on any page changes.
 - The language tables keep growing on the box by themselves (targum-internal#587, David
   approved 2026-10-30). `deploy/targum-tables.timer` runs `targum tables sweep --library
   /var/lib/targum/targums` at 02:30 UTC, before the 04:00 backup, as targum and never as
