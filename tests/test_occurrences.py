@@ -427,6 +427,59 @@ def test_a_cache_from_before_the_verbs_is_counted_again(tmp_path: Path) -> None:
     assert set((text_occurrences(folder) or pytest.fail()).verbs) == {"paal|past|היה"}
 
 
+def function_words(folder: Path) -> Path:
+    """The annotation as DICTA leaves a prefix: כ split off as its own ADP token, של an
+    ADP, and בן met once as a noun and once as an ADP."""
+    tokens = json.loads((folder / "annotation.json").read_text(encoding="utf-8"))
+    for found in tokens["tokens"].values():
+        if any(token["lemma"] == "רוח" for token in found):
+            found += [
+                {"start": 0, "end": 1, "surface": w, "lemma": w, "pos": "ADP"}
+                for w in ("כ", "של", "בן")
+            ]
+    (folder / "annotation.json").write_text(json.dumps(tokens), encoding="utf-8")
+    return folder
+
+
+def test_a_form_met_only_as_a_closed_class_word_is_not_met_as_a_word(tmp_path: Path) -> None:
+    """Counted as met, so a card still says where של comes round, and never a word to
+    learn: `texts_met(words_only=True)` leaves it out, which is what every list offering
+    words to learn asks (2026-10-30, a bare כ on Your Progress)."""
+    folder = function_words(_jonah(tmp_path / "jonah"))
+    counted = text_occurrences(folder) or pytest.fail()
+    assert counted.function == {"כ", "של"}, "בן was a noun once, so it is a word"
+    occurrences._cached.cache_clear()
+    assert text_occurrences(folder) == counted, "read back from the cache, function and all"
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "jonah-hash" else None
+
+    read = [("jonah-hash", "1", 10)]
+    lemmas = ["כ", "של", "בן", "רוח"]
+    assert occurrences.texts_met(lemmas, read, folder_for) == {
+        "כ": 1,
+        "של": 1,
+        "בן": 1,
+        "רוח": 1,
+    }
+    assert occurrences.texts_met(lemmas, read, folder_for, words_only=True) == {
+        "בן": 1,
+        "רוח": 1,
+    }
+
+
+def test_a_cache_from_before_the_function_words_is_counted_again(tmp_path: Path) -> None:
+    """Version 4 had no `function`. It is rebuilt, which is free."""
+    folder = function_words(_jonah(tmp_path / "jonah"))
+    text_occurrences(folder)
+    cached = json.loads((folder / OCCURRENCES).read_text(encoding="utf-8"))
+    cached.update(version=4)
+    del cached["function"]
+    (folder / OCCURRENCES).write_text(json.dumps(cached), encoding="utf-8")
+    occurrences._cached.cache_clear()
+    assert (text_occurrences(folder) or pytest.fail()).function == {"כ", "של"}
+
+
 def test_verb_forms_are_the_ones_met_in_finished_sections(tmp_path: Path) -> None:
     folder = verbed(_jonah(tmp_path / "jonah"))
     counted = text_occurrences(folder) or pytest.fail()

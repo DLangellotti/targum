@@ -14311,7 +14311,9 @@ class Handler(BaseHTTPRequestHandler):
                 dictation.append(sentences.dictation_item(line, into, src))
         marked = self.store.marked(person, language)
         learning = touchstones.learning(marked)
-        met = occurrences_module.texts_met(learning, finished, folder_for, language)
+        met = occurrences_module.texts_met(
+            learning, finished, folder_for, language, words_only=True
+        )
         gaps = sentences.gap_items(
             [lemma for lemma in learning if met.get(lemma, 0) > 0],
             finished,
@@ -14387,9 +14389,11 @@ class Handler(BaseHTTPRequestHandler):
             return folders[hash_]
 
         finished = self.store.finished(person.id)
-        met = occurrences_module.texts_met(list(marked), finished, folder_for, language)
-        learning = [lemma for lemma in touchstones.learning(marked) if met.get(lemma, 0) > 0]
-        learning.sort(key=lambda lemma: (-met[lemma], lemma))
+        # Every meeting for the rows of Your Words; only meetings as a word for what it
+        # offers to practise, so a split-off כ is never one (`texts_met`).
+        met, as_word = occurrences_module.counts_met(list(marked), finished, folder_for, language)
+        learning = [lemma for lemma in touchstones.learning(marked) if as_word.get(lemma, 0) > 0]
+        learning.sort(key=lambda lemma: (-as_word[lemma], lemma))
         lines = meetings_module.lines_met(
             learning[: meetings_module.PRACTISE], finished, folder_for, language
         )
@@ -14515,7 +14519,7 @@ class Handler(BaseHTTPRequestHandler):
             return folders[hash_]
 
         finished = self.store.finished(person.id)
-        met = occurrences_module.texts_met(still, finished, folder_for, language)
+        met = occurrences_module.texts_met(still, finished, folder_for, language, words_only=True)
         answer["words"] = touchstones.met_often(still, lambda lemma: met.get(lemma, 0))
 
         # The Grammar grid and the biggest gap (design.md §12, "What next leads with your

@@ -185,7 +185,14 @@ def test_the_words_page_says_where_each_word_was_met_and_offers_lines(
     for name in ("one", "two"):
         text(
             out / "shared" / name,
-            {1: [("ספר וים", [w("ספר", "ספר"), w("ים", "ים")])]},
+            {
+                1: [
+                    (
+                        "ספר של ים",
+                        [w("ספר", "ספר"), {**w("של", "של"), "pos": "ADP"}, w("ים", "ים")],
+                    )
+                ]
+            },
             content_hash=name,
             translation={"s1-0": "a book and a sea"},
         )
@@ -194,6 +201,10 @@ def test_the_words_page_says_where_each_word_was_met_and_offers_lines(
         {"language": "he", "lemma": "ים", "status": KNOWN, "at": 1, "seen": 1},
         {"language": "he", "lemma": "ספר", "status": 2, "at": 1, "seen": 1},
         {"language": "he", "lemma": "עיר", "status": 1, "at": 1, "seen": 1},
+        # Tapped while reading and still being learned, and never words to practise: של
+        # is only ever an ADP here, and כ is one letter (2026-10-30).
+        {"language": "he", "lemma": "של", "status": 1, "at": 1, "seen": 1},
+        {"language": "he", "lemma": "כ", "status": 1, "at": 1, "seen": 1},
     ]
     sections = [
         {"hash": name, "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}
@@ -206,7 +217,8 @@ def test_the_words_page_says_where_each_word_was_met_and_offers_lines(
 
     status, said, _ = call(port, "GET", f"/account/words?language=he&k={token}", cookie=cookie)
     assert status == 200, said
-    assert said["met"] == {"ים": 2, "ספר": 2}, "a word met nowhere is left out"
+    # Every meeting on the rows of the reader's own list, של among them.
+    assert said["met"] == {"ים": 2, "ספר": 2, "של": 2}, "a word met nowhere is left out"
     assert said["often"] == 2
     (line,) = said["practise"]
     assert line["lemma"] == "ספר" and line["word"] == "ספר"

@@ -74,8 +74,9 @@ OCCURRENCES = "occurrences.json"
 #: which is free — it is read off the annotation, not off a model. 2 added the roots; 3
 #: drew them as the page does (`annotate.verb_roots`), so the card and the count agree; 4
 #: added each verb's binyan and tense (`gaps.verb_form`, targum-internal#604); a change
-#: to how `gaps.verb_form` fills a binyan is a new number too.
-VERSION = 4
+#: to how `gaps.verb_form` fills a binyan is a new number too; 5 added the forms met only
+#: as a closed-class word (`function`), so a split-off כ is never a word to learn.
+VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -96,13 +97,16 @@ class Occurrences:
     dictionary form to a flat run of (place, count) pairs into it, in the same order;
     `roots` maps a form to the root its annotation gave it, where it gave one; `verbs`
     maps "binyan|tense|form" to the same flat run, for the verb tokens that carry both
-    (`gaps.verb_form`).
+    (`gaps.verb_form`); `function` names the forms every token of which here was a
+    closed-class word (`tables.weights.EXCLUDED`): a prefix DICTA split off, כ ה ו ב ל
+    מ ש, or a word like של or את, which are met and never words to learn.
     """
 
     places: tuple[tuple[int, str], ...]
     lemmas: dict[str, tuple[int, ...]]
     roots: dict[str, str] = field(default_factory=dict)
     verbs: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    function: frozenset[str] = frozenset()
 
     def count(self, lemma: str) -> int:
         """How many running words in the text have this dictionary form."""
@@ -175,7 +179,8 @@ def _from(loaded: object) -> Occurrences | None:
         for form, flat in (loaded.get("verbs") or {}).items()
         if isinstance(flat, list) and len(flat) % 2 == 0
     }
-    return Occurrences(places=places, lemmas=lemmas, roots=roots, verbs=verbs)
+    function = frozenset(str(lemma) for lemma in loaded.get("function") or ())
+    return Occurrences(places=places, lemmas=lemmas, roots=roots, verbs=verbs, function=function)
 
 
 def count_text(folder: Path) -> Occurrences | None:
@@ -191,6 +196,7 @@ def count_text(folder: Path) -> Occurrences | None:
     from .gaps import verb_form
     from .ingest import post as post_module
     from .models import SegmentedDocument, read_artifact
+    from .tables.weights import EXCLUDED
 
     annotation = folder / ANNOTATION
     segmented = read_artifact(SegmentedDocument, folder / "segments.json")
@@ -208,6 +214,8 @@ def count_text(folder: Path) -> Occurrences | None:
     tally: dict[str, dict[int, int]] = {}
     roots: dict[str, str] = {}
     verbs: dict[str, dict[int, int]] = {}
+    # The forms met at least once as an open-class word; the rest are `function`.
+    content: set[str] = set()
     for segment in segmented.segments:
         found = tokens.get(segment.id)
         if not found:
@@ -226,6 +234,8 @@ def count_text(folder: Path) -> Occurrences | None:
             at = place_at.setdefault(key, len(place_at))
             row = tally.setdefault(lemma, {})
             row[at] = row.get(at, 0) + 1
+            if str(token.get("pos") or "") not in EXCLUDED:
+                content.add(lemma)
             if form := verb_form(token):
                 verb = verbs.setdefault(f"{form[0]}|{form[1]}|{lemma}", {})
                 verb[at] = verb.get(at, 0) + 1
@@ -247,6 +257,7 @@ def count_text(folder: Path) -> Occurrences | None:
             form: tuple(n for at, count in row.items() for n in (at, count))
             for form, row in verbs.items()
         },
+        function=frozenset(tally) - content,
     )
 
 
@@ -290,6 +301,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> Occurrences | None:
                     "lemmas": {lemma: list(flat) for lemma, flat in counted.lemmas.items()},
                     "roots": counted.roots,
                     "verbs": {form: list(flat) for form, flat in counted.verbs.items()},
+                    "function": sorted(counted.function),
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -435,20 +447,39 @@ def texts_met(
     finished: Iterable[tuple[str, str, int]],
     folder_for: FolderFor,
     language: str = "",
+    *,
+    words_only: bool = False,
 ) -> dict[str, int]:
     """In how many texts the reader has met each of `lemmas`: Your Progress's "Words you
     keep meeting" (design.md §12, 2026-10-09). Met is `met`'s — inside a section they
     finished — and a text counts once however often the word comes round in it. A word
-    met nowhere is left out rather than counted 0."""
+    met nowhere is left out rather than counted 0.
+
+    `words_only` counts a text only where the form was met there as a word, not only as
+    a closed-class one (`Occurrences.function`): what every list offering words to learn
+    asks, so a כ DICTA split off a word is never one of them."""
+    return counts_met(lemmas, finished, folder_for, language)[1 if words_only else 0]
+
+
+def counts_met(
+    lemmas: Iterable[str],
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "",
+) -> tuple[dict[str, int], dict[str, int]]:
+    """`texts_met` both ways in one pass: every meeting, and the meetings as a word."""
     wanted = set(lemmas)
     out: dict[str, int] = {}
+    words: dict[str, int] = {}
     if not wanted:
-        return out
+        return out, words
     for _document, sections, counted in _finished_texts(finished, folder_for, language):
         for lemma in wanted:
             if lemma in counted.lemmas and counted.where(lemma, sections):
                 out[lemma] = out.get(lemma, 0) + 1
-    return out
+                if lemma not in counted.function:
+                    words[lemma] = words.get(lemma, 0) + 1
+    return out, words
 
 
 def verb_forms(

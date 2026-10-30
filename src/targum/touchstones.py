@@ -16,6 +16,7 @@ the lemma index beside it, with nothing fetched and nothing spent.
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from statistics import median
@@ -290,9 +291,20 @@ def at_level(
     return out
 
 
+def a_word(lemma: str) -> bool:
+    """Whether a dictionary form can be a word to learn at all, by its shape alone: two
+    letters or more, marks not counted. A clitic DICTA split off (ו ה ב כ ל מ ש) has a
+    lemma of one letter, and a reader who tapped one has it on their list; "כ" was the
+    first of "Words you keep meeting" on 2026-10-30. A form met only as a closed-class
+    word is the other half, which only its tokens can tell (`occurrences.Occurrences`'s
+    `function`, asked by `texts_met(words_only=True)`)."""
+    return sum(1 for c in lemma if unicodedata.category(c).startswith("L")) >= 2
+
+
 def learning(marked: Mapping[str, int]) -> list[str]:
-    """The words at steps 1 to 3: on the list, not known, not ignored."""
-    return [lemma for lemma, status in marked.items() if status in (1, 2, 3)]
+    """The words at steps 1 to 3: on the list, not known, not ignored, and words by their
+    shape (`a_word`)."""
+    return [lemma for lemma, status in marked.items() if status in (1, 2, 3) and a_word(lemma)]
 
 
 def met_often(
