@@ -55,6 +55,9 @@ video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
 export_app = typer.Typer(no_args_is_help=True, help="A text in another form.")
 corpus_app = typer.Typer(no_args_is_help=True, help="The corpus ledger as a dataset.")
 tables_app = typer.Typer(no_args_is_help=True, help="The language tables, which stay private.")
+topics_app = typer.Typer(
+    no_args_is_help=True, help="Topic tags on Hebrew lemmas, which stay private."
+)
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
@@ -64,6 +67,7 @@ app.add_typer(video_app, name="video")
 app.add_typer(export_app, name="export")
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(tables_app, name="tables")
+app.add_typer(topics_app, name="topics")
 
 console = Console()
 err = Console(stderr=True)
@@ -4991,6 +4995,51 @@ def tables_top(
     total = store.total(table, register)
     for key, n in rows:
         console.print(f"{n:>9}  {n / total:6.2%}  {key}")
+
+
+@topics_app.command("share")
+def topics_share(
+    person: Annotated[
+        str,
+        typer.Option("--person", help="A synthetic reader: beginner, oleh or news."),
+    ],
+    lexicon: Annotated[
+        Path | None,
+        typer.Option("--lexicon", help="A topics file. Default: ~/.targum/topics.json."),
+    ] = None,
+) -> None:
+    """Print one synthetic reader's share of each topic's words (targum-internal#605).
+
+    An operator's check on the formula and the floors before any page draws a bar. The
+    readers are made up from the language tables (`topics.SYNTHETIC`); no account is
+    read. Each share is the frequency-weighted part of a topic's lemmas inside the
+    yardstick's top 20k that the reader knows.
+    """
+    from . import topics
+
+    if person not in topics.SYNTHETIC:
+        fail(
+            TargumError(
+                f"No synthetic reader called {person}.",
+                f"Try one of: {', '.join(topics.SYNTHETIC)}. Real readers are not read here.",
+            )
+        )
+    held = topics.load(lexicon)
+    if held is None:
+        fail(TargumError("There is no topics file.", "Pass --lexicon FILE from a tagging run."))
+    store = _tables_store()
+    known = topics.synthetic_known(store, person)
+    modern = topics.weights(store, topics.MODERN)
+    bible = topics.weights(store, (topics.BIBLE,))
+    console.print(f"{topics.SYNTHETIC[person][0]} ({len(known)} words known)")
+    if len(known) < topics.READER_FLOOR:
+        console.print(f"[yellow]Below the reader floor of {topics.READER_FLOOR} words.[/yellow]")
+    for one in sorted(topics.shares(held, known, modern, bible), key=lambda s: s.share):
+        note = "" if one.drawn else f"  [dim]below the floor of {topics.TOPIC_FLOOR} lemmas[/dim]"
+        console.print(
+            f"{one.share:7.1%}  {topics.TOPICS[one.topic]:<24}"
+            f" {one.known:>4} of {one.lemmas:<4} lemmas{note}"
+        )
 
 
 @export_app.command("pdf")

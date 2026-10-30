@@ -254,6 +254,26 @@ class Store:
             totals[key] = totals.get(key, 0) + int(n)
         return sorted(totals.items(), key=lambda item: (-item[1], item[0]))[:limit]
 
+    def variants(self, table: str, keys: Iterable[str]) -> dict[str, dict[str, int]]:
+        """How often each of `keys` was counted under each variant (a word's part of
+        speech), over every register now. A key never counted is absent."""
+        wanted = list(dict.fromkeys(keys))
+        if not wanted or not self.file.is_file():
+            return {}
+        out: dict[str, dict[str, int]] = {}
+        with closing(self._connect()) as db:
+            for start in range(0, len(wanted), 500):
+                chunk = wanted[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                for key, variant, n in db.execute(
+                    "SELECT t.key, t.variant, SUM(t.n) FROM tally t JOIN contribution c"
+                    " ON c.id = t.contribution_id WHERE c.superseded_at IS NULL"
+                    f" AND c.tbl = ? AND t.key IN ({marks}) GROUP BY t.key, t.variant",  # noqa: S608
+                    (table, *chunk),
+                ):
+                    out.setdefault(str(key), {})[str(variant)] = int(n)
+        return out
+
     def registers(self, table: str) -> dict[str, int]:
         """How many units each register holds a current contribution for, in one table."""
         if not self.file.is_file():
