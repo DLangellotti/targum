@@ -65,7 +65,7 @@ def recording(library: Library, who: int, seconds: float, ident: str, admin: boo
 
 def words(n: int, status: int = 1, start: int = 0) -> list[dict[str, Any]]:
     return [
-        {"language": "he", "lemma": f"w{i}", "surface": f"w{i}", "status": status, "seen": 10 + i}
+        {"language": "he", "lemma": f"wd{i}", "surface": f"wd{i}", "status": status, "seen": 10 + i}
         for i in range(start, start + n)
     ]
 
@@ -162,11 +162,11 @@ def test_on_a_free_word_list_stops_at_three_hundred(tmp_path: Path, on: None) ->
     store.push(me, {"words": words(305)}, word_cap=cap)
     assert store.listed_words(me.id) == 300, "the five past the cap are not taken"
     # A word already on the list moves between stages; known and ignored are never held.
-    moved = [{"language": "he", "lemma": "w0", "status": 3, "seen": 10_000}]
+    moved = [{"language": "he", "lemma": "wd0", "status": 3, "seen": 10_000}]
     store.push(me, {"words": moved + words(5, status=9, start=400)}, word_cap=cap)
     assert store.listed_words(me.id) == 300
     known = {row["lemma"] for row in store.pull(me)["words"] if row["status"] == 9}
-    assert {"w400", "w404"} <= known
+    assert {"wd400", "wd404"} <= known
     # A word taken off makes room for one more.
     store.push(me, {"words": [{**words(1)[0], "gone": 1, "seen": 20_000}]}, word_cap=cap)
     store.push(me, {"words": words(1, start=900)}, word_cap=cap)
