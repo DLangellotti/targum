@@ -7,18 +7,23 @@ annotation keeps what the annotator said; nothing here renames an annotator, mov
 `SCHEMA_VERSION` or runs a model. The real fix to the annotator rides the next rename
 that is happening anyway.
 
-Two guards before anything is shown:
+Three guards before anything is shown:
 
-- `WRONG`, the roots measured wrong against Wiktionary (used only to find them, never
+- `WRONG` and `NEVER`, the roots measured wrong against Wiktionary (used only to find them, never
   shipped) and read one by one (ling-he reviews the list), each filed under the one
   lemma it is wrong for. Most are a three-letter lemma that is not a qal (הקל, הכה)
   whose "root" came back as the lemma itself, or an adjective spelled like a nif'al
-  (נזיר) whose נ was stripped as a prefix.
+  (נזיר) whose נ was stripped as a prefix. `NEVER` holds the strings that are no root
+  for any lemma: the CC0 table's hof'als with the binyan's ה read as a radical (השג),
+  and its פ"י hif'ils filed under נ (נצע).
+- a root of four letters with a ו or a י in it, or ending in ה or ת: a noun, adjective
+  or participle handed back as its own root (קראה, גדול). A real quadriliteral (פרסם,
+  תכנן) has neither.
 - a root that begins with ו, which Hebrew all but never has: a conjunction left on the
-  lemma, or a hof'al's vowel letter read as a radical. The few modern verbs on one
-  (ויתר, וידא) write it as a four-letter pi'el with a י, and only those keep it.
+  lemma, or a hof'al's vowel letter read as a radical. Only the three roots modern
+  Hebrew has on ו keep it (`VAV_ROOTS`: ותר, ודא, וסת), in whatever form the lemma is.
 
-A wrong root is a lie told with confidence; a missing one is a gap. Both guards give a
+A wrong root is a lie told with confidence; a missing one is a gap. Every guard gives a
 gap.
 """
 
@@ -34,7 +39,7 @@ if TYPE_CHECKING:
 
 #: The version of what this module answers. A change to `WRONG`, the ו rule or the fill
 #: is a new number, so the `roots` table counts every text again under it.
-VERSION = 1
+VERSION = 2
 
 
 def _letters(text: str) -> str:
@@ -67,7 +72,6 @@ WRONG: dict[str, frozenset[str]] = _table(
         "הסב": "הסב",  # ס־ב־ב
         "הגן": "הגן",  # ג־נ־ן
         "מגן": "מגן",  # ג־נ־ן
-        "נצב": "נצב",  # י־צ־ב
         "העז": "העז",  # ע־ז־ז
         "מצר": "מצר",  # צ־ר־ר
         "מקל": "מקל",  # ק־ל־ל
@@ -83,7 +87,6 @@ WRONG: dict[str, frozenset[str]] = _table(
         "שבי": "שבי",
         "דיר": "דיר",
         "משא": "משא",
-        "חוב": "חוב",
         "גדי": "גדי",
         "מצע": "מצע",
         "חלי": "חלי",
@@ -102,23 +105,17 @@ WRONG: dict[str, frozenset[str]] = _table(
         "נשמה": "שמה",  # נ־שׁ־ם
         # A weak root read as the wrong one.
         "הטיל": "נטל",  # ט־ו־ל
-        "הגיח": "גיח",  # נ־ג־ח
         "אפשר": "פשר",  # א־פ־שׁ־ר
         "שכנע": "כנע",  # שׁ־כ־נ־ע
         "מימש": "מממש",  # מ־מ־שׁ
         # What the CC0 fill would give and is wrong: a lemma spelled like another verb's
         # form, or a weak root the table files under another.
         "מפלה": "פלה",  # נ־פ־ל
-        "מונח": "הנח",  # נ־ו־ח
         "מכונה": "כנה",  # כ־ו־ן
         "הוליך": "ילך",  # ה־ל־ך
         "הרהר": "רהר",  # ה־ר־ה־ר
         "פג": "פגג",  # פ־ו־ג
         "טח": "טחח",  # ט־ו־ח
-        "הוצע": "הצע",  # י־צ־ע
-        "הוקף": "הקף",  # נ־ק־ף
-        "שורה": "שרה",  # שׁ־ו־ר
-        "המרה": "מרה",  # מ־ו־ר
         "אישר": "ישר",  # א־שׁ־ר
         "איחל": "יחל",  # א־ח־ל
         "איחד": "יחד",  # א־ח־ד
@@ -133,8 +130,33 @@ WRONG: dict[str, frozenset[str]] = _table(
         "ארון": "רנן",  # א־ר־ן
         "תשעה": "שעה",  # ת־שׁ־ע
         "יחוס": "חוס",  # י־ח־ס
+        # The CC0 table's own slips: a lexeme carrying another verb's forms, a doubled
+        # root where the verb is hollow, the minority one of a doublet.
+        "השתנה": "שתן",  # שׁ־נ־ה
+        "נשתנה": "שתן",  # שׁ־נ־ה
+        "משתנה": "שתן",  # שׁ־נ־ה
+        "התיש": "נתש",  # ת־שׁ־שׁ
+        "מתיש": "נתש",  # ת־שׁ־שׁ
+        "דן": "דון",  # ד־י־ן
+        "עט": "עטט",  # ע־י־ט
+        # A lemma that is mostly another word mis-lemmatised: הללו, שאלהו.
+        "אלה": "אלה",
+        # An adjective given itself, its root's ר־ג־ן behind a נ.
+        "נרגן": "נרגן",  # ר־ג־ן
     }
 )
+
+#: Strings that are no Hebrew root for any lemma, denied wherever they come from. The CC0
+#: table files hof'als as pu'als with the binyan's ה read as a radical (הֻשַּׂג under השג),
+#: and three פ"י hif'ils under נ (הִצִּיעַ under נצע). Not here, because they are roots:
+#: הגר (היגר), הדק, הדר, הון, הסה.
+NEVER: frozenset[str] = frozenset(
+    "הבע הגד הגש הדח הטה הכה הכר הכש הנח הסג הסח הסע הסק הפל הצב הצג הצע הצת הקז הקף "
+    "הקש השג השק התז התך התש נצג נצע נצת".split()
+)
+
+#: The roots on ו modern Hebrew has, each a pi'el that keeps the ו: ויתר, וידא, ויסת.
+VAV_ROOTS: frozenset[str] = frozenset({"ותר", "ודא", "וסת"})
 
 
 def denied(lemma: str, root: str) -> bool:
@@ -142,9 +164,14 @@ def denied(lemma: str, root: str) -> bool:
     word, letters = _letters(lemma), _letters(root)
     if not letters:
         return False
-    if letters in WRONG.get(word, ()):
+    if letters in NEVER or letters in WRONG.get(word, ()):
         return True
-    return letters[0] == "ו" and not (len(word) == 4 and word.startswith("וי"))
+    # A lemma handed back as a four-letter root: a real quadriliteral has no mater and
+    # does not end in ה or ת (פרסם, שחרר, תכנן; not קראה, גדול, נשאת).
+    if len(letters) >= 4 and (set(letters) & {"ו", "י"} or letters[-1] in "הת"):
+        return True
+    # A conjunction on a three-letter word (ו + תר) is not ותר.
+    return letters[0] == "ו" and not (letters in VAV_ROOTS and len(word) > 3)
 
 
 #: The two forms a lemma is: the citation form (third person masculine singular past),

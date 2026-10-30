@@ -12,7 +12,7 @@ import pytest
 
 from targum.annotate import verb_roots
 from targum.annotate.paradigms import family_of
-from targum.annotate.verb_roots import WRONG, denied, filled, root_for
+from targum.annotate.verb_roots import NEVER, WRONG, denied, filled, root_for
 from targum.tables import roots as roots_table
 
 
@@ -47,6 +47,43 @@ def test_a_root_on_vav_is_a_conjunction_left_on() -> None:
     # The modern pi'els on a real ו root keep it.
     assert not denied("ויתר", "ותר")
     assert not denied("וידא", "ודא")
+
+
+@pytest.mark.parametrize(
+    ("lemma", "root"),
+    [
+        ("נצב", "נצב"),  # a nif'al of a פ"נ root: the lemma's letters are the root's
+        ("חוב", "חוב"),  # hollow, written with its ו
+        ("הגיח", "גיח"),
+        ("מוותר", "ותר"),  # the present keeps a real ו root
+        ("היגר", "הגר"),  # a real root on ה, kept off `NEVER`
+        ("פרסם", "פרסם"),  # real quadriliterals
+        ("תכנן", "תכנן"),
+    ],
+)
+def test_a_right_root_is_kept(lemma: str, root: str) -> None:
+    assert not denied(lemma, root)
+
+
+@pytest.mark.parametrize(
+    ("lemma", "root"),
+    [
+        ("הושג", "השג"),  # a hof'al filed as a pu'al, its ה read as a radical
+        ("מושג", "השג"),
+        ("הציע", "נצע"),  # a פ"י hif'il filed under נ
+        ("השתנה", "שתן"),  # the table's lexeme for השתין carries השתנה's forms
+        ("וילך", "ולך"),  # a wayyiqtol left as its own lemma
+        ("קראה", "קראה"),  # a word handed back as a four-letter root
+        ("גדול", "גדול"),
+    ],
+)
+def test_a_root_no_hebrew_has_is_denied(lemma: str, root: str) -> None:
+    assert denied(lemma, root)
+
+
+def test_never_is_three_letters_and_spares_the_real_roots_on_he() -> None:
+    assert NEVER and all(len(root) == 3 for root in NEVER)
+    assert not NEVER & {"הגר", "הדק", "הדר", "הון", "הסה"}
 
 
 def test_every_entry_is_letters_and_names_a_root() -> None:
