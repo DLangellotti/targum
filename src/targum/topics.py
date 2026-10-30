@@ -58,6 +58,11 @@ GENERAL = "general"
 MOST = 2
 
 VERSION = "topics/1"
+#: The prompt's own version, apart from the list's. Prompt 2 (2026-10-30, after pilot 1
+#: scored 87% precision against ling-he's blind gold set): the commonest modern sense over
+#: the gloss, ling-he's sharper Religion and Science definitions, people-nouns in People &
+#: feelings, and the screen (`screen`) before anything is sent.
+PROMPT_VERSION = "prompt/2"
 
 #: The modern registers a topic's words are drawn from and weighed by, and the one
 #: Religion & tradition adds for the words the modern registers do not hold.
@@ -240,6 +245,77 @@ def _main_variant(counts: Mapping[str, int]) -> str:
     return sorted(kept.items(), key=lambda item: (-item[1], item[0]))[0][0]
 
 
+# --- The screen -------------------------------------------------------------------------
+
+#: A lemma is never tagged when, over every register, at least this share of its counts
+#: carry a closed-class part of speech (`tables.weights.EXCLUDED`), a number's, or a
+#: name's. `Store.top` weighs row by row, so אל, counted ADP 5,697 times and NOUN 247,
+#: reaches the list on its NOUN rows; the screen asks the lemma as a whole. A name needs a
+#: larger share than the rest, because DICTA tags אבא PROPN 64% of the time.
+FUNCTION_SHARE = 0.5
+NUMBER_SHARE = 0.5
+NAME_SHARE = 0.75
+
+#: One-letter clitics a lemmatiser leaves on a noun (הפועל, בעיר): the article and the
+#: three prepositions written as a prefix. ו and the rest are left alone, because a real
+#: word starts with them too often (ועדה, מספר).
+CLITICS = frozenset("הבלכ")
+_NOUNS = frozenset({"NOUN", "PROPN"})
+
+
+def screened(
+    lemma: str, variants: Mapping[str, int], bare: Mapping[str, int] | None = None
+) -> str | None:
+    """Why one lemma is left out before tagging, or None where it is tagged.
+
+    `variants` is how often the lemma was counted under each part of speech over every
+    register (`Store.variants`), and `bare` the same for the lemma without its first
+    letter, where that letter is a clitic. The reasons: a one-letter lemma (a prefix the
+    lemmatiser cut loose), a function word, a number, a name, and a noun whose first
+    letter is a clitic on a noun the tables count at least as often (a lemmatisation
+    error: הפועל beside פועל).
+    """
+    from .tables.weights import EXCLUDED
+
+    if len(lemma) <= 1:
+        return "one letter"
+    total = sum(variants.values())
+    if total:
+        if sum(n for pos, n in variants.items() if pos in EXCLUDED) / total >= FUNCTION_SHARE:
+            return "function word"
+        if variants.get("NUM", 0) / total >= NUMBER_SHARE:
+            return "number"
+        if variants.get("PROPN", 0) / total >= NAME_SHARE:
+            return "name"
+    if lemma[0] in CLITICS and len(lemma) >= 4 and bare and total:
+        main = max(variants.items(), key=lambda item: (item[1], item[0]))[0]
+        bare_main = max(bare.items(), key=lambda item: (item[1], item[0]))[0]
+        if main in _NOUNS and bare_main in _NOUNS and sum(bare.values()) >= total:
+            return "clitic prefix"
+    return None
+
+
+def screen(store: Store, lemmas: Sequence[Lemma]) -> tuple[list[Lemma], list[dict[str, str]]]:
+    """The lemmas worth tagging, in order, and the ones left out with the reason, from
+    the tables' counts alone: nothing is sent for a function word, a number, a name or a
+    lemmatisation error."""
+    from .tables.words import WORDS
+
+    variants = store.variants(WORDS, [one.lemma for one in lemmas])
+    bares = store.variants(
+        WORDS, [one.lemma[1:] for one in lemmas if one.lemma[:1] in CLITICS and len(one.lemma) >= 4]
+    )
+    kept: list[Lemma] = []
+    dropped: list[dict[str, str]] = []
+    for one in lemmas:
+        why = screened(one.lemma, variants.get(one.lemma, {}), bares.get(one.lemma[1:]))
+        if why is None:
+            kept.append(one)
+        else:
+            dropped.append({"lemma": one.lemma, "pos": one.pos, "gloss": one.gloss, "why": why})
+    return kept, dropped
+
+
 def cached_gloss(filed: str) -> tuple[str, str] | None:
     """The English gloss and pointed citation the cache holds for a filed form, or None.
     Never spends."""
@@ -260,7 +336,7 @@ _DEFINITIONS = {
     "family": "family members and relatives, relationships at home, marriage and children,"
     " the house and its rooms, furniture, chores, renting a flat",
     "people": "character, emotions and feelings, opinions, friendship, love, appearance,"
-    " how people treat each other",
+    " how people treat each other, and words for people as such (man, woman, guy, girl)",
     "food": "ingredients, dishes, cooking, eating and drinking, meals, restaurants, the market",
     "money": "prices, paying, the bank, bills, debts, shops and buying, saving",
     "travel": "the city and its streets, directions, buses, trains, cars, flights, hotels,"
@@ -271,8 +347,8 @@ _DEFINITIONS = {
     " writing as study, language and grammar",
     "health": "the body and its parts, illness and injury, doctors, the clinic and"
     " hospital, medicine, fitness",
-    "culture": "hobbies, sport, music, film, theatre, art, books as leisure, television and"
-    " media, holidays as leisure",
+    "culture": "hobbies, sport, music, film, theatre, art, books as leisure, television, the"
+    " press and media content, holidays as leisure",
     "nature": "animals, plants, landscape, the sea, the sky, climate and weather, the environment",
     "politics": "the state, the Knesset, government and ministries, elections, parties,"
     " diplomacy, public services, official forms and bureaucracy",
@@ -280,10 +356,15 @@ _DEFINITIONS = {
     " instruments, contracts",
     "security": "the army, soldiers and reserve duty, war, weapons, attacks and terror,"
     " defence, security services",
-    "science": "the sciences, research, computers, the internet, engineering, technology,"
-    " mathematics",
-    "religion": "God, prayer, the Torah and Temple, commandments, priests, the synagogue,"
-    " festivals as religious observance, sin, blessing, Jewish tradition",
+    # ling-he's definitions (topic-gold-notes-2026-10-30), word for word.
+    "science": "words for the sciences, research and engineering as fields, and for"
+    " computing as a field or system (software, data, network, algorithm); everyday devices"
+    " and their use (phone, screen, message, app) are Everyday life, and media content is"
+    " Free time & culture",
+    "religion": "words whose main modern sense is religious practice, belief or institution"
+    " — God, prayer, Torah, commandments, the Temple and priesthood, synagogue, rabbis,"
+    " holidays as observance, kashrut — not words that are religious only in a secondary or"
+    " biblical sense",
 }
 
 #: Worked examples: (lemma, pointed, part of speech, gloss, answer). They teach the
@@ -355,8 +436,10 @@ vocabulary map. A learner sees one bar per topic: the share of that topic's word
 know. A bar is only useful if the words in it clearly belong there.
 
 For each word you get an id, the unpointed lemma, a pointed form when there is one, the \
-part of speech, and an English gloss. The gloss gives the word's main sense; tag that \
-sense.
+part of speech, and an English gloss. Tag the word's commonest sense in Modern Hebrew \
+today. The gloss is a hint, not the sense: it may give a biblical or rarer sense, or one \
+word of a spelling that is far commoner as another. פה is commonest "here", not "mouth"; \
+אתר "website"; עמוד "page"; גר "lives". The part of speech can be wrong too.
 
 The topics:
 {topics}
@@ -364,19 +447,24 @@ The topics:
 and anything whose main sense belongs to no topic above.
 
 Rules:
-1. Tag the main sense, the one the gloss gives first. A word is in a topic only when a \
-teacher building that topic's word list would put it there. שולחן (table) is Family & \
+1. Tag the commonest modern sense, whatever the gloss gives first. A word is in a topic \
+only when a teacher building that topic's word list would put it there. שולחן (table) is Family & \
 home, not Food & drink.
-2. Give one topic, or two when the word belongs squarely to both, or when the gloss \
-names two senses in different topics and both are common. Never more than two.
+2. Give one topic, or two when the word belongs squarely to both, or when the spelling \
+has two senses in different topics and both are common in Modern Hebrew. Never more than two.
 3. `{GENERAL}` stands alone: a word tagged `{GENERAL}` carries no other topic.
 4. Prefer `{GENERAL}` to a stretch. A wrong `{GENERAL}` costs one word in no bar; a \
 wrong topic puts a word in the wrong bar. Common verbs of motion, speech, thought and \
 possession, adjectives of size, quality and time, and abstract nouns are usually \
 `{GENERAL}`.
-5. Religion & tradition is for words whose main sense is religious, including biblical \
-words for worship, the Temple and the priesthood.
-6. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
+5. Religion & tradition only where the word's main modern sense is religious. A word \
+religious only in a secondary sense, or only in the Bible, takes its modern topic or \
+`{GENERAL}`.
+6. Science & technology is the fields and computing as a system. A device and its \
+everyday use is Everyday life; what the media publish is Free time & culture.
+7. Words for people as such, by age or sex, are People & feelings; family members are \
+Family & home.
+8. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
 reasonably go either way, or when you are unsure of the Hebrew. Otherwise `high`.
 
 Examples:

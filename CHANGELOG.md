@@ -653,6 +653,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   stratified set with no model tags for ling-he to label. `targum topics share --person
   beginner|oleh|news` prints a synthetic reader's frequency-weighted share of each topic.
   It never reads a real account. Nothing on any page changes.
+- Topic tagging, prompt 2 (David approved 2026-10-30, after pilot 1 scored 87% topic
+  precision against ling-he's blind gold set, below the 90% gate). `topics.screen` leaves
+  out, before anything is sent, a lemma counted mostly as a function word
+  (`weights.EXCLUDED`), a number or a name over every register, a one-letter lemma, and a
+  noun carrying a clitic ה, ב, ל or כ beside a bare noun the tables count as often
+  (הפועל); each is listed with its reason in the run's `lemmas.json`. The prompt asks for
+  the lemma's commonest modern sense and calls the gloss a hint, Religion & tradition and
+  Science & technology take ling-he's definitions word for word, and words for people as
+  such go to People & feelings. `topics.PROMPT_VERSION` is `prompt/2`, recorded in the
+  run and the lexicon's version. `--from-run` asks again about another run's lemmas.
 - The language tables keep growing on the box by themselves (targum-internal#587, David
   approved 2026-10-30). `deploy/targum-tables.timer` runs `targum tables sweep --library
   /var/lib/targum/targums` at 02:30 UTC, before the 04:00 backup, as targum and never as

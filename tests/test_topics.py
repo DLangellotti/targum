@@ -129,6 +129,51 @@ def test_the_lemmas_come_from_the_tables_with_their_main_part_of_speech(tmp_path
     assert all(one.lemma != "של" for one in lemmas), "a function word is never tagged"
 
 
+def test_the_screen_leaves_out_what_is_not_a_topic_word() -> None:
+    # Counts as the tables held them for pilot 1 (2026-10-30).
+    assert topics.screened("אל", {"ADP": 5697, "PART": 706, "NOUN": 247}) == "function word"
+    assert topics.screened("חמישה", {"NUM": 444, "PROPN": 31, "NOUN": 3}) == "number"
+    assert topics.screened("מיאמי", {"PROPN": 11}) == "name"
+    assert topics.screened("כ", {"ADV": 42, "NUM": 40}) == "one letter"
+    assert topics.screened("הפועל", {"NOUN": 18, "PROPN": 10}, {"NOUN": 29}) == "clitic prefix"
+    assert topics.screened("אבא", {"PROPN": 42, "NOUN": 24}) is None, "DICTA's PROPN is noisy"
+    assert topics.screened("לחם", {"NOUN": 90}) is None
+    # A real word that starts with a clitic letter, beside a bare form that is a verb or rarer.
+    assert topics.screened("הצעה", {"NOUN": 14}, {"VERB": 5}) is None
+    assert topics.screened("כתבה", {"NOUN": 110}, {"NOUN": 28}) is None
+
+
+def test_screen_keeps_the_order_and_says_why(tmp_path: Path) -> None:
+    store = _store(
+        tmp_path,
+        {"news": {("לחם", "NOUN"): 9, ("אל", "ADP"): 90, ("אל", "NOUN"): 3, ("עיר", "NOUN"): 50}},
+    )
+    store.write(
+        Contribution("words", "news", "unit-b", "src", "CC0", "tool", "words/1"),
+        {("בעיר", "NOUN"): 4},
+    )
+
+    def lemma(key: str) -> topics.Lemma:
+        return topics.Lemma(key, "NOUN", key, "x", "", 1, "modern")
+
+    kept, dropped = topics.screen(store, [lemma("אל"), lemma("לחם"), lemma("בעיר")])
+    assert [one.lemma for one in kept] == ["לחם"]
+    assert [(one["lemma"], one["why"]) for one in dropped] == [
+        ("אל", "function word"),
+        ("בעיר", "clitic prefix"),
+    ]
+
+
+def test_the_prompt_puts_the_commonest_sense_over_the_gloss() -> None:
+    prompt = topics.system_prompt()
+    assert "The gloss is a hint, not the sense" in prompt
+    assert "not words that are religious only in a secondary or biblical sense" in prompt
+    assert "everyday devices and their use (phone, screen, message, app) are Everyday life" in (
+        prompt
+    )
+    assert topics.PROMPT_VERSION == "prompt/2"
+
+
 def test_variants_counts_each_part_of_speech_over_every_register(tmp_path: Path) -> None:
     store = _store(
         tmp_path, {"news": {("x", "NOUN"): 2}, "bible": {("x", "NOUN"): 3, ("x", "VERB"): 1}}

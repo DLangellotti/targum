@@ -9,7 +9,10 @@ passes: precision of 90% or more and recall of 80% or more on every topic.
 has one, its part of speech and its cached English gloss. Never a sentence. The lemmas
 come only from the language tables (`targum.topics.universe`, over `Store.top`), which
 only public texts reach; never from `word` rows or the gloss cache, which hold private
-imports. A lemma the gloss cache has no gloss for is left out and listed.
+imports. A lemma the gloss cache has no gloss for is left out and listed, and so is every
+lemma `targum.topics.screen` passes over (a function word, a number, a name, a
+lemmatisation error), with its reason, in `lemmas.json`. `--from-run` asks again about
+another run's lemmas, screened afresh, so a second pilot compares like with like.
 
 **What it costs.** `--dry-run` quotes and spends nothing. `--cap` is hard: before a batch
 is sent, what has been spent plus the most every request in it could cost (every input
@@ -83,6 +86,9 @@ def main() -> int:
     parser.add_argument("--requote", type=int, default=12000, help="Lemmas to re-quote for.")
     parser.add_argument("--blind", type=int, default=0, help="Rows for the blind gold set.")
     parser.add_argument("--blind-out", type=Path)
+    parser.add_argument(
+        "--from-run", help="Reuse another run's lemma list (screened again) instead of drawing."
+    )
     args = parser.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -94,7 +100,7 @@ def main() -> int:
     run.mkdir(parents=True, exist_ok=True)
 
     registers = [r.strip() for r in args.registers.split(",") if r.strip()]
-    lemmas = _lemmas(run, args.lemmas, args.bible, registers)
+    lemmas = _lemmas(run, args.lemmas, args.bible, registers, args.from_run)
     if not lemmas:
         print("No lemmas: the language tables are empty. Run `targum tables sweep`.")
         return 1
@@ -144,9 +150,12 @@ def main() -> int:
 # --- State ------------------------------------------------------------------------------
 
 
-def _lemmas(run: Path, modern: int, bible: int, registers: list[str]) -> list[topics.Lemma]:
+def _lemmas(
+    run: Path, modern: int, bible: int, registers: list[str], from_run: str | None = None
+) -> list[topics.Lemma]:
     """The run's lemma list: read back where it was written, so a resumed run asks about
-    exactly the rows it paid for; drawn from the tables otherwise."""
+    exactly the rows it paid for; otherwise another run's, or drawn from the tables, and
+    screened either way."""
     file = run / "lemmas.json"
     if file.is_file():
         held = json.loads(file.read_text(encoding="utf-8"))
@@ -157,10 +166,29 @@ def _lemmas(run: Path, modern: int, bible: int, registers: list[str]) -> list[to
     if store is None:
         print("TARGUM_LEDGER is not set: the lemma list comes only from the tables.")
         return []
-    lemmas, missing = topics.universe(store, modern=modern, bible=bible, registers=registers)
-    body = {"registers": registers, "lemmas": [asdict(one) for one in lemmas], "no_gloss": missing}
+    if from_run:
+        source = json.loads(
+            (topics.RESEARCH / from_run / "lemmas.json").read_text(encoding="utf-8")
+        )
+        drawn = [topics.Lemma(**row) for row in source["lemmas"]]
+        registers, missing = source.get("registers", registers), source.get("no_gloss", [])
+    else:
+        drawn, missing = topics.universe(store, modern=modern, bible=bible, registers=registers)
+    lemmas, dropped = topics.screen(store, drawn)
+    body = {
+        "registers": registers,
+        "prompt": topics.PROMPT_VERSION,
+        "from_run": from_run,
+        "lemmas": [asdict(one) for one in lemmas],
+        "dropped": dropped,
+        "no_gloss": missing,
+    }
     write_atomic(file, json.dumps(body, ensure_ascii=False, indent=1))
-    print(f"{len(lemmas)} lemmas from the tables; {len(missing)} left out for want of a gloss.")
+    reasons = Counter(one["why"] for one in dropped)
+    print(
+        f"{len(lemmas)} lemmas to tag; {len(dropped)} screened out ({dict(reasons)});"
+        f" {len(missing)} left out for want of a gloss."
+    )
     return lemmas
 
 
@@ -501,7 +529,7 @@ def _summarise(
         lexicon_file,
         json.dumps(
             {
-                "version": f"{topics.VERSION}-{run.name}",
+                "version": f"{topics.VERSION}+{topics.PROMPT_VERSION}-{run.name}",
                 "topics": list(topics.TOPICS),
                 "lemmas": lexicon,
             },
@@ -537,6 +565,8 @@ def _summarise(
         requoted[model] = round(topics.cost(model, usage, batch=True), 2)
     summary = {
         "run": run.name,
+        "version": topics.VERSION,
+        "prompt": topics.PROMPT_VERSION,
         "lemmas": len(lemmas),
         "requests_per_model": len(chunks),
         "system_prompt_tokens": system_tokens,
