@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-29
+A text card says what share of its words you know as an exact percentage, such as 72%.
+Your Progress opens with your level and the texts you can read at it, and the Library filters by level.
+In a video with subtitles, the line being said holds still, and only a word with its own timing lights.
+
 2026-10-28
 A text you brought can be rewritten at an easier level, as a new text of yours linked to the first.
 A Hebrew beginner's home shows the next dialogue to read, and the Library has a Start here shelf.
