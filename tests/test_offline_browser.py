@@ -312,8 +312,8 @@ def test_a_page_opened_off_the_disk_registers_nothing(browser, tmp_path: Path) -
         context.close()
 
 
-# -- from the site, only the site; off a disk, nothing at all (design.md §12, "A reader
-# fetches nothing from any other site", 2026-10-30) ---------------------------------------
+# -- from the site, only the site; saved or off a disk, no files from anywhere (design.md
+# §12, "A reader fetches nothing from any other site", 2026-10-30) ------------------------
 
 
 #: What a page fetches as a file of its own, as Playwright names a request's kind.
@@ -368,11 +368,12 @@ def test_a_served_reader_asks_only_its_own_site(browser, served: Served) -> None
         context.close()
 
 
-def test_a_saved_copy_opened_offline_makes_no_request(browser, served: Served) -> None:  # noqa: F811
+def test_a_saved_copy_opened_offline_loads_no_file(browser, served: Served) -> None:  # noqa: F811
     """Opened on the site, the reader is named; saved, the copy is the page whole; and
-    opened from that copy with no network, it asks for no file: no script, stylesheet,
-    face, picture or recording. (What it asks of the account, as `/account/me`, is the
-    reader's own talk with targum, unanswered on a plane and unchanged by #981.)"""
+    opened from that copy with no network, it loads no file from anywhere: no script,
+    stylesheet, face, picture or recording. Its calls to the reader's own account (the
+    signed-in check, text edits, voice) go to targum's own origin only and wait or fail
+    quietly, so they are not counted here; nothing goes to another site."""
     book(served.out / "local" / "book-he")
     origin = f"http://127.0.0.1:{served.port}"
     context = browser.new_context(service_workers="allow")
