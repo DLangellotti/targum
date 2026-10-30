@@ -4520,6 +4520,24 @@ class Store:
             for row in rows
         ]
 
+    def known_dated(self, person_id: int | None, language: str) -> list[tuple[str, int | None]]:
+        """Every word the reader knows in one language, with when it became known
+        (`known_at`, None for a word known before that was recorded): what "How much
+        Hebrew you understand" measures and draws its line from (targum-internal#575).
+        Names and numbers are not vocabulary. The words ticked off on "Words you may
+        already know" are known and count here, at the date they were ticked."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT lemma, known_at FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND status = ? AND COALESCE(band, '') NOT IN ('name', 'number')",
+            (person_id, language.split("-")[0].lower(), KNOWN_STATUS),
+        )
+        return [
+            (str(row["lemma"]), None if row["known_at"] is None else int(row["known_at"]))
+            for row in rows
+        ]
+
     def known_forms(self, person_id: int | None, language: str) -> set[str]:
         """Every form the reader has marked known — the dictionary form and the surface
         it was met in — bare of points, for the cheap known-share estimate

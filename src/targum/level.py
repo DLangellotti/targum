@@ -640,6 +640,74 @@ def known_line(share: float | None) -> str:
     return f"You know {percent}% of the words here."
 
 
+def coverage_on(register: str, known: Iterable[str], where: Any = None) -> float | None:
+    """How much of one register's yardstick the reader's known words cover: the share of
+    the fixed list's running words, weighted by frequency (targum-internal#579, design.md
+    §12, "How much Hebrew you understand is measured on a fixed yardstick", 2026-10-30).
+
+    `known` is the reader's known dictionary forms. Function words, names and numbers are
+    never on a list, so knowing one moves nothing. None where the register has no
+    snapshot yet: absent, never 0%. A page is sent `page_share` of it, so the percentage
+    it shows is the one `known_percent` says.
+    """
+    from .tables import yardstick
+
+    stick = yardstick.load(register, where)
+    return None if stick is None else stick.coverage(known)
+
+
+def coverage_days(
+    register: str,
+    dated: Iterable[tuple[str, int | None]],
+    *,
+    began: int,
+    zone: Any = None,
+    where: Any = None,
+) -> dict[str, Any] | None:
+    """One register's coverage now and how it was reached, day by day, for the card's
+    line (targum-internal#575), or None where the register has no snapshot.
+
+    `dated` is each known word with the moment (ms) it became known, `word.known_at`, or
+    None for a word known before that was recorded. Every point is recomputed against the
+    current snapshot: `base` is the share the words known before `began` give, and each
+    day's `gain` is what the words that became known that day, in `zone`, add to it. The
+    share on a day is `base` plus every gain up to it, so a past point moves only when a
+    new snapshot lands and never because of what the reader read. Before `began` there is
+    no point: the record cannot say when those words were learned (design.md §12, "How you
+    got here", 2026-10-30), and nothing is guessed from `seen`.
+    """
+    from datetime import UTC, datetime
+
+    from .tables import yardstick
+
+    stick = yardstick.load(register, where)
+    if stick is None:
+        return None
+    base: list[str] = []
+    by_day: dict[str, list[str]] = {}
+    for lemma, at in dated:
+        if at is None or int(at) < began:
+            base.append(lemma)
+            continue
+        day = datetime.fromtimestamp(int(at) / 1000, tz=zone or UTC).strftime("%Y-%m-%d")
+        by_day.setdefault(day, []).append(lemma)
+    counted = {yardstick.bare(lemma) for lemma in base}
+    share = stick.coverage(counted)
+    days = []
+    for day in sorted(by_day):
+        fresh = {yardstick.bare(lemma) for lemma in by_day[day]} - counted
+        counted |= fresh
+        gain = stick.coverage(fresh)
+        if gain > 0:
+            days.append({"day": day, "gain": gain})
+    return {
+        "share": stick.coverage(counted),
+        "base": share,
+        "days": days,
+        "version": stick.version,
+    }
+
+
 #: What share of a library text's words a learner at a rung is reckoned to look up
 #: before it stops being a first read: the ceiling `search_library` applies when the
 #: model names none, by the rung the ledger reaches. A starting table, round on purpose.

@@ -4997,6 +4997,49 @@ def tables_top(
         console.print(f"{n:>9}  {n / total:6.2%}  {key}")
 
 
+@tables_app.command("snapshot")
+def tables_snapshot(
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            help="The tables directory. Default: TARGUM_TABLES_DIR, /var/lib/targum/tables on"
+            " the box, ~/.targum/tables elsewhere.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Write a new version now, whatever the month.")
+    ] = False,
+) -> None:
+    """Write each yardstick a reader's card is measured against (targum-internal#579):
+    the commonest 20,000 content lemmas of conversation, news, literature and the Bible,
+    each with its share of the list's running words.
+
+    Once a month: a register's list stands until the month turns, so a reader's figure
+    moves only when they learn a word. A register with no list yet gets one as soon as it
+    holds enough words. Reads the tables and writes files; runs no model.
+    """
+    from .tables import no_models
+    from .tables import yardstick as yardstick_module
+
+    store = _tables_store()
+    folder = out or yardstick_module.directory()
+    with no_models():
+        done = yardstick_module.write_all(store, folder, force=force)
+    for one in done:
+        if one.outcome == "short":
+            console.print(
+                f"  {one.register}: not yet, under {yardstick_module.FLOOR:,} words counted"
+            )
+        elif one.outcome == "written":
+            console.print(
+                f"  {one.register}: [green]wrote[/green] v{one.version}"
+                f" ({one.tokens:,} words) [dim]{one.file}[/dim]"
+            )
+        else:
+            console.print(f"  {one.register}: v{one.version} {one.outcome}")
+
+
 @topics_app.command("share")
 def topics_share(
     person: Annotated[
