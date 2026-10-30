@@ -212,11 +212,19 @@ var targumPlayer = function () {
   /* Time listened and time watched (targum-internal#339), off the element's own events so a
      line pressed and a whole scene run are counted alike. Wall-clock seconds, because that
      is what a person spent; told apart by whether the picture was up, because a film played
-     with its picture put away was listened to. Under a second is a mis-press. */
+     with its picture put away was listened to. Under a second is a mis-press.
+     The picture is read when a stretch starts, and putting it up or away while the sound
+     goes ends one stretch and starts the next (targum-internal#602): read only at the end,
+     a film watched for forty minutes and put away for the last one was all "listened". */
   var begun = 0;
+  var begunWatching = false;
   function pictureUp() {
     var panel = document.getElementById("video");
     return !!(panel && !panel.hidden);
+  }
+  function stretchBegins() {
+    begun = Date.now();
+    begunWatching = pictureUp();
   }
   function stretchOver() {
     if (!begun) return;
@@ -227,13 +235,20 @@ var targumPlayer = function () {
     window.TargumEvents.note({
       kind: "play",
       amount: seconds,
-      medium: pictureUp() ? "watch" : "listen",
+      medium: begunWatching ? "watch" : "listen",
       segment: saying ? saying.getAttribute("data-id") || "" : "",
     });
   }
   audio.addEventListener("playing", function () {
-    if (!begun) begun = Date.now();
+    if (!begun) stretchBegins();
   });
+  if (videoBox && typeof MutationObserver === "function") {
+    new MutationObserver(function () {
+      if (!begun || pictureUp() === begunWatching) return;
+      stretchOver();
+      if (!audio.paused) stretchBegins();
+    }).observe(videoBox, { attributes: true, attributeFilter: ["hidden"] });
+  }
   audio.addEventListener("pause", stretchOver);
   audio.addEventListener("ended", stretchOver);
   window.addEventListener("pagehide", stretchOver);

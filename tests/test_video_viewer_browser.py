@@ -1164,3 +1164,37 @@ def test_between_961_and_1200_the_bar_keeps_the_title_alone(browser, tmp_path) -
         assert seen["known"]["right"] <= controls, f"the count runs under the controls: {seen}"
     finally:
         context.close()
+
+
+#: Every `play` the player hands the record, caught before `events.js` asks the account.
+CATCH_PLAYS = """
+() => {
+  window.__plays = [];
+  window.TargumEvents = { note: (e) => { if (e.kind === 'play') window.__plays.push(e); } };
+}
+"""
+
+
+def test_a_picture_put_away_while_it_plays_splits_the_stretch(browser, tmp_path) -> None:  # noqa: F811
+    """targum-internal#602: the picture was read only when a stretch ended, so a film
+    watched and then put away before the pause was all "listened". Put away while the
+    sound goes, the stretch ends there and the next one starts, each with its own medium."""
+    built = video_reader(tmp_path, spans=[[0.05, 0.45], [0.5, 0.95]], lines=3)
+    context, page = film_open(browser, built)
+    try:
+        page.evaluate(CATCH_PLAYS)
+        page.evaluate("() => { document.querySelector('.video-el').loop = true; }")
+        page.keyboard.press("Space")
+        page.wait_for_function("() => !document.querySelector('.video-el').paused")
+        page.wait_for_timeout(1600)
+        press_in_more(page, ".m-row[data-video]")
+        page.wait_for_selector("#video[hidden]", state="attached")
+        assert not page.evaluate("() => document.querySelector('.video-el').paused")
+        page.wait_for_timeout(1600)
+        page.evaluate("() => document.querySelector('.video-el').pause()")
+        page.wait_for_timeout(250)
+        plays = page.evaluate("() => window.__plays")
+        assert [p["medium"] for p in plays] == ["watch", "listen"], plays
+        assert all(p["amount"] >= 1 for p in plays), plays
+    finally:
+        context.close()

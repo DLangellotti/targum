@@ -12,6 +12,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- A part finished out of sight no longer counts as words read (David, 2026-10-30;
+  targum-internal#602). A playlist running on with the phone locked, or Play on in the
+  listening view, finished the part and added its whole transcript to "words read" as
+  well as its minutes to "listened". Finished with the page hidden or the listening view
+  open, a section now adds no words. And putting a film's picture up or away while it
+  plays splits the stretch, so the time before is "watched" and the time after
+  "listened", where the whole stretch used to go by how the picture stood at the pause.
 - A Hebrew verb's root is denied where no Hebrew has it, and kept where the first list
   was wrong to deny it (ling-he's review of targum-internal#589, 2026-10-30;
   `verb_roots.VERSION` 2). Five entries come off the deny list because their roots are
