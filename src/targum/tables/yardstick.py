@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from collections.abc import Iterable, Mapping
@@ -86,15 +87,9 @@ class Yardstick:
     def coverage(self, known: Iterable[str]) -> float:
         """The share of the list's running words that `known` covers. A word not on the
         list — a function word, a name, a word too rare to be on it — adds nothing."""
-        seen: set[str] = set()
-        share = 0.0
-        for lemma in known:
-            key = bare(lemma)
-            if key in seen:
-                continue
-            seen.add(key)
-            share += self.weights.get(key, 0.0)
-        return min(1.0, share)
+        keys = {bare(lemma) for lemma in known}
+        # fsum, so the same words give the same share in whatever order a set yields them.
+        return min(1.0, math.fsum(self.weights.get(key, 0.0) for key in keys))
 
 
 def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | None:

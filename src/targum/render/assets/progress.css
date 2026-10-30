@@ -409,6 +409,87 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .reading .chart-empty { display: grid; align-items: center; block-size: 7.5rem; }
 .reading .reading-failed { margin: 0.5rem 0 0; }
 
+/* How much Hebrew you understand (targum-internal#575; board "Months"): the reading
+   card's kit, with the picker under the title and the period at the head's end. The line
+   reaches 100% at a dashed rule along the top, and the ground under it is leaf at a wash.
+   Each point is said above its dot, the last in leaf mixed on ink. */
+.understand .understand-head { align-items: start; }
+.understand .understand-titles { display: grid; gap: 0.25rem; min-inline-size: 0; }
+.understand .understand-pick { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.understand .understand-in { font-size: 0.875rem; color: var(--ink-soft); }
+.understand .understand-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--paper);
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.understand .understand-open:hover,
+.understand .understand-open[aria-expanded="true"] { background: var(--teal-wash); }
+.understand .understand-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.understand .understand-caret {
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: translateY(-0.12rem) rotate(45deg);
+}
+.understand .understand-list {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + 0.375rem);
+  z-index: 20;
+  inline-size: min(19rem, calc(100vw - 4rem));
+  margin: 0;
+  padding: 0.375rem;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-row);
+  background: var(--paper);
+  box-shadow: var(--shadow-floating);
+}
+.understand .understand-list[hidden] { display: none; }
+.understand .understand-list:focus { outline: none; }
+.understand .understand-list:focus-visible .understand-option.active { outline: 2px solid var(--focus); outline-offset: -2px; }
+.understand .understand-option {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-block-size: 2.75rem;
+  padding: 0 0.875rem;
+  border-radius: var(--radius-control);
+  font-size: 0.9375rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.understand .understand-option:hover,
+.understand .understand-option.active { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.understand .understand-option[aria-selected="true"] { font-weight: 600; color: var(--teal); background: var(--teal-wash); }
+.understand .understand-tick { inline-size: 0.875rem; }
+.understand .understand-name { flex: 1; }
+.understand .understand-option .understand-figure { font-size: 0.875rem; font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.understand .understand-top { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 4; }
+.understand .understand-area { fill: color-mix(in srgb, var(--leaf) 10%, transparent); stroke: none; }
+.understand svg .understand-figure { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.understand svg .understand-figure.now { font-size: 0.8125rem; font-weight: 600; fill: color-mix(in srgb, var(--leaf) 70%, var(--ink)); }
+.understand .understand-words p { margin: 0.5rem 0 0; }
+.understand .understand-said b { font-weight: 600; }
+.understand .understand-read,
+.understand .understand-since { font-size: 0.875rem; color: var(--ink-soft); }
+.understand .understand-read[hidden],
+.understand .understand-since[hidden] { display: none; }
+@media (min-width: 64rem) and (pointer: fine) {
+  .understand .understand-open { min-block-size: 2.5rem; }
+}
+
 /* What next: two halves, a hairline under each row, the figure at the end of it. */
 .progress .next-halves {
   display: grid;

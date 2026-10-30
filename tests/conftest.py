@@ -119,6 +119,14 @@ def ledger_off(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_yardsticks(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """The yardstick snapshots are an empty directory unless a test writes one
+    (targum-internal#575). Without this a laptop with `~/.targum/tables/` filled would
+    hand every served Your Progress a card CI never sees."""
+    monkeypatch.setenv("TARGUM_TABLES_DIR", str(tmp_path_factory.mktemp("tables")))
+
+
+@pytest.fixture(autouse=True)
 def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public catalogue is off unless a test says otherwise.
 

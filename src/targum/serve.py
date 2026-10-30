@@ -14090,8 +14090,39 @@ class Handler(BaseHTTPRequestHandler):
                     }
                     for language, rows in by_language.items()
                 },
+                "understand": self._understand(person.id, zone),
             }
         )
+
+    def _understand(self, person_id: int, zone: Any) -> dict[str, Any]:
+        """How much Hebrew the reader understands, on each yardstick that has a snapshot
+        (targum-internal#575, design.md §12, "How much Hebrew you understand is measured
+        on a fixed yardstick", 2026-10-30). Per register: the exact percentage now
+        (`level.known_percent`), and `base` and each day's `gain`, from which the page
+        draws the line by Week or Month. A register with no snapshot is left out, never
+        sent as 0. Hebrew only: the yardsticks are counted with DICTA's lemmas.
+        """
+        from . import level as level_module
+        from .tables.registers import YARDSTICKS
+        from .tables.words import LANGUAGES
+
+        out: dict[str, Any] = {}
+        began = self.store.began()
+        for language in LANGUAGES:
+            dated = self.store.known_dated(person_id, language)
+            registers: dict[str, Any] = {}
+            for register in YARDSTICKS:
+                got = level_module.coverage_days(register, dated, began=began, zone=zone)
+                if got is None:
+                    continue
+                registers[register] = {
+                    "percent": level_module.known_percent(got["share"]),
+                    "base": got["base"],
+                    "days": got["days"],
+                }
+            if registers:
+                out[language] = {"began": began, "registers": registers}
+        return out
 
     def _words_page(self, query: dict[str, list[str]]) -> None:
         """What Your Words knows about one language's list beyond the browser's own rows

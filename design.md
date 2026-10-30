@@ -636,9 +636,10 @@ verbs OpenRussian's line was right as a whole for 66% of verb tokens.
 ### How much Hebrew you understand is measured on a fixed yardstick — 2026-10-30
 
 David, 2026-10-30 (targum-internal#575). Mockup:
-https://claude.ai/artifact/5AnMG45gazXFYkGP26XykC. Decided, not built. The sources
-below follow ling-he's licence report (`yardstick-sources-2026-10-30.md`). When it is built
-it replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Progress.
+https://claude.ai/artifact/5AnMG45gazXFYkGP26XykC. Built the same day (targum-internal#579
+for the yardsticks, #575 for the card); "As built" below records what the build decided. The
+sources below follow ling-he's licence report (`yardstick-sources-2026-10-30.md`). It
+replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Progress.
 **It is a new metric**, not a new drawing of the old one.
 
 - **The card is "How much Hebrew you understand"**, with the subtitle "Words you know in
@@ -673,6 +674,38 @@ it replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your P
 - **The yardsticks keep up.** As shared library texts and news-feed texts are imported,
   their counts are added. A reader's private import is never counted until David decides
   otherwise ("private imports never train").
+
+**As built** (2026-10-30):
+
+- **A list is a snapshot, made once a month.** `targum tables snapshot`, run by the
+  nightly `targum-tables` unit after its sweep, writes `yardstick-<register>-v<N>.json`
+  (the commonest 20,000 content lemmas, each with its share of the list's running words)
+  to the box's tables directory, never the repository, and no page serves it. A list
+  stands until the month turns (David, 2026-10-30, on the language tables' question 4),
+  and every reader's line is then recomputed against the new one.
+- **A yardstick with no list is left out of the picker**, never shown as 0%. A register
+  gets its first list once it holds 50,000 counted words, so no list is frozen for a
+  month on a handful of texts. Where news has none yet, the picker opens on the next of
+  conversation, news, literature, the Bible that has one.
+- **The line is drawn from the day each word became known** (`word.known_at`, "How you got
+  here", 2026-10-30). The words known before that record began, on 30 October 2026, are
+  the line's starting share; nothing before that day is drawn or guessed, and "Counted
+  since 30 Oct." says so under the line. Until there are two points the line's place
+  says "We'll draw the line once there are two weeks to show.", and the card opens on the
+  coarsest of Week and Month with two points, Week before there are.
+- **Points are labelled with their exact percentage** above each dot (the first and last
+  only past six), and the scale runs from a round tenth under the lowest point to 100%,
+  a dashed rule at the top. One hue, leaf; the line never falls, because a word only
+  joins it.
+- **"Up from"** compares the last point with the first in view: "in August" on Month,
+  "last week" or "in the week of" and its Monday on Week. A line that has not moved
+  says the figure alone.
+- **The picker is a listbox under its button**: arrows move, Enter chooses, Escape
+  closes, each option 44px under a thumb. The choice, and Week or Month, are remembered
+  in this browser only.
+- **Only Hebrew has yardsticks.** A language without one keeps "Words you knew" as it
+  was, and so does a Hebrew reader who knows no word on any list yet.
+- **The Russian strings are drafts** (ling-ru, shipped for David's later read).
 
 What it keeps: every figure is a real count over a stated list (§6), nothing on it
 spends, and "never a level and never a score" holds. A share of a fixed list's words is

@@ -307,7 +307,7 @@ def test_a_section_nobody_can_measure_is_synced_and_keeps_no_row(
         "and the section itself reaches the account, which it did not before #291"
     )
     status, said, _ = call(port, "GET", f"/account/reading?k={token}", cookie=cookie)
-    assert said == {"signedIn": True, "measurable": 20, "reading": {}}
+    assert said == {"signedIn": True, "measurable": 20, "reading": {}, "understand": {}}
 
 
 def test_the_line_is_nobodys_business_signed_out(served: tuple[int, str, Path]) -> None:

@@ -658,6 +658,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the share of a list a reader's known words cover, None with no list.
   `level.coverage_days` gives the share before the word records began and each day's
   gain after, recomputed against the current list from `word.known_at`.
+- Your Progress, "How much Hebrew you understand" (David, 2026-10-30;
+  targum-internal#575): in the place of "Words you knew", the share of a fixed word list's
+  running words the reader's known words cover, on a yardstick they pick: everyday
+  conversation, a news article, classic literature or the Bible, each with its own
+  percentage in the picker, news first for everyone. A yardstick with no list yet is left
+  out, never shown as 0%. Week | Month, the line recomputed against the current list from
+  the day each word became known, and nothing drawn before 30 October ("Counted since 30
+  Oct."). "You know 87% of the words in a typical news article, up from 79% in August.",
+  with what was read this month as one small line under it. Exact percentages.
+  `/account/reading` carries `understand`. A language with no yardstick keeps "Words you
+  knew". Russian strings are drafts.
 - Topic tagging, the pilot (David approved 2026-10-30; targum-internal#605, epic #609).
   `scripts/tag_topics.py` tags Hebrew lemmas with up to two of 16 topics, or `general`,
   on Sonnet 5.5 and Opus 5.5 through the Batches API. It sends the lemma, its pointed

@@ -62,8 +62,8 @@ const asked = [];
 global.fetch = global.window.fetch = (url) => {
   asked.push(String(url));
   let body = { signedIn: false };
-  if (String(url).indexOf("/account/reading") === 0 && payload.reading) {
-    body = { signedIn: true, measurable: 20, reading: payload.reading };
+  if (String(url).indexOf("/account/reading") === 0 && (payload.reading || payload.understand)) {
+    body = { signedIn: true, measurable: 20, reading: payload.reading || {}, understand: payload.understand || {} };
   } else if (String(url).indexOf("/account/reading") === 0 && payload.readingFails) {
     return Promise.reject(new Error("unreachable"));
   } else if (String(url).indexOf("/account/totals") === 0 && (payload.totals || payload.words)) {
@@ -174,6 +174,39 @@ function reading() {
   };
 }
 
+/** How much Hebrew you understand (targum-internal#575): the card as drawn. */
+function understand() {
+  const panel = at("understand");
+  const line = at("understand-line").children[0];
+  const picture = line ? line.children[0] : null;
+  const empty = line && String(line.className).indexOf("chart-empty") >= 0 ? line.children[0].textContent : "";
+  const kids = picture && !empty ? picture.children : [];
+  const classed = (name) => kids.filter((node) => String(node.getAttribute && node.getAttribute("class")).split(" ")[0] === name);
+  const axis = kids.find((node) => node.getAttribute && node.getAttribute("class") === "axis");
+  return {
+    shown: panel.hidden === false,
+    by: (panel.getAttribute && panel.getAttribute("data-by")) || "",
+    register: (panel.getAttribute && panel.getAttribute("data-register")) || "",
+    chosen: at("understand-chosen").textContent,
+    open: at("understand-open").getAttribute("aria-label") || "",
+    options: at("understand-list").children.map((option) => ({
+      register: option.getAttribute("data-register"),
+      name: option.children[1].textContent,
+      figure: option.children[2].textContent,
+      selected: option.getAttribute("aria-selected"),
+    })),
+    said: at("understand-said").textContent,
+    bold: (at("understand-said").children.find((node) => node.tagName === "b") || { textContent: "" }).textContent,
+    read: at("understand-read").hidden === false ? at("understand-read").textContent : "",
+    since: at("understand-since").hidden === false ? at("understand-since").textContent : "",
+    empty: empty,
+    figures: classed("understand-figure").map((node) => node.textContent),
+    titles: classed("reading-point").map((node) => (node.children[0] || { textContent: "" }).textContent),
+    months: axis ? axis.children.map((node) => node.textContent) : [],
+    label: picture && !empty ? picture.getAttribute("aria-label") : "",
+  };
+}
+
 function rows(id) {
   return at(id).children.map((item) => ({
     text: item.children.map((node) => node.textContent).join(" | "),
@@ -228,6 +261,10 @@ function settle(then) {
 }
 
 settle(() => {
+  if (payload.pick) {
+    const option = at("understand-list").children.find((node) => node.getAttribute("data-register") === payload.pick);
+    if (option) option.fire("click");
+  }
   if (payload.period !== undefined) {
     const press = howBy.children.find((node) => node.getAttribute("data-period") === payload.period);
     if (press) press.fire("click");
@@ -239,6 +276,7 @@ function report() {
   process.stdout.write(
   JSON.stringify({
     reading: reading(),
+    understand: understand(),
     nothing: at("nothing").hidden === false,
     counts: counts(),
     tiles: counts_(),

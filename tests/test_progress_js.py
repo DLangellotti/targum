@@ -54,6 +54,8 @@ def draw(
     words: dict[str, Any] | None = None,
     period: str | None = None,
     record_off: bool = False,
+    understand: dict[str, Any] | None = None,
+    pick: str | None = None,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -74,6 +76,8 @@ def draw(
                     "totals": totals,
                     "words": words,
                     "recordOff": record_off,
+                    "understand": understand,
+                    "pick": pick,
                     **({} if period is None else {"period": period}),
                 }
             ),
