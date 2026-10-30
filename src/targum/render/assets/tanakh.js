@@ -95,8 +95,8 @@
       ? tn(
           "tanakh.sum.within",
           within,
-          "{n} chapter where you know nine words in ten or more.",
-          "{n} chapters where you know nine words in ten or more."
+          "{n} chapter where you know 90% of the words or more.",
+          "{n} chapters where you know 90% of the words or more."
         )
       : "";
   }

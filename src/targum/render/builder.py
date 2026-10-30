@@ -885,8 +885,8 @@ def worker_script() -> str:
 # `/assets/<name>.<hash>.<ext>` and the browser keeps them for a year. The hash is of the
 # file as served, so a changed file is a new address and nothing stale is ever kept.
 #
-# Everything else still carries its files inline: readers, contents pages, the shelf, the
-# series pages, a card in a host's frame, a printed page, and the one desk page a worker
+# Everything else still carries its files inline: readers, contents pages, the series
+# pages, a card in a host's frame, a printed page, and the one desk page a worker
 # keeps for offline (Saved on this device), whose saved copy must open with nothing else
 # in the cache. The public pages in front of the account joined the desk on 2026-10-28
 # (`PUBLIC_PAGES`). A page is linked only when it is named here; one left out is inline.
@@ -898,7 +898,12 @@ ASSET_ROUTE = "/assets/"
 #: or kept by the worker, and a stranger who opens a second one paid for the faces and the
 #: stylesheets again on every page: 65 to 122 kB of faces and up to 290 kB of CSS under
 #: `no-store`. A first visit still gets each of them whole (`first_visit`).
-PUBLIC_PAGES = frozenset({"about.html.j2", "landing.html.j2", "legal.html.j2", "text.html.j2"})
+#: The public Library and its kind pages (`shelf.html.j2`) joined them on 2026-10-29
+#: (targum-internal#558): missed in #549, so it still carried 65 kB of faces and 119 kB of
+#: CSS on every visit, the public page nearest §14's 1.5 s on a phone.
+PUBLIC_PAGES = frozenset(
+    {"about.html.j2", "landing.html.j2", "legal.html.j2", "shelf.html.j2", "text.html.j2"}
+)
 
 #: What a public page says on its `<html>`, so a first visit to it warms only the files
 #: the public pages use (`public_files`), never the desk's whole set.
@@ -1188,6 +1193,7 @@ def public_files(language: str) -> tuple[str, ...]:
         front_page(language),
         about_page(language),
         text_page(entry, language=language),
+        shelf_page(language=language),
         *(legal_page(which) for which in LEGAL),
     ]
     named = (address for html in pages for address in named_files(html))
@@ -2707,8 +2713,8 @@ def build_text_card(language: str = "en") -> str:
     about each text — title, length, how much of it the reader knows — is drawn from the
     tool's own rows; its doors and any recording arrive beside them in the result's
     `_meta` (`mcp_http.text_card_meta`). The known share is said the way the app says it
-    (`level.words_in_ten`), from the same catalogue keys, every tenth rendered here in the
-    reader's language and plural so the script only picks one.
+    (`level.known_line`), an exact percentage from the same catalogue key in the reader's
+    language, filled in by the script.
 
     Beside `search_sources` too (2026-10-06): an article a publisher put out, with who
     published it, and a door named for what the reader will do there (read, watch,
@@ -2717,29 +2723,12 @@ def build_text_card(language: str = "en") -> str:
     from ..catalogue import READING_WORDS_PER_MINUTE
 
     t = page_words(language)
-    tn = page_counts(language)
-    tenths = [
-        str(t("bring.known.none", "You know almost none of the words here yet.")),
-        *(
-            str(
-                tn(
-                    "bring.known.tenths",
-                    n,
-                    "You know about {n} word in 10 here.",
-                    "You know about {n} words in 10 here.",
-                )
-            )
-            for n in range(1, 10)
-        ),
-        str(t("bring.known.all", "You know nearly every word here.")),
-    ]
     return (
         _environment()
         .get_template("card-text.html.j2")
         .render(
             t=t,
             page_language=_page_language(language),
-            tenths=json.dumps(tenths, ensure_ascii=False),
             pace=READING_WORDS_PER_MINUTE,
             # Each kind in one everyday word, the desk's own (design.md §12, "The boards
             # are the desk"), so a row says "Dialogue · 3 min" as the board draws it.
@@ -6385,6 +6374,8 @@ def render(
         # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
         # only where it differs, like `paradigms_here`, and its table rides there.
         binyanim_here: dict[str, list[list[object]]] = {}
+        from ..annotate.verb_roots import root_for
+
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -6439,7 +6430,16 @@ def render(
                         lemma_at[word] = len(lemmas)
                         lemmas.append(token.lemma)
                         heads.append(token.head)
-                        roots.append(token.root or "")
+                        # Less the roots known to be wrong, and filled from the CC0
+                        # table where the annotator gave none (`annotate.verb_roots`).
+                        roots.append(
+                            root_for(
+                                token.lemma,
+                                token.root,
+                                token.pos,
+                                "he" if hebrew_at.get(sid) else segmented.language,
+                            )
+                        )
                         binyanim.append(token.binyan or "")
                         # The other verbs built on this one's root, each with its binyan
                         # (targum-internal#301). Worked out from the same CC0 table the

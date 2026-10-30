@@ -86,7 +86,7 @@ class Voicer:
         self.refusals = list(refusals or [])
         self.voiced: list[str] = []
 
-    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any) -> Any:
+    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any, **_: Any) -> Any:
         on_bought = rest[-1]
         if self.refusals:
             raise self.refusals.pop(0)
@@ -102,7 +102,7 @@ def directed(scene: dict[str, Any], key: str, store: Path) -> tuple[list[str], f
 
 
 def go(
-    tmp_path: Path, scenes: list[dict[str, Any]], voicer: Voicer, **over: Any
+    tmp_path: Path, scenes: list[dict[str, Any]], voicer: Any, **over: Any
 ) -> tuple[Any, list[float]]:
     slept: list[float] = []
     progress = shelf.Progress(tmp_path / "progress.json", over.get("cap", 30.0))
@@ -321,7 +321,7 @@ def test_the_reset_is_midnight_pacific() -> None:
 class CuttingVoicer(Voicer):
     """Every request is cut off, so nothing is measured and everything may be billed."""
 
-    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any) -> Any:
+    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any, **_: Any) -> Any:
         cut_off = rest[3]
         while True:
             cut_off(vs.CutOff(90.0, 10, 90.0))
@@ -347,3 +347,137 @@ def test_a_long_delay_without_a_per_day_name_waits_only_that_delay(
     assert quota.daily and not quota.named_daily
     _, slept = go(tmp_path, [scene("he-01")], Voicer(1, [vs.Daily("later", quota)]))
     assert slept == [1200.0]
+
+
+#: What Vertex sent back for a line it would not read: a candidate, no content parts.
+NO_PARTS = {
+    "candidates": [
+        {
+            "content": {"role": "model"},
+            "finishReason": "PROHIBITED_CONTENT",
+            "safetyRatings": [
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "probability": "MEDIUM"},
+                {"category": "HARM_CATEGORY_HARASSMENT", "probability": "NEGLIGIBLE"},
+            ],
+        }
+    ],
+    "usageMetadata": {"promptTokenCount": 40},
+}
+AUDIO = {"candidates": [{"content": {"parts": [{"inlineData": {"data": "AAAA"}}]}}]}
+
+
+def answering(monkeypatch: pytest.MonkeyPatch, answers: list[dict[str, Any]]) -> list[float]:
+    def fetch(request: Any, deadline: float) -> bytes:
+        return json.dumps(answers.pop(0)).encode()
+
+    waited: list[float] = []
+    monkeypatch.setattr(vs, "fetch", fetch)
+    monkeypatch.setattr(vs.time, "sleep", waited.append)
+    return waited
+
+
+def test_an_answer_with_no_parts_is_asked_for_once_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    waited = answering(monkeypatch, [NO_PARTS, AUDIO])
+    seen: list[Any] = []
+    assert vs.say("שלום", "Leda", "k", "Read.", "vertex", on_refused=seen.append) == b"\0\0\0"
+    assert waited == [vs.REFUSED_WAIT]
+    assert "finishReason=PROHIBITED_CONTENT" in seen[0].reason
+    assert "HARM_CATEGORY_DANGEROUS_CONTENT=MEDIUM" in seen[0].reason
+    assert "HARASSMENT" not in seen[0].reason
+
+
+def test_two_answers_with_no_parts_refuse_the_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    answering(monkeypatch, [NO_PARTS, NO_PARTS, AUDIO])
+    with pytest.raises(vs.Refused) as refused:
+        vs.say("שלום", "Leda", "k", "Read.", "vertex")
+    assert refused.value.payload["candidates"][0]["finishReason"] == "PROHIBITED_CONTENT"
+
+
+def test_a_blocked_prompt_with_no_candidates_says_why(monkeypatch: pytest.MonkeyPatch) -> None:
+    answering(monkeypatch, [{"promptFeedback": {"blockReason": "SAFETY"}}] * 2)
+    with pytest.raises(vs.Refused, match="blockReason=SAFETY"):
+        vs.say("שלום", "Leda", "k", "Read.", "vertex")
+
+
+def test_the_log_keeps_no_audio() -> None:
+    kept = vs.without_audio(AUDIO)
+    assert kept["candidates"][0]["content"]["parts"][0]["inlineData"]["data"] == "<4 base64 chars>"
+
+
+class Speaker:
+    """A voicer that asks `say` for every turn, so the fake fetch decides what comes back."""
+
+    def __init__(self) -> None:
+        self.voiced: list[str] = []
+
+    def __call__(self, scene: dict[str, Any], key: str, into: Path, *rest: Any, **kw: Any) -> Any:
+        for n, turn in enumerate(scene["turns"]):
+
+            def tagged(said: Any, n: int = n) -> None:
+                said.turn = n
+                kw["on_refused"](said)
+
+            vs.say(turn["text"], "Leda", key, "Read.", "vertex", on_refused=tagged)
+            rest[-1](1.0)
+        (into / f"{scene['id']}.mp3").write_bytes(b"mp3")
+        self.voiced.append(scene["id"])
+        return [[0.0, 1.0], [1.7, 2.0]], 2.0, 2.0
+
+
+def test_a_refused_turn_fails_its_scene_and_the_run_goes_on(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # he-01's second turn is refused twice; he-02 is read through.
+    answering(monkeypatch, [AUDIO, NO_PARTS, NO_PARTS, AUDIO, AUDIO])
+    speaker = Speaker()
+    said, _ = go(tmp_path, [scene("he-01"), scene("he-02")], speaker)
+    assert said["stopped"] == "finished"
+    assert speaker.voiced == ["he-02"]
+    failed = said["scenes"]["he-01"]
+    assert failed["state"] == "failed"
+    assert failed["reason"].startswith("refused on turn 1: finishReason=PROHIBITED_CONTENT")
+    assert said["scenes"]["he-02"]["state"] == "done"
+    logged = [json.loads(line) for line in (tmp_path / "refusals.jsonl").read_text().splitlines()]
+    assert [(one["scene"], one["turn"]) for one in logged] == [("he-01", 1), ("he-01", 1)]
+    assert logged[0]["payload"] == NO_PARTS and logged[0]["text"] == "שָׁלוֹם"
+
+
+def test_a_hint_is_said_after_the_line_and_only_on_its_turn() -> None:
+    one = scene("ru-03", "ru", ("Kore", "Orus"))
+    plain = [vs.prompt_for(one, n, "calm") for n in range(2)]
+    shelf.give_hints([one], shelf.read_hints(["ru-03:1=Say «Кнез», not князь"]))
+    assert vs.prompt_for(one, 0, "calm") == plain[0], "an unhinted turn asks as before"
+    hinted = vs.prompt_for(one, 1, "calm")
+    assert hinted.endswith(" Say «Кнез», not князь.") and hinted.startswith(plain[1])
+
+
+def test_a_hint_gives_way_to_nothing_but_the_direction() -> None:
+    one = scene("he-04")
+    shelf.give_hints([one], shelf.read_hints(["he-04:t0=" + "x" * 60]))
+    said = vs.prompt_for(one, 0, "a long direction, with clauses, " * 3)
+    assert said.endswith("x" * 60 + ".") and len(said) <= vs.LONGEST
+    shelf.give_hints([one], shelf.read_hints(["he-04:0=" + "x" * 200]))
+    with pytest.raises(vs.TooLong):
+        vs.prompt_for(one, 0, "calm")
+
+
+def test_a_hinted_scene_is_done_again_and_an_unhinted_key_is_unchanged() -> None:
+    one = scene("he-05")
+    before = shelf.scene_key(one)
+    shelf.give_hints([one], {("he-05", 1): "Say be-bit"})
+    assert shelf.scene_key(one) != before
+    del one["turns"][1]["hint"]
+    assert shelf.scene_key(one) == before
+
+
+@pytest.mark.parametrize("bad", ["he-01=x", "he-01:a=x", "he-01:1=", ":1=x"])
+def test_a_hint_that_cannot_be_read_is_refused(bad: str) -> None:
+    with pytest.raises(ValueError):
+        shelf.read_hints([bad])
+
+
+def test_a_hint_for_a_turn_that_is_not_there_is_refused() -> None:
+    with pytest.raises(ValueError, match="2 turns"):
+        shelf.give_hints([scene("he-06")], {("he-06", 5): "x"})
+    with pytest.raises(ValueError, match="not among"):
+        shelf.give_hints([scene("he-06")], {("he-07", 0): "x"})

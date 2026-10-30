@@ -285,6 +285,79 @@ class Throttled(RuntimeError):
         self.quota = quota
 
 
+class Refused(RuntimeError):
+    """An answer with no audio in it: a candidate with no parts, no candidate at all, or
+    parts with no inlineData. Usually a block (SAFETY, PROHIBITED_CONTENT, OTHER) on a
+    line the model will not read, sometimes an empty generation that a second asking
+    fixes. `reason` is what the answer gave for itself; `payload` is the answer with any
+    audio taken out, for a log to keep."""
+
+    def __init__(self, reason: str, payload: Any) -> None:
+        super().__init__(f"refused: {reason}")
+        self.reason = reason
+        self.payload = payload
+        #: Which turn of the scene, set by `voice`; `say` does not know.
+        self.turn: int | None = None
+
+
+#: How many times a turn is asked for again after an answer with no audio. One: an
+#: empty generation can be transient, a block on the words is not.
+REFUSALS = 1
+REFUSED_WAIT = 5
+
+
+def without_audio(payload: Any) -> Any:
+    """The answer as a log can keep it: every inlineData's base64 replaced by its length."""
+    if isinstance(payload, dict):
+        kept = {}
+        for name, value in payload.items():
+            if name == "inlineData" and isinstance(value, dict) and "data" in value:
+                kept[name] = {**value, "data": f"<{len(str(value['data']))} base64 chars>"}
+            else:
+                kept[name] = without_audio(value)
+        return kept
+    if isinstance(payload, list):
+        return [without_audio(one) for one in payload]
+    return payload
+
+
+def audio_in(payload: Any) -> bytes:
+    """The PCM in one answer, or `Refused` with what the answer said for itself.
+
+    The shelf run of 2026-10-29 died on 218-after-the-accident with `KeyError: 'parts'`:
+    a candidate came back with no content parts, and nothing read why."""
+    candidates = payload.get("candidates") if isinstance(payload, dict) else None
+    first = candidates[0] if isinstance(candidates, list) and candidates else {}
+    content = first.get("content") if isinstance(first, dict) else None
+    parts = content.get("parts") if isinstance(content, dict) else None
+    for part in parts if isinstance(parts, list) else []:
+        data = part.get("inlineData", {}).get("data") if isinstance(part, dict) else None
+        if data:
+            return base64.b64decode(data)
+    said = []
+    if isinstance(first, dict):
+        if first.get("finishReason"):
+            said.append(f"finishReason={first['finishReason']}")
+        if first.get("finishMessage"):
+            said.append(str(first["finishMessage"]))
+        flagged = [
+            f"{r.get('category')}={r.get('probability')}"
+            for r in first.get("safetyRatings") or []
+            if isinstance(r, dict)
+            and (r.get("blocked") or r.get("probability") not in (None, "NEGLIGIBLE"))
+        ]
+        if flagged:
+            said.append("safety " + ", ".join(flagged))
+    feedback = payload.get("promptFeedback") if isinstance(payload, dict) else None
+    if isinstance(feedback, dict) and feedback.get("blockReason"):
+        said.append(f"promptFeedback.blockReason={feedback['blockReason']}")
+        if feedback.get("blockReasonMessage"):
+            said.append(str(feedback["blockReasonMessage"]))
+    if not said:
+        said.append("no candidates" if not candidates else "no audio and no reason given")
+    raise Refused("; ".join(said), without_audio(payload))
+
+
 class CutOff(TimeoutError):
     """A request that ran past its wall-clock deadline and was abandoned.
 
@@ -408,6 +481,7 @@ def say(
     deadline: float = DEADLINE,
     on_cutoff: Callable[[CutOff], None] | None = None,
     on_quota: Callable[[Quota], None] | None = None,
+    on_refused: Callable[[Refused], None] | None = None,
 ) -> bytes:
     """One turn. Returns raw PCM, not a WAV: these get joined before they get a header.
 
@@ -417,7 +491,10 @@ def say(
 
     A 429 is read for what it says about the quota and handed to `on_quota`. Its own
     retryDelay is waited where it gives one; one over ten minutes is the per-day limit and
-    raises `Daily`; a per-minute one still there after five backoffs raises `Throttled`."""
+    raises `Daily`; a per-minute one still there after five backoffs raises `Throttled`.
+
+    An answer with no audio in it is handed to `on_refused` and asked for again once,
+    since an empty generation can be transient; a second one raises `Refused`."""
     url = DOORS[via][0].format(model=MODEL) + f"?key={key}"
     body = {
         # Vertex requires the role; the Gemini API takes it and does not need it.
@@ -435,11 +512,19 @@ def say(
     # error path here, it is the normal one: the first attempt at this scene died on
     # turn 0 with nothing written.
     cutoffs = 0
-    for attempt in range(6 + CUTOFFS):
+    refusals = 0
+    for attempt in range(6 + CUTOFFS + REFUSALS):
         try:
-            payload = json.loads(fetch(request, deadline))
-            part = payload["candidates"][0]["content"]["parts"][0]
-            return base64.b64decode(part["inlineData"]["data"])
+            return audio_in(json.loads(fetch(request, deadline)))
+        except Refused as refused:
+            refusals += 1
+            if on_refused is not None:
+                on_refused(refused)
+            if refusals > REFUSALS:
+                raise
+            print(f"      {refused}; asking once more in {REFUSED_WAIT}s", flush=True)
+            time.sleep(REFUSED_WAIT)
+            continue
         except CutOff as cut:
             cutoffs += 1
             if on_cutoff is not None:
@@ -463,15 +548,15 @@ def say(
                     on_quota(quota)
                 if quota.daily:
                     raise Daily(quota.message or str(quota), quota) from error
-                if attempt - cutoffs == 5:
+                if attempt - cutoffs - refusals == 5:
                     raise Throttled(f"still limited after backing off: {quota}", quota) from error
-                wait = quota.retry_after or WAIT * (2 ** (attempt - cutoffs))
+                wait = quota.retry_after or WAIT * (2 ** (attempt - cutoffs - refusals))
                 print(f"      429 ({quota}); waiting {wait:.0f}s", flush=True)
                 time.sleep(wait)
                 continue
             # 400 is in here because it is not always what it says: see ASK.
             detail = b""
-            if error.code not in (400, 500, 503) or attempt - cutoffs == 5:
+            if error.code not in (400, 500, 503) or attempt - cutoffs - refusals == 5:
                 # A bare "HTTP Error 400: Bad Request" says nothing anybody can act on,
                 # and that is what the first run of this printed after eleven good turns.
                 # The body says which field it disliked.
@@ -483,7 +568,7 @@ def say(
                 raise RuntimeError(
                     f"HTTP {error.code} on this turn: {said or '(no detail)'}"
                 ) from error
-            wait = WAIT * (2 ** (attempt - cutoffs))
+            wait = WAIT * (2 ** (attempt - cutoffs - refusals))
             print(f"      {error.code}; waiting {wait}s", flush=True)
             time.sleep(wait)
     raise RuntimeError("unreachable")
@@ -657,6 +742,12 @@ def prompt_for(scene: dict[str, Any], n: int, direction: str = "") -> str:
     hebrew = (scene.get("language") or "he") == "he"
     hints = pronunciation_hints(turn["text"], other.get("gender", "")) if hebrew else []
     guide = GUIDE.format(hints="; ".join(hints)) if hints else ""
+    # A hint given by hand, for a word the pointing does not settle or the engine got
+    # wrong anyway (qa's listening check, 2026-10-29). It is said after the automatic
+    # ones and kept whole: only the direction and the automatic hints give way for it.
+    extra = str(turn.get("hint") or "").strip()
+    if extra:
+        guide += " " + (extra if extra.endswith((".", "!", "?")) else extra + ".")
     # The direction gives way first: cut to its first clause, then left out. Then the
     # hint is said tersely. A prompt over LONGEST is the 400 the 2026-09-22 run kept
     # hitting, so one that still does not fit is refused here, before it is sent.
@@ -793,6 +884,7 @@ def voice(
     directions: list[str] | None = None,
     on_quota: Callable[[Quota], None] | None = None,
     on_bought: Callable[[float], None] | None = None,
+    on_refused: Callable[[Refused], None] | None = None,
 ) -> tuple[list[list[float]], float, float]:
     """The whole scene, one turn at a time. Returns the spans, the seconds in the scene,
     and the seconds bought this run.
@@ -816,7 +908,15 @@ def voice(
             pcm = kept.read_bytes()
             fresh = False
         else:
-            pcm = say(turn["text"], speaker, key, prompt, via, deadline, on_cutoff, on_quota)
+
+            def refused(said: Refused, n: int = n) -> None:
+                said.turn = n
+                if on_refused is not None:
+                    on_refused(said)
+
+            pcm = say(
+                turn["text"], speaker, key, prompt, via, deadline, on_cutoff, on_quota, refused
+            )
             write_atomically(kept, pcm)
             bought += len(pcm) / (RATE * 2)
             if on_bought is not None:

@@ -606,17 +606,38 @@ def known_share(text: str, forms: Set[str], language: str = "he") -> float | Non
     return known / len(tokens)
 
 
-def words_in_ten(share: float | None) -> str:
-    """The share said the way the page says it: a count, never a percentage or a level.
-    "you know about 7 words in 10 here." Empty where it was not measured."""
+def known_percent(share: float | None) -> int | None:
+    """The share as the whole percentage a reader is shown (design.md §12, "How much of a
+    text you know is an exact percentage", 2026-10-29). Rounded, but never into a lie:
+    under all of it is never 100, and above none of it is never 0. None where it was not
+    measured. `bring.js`, `card-text.js` and `add.js` keep the same rule."""
     if share is None:
+        return None
+    percent = max(0, min(100, round(share * 100)))
+    if share < 1 and percent >= 100:
+        return 99
+    if share > 0 and percent <= 0:
+        return 1
+    return percent
+
+
+def page_share(share: float | None) -> float | None:
+    """The share a payload carries to a page or a model: the percentage `known_percent`
+    shows, over a hundred. Rounded to two places on its own, 0.996 arrived as 1.0 and a
+    page said 100%, and 0.004 said 0% (qa on targum#993). Sent this way, every path that
+    turns it back into a percentage lands on the one `known_percent` said."""
+    percent = known_percent(share)
+    return None if percent is None else percent / 100
+
+
+def known_line(share: float | None) -> str:
+    """The share said the way the page says it: "You know 72% of the words here." An exact
+    percentage with no "about", never a count in ten or a level (David, 2026-10-29,
+    targum-internal#560). Empty where it was not measured."""
+    percent = known_percent(share)
+    if percent is None:
         return ""
-    tenths = max(0, min(10, round(share * 10)))
-    if tenths >= 10:
-        return "You know nearly every word here."
-    if tenths <= 0:
-        return "You know almost none of the words here yet."
-    return f"You know about {tenths} {'word' if tenths == 1 else 'words'} in 10 here."
+    return f"You know {percent}% of the words here."
 
 
 #: What share of a library text's words a learner at a rung is reckoned to look up

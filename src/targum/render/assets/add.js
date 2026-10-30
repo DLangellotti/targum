@@ -922,11 +922,13 @@
     if (row.publisher) facts.push(String(row.publisher));
     if (row.seconds) facts.push(clock(row.seconds));
     if (row.known_share !== null && row.known_share !== undefined) {
-      facts.push(
-        tn("add.found.known", Math.round(row.known_share * 10), "You know about {n} word in 10", "You know about {n} words in 10", {
-          n: Math.round(row.known_share * 10),
-        })
-      );
+      // An exact percentage, never a count in ten (targum-internal#560), and never
+      // rounded into a lie, as `level.known_percent` keeps it.
+      var share = Number(row.known_share);
+      var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+      if (share < 1 && percent >= 100) percent = 99;
+      if (share > 0 && percent <= 0) percent = 1;
+      facts.push(t("add.found.share", "You know {n}% of the words", { n: percent }));
     }
     if (facts.length) {
       var said = document.createElement("p");
@@ -1731,8 +1733,8 @@
       body.push(line);
     }
 
-    // How much of it this reader already has, in words and never a percentage or a
-    // level — the same sentence the quote card says (targum-internal#244).
+    // How much of it this reader already has, as an exact percentage and never a level:
+    // the same sentence the quote card says (targum-internal#244, #560).
     var known = bringing && bringing.knownLine ? bringing.knownLine(said.known_share) : "";
     if (known) {
       var mine = document.createElement("p");

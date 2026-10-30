@@ -797,3 +797,22 @@ def test_the_connect_page_names_the_pages_and_verbs_the_app_uses() -> None:
     assert not said["connect.scope.chat-also"].startswith("And ")
     assert "Nothing is made" not in said["connect.page.a-can-it-spend-on-its-own"]
     assert ":" not in said["connect.page.chatgpt-menus-move"]
+
+
+def test_how_much_you_know_is_an_exact_percentage_in_russian_too() -> None:
+    """targum-internal#560 (David, 2026-10-29): no count in ten and no «примерно» where a
+    reader is told how much of a text they know. Your Progress's monthly line is #561's."""
+    here = Path(strings.__file__).parent
+    ru = json.loads((here / "ru.json").read_text(encoding="utf-8"))
+    en = json.loads((here / "en.json").read_text(encoding="utf-8"))
+    assert en["bring.known.share"] == "You know {n}% of the words here."
+    assert ru["bring.known.share"] == "Вы знаете здесь {n}% слов."
+    assert en["add.found.share"] == "You know {n}% of the words"
+    assert ru["add.found.share"] == "Вы знаете {n}% слов"
+    assert en["tanakh.sum.within.other"] == "{n} chapters where you know 90% of the words or more."
+    assert ru["tanakh.sum.within.many"] == "{n} глав, где вы знаете 90% слов или больше."
+    for catalogue in (en, ru):
+        for key, said in catalogue.items():
+            if key.startswith("progress.reading."):
+                continue
+            assert not re.search(r"in 10\b|in ten or more|из 10\b|из десяти", said), key
