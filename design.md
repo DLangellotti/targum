@@ -384,27 +384,6 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
-### A prefix or a function word has a meaning and no stage — 2026-10-30
-
-David, 2026-10-30, after a bare כ led "Words you keep meeting" (targum#1012). It amends
-"The five stages are one control, on every card" (2026-10-09) for two kinds of word, as a
-name and a number were already left without one.
-
-- **A split-off prefix or a closed-class word shows its meaning and offers no stage.** A
-  prefix is a lemma of one letter (ו ה ב כ ל מ ש, counted as `touchstones.a_word`
-  counts); a closed-class word is one whose token is ADP, CCONJ, SCONJ, DET, PRON, AUX or
-  PART (`tables.weights.EXCLUDED`), or whose every token on the page is. The card says
-  what it means (כ "like, as") and has no stage control, so no "Add your meaning" either.
-  The keys 1 2 3 and writing a meaning do not put it on the list.
-- **The sync refuses one going onto the list** (`accounts.Store._not_to_learn`), so a page
-  cached from before cannot add it. A pushed row names no part of speech, so the server
-  asks its shape alone: one letter is refused, and a closed-class word of two letters or
-  more is the page's to refuse.
-- **Nothing a reader kept is taken away.** A word already on the list keeps its stage
-  control on the card, moves between stages and can be taken off. Known and ignored are
-  not the list and stay the reader's to say, so the press that marks a page's words known
-  still clears these too.
-
 ### What next leads with your biggest grammar gap — 2026-10-30
 
 David, 2026-10-30 (targum-internal#604, board 4B). It amends "3 · What next" in "Your
