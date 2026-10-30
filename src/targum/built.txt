@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-10-29
-A text's card says the share of its words you know as an exact percentage, such as 72%.
+A text card says what share of its words you know as an exact percentage, such as 72%.
 Your Progress opens with your level and the texts you can read at it, and the Library filters by level.
 In a video with subtitles, the line being said holds still, and only a word with its own timing lights.
 
