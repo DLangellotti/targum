@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     from .annotate import Annotator
     from .annotate.gloss import GlossProvider
+    from .tables import Store
     from .vocalize import Vocalizer
     from .weekly.models import Edition, Issue
 
@@ -53,6 +54,7 @@ cache_app = typer.Typer(no_args_is_help=True, help="Manage the cache.")
 video_app = typer.Typer(no_args_is_help=True, help="The curated video shelf.")
 export_app = typer.Typer(no_args_is_help=True, help="A text in another form.")
 corpus_app = typer.Typer(no_args_is_help=True, help="The corpus ledger as a dataset.")
+tables_app = typer.Typer(no_args_is_help=True, help="The language tables, which stay private.")
 app.add_typer(models_app, name="models")
 app.add_typer(cache_app, name="cache")
 app.add_typer(weekly_app, name="weekly")
@@ -61,6 +63,7 @@ app.add_typer(daily_app, name="daily")
 app.add_typer(video_app, name="video")
 app.add_typer(export_app, name="export")
 app.add_typer(corpus_app, name="corpus")
+app.add_typer(tables_app, name="tables")
 
 console = Console()
 err = Console(stderr=True)
@@ -4810,6 +4813,84 @@ def corpus_export(
         fail(TargumError("The export was not written.", str(error)))
     rows = ", ".join(f"{count} {table}" for table, count in sheet["rows"].items())
     console.print(f"[green]Wrote[/green] {rows} [dim]{to}[/dim]")
+
+
+def _tables_store() -> Store:
+    """The language tables in the corpus ledger, or a failure saying the ledger is off."""
+    from .tables import Store
+
+    store = Store.from_env()
+    if store is None:
+        fail(
+            TargumError(
+                "The corpus ledger is off.",
+                "Set TARGUM_LEDGER to the ledger file, then run this again.",
+            )
+        )
+    return store
+
+
+@tables_app.command("sweep")
+def tables_sweep(
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+) -> None:
+    """Count every public text's words and phrases into the language tables
+    (targum-internal#577).
+
+    Reads each built folder's `annotation.json`: no annotator runs and nothing is
+    fetched or spent. A reader's home is skipped, whatever it holds. Run again, it
+    counts only what is new or was annotated under a new name since.
+    """
+    from time import monotonic
+
+    from .tables import sweep
+
+    store = _tables_store()
+    root = library or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+    started = monotonic()
+    result = sweep(root, store)
+    took = monotonic() - started
+    console.print(
+        f"[green]Counted[/green] {result.folded} texts, {result.unchanged} unchanged,"
+        f" {result.private} in readers' homes left out, {result.unreadable} unreadable"
+        f" [dim]{took:.0f} s, {store.file}[/dim]"
+    )
+    for register, texts in sorted(result.by_register.items()):
+        console.print(f"  {register}: {texts}")
+
+
+@tables_app.command("top")
+def tables_top(
+    register: Annotated[str, typer.Option("--register", help="news, bible, literature…")],
+    phrases: Annotated[
+        bool, typer.Option("--phrases", help="Runs of two and three lemmas, not words.")
+    ] = False,
+    raw: Annotated[
+        bool, typer.Option("--raw", help="Keep function words, names and numbers.")
+    ] = False,
+    limit: Annotated[int, typer.Option("--limit", help="How many rows.")] = 50,
+) -> None:
+    """The commonest words, or phrases, in one register now (targum-internal#577).
+
+    Function words, names and numbers are counted but left out here unless --raw.
+    """
+    from .tables.words import PHRASES, WORDS
+
+    store = _tables_store()
+    table = PHRASES if phrases else WORDS
+    rows = store.top(table, register, limit=limit, weighed=not raw)
+    if not rows:
+        known = ", ".join(store.registers(table)) or "none yet"
+        console.print(f"Nothing counted under {register}. Registers counted: {known}.")
+        return
+    total = store.total(table, register)
+    for key, n in rows:
+        console.print(f"{n:>9}  {n / total:6.2%}  {key}")
 
 
 @export_app.command("pdf")
