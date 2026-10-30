@@ -167,6 +167,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (2.83 s to 3.00 s; the first visit's bytes still decide it), and its layout shift went
   from 0.41 to 0.003. Live before the change, as the test account: 4.05 s cold, 1.69 s
   warm, shift 0.41. Once the answer is in, the page is the same as before.
+- A reader opened on targum.page loads its files once (targum-internal#559; design.md
+  §12, approved by David 2026-10-29). The server hands a browser opening a reader the
+  page with today's stylesheets, scripts and faces named under `/assets/` and its
+  recordings under `/clips/`, so they are kept; the reader on disk, a save for offline
+  and a download stay whole and fetch nothing, and the worker never keeps a page that
+  needs its files as the copy for the plane. Measured locally on the phone profile with
+  the files kept: Ruth 1.34 s / 159 kB to 0.69 s / 14 kB, a scene 0.85 s / 325 kB to
+  0.66 s / 14 kB.
 - The pages in front of the account load their files once (targum-internal#549; design.md
   §12, approved by David 2026-10-28). The front door, a text's public page, About and the
   legal pages carried 65 to 122 kB of faces and up to 290 kB of CSS on every page under
