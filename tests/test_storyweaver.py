@@ -399,3 +399,114 @@ def test_a_bot_check_is_named_as_one(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     with pytest.raises(TargumError, match="something other than story 7686"):
         StoryWeaverFetcher().load("7686")
+
+
+# -- a file of answers saved from a signed-in browser ---------------------------------------
+
+#: A made-up book: two story pages, a cover and an attribution page under CC BY 4.0. Made
+#: up so no saved book's words are in the repository.
+_ATTRIBUTION = (
+    '<div class="content"><span class="self-attribution">This story: <span>Two Hats</span>'
+    ' is translated by <span><a href="https://storyweaver.org.in/users/1-a-b">A B</a></span>.'
+    " The © for this translation lies with <span>A B</span>, 2020. Some rights reserved."
+    " Released under CC BY 4.0 license.</span>"
+    '<span class="original-story-attribution">Based on Original story: <span>'
+    "'<a href=\"https://storyweaver.org.in/stories/9-two-hats\">Two Hats</a>'</span>, by"
+    ' <span><a href="https://storyweaver.org.in/users/2-c-d">C D</a></span>.'
+    " © <span>C D</span>, 2015. Some rights reserved. Released under CC BY 4.0 license."
+    '</span><div class="cc_footer">This book is CC-BY-4.0 licensed <a href='
+    '"http://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a></div></div>'
+)
+
+
+def _made_up(number: int) -> dict[str, Any]:
+    def story(text: str) -> dict[str, Any]:
+        return {"pageType": "StoryPage", "html": f'<div class="content"><p>{text}</p></div>'}
+
+    return {
+        "search": {"id": number, "title": "Two Hats", "level": "1"},
+        "read": {
+            "language": "English",
+            "slug": f"{number}-two-hats",
+            "pages": [
+                {
+                    "pageType": "FrontCoverPage",
+                    "html": '<p class="cover_title">Two Hats</p><span id="author_names">C D</span>',
+                },
+                story("A red hat sat on a chair."),
+                story("A blue hat sat on the red hat."),
+                {"pageType": "BackInnerCoverPage", "html": _ATTRIBUTION},
+            ],
+        },
+    }
+
+
+def _saved_file(tmp_path: Path, *books: dict[str, Any]) -> Path:
+    path = tmp_path / "saved.json"
+    path.write_text(json.dumps({"fetched": "2026-10-31", "books": list(books)}), encoding="utf-8")
+    return path
+
+
+def test_a_saved_book_is_read_from_the_file_and_the_network_is_not_asked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    asked = answering(monkeypatch)
+    monkeypatch.setenv(storyweaver.SAVED_ENV, str(_saved_file(tmp_path, _made_up(5001))))
+
+    document = ingest.load("storyweaver:5001")
+
+    assert asked == []
+    assert document.source == "storyweaver:5001"
+    assert document.title == "Two Hats"
+    paragraphs = [block.text for block in document.blocks if block.kind is BlockKind.paragraph]
+    assert paragraphs == ["A red hat sat on a chair.", "A blue hat sat on the red hat."]
+    terms = StoryWeaverFetcher().terms("5001")
+    assert terms.licence == "CC BY 4.0"
+    assert terms.page == "https://storyweaver.org.in/stories/5001-two-hats"
+
+
+def test_a_book_the_file_does_not_hold_is_asked_for(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failed fetch leaves a book in the file with no `read`; it is asked for as before."""
+    asked = answering(monkeypatch)
+    failed = {"search": {"id": 7686}, "status": "429"}
+    monkeypatch.setenv(storyweaver.SAVED_ENV, str(_saved_file(tmp_path, _made_up(5001), failed)))
+
+    assert ingest.load("storyweaver:7686").language == "it"
+    assert asked == ["https://storyweaver.org.in/api/v1/stories/7686/read"]
+
+
+def test_a_saved_book_is_still_refused_on_its_own_terms(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    book = _made_up(5001)
+    attribution_page = book["read"]["pages"][-1]
+    attribution_page["html"] = attribution_page["html"].replace("CC BY 4.0", "CC BY-NC 4.0")
+    monkeypatch.setenv(storyweaver.SAVED_ENV, str(_saved_file(tmp_path, book)))
+    with pytest.raises(TargumError, match="not ours to use"):
+        ingest.load("storyweaver:5001")
+
+
+def test_a_missing_or_shapeless_saved_file_says_so(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv(storyweaver.SAVED_ENV, str(tmp_path / "nowhere.json"))
+    with pytest.raises(TargumError, match="no saved StoryWeaver file"):
+        ingest.load("storyweaver:5001")
+
+    shapeless = tmp_path / "shapeless.json"
+    shapeless.write_text("[1, 2]", encoding="utf-8")
+    monkeypatch.setenv(storyweaver.SAVED_ENV, str(shapeless))
+    with pytest.raises(TargumError, match="no list of books"):
+        ingest.load("storyweaver:5001")
+
+
+def test_a_signed_out_answer_names_the_saved_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    def shut(url: str) -> str:
+        raise Unreachable("no", status=401, host="storyweaver.org.in")
+
+    monkeypatch.setattr(storyweaver, "get", shut)
+    with pytest.raises(TargumError, match="signed-in session") as caught:
+        StoryWeaverFetcher().load("7686")
+    assert storyweaver.SAVED_ENV in (caught.value.hint or "")
