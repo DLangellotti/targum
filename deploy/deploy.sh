@@ -680,6 +680,38 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         echo "   the catalogue lemma index was not written; the library keeps the one it had" >&2
       fi
 
+      # The web finds scorer map (targum-internal#619): each word form on the public
+      # shelf with the lemma DICTA gave it most often, read through tables.public_text
+      # so no reader import enters it. Built from the annotations the rebuild and the
+      # seed leave, checked before it is put in place, and put there by root the way the
+      # index above is, for the same reasons. It reads files only. Then the calibration
+      # against DICTA on the same shelf, which the back office shows. Neither is fatal:
+      # a map that was not written or failed its check leaves the old one, or none, and
+      # a box with none pools no finds.
+      if systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+          --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+          /usr/local/bin/targum finds forms --library /var/lib/targum/targums \
+            --write /var/lib/targum/forms.json \
+        && systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+          --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+          /usr/local/bin/targum finds forms --check /var/lib/targum/forms.json; then
+        if ! { runuser -u targum -- cat /var/lib/targum/forms.json \
+                 > /etc/targum/.forms.json.part \
+               && chown root:targum /etc/targum/.forms.json.part \
+               && chmod 0640 /etc/targum/.forms.json.part \
+               && mv -f /etc/targum/.forms.json.part /etc/targum/forms.json; }; then
+          rm -f /etc/targum/.forms.json.part
+          echo "   the finds map could not be put in place; finds keep the one they had" >&2
+        fi
+        systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+          --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+          /usr/local/bin/targum finds calibrate --library /var/lib/targum/targums \
+            --store /var/lib/targum/targum.db \
+          || echo "   the finds calibration did not run; the back office shows the last one" >&2
+      else
+        echo "   the finds map was not written or failed its check; finds keep the one they had" >&2
+      fi
+
       # Restarted again at the end, now that the shelf has been rewritten under it. The
       # first restart put the new code in front of readers; this one is cheap and makes
       # sure nothing the rebuild wrote is being served by a process that started before

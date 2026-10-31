@@ -2942,6 +2942,13 @@ class Feeds:
             self._warm.join(wait)
             self._warm = None
 
+    def kept(self) -> dict[str, list[Any]]:
+        """Every feed's last answer, fresh or not, with nothing pulled: what the hourly
+        round over the news reads (`finds.news`, targum-internal#619), so finding adds no
+        pull of its own to the feeds."""
+        with self._lock:
+            return {url: list(items) for url, (_, items) in self._kept.items() if items}
+
     def pull(self, urls: list[str], budget: float) -> dict[str, list[Any] | None]:
         """Each feed's items, or None where it would not answer; waiting at most
         `budget` seconds for all of them. A url missing from the answer is late."""

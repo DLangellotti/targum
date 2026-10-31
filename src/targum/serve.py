@@ -846,6 +846,10 @@ SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 #: query.
 SUBSCRIPTIONS_EVERY = 300
 
+#: How long after start a hosted server waits before its first round of news finds
+#: (targum-internal#619): long enough for the feeds it keeps warm to have come in.
+FINDS_FIRST_S = 120
+
 #: The hour, UTC, at which a hosted server deletes the accounts whose grace period ended
 #: and mails them the last letter (`Library.purge_departed`, design.md §12, "Every mail is
 #: the board's", 2026-10-09). An hour before targum-backup.timer, so the night's backup is
@@ -5872,6 +5876,8 @@ FILM_KINDS = frozenset({".mp4", ".m4v", ".webm"})
 #: One subscription's own page (design.md §12, "A subscription is the account's",
 #: 2026-10-09), `/subscriptions/<id>`.
 SUBSCRIPTION_PAGE = re.compile(r"/subscriptions/(\d+)")
+#: A web find's Open (targum-internal#619): a pasted link's press on a link targum found.
+FIND_OPEN = re.compile(r"/finds/(\d+)/open")
 
 
 def web_manifest() -> dict[str, Any]:
@@ -8694,8 +8700,21 @@ class Handler(BaseHTTPRequestHandler):
             told=self.store.told(),
             faults=self.store.faults(),
             reader=one,
+            finds=self._finds_survey(),
         )
         self._send(200, page.encode("utf-8"), HTML)
+
+    def _finds_survey(self) -> object:
+        """The pool of web finds counted for the back office, read-only (#619)."""
+        import sqlite3
+
+        from .finds import pool as finds_pool
+
+        db = sqlite3.connect(f"file:{self.store.path}?mode=ro", uri=True)
+        try:
+            return finds_pool.survey(db)
+        finally:
+            db.close()
 
     def _open_the_door(self, form: dict[str, str]) -> None:
         """Let the next few off the waitlist in, from the back office's own form.
@@ -9743,6 +9762,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._targum_set(unquote(route[len("/playlists/targum/") :]))
         if route.startswith("/playlists/"):
             return self._playlists_post(route[len("/playlists/") :], payload)
+        if FIND_OPEN.fullmatch(route):
+            return self._open_find(route[len("/finds/") : -len("/open")])
         if route == "/already":
             return self._already(payload)
         if route == "/describe":
@@ -14967,6 +14988,73 @@ class Handler(BaseHTTPRequestHandler):
         self.library.remember(job)
         self._json(job.state())
 
+    def _open_find(self, which: str) -> None:
+        """Open a web find: a pasted link's press on a link targum found (targum-internal
+        #619; design.md §12, "A web find is a pasted link targum found", 2026-10-31).
+
+        The link is priced the way Add prices a pasted one (`Library.prepare`, which
+        spends nothing), as the reader's own import: their job, landing in their home.
+        Where the quote's credits are no more than the card said, the press is the
+        reader's own tap on the card, and it goes through `Library.press` and so
+        `Library.claim`, like every other build. Where the quote is higher, or the door
+        refused the link, nothing is built and the page is sent to Add with the link in
+        hand, which shows the ordinary confirm or the door's sentence.
+        """
+        from urllib.parse import quote as quoted
+
+        from .chat import tools as tools_module
+        from .finds import pool as finds_pool
+        from .translate.prompts import INTO
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        found = finds_pool.get(self.store, int(which)) if which.isdigit() else None
+        if found is None:
+            return self._json(
+                {"error": self._say("finds.gone", "That one has gone. Try another.")}, 404
+            )
+        confirm = "/add?source=" + quoted(found.url, safe="")
+        offered = {code for code, _ in INTO}
+        reads = [code for code in self._reads() if code in offered]
+        into = "en" if "en" in reads or not reads else reads[0]
+        job = Job(
+            ui=self._page_language(),
+            id=secrets.token_hex(8),
+            source=found.url,
+            options={
+                "to": into,
+                "from": found.language,
+                "words": True,
+                "gloss": False,
+                # Where the press came from, as the connector's jobs say theirs: the
+                # back office counts finds opened off this, and the pool id with it.
+                "via": "find",
+                "find": found.id,
+            },
+            owner=person.id,
+            admin=bool(person.admin),
+            home=self.library.home(person),
+        )
+        self.library.jobs[job.id] = job
+        self.library.remember(job)
+        self.library.prepare(job)
+        self.library.remember(job)
+        quote_credits = tools_module.credits_for(job.seconds) if job.audio else 0
+        if job.stage != "ready" or quote_credits > found.credits:
+            return self._json(
+                {
+                    **job.state(),
+                    "pressed": False,
+                    "confirm": confirm,
+                    "credits": quote_credits,
+                    "card_credits": found.credits,
+                }
+            )
+        if self.library.press(job):
+            return self._json({**job.state(), "pressed": False, "confirm": confirm}, 402)
+        return self._json({**job.state(), "pressed": True})
+
     def _build(self, payload: dict[str, Any]) -> None:
         job = self._own_job(str(payload.get("id", "")))
         if job is None:
@@ -17444,6 +17532,23 @@ def start(
         tools_module.FEEDS.keep_warm(
             lambda: [publisher.feed for publisher in sources_module.load() if publisher.feed]
         )
+        # The news finds, hourly, off the items the feeds already hold (targum-internal
+        # #619): no pull of its own, and nothing a Home request waits on. The first round
+        # waits a little, for the feeds to come in.
+        from .finds import news as finds_news
+
+        def keep_finding() -> None:
+            time.sleep(FINDS_FIRST_S)
+            while True:
+                try:
+                    found = finds_news.refresh(keeping)
+                    if found.seen:
+                        log.info("finds: news %s", found)
+                except Exception as error:  # noqa: BLE001 - never takes the server down
+                    log.warning("finds: the news round failed: %s", error)
+                time.sleep(finds_news.EVERY_S)
+
+        threading.Thread(target=keep_finding, name="finds", daemon=True).start()
     # A stop drains first (`Stopping`). Only where signals can be caught at all, which is
     # the main thread: the suite starts servers on threads of their own by the dozen.
     previous: dict[signal.Signals, Any] = {}
