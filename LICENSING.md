@@ -785,6 +785,32 @@ with the spaces moved (anything past a bigram comes back to #224 first), or a se
 reaches anything a reader sees — the ShareAlike term reaches targum and this paragraph is
 wrong.
 
+### The yardsticks' outside corpora, counted and never kept — 2026-10-31
+
+A reader's figure for how much of a register they know is measured against a list of
+that register's commonest words (targum-internal#579). Two of the registers are counted
+from text that is not ours. The count runs through the DICTA annotator on a developer's
+laptop, by `targum tables count-corpus`. Only lemmas, short runs of lemmas seen at least
+three times in a chunk, and their counts are written. No sentence is stored, and the text
+is deleted from the laptop when the count finishes. The lists stay on our server, and a
+reader sees a percentage.
+
+- **Conversation: OPUS OpenSubtitles v2024, Hebrew** (targum-internal#580). This is a
+  random sample of the monolingual `he.txt.gz`. OPUS states no licence for the text. The
+  subtitles belong to their translators, and the corpus asks to be cited: P. Lison and
+  J. Tiedemann, 2016, "OpenSubtitles2016: Extracting Large Parallel Corpora from Movie
+  and TV Subtitles", LREC 2016, with a link to
+  [opensubtitles.org](https://www.opensubtitles.org). Counts are facts about the text and
+  reproduce none of it. wordfreq already ships on the same footing, with OpenSubtitles
+  inside it.
+- **Classic literature: Project Ben-Yehuda's public-domain dump, release `2026-03`**
+  (targum-internal#581). It is prose, drama, fables and memoir written in Hebrew, with no
+  translations, poetry or reference, sampled by work. It is public domain. We credit
+  "Project Ben-Yehuda volunteers" and [benyehuda.org](https://benyehuda.org), as they ask.
+
+Every row carries its source and licence line (`contribution.source`, `.licence`), so any
+count can be traced to its corpus and taken out by it.
+
 ### FLORES+, which the chat's recast is scored against, and which never ships
 
 The chat opens every reply with the reader's line recast into Hebrew, and since
