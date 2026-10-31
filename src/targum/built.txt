@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-30
+Your Progress says how much of everyday talk, the news, literature and the Bible your Hebrew words cover.
+Your Progress names the Hebrew binyan you know least, with a grid of each binyan by tense.
+A Russian verb's card names its true aspect partner, and a line of related verbs such as begin or once.
+
 2026-10-29
 A text card says what share of its words you know as an exact percentage, such as 72%.
 Your Progress opens with your level and the texts you can read at it, and the Library filters by level.
