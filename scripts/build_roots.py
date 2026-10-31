@@ -669,17 +669,27 @@ def _score(
         print(f"No blind set was drawn for {run.name}.", file=sys.stderr)
         return 2
     rows = {int(k): int(v) for k, v in json.loads(rows_file.read_text()).items()}
-    scores = {
-        model: rl.score(language, gold, _answers(state, language, model, chunks), rows)
-        for model in models
+    answers = {model: _answers(state, language, model, chunks) for model in models}
+    scores: dict[str, Any] = {
+        model: rl.score(language, gold, answers[model], rows) for model in models
     }
-    write_atomic(run / "gold-score.json", json.dumps(scores, ensure_ascii=False, indent=1))
     for model, result in scores.items():
         line = ", ".join(
             f"{name} {part['rate']} ({part['agreed']}/{part['asked']})"
             for name, part in result.items()
         )
         print(f"{model}: {line}")
+    if len(models) == 2:
+        # What the lexicon would ship: the rows both models settle, and how right they are.
+        shipped = rl.score_agreed(language, gold, answers[models[0]], answers[models[1]], rows)
+        scores["agreed"] = shipped
+        line = ", ".join(
+            f"{name} {part['accuracy']} ({part['right']}/{part['agreed']})"
+            f" on {part['coverage']} ({part['agreed']}/{part['rows']})"
+            for name, part in shipped.items()
+        )
+        print(f"agreed: {line}")
+    write_atomic(run / "gold-score.json", json.dumps(scores, ensure_ascii=False, indent=1))
     return 0
 
 

@@ -749,15 +749,16 @@ def parse(language: str, text: str, ids: Iterable[int]) -> dict[int, Answer]:
 
 
 def same_root(first: Answer | None, second: Answer | None) -> bool | None:
-    """Whether two answers give one root: the same letters (Hebrew, both none counting as
-    the same), or a first root whose spellings meet (Russian). None where either is
+    """Whether two answers give one root: the same letters after the weak-letter rules
+    (`same_he_root`; both none counting as the same), or a first root whose spellings
+    meet, directly or through `RU_ROOTS` and `RU_FUSED` (Russian). None where either is
     missing."""
     if first is None or second is None:
         return None
     if isinstance(first, HebrewRoot) and isinstance(second, HebrewRoot):
-        return first.root == second.root
+        return same_he_root(first.root, second.root)
     if isinstance(first, RussianRoot) and isinstance(second, RussianRoot):
-        return bool(first.spellings & second.spellings)
+        return any(same_ru_root(s, second.spellings) for s in first.spellings)
     return False
 
 
@@ -1085,10 +1086,12 @@ def agreement(
     }
     if language == "he":
         out["pattern"] = rate(lambda a, b: a.pattern == b.pattern)
-        out["root_and_pattern"] = rate(lambda a, b: a.root == b.root and a.pattern == b.pattern)
+        out["root_and_pattern"] = rate(
+            lambda a, b: bool(same_root(a, b)) and a.pattern == b.pattern
+        )
         rooted = [i for i in both if first[i].root and second[i].root]  # type: ignore[union-attr]
         out["root_where_both_give_one"] = (
-            round(sum(first[i].root == second[i].root for i in rooted) / len(rooted), 3)  # type: ignore[union-attr]
+            round(sum(bool(same_root(first[i], second[i])) for i in rooted) / len(rooted), 3)
             if rooted
             else None
         )
@@ -1126,76 +1129,338 @@ def _yes(cell: str) -> bool:
     return cell.strip().lower() in {"yes", "y", "true", "1", "כן", "да"}
 
 
+# --- Equivalences -----------------------------------------------------------------------
+# The same analysis written under another convention, listed by the two blind labellers
+# before either saw a model's answer (ling-he's and ling-ru's gold notes, 2026-10-31).
+# Each is a rule or a short table, never a fuzzy match. The rules that need nothing from
+# the gold set (weak letters, the tables) also decide whether two models agree.
+
+
+def weak_key(root: str | None) -> str:
+    """A Hebrew root with its weak-letter conventions folded, as a `root_key`: two letters
+    are a geminate (ק־ל = ק־ל־ל), and of three, a first ו is written י (ו־כ־ח = י־כ־ח), a
+    middle י is written ו (ב־י־נ = ב־ו־נ) and a last י is written ה (ר־צ־י = ר־צ־ה)."""
+    radicals = list(letters(root))
+    if len(radicals) == 2:
+        radicals.append(radicals[1])
+    if len(radicals) == 3:
+        radicals[0] = "י" if radicals[0] == "ו" else radicals[0]
+        radicals[1] = "ו" if radicals[1] == "י" else radicals[1]
+        radicals[2] = "ה" if radicals[2] == "י" else radicals[2]
+    return MAQAF.join(radicals)
+
+
+#: A root made from a word, beside the root of that word: a quadriliteral (ארגון,
+#: ריאיון, מלאכותי) or a root cut from a ת- form (התחיל, תוכנית). Either is right.
+HE_SOURCES: tuple[frozenset[str], ...] = tuple(
+    frozenset(weak_key(r) for r in pair)
+    for pair in (
+        ("א־ר־ג־נ", "א־ר־ג"),
+        ("ר־א־י־נ", "ר־א־ה"),
+        ("ל־א־כ", "מ־ל־א־כ"),
+        ("ת־ח־ל", "ח־ל־ל"),
+        ("ת־כ־נ", "כ־ו־נ"),
+    )
+)
+
+
+def same_he_root(first: str | None, second: str | None) -> bool:
+    """Whether two Hebrew roots are one root under the weak-letter rules or `HE_SOURCES`.
+    Two answers of no root are the same; no root and a root are not."""
+    a, b = weak_key(first), weak_key(second)
+    return a == b or any(a in pair and b in pair for pair in HE_SOURCES)
+
+
+_NOTE_ROOT = re.compile(r"[א-ת](?:־[א-ת])+")
+
+
+def gold_roots_he(cell: str, notes: str) -> frozenset[str]:
+    """Every root a Hebrew gold row accepts, "" for none: the cell's; on a primary noun
+    (notes starting `primary:`) also none and each root the notes name as its dictionary
+    root; and none where the notes say `accept "-"`."""
+    out = {"" if cell.strip() == "-" else root_key(cell)}
+    notes = notes.strip()
+    if notes.startswith("primary:"):
+        out |= {"", *(root_key(r) for r in _NOTE_ROOT.findall(notes))}
+    if 'accept "-"' in notes:
+        out.add("")
+    return frozenset(out)
+
+
+_HOLAM, _QUBBUTS, _DAGESH = "ֹ", "ֻ", "ּ"
+
+
+def skeleton(pattern: str | None) -> str:
+    """A pattern's consonants, to compare two templates by: the pointing dropped, except
+    that a holam or a qubbuts is written as the ו it stands for (קֹטֵל = קוֹטֵל) and a
+    dagesh in a radical as the radical doubled (קַטָּל is not קֶטֶל). A vowel alone never
+    tells two templates apart, so מִקְטָל = מַקְטָל."""
+    out: list[str] = []
+    for ch in unicodedata.normalize("NFD", pattern or ""):
+        if "א" <= ch <= "ת":
+            out.append(ch.translate(_FINALS))
+        elif not out:
+            continue
+        elif ch == _DAGESH and out[-1] in "קטל":
+            out.append(out[-1])
+        elif ch in (_HOLAM, _QUBBUTS) and out[-1] != "ו":
+            out.append("ו")
+    return "".join(out)
+
+
+#: The participle templates of each binyan: a participle used as an adjective (נוסף,
+#: נכון, מתאים) may be given either its binyan or its template.
+PARTICIPLES: dict[str, frozenset[str]] = {
+    binyan: frozenset(skeleton(t) for t in templates)
+    for binyan, templates in {
+        "פעל": ("קוֹטֵל", "קָטוּל"),
+        "נפעל": ("נִקְטָל",),
+        "פיעל": ("מְקַטֵּל",),
+        "פועל": ("מְקֻטָּל",),
+        "הפעיל": ("מַקְטִיל",),
+        "הופעל": ("מֻקְטָל",),
+        "התפעל": ("מִתְקַטֵּל",),
+    }.items()
+}
+
+
+def same_pattern(first: str | None, second: str | None) -> bool:
+    """Whether two Hebrew patterns are one: the same binyan, the same `skeleton`, or a
+    binyan and one of its participle templates."""
+    first, second = first or "", second or ""
+    if not first or not second:
+        return first == second
+    a, b = letters(first), letters(second)
+    if a in BINYANIM and b in BINYANIM:
+        return a == b
+    if a in BINYANIM or b in BINYANIM:
+        binyan, template = (a, second) if a in BINYANIM else (b, first)
+        return skeleton(template) in PARTICIPLES[binyan]
+    return skeleton(first) == skeleton(second)
+
+
+def _groups(*spellings: str) -> tuple[frozenset[str], ...]:
+    return tuple(frozenset(fold_ru(s) for s in one.split("/")) for one in spellings)
+
+
+#: Russian spellings that are one root: a root with and without a suffix-like extension;
+#: the go and take allomorphs; the pronoun stems; spellings of one morph.
+RU_ROOTS: tuple[frozenset[str], ...] = _groups(
+    "полн/пол",
+    "тем/темн",
+    "черн/чер",
+    "числ/чис",
+    "звук/зв",
+    "чувств/чу",
+    "действ/дей",
+    "существ/сущ",
+    "жи/жиз/жизн",
+    "трет/тре",
+    "сторон/стор",
+    "знач/зна",
+    "власт/влас/влад",
+    "окн/ок",
+    "работ/раб",
+    "рубл/руб",
+    "богат/бог",
+    "й/йд/ид/ход",
+    "ня/я",
+    "т/то/тот/том",
+    "ч/что/чег/чем",
+    "к/коль/скольк",
+    "вс/весь/все",
+    "моч/мог/мо",
+    "сес/се/сяд",
+    "огон/огн",
+    "стел/постел",
+    "де/деж/одеж",
+)
+
+#: A prefix left fused into its root, or split off: (the fused stem, the prefix, the
+#: root once it is split). Last, the two fused words whose historical root is accepted.
+RU_FUSED: tuple[tuple[str, str, frozenset[str]], ...] = tuple(
+    (fused, prefix, frozenset(split.split("/")))
+    for fused, prefix, split in (
+        ("наде", "на", "де"),
+        ("ужас", "у", "жас"),
+        ("улыб", "у", "лыб"),
+        ("помн", "по", "мн/мин"),
+        ("закон", "за", "кон"),
+        ("недел", "не", "дел"),
+        ("случ", "с", "луч"),
+        ("нельзя", "не", "льз"),
+        ("неужели", "не", "уж"),
+        ("обыч", "об", "ыч"),
+        ("обращ", "об", "ращ/врат/вращ"),
+        ("опять", "о", "пят"),
+        ("почти", "по", "чт"),
+    )
+)
+
+#: Prefix spellings that are one prefix (встать: в or вс; войти: в or во; подойти).
+RU_PREFIXES = {"вс": "в", "во": "в", "подо": "под"}
+
+
+def _ru_classes() -> tuple[frozenset[str], ...]:
+    return RU_ROOTS + tuple(frozenset({fused, *split}) for fused, _, split in RU_FUSED)
+
+
+def same_ru_root(gold: str, spellings: Iterable[str]) -> bool:
+    """Whether a Russian root morph is among an answer's spellings, directly or through
+    `RU_ROOTS` or `RU_FUSED`."""
+    held = frozenset(spellings)
+    if gold in held:
+        return True
+    return any(gold in one and one & held for one in _ru_classes())
+
+
+def ru_prefixes(prefixes: Iterable[str]) -> tuple[str, ...]:
+    """Prefixes with their spellings folded (`RU_PREFIXES`), and a doubled letter written
+    as a prefix of its own dropped (рас-с = рас)."""
+    out: list[str] = []
+    for one in prefixes:
+        if len(one) == 1 and out and out[-1].endswith(one):
+            continue
+        out.append(RU_PREFIXES.get(one, one))
+    return tuple(out)
+
+
+def gold_prefixes_ru(root: str, prefixes: Sequence[str]) -> frozenset[tuple[str, ...]]:
+    """Every prefix sequence a Russian gold row accepts: its own, and where its root is a
+    fused stem or the root of one (`RU_FUSED`), the same with that prefix split off or
+    left in."""
+    want = ru_prefixes(prefixes)
+    out = {want}
+    for fused, prefix, split in RU_FUSED:
+        if root == fused or root in split:
+            bare = tuple(p for p in want if p != prefix)
+            out |= {bare, (*bare, prefix)}
+    return frozenset(out)
+
+
+# --- The blind gold set -----------------------------------------------------------------
+
+
+def _gold(gold_file: Path) -> list[dict[str, str]]:
+    with gold_file.open(encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
+
+
+def judge(
+    language: str, row: Mapping[str, str], answer: Answer | None
+) -> dict[str, tuple[bool, str, str]] | None:
+    """One answer against one gold row, field by field: (right, the answer's, the
+    gold's). None for an unlabelled row; a field the row leaves blank is not judged.
+
+    Hebrew: the root under `same_he_root` with `gold_roots_he`; the pattern under
+    `same_pattern` where the reviewer gave one; the borrowed flag. A blank root with no
+    "borrowed" is unlabelled, and "-" means the reviewer says the word has none.
+    Russian: the reviewer's first morph under `same_ru_root`; the prefixes under
+    `gold_prefixes_ru`; the transparency where given; the borrowed flag.
+    """
+    borrowed_cell = row.get("borrowed", "")
+    if language == "he":
+        cell = row.get("root", "").strip()
+        if not cell and not _yes(borrowed_cell):
+            return None
+        if not isinstance(answer, HebrewRoot):
+            return {"root": (False, "(no answer)", cell)}
+        accepted = gold_roots_he(cell, row.get("notes", ""))
+        theirs = "" if cell == "-" else root_key(cell)
+        out = {
+            "root": (any(same_he_root(answer.root, r) for r in accepted), answer.root, theirs),
+            "borrowed": (
+                answer.borrowed == _yes(borrowed_cell),
+                str(answer.borrowed),
+                borrowed_cell,
+            ),
+        }
+        want = unicodedata.normalize("NFC", row.get("pattern", "").strip())
+        if want:
+            out["pattern"] = (same_pattern(answer.pattern, want), answer.pattern, want)
+        return out
+    cell = fold_ru(row.get("roots", "").split("+")[0].split("(")[0])
+    if not cell:
+        return None
+    if not isinstance(answer, RussianRoot):
+        return {"root": (False, "(no answer)", cell)}
+    want_p = [p for p in (fold_ru(x) for x in re.split(r"[-,\s]+", row.get("prefixes", ""))) if p]
+    out = {
+        "root": (
+            same_ru_root(cell, answer.spellings),
+            "/".join(sorted(answer.spellings)),
+            cell,
+        ),
+        "prefixes": (
+            ru_prefixes(answer.prefixes) in gold_prefixes_ru(cell, want_p),
+            "-".join(answer.prefixes),
+            "-".join(want_p),
+        ),
+        "borrowed": (answer.borrowed == _yes(borrowed_cell), str(answer.borrowed), borrowed_cell),
+    }
+    want_t = row.get("transparency", "").strip().lower()
+    if want_t in TRANSPARENCY:
+        out["transparency"] = (answer.transparency == want_t, answer.transparency, want_t)
+    return out
+
+
+def _fields(language: str) -> tuple[str, ...]:
+    if language == "he":
+        return ("root", "borrowed", "pattern")
+    return ("root", "borrowed", "prefixes", "transparency")
+
+
 def score(
     language: str, gold_file: Path, answers: Mapping[int, Answer], rows_to_ids: Mapping[int, int]
 ) -> dict[str, Any]:
-    """One model's answers scored against a filled-in blind set. A gold row with an empty
-    root cell and no "borrowed" is skipped as unlabelled; "-" in the root cell means the
-    reviewer says the word has none.
+    """One model's answers scored against a filled-in blind set, field by field (`judge`)."""
+    tallies = {name: Tally() for name in _fields(language)}
+    for row in _gold(gold_file):
+        answer = answers.get(rows_to_ids.get(int(row["row"]), -1))
+        verdicts = judge(language, row, answer)
+        for name, (ok, ours, theirs) in (verdicts or {}).items():
+            tallies[name].add(ok, row["lemma"], ours, theirs)
+    return {name: tally.as_dict() for name, tally in tallies.items()}
 
-    Hebrew: the root (letters), the pattern where the reviewer gave one, the borrowed flag.
-    Russian: the root (the reviewer's first morph among the answer's spellings), the
-    prefixes as a sequence, the transparency where given.
-    """
-    root, pattern, borrowed, prefixes, transparency = Tally(), Tally(), Tally(), Tally(), Tally()
-    with gold_file.open(encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
-            number = int(row["row"])
-            answer = answers.get(rows_to_ids.get(number, -1))
-            lemma = row["lemma"]
-            if language == "he":
-                cell = row.get("root", "").strip()
-                if not cell and not _yes(row.get("borrowed", "")):
-                    continue
-                if not isinstance(answer, HebrewRoot):
-                    root.add(False, lemma, "(no answer)", cell)
-                    continue
-                theirs = "" if cell == "-" else root_key(cell)
-                root.add(answer.root == theirs, lemma, answer.root, theirs)
-                borrowed.add(
-                    answer.borrowed == _yes(row.get("borrowed", "")),
-                    lemma,
-                    str(answer.borrowed),
-                    row.get("borrowed", ""),
-                )
-                want = unicodedata.normalize("NFC", row.get("pattern", "").strip())
-                if want:
-                    got = answer.pattern
-                    ok = got == want or (
-                        letters(want) in BINYANIM and letters(got) == letters(want)
-                    )
-                    pattern.add(ok, lemma, got, want)
-            else:
-                cell = fold_ru(row.get("roots", "").split("+")[0].split("(")[0])
-                if not cell:
-                    continue
-                if not isinstance(answer, RussianRoot):
-                    root.add(False, lemma, "(no answer)", cell)
-                    continue
-                root.add(cell in answer.spellings, lemma, "/".join(sorted(answer.spellings)), cell)
-                want_p = tuple(
-                    p
-                    for p in (fold_ru(x) for x in re.split(r"[-,\s]+", row.get("prefixes", "")))
-                    if p
-                )  # noqa: E501
-                prefixes.add(
-                    answer.prefixes == want_p, lemma, "-".join(answer.prefixes), "-".join(want_p)
-                )
-                want_t = row.get("transparency", "").strip().lower()
-                if want_t in TRANSPARENCY:
-                    transparency.add(
-                        answer.transparency == want_t, lemma, answer.transparency, want_t
-                    )
-                borrowed.add(
-                    answer.borrowed == _yes(row.get("borrowed", "")),
-                    lemma,
-                    str(answer.borrowed),
-                    row.get("borrowed", ""),
-                )
-    out = {"root": root.as_dict(), "borrowed": borrowed.as_dict()}
-    if language == "he":
-        out["pattern"] = pattern.as_dict()
-    else:
-        out["prefixes"] = prefixes.as_dict()
-        out["transparency"] = transparency.as_dict()
+
+def _agree(name: str, first: Answer, second: Answer) -> bool:
+    """Whether the lexicon would settle a field on two answers, as `agreed` does."""
+    if not same_root(first, second):
+        return False
+    if name == "root":
+        return True
+    mine, theirs = getattr(first, name), getattr(second, name)
+    if name in ("pattern", "transparency") and not mine:
+        return False  # nothing to ship
+    return bool(mine == theirs)
+
+
+def score_agreed(
+    language: str,
+    gold_file: Path,
+    first: Mapping[int, Answer],
+    second: Mapping[int, Answer],
+    rows_to_ids: Mapping[int, int],
+) -> dict[str, Any]:
+    """What the lexicon would ship, scored: for each field, the gold rows judged on it,
+    how many of them the two models settle (`agreed`: the root after the equivalences,
+    any other field only where the root is settled too, and a pattern or a grade only
+    where there is one to ship), and how many of those the shipped value, the first
+    model's, gets right."""
+    out: dict[str, dict[str, Any]] = {}
+    for name in _fields(language):
+        out[name] = {"rows": 0, "agreed": 0, "right": 0}
+    for row in _gold(gold_file):
+        at = rows_to_ids.get(int(row["row"]), -1)
+        a, b = first.get(at), second.get(at)
+        verdicts = judge(language, row, a)
+        for name, (ok, _, _) in (verdicts or {}).items():
+            tally = out[name]
+            tally["rows"] += 1
+            if a is not None and b is not None and _agree(name, a, b):
+                tally["agreed"] += 1
+                tally["right"] += ok
+    for tally in out.values():
+        tally["coverage"] = round(tally["agreed"] / tally["rows"], 3) if tally["rows"] else None
+        tally["accuracy"] = round(tally["right"] / tally["agreed"], 3) if tally["agreed"] else None
     return out

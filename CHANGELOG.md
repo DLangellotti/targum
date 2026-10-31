@@ -12,6 +12,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   80% слов», not «80% слов известно»); «знакомо», «знакомые» and «известно» are gone. The
   marks are «знаки кантилляции» on the parasha pages too, not «знаки распева». English is
   unchanged.
+- The root lexicons' gold score accepts the conventions the two blind labellers listed
+  before they saw any model answer (targum-internal#592, #596). Hebrew: a III-weak ה is
+  a י, a hollow ו is a י, a I-ו is a י, a geminate may be written with two letters, a
+  word-made quadriliteral accepts its source (`HE_SOURCES`), a primary noun accepts none
+  or its dictionary root, patterns compare by consonants (`skeleton`), and a participle
+  accepts its binyan. Russian: a fused prefix may be split, a root may carry or drop a
+  listed extension, and the listed allomorphs, prefix spellings, pronoun stems and
+  historical roots count (`RU_ROOTS`, `RU_FUSED`, `RU_PREFIXES`). Two models now agree on
+  a root under the same rules. `--score` adds an `agreed` line: the rows both models
+  settle, how many there are, and how right the shipped answer is. No spend.
 - A prefix letter is never a word to learn (2026-10-30). Your Progress's "Words you
   keep meeting and don't know yet" showed a bare כ: DICTA splits a clitic off as its own
   token, a reader who tapped it had it on their list, and the list counted every token.

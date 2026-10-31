@@ -299,6 +299,159 @@ def test_a_filled_blind_set_scores_each_answer(tmp_path: Path) -> None:
     assert out["root"]["agreed"] == 1 and out["prefixes"]["agreed"] == 1
 
 
+# -- The equivalences: one word each --------------------------------------------------------
+
+
+def _scores(language: str, tmp_path: Path, gold_row: str, answer: rl.Answer) -> dict[str, Any]:
+    gold = tmp_path / f"gold-{language}.csv"
+    gold.write_text(",".join(rl.GOLD_COLUMNS[language]) + "\n" + gold_row + "\n", "utf-8")
+    return rl.score(language, gold, {0: answer}, {1: 0})
+
+
+def _rate(out: dict[str, Any], name: str) -> float:
+    return float(out[name]["rate"])
+
+
+def test_a_third_radical_he_is_a_yod() -> None:
+    assert rl.same_he_root("ר־צ־י", "ר־צ־ה")
+    assert not rl.same_he_root("מ־ח־ה", "מ־ח־א"), "III-א is not III-weak"
+
+
+def test_a_hollow_root_is_written_with_vav_or_yod() -> None:
+    assert rl.same_he_root("ב־ו־נ", "ב־י־נ")
+
+
+def test_a_first_radical_vav_is_a_yod() -> None:
+    assert rl.same_he_root("ו־כ־ח", "י־כ־ח")
+
+
+def test_a_geminate_may_be_written_with_two_letters() -> None:
+    assert rl.same_he_root("ק־ל", "ק־ל־ל")
+    assert not rl.same_he_root("ק־ל", "ק־ו־ל")
+
+
+def test_a_quadriliteral_made_from_a_word_accepts_its_source() -> None:
+    assert rl.same_he_root("א־ר־ג", "א־ר־ג־נ")
+    assert rl.same_he_root("ח־ל־ל", "ת־ח־ל")
+    assert not rl.same_he_root("א־ר־ג", "ת־ח־ל")
+
+
+def test_no_root_and_a_root_are_never_one() -> None:
+    assert rl.same_he_root("", "")
+    assert not rl.same_he_root("", "ב־ק־ר")
+
+
+def test_a_primary_noun_accepts_none_or_its_dictionary_root(tmp_path: Path) -> None:
+    row = "1,כסף,,NOUN,money,-,,no,primary: no live family; dictionary root כ־ס־פ"
+    assert _rate(_scores("he", tmp_path, row, _he(root="כ־ס־פ")), "root") == 1.0
+    assert _rate(_scores("he", tmp_path, row, _he()), "root") == 1.0
+    assert _rate(_scores("he", tmp_path, row, _he(root="כ־ס־ה")), "root") == 0.0
+    plain = "1,כסף,,NOUN,money,-,,no,function word; dictionary root כ־ס־פ"
+    assert _rate(_scores("he", tmp_path, plain, _he(root="כ־ס־פ")), "root") == 0.0
+
+
+def test_a_doubtful_root_accepts_none_where_the_notes_say_so(tmp_path: Path) -> None:
+    row = '1,דם,,NOUN,blood,ד־מ־מ,,no,"doubtful: live family; accept ""-"""'
+    assert _rate(_scores("he", tmp_path, row, _he()), "root") == 1.0
+    assert _rate(_scores("he", tmp_path, row, _he(root="ד־מ")), "root") == 1.0
+
+
+def test_two_templates_compare_by_their_consonants() -> None:
+    assert rl.same_pattern("מַקְטָל", "מִקְטָל"), "a guttural's vowel"
+    assert rl.same_pattern("קֹטֵל", "קוֹטֵל"), "holam written or not"
+    assert rl.same_pattern("קְטוּלָּה", "קְטֻלָּה"), "shuruk or qubbuts"
+    assert not rl.same_pattern("קַטָּל", "קֶטֶל"), "a doubled radical is a consonant"
+    assert not rl.same_pattern("קָטִיל", "קָטָל"), "a written yod is a letter"
+
+
+def test_a_participle_accepts_its_binyan_or_its_template() -> None:
+    assert rl.same_pattern("נִקְטָל", "נפעל")
+    assert rl.same_pattern("נפעל", "נִקְטָל")
+    assert rl.same_pattern("מקטיל", "הפעיל")
+    assert not rl.same_pattern("נִקְטָל", "הפעיל")
+    assert not rl.same_pattern("פעל", "פיעל")
+
+
+def test_a_fused_prefix_may_be_split_off(tmp_path: Path) -> None:
+    row = "1,неделя,,NOUN,week,недел () [1 week],,,transparent,no,"
+    out = _scores("ru", tmp_path, row, _ru("дел", ("не",)))
+    assert _rate(out, "root") == 1.0 and _rate(out, "prefixes") == 1.0
+    out = _scores("ru", tmp_path, row, _ru("недел"))
+    assert _rate(out, "root") == 1.0 and _rate(out, "prefixes") == 1.0
+    assert _rate(_scores("ru", tmp_path, row, _ru("дел", ("на",))), "prefixes") == 0.0
+
+
+def test_a_split_prefix_may_be_left_fused(tmp_path: Path) -> None:
+    row = "1,обычный,,ADJ,usual,ыч (вык) [1 habit],об,н,partial,no,"
+    out = _scores("ru", tmp_path, row, _ru("обыч"))
+    assert _rate(out, "root") == 1.0 and _rate(out, "prefixes") == 1.0
+
+
+def test_a_root_with_or_without_its_extension() -> None:
+    assert rl.same_ru_root("полн", ["пол"])
+    assert rl.same_ru_root("власт", ["влад", "волост"])
+    assert not rl.same_ru_root("полн", ["пл"])
+
+
+def test_the_go_allomorphs_are_one_root() -> None:
+    assert rl.same_ru_root("й", ["йд"])
+    assert rl.same_ru_root("ня", ["я"])
+
+
+def test_prefix_spellings_are_one_prefix(tmp_path: Path) -> None:
+    assert rl.ru_prefixes(["вс"]) == rl.ru_prefixes(["в"])
+    assert rl.ru_prefixes(["во"]) == ("в",)
+    assert rl.ru_prefixes(["подо"]) == ("под",)
+    assert rl.ru_prefixes(["рас", "с"]) == ("рас",)
+    row = "1,рассказать,,VERB,tell,каз (каж) [1 show],рас-с,а,partial,no,"
+    assert _rate(_scores("ru", tmp_path, row, _ru("каз", ("рас",))), "prefixes") == 1.0
+
+
+def test_a_pronoun_stem_has_its_spellings() -> None:
+    assert rl.same_ru_root("ч", ["чего", "что"])
+    assert not rl.same_ru_root("к", ["ск"])
+
+
+def test_one_morph_has_its_spellings() -> None:
+    assert rl.same_ru_root("моч", ["мог", "мож"])
+    assert rl.same_ru_root("огон", ["огн"])
+
+
+def test_a_fused_word_accepts_its_historical_root() -> None:
+    assert rl.same_ru_root("опять", ["пя", "пят"])
+    assert rl.same_ru_root("почти", ["чт"])
+
+
+def test_two_models_agree_after_the_equivalences() -> None:
+    assert rl.same_root(_he(root="ר־צ־י"), _he(root="ר־צ־ה"))
+    assert rl.same_root(_ru("пол"), _ru("полн"))
+    assert not rl.same_root(_he(root="ב־ק־ר"), _he())
+
+
+def test_the_agreed_line_scores_what_the_lexicon_would_ship(tmp_path: Path) -> None:
+    gold = tmp_path / "gold.csv"
+    gold.write_text(
+        "row,lemma,pointed,pos,gloss,root,pattern,borrowed,notes\n"
+        "1,רצה,,VERB,want,ר־צ־ה,פעל,no,\n"
+        "2,כתב,,VERB,write,כ־ת־ב,פעל,no,\n"
+        "3,שמר,,VERB,guard,ש־מ־ר,פעל,no,\n"
+        "4,לא,,ADV,no,,,,unlabelled\n",
+        encoding="utf-8",
+    )
+    first = {1: _he(root="ר־צ־י", pattern="פעל"), 2: _he(root="כ־ת־ב"), 3: _he(root="ש־ב־ר")}
+    second = {1: _he(root="ר־צ־ה", pattern="פעל"), 2: _he(root="כ־ת־ב", pattern="פעל")}
+    second[3] = _he(root="ש־ב־ר")
+    out = rl.score_agreed("he", gold, first, second, {1: 1, 2: 2, 3: 3})
+    assert out["root"] == {"rows": 3, "agreed": 3, "right": 2, "coverage": 1.0, "accuracy": 0.667}
+    assert out["pattern"] == {
+        "rows": 3,
+        "agreed": 1,
+        "right": 1,
+        "coverage": 0.333,
+        "accuracy": 1.0,
+    }
+
+
 # -- The lemmas ---------------------------------------------------------------------------
 
 
