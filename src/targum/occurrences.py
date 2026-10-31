@@ -75,8 +75,9 @@ OCCURRENCES = "occurrences.json"
 #: drew them as the page does (`annotate.verb_roots`), so the card and the count agree; 4
 #: added each verb's binyan and tense (`gaps.verb_form`, targum-internal#604); a change
 #: to how `gaps.verb_form` fills a binyan is a new number too; 5 added the forms met only
-#: as a closed-class word (`function`), so a split-off כ is never a word to learn.
-VERSION = 5
+#: as a closed-class word (`function`), so a split-off כ is never a word to learn; 6 counts
+#: a lemma the word does not spell under the one the page shows (`annotate.lemma_check`).
+VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,7 @@ def count_text(folder: Path) -> Occurrences | None:
     claim from a text with no words.
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
+    from .annotate.lemma_check import applies, mend_row
     from .annotate.verb_roots import root_for
     from .gaps import verb_form
     from .ingest import post as post_module
@@ -203,9 +205,14 @@ def count_text(folder: Path) -> Occurrences | None:
     if segmented is None or not annotation.is_file():
         return None
     try:
-        tokens = json.loads(annotation.read_text(encoding="utf-8")).get("tokens") or {}
+        read = json.loads(annotation.read_text(encoding="utf-8"))
+        tokens = read.get("tokens") or {}
+        # Counted under the lemma the page shows, not one the word does not spell
+        # (`annotate.lemma_check`), so the card and the count agree.
+        checking = applies(str(read.get("annotator") or ""), str(read.get("language") or ""))
     except (OSError, json.JSONDecodeError, AttributeError):
         return None
+    del read
     section_of = _sections(folder, segmented)
     unwordly = post_module.left_out(folder) or {}
 
@@ -224,6 +231,8 @@ def count_text(folder: Path) -> Occurrences | None:
         key = (section_of.get(segment.id, 1), segment.ref or "")
         language = segment.language_in(segmented.language)
         for token in found:
+            if checking:
+                token = mend_row(token)
             lemma = str(token.get("lemma") or "")
             if lemma in NOT_A_WORD or not_vocabulary(token.get("pos"), token.get("entity")):
                 continue

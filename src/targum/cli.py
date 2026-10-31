@@ -2001,6 +2001,11 @@ def rebuild_one(
                     fresh.write(folder / "vocalization.json")
     glossaries = glossaries_in(folder)
     if annotation is not None:
+        # The lemmas the page will show, so the meanings bought below are theirs
+        # (`annotate.lemma_check`). The file keeps what the annotator said.
+        from .annotate.lemma_check import mended
+
+        annotation = mended(annotation)
         # Meanings held in the cache since this reader was written — looked up from
         # another text, or bought by somebody else — are its for free. Filled in here
         # so a card opens with the meaning rather than a button, and written down so

@@ -2447,6 +2447,13 @@ class Build:
         # worked out from them, and a stage cannot use what has not run yet.
         vocalization = self.vocalize(segmented)
         annotation = self.annotate(segmented, vocalization, only=only)
+        if annotation is not None:
+            # The lemmas the page will show, so the meanings bought for it are theirs: a
+            # lemma the word does not spell is put right here, and the file on disk keeps
+            # what the annotator said (`annotate.lemma_check`).
+            from .annotate.lemma_check import mended
+
+            annotation = mended(annotation)
         # And the words of a commentary beside it, so Rashi is tapped like the Torah is.
         commentary_words = self.annotate_commentaries(segmented, translations)
         # Russian's marks come the other way round: after the words, which settle a

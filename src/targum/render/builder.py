@@ -5985,6 +5985,12 @@ def render(
 
     if not translations:
         raise ValueError("a reader needs at least one translation")
+    if annotation is not None:
+        # A lemma the word does not spell is put right before anything reads it: the card,
+        # the root, the family and the conjugations all follow it (`annotate.lemma_check`).
+        from ..annotate.lemma_check import mended
+
+        annotation = mended(annotation)
 
     from ..renderings import (
         EMPTY,
