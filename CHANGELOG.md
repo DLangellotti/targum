@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A word's card no longer follows a lemma the word does not spell (David, 2026-10-31).
+  נשתיק, "we will silence", showed התקין "install; set up", root ת־ק־ן and "All forms of
+  התקין": DICTA has no השתיק, and the annotator's letter check let every nun drop as if
+  it had assimilated, so התקין's ת־ק passed. A page build, a rebuild and the occurrence
+  counts now check each DICTA lemma again, letting a nun go only first in the root or
+  before a suffix's ת (`annotate.lemma_check`). A refused verb takes the CC0 paradigm
+  table's verb, with its root and binyan, where the word is a form of exactly one (נשתיק
+  is השתיק's). Any other refused lemma becomes a gap, as the annotator does itself. Over
+  the laptop's 212 grammar/8 texts this moves 116 of 89,035 verbs (about 54 to the table's
+  verb), 132 nouns and 21 adjectives. The annotation on disk is unchanged. There is no
+  annotator rename, the occurrences cache goes to version 6 (rebuilt free), and the cause
+  rides the next scheduled rename (targum-internal#590).
 - Russian says "known" one way and names the cantillation marks one way (David,
   2026-10-23; targum-internal#476): 91 strings. A word's stage is «знаю», marking one is
   «отметить как «знаю»», and a share or count you know reads «вы знаете» («Вы знаете
