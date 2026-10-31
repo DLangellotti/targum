@@ -477,6 +477,17 @@
   stroke: none;
 }
 .hear:hover { color: var(--ink); }
+/* Who said a word, under Hear, where a person recorded it rather than the voice
+   (design.md §12, 2026-10-31): a quiet credit, linked to /credits. */
+.said-by {
+  margin: 0;
+  color: var(--ink-soft);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  text-align: start;
+}
+.said-by a { color: inherit; }
 /* A card line that carries one: the text, then the control, on the same baseline. */
 .gloss-card .copy-line {
   display: flex;

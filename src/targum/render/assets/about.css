@@ -152,3 +152,26 @@ body.about {
 
 .log-more { margin: 1.5rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }
 
+
+/* /credits (design.md §12, 2026-10-31): the same sheet, a speaker to a row, the words
+   they said folded under their name. Ink and ink-soft only; the links keep teal. */
+.credits .lede { margin: 0 0 0.75rem; font-size: 0.9375rem; line-height: 1.5; text-wrap: pretty; }
+.credits h2 {
+  margin: 1.5rem 0 0.5rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.speakers { list-style: none; margin: 1rem 0 0; padding: 0; border-block-start: 1px solid var(--rule); }
+.speaker { padding-block: 0.75rem; border-block-end: 1px solid var(--rule); }
+.speaker summary { cursor: pointer; font-size: 0.9375rem; line-height: 1.45; }
+.speaker .terms { color: var(--ink-soft); }
+.speaker ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+}
+.speaker li { font-family: var(--reading); font-size: 1.0625rem; line-height: 1.6; }

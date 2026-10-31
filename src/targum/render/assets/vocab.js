@@ -640,6 +640,14 @@
           if (!answer || !answer.audio) return failed(answer && answer.error);
           button.removeAttribute("aria-busy");
           heard[clip] = answer.audio;
+          // A person's recording names them on the button, as the reader's card does
+          // under it (design.md §12, "A word is said by a person where one recorded it").
+          if (answer.by && answer.by.speaker) {
+            button.title = t("vocab.said-by", "Said by {speaker} · {licence}", {
+              speaker: answer.by.speaker,
+              licence: answer.by.licence || "",
+            });
+          }
           play(answer.audio);
         })
         .catch(function () {

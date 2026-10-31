@@ -4242,5 +4242,17 @@
   "progress.understand.since": "Counted since {date}.",
   "progress.understand.empty-week": "We'll draw the line once there are two weeks to show.",
   "progress.understand.empty-month": "We'll draw the line once there are two months to show.",
-  "progress.understand.label": "Words you know in {yardstick}, {first} to {last}"
+  "progress.understand.label": "Words you know in {yardstick}, {first} to {last}",
+  "reader.card.said-by": "Said by {speaker} · {licence}",
+  "vocab.said-by": "Said by {speaker} · {licence}",
+  "credits.head.title": "Credits — targum",
+  "credits.head.description": "The people whose work targum uses, and the licences we use it under.",
+  "credits.page.sign-in": "Sign in",
+  "credits.page.heading": "Credits",
+  "credits.page.voices-heading": "Words said by people",
+  "credits.page.voices-intro": "Where a word card plays a person rather than our voice, the recording is theirs. They made it for Lingua Libre and shared it on Wikimedia Commons. Thank you.",
+  "credits.page.voices-copies": "We play Commons' own MP3 copy of each file. A file under CC BY-SA stays under CC BY-SA, and its page on Commons has the original.",
+  "credits.page.words.one": "{n} word",
+  "credits.page.words.other": "{n} words",
+  "credits.page.none": "No recordings are kept here yet."
 }

@@ -4943,6 +4943,7 @@ var targumReader = function () {
   // punctuation.
   var EDGES = /^[\s־׀׃.,;:!?"'()\[\]–—]+|[\s־׀׃.,;:!?"'()\[\]–—]+$/g;
   var saidClips = {};
+  var saidBy = {};
   var saidVoice = null;
 
   function sayButton(word) {
@@ -4993,9 +4994,30 @@ var targumReader = function () {
       line.classList.add("said-fault");
       host.parentNode.insertBefore(line, host.nextSibling);
     }
+    // Who said it, where a person recorded the word (design.md §12, "A word is said by a
+    // person where one recorded it", 2026-10-31): their name and licence under Hear, and
+    // the credits page behind it. The voice's own clips carry no `by` and draw no line.
+    function credit(by) {
+      var host = button.parentNode;
+      if (!by || !by.speaker || !host || !host.parentNode) return;
+      if (host.parentNode.querySelector(".said-by")) return;
+      var line = document.createElement("p");
+      line.className = "said-by";
+      var link = document.createElement("a");
+      link.href = by.credits || "/credits#voices";
+      link.textContent = t("reader.card.said-by", "Said by {speaker} · {licence}", {
+        speaker: by.speaker,
+        licence: by.licence || "",
+      });
+      line.appendChild(link);
+      host.parentNode.insertBefore(line, host.nextSibling);
+    }
     button.addEventListener("click", function (event) {
       event.stopPropagation();
-      if (saidClips[key]) return play(saidClips[key]);
+      if (saidClips[key]) {
+        credit(saidBy[key]);
+        return play(saidClips[key]);
+      }
       if (button.getAttribute("aria-busy") === "true") return;
       button.setAttribute("aria-busy", "true");
       fetch(keyed("/say-word"), {
@@ -5010,6 +5032,8 @@ var targumReader = function () {
           if (!answer || !answer.audio) return failed(answer && answer.error);
           button.removeAttribute("aria-busy");
           saidClips[key] = answer.audio;
+          saidBy[key] = answer.by || null;
+          credit(answer.by);
           play(answer.audio);
         })
         .catch(function () {

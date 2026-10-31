@@ -635,6 +635,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- A word is said by a person where one recorded it (David, 2026-10-31;
+  targum-internal#610). `scripts/fetch_lingualibre.py` reads Lingua Libre's Hebrew
+  recordings off the Commons API, one request a second, with each file's licence and
+  speaker read off its own page. CC0 and CC BY-SA pass, and anything else is counted and
+  left: 3,512 kept, 44 CC BY and 59 non-Hebrew skipped. It writes a private manifest
+  beside the files in the cache (`voices.folder()`, `/var/lib/targum/cache/voices/` on
+  the box), and `--download` copies Commons' MP3 of each. `/say-word` answers with the
+  person's file where the word matches: the exact pointed form first, then the bare form
+  where only one recorded word has those letters. It is free and makes no claim, and the
+  voice says everything else as before. The reader's card says "Said by YaronSh · CC0"
+  under Hear, linked to the new `/credits`, which is open to strangers and lists every
+  speaker, licence and file. On Your Words the button's title says it. Coverage: 33% of
+  the tables' top 5,000 lemmas, 66% of the top 1,000 and 94% of the top 100.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and

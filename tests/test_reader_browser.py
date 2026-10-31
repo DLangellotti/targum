@@ -6556,6 +6556,45 @@ def test_a_word_on_a_silent_served_page_is_said_by_the_voice(browser, tmp_path: 
     assert played == [clip[:15], clip[:15]]
 
 
+def test_a_word_a_person_recorded_names_them_under_hear(browser, tmp_path: Path) -> None:
+    """targum-internal#610 (design.md §12, "A word is said by a person where one recorded
+    it"): where `/say-word` answers with a person's recording it says who, and the card
+    draws "Said by …" under Hear, linked to /credits, once however often it is pressed."""
+    import json
+
+    built = chapter(tmp_path / "out")
+    html = built.read_text(encoding="utf-8")
+    context = browser.new_context(viewport={"width": 1280, "height": 900})
+    page = context.new_page()
+    page.add_init_script(
+        "HTMLMediaElement.prototype.play = function () { return Promise.resolve(); };"
+    )
+    by = {"speaker": "YaronSh", "licence": "CC0", "credits": "/credits#voices"}
+
+    def answer(route, request):
+        if "/say-word" in request.url:
+            body = {"audio": "data:audio/mpeg;base64,SUQz", "by": by}
+            route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
+        else:
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+    page.route("http://reader.test/**", answer)
+    page.goto("http://reader.test/reader/a-build/reader/index.html?k=test")
+    page.wait_for_selector(".pair .src .w")
+    page.click(".pair:not([hidden]) .src .w")
+    page.wait_for_selector("#gloss-card .hear")
+    assert page.locator("#gloss-card .said-by").count() == 0, "nothing said before a press"
+    page.click("#gloss-card .hear")
+    page.wait_for_selector("#gloss-card .said-by a")
+    page.click("#gloss-card .hear")
+    page.wait_for_timeout(200)
+    line = page.locator("#gloss-card .said-by a")
+    assert line.count() == 1
+    assert line.inner_text() == "Said by YaronSh · CC0"
+    assert line.get_attribute("href") == "/credits#voices"
+    context.close()
+
+
 def test_a_framed_reader_counts_a_visit_at_the_first_press_and_not_before(
     browser, built: Path
 ) -> None:

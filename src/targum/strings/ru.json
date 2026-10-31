@@ -4591,5 +4591,19 @@
   "progress.understand.since": "Считаем с {date}.",
   "progress.understand.empty-week": "Нарисуем линию, когда наберутся две недели.",
   "progress.understand.empty-month": "Нарисуем линию, когда наберутся два месяца.",
-  "progress.understand.label": "Слова, которые вы знаете, в {yardstick}: {first} — {last}"
+  "progress.understand.label": "Слова, которые вы знаете, в {yardstick}: {first} — {last}",
+  "reader.card.said-by": "Произносит {speaker} · {licence}",
+  "vocab.said-by": "Произносит {speaker} · {licence}",
+  "credits.head.title": "Благодарности — targum",
+  "credits.head.description": "Люди, чьей работой пользуется targum, и лицензии, по которым мы её используем.",
+  "credits.page.sign-in": "Войти",
+  "credits.page.heading": "Благодарности",
+  "credits.page.voices-heading": "Слова, которые произносят люди",
+  "credits.page.voices-intro": "Если карточка слова звучит голосом человека, а не нашим, это его запись. Он сделал её для Lingua Libre и выложил на Викисклад. Спасибо.",
+  "credits.page.voices-copies": "Мы проигрываем MP3-копию каждого файла, которую делает сам Викисклад. Файл под CC BY-SA остаётся под CC BY-SA, а оригинал лежит на его странице на Викискладе.",
+  "credits.page.words.one": "{n} слово",
+  "credits.page.words.few": "{n} слова",
+  "credits.page.words.many": "{n} слов",
+  "credits.page.words.other": "{n} слова",
+  "credits.page.none": "Здесь пока нет записей."
 }
