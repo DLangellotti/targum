@@ -62,7 +62,12 @@ VERSION = "topics/1"
 #: scored 87% precision against ling-he's blind gold set): the commonest modern sense over
 #: the gloss, ling-he's sharper Religion and Science definitions, people-nouns in People &
 #: feelings, and the screen (`screen`) before anything is sent.
-PROMPT_VERSION = "prompt/2"
+#: Prompt 3 (2026-10-31, after pilot 2's agreed errors were זמן and רגע tagged Everyday
+#: life and פרסם and פורסם tagged Free time & culture): a rule and worked examples that keep
+#: abstract time words and verbs of publishing, reporting and announcing `general`, beside
+#: the clock-and-calendar nouns and the press's own nouns that do keep their topic. The
+#: examples are new words, none from ling-he's first gold set, so it is not taught the test.
+PROMPT_VERSION = "prompt/3"
 
 #: The modern registers a topic's words are drawn from and weighed by, and the one
 #: Religion & tradition adds for the words the modern registers do not hold.
@@ -419,6 +424,17 @@ EXAMPLES: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("יום", "יוֹם", "NOUN", "day", ("everyday",)),
     ("שעה", "שָׁעָה", "NOUN", "hour", ("everyday",)),
     ("טלפון", "טֶלֶפוֹן", "NOUN", "telephone", ("everyday",)),
+    # Prompt 3: time on the clock and the calendar is Everyday life; time as such is not.
+    ("חודש", "חֹדֶשׁ", "NOUN", "month", ("everyday",)),
+    ("תקופה", "תְּקוּפָה", "NOUN", "period, era", (GENERAL,)),
+    ("פעם", "פַּעַם", "NOUN", "time, occasion; once", (GENERAL,)),
+    ("עתיד", "עָתִיד", "NOUN", "future", (GENERAL,)),
+    # Prompt 3: the press and what it makes is Free time & culture; publishing, reporting
+    # and announcing are said of every topic, so they are `general`.
+    ("ערוץ", "עָרוּץ", "NOUN", "channel (TV); channel, course", ("culture",)),
+    ("הודיע", "לְהוֹדִיעַ", "VERB", "to announce, to inform", (GENERAL,)),
+    ("ציטט", "לְצַטֵּט", "VERB", "to quote", (GENERAL,)),
+    ("חשף", "לַחְשֹׂף", "VERB", "to reveal, to expose", (GENERAL,)),
 )
 
 
@@ -464,7 +480,13 @@ religious only in a secondary sense, or only in the Bible, takes its modern topi
 everyday use is Everyday life; what the media publish is Free time & culture.
 7. Words for people as such, by age or sex, are People & feelings; family members are \
 Family & home.
-8. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
+8. Time: the units of the clock and the calendar (hour, day, week, month, morning) are \
+Everyday life. Time as such (time, moment, period, occasion, the past, the future) and \
+adverbs of time are `{GENERAL}`.
+9. Media: the press and what it makes (newspaper, article, channel, series) is Free time \
+& culture. Verbs of publishing, reporting, announcing, quoting and revealing are \
+`{GENERAL}`, because the news says them about every topic.
+10. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
 reasonably go either way, or when you are unsure of the Hebrew. Otherwise `high`.
 
 Examples:
