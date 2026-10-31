@@ -384,6 +384,47 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### What to read next is chosen on running words — 2026-10-31
+
+David, 2026-10-31 (targum-internal#617, Phase 0 #612), from ling-he's comprehensible-input
+research of the same day. It amends "A Hebrew beginner's one card is their next scene"
+(2026-10-27) and changes how "Texts at your level now" in "Your Progress is a story in
+three parts" (2026-10-09) chooses.
+
+- **Coverage is running words.** A text's share is the share of its running words the
+  reader has marked known: each word weighs as often as it comes round. Names, numbers
+  and one-letter clitics are left out, as are the words the reader ignored. The research
+  states every threshold in running words, and on 191 modern texts the two kinds of count
+  were 8–26 points apart: the old distinct-form 90% was really about 95% of running words.
+- **One chooser, one band.** Home's card and Your Progress's list both sort with
+  `choose.key`. A text fits from 90% of its running words. Inside the band, the nearest
+  to 94–97% comes first. A text at 99.5% or more never comes before one in the band,
+  because it teaches nothing new. Before this change the two chose in opposite
+  directions: the list nearest the line, the card the most known.
+- **Real before scenes.** Where a real text and a scene both fit, the real text comes
+  first. A Hebrew beginner's card is still their next scene, unless a real text is in
+  their band, in which case that text is the card. The scenes are beginner supply until
+  real easy content fills the gap.
+- **When nothing fits,** Home offers the nearest text under the floor, then the gentlest
+  unmeasured one, so a reader who has marked little still gets a card. Your Progress
+  lists only what fits.
+- **Something else** sits beside Open it on the card. It offers the next best text,
+  choosing one of another kind or collection over the same kind when both rank equally,
+  and never a worse fit for the sake of variety. It asks no reason, and the end of a text
+  asks nothing either. The engine learns from what readers do. Per-text topics come later
+  (#614).
+- **What is shown.** The card's line and the list's figure give the running share that
+  chose the text, still from marks only ("Known means marked"). The Library's bands still
+  count distinct forms until they move with Phase 1 (#613), so for a while one text can
+  read higher on Home than in the Library. Each suggestion logs both shares side by side,
+  with the text but no reader.
+- **Candidates come from a list of sources** (`CANDIDATE_SOURCES`): today only the shelf,
+  and later the fresh finds (#619), scored the same way. Each row says its `origin`,
+  shelf or find, so a recommendation's record can carry it.
+- **Not yet:** recording when a suggestion is shown, opened, finished or set aside, and
+  the back office's lookups against predicted unknowns. Each needs a sentence in the
+  notice (clauses 3.6 and 3.7) that David has not yet approved.
+
 ### A word is said by a person where one recorded it — 2026-10-31
 
 David, 2026-10-31 (targum-internal#610), from the easy-audio research of the same day. It

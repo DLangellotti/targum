@@ -1086,7 +1086,40 @@ def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: Where the chooser's candidates come from, each a name and what it offers for a
+#: reader (targum-internal#612): the shelf, the catalogue, today. A fresh find of the
+#: day's news or a video (#619) is another source added here, scored the same way, and
+#: its rows say `origin: find`; `suggest_next` itself does not change.
+CandidateSource = Callable[["Ctx"], Iterable[catalogue_module.Entry]]
+CANDIDATE_SOURCES: list[tuple[str, CandidateSource]] = [
+    ("shelf", lambda ctx: catalogue_module.everything()),
+]
+
+
+def _candidates(ctx: Ctx) -> Iterator[tuple[str, catalogue_module.Entry]]:
+    """Every candidate from every source, with the source's name; a text two sources
+    offer is taken from the first."""
+    seen: set[str] = set()
+    for origin, source in CANDIDATE_SOURCES:
+        for entry in source(ctx):
+            if entry.id in seen:
+                continue
+            seen.add(entry.id)
+            yield origin, entry
+
+
 def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
+    """What to read next, chosen by `choose.key` (design.md §12, "What to read next is
+    chosen on running words", 2026-10-31): the texts whose running words the reader knows
+    90% of and up, the nearest the 94–97% aim first and a real text before a scene; then,
+    where nothing fits, the nearest under the floor; then the gentlest not measured.
+
+    `instead_of`, a catalogue id, is Home's "Something else": that text is set aside and
+    the pick is the next best, of another kind or collection where one is as good
+    (`choose.alternative`).
+    """
+    from .. import choose
+
     language = str(args.get("language") or ctx.level.language)
     register = str(args.get("register") or "")
     minutes = args.get("max_minutes")
@@ -1096,6 +1129,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # skipping after the cut left nothing). Applied before the cut, so the next one
     # that fits is always in reach.
     skip = {str(one) for one in (args.get("skip") or []) if str(one)}
+    instead_of = str(args.get("instead_of") or "")
+    if instead_of:
+        skip.add(instead_of)
     mine, shared = _shelf(ctx)
     own = _by_source(mine)
     built = _by_source([*mine, *shared])
@@ -1109,12 +1145,20 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # rung. Hebrew only: the answers are on the ulpan ladder.
     rung = _rung(ctx.level) if language.split("-")[0] == "he" else None
     levels = sentence_level.load() if rung is not None else {}
-    candidates: list[tuple[tuple[float, float], dict[str, Any]]] = []
+    # Every catalogue text measured in running words against the reader's marks, from the
+    # lemma index's counts; the walk is over small integers (`Index.statuses`).
+    index = coverage_module.read_index(catalogue_module.lemmas_path())
+    marked = _marked(ctx, language.split("-")[0], {})
+    statuses = index.statuses(marked) if index.counts else {}
+    candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     collections = _collections()
-    for entry in catalogue_module.everything():
+    shown: tuple[str, str] | None = None
+    for origin, entry in _candidates(ctx):
         key = catalogue_module._key(entry.source)
         if entry.language.split("-")[0] != language.split("-")[0]:
             continue
+        if instead_of and entry.id == instead_of:
+            shown = choose.cluster(_entry_row(entry, None, collections))
         if key in own or entry.id in skip:
             continue
         if register and entry.register.value != register:
@@ -1122,17 +1166,28 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if minutes is not None and entry.minutes > int(minutes):
             continue
         row = _entry_row(entry, built.get(key), collections)
-        known = row.get("known_share")
-        tilt = 1.0 if entry.register.value in liked else 0.0
-        if known is not None:
-            row["known_line"] = level_module.known_line(float(known))
+        # Where the candidate came from, which a recommendation's record will carry
+        # (targum-internal#612, #619): the shelf today, a fresh find later.
+        row["origin"] = origin
+        tilt = entry.register.value in liked
+        running = index.running(entry.id, marked, statuses)
+        # Running words where the index counted the text; otherwise the distinct-form share
+        # a built copy measured, as before, rather than nothing.
+        share: float | None = running.known if running is not None else None
+        if running is not None:
+            row["running_share"] = round(running.known, 4)
+        elif row.get("known_share") is not None:
+            share = float(row["known_share"])
+        row["fit"] = choose.fit(share)
+        if share is not None and (share > 0 or not entry.difficulty):
+            row["known_line"] = level_module.known_line(share)
             # Said the way the card says it, because a host repeats `because` (prompts.py).
             # `reason` keeps the number for the page's own line, which `because_in` draws.
-            row["because"] = (
-                row["known_line"] or f"You know {round(float(known) * 100)}% of its words."
-            )
-            row["reason"] = {"key": "suggest.known", "share": round(float(known) * 100)}
-            rank = (0.0, -(float(known) + 0.1 * tilt))
+            row["because"] = row["known_line"] or f"You know {round(share * 100)}% of its words."
+            row["reason"] = {
+                "key": "suggest.known",
+                "share": level_module.known_percent(share) or 0,
+            }
         elif entry.difficulty:
             # Which Hebrew only for Hebrew: every other language's catalogue rows carry
             # the modern register too, and "modern Hebrew" was said of an Italian talk
@@ -1146,24 +1201,37 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "share": entry.difficulty,
                 "register": which.strip() and entry.register.value,
             }
-            rank = (1.0, float(entry.difficulty) - 10.0 * tilt)
         else:
             row["because"] = "Not measured yet."
             row["reason"] = {"key": "suggest.unmeasured"}
-            rank = (2.0, 0.0)
+        rank = choose.key(
+            share,
+            scene=bool(catalogue_module.scene_number(entry.id)),
+            gentle=int(entry.difficulty or 0),
+            liked=tilt,
+        )
         if levels and rung is not None and key in built and row["on_shelf"]:
             _passage(ctx, row, built[key], rung, levels)
         candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
+    if instead_of and candidates:
+        at = choose.alternative(candidates, shown)
+        candidates.insert(0, candidates.pop(at))
     chosen = [row for _, row in candidates[:limit]]
-    # One slot for a passage. Whole texts are ranked gentlest first, so a hard book whose
-    # third chapter reads at the reader's rung would never reach the cut on its whole-text
-    # number — which is the point of asking per sentence. Where nothing chosen carries a
-    # passage and something further down does, the best of those takes the last place.
+    # One slot for a passage. A hard book whose third chapter reads at the reader's rung
+    # would never reach the cut on its whole-text number — which is the point of asking
+    # per sentence. Where nothing chosen carries a passage and something further down
+    # does, the best of those takes the last place.
     if len(chosen) > 1 and not any("passage" in row for row in chosen):
         waiting = [row for _, row in candidates[limit:] if "passage" in row]
         if waiting:
             chosen[-1] = max(waiting, key=lambda row: row["passage"]["readable"])
+    # Beside the running share, the distinct-form share the Library still shows, for the
+    # comparison the change was made on (targum-internal#612): on the chosen rows only.
+    for row in chosen:
+        distinct = index.against(str(row["id"]), marked)
+        if distinct is not None:
+            row["distinct_share"] = round(distinct.known, 4)
     return {"suggestions": chosen}
 
 
