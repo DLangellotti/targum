@@ -21,10 +21,10 @@ from __future__ import annotations
 import json
 from array import array
 from bisect import bisect_left
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import tzinfo
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 
 from .paths import write_atomic
@@ -250,6 +250,70 @@ class Index:
         if not words:
             return None
         return measure(words, marked)
+
+    # -- running words (design.md §12, "What to read next is chosen on running words",
+    # 2026-10-31; targum-internal#612) ------------------------------------------------
+    #
+    # `against` counts a text's distinct forms, so a word met once weighs what a word met
+    # on every line weighs. The research the chooser follows (ling-he, 2026-10-31) states
+    # every threshold in running words, and measured the two kinds 8–26 points apart on
+    # the same texts: a text at 90% of its running words is at 70–83% of its distinct
+    # forms. `counts` has carried each form's running count since #95; this reads it.
+
+    @cached_property
+    def _not_words(self) -> frozenset[int]:
+        """Positions of the forms that are never a word to learn: a one-letter clitic
+        DICTA split off (`touchstones.a_word`). Left out of a running count whole, or
+        ו־ and ה־ alone would be a fifth of every Hebrew text and a reader could never
+        reach the floor without marking a prefix letter."""
+        from .touchstones import a_word
+
+        return frozenset(at for at, word in enumerate(self.words) if not a_word(word))
+
+    def statuses(self, marked: Mapping[str, int]) -> dict[int, int]:
+        """A reader's marks by position in the shared table: worked out once for a list
+        of entries, so `running` over the whole catalogue is a walk of small integers
+        rather than a string lookup per word per text."""
+        out: dict[int, int] = {}
+        for lemma, status in marked.items():
+            at = self._position(lemma)
+            if at is not None:
+                out[at] = status
+        return out
+
+    def running(
+        self,
+        entry_id: str,
+        marked: Mapping[str, int],
+        statuses: Mapping[int, int] | None = None,
+    ) -> Coverage | None:
+        """One catalogue entry's running words measured against this reader's marks: of
+        every word in it, names, numbers and one-letter clitics left out and the words
+        the reader ignored taken out of the total, the share they have marked known.
+
+        `total` is running words and `fresh` distinct forms not yet on the reader's list.
+        Marks only (design.md §12, "Known means marked"). None where the entry was not
+        counted, which is "not measured", as `against` says it.
+        """
+        tally = self.counts.get(entry_id)
+        positions = self.texts.get(entry_id)
+        if tally is None or not positions:
+            return None
+        held = self.statuses(marked) if statuses is None else statuses
+        skip = self._not_words
+        known = scored = fresh = 0
+        for at, n in zip(positions, tally, strict=False):
+            if at in skip:
+                continue
+            status = held.get(at)
+            if status == IGNORED:
+                continue
+            scored += n
+            if status == KNOWN:
+                known += n
+            elif status is None:
+                fresh += 1
+        return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
 
 
 EMPTY = Index(words=(), texts={})

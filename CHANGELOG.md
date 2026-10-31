@@ -660,6 +660,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   under Hear, linked to the new `/credits`, which is open to strangers and lists every
   speaker, licence and file. On Your Words the button's title says it. Coverage: 33% of
   the tables' top 5,000 lemmas, 66% of the top 1,000 and 94% of the top 100.
+- What to read next is chosen on running words, by one chooser (David, 2026-10-31;
+  targum-internal#612, epic #617). `coverage.Index.running` reads the per-text counts the
+  lemma index has carried since #95: each word weighs as often as it comes round, with
+  names, numbers, one-letter clitics and ignored words left out. `choose.key` is the one
+  sort Home's card (`suggest_next`) and Your Progress's "Texts at your level now"
+  (`touchstones.at_level`) both use. A text fits from 90% of its running words, the
+  nearest to 94–97% comes first, a real text comes before a scene, and a text at 99.5%
+  never comes before one in the band. Home used to offer the most-known text first. A
+  Hebrew beginner's card is a real text when one fits, and their next scene otherwise.
+  "Something else" beside Open it offers the next best text, of another kind or
+  collection where one ranks as well, and asks no reason. Candidates come from a list of
+  sources (`CANDIDATE_SOURCES`, the shelf for now) and each row says its `origin`, ready
+  for the fresh finds of #619. Each suggestion logs its
+  running and distinct shares side by side. Recording the suggestions themselves waits on
+  notice wording. Russian: «Что-нибудь другое» (draft).
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and
