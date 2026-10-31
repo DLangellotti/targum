@@ -232,6 +232,116 @@ def test_share_reads_only_a_synthetic_reader(
     )
     assert done.exit_code == 0, done.output
     assert "Food & drink" in done.output and "100.0%" in done.output
+    assert "not shown" in done.output, "money has not passed the gold set"
     refused = runner.invoke(app, ["topics", "share", "--person", "7", "--lexicon", str(lexicon)])
     assert refused.exit_code != 0
     assert "Real readers are not read here" in refused.output
+
+
+# -- what a page may show -----------------------------------------------------------------
+
+
+def test_only_shown_topics_are_drawn() -> None:
+    lexicon = {f"w{i}": ("food",) for i in range(topics.TOPIC_FLOOR)}
+    lexicon |= {f"m{i}": ("money",) for i in range(topics.TOPIC_FLOOR)}
+    weights = dict.fromkeys(lexicon, 1.0)
+    by = {s.topic: s for s in topics.shares(lexicon, [], weights, {}, shown=("food",))}
+    assert by["food"].drawn and by["food"].shown
+    assert not by["money"].drawn and not by["money"].shown, "money has not passed the gold set"
+    assert set(topics.SHOWN) == {"food", "security", "school", "family", "law"}
+    assert set(topics.SHOWN) <= set(topics.TOPICS)
+
+
+def test_the_lexicon_file_names_what_is_shown(tmp_path: Path) -> None:
+    file = tmp_path / "topics.json"
+    assert topics.load_shown(file) == (), "no lexicon, nothing to draw"
+    file.write_text(json.dumps({"lemmas": {}}), encoding="utf-8")
+    assert topics.load_shown(file) == topics.SHOWN, "no list falls back to the constant"
+    file.write_text(json.dumps({"shown": ["law", "food", "nonsense"], "lemmas": {}}), "utf-8")
+    assert topics.load_shown(file) == ("food", "law"), "in the order of TOPICS, codes only"
+
+
+def test_a_topic_joins_shown_only_past_the_gate() -> None:
+    assert topics.passes_show(15, 0.9, 0.8)
+    assert not topics.passes_show(14, 1.0, 1.0), "too few gold rows"
+    assert not topics.passes_show(20, 0.89, 1.0)
+    assert not topics.passes_show(20, 1.0, 0.79)
+    assert not topics.passes_show(20, None, 1.0)
+
+
+def test_wilson_brackets_the_point_and_narrows_with_more_rows() -> None:
+    low, high = topics.wilson(14, 15) or (0.0, 0.0)
+    assert low < 14 / 15 < high <= 1.0
+    assert topics.wilson(15, 15) == (pytest.approx(0.796, abs=0.001), 1.0)
+    wide, narrow = topics.wilson(9, 10), topics.wilson(90, 100)
+    assert wide and narrow and (wide[1] - wide[0]) > (narrow[1] - narrow[0])
+    assert topics.wilson(0, 0) is None
+
+
+@pytest.mark.parametrize(
+    ("note", "expected"),
+    [
+        ("feeling; or health", ("health",)),
+        ("or law (oath in court), religion", ("law", "religion")),
+        ("or money/culture", ("money", "culture")),
+        ("metal; or science, or health (iron deficiency)", ("science", "health")),
+        ("phone/TV screen; science or culture also defensible", ("science", "culture")),
+        ("submission (school) or serving (food)", ("school", "food")),
+        ("killed in attacks or accidents; general would be defensible", ("general",)),
+        ("road accident; could be health", ("health",)),
+        ("lemmatisation error: article + Hapoel (name) or the verb (grammar)", ()),
+        ("", ()),
+    ],
+)
+def test_alternatives_read_the_labels_a_note_offers(note: str, expected: tuple[str, ...]) -> None:
+    assert topics.alternatives(note) == expected
+
+
+# -- hints --------------------------------------------------------------------------------
+
+
+def test_a_hint_goes_in_the_gloss_column_and_only_then_is_explained() -> None:
+    plain = topics.Lemma("עצב", "NOUN", "עצב", "to be sad; nerve", "", 3, "modern")
+    assert "commonest modern sense" not in topics.user_message([plain], 0)
+    hinted = topics.hinted(plain, "sadness", False, [])
+    message = topics.user_message([hinted], 0)
+    assert "to be sad; nerve [commonest modern sense: sadness]" in message
+    assert "names the sense to tag" in message
+    assert topics.hinted(plain, "sadness", True, ["x"]) is plain, "a gloss that leads with it"
+
+
+def test_other_senses_come_from_the_lemmas_other_keys() -> None:
+    held = {"גר": ("stranger; convert", ""), "גר (verb)": ("to live; reside", "לגור")}
+    assert topics.other_senses("גר", "NOUN", "stranger; convert", held.get) == ["to live; reside"]
+    one = topics.Lemma("גר", "NOUN", "גר", "stranger; convert", "", 1, "modern")
+    assert topics.hinted(one, "lives", False, ["to live; reside"]).hint == (
+        "lives; also to live; reside"
+    )
+
+
+def test_parse_hints_keeps_only_the_ids_asked_and_good_rows() -> None:
+    text = json.dumps(
+        {
+            "senses": [
+                {"id": 1, "sense": " phone   charger ", "first": False},
+                {"id": 1, "sense": "again", "first": True},
+                {"id": 2, "sense": "", "first": True},
+                {"id": 9, "sense": "not asked", "first": True},
+            ]
+        }
+    )
+    assert topics.parse_hints(text, [1, 2]) == {1: ("phone charger", False)}
+    assert topics.parse_hints("not json", [1]) == {}
+
+
+def test_an_old_lemma_list_without_hints_still_loads() -> None:
+    row = {
+        "lemma": "לחם",
+        "pos": "NOUN",
+        "glossed_as": "לחם",
+        "gloss": "bread",
+        "pointed": "",
+        "count": 1,
+        "register": "modern",
+    }
+    assert topics.Lemma(**row).hint == ""

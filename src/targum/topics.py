@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -78,6 +79,110 @@ BIBLE = "bible"
 LEXICON = Path.home() / ".targum" / "topics.json"
 #: Where a run keeps its raw answers and review files. Laptop-only.
 RESEARCH = Path.home() / ".targum" / "research" / "topics"
+
+
+# --- What a page may show ---------------------------------------------------------------
+
+#: The topics a page may draw a bar for: those whose agreed tags passed ling-he's blind
+#: gold set (pilot 3, 2026-10-31). David, 2026-10-31: ship the topics that pass now and
+#: fix the rest. The other eleven are tagged and kept in the lexicon, but no bar shows
+#: them until they pass (`passes_show`). The lexicon file carries the same list as
+#: `shown`, with `SHOWN_RULE`; a page reads it through `load_shown`, so a lexicon whose
+#: tags were re-scored can widen the list without a code change, and one without the
+#: field falls back to this.
+SHOWN: tuple[str, ...] = ("food", "security", "school", "family", "law")
+
+#: A topic moves into `shown` only when its agreed tags reach this precision and recall
+#: against at least this many gold rows (point estimates; the Wilson interval is reported
+#: beside them).
+SHOW_PRECISION = 0.90
+SHOW_RECALL = 0.80
+SHOW_GOLD = 15
+SHOWN_RULE = (
+    f"A bar is drawn only for a topic in `shown`. A topic joins `shown` only when its agreed"
+    f" tags score precision >= {SHOW_PRECISION:.0%} and recall >= {SHOW_RECALL:.0%} on at"
+    f" least {SHOW_GOLD} rows of ling-he's blind gold set (David, 2026-10-31)."
+)
+
+
+def passes_show(gold: int, precision: float | None, recall: float | None) -> bool:
+    """Whether a topic's gold score lets it into `shown`."""
+    return (
+        gold >= SHOW_GOLD
+        and precision is not None
+        and recall is not None
+        and precision >= SHOW_PRECISION
+        and recall >= SHOW_RECALL
+    )
+
+
+def load_shown(file: Path | None = None) -> tuple[str, ...]:
+    """The topics a page may draw for the lexicon at `file`: its `shown` list, in the
+    order of `TOPICS`, or `SHOWN` where the file has none. Nothing at all where there is
+    no lexicon, since there is nothing to draw."""
+    file = file or LEXICON
+    try:
+        held = json.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ()
+    listed = held.get("shown") if isinstance(held, dict) else None
+    if not isinstance(listed, list):
+        return SHOWN
+    return tuple(code for code in TOPICS if code in {str(one) for one in listed})
+
+
+def wilson(hits: int, total: int, z: float = 1.96) -> tuple[float, float] | None:
+    """The Wilson score interval for `hits` out of `total` (95% by default), or None for
+    no trials. Better than the normal interval at the small counts a topic's gold has."""
+    if total <= 0:
+        return None
+    p = hits / total
+    denominator = 1 + z * z / total
+    centre = (p + z * z / (2 * total)) / denominator
+    half = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / denominator
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+def alternatives(note: str) -> tuple[str, ...]:
+    """The other labels a gold note names as reasonable, in the order it names them.
+
+    Read: every topic code (or `general`) on either side of an "or" ("feeling; or
+    health", "or law (oath in court), religion", "or money/culture", "science or culture
+    also defensible"), a code in brackets after a word that is not one ("submission
+    (school) or serving (food)"), and "X would be defensible" or "could be X". A phrase
+    stops at the first word that is not a code. ling-he confirms what this reads; the
+    caller drops the row's own labels."""
+    codes = {*TOPICS, GENERAL}
+    found: list[str] = []
+
+    def take(word: str) -> bool:
+        word = word.strip(".;:'\"()").lower()
+        if word not in codes:
+            return False
+        if word not in found:
+            found.append(word)
+        return True
+
+    text = note.lower()
+    for match in re.finditer(r"\bor\b", text):
+        before = re.findall(r"[\w()]+", text[: match.start()])
+        if before:
+            take(before[-1])
+        words = re.findall(r"\([^)]*\)|[^\s/,]+", text[match.end() :])
+        for i, word in enumerate(words):
+            if word in {"and", "also"}:
+                continue
+            if word.startswith("("):
+                continue
+            if take(word):
+                continue
+            # A word that is not a code, with its code in brackets after it.
+            if i + 1 < len(words) and words[i + 1].startswith("("):
+                take(words[i + 1])
+            break
+    for match in re.finditer(r"(\w+) would be defensible|could be (\w+)", text):
+        take(match.group(1) or match.group(2))
+    return tuple(found)
 
 
 # --- Prices -----------------------------------------------------------------------------
@@ -155,6 +260,10 @@ class Lemma:
     pointed: str
     count: int
     register: str
+    #: The commonest modern sense, in a few English words, where the gloss gives a rarer
+    #: one first (`hints`), with the senses the gloss cache holds under the lemma's other
+    #: keys. Empty for nearly every lemma, and then nothing about the request changes.
+    hint: str = ""
 
 
 def glossed_as(lemma: str, pos: str) -> str:
@@ -528,11 +637,117 @@ def user_message(lemmas: Sequence[Lemma], start: int) -> str:
     lines = []
     for offset, one in enumerate(lemmas):
         pointed = f" ({one.pointed})" if one.pointed and one.pointed != one.lemma else ""
-        lines.append(f"{start + offset}\t{one.lemma}{pointed}\t{one.pos or '?'}\t{one.gloss}")
+        gloss = f"{one.gloss} [{HINT_LABEL}: {one.hint}]" if one.hint else one.gloss
+        lines.append(f"{start + offset}\t{one.lemma}{pointed}\t{one.pos or '?'}\t{gloss}")
+    # Said only where a row carries a hint, so a request without one is prompt 3's own.
+    note = (
+        f" Where a gloss gives a rarer sense first, [{HINT_LABEL}: ...] after it names the"
+        " sense to tag."
+        if any(one.hint for one in lemmas)
+        else ""
+    )
     return (
-        "Tag these words. Columns: id, lemma (pointed form), part of speech, gloss.\n\n"
+        f"Tag these words. Columns: id, lemma (pointed form), part of speech, gloss.{note}\n\n"
         + "\n".join(lines)
     )
+
+
+# --- Hints: the commonest modern sense, where the gloss gives a rarer one ---------------
+
+#: What a hint is called inside a request's gloss column.
+HINT_LABEL = "commonest modern sense"
+HINT_VERSION = "hint/1"
+
+
+def other_senses(lemma: str, pos: str, used: str, gloss: Any = None) -> list[str]:
+    """The glosses the cache holds under the lemma's other keys (the bare lemma, the verb's
+    key, a part-of-speech key) that differ from the one sent: גר glossed "stranger;
+    convert" also holds "to live; reside" as a verb. Never spends."""
+    from .models import POS_MARKS, VERB_MARK
+
+    gloss = gloss or cached_gloss
+    keys = [lemma, lemma + VERB_MARK, *(lemma + mark for mark in POS_MARKS.values())]
+    out: list[str] = []
+    for key in dict.fromkeys(keys):
+        if key == glossed_as(lemma, pos):
+            continue
+        held = gloss(key)
+        if held and held[0] != used and held[0] not in out:
+            out.append(held[0])
+    return out
+
+
+def hint_system_prompt() -> str:
+    """The hint pass's instructions: one short sense per word, and whether the gloss's
+    first sense is it. It never sees a topic, so it cannot be taught the gold set."""
+    return """You check English glosses of Modern Hebrew dictionary words for a reading \
+app. Each gloss was written for the word's spelling, and sometimes gives a biblical, \
+rarer or homograph sense first (עצב "to be sad; nerve" is commonest "sadness"; מטען \
+"cargo; load" is commonest "phone charger"; גר "stranger; convert" is commonest "lives").
+
+For each word you get an id, the unpointed lemma, a pointed form when there is one, the \
+part of speech, and the gloss. Give:
+- `sense`: the word's commonest sense in Modern Hebrew today, in one to four English \
+words, as a learner would meet it in news and conversation.
+- `first`: true when the gloss's first sense is that sense, or so close that a reader of \
+the gloss would understand the word rightly; false when the gloss leads with a rarer, \
+older or different sense.
+
+Answer for every id you are given, once each, in the JSON shape required."""
+
+
+def hint_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "senses": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "integer"},
+                        "sense": {"type": "string"},
+                        "first": {"type": "boolean"},
+                    },
+                    "required": ["id", "sense", "first"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["senses"],
+        "additionalProperties": False,
+    }
+
+
+def parse_hints(text: str, ids: Iterable[int]) -> dict[int, tuple[str, bool]]:
+    """(sense, whether the gloss leads with it) for each id asked, answered once."""
+    wanted = set(ids)
+    try:
+        rows = json.loads(text)["senses"]
+    except (ValueError, KeyError, TypeError):
+        return {}
+    out: dict[int, tuple[str, bool]] = {}
+    for row in rows if isinstance(rows, list) else []:
+        if not isinstance(row, dict):
+            continue
+        number, sense, first = row.get("id"), row.get("sense"), row.get("first")
+        if not isinstance(number, int) or number not in wanted or number in out:
+            continue
+        if not isinstance(sense, str) or not sense.strip() or not isinstance(first, bool):
+            continue
+        out[number] = (" ".join(sense.split())[:60], first)
+    return out
+
+
+def hinted(one: Lemma, sense: str, first: bool, others: Sequence[str]) -> Lemma:
+    """The lemma as the tagger is shown it once the hint pass has read it: unchanged where
+    the gloss leads with the commonest sense, otherwise carrying that sense and the cache's
+    other senses as its hint."""
+    if first:
+        return one
+    extra = [s for s in others if s != one.gloss]
+    hint = "; ".join([sense, *(f"also {s}" for s in extra)])
+    return Lemma(**{**asdict(one), "hint": hint})
 
 
 @dataclass(frozen=True)
@@ -651,8 +866,11 @@ class Share:
     share: float
     known: int
     lemmas: int
-    #: Whether the topic has enough lemmas in the yardstick to draw a bar.
+    #: Whether a page draws the bar: the topic is in `shown` and has enough lemmas in the
+    #: yardstick.
     drawn: bool
+    #: Whether the topic is in `shown` at all; one that is not has failed the gold set.
+    shown: bool = True
 
 
 def shares(
@@ -660,11 +878,14 @@ def shares(
     known: Iterable[str],
     modern: Mapping[str, float],
     bible: Mapping[str, float],
+    shown: Iterable[str] = SHOWN,
 ) -> list[Share]:
     """Each topic's share of its weighed lemmas the reader knows. A word in two topics
     counts fully in both; `general` has none. Religion & tradition is weighed from the
-    bible register where the modern ones do not hold the word."""
+    bible register where the modern ones do not hold the word. A topic is `drawn` only
+    when it is in `shown` (`load_shown`) and above the topic floor."""
     knows = set(known)
+    visible = set(shown)
     out: list[Share] = []
     for topic in TOPICS:
         total = mine = 0.0
@@ -683,7 +904,8 @@ def shares(
                 hits += 1
                 mine += weight
         share = mine / total if total else 0.0
-        out.append(Share(topic, share, hits, members, members >= TOPIC_FLOOR))
+        drawn = members >= TOPIC_FLOOR and topic in visible
+        out.append(Share(topic, share, hits, members, drawn, topic in visible))
     return out
 
 
