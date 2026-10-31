@@ -799,6 +799,9 @@
       register: row.register,
       drawn: row.drawn,
     };
+    // A web find (targum-internal#619) has no picture of ours and none is fetched from
+    // its site: the letter tile.
+    if (row.find) reader.picture = false;
     host.appendChild(coverFor(reader, row.title, row.language));
     var what = el("div", "try-what");
     // A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27): the
@@ -808,9 +811,11 @@
       ? scene.first
         ? t("home.try.scene.first", "Start here")
         : t("home.try.scene.next", "Your next scene")
-      : first
-        ? t("home.try.first", "One to start with")
-        : t("home.try.next", "One to try next");
+      : row.find
+        ? t("home.try.find", "From the news")
+        : first
+          ? t("home.try.first", "One to start with")
+          : t("home.try.next", "One to try next");
     what.appendChild(el("p", "home-label", label));
     if (scene) host.setAttribute("data-scene", scene.first ? "first" : "next");
     else host.removeAttribute("data-scene");
@@ -819,10 +824,31 @@
     if (scene) row = Object.assign({}, row, { because: "", minutes: 0 });
     if (row.because) facts.push(row.because);
     if (row.minutes) facts.push(t("home.minutes", "{n} min", { n: row.minutes }));
+    if (row.find && row.host) facts.push(row.host);
     if (facts.length) what.appendChild(el("p", "home-card-facts", facts.join(" · ")));
-    var open = el("a", "try-open", t("home.try.open", "Open it"));
-    // targum-internal#313: the press opens the text, not the library row.
-    open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+    var open;
+    if (row.find) {
+      // What opening it uses, said before the press (design.md §12, "A web find is a
+      // pasted link targum found", 2026-10-31): an article uses none.
+      what.appendChild(
+        el(
+          "p",
+          "home-card-facts try-credits",
+          row.credits
+            ? tn("home.find.uses-credits", row.credits, "Uses {n} credit", "Uses {n} credits")
+            : t("home.find.uses-no-credits", "Uses none of your credits")
+        )
+      );
+      open = el("button", "try-open", t("home.try.open", "Open it"));
+      open.type = "button";
+      open.addEventListener("click", function () {
+        openFind(row, open, what);
+      });
+    } else {
+      open = el("a", "try-open", t("home.try.open", "Open it"));
+      // targum-internal#313: the press opens the text, not the library row.
+      open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+    }
     var presses = el("div", "try-presses");
     presses.appendChild(open);
     // Something else (targum-internal#612): the next best, of another kind where one is
@@ -839,6 +865,60 @@
     what.appendChild(presses);
     host.appendChild(what);
     host.hidden = false;
+  }
+
+  /* Open on a web find (targum-internal#619): a pasted link's press on a link targum
+     found. The server prices it as Add would; where the price is what the card said, the
+     press is this tap and the build starts, and the page opens the text when it is
+     ready. Where it costs more, or the site would not give it to us, nothing is built
+     and Add takes over with the link, where the reader confirms or reads why. */
+  var FIND_POLL_MS = 2500;
+  var FIND_POLL_MOST = 240;
+  function openFind(row, button, what) {
+    button.disabled = true;
+    var said = el("p", "home-card-facts try-status", t("home.find.getting", "Getting it ready…"));
+    said.setAttribute("role", "status");
+    what.appendChild(said);
+    askWith("/finds/" + encodeURIComponent(row.find) + "/open", {})
+      .then(function (got) {
+        if (got && got.pressed && got.id) {
+          said.textContent = t("home.find.started", "We're getting it ready. You'll find it in Your targums.");
+          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+          return waitForFind(got.id, said);
+        }
+        if (got && got.confirm) {
+          window.location.href = keyed(got.confirm);
+          return;
+        }
+        throw new Error("not opened");
+      })
+      .catch(function () {
+        button.disabled = false;
+        said.textContent = t("home.find.failed", "We couldn't open that one. Try again, or choose Something else.");
+      });
+  }
+  function waitForFind(id, said) {
+    var asked = 0;
+    function again() {
+      asked += 1;
+      return ask("/job/" + encodeURIComponent(id)).then(function (job) {
+        if (job && job.stage === "done" && job.reader) {
+          window.location.href = keyed(
+            "/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/")
+          );
+          return;
+        }
+        if (job && (job.error || job.blocked || job.stage === "failed" || job.stage === "blocked")) {
+          said.textContent = job.said || job.blocked || job.error || t("home.find.failed", "We couldn't open that one. Try again, or choose Something else.");
+          return;
+        }
+        if (asked >= FIND_POLL_MOST) return;
+        return new Promise(function (resolve) {
+          window.setTimeout(resolve, FIND_POLL_MS);
+        }).then(again);
+      });
+    }
+    return again();
   }
 
   /* What the card was last asked with, so Something else asks the same question with

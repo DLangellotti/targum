@@ -384,6 +384,47 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A web find is a pasted link targum found — 2026-10-31
+
+David, 2026-10-31 (targum-internal#617, slice 1 #619), on the web-discovery plan
+(`docs/web-discovery-2026-10-31.md` in targum-internal). It adds a second source to "What
+to read next is chosen on running words" (2026-10-31) and changes no rail.
+
+- **A find is a link, not a text.** targum reads the news it already follows, scores each
+  new article's words against a map of the shelf's own lemmas and lets the words go. The
+  shared pool keeps the link, its title, host and date, and a count of each lemma, for a
+  week. It keeps no text and names no reader. It never enters the shelf, the language
+  tables or the map: those are built from public texts through `tables.public_text`.
+- **The press is the reader's, and the card states its credits.** Home's card shows a
+  find with its host, its length, the exact share of its running words the reader knows
+  and what opening it uses: "Uses none of your credits" for an article, since reading
+  text is included. Open prices the link as Add prices a pasted one. Where the price is
+  what the card said, the tap is the press and it goes through `Library.press` and
+  `Library.claim`, like every build. Where it costs more, or the site will not give it
+  to us, nothing is built and Add opens with the link, for the ordinary confirm.
+- **It builds as the reader's own import**: their job, in their home, never on the shelf.
+  "Private imports never train" holds unchanged.
+- **Only a find that can be trusted reaches the card.** The scorer is about two points
+  either way, so a find is offered only from 1.5 points above the floor. One with more
+  than 8% of its words unplaced is not measured, and one that costs more credits than the
+  reader has left is not offered, because a one-tap card cannot be a dead end.
+- **Finding is free to the reader** and is targum's own spend, held to a budget of $30
+  a month (`TARGUM_FINDS_BUDGET_USD`). It is not a job row and never touches the
+  reader's rails, so the one-counter rule is untouched. News costs nothing today: a page
+  goes through the residential proxy only after a direct knock was refused, and only
+  while the budget lasts.
+- **Adult and graphic content is dropped; hard news stays** (decision 3). A host list
+  and a short list of explicit and graphic terms, in Hebrew, Russian and English, are
+  checked against the title and the first 500 words. War, crime and politics are not on
+  it. The discovery fetch honours robots.txt, which a reader's own paste does not need
+  to.
+- **Hebrew only, for now.** The Russian map measured 4–8.5 points off DICTA and waits for
+  a map of its own. YouTube (#620), podcasts (#621) and the open web (#622) are slices
+  of their own.
+- **Not yet:** recording that a find was shown, opened or set aside. That rides the
+  recommendation events, which wait on clause 3.6's wording, amended to "each text,
+  recording or page the Service suggests".
+
 ### What to read next is chosen on running words — 2026-10-31
 
 David, 2026-10-31 (targum-internal#617, Phase 0 #612), from ling-he's comprehensible-input

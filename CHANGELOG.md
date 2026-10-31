@@ -675,6 +675,28 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   for the fresh finds of #619. Each suggestion logs its
   running and distinct shares side by side. Recording the suggestions themselves waits on
   notice wording. Russian: «Что-нибудь другое» (draft).
+- Read next offers things to read targum found in the news (David, 2026-10-31;
+  targum-internal#619, epic #617, plan `docs/web-discovery-2026-10-31.md`). An hourly
+  round on the box reads the items the followed feeds already hold for `search_sources`,
+  takes each new article's words from the feed's full text or one fetch through the door
+  (robots.txt honoured, closed hosts skipped), screens the host and the words, scores the
+  words and lets them go. The pool (`find`, `find_lemma`, `find_run` in `targum.db`,
+  schema 52) keeps a link, its metadata and a bag of lemma counts for a week, never the
+  text, and names no reader. The scorer is a form → lemma map built from the public
+  shelf's DICTA annotations through `tables.public_text` (`targum finds forms`, built and
+  checked on the box by `deploy.sh`), with prefix stripping, the haser rule, and a suffix
+  fallback onto lemmas the map holds. `targum finds calibrate` reruns plan §2.3 on the
+  shelf by series folds: on the laptop's 60 modern texts the mean error is 1.4–1.6 points
+  for readers of 2,000–6,500 lemmas with no bias, and a frozen sample in the suite holds
+  it under 2.5. Home's card offers a find in the band (never within 1.5 points of the
+  floor, never one more than 8% unplaced, never one costing more credits than are left),
+  ranked by the same `choose.key` beside the shelf, with no network call on the request.
+  Open prices the link as Add does and presses it through `Library.press` as the
+  reader's own import; a higher quote goes to Add's confirm and builds nothing. Finding
+  is targum's spend against `TARGUM_FINDS_BUDGET_USD` ($30 a month), never a reader's.
+  The back office counts the pool by language, rung and topic, drops by reason, the last
+  calibration and the month's spend. Hebrew only: Russian measured 4–8.5 points off and
+  waits for a map of its own. Russian strings are drafts.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and

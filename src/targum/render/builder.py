@@ -3026,6 +3026,18 @@ def legal_is_public() -> bool:
     return os.environ.get("TARGUM_PUBLIC_LEGAL", "").strip().lower() in {"1", "true", "yes"}
 
 
+def _find_rungs(finds: object | None) -> list[tuple[str, str, int]]:
+    """The pool's measured finds by language and rung, the rung by its letter."""
+    from ..level import ladder_for
+
+    out: list[tuple[str, str, int]] = []
+    for (language, at), n in sorted(getattr(finds, "by_rung", {}).items()):
+        ladder = ladder_for(language)
+        rungs = ladder.rungs if ladder else ()
+        out.append((language, rungs[at].letter if 0 <= at < len(rungs) else str(at), n))
+    return out
+
+
 def back_office_page(
     found: object,
     days: int,
@@ -3038,6 +3050,7 @@ def back_office_page(
     told: list[dict[str, Any]] | None = None,
     faults: list[dict[str, Any]] | None = None,
     reader: object | None = None,
+    finds: object | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -3129,6 +3142,10 @@ def back_office_page(
             # `backoffice.Reader`, typed loosely for the reason `found` is.
             reader=reader,
             credits=credits,
+            # The pool of web finds (targum-internal#619): a `finds.pool.Survey`, typed
+            # loosely for the reason `found` is, and its rungs by their letters.
+            finds=finds,
+            find_rungs=_find_rungs(finds),
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
