@@ -47,7 +47,7 @@ import secrets
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import wait as wait_for
 from dataclasses import dataclass, field, replace
@@ -1096,6 +1096,70 @@ CANDIDATE_SOURCES: list[tuple[str, CandidateSource]] = [
 ]
 
 
+#: Sources whose candidates are not catalogue texts and arrive already measured for this
+#: reader: a web find (targum-internal#619, design.md §12, "A web find is a pasted link
+#: targum found", 2026-10-31). Each answers (running share, row) pairs; the chooser ranks
+#: them by the same `choose.key` as the shelf, and their rows say their origin. Asked only
+#: where the caller says so (`finds`): Home's Read next, whose card can open one. The
+#: chat, the connector and a playlist's next set name catalogue ids and are not offered
+#: them.
+RowSource = Callable[
+    ["Ctx", str, Mapping[str, int], list[dict[str, Any]], set[str]],
+    Iterable[tuple[float, dict[str, Any]]],
+]
+
+
+def _finds(
+    ctx: Ctx,
+    language: str,
+    marked: Mapping[str, int],
+    mine: list[dict[str, Any]],
+    skip: set[str],
+) -> list[tuple[float, dict[str, Any]]]:
+    """The pool's finds this reader may be offered (`finds.provider.offered`), with
+    nothing fetched: the rows near their rung, scored against the marks already loaded."""
+    from ..finds import provider
+    from ..weekly.feeds import link_key
+
+    if ctx.store is None or ctx.person is None:
+        return []
+    code = language.split("-")[0].lower()
+    here = ctx.level.here or level_module.seed(ctx.level)
+    rung = _rung(ctx.level) if code == "he" and here is not None else None
+    built = {
+        link_key(str(row.get("source") or ""))
+        for row in mine
+        if str(row.get("source") or "").startswith(("http://", "https://"))
+    }
+    found = provider.offered(
+        ctx.store,
+        code,
+        marked,
+        rung=rung,
+        credits_left=_credits_left(ctx),
+        built=built,
+        skip=skip,
+    )
+    return [(one.share, provider.row(one)) for one in found]
+
+
+def _credits_left(ctx: Ctx) -> int | None:
+    """The reader's credits left this month, or None where no allowance holds them."""
+    from .. import plans
+    from ..serve import SECONDS_A_CREDIT
+
+    if ctx.store is None or ctx.person is None or ctx.admin:
+        return None
+    allowed = ctx.library.allowance(paid_plan=plans.paid(ctx.person))
+    if allowed is None:
+        return None
+    used = ctx.store.hours_used(ctx.person.id, ctx.library._month_from())
+    return max(0, int((allowed - used) // SECONDS_A_CREDIT))
+
+
+ROW_SOURCES: list[tuple[str, RowSource]] = [("find", _finds)]
+
+
 def _candidates(ctx: Ctx) -> Iterator[tuple[str, catalogue_module.Entry]]:
     """Every candidate from every source, with the source's name; a text two sources
     offer is taken from the first."""
@@ -1117,6 +1181,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     `instead_of`, a catalogue id, is Home's "Something else": that text is set aside and
     the pick is the next best, of another kind or collection where one is as good
     (`choose.alternative`).
+
+    `finds`, where true, adds the pool's web finds (`ROW_SOURCES`, targum-internal#619),
+    ranked by the same key; only Home's Read next asks for them.
     """
     from .. import choose
 
@@ -1213,6 +1280,16 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if levels and rung is not None and key in built and row["on_shelf"]:
             _passage(ctx, row, built[key], rung, levels)
         candidates.append((rank, row))
+    if args.get("finds"):
+        from ..finds import provider
+
+        if instead_of.startswith(provider.PREFIX):
+            shown = provider.CLUSTER
+        for origin, row_source in ROW_SOURCES:
+            for share, row in row_source(ctx, language, marked, mine, skip):
+                row["origin"] = origin
+                row["fit"] = choose.fit(share)
+                candidates.append((choose.key(share), row))
     candidates.sort(key=lambda pair: pair[0])
     if instead_of and candidates:
         at = choose.alternative(candidates, shown)

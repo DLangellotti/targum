@@ -11140,7 +11140,9 @@ class Handler(BaseHTTPRequestHandler):
         # a reader who had finished more than that was offered a scene they had finished
         # (qa on targum#958).
         done = sorted({one.strip() for one in said[: self.SUGGEST_SKIP_MOST] if one.strip()})
-        asked_for: dict[str, Any] = {"limit": 1, "skip": done}
+        # Home's card can open a web find (targum-internal#619), so Home is offered them;
+        # nothing else that asks `suggest_next` is.
+        asked_for: dict[str, Any] = {"limit": 1, "skip": done, "finds": True}
         if instead_of:
             asked_for["instead_of"] = instead_of
         rows = chat_tools.suggest_next(ctx, asked_for).get("suggestions") or []

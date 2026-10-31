@@ -43,6 +43,14 @@ MARGIN = 0.015
 #: What a find's card id starts with, so it never collides with a catalogue id.
 PREFIX = "find-"
 
+#: What makes two finds the same kind of thing for "Something else" (`choose.cluster`):
+#: a news find is an article from the news, and the next pick prefers anything else.
+CLUSTER = ("article", "find:news")
+
+#: Under this many rows near the reader's rung, the freshest whatever their rung are
+#: scored too: the rung is only a cut for speed, and a thin pool should still be read.
+NEAR_LEAST = 30
+
 
 @dataclass(frozen=True)
 class Scored:
@@ -78,7 +86,11 @@ def offered(
     own = set(built)
     passed = set(skip)
     out: list[Scored] = []
-    for find in pool.pick(store, code, rung, at=at):
+    near = pool.pick(store, code, rung, at=at)
+    if rung is not None and len(near) < NEAR_LEAST:
+        held = {find.id for find in near}
+        near += [find for find in pool.pick(store, code, None, at=at) if find.id not in held]
+    for find in near:
         if find.url in own or f"{PREFIX}{find.id}" in passed:
             continue
         if credits_left is not None and find.credits > credits_left:
@@ -103,6 +115,7 @@ def row(scored: Scored) -> dict[str, Any]:
         "language": find.language,
         "kind": "article" if find.medium == "text" else find.medium,
         "register": "modern",
+        "collection": f"find:{find.source}",
         "host": find.host,
         "publisher": find.publisher,
         "url": find.url,
