@@ -168,12 +168,12 @@ def test_the_top_row_easy_has_no_next_step() -> None:
 def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
     index = index_of(
         {
-            "a1": {f"w{n}": 1 for n in range(10)},
-            "t1": {f"w{n}": 1 for n in range(20)},
-            "p1": {"w0": 1, "zz": 1},
+            "a1": {f"ww{n}": 1 for n in range(10)},
+            "t1": {f"ww{n}": 1 for n in range(20)},
+            "p1": {"ww0": 1, "zz": 1},
         }
     )
-    marked = {f"w{n}": KNOWN for n in range(19)}
+    marked = {f"ww{n}": KNOWN for n in range(19)}
     got = touchstones.at_level(shelf(), index, marked, "he", ui_language="en")
     assert [(text["id"], text["known"]) for text in got] == [("t1", 95), ("a1", 100)]
     assert got[1]["english"] == "A report"
@@ -297,8 +297,9 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     assert said["here"] == 1 and said["next"] == 2
     # One word known is no rung of the ulpan's: no foot line until the first is reached.
     assert said["level"] is None
-    # By distinct words, as the Library's Read it now: only d2 is all known.
-    assert [text["id"] for text in said["texts"]] == ["d2"]
+    # By running words, as Home's card chooses (design.md §12, 2026-10-31): d1 is 9 of
+    # its 10 words, in the band and first; d2 is all known, after it; a1 is 1 in 10.
+    assert [(text["id"], text["known"]) for text in said["texts"]] == [("d1", 90), ("d2", 100)]
     assert said["words"] == [{"lemma": "ספר", "texts": 2}]
 
     status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)

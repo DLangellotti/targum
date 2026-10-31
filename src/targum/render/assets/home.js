@@ -823,9 +823,49 @@
     var open = el("a", "try-open", t("home.try.open", "Open it"));
     // targum-internal#313: the press opens the text, not the library row.
     open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
-    what.appendChild(open);
+    var presses = el("div", "try-presses");
+    presses.appendChild(open);
+    // Something else (targum-internal#612): the next best, of another kind where one is
+    // as good, and nothing asked of the reader (David, 2026-10-31). Gone once there is
+    // nothing else to offer.
+    if (cardAsk.code && !cardAsk.spent) {
+      var other = el("button", "try-else", t("home.try.else", "Something else"));
+      other.type = "button";
+      other.addEventListener("click", function () {
+        somethingElse(row, first);
+      });
+      presses.appendChild(other);
+    }
+    what.appendChild(presses);
     host.appendChild(what);
     host.hidden = false;
+  }
+
+  /* What the card was last asked with, so Something else asks the same question with
+     the text on the card set aside: the language, what is finished or in Continue, and
+     every text set aside on this visit. Kept in the page for the visit and stored nowhere. */
+  var cardAsk = { code: "", skip: [], aside: [], spent: false };
+  function somethingElse(row, first) {
+    var code = cardAsk.code;
+    if (cardAsk.aside.indexOf(String(row.id)) < 0) cardAsk.aside.push(String(row.id));
+    askWith("/suggest", { language: code, skip: cardAsk.skip.concat(cardAsk.aside), instead_of: row.id })
+      .then(function (got) {
+        if (code !== suggesting) return;
+        var next = got && got.suggestion;
+        if (!next || !next.id) {
+          cardAsk.spent = true;
+          drawTry(row, first);
+        } else {
+          drawTry(next, first);
+        }
+        // The press was drawn again; the reader's place stays on it.
+        var host = document.getElementById("try-next");
+        var back = host && (host.querySelector(".try-else") || host.querySelector(".try-open"));
+        if (back) back.focus();
+      })
+      .catch(function () {
+        /* the card that was there stays */
+      });
   }
 
   /* --- what differs by language (the language boards, P4 2026-10-09) ------------------ */
@@ -921,6 +961,7 @@
     continuing.entries.forEach(function (entry) {
       if (skip.indexOf(entry) < 0) skip.push(entry);
     });
+    cardAsk = { code: code, skip: skip.slice(), aside: [], spent: false };
     askWith("/suggest", { language: code, skip: skip })
       .then(function (got) {
         if (code !== suggesting) return;

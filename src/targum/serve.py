@@ -11083,12 +11083,13 @@ class Handler(BaseHTTPRequestHandler):
         makes, with no conversation, no turn and no card — the sheet draws it and Open
         goes to its library row, or to the text where it is built already.
 
-        Asked as a POST with `{"language", "skip"}` in the body since home's every
+        Asked as a POST with `{"language", "skip", "instead_of"}` in the body since home's every
         finished id rides along (qa on targum#958): in the address, about 2,000 of them
         passed the server's 64 KB request line, and home showed no card at all. A GET
         with `?language=&skip=` still answers, for anything that asks the old way."""
         if self.chats is None or self.chats.store is None:
             return self._json({"suggestion": None})
+        from . import catalogue as catalogue_module
         from .chat import tools as chat_tools
 
         person = self._person()
@@ -11102,9 +11103,13 @@ class Handler(BaseHTTPRequestHandler):
                 if isinstance(given, list)
                 else []
             )
+            # Home's "Something else" (targum-internal#612): the text on the card, set
+            # aside for the next best of another kind. No reason is asked.
+            instead_of = str(payload.get("instead_of") or "")[:200]
         else:
             asked = query.get("language", [""])[0]
             said = query.get("skip", [""])[0].split(",")
+            instead_of = ""
         # In the language Learn is showing, which is the switcher's (2026-09-13).
         spoken = self._asked_language(asked)
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
@@ -11114,15 +11119,33 @@ class Handler(BaseHTTPRequestHandler):
         # a reader who had finished more than that was offered a scene they had finished
         # (qa on targum#958).
         done = sorted({one.strip() for one in said[: self.SUGGEST_SKIP_MOST] if one.strip()})
+        asked_for: dict[str, Any] = {"limit": 1, "skip": done}
+        if instead_of:
+            asked_for["instead_of"] = instead_of
+        rows = chat_tools.suggest_next(ctx, asked_for).get("suggestions") or []
         # A Hebrew beginner's one card is their next scene (design.md §12, 2026-10-27):
-        # the order is the scenes', not the ranking's, until their level is past them.
-        scene = None
-        if chat_tools.scene_reader(ctx.level):
+        # the order is the scenes', not the ranking's, until their level is past them —
+        # or until a real text fits them, which wins (2026-10-31, "What to read next is
+        # chosen on running words"). "Something else" on a scene is the ranking's pick.
+        real_fits = (
+            bool(rows)
+            and rows[0].get("fit") == "band"
+            and not (catalogue_module.scene_number(str(rows[0].get("id") or "")))
+        )
+        if not instead_of and not real_fits and chat_tools.scene_reader(ctx.level):
             scene = chat_tools.next_scene(ctx, done)
-        if scene is not None:
-            return self._json({"suggestion": scene, "library": True})
-        rows = chat_tools.suggest_next(ctx, {"limit": 1, "skip": done}).get("suggestions") or []
+            if scene is not None:
+                return self._json({"suggestion": scene, "library": True})
         if rows:
+            # Both shares, for the comparison the chooser changed on (targum-internal#612):
+            # a text and two numbers, and nobody's name.
+            log.info(
+                "suggest: %s fit=%s running=%s distinct=%s",
+                rows[0].get("id"),
+                rows[0].get("fit"),
+                rows[0].get("running_share"),
+                rows[0].get("distinct_share", rows[0].get("known_share")),
+            )
             # Said on Learn, in the page's language (targum-internal#287).
             rows[0]["because"] = chat_tools.because_in(rows[0], self._page_language())
             # "You know 0% of its words" is true of every text for a reader with no
@@ -11133,8 +11156,6 @@ class Handler(BaseHTTPRequestHandler):
                 rows[0]["because"] = ""
         # Whether the library has anything in this language at all: home says so plainly
         # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
-        from . import catalogue as catalogue_module
-
         code = (spoken or "").split("-")[0].lower()
         library = any(code in entry.languages for entry in catalogue_module.everything())
         return self._json({"suggestion": rows[0] if rows else None, "library": library})

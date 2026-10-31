@@ -263,20 +263,36 @@ def at_level(
     ui_language: str = "en",
     limit: int = TEXTS,
 ) -> list[dict[str, Any]]:
-    """Texts this reader could read now: 90% of their words known and up, the share the
-    Library's Read it now shelf uses, so the two pages never disagree about a text. The
-    nearest to the line first, because a text at 99% teaches nothing."""
-    found: list[tuple[float, Any]] = []
+    """Texts this reader could read now, chosen as Home's card chooses them
+    (`choose.key`; design.md §12, "What to read next is chosen on running words",
+    2026-10-31): at least 90% of their running words known, the nearest the 94–97% aim
+    first, a real text before a scene, and a text known through and through last.
+
+    An entry the index holds no running counts for is measured by its distinct forms, as
+    before, rather than left out. `known` is the share that chose it.
+    """
+    from . import catalogue as catalogue_module
+    from . import choose
+
+    held = dict(marked)
+    statuses = index.statuses(held)
+    found: list[tuple[tuple[Any, ...], float, Any]] = []
     for entry in entries:
         if str(getattr(entry, "language", "")) != language:
             continue
-        measured = index.against(str(entry.id), dict(marked))
-        if measured is None or measured.known * 100 < NEARLY:
+        entry_id = str(entry.id)
+        measured = index.running(entry_id, held, statuses) or index.against(entry_id, held)
+        if measured is None or measured.known < choose.FLOOR:
             continue
-        found.append((measured.known, entry))
-    found.sort(key=lambda pair: (pair[0], -int(getattr(pair[1], "difficulty", 0) or 0)))
+        rank = choose.key(
+            measured.known,
+            scene=bool(catalogue_module.scene_number(entry_id)),
+            gentle=int(getattr(entry, "difficulty", 0) or 0),
+        )
+        found.append((rank, measured.known, entry))
+    found.sort(key=lambda one: one[0])
     out = []
-    for share, entry in found[:limit]:
+    for _, share, entry in found[:limit]:
         named = getattr(entry, "named", {}) or {}
         out.append(
             {

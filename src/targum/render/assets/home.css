@@ -355,6 +355,21 @@ body:not(.is-subscribing) .home-grid.is-empty .home-shelf { display: none; }
 }
 .try-open:hover { text-decoration: underline; }
 .try-open:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
+/* Open it and, beside it, Something else (targum-internal#612): the quieter press, in
+   ink-soft, so the card still has one thing to do first. */
+.try-presses { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1.25rem; }
+.try-else {
+  margin-block-start: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.try-else:hover { color: var(--ink); text-decoration: underline; }
+.try-else:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
 
 /* Upload: the page's one filled press (§13), the primary with the card's colour on it. */
 .upload-card {
@@ -574,7 +589,8 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   /* §8: what a thumb presses answers a tap over 44px. A card's press is the whole card;
      the next one's Open and the upload are drawn at that height. */
   .home-card-open::after { min-block-size: 44px; }
-  .try-open { min-block-size: 44px; display: inline-flex; align-items: center; }
+  .try-open,
+  .try-else { min-block-size: 44px; display: inline-flex; align-items: center; }
   .welcome-practise { min-block-size: 44px; display: inline-flex; align-items: center; }
   .upload-card { min-block-size: 44px; }
 }

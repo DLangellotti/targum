@@ -148,6 +148,54 @@ def test_suggest_hands_a_beginner_their_scene_and_anyone_else_the_ranking(
     assert got["suggestion"]["id"] == "esther" and "scene" not in got["suggestion"]
 
 
+def test_a_real_text_that_fits_a_beginner_comes_before_their_scene(
+    chatting: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """David, 2026-10-31: the scenes are beginner supply until real easy content fills
+    the gap, and a real text in the band wins (design.md §12, "What to read next is
+    chosen on running words"). One under the floor does not: the scene is still the card.
+    "Something else" on the scene is the ranking's pick, and never the scene again."""
+    port, key, _store, _chats = chatting
+    asked: list[dict[str, Any]] = []
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        asked.append(dict(args))
+        return {"suggestions": [dict(picked)]}
+
+    monkeypatch.setattr(tools, "suggest_next", suggest_next)
+    picked = {"id": "esther", "title": "אסתר", "fit": "band", "because": ""}
+    got = call(port, "GET", f"/suggest?language=he&k={key}")[1]
+    assert got["suggestion"]["id"] == "esther" and "scene" not in got["suggestion"]
+
+    picked = {"id": "esther", "title": "אסתר", "fit": "under", "because": ""}
+    got = call(port, "GET", f"/suggest?language=he&k={key}")[1]
+    assert got["suggestion"]["id"] == "scene-01-nice-to-meet-you"
+
+    picked = {"id": "scene-02-in-a-cafe", "title": "x", "fit": "band", "because": ""}
+    got = call(port, "GET", f"/suggest?language=he&k={key}")[1]
+    assert got["suggestion"]["id"] == "scene-01-nice-to-meet-you", "a scene in band is no real text"
+
+    picked = {"id": "esther", "title": "אסתר", "fit": "under", "because": ""}
+    status, got, _ = call(
+        port,
+        "POST",
+        f"/suggest?k={key}",
+        {"language": "he", "skip": [], "instead_of": "scene-01-nice-to-meet-you"},
+    )
+    assert status == 200 and got["suggestion"]["id"] == "esther"
+    assert asked[-1]["instead_of"] == "scene-01-nice-to-meet-you"
+
+
+def test_home_offers_something_else_with_no_reason_asked() -> None:
+    """The card's second press asks for the next best with the text it set aside, and
+    asks nothing of the reader (David, 2026-10-31: no reason picker)."""
+    text = (ASSETS / "home.js").read_text(encoding="utf-8")
+    assert 't("home.try.else", "Something else")' in text
+    assert "instead_of: row.id" in text
+    for asked in ("too hard", "too easy", "not for me"):
+        assert asked not in text.lower()
+
+
 def test_a_finished_scene_is_never_offered_however_much_is_finished(chatting: Any) -> None:
     """qa on targum#958: the ids were cut at 200, alphabetically, so a reader who had
     finished more than that lost the scenes off the end and was offered scene 1 again."""
