@@ -5145,8 +5145,14 @@ def topics_share(
     console.print(f"{topics.SYNTHETIC[person][0]} ({len(known)} words known)")
     if len(known) < topics.READER_FLOOR:
         console.print(f"[yellow]Below the reader floor of {topics.READER_FLOOR} words.[/yellow]")
-    for one in sorted(topics.shares(held, known, modern, bible), key=lambda s: s.share):
-        note = "" if one.drawn else f"  [dim]below the floor of {topics.TOPIC_FLOOR} lemmas[/dim]"
+    shown = topics.load_shown(lexicon)
+    for one in sorted(topics.shares(held, known, modern, bible, shown), key=lambda s: s.share):
+        if not one.shown:
+            note = "  [dim]not shown: it has not passed the gold set[/dim]"
+        elif not one.drawn:
+            note = f"  [dim]below the floor of {topics.TOPIC_FLOOR} lemmas[/dim]"
+        else:
+            note = ""
         console.print(
             f"{one.share:7.1%}  {topics.TOPICS[one.topic]:<24}"
             f" {one.known:>4} of {one.lemmas:<4} lemmas{note}"

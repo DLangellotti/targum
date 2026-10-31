@@ -89,6 +89,12 @@ def main() -> int:
     parser.add_argument(
         "--from-run", help="Reuse another run's lemma list (screened again) instead of drawing."
     )
+    parser.add_argument(
+        "--glosses",
+        type=Path,
+        help="Another run's lemmas.json (a topic or root run over the same tables) to read a"
+        " gloss from where the laptop's gloss cache has none.",
+    )
     args = parser.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -100,7 +106,7 @@ def main() -> int:
     run.mkdir(parents=True, exist_ok=True)
 
     registers = [r.strip() for r in args.registers.split(",") if r.strip()]
-    lemmas = _lemmas(run, args.lemmas, args.bible, registers, args.from_run)
+    lemmas = _lemmas(run, args.lemmas, args.bible, registers, args.from_run, args.glosses)
     if not lemmas:
         print("No lemmas: the language tables are empty. Run `targum tables sweep`.")
         return 1
@@ -151,7 +157,12 @@ def main() -> int:
 
 
 def _lemmas(
-    run: Path, modern: int, bible: int, registers: list[str], from_run: str | None = None
+    run: Path,
+    modern: int,
+    bible: int,
+    registers: list[str],
+    from_run: str | None = None,
+    glosses: Path | None = None,
 ) -> list[topics.Lemma]:
     """The run's lemma list: read back where it was written, so a resumed run asks about
     exactly the rows it paid for; otherwise another run's, or drawn from the tables, and
@@ -173,7 +184,9 @@ def _lemmas(
         drawn = [topics.Lemma(**row) for row in source["lemmas"]]
         registers, missing = source.get("registers", registers), source.get("no_gloss", [])
     else:
-        drawn, missing = topics.universe(store, modern=modern, bible=bible, registers=registers)
+        drawn, missing = topics.universe(
+            store, modern=modern, bible=bible, registers=registers, gloss=_gloss(glosses)
+        )
     lemmas, dropped = topics.screen(store, drawn)
     body = {
         "registers": registers,
@@ -190,6 +203,23 @@ def _lemmas(
         f" {len(missing)} left out for want of a gloss."
     )
     return lemmas
+
+
+def _gloss(glosses: Path | None) -> Any:
+    """The gloss cache, and behind it the glosses another run over the same tables sent:
+    the roots run read the box's gloss cache too. Only ever asked about a lemma the tables
+    gave, so nothing a reader imported enters through it."""
+    if glosses is None:
+        return topics.cached_gloss
+    held: dict[str, tuple[str, str]] = {}
+    for row in json.loads(glosses.read_text(encoding="utf-8"))["lemmas"]:
+        if row.get("gloss"):
+            held.setdefault(row["glossed_as"], (row["gloss"], row.get("pointed", "")))
+
+    def read(filed: str) -> tuple[str, str] | None:
+        return topics.cached_gloss(filed) or held.get(filed)
+
+    return read
 
 
 def _load(run: Path) -> dict[str, Any]:
@@ -531,6 +561,8 @@ def _summarise(
             {
                 "version": f"{topics.VERSION}+{topics.PROMPT_VERSION}-{run.name}",
                 "topics": list(topics.TOPICS),
+                "shown": list(topics.SHOWN),
+                "shown_rule": topics.SHOWN_RULE,
                 "lemmas": lexicon,
             },
             ensure_ascii=False,
