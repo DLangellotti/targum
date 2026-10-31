@@ -109,7 +109,9 @@
       function (path) {
         return path;
       };
-    var named = reader.entry || reader.id || reader.name || "";
+    // `picture: false` is a text with no picture of ours to ask for: a web find
+    // (targum-internal#619), whose own site is never fetched from. Its letter.
+    var named = reader.picture === false ? "" : reader.entry || reader.id || reader.name || "";
     var source = named ? address("/thumb/" + encodeURIComponent(named) + "?drawn=1") : "";
     return tile(source, {
       title: reader.title,

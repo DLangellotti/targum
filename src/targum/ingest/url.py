@@ -380,8 +380,11 @@ def _retry_through_proxy(url: str, error: Unreachable) -> str:
     return where
 
 
-def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
+def fetch(url: str, params: dict[str, str] | None = None, *, proxy: bool = True) -> Fetched:
     """A page, direct; then once through the proxy if the direct knock was refused.
+
+    `proxy=False` is the direct knock alone: targum's own discovery fetches pass it once
+    the month's discovery budget is spent, and for a robots.txt (`finds.robots`).
 
     A fallback and not a route, which makes it selective by construction: a host only
     ever leaves through the proxy after a direct attempt refused it, so Gutenberg,
@@ -399,10 +402,10 @@ def fetch(url: str, params: dict[str, str] | None = None) -> Fetched:
     try:
         return _read(url, params, via="direct")
     except Unreachable as error:
-        proxy = _retry_through_proxy(url, error)
-        if not proxy:
+        through = _retry_through_proxy(url, error) if proxy else ""
+        if not through:
             raise
-        got = _read(url, params, via="proxy", proxy=proxy)
+        got = _read(url, params, via="proxy", proxy=through)
         log.info("fetched %s through the proxy", urlparse(url).hostname or "")
         return got
 

@@ -8,7 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import time
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, NoReturn
 from urllib.parse import urlparse
@@ -68,6 +68,10 @@ app.add_typer(export_app, name="export")
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(tables_app, name="tables")
 app.add_typer(topics_app, name="topics")
+finds_app = typer.Typer(
+    no_args_is_help=True, help="Things to read targum finds on the web (targum-internal#619)."
+)
+app.add_typer(finds_app, name="finds")
 
 console = Console()
 err = Console(stderr=True)
@@ -5162,6 +5166,203 @@ def topics_share(
             f"{one.share:7.1%}  {topics.TOPICS[one.topic]:<24}"
             f" {one.known:>4} of {one.lemmas:<4} lemmas{note}"
         )
+
+
+@finds_app.command("forms")
+def finds_forms(
+    library: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--library", help="A folder of built targums; repeat for more. Default: ./targum-out"
+        ),
+    ] = None,
+    write: Annotated[
+        Path | None,
+        typer.Option("--write", help="Where to write the map. Default: ~/.targum/forms.json."),
+    ] = None,
+    language: Annotated[
+        list[str] | None, typer.Option("--language", help="A language to map; repeat. Default: he.")
+    ] = None,
+    check: Annotated[
+        Path | None,
+        typer.Option("--check", help="Check a map before it ships, and build nothing."),
+    ] = None,
+) -> None:
+    """Build the cheap scorer's form → lemma map from the public shelf (targum-internal#619).
+
+    Reads each public text's `annotation.json` through `tables.public_text`, so a reader's
+    home or a private import never enters it. No annotator runs and nothing is fetched or
+    spent. The map is library data: it stays off the repository, like the catalogue.
+    """
+    from .finds import score
+
+    if check is not None:
+        wrong = score.check(check)
+        for line in wrong:
+            console.print(f"[red]{line}[/red]")
+        if wrong:
+            raise typer.Exit(1)
+        console.print(f"[green]{check} is a {score.VERSION} map[/green]")
+        return
+    roots = library or [Path.cwd() / "targum-out"]
+    for root in roots:
+        if not root.is_dir():
+            fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+    languages = language or ["he"]
+    merged: dict[str, list[score.Annotated]] = {score.code(one): [] for one in languages}
+    for root in roots:
+        for text in score.annotated(root, languages):
+            merged[text.language].append(text)
+    built = {one: score.build_language(texts, one) for one, texts in merged.items()}
+    body = {
+        "version": score.VERSION,
+        "built": datetime.now(UTC).isoformat(timespec="seconds"),
+        "languages": built,
+    }
+    to = write or score.PLACES[0]
+    score.write(body, to)
+    for one, held in built.items():
+        console.print(
+            f"[green]{one}[/green]: {len(held['forms'])} forms from {held['texts']} texts,"
+            f" {held['tokens']} words"
+        )
+    for line in score.check(to):
+        console.print(f"[yellow]{line}[/yellow]")
+    console.print(f"[dim]{to}[/dim]")
+
+
+@finds_app.command("calibrate")
+def finds_calibrate(
+    library: Annotated[
+        list[Path] | None,
+        typer.Option(
+            "--library", help="A folder of built targums; repeat for more. Default: ./targum-out"
+        ),
+    ] = None,
+    language: Annotated[str, typer.Option("--language", help="Which language.")] = "he",
+    store: Annotated[
+        Path | None, typer.Option("--store", help="Where the back office reads the last run.")
+    ] = None,
+    record: Annotated[
+        bool, typer.Option("--record/--no-record", help="Keep the table for the back office.")
+    ] = True,
+    fixture: Annotated[
+        Path | None,
+        typer.Option("--fixture", help="Also write a frozen sample for the suite here."),
+    ] = None,
+    licence: Annotated[
+        list[str] | None,
+        typer.Option("--licence", help="A licence a fixture text may carry; repeat."),
+    ] = None,
+    also: Annotated[
+        list[str] | None,
+        typer.Option("--also", help="A register a fixture may draw from beyond the tested."),
+    ] = None,
+) -> None:
+    """The cheap scorer against DICTA on the shelf's own texts (plan §2.3).
+
+    Every modern public text is scored with a map built from the other four fifths of the
+    shelf, split by series, for readers who know exactly the commonest 2,000 to 6,500
+    lemmas. Reads files only; nothing is fetched or spent.
+    """
+    from .finds import pool, score
+
+    roots = library or [Path.cwd() / "targum-out"]
+    texts: list[score.Annotated] = []
+    for root in roots:
+        if not root.is_dir():
+            fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+        texts.extend(score.annotated(root, [language]))
+    found = score.calibrate(texts, language)
+    console.print(
+        f"{found.test} of {found.texts} texts tested, {found.test_tokens} running words;"
+        f" agree with DICTA on {found.agree:.1%} of resolved words"
+    )
+    console.print(
+        "  found: " + ", ".join(f"{how} {share:.1%}" for how, share in found.found.items())
+    )
+    console.print("  knows   mean   |mean|  p90|e|  ≥90% DICTA/cheap  same side")
+    for row in found.rows:
+        console.print(
+            f"  {row.known:>5}  {row.mean * 100:+5.1f}  {row.mean_abs * 100:5.1f}"
+            f"  {row.p90_abs * 100:5.1f}  {row.over_dicta:>6} / {row.over_cheap:<6}"
+            f"   {row.same_side:6.0%}"
+        )
+    if record:
+        from .accounts import Store
+        from .serve import default_store
+
+        keeping = Store(store or default_store())
+        run = pool.start_run(keeping, "calibrate")
+        pool.finish_run(keeping, run, seen=found.test, note=found.state())
+    if fixture is not None:
+        body = score.fixture(texts, language, licences=licence or (), registers=also or ())
+        fixture.parent.mkdir(parents=True, exist_ok=True)
+        data = json.dumps(body, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        if fixture.suffix == ".gz":
+            import gzip
+
+            data = gzip.compress(data, mtime=0)
+        fixture.write_bytes(data)
+        console.print(f"[dim]{len(body['texts'])} texts in the sample, {fixture}[/dim]")
+
+
+@finds_app.command("run")
+def finds_run(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """One round of the news finds, now: the followed feeds pulled once, every new item
+    screened, scored and pooled. The server does this hourly by itself; this is for a
+    laptop, or to see what a round does."""
+    from .accounts import Store
+    from .chat import sources as sources_module
+    from .chat import tools as tools_module
+    from .finds import news
+    from .serve import default_store
+
+    keeping = Store(store or default_store())
+    feeds = [one.feed for one in sources_module.load() if one.feed]
+    if not feeds:
+        fail(TargumError("No publishers are followed.", "Put a sources.json beside the catalogue."))
+    tools_module.FEEDS.pull(feeds, 60.0)
+    found = news.refresh(keeping)
+    console.print(f"[green]News[/green]: {found}")
+
+
+@finds_app.command("pool")
+def finds_pool(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """What the pool holds, counted as the back office counts it."""
+    import sqlite3
+
+    from .finds import pool
+    from .serve import default_store
+
+    where = store or default_store()
+    if not where.is_file():
+        fail(TargumError(f"There is no database at {where}."))
+    db = sqlite3.connect(f"file:{where}?mode=ro", uri=True)
+    try:
+        found = pool.survey(db)
+    finally:
+        db.close()
+    for language, n in sorted(found.by_language.items()):
+        rungs = ", ".join(
+            f"{at}: {count}"
+            for (lang, at), count in sorted(found.by_rung.items())
+            if lang == language
+        )
+        console.print(
+            f"{language}: {n} kept, {found.unmeasured.get(language, 0)} not measured"
+            + (f" · by rung {rungs}" if rungs else "")
+        )
+    if found.dropped:
+        console.print(
+            "dropped: " + ", ".join(f"{why} {n}" for why, n in sorted(found.dropped.items()))
+        )
+    spent = sum(found.spent.values())
+    console.print(f"spent this month: ${spent:.4f} of ${found.budget:.2f}")
 
 
 @export_app.command("pdf")

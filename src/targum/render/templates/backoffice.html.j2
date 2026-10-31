@@ -696,6 +696,44 @@
     </tbody>
   </table>
 
+  {#- Things to read targum finds on the web (targum-internal#619): the shared pool,
+      counted and never listed. No link and no reader is on this page: a find is counted
+      by language, rung and topic, a drop by its reason, and what finding cost targum is
+      its own spend against its own budget, never a reader's credits. -#}
+  <h2 id="finds">Web finds</h2>
+  {%- if not finds or not finds.any() %}
+  <p class="nothing">Nothing found yet. The news round runs hourly on the box.</p>
+  {%- else %}
+  <p class="taken">
+    {%- for language, n in finds.by_language|dictsort %}{{ language }}: {{ n }} kept, {{ finds.unmeasured.get(language, 0) }} not measured{% if not loop.last %} &middot; {% endif %}{% endfor %}
+    {%- if finds.opened %} &middot; {{ finds.opened }} opened in 30 days, {{ finds.built }} built{% endif %}</p>
+  <p class="taken">Spent this month: ${{ '%.2f'|format(finds.spent.values()|sum) }} of ${{ '%.2f'|format(finds.budget) }}
+    {%- for source, dollars in finds.spent|dictsort %}{% if dollars %} &middot; {{ source }} ${{ '%.4f'|format(dollars) }}{% endif %}{% endfor %}</p>
+  {%- if find_rungs %}
+  <table>
+    <thead><tr><th>Language</th><th>Rung</th><th class="n">Measured finds</th></tr></thead>
+    <tbody>
+      {%- for language, rung, n in find_rungs %}
+      <tr><td>{{ language }}</td><td>{{ rung }}</td><td class="n">{{ n }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+  {%- if finds.by_topic %}
+  <p class="quiet">By topic: {% for topic, n in finds.by_topic|dictsort %}{{ topic }} {{ n }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+  {%- endif %}
+  {%- if finds.dropped %}
+  <p class="quiet">Dropped and remembered: {% for why, n in finds.dropped|dictsort %}{{ why }} {{ n }}{% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+  {%- endif %}
+  {%- for source, last in finds.last|dictsort %}
+  <p class="quiet">Last {{ source }} round: {{ last.seen }} new, {{ last.kept }} kept{% for why, n in last.dropped|dictsort %} &middot; {{ why }} {{ n }}{% endfor %}</p>
+  {%- endfor %}
+  {%- if finds.calibration %}
+  <p class="quiet">Last calibration ({{ finds.calibration.language }}, {{ finds.calibration.test }} texts, {{ finds.calibration.test_tokens }} words):
+    {%- for row in finds.calibration.rows %} knows {{ row.known }}: {{ '%+.1f'|format(row.mean * 100) }} pt, |{{ '%.1f'|format(row.mean_abs * 100) }}|{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
+  {%- endif %}
+
   {#- What broke in readers' browsers (targum-internal#457, clause 3.14), counted by
       message and page over thirty days: how often, for how many accounts, and where in
       the script. A message reported five times in an hour has mailed the operator. Fixed
