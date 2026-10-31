@@ -171,7 +171,19 @@ def test_the_prompt_puts_the_commonest_sense_over_the_gloss() -> None:
     assert "everyday devices and their use (phone, screen, message, app) are Everyday life" in (
         prompt
     )
-    assert topics.PROMPT_VERSION == "prompt/2"
+
+
+def test_prompt_3_keeps_time_words_and_media_verbs_general() -> None:
+    prompt = topics.system_prompt()
+    assert "Time as such (time, moment, period, occasion, the past, the future)" in prompt
+    assert "Verbs of publishing, reporting, announcing, quoting and revealing" in prompt
+    answers = {lemma: answer for lemma, _, _, _, answer in topics.EXAMPLES}
+    for lemma in ("תקופה", "פעם", "עתיד", "הודיע", "ציטט", "חשף"):
+        assert answers[lemma] == (topics.GENERAL,)
+    # The topics a time or media word does keep, so the rule is not read as "all general".
+    assert answers["חודש"] == ("everyday",)
+    assert answers["ערוץ"] == ("culture",)
+    assert topics.PROMPT_VERSION == "prompt/3"
 
 
 def test_variants_counts_each_part_of_speech_over_every_register(tmp_path: Path) -> None:
