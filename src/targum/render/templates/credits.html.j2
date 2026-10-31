@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="{{ page_language|default('en') }}">
+<head>
+{#- Whose work targum uses and under what licence (targum-internal#610; design.md §12,
+    "A word is said by a person where one recorded it", 2026-10-31). Read out of the
+    manifests kept beside the files, so a recording is credited the day it is served. -#}
+{% include '_public_head.html.j2' %}
+{{ styles('tokens.css', 'public-page.css', 'about.css') }}
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="about credits">
+<div class="corner">
+  <a class="enter" href="/account/signin">{{ t("credits.page.sign-in", "Sign in") }}</a>
+</div>
+
+<main class="sheet">
+  <a class="brand" href="/" aria-label="targum">
+    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
+      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
+      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
+    </svg>
+    <span>targum</span>
+  </a>
+
+  <div class="card">
+  <h1>{{ t("credits.page.heading", "Credits") }}</h1>
+
+  <section id="voices">
+    <h2>{{ t("credits.page.voices-heading", "Words said by people") }}</h2>
+    <p class="lede">{{ t("credits.page.voices-intro", "Where a word card plays a person rather than our voice, the recording is theirs. They made it for Lingua Libre and shared it on Wikimedia Commons. Thank you.") }}</p>
+    <p class="lede">{{ t("credits.page.voices-copies", "We play Commons' own MP3 copy of each file. A file under CC BY-SA stays under CC BY-SA, and its page on Commons has the original.") }}</p>
+    {% if speakers %}
+    <ul class="speakers">
+      {% for row in speakers %}
+      <li class="speaker">
+        <details>
+          <summary><b>{{ row.name }}</b> <span class="terms">· <a href="{{ row.licence_url }}" rel="license">{{ row.licence }}</a> · {{ tn("credits.page.words", row.recordings|length, "{n} word", "{n} words") }}</span></summary>
+          <ul lang="{{ language }}" dir="rtl">
+            {% for one in row.recordings %}
+            <li><a href="{{ one.page }}" title="{{ one.attribution }}">{{ one.word }}</a></li>
+            {% endfor %}
+          </ul>
+        </details>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="lede">{{ t("credits.page.none", "No recordings are kept here yet.") }}</p>
+    {% endif %}
+  </section>
+  </div>
+</main>
+
+{% include '_public_foot.html.j2' %}
+</body>
+</html>

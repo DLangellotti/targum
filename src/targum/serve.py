@@ -43,7 +43,7 @@ from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 from . import incidents as incidents_module
 from . import level as level_module
-from . import mcp_http, oauth, plans
+from . import mcp_http, oauth, plans, voices
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
@@ -83,6 +83,7 @@ from .render.builder import (
     connect_page,
     connect_refused_page,
     credits_of,
+    credits_page,
     daily_page,
     first_visit,
     front_page,
@@ -658,6 +659,9 @@ OPEN_TO_STRANGERS = frozenset(
         "/about",
         # How targum reads Hebrew (targum-internal#401): a page for strangers by design.
         "/how",
+        # Whose recordings a word card plays, and their licences (targum-internal#610):
+        # a credit has to be readable by anybody who hears one.
+        "/credits",
         "/account/signin",
         "/account/enter",
         "/account/sign-in",
@@ -9219,6 +9223,9 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/about":
             page = about_page(language=self._page_language(), address=self.address)
             return self._send(200, page.encode("utf-8"), HTML)
+        if route == "/credits":
+            page = credits_page(language=self._page_language(), address=self.address)
+            return self._send(200, page.encode("utf-8"), HTML)
         if route == "/how":
             # `?lang=` like every page with the foot's EN / RU (targum-internal#188).
             page = how_page(language=self._public_language(), address=self.address)
@@ -10263,6 +10270,25 @@ class Handler(BaseHTTPRequestHandler):
         # One word, or the few a fixed expression is. A sentence is the chat's to say.
         if not text or len(text) > WORD_SAID_CHARS or len(text.split()) > 4:
             return self._json({"error": "bad request"}, 400)
+        # A person's recording of the word, where Lingua Libre has one (targum-internal#610;
+        # design.md §12, "A word is said by a person where one recorded it"): a file kept
+        # on targum, never fetched from Commons, and free. `by` is the credit the card
+        # draws under Hear; the voice's clips carry none.
+        recorded = voices.find(text, language)
+        if recorded is not None:
+            path = recorded.path(language)
+            kind = "audio/mpeg" if path.suffix == ".mp3" else "audio/wav"
+            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+            return self._json(
+                {
+                    "audio": f"data:{kind};base64,{encoded}",
+                    "by": {
+                        "speaker": recorded.speaker,
+                        "licence": recorded.licence,
+                        "credits": "/credits#voices",
+                    },
+                }
+            )
         if not speech.speaks(language):
             return self._json(
                 {

@@ -384,6 +384,42 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A word is said by a person where one recorded it — 2026-10-31
+
+David, 2026-10-31 (targum-internal#610), from the easy-audio research of the same day. It
+amends "A word said from its card is on targum" (2026-10-07) and "Your Words says each
+word, as its card does" (2026-10-21): the press and the rails stay, and only the voice
+changes where a person recorded the word.
+
+- **Where Lingua Libre has the word, a person says it.** People record single words for
+  Lingua Libre and share them on Wikimedia Commons. Hebrew has about 3,500 such files,
+  pointed and named by the word. `/say-word` answers with that file where one matches,
+  and with the voice everywhere else, as before.
+- **Matched by the word as written.** The exact pointed form comes first, without
+  cantillation or meteg. A bare word, as modern text is written, takes the file only
+  when one recorded word has those letters: ספר is סֵפֶר and סַפָּר, so the voice says
+  it. A pointed word that matches no file is not tried bare, because its vowels say
+  which word it is.
+- **CC0 and CC BY-SA only, read per file** off each file's own Commons page, never
+  assumed from the speaker. Anything else is left out. Where two people said a word,
+  CC0 comes first, then the speaker with more words, so a card's words keep one voice
+  where they can.
+- **A reader fetches nothing from Commons** ("A reader fetches nothing from any other
+  site", 2026-10-30). The files are copied once on the laptop, into the cache beside the
+  voice's own clips, and shipped to the box. They are answered the way a clip is. A
+  manifest line with no file on disk is not offered.
+- **The credit sits under Hear and on `/credits`.** A card that plays a person says
+  "Said by YaronSh · CC0" under the button in ink-soft, linked to `/credits`. On Your
+  Words the button's title says it. `/credits` is open to strangers and lists every
+  speaker with their licence and each word, linked to its file on Commons. CC BY-SA
+  asks for attribution on the file itself, and CC0 gets it as thanks. The files are
+  Commons' own MP3 copies, and a BY-SA file stays BY-SA.
+- **A person's word is free.** No claim and no job: it costs targum nothing to play.
+- **Not yet:** the Anki deck still carries the voice's clips. A recording in a deck
+  would need its credit carried in the deck, and that waits for a reader to ask. CC BY
+  recordings (44 files) wait for the bar to be widened, because this card's bar is CC0
+  and BY-SA.
+
 ### What next leads with your biggest grammar gap — 2026-10-30
 
 David, 2026-10-30 (targum-internal#604, board 4B). It amends "3 · What next" in "Your

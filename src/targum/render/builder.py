@@ -2562,6 +2562,38 @@ def about_page(language: str = "en", address: str = "") -> str:
     )
 
 
+def credits_page(language: str = "en", address: str = "") -> str:
+    """Whose work targum uses, and under what licence (targum-internal#610; design.md §12,
+    "A word is said by a person where one recorded it", 2026-10-31).
+
+    Every speaker whose recordings a word card can play, with their licence and each word,
+    linked to its file's page on Commons: CC BY-SA asks for the credit on the file itself,
+    and a card that plays one links here. Read from the manifest beside the files
+    (`voices.credits`), so only a recording on disk is credited and every one that is.
+    One address for every language, like /about.
+    """
+    from .. import voices
+
+    said = page_words(language)
+    return (
+        _environment()
+        .get_template("credits.html.j2")
+        .render(
+            t=said,
+            tn=page_counts(language),
+            page_language=_page_language(language),
+            title=said("credits.head.title", "Credits — targum"),
+            description=said(
+                "credits.head.description",
+                "The people whose work targum uses, and the licences we use it under.",
+            ),
+            language="he",
+            speakers=voices.credits("he"),
+            canonical=f"{address.rstrip('/')}/credits" if address else "",
+        )
+    )
+
+
 #: The examples /how shows, copied out of real builds by `scripts/how_examples.py`.
 HOW = Path(__file__).resolve().parent.parent / "how.json"
 
