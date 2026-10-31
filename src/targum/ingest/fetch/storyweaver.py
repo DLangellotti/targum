@@ -33,17 +33,31 @@ its number. `english_source` walks that chain to the nearest English version, so
 catalogue row can name a published English instead of buying one. About a third of the
 Italian went through a third language on the way; the walk finds the English wherever it
 sits in the chain.
+
+**Since October 2026 `/read` answers only a signed-in session** (401 otherwise). A person
+signed in to StoryWeaver saves the answers from their own browser into one file, and
+`TARGUM_STORYWEAVER_SAVED` names it:
+
+    TARGUM_STORYWEAVER_SAVED=~/saved-hebrew.json targum build storyweaver:7960
+
+A book in the file is read from it and the network is not asked; a book not in it is
+asked for as before. The file is `{"books": [{"search": {"id": 7960, ...}, "read": {...}}]}`,
+where `read` is the `data` of one `/read` answer and a book whose fetch failed carries no
+`read`. It is somebody else's pages saved to disk, and is checked exactly as an answer
+from the host would be: the attribution page is still the licence.
 """
 
 from __future__ import annotations
 
 import difflib
 import json
+import os
 import re
 import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from ...errors import TargumError, Unreachable
@@ -483,12 +497,78 @@ def refuse_unservable(number: int, credits: Attribution) -> None:
 CHALLENGE_WAITS: tuple[float, ...] = (20.0, 60.0, 120.0)
 
 
+#: Names a file of `/read` answers saved through a signed-in browser. See the module's
+#: docstring for its shape.
+SAVED_ENV = "TARGUM_STORYWEAVER_SAVED"
+
+_saved_cache: dict[tuple[str, float], dict[int, dict[str, Any]]] = {}
+
+
+def saved_reads(path: Path) -> dict[int, dict[str, Any]]:
+    """Each book in a saved file that has its `/read` answer, by story number.
+
+    A book whose fetch failed is left out rather than refused, so it is asked for over
+    the network like any book the file does not hold.
+    """
+    try:
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise TargumError(
+            f"There is no saved StoryWeaver file at {path}.",
+            f"{SAVED_ENV} names a file of /read answers saved from a signed-in browser.",
+        ) from error
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise TargumError(
+            f"The saved StoryWeaver file at {path} is not JSON we can read.",
+            str(error),
+        ) from error
+    books = payload.get("books") if isinstance(payload, dict) else None
+    if not isinstance(books, list):
+        raise TargumError(
+            f"The saved StoryWeaver file at {path} has no list of books.",
+            'It should read {"books": [{"search": {"id": 7960}, "read": {...}}]}.',
+        )
+    found: dict[int, dict[str, Any]] = {}
+    for book in books:
+        if not isinstance(book, dict):
+            continue
+        search, read = book.get("search"), book.get("read")
+        number = search.get("id") if isinstance(search, dict) else None
+        if isinstance(number, int) and isinstance(read, dict) and read.get("pages"):
+            found[number] = read
+    return found
+
+
+def _saved(number: int) -> dict[str, Any] | None:
+    """Book `number` from the file `TARGUM_STORYWEAVER_SAVED` names, or None."""
+    named = os.environ.get(SAVED_ENV, "").strip()
+    if not named:
+        return None
+    path = Path(named).expanduser()
+    try:
+        key = (str(path.resolve()), path.stat().st_mtime)
+    except OSError:
+        key = (str(path), 0.0)
+    if key not in _saved_cache:
+        _saved_cache.clear()
+        _saved_cache[key] = saved_reads(path)
+    return _saved_cache[key].get(number)
+
+
 def _read(number: int) -> dict[str, Any]:
+    if (kept := _saved(number)) is not None:
+        return kept
     for wait in (*CHALLENGE_WAITS, None):
         try:
             raw = get(READ.format(id=number))
             break
         except Unreachable as error:
+            if error.status == 401:
+                raise TargumError(
+                    f"StoryWeaver reads story {number} only to a signed-in session.",
+                    f"Save its /read answer from a signed-in browser and name the file in "
+                    f"{SAVED_ENV}.",
+                ) from error
             if not error.challenge:
                 raise
             if wait is None:
