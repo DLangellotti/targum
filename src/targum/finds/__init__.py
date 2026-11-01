@@ -11,6 +11,8 @@ a pasted link targum found", 2026-10-31.
   polite.
 - `news`: the hourly round over the feeds targum already follows.
 - `provider`: the pool scored for one reader, as candidates for Read next.
+- `button`, `interests` and `live`: "Find me something" (#615): one pick for one reader,
+  steered by topics, and a capped look on the web when the pool has nothing that fits.
 
 Nothing here spends a reader's credits. Opening a find is a pasted link's press
 (`serve.Handler._open_find`), through `Library.press` and so `Library.claim`, and what

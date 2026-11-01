@@ -9788,6 +9788,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._playlists_post(route[len("/playlists/") :], payload)
         if FIND_OPEN.fullmatch(route):
             return self._open_find(route[len("/finds/") : -len("/open")])
+        if route == "/find":
+            return self._find(payload if isinstance(payload, dict) else {})
         if route == "/already":
             return self._already(payload)
         if route == "/describe":
@@ -15174,6 +15176,143 @@ class Handler(BaseHTTPRequestHandler):
         if self.library.press(job):
             return self._json({**job.state(), "pressed": False, "confirm": confirm}, 402)
         return self._json({**job.state(), "pressed": True})
+
+    def _find(self, payload: dict[str, Any]) -> None:
+        """ "Find me something" on Your targums (targum-internal#615; `finds/button.py`).
+
+        One POST, four questions, by what the body carries:
+
+        - `{"chips": true}`: the topics the page may offer to steer, each with whether
+          the reader's own reading suggests it (`finds.interests`).
+        - `{"language", "topics", "skip"}`: one pick. The pool first, which fetches
+          nothing; where nothing there fits and a look on the web may run
+          (`finds.live.refused`), the look starts and the answer is its id and stage.
+        - `{"search": id}`: how that look is getting on, and its pick when it is done.
+
+        Nothing here spends the reader's credits: the card's "Read it" is the web find's
+        own press, `POST /finds/<id>/open`. A look on the web is targum's spend, inside
+        the discovery budget. Off unless `TARGUM_FIND_BUTTON` is set.
+        """
+        from . import estimate as estimate_module
+        from .chat import tools as chat_tools
+        from .finds import button, live
+        from .finds import interests as interests_module
+        from .topics import TOPICS
+        from .weekly.feeds import link_key
+
+        if not button.on():
+            return self._json({"error": "not found"}, 404)
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if self.chats is None or self.chats.store is None:
+            return self._json({"pick": None})
+        polled = str(payload.get("search") or "")[:40]
+        if polled:
+            look = live.LOOKS.get(polled, person.id)
+            if look is None:
+                return self._json(
+                    {"error": self._say("find.look-gone", "We lost that search. Try again.")},
+                    404,
+                )
+            state = look.state()
+            if look.stage == "failed":
+                state["error"] = self._say(
+                    "find.look-failed", "We couldn't search the web just now. Try again later."
+                )
+            elif look.stage == "done" and look.pick is not None:
+                state["pick"] = self._find_row(look.pick)
+            return self._json(state)
+        admin = bool(self.store.is_admin(person.email))
+        spoken = self._asked_language(str(payload.get("language") or ""))
+        code = spoken.split("-")[0].lower()
+        known = interests_module.lexicon()
+        words, _, met = self.store.knowledge(person.id, code)
+        liked = [one.topic for one in interests_module.inferred(words, met, known)] if known else []
+        shown = known.shown if known else ()
+        if payload.get("chips"):
+            return self._json(
+                {
+                    "chips": [
+                        {
+                            "topic": topic,
+                            "label": self._say(f"find.topic.{topic}", TOPICS[topic]),
+                            "suggested": topic in liked,
+                        }
+                        for topic in shown
+                    ]
+                }
+            )
+        given = payload.get("topics")
+        picked = {str(one) for one in given} if isinstance(given, list) else set()
+        chosen = tuple(topic for topic in shown if topic in picked)
+        passed = payload.get("skip")
+        skip = tuple(str(one)[:40] for one in passed[:200]) if isinstance(passed, list) else ()
+        ask = button.Ask(code, chosen, tuple(liked), skip)
+        ctx = self.chats.context(person, self._home(), "", admin, spoken)
+        rung = chat_tools._rung(ctx.level) if code == "he" else None
+
+        def choose() -> list[dict[str, Any]]:
+            mine, _ = chat_tools._shelf(ctx)
+            built = {
+                link_key(str(row.get("source") or ""))
+                for row in mine
+                if str(row.get("source") or "").startswith(("http://", "https://"))
+            }
+            return button.ranked(
+                self.store,
+                ask,
+                chat_tools._marked(ctx, code, {}),
+                estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
+                rung=rung,
+                built=built,
+                credits_left=chat_tools._credits_left(ctx),
+                known=known,
+            )
+
+        rows = choose()
+        if button.fits(rows):
+            return self._json({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
+        asked = live.query(ask.wanted, code, rung)
+        why = live.refused(self.store, person.id, asked)
+        if not why:
+            look = live.LOOKS.start(self.store, person.id, code, asked, choose)
+            return self._json(look.state())
+        if rows:
+            # Nothing in the band and no look to run: the best of what is left, which
+            # is a find the reader knows almost all of, and the card says so.
+            return self._json({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
+        message = {
+            "reader": self._say(
+                "find.cap-reader",
+                "We've looked on the web for you {n} times today. Try again tomorrow.",
+                n=live.READER_DAY_MOST,
+            ),
+        }.get(
+            why,
+            self._say(
+                "find.none",
+                "We couldn't find one that fits you today. Try another topic, or come back "
+                "tomorrow.",
+            ),
+        )
+        return self._json({"pick": None, "why": why, "message": message})
+
+    def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
+        """A pick as the card draws it, its lines in the page's language."""
+        from .chat import tools as chat_tools
+        from .topics import TOPICS
+
+        out = dict(row)
+        out["because"] = chat_tools.because_in(out, self._page_language())
+        topic = str(out.get("because_topic") or "")
+        if topic in TOPICS:
+            out["because_topic_line"] = self._say(
+                "find.because-topic",
+                "Because you read about {topic}",
+                topic=self._say(f"find.topic.{topic}", TOPICS[topic]).lower(),
+            )
+        return out
 
     def _build(self, payload: dict[str, Any]) -> None:
         job = self._own_job(str(payload.get("id", "")))
