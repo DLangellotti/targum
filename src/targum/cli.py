@@ -5423,6 +5423,33 @@ def finds_run(
     console.print(f"[green]News[/green]: {found}")
 
 
+@finds_app.command("youtube")
+def finds_youtube(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    units: Annotated[
+        int | None,
+        typer.Option("--units", help="Data API units this round may spend (default 3,000)."),
+    ] = None,
+) -> None:
+    """One night's round of YouTube finds (targum-internal#620): Hebrew videos with a
+    Hebrew track somebody wrote, found through the Data API, their tracks fetched through
+    the proxy (at most 120 a day), screened, scored and pooled. Does nothing unless
+    TARGUM_FINDS_YOUTUBE is set: the box's timer runs it every night."""
+    from .accounts import Store
+    from .finds import youtube
+    from .serve import default_store
+
+    if not youtube.on():
+        console.print(f"[dim]YouTube finds are off ({youtube.FLAG} is not set).[/dim]")
+        return
+    keeping = Store(store or default_store())
+    try:
+        found = youtube.refresh(keeping, budget_units=units)
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]YouTube[/green]: {found}")
+
+
 @finds_app.command("pool")
 def finds_pool(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,

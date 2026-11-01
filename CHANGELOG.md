@@ -680,6 +680,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   find my level" and leads into the check, keeping no level; other languages, which have
   no check, still show a page. Privacy notice clause 3.2 now names the check's words in
   David's wording. The Russian for the new label is a draft.
+- YouTube finds, nightly, behind a switch (targum-internal#620; design.md §12, "YouTube
+  finds are scored on the track somebody wrote", 2026-11-01). `targum finds youtube`, on
+  a new timer at 01:00 UTC, asks YouTube's Data API for Hebrew videos with closed captions
+  by the forty chips and easy Hebrew (safe search strict, the last thirty days, at most
+  3,000 units a night), drops what the gate refuses off the API's own answer, then fetches
+  only the Hebrew track somebody wrote for at most 120 videos a day through the
+  residential proxy. Each track is screened, scored and deleted, and the video is pooled
+  as a `video` find tagged with its chip, at a credit a minute. The proxy is counted at
+  about 1.5 MB a run inside `TARGUM_FINDS_BUDGET_USD`. It does nothing until
+  `TARGUM_FINDS_YOUTUBE=1` is in targum.env.
 - Home's one card finds what fits you, behind `TARGUM_FIND_BUTTON` (David, 2026-11-01;
   targum-internal#615; design.md §12). The try-next card and the upload slab become one
   "One to try next" card, built as the approved mock v3: the pick with its share known

@@ -1,0 +1,14 @@
+{
+  "kind": "youtube#searchListResponse",
+  "regionCode": "IL",
+  "pageInfo": {"totalResults": 7, "resultsPerPage": 50},
+  "items": [
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "goodVideo01"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "goodVideo02"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "ageRestrict"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "asrOnly0001"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "tooLong0001"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "blockedInIL"}},
+    {"kind": "youtube#searchResult", "id": {"kind": "youtube#video", "videoId": "explicit001"}}
+  ]
+}
