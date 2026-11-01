@@ -2903,6 +2903,7 @@
   "welcome.likes.hint": "Pick as many as you like. We use them to choose your first texts.",
   "welcome.level.hint": "We use this to pick your first text. You can change it later.",
   "welcome.level.unsure": "I’m not sure, show me a page",
+  "welcome.level.unsure-check": "I’m not sure, help me find my level",
   "welcome.level.starting": "I’m just starting",
   "welcome.level.simple": "I can read simple things",
   "welcome.level.news": "I read the news with help",

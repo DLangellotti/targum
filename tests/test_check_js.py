@@ -201,8 +201,37 @@ def test_a_reload_on_round_two_draws_the_round_the_first_chose() -> None:
     assert sorted(page["words"]) == sorted([*real, *made])
 
 
-def test_not_sure_still_shows_a_page_at_once() -> None:
-    """ "I'm not sure, show me a page" promises a page, and keeps the promise: the check
-    is the way on from a level said, not from not saying one."""
+def test_not_sure_leads_into_the_check_in_hebrew() -> None:
+    """David, 2026-11-01: "I'm not sure, help me find my level" leads into the check rather
+    than straight to a page. No level is kept, the check's rung picks the first text, and
+    Skip from there still goes home with no level."""
+    asked = run([{"press": "arrival-done"}, {"press": "arrival-done"}])
+    assert asked["unsureSays"] == "I’m not sure, help me find my level"
     page = run([{"press": "arrival-done"}, {"press": "arrival-done"}, {"unsure": True}])
-    assert "/reader/" in page["went"] and not page["checkUp"]
+    assert page["checkUp"] and page["step"] == "4 of 5" and not page["went"]
+    finished = run(
+        [
+            {"press": "arrival-done"},
+            {"press": "arrival-done"},
+            {"unsure": True},
+            {"press": "arrival-done"},
+            {"press": "arrival-done"},
+            {"press": "arrival-done"},
+        ]
+    )
+    assert "/reader/" in finished["went"]
+    assert "/account/check" in [path.split("?")[0] for path in finished["posted"]]
+    assert {"path": "/account/level?k=k", "body": {"level": ""}} in finished["sent"]
+    skipped = run(
+        [{"press": "arrival-done"}, {"press": "arrival-done"}, {"unsure": True}, {"skip": True}]
+    )
+    assert skipped["home"] == "/?k=k"
+    assert {"path": "/account/level?k=k", "body": {"level": ""}} in skipped["sent"]
+
+
+def test_not_sure_shows_a_page_where_there_is_no_check() -> None:
+    """Every other language has no check, so its button still promises a page and opens
+    one."""
+    steps = [{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
+    asked = run(steps)
+    assert asked["unsureSays"] == "I’m not sure, show me a page"

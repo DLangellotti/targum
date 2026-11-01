@@ -394,8 +394,11 @@ of steps, and Skip.
 - **Where.** After the level, for a Hebrew reader only: two screens, counted with the
   rest ("4 of 5", "5 of 5"), then "Thanks." with no count over it and no way back. Every
   other language still ends on the level ("1 of 3"), and the count changes with the
-  language pressed. "I'm not sure, show me a page" still shows a page at once, because
-  that is what it promises.
+  language pressed. **Not sure leads into the check** (David, 2026-11-01, the same day):
+  in Hebrew the level screen's way past says "I'm not sure, help me find my level", keeps
+  no level, and goes to round one, so the reader the check helps most is the one who
+  meets it. Every other language has no check, so there it still says "I'm not sure, show
+  me a page" and opens one.
 - **What.** "Which of these words do you know?" Round one is 18 real words, three from
   each of six frequency bands (from about the 50th place in wordfreq's Hebrew list to
   about the 19,000th), and 4 made-up words. Round two is 15 more from three bands: the one
@@ -418,7 +421,10 @@ of steps, and Skip.
   two follows from round one's ticks, so what was shown is worked out again
   (`check.shown`). A check taken against lists that have since changed says nothing.
   The row is exported, wiped with a test account and deleted with the account. This
-  amends "Nothing new is stored" in "The chooser estimates…" by this one table.
+  amends "Nothing new is stored" in "The chooser estimates…" by this one table. Clause
+  3.2 names it outright since the same day, in David's words: "the words the Data
+  Subject marked as known on the check offered on arrival, with the date, which are used
+  only to estimate which texts suit them".
 - **The words are fixed, not drawn.** `check.py` holds 48 real words and 16 made-up
   ones. ling-he vetted the made-up words (2026-11-01, `tests/test_check.py` holds the
   checks). None is in wordfreq's 592,000 Hebrew forms, the 104,000 verb forms or the

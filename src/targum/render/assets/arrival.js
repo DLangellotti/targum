@@ -1115,6 +1115,13 @@
     function drawLevels() {
       rungs.textContent = "";
       if (asksLevel) asksLevel.textContent = levelAsks(learning);
+      // What "not sure" does, said: the check where there is one, a page where there is not.
+      if (unsure) {
+        unsure.textContent =
+          order.indexOf("check1") >= 0
+            ? t("welcome.level.unsure-check", "I’m not sure, help me find my level")
+            : t("welcome.level.unsure", "I’m not sure, show me a page");
+      }
       levelsOf(learning).forEach(function (one, at, all) {
         var press = document.createElement("button");
         press.type = "button";
@@ -1191,11 +1198,20 @@
       leave(now);
       onward();
     };
-    // Not sure is an answer too: no level is kept, and the easiest page there is opens.
+    /* Not sure is an answer too, and no level is kept. In Hebrew it leads into the words
+       check, which finds the level for them (David, 2026-11-01); every other language has
+       no check, and the easiest page there is opens. */
     if (unsure) {
       unsure.onclick = function () {
         counted("welcome-unsure");
         level = null;
+        mark(rungs, function () {
+          return false;
+        });
+        if (order.indexOf("check1") > step) {
+          onward();
+          return;
+        }
         finish(learning, null);
       };
     }

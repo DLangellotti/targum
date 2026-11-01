@@ -3106,6 +3106,7 @@
   "welcome.likes.hint": "Выберите сколько угодно. По ним мы подберём первые тексты.",
   "welcome.level.hint": "По ответу мы подберём первый текст. Это можно изменить позже.",
   "welcome.level.unsure": "Не знаю, покажите страницу",
+  "welcome.level.unsure-check": "Не знаю, помогите определить мой уровень",
   "welcome.level.starting": "Я только начинаю",
   "welcome.level.simple": "Я читаю простые тексты",
   "welcome.level.news": "Я читаю новости с подсказками",
