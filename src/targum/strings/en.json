@@ -4273,5 +4273,15 @@
   "credits.page.counts-bible-name": "The Bible",
   "credits.page.counts-bible": "The Open Scriptures Hebrew Bible Project's morphology, under CC BY 4.0, of the Westminster Leningrad Codex, which is in the public domain.",
   "you.page.record-suggest": "When we suggest something to read, we note whether you saw it, opened it, finished it or chose something else, and how much of it we thought you knew. It helps us choose what to suggest next.",
-  "you.page.record-fit": "For each section you finish, we also note how much of it we thought you knew. Added up across at least ten readers and naming nobody, that shows us how well we judge how hard a text is. Only library texts we may share count, never what you upload."
+  "you.page.record-fit": "For each section you finish, we also note how much of it we thought you knew. Added up across at least ten readers and naming nobody, that shows us how well we judge how hard a text is. Only library texts we may share count, never what you upload.",
+  "progress.understand.option.imports": "What learners bring",
+  "progress.understand.chosen.imports": "what learners bring",
+  "progress.understand.said.imports": "You know {p}% of the words in the texts learners bring.",
+  "progress.understand.up.imports": "You know {p}% of the words in the texts learners bring, up from {q}% {then}.",
+  "you.page.counting": "Counting the words you bring",
+  "you.page.counting-short": "We count how often each word appears in the texts you bring, pooled with every other reader's, to measure how much of the Hebrew learners meet you understand. We keep the counts and never your text, and a word counts only once ten readers have brought it.",
+  "you.counting.stop": "Stop counting",
+  "you.counting.start": "Start counting again",
+  "you.counting.started": "We'll count your texts again from tonight.",
+  "you.counting.stopped": "Stopped. Your texts leave the counts tonight."
 }

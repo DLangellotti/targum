@@ -374,6 +374,37 @@
     };
   }
 
+  /* Whether what the reader brings is counted with everybody's (David, 2026-11-01).
+     Absent where the box pools nothing. One switch and no Erase: the pool is made again
+     from nothing every night, so off is out by the morning, and nothing in it was ever
+     the reader's alone to erase. */
+  function drawCounting(who) {
+    var panel = at("counting");
+    var counting = who && who.counting;
+    if (!panel || !counting || !counting.kept) return;
+    panel.hidden = false;
+    var toggle = at("counting-switch");
+    var said = at("counting-said");
+    function paint(on) {
+      toggle.setAttribute("aria-pressed", on ? "true" : "false");
+      toggle.textContent = on
+        ? t("you.counting.stop", "Stop counting")
+        : t("you.counting.start", "Start counting again");
+    }
+    paint(!!counting.on);
+    toggle.onclick = function () {
+      var next = toggle.getAttribute("aria-pressed") !== "true";
+      ask("/account/counting", { count: next }).then(function (answer) {
+        var on = !!(answer && answer.counting && answer.counting.on);
+        paint(on);
+        said.textContent = on
+          ? t("you.counting.started", "We'll count your texts again from tonight.")
+          : t("you.counting.stopped", "Stopped. Your texts leave the counts tonight.");
+        said.hidden = false;
+      });
+    };
+  }
+
   /* What holds a token for this account, and the press that ends it (#80).
 
      One row a connector, never a token: what is shown is that Claude is connected and
@@ -1060,6 +1091,7 @@
       drawLanguages(who);
       drawLevel(who);
       drawRecord(who);
+      drawCounting(who);
       drawConnections(who);
       drawTelegram(who);
       drawPrompts(who);

@@ -118,8 +118,32 @@ def test_scenes_and_the_weekly_are_never_a_yardstick(tmp_path: Path) -> None:
     store = _store(tmp_path, register="scenes")
     _store(tmp_path, register="weekly")
     done = yardstick.write_all(store, tmp_path / "tables", now=NOW)
-    assert {one.register for one in done} == {"news", "bible", "literature", "conversation"}
-    assert all(one.outcome == "short" for one in done), "the four are empty here"
+    assert {one.register for one in done} == {
+        "news",
+        "bible",
+        "literature",
+        "conversation",
+        "imports",
+    }
+    assert all(one.outcome == "short" for one in done), "the five are empty here"
+
+
+def test_what_learners_bring_is_offered_once_its_pool_crosses_the_floor(tmp_path: Path) -> None:
+    """design.md §12, "What learners bring is counted in the tables, never kept"
+    (2026-11-01): the imports pool gets a list, and so a place in the picker, by the same
+    50,000-word floor as any register; every row of it already stands on ten readers."""
+    from targum.tables import imports
+
+    store = Store(tmp_path / "corpus.db")
+    where = tmp_path / "tables"
+    made = [imports._contribution("words")]
+    store.replace_pool(made, {"words": _counts(20, scale=10)})
+    assert yardstick.write(store, "imports", where, now=NOW).outcome == "short"
+    assert yardstick.load("imports", where) is None, "absent from the picker, never 0%"
+    store.replace_pool(made, {"words": _counts(400)})
+    assert yardstick.write(store, "imports", where, now=NOW).outcome == "written"
+    stick = yardstick.load("imports", where)
+    assert stick is not None and "של" not in stick.weights
 
 
 def test_a_list_stands_until_the_month_turns(tmp_path: Path) -> None:

@@ -1800,7 +1800,9 @@
    * were learned, and the card says from when it counts.
    */
   var understandSeries = null;
-  var UNDERSTAND_ORDER = ["conversation", "news", "literature", "bible"];
+  /* What learners bring (2026-11-01) is last: it is offered only once its pooled counts
+     have a list, and it is never the one the card opens on while another has one. */
+  var UNDERSTAND_ORDER = ["conversation", "news", "literature", "bible", "imports"];
   var UNDERSTAND_KEY = "targum.progress.understand";
   var UNDERSTAND_BY_KEY = "targum.progress.understand-by";
   var UNDERSTAND_SPAN = 12;
@@ -1843,6 +1845,16 @@
       },
       up: function (p, q, then) {
         return t("progress.understand.up.bible", "You know {p}% of the words in the Bible, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    imports: {
+      option: t("progress.understand.option.imports", "What learners bring"),
+      chosen: t("progress.understand.chosen.imports", "what learners bring"),
+      said: function (p) {
+        return t("progress.understand.said.imports", "You know {p}% of the words in the texts learners bring.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.imports", "You know {p}% of the words in the texts learners bring, up from {q}% {then}.", { p: p, q: q, then: then });
       },
     },
   };
