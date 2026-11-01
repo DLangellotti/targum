@@ -153,7 +153,9 @@ def test_the_check_by_keyboard_and_as_a_screen_reader_hears_it(browser, width: i
     last.scroll_into_view_if_needed()
     page.evaluate("window.scrollTo(0, document.scrollingElement.scrollHeight)")
     if width < 600:
-        foot_top = page.evaluate("document.querySelector('.arrival-foot').getBoundingClientRect().top")
+        foot_top = page.evaluate(
+            "document.querySelector('.arrival-foot').getBoundingClientRect().top"
+        )
         assert last.bounding_box()["y"] + last.bounding_box()["height"] <= foot_top
     # Every word and both presses reach 44px.
     for selector in ("#arrival-words .arrival-word", "#arrival-skip", "#arrival-done"):
