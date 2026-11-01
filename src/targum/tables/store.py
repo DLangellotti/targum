@@ -189,6 +189,44 @@ class Store:
                 )
         return found
 
+    def current_prefixed(self, table: str, prefix: str) -> set[str]:
+        """Every unit in `table` holding a current contribution whose unit starts with
+        `prefix`, under any tool."""
+        if not prefix or not self.file.is_file():
+            return set()
+        escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        with closing(self._connect()) as db:
+            return {
+                str(row[0])
+                for row in db.execute(
+                    "SELECT unit FROM contribution WHERE superseded_at IS NULL"
+                    " AND tbl = ? AND unit LIKE ? ESCAPE '\\'",
+                    (table, escaped + "%"),
+                )
+            }
+
+    def retire(self, table: str, units: Iterable[str]) -> int:
+        """Supersede the current contribution of each of `units` in `table` with nothing
+        in its place: the count stays, as history, and no longer counts. How many went.
+        Never the imports registers, which `replace_pool` alone writes."""
+        wanted = list(dict.fromkeys(units))
+        if not wanted or not self.file.is_file():
+            return 0
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
+        gone = 0
+        with closing(self._connect()) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            for start in range(0, len(wanted), 500):
+                chunk = wanted[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                gone += db.execute(
+                    "UPDATE contribution SET superseded_at = ? WHERE superseded_at IS NULL"
+                    f" AND tbl = ? AND unit IN ({marks}) AND register != ?"  # noqa: S608
+                    " AND register NOT LIKE ?",
+                    (stamp, table, *chunk, IMPORTS, f"{IMPORTS}:%"),
+                ).rowcount
+        return gone
+
     def write(self, contribution: Contribution, counts: Mapping[tuple[str, str], int]) -> bool:
         """Write one contribution and its tallies, superseding whatever was current for
         its (table, unit). Returns False, and writes nothing, when it is already current.

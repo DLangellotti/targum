@@ -16,8 +16,9 @@ its tallies hold lemmas and numbers. No log line names a title.
 
 The guard is `public_text`'s, by the same means: `count_news` takes only a `FeedItem`,
 and only `feed_items` makes one, from the feeds `sources.json` lists as news in Hebrew.
-A reader's import, a subscription's feed, a chat turn, a web find (`finds`, which keeps
-lemma bags of its own and stays out of these tables) cannot reach it by any path.
+A reader's import, a subscription's feed, a chat turn or a web find cannot reach it by
+any path. A find's lemma bag is folded by `tables.finds`, under a unit carrying the same
+hash as an item's here, so one address is never counted twice.
 
 An item is counted once: its unit is the address, so the same story in two of one
 outlet's feeds, or still in the feed the next night, is passed over. A night counts at

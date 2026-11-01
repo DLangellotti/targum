@@ -407,7 +407,12 @@ def test_news_hosts_come_from_the_publishers_and_the_finds(
     accounts = AccountStore(tmp_path / "targum.db")
     accounts.db.execute(
         "INSERT INTO find (language, source, url, host, found, expires, medium)"
-        " VALUES ('he', 'feed', 'https://www.maariv.co.il/a', 'www.maariv.co.il', 1, 2, 'text')"
+        " VALUES ('he', 'news', 'https://www.maariv.co.il/a', 'www.maariv.co.il', 1, 2, 'text')"
+    )
+    # A live search's web find is not news for being found.
+    accounts.db.execute(
+        "INSERT INTO find (language, source, url, host, found, expires, medium)"
+        " VALUES ('he', 'web', 'https://blog.example.org/a', 'blog.example.org', 1, 2, 'text')"
     )
     accounts.db.commit()
     assert imports.news_hosts(accounts) == {"ynet.co.il", "maariv.co.il"}

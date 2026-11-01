@@ -169,8 +169,9 @@ def site(address: str) -> str:
 
 def news_hosts(accounts: Any = None) -> frozenset[str]:
     """The news publishers' domains: every `news` publisher in `sources.json`, and every
-    host the finds pool has pooled an article from, where the account database is given.
-    Read each night; nothing is kept."""
+    host the finds pool has pooled a news article from (read off a followed feed), where
+    the account database is given. A web find's host is not news for being found: a live
+    search lands on blogs and shops as well. Read each night; nothing is kept."""
     from ..chat import sources
 
     found = {
@@ -182,7 +183,8 @@ def news_hosts(accounts: Any = None) -> frozenset[str]:
     if accounts is not None:
         try:
             rows = accounts.db.execute(
-                "SELECT DISTINCT host FROM find WHERE medium = 'text' AND host != ''"
+                "SELECT DISTINCT host FROM find WHERE source = 'news' AND medium = 'text'"
+                " AND host != ''"
             ).fetchall()
         except Exception:  # noqa: BLE001 - a database without the finds pool has none
             rows = []
