@@ -336,10 +336,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    counts, never the text. Three new tables (`finds.pool.SCHEMA`), so `CREATE TABLE IF
 #    NOT EXISTS` is the whole migration.
 #
+# 52→53: person.counted — whether what this reader brings is counted into the language
+#    tables' imports pool (David, 2026-11-01; design.md §12, "What learners bring is
+#    counted in the tables, never kept"). '' is on, which every account is by default;
+#    'off' is the reader's own switch on the account page. The pool reads it nightly and
+#    stores nothing of it.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 52
+SCHEMA_VERSION = 53
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -739,6 +745,10 @@ MIGRATIONS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
     "CREATE INDEX IF NOT EXISTS person_made ON person (made)",
     "CREATE INDEX IF NOT EXISTS event_kind ON event (kind)",
+    # Whether what they bring is counted, pooled with everybody's (schema 53, David
+    # 2026-11-01): '' for yes, the default, 'off' for no. The switch is theirs, on the
+    # account page, and the nightly pool reads it.
+    "ALTER TABLE person ADD COLUMN counted TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -2156,6 +2166,47 @@ class Store:
                 "UPDATE person SET events = ? WHERE id = ?", ("" if on else "off", person.id)
             )
         return on
+
+    # -- what a reader brings, counted with everybody's (David, 2026-11-01) -----------
+
+    def counts_material(self, person_id: int | None) -> bool:
+        """Whether what this reader brings may be counted into the imports pool: true
+        until they turn it off."""
+        if person_id is None:
+            return False
+        row = self.db.execute(
+            "SELECT counted FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return row is not None and str(row["counted"] or "") != "off"
+
+    def set_counts_material(self, person: Person, on: bool) -> bool:
+        with self.write() as db:
+            db.execute(
+                "UPDATE person SET counted = ? WHERE id = ?", ("" if on else "off", person.id)
+            )
+        return on
+
+    def counted_readers(self, operators: Iterable[str] = ()) -> frozenset[int]:
+        """The accounts whose material the imports pool may read tonight: everybody who
+        has not turned counting off, less the operator's own addresses (`operators`, as
+        `backoffice.bare` compares them), the admins, the test accounts and anybody who
+        has asked to leave. A home with no account here is not among them."""
+        from .backoffice import bare
+
+        kept = {bare(one) for one in operators}
+        admins = {str(row[0]).strip().lower() for row in self.db.execute("SELECT email FROM admin")}
+        tests = {
+            str(row[0]).strip().lower() for row in self.db.execute("SELECT email FROM test_account")
+        }
+        found = set()
+        for row in self.db.execute(
+            "SELECT id, email FROM person WHERE counted != 'off' AND leaving IS NULL"
+        ):
+            email = str(row["email"]).strip().lower()
+            if email in admins or email in tests or bare(email) in kept:
+                continue
+            found.add(int(row["id"]))
+        return frozenset(found)
 
     def add_events(self, person: Person, events: Iterable[dict[str, Any]]) -> int:
         """Append what happened; answer how many rows were kept.

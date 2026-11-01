@@ -660,6 +660,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   under Hear, linked to the new `/credits`, which is open to strangers and lists every
   speaker, licence and file. On Your Words the button's title says it. Coverage: 33% of
   the tables' top 5,000 lemmas, 66% of the top 1,000 and 94% of the top 100.
+- What learners bring is counted in the language tables, behind a switch (David,
+  2026-11-01; epic targum-internal#588; design.md §12, "What learners bring is counted in
+  the tables, never kept"). With `TARGUM_IMPORT_COUNTS=1`, the nightly `targum tables
+  sweep --store` pools every counted reader's home into a register of its own,
+  `imports`, across `words`, `phrases` and `roots` (`tables.imports.pool`). A row is
+  written only where ten distinct readers' material holds it. The pool is made again
+  from nothing each night as one contribution a table, unit `imports:pool`, with no
+  reader, document or text in it. Last night's pool is deleted with its pages
+  overwritten, never kept as history, and it is never pushed. Rewrites, chat speech,
+  scenes and the weekly are left out, and so are operators, admins and test accounts.
+  The account page has "Counting the words you bring", on by default, whose Stop takes a
+  reader out by morning (`person.counted`, schema 53, `POST /account/counting`). Your
+  Progress offers "What learners bring" as a fifth yardstick once the pool crosses
+  50,000 words. The switch is off, and the box's unit gains `--store`, until clause
+  3.7's sentence is published.
 - What to read next is chosen on running words, by one chooser (David, 2026-10-31;
   targum-internal#612, epic #617). `coverage.Index.running` reads the per-text counts the
   lemma index has carried since #95: each word weighs as often as it comes round, with

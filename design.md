@@ -384,6 +384,64 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### What learners bring is counted in the tables, never kept — 2026-11-01
+
+David, 2026-11-01, toward "build a moat around language learning data". It reverses the
+yardstick entry's "A reader's private import is never counted until David decides
+otherwise" (2026-10-30), and sits in the "aggregate facts" layer that "private imports
+never train" (2026-09-03) left open: a lemma and a count, never a sentence.
+
+- **Everything a reader brings is pooled** into the language tables: links pasted, files
+  uploaded, pages photographed and read, a channel subscribed to. Every table a fold
+  writes is written (`words`, `phrases`, `roots`, and the readings of a spelling when that
+  table lands), under one register of its own, `imports` (`tables.imports`). What a model
+  wrote is left out though it sits in a home: a rewrite, a chat's speech, a scene, the
+  weekly.
+- **A row needs ten readers.** A word, a phrase or a root in a part of speech is written
+  only once the material of at least ten distinct readers holds it. One reader with a
+  hundred texts is one reader, and a text two readers brought is counted once with both
+  behind it.
+- **The switch is the reader's**, on the account page, on by default: "Counting the words
+  you bring". Off is out of the pool by the next morning. There is no Erase beside it,
+  because nothing in the pool was ever the reader's alone. Operators, admins, test
+  accounts and anybody leaving are never read.
+- **Nothing in the pool leads back to a reader.** The corpus ledger already holds every
+  private text's home (`text_homes`) and its tokens, so a count filed by document, by
+  any hash of one, or as one text's bag of lemmas could be matched to its reader. The
+  pool is therefore made again from nothing every night by `targum tables sweep
+  --store`. It reads each counted reader's home in memory, one reader at a time, and the
+  only thing it writes is the floor's verdict: one contribution a table, unit
+  `imports:pool`, with no reader, no count of readers, no document and no text. Last
+  night's pool is deleted rather than superseded, with SQLite told to overwrite the
+  pages (`Store.replace_pool`), because two nights side by side would show what one
+  reader who stopped had brought. The pool is never pushed or imported.
+- **Nothing under the floor reaches a model.** A key under ten readers is never written
+  or returned, so a consumer that sends lemmas to a model, such as the topic tagger,
+  can only ever be sent what passed.
+- **Behind a switch until the notice says it** (`TARGUM_IMPORT_COUNTS`), as the record
+  of use was: publishing clause 3.7's sentence and turning this on are one decision.
+  With the switch off the pool is deleted.
+
+**How the yardsticks use it** (proposal, the default built):
+
+- **"What learners bring" is a fifth option in the picker**, after the Bible, offered by
+  the yardsticks' own rule: once the pool holds 50,000 counted content words it gets a
+  monthly list (`registers.PICKER`), and until then it is absent, never 0%. It never
+  opens the card while another list exists. This is built.
+- **It is not blended into conversation or news.** Those stay what their sources say
+  (OpenSubtitles, our feeds), so a figure on them keeps meaning the same thing. Once the
+  pool is over 200,000 words, a blend could be offered: conversation becomes the mean of
+  the two registers' rates, as `topics.weights` already blends, with readers' material
+  never more than half. That is David's call and is not built.
+- **A reader who turns counting off leaves the pool that night but leaves a list at the
+  month's turn**, since a list is a frozen snapshot (2026-10-30, question 4). The list
+  holds shares of the commonest words, which were already ten readers deep, and the
+  notice promises that no count is made from their material after they ask.
+- **The nightly backup holds each night's pool**, as it holds every table. Two backups
+  side by side show how the pool changed in a day. They say whose material changed it
+  only to somebody who already knows who stopped that day, and the backups are ours
+  alone.
+
 ### A web find is a pasted link targum found — 2026-10-31
 
 David, 2026-10-31 (targum-internal#617, slice 1 #619), on the web-discovery plan
@@ -770,7 +828,9 @@ replaces the "Words you knew" card of "Your level, v3" (2026-10-29) on Your Prog
 - **Function words and names are left out** of the weighting.
 - **The yardsticks keep up.** As shared library texts and news-feed texts are imported,
   their counts are added. A reader's private import is never counted until David decides
-  otherwise ("private imports never train").
+  otherwise ("private imports never train"). He did, on 2026-11-01: see "What learners
+  bring is counted in the tables, never kept", which pools them under a register of their
+  own and leaves these four as they were.
 
 **As built** (2026-10-30):
 

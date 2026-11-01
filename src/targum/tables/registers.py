@@ -19,8 +19,18 @@ WEEKLY = "weekly"
 #: A text the catalogue does not file and no rule above names.
 UNFILED = "unfiled"
 
+#: What readers bring (David, 2026-11-01): their own material, pooled. Never a catalogue
+#: register and never a fold's: only `tables.imports.pool` writes it, one contribution a
+#: table, nightly, with no row below the floor of ten readers (`imports.FLOOR`).
+IMPORTS = "imports"
+
 #: The registers a yardstick is drawn from: the four the card shows.
 YARDSTICKS = (NEWS, BIBLE, LITERATURE, CONVERSATION)
+
+#: The registers the card's picker may offer: the four, and "What learners bring" once
+#: its counts cross the yardstick's floor (design.md §12, "What learners bring is counted
+#: in the tables, never kept", 2026-11-01). Each is still offered only where it has a list.
+PICKER = (*YARDSTICKS, IMPORTS)
 
 #: Where targum's own scenes are counted. Open question 3 of the spec, not yet answered:
 #: the proposal is that model-written Hebrew stays out of every yardstick, counted only

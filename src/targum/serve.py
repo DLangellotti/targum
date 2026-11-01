@@ -9806,6 +9806,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._events(payload)
         if route == "/account/events":
             return self._events_choice(payload)
+        if route == "/account/counting":
+            return self._counting_choice(payload)
         if route == "/account/address":
             return self._address(payload)
         if route.startswith("/slips/"):
@@ -11367,6 +11369,11 @@ class Handler(BaseHTTPRequestHandler):
             # a record at all, and whether this reader has left it on (#127). A page sends
             # nothing unless both are true.
             "events": {"kept": keeps_events(), "on": self.store.collects(person.id)},
+            # Whether what they bring is counted with everybody's: whether this box pools
+            # it at all (`TARGUM_IMPORT_COUNTS`), and whether this reader has left it on
+            # (David, 2026-11-01). The account page draws the switch only where both
+            # could matter, which is where `kept` is true.
+            "counting": self._counting(person.id),
             # Whether the card may ask `/word/met` (targum-internal#95, #96). A page that
             # has not heard yes asks nothing and draws the card as it always was.
             "occurrences": shows_occurrences(),
@@ -12526,6 +12533,24 @@ class Handler(BaseHTTPRequestHandler):
                 "erased": erased,
             }
         )
+
+    def _counting(self, person_id: int) -> dict[str, bool]:
+        from .tables import imports as imports_module
+
+        return {"kept": imports_module.on(), "on": self.store.counts_material(person_id)}
+
+    def _counting_choice(self, payload: dict[str, Any]) -> None:
+        """The reader's switch over whether what they bring is counted in the imports pool
+        (design.md §12, "What learners bring is counted in the tables, never kept",
+        2026-11-01). Off takes their material out of the pool at the next night's sweep,
+        which makes the pool again from nothing; there is nothing of theirs to erase,
+        because nothing in it was ever theirs alone."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if "count" in payload:
+            self.store.set_counts_material(person, bool(payload.get("count")))
+        self._json({"signedIn": True, "counting": self._counting(person.id)})
 
     def _totals(self, query: dict[str, list[str]] | None = None) -> None:
         """Time listened, time watched and words read, by day, language and medium; and
@@ -14173,7 +14198,7 @@ class Handler(BaseHTTPRequestHandler):
         sent as 0. Hebrew only: the yardsticks are counted with DICTA's lemmas.
         """
         from . import level as level_module
-        from .tables.registers import YARDSTICKS
+        from .tables.registers import PICKER
         from .tables.words import LANGUAGES
 
         out: dict[str, Any] = {}
@@ -14181,7 +14206,7 @@ class Handler(BaseHTTPRequestHandler):
         for language in LANGUAGES:
             dated = self.store.known_dated(person_id, language)
             registers: dict[str, Any] = {}
-            for register in YARDSTICKS:
+            for register in PICKER:
                 got = level_module.coverage_days(register, dated, began=began, zone=zone)
                 if got is None:
                     continue

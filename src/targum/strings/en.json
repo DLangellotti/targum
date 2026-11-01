@@ -4263,5 +4263,15 @@
   "credits.page.voices-copies": "We play Commons' own MP3 copy of each file. A file under CC BY-SA stays under CC BY-SA, and its page on Commons has the original.",
   "credits.page.words.one": "{n} word",
   "credits.page.words.other": "{n} words",
-  "credits.page.none": "No recordings are kept here yet."
+  "credits.page.none": "No recordings are kept here yet.",
+  "progress.understand.option.imports": "What learners bring",
+  "progress.understand.chosen.imports": "what learners bring",
+  "progress.understand.said.imports": "You know {p}% of the words in the texts learners bring.",
+  "progress.understand.up.imports": "You know {p}% of the words in the texts learners bring, up from {q}% {then}.",
+  "you.page.counting": "Counting the words you bring",
+  "you.page.counting-short": "We count how often each word appears in the texts you bring, pooled with every other reader's, to measure how much of the Hebrew learners meet you understand. We keep the counts and never your text, and a word counts only once ten readers have brought it.",
+  "you.counting.stop": "Stop counting",
+  "you.counting.start": "Start counting again",
+  "you.counting.started": "We'll count your texts again from tonight.",
+  "you.counting.stopped": "Stopped. Your texts leave the counts tonight."
 }

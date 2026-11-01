@@ -311,6 +311,19 @@
         </span>
         <p class="said" id="record-said" role="status" hidden></p>
       </li>
+      {#- Counting what they bring with everybody's (David, 2026-11-01; Privacy Notice
+          clause 3.7): drawn only where this box pools it (`TARGUM_IMPORT_COUNTS`). On by
+          default; off takes their material out at the next night's pool. -#}
+      <li class="row acct-wrap" id="counting" hidden>
+        <span class="row-main">
+          <span class="acct-name">{{ t("you.page.counting", "Counting the words you bring") }}</span>
+          <span class="acct-says">{{ t("you.page.counting-short", "We count how often each word appears in the texts you bring, pooled with every other reader's, to measure how much of the Hebrew learners meet you understand. We keep the counts and never your text, and a word counts only once ten readers have brought it.") }}</span>
+        </span>
+        <span class="acct-end">
+          <button type="button" class="btn ghost outline" id="counting-switch" aria-pressed="true"></button>
+        </span>
+        <p class="said" id="counting-said" role="status" hidden></p>
+      </li>
       {#- Correcting a meaning (targum-internal#164, door 3): a thing agreed to once, so
           it is here and not in the reader. -#}
       <li class="row acct-wrap" id="correcting">
