@@ -795,6 +795,40 @@ def test_the_rung_said_on_arrival_is_kept_and_handed_back(
     assert status == 400 and answer["error"] == "No such choice."
 
 
+def test_the_words_check_keeps_the_ticks_and_never_the_list(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#613 (2026-11-01): the arrival's words check sends the ticked words;
+    the account keeps those the rounds could have shown, puts none of them on the list,
+    and answers with the rung the estimate now stands nearest. Nobody signed out can send
+    one, and a page drawn against other lists is told to load again."""
+    from targum import check
+
+    port, token, _ = served
+    body = {"version": check.VERSION, "ticked": ["עכשיו", "תמיד", "שלום"]}
+    status, answer, _ = call(port, "POST", f"/account/check?k={token}", body)
+    assert status == 401 and answer == {"signedIn": False}
+
+    cookie = sign_in(port, postbox)
+    stale = {"version": "1999-01-01", "ticked": []}
+    status, answer, _ = call(port, "POST", f"/account/check?k={token}", stale, cookie=cookie)
+    assert status == 409
+    status, answer, _ = call(
+        port, "POST", f"/account/check?k={token}", {"version": check.VERSION}, cookie=cookie
+    )
+    assert status == 400
+
+    status, answer, _ = call(port, "POST", f"/account/check?k={token}", body, cookie=cookie)
+    assert status == 200 and answer["signedIn"] is True
+    assert answer["rung"] in {
+        "aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"
+    }  # fmt: skip
+    status, everything, _ = call(port, "GET", f"/account/export?k={token}", cookie=cookie)
+    assert status == 200
+    assert everything["checked"][0]["ticked"] == ["עכשיו", "תמיד"], "שלום is in no round"
+    assert everything["words"] == [], "a tick never puts a word on the list"
+
+
 def test_forgetting_somebody_takes_every_row_that_names_them(tmp_path: Path) -> None:
     """Asked of the schema rather than of a list: every table with a `person` column is
     empty of them once the grace period is over.
@@ -819,6 +853,7 @@ def test_forgetting_somebody_takes_every_row_that_names_them(tmp_path: Path) -> 
         },
     )
     store.add_events(person, [{"kind": "page", "day": "2026-09-20", "amount": 10}])
+    store.set_checked(person, "he", "2026-11-01", ["עכשיו"])
 
     store.forget(person)
     assert store.purge(days=-1) == [person.id]

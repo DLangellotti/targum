@@ -38,6 +38,9 @@ install({
     yi: "Yiddish",
   },
   TARGUM_STRINGS: payload.strings,
+  // The words check's lists (`check.page_data`), where a test says (2026-11-01). Without
+  // them the arrival ends on the level, as every language but Hebrew does.
+  TARGUM_CHECK: payload.check || null,
   addEventListener: (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
   },
@@ -96,6 +99,9 @@ global.window.sessionStorage = {
   setItem: (key, value) => {
     visit[key] = String(value);
   },
+  removeItem: (key) => {
+    delete visit[key];
+  },
 };
 global.location.reload = () => {
   reloaded += 1;
@@ -133,6 +139,8 @@ global.fetch = (path, options) => {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/series") === 0) {
     answer = { series: payload.series || [] };
+  } else if (String(path).indexOf("/account/check") === 0) {
+    answer = payload.checked || { signedIn: true, rung: "bet" };
   } else if (String(path).indexOf("/account/me") === 0) {
     answer = payload.me || { signedIn: false };
   } else if (String(path).indexOf("/suggest") === 0) {
@@ -213,6 +221,14 @@ function act(step) {
     );
     if (key) key.fire("click", {});
   }
+  // A word on the words check, by itself (2026-11-01).
+  if (step.tick) {
+    const words = Array.from(at("arrival-words").children).map((li) => li.children[0]);
+    const press = words.find((p) => p.textContent === step.tick);
+    if (press) press.fire("click", {});
+  }
+  // Skip, on the words check.
+  if (step.skip) byId["arrival-skip"].fire("click", {});
   // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
@@ -281,6 +297,22 @@ function report() {
       nextShown: !at("arrival").hidden && !at("arrival-done").hidden,
       learningUp: !at("arrival").hidden && !at("arrival-learning").hidden,
       levelUp: !at("arrival").hidden && !at("arrival-level").hidden,
+      // The words check (2026-11-01): whether a round is up, its words and which are
+      // pressed, the tally, Skip, and the thanks.
+      checkUp: !at("arrival").hidden && !at("arrival-check").hidden,
+      thanksUp: !at("arrival").hidden && !at("arrival-thanks").hidden,
+      words: Array.from(at("arrival-words").children).map((li) => li.children[0].textContent),
+      ticked: Array.from(at("arrival-words").children)
+        .map((li) => li.children[0])
+        .filter((p) => p.getAttribute("aria-pressed") === "true")
+        .map((p) => p.textContent),
+      tapped: at("arrival-tapped").hidden ? "" : at("arrival-tapped").textContent,
+      skipShown: !at("arrival").hidden && !at("arrival-skip").hidden,
+      checkFirst: global.window.TargumArrival ? global.window.TargumArrival.checkFirst() : [],
+      checkSecond:
+        global.window.TargumArrival && payload.secondFrom
+          ? payload.secondFrom.map((list) => global.window.TargumArrival.checkSecond(list))
+          : [],
       langs: at("arrival").hidden
         ? []
         : Array.from(at("arrival-langs").children).map((p) => p.textContent),

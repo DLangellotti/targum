@@ -9,6 +9,10 @@
  *   3. How much <language> can you read? — four or so plain sentences in that language's
  *      own texts, and "I'm not sure, show me a page".
  *
+ * Then, for a Hebrew reader, which of these words do you know, in two rounds and with a
+ * few made-up words among them (design.md §12, "The arrival asks which words you know",
+ * 2026-11-01), and a line of thanks. Skip goes straight home.
+ *
  * Before them, and only for a browser that may read Russian, the language the page
  * speaks (2026-09-20, 2026-09-28): the OnboardRuUi boards' "1 of 4".
  *
@@ -280,6 +284,100 @@
   }
 
 
+  /* --- 4 and 5. which words they know (Hebrew) ---------------------------------- */
+
+  /* The check's lists and round sizes, from `check.page_data`. Round one is the same for
+     everybody, and round two follows from round one's ticks by the rules `check.py`
+     keeps, which is why the account keeps the ticks alone: what was shown, and so left
+     unticked, is worked out again from them. `tests/test_check.py` holds the two copies
+     of the rules together. Nothing is scored and nothing is said back. */
+  var CHECK = window.TARGUM_CHECK || null;
+
+  function checkFirst() {
+    var real = [];
+    CHECK.bands.forEach(function (band, at) {
+      band.slice(0, CHECK.first).forEach(function (word) {
+        real.push({ word: word, band: at });
+      });
+    });
+    return real.concat(
+      CHECK.madeUp.slice(0, CHECK.madeUpEach).map(function (word) {
+        return { word: word, band: -1 };
+      })
+    );
+  }
+
+  //: The band where round one's yeses ran out: the last with at least half ticked.
+  function checkEdge(ticked) {
+    var out = 0;
+    CHECK.bands.forEach(function (band, at) {
+      var yes = band.slice(0, CHECK.first).filter(function (word) {
+        return !!ticked[word];
+      }).length;
+      if (yes * 2 >= CHECK.first) out = at;
+    });
+    return out;
+  }
+
+  //: The first of the bands round two draws from: the edge and one each side.
+  function checkStart(ticked) {
+    return Math.max(0, Math.min(checkEdge(ticked) - 1, CHECK.bands.length - CHECK.window));
+  }
+
+  function checkSecond(ticked) {
+    var start = checkStart(ticked);
+    var real = [];
+    CHECK.bands.slice(start, start + CHECK.window).forEach(function (band, at) {
+      band.slice(CHECK.first, CHECK.first + CHECK.second).forEach(function (word) {
+        real.push({ word: word, band: start + at });
+      });
+    });
+    var rest = CHECK.madeUp.slice(CHECK.madeUpEach);
+    for (var k = 0; k < CHECK.madeUpEach; k++) {
+      real.push({ word: rest[(start * 3 + k) % rest.length], band: -1 });
+    }
+    return real;
+  }
+
+  /* Mixed, so the commonest do not come first and the made-up words sit among the rest;
+     the same order for everybody, so nothing about the page is left to chance. */
+  function mixed(items, seed) {
+    var out = items.slice();
+    var state = seed;
+    for (var i = out.length - 1; i > 0; i--) {
+      state = (state * 48271) % 2147483647;
+      var j = state % (i + 1);
+      var held = out[i];
+      out[i] = out[j];
+      out[j] = held;
+    }
+    return out;
+  }
+
+  /* The words ticked so far, for this tab only, so a reload on round two draws the round
+     the first one chose. Emptied when the arrival is over. */
+  var TICKED = "targum:arrival-ticked";
+  function readTicks() {
+    var out = {};
+    try {
+      JSON.parse(window.sessionStorage.getItem(TICKED) || "[]").forEach(function (word) {
+        if (typeof word === "string") out[word] = true;
+      });
+    } catch (e) {
+      /* nothing kept: the check starts empty */
+    }
+    return out;
+  }
+  var ticked = readTicks();
+  function keepTicks() {
+    try {
+      window.sessionStorage.setItem(TICKED, JSON.stringify(Object.keys(ticked)));
+    } catch (e) {
+      /* no session store: a reload starts the check again */
+    }
+  }
+
+
   /* --- the first text ----------------------------------------------------------- */
 
   /* Which of the texts a subject can answer to open, given the rung. Where the rows say
@@ -358,9 +456,11 @@
   /* The first text for a reader who has opened nothing, in Hebrew: the first of their
      subjects the shelf can answer, and within it the row nearest the rung they named.
      A reader who named a rung and no subject gets the modern shelf at that rung. */
-  function firstText(handed, code) {
+  function firstText(handed, code, measured) {
     var store = charts.collect(charts.meaningLanguage(code))[code];
-    var rung = charts.seed(store && store.words, code);
+    // The rung the words check put the estimate nearest, where they took it; else what
+    // their marks or their answer say.
+    var rung = measured || charts.seed(store && store.words, code);
     for (var r = 0; r < arrived.length; r++) {
       var asked = interestOf(arrived[r]);
       if (!asked) continue;
@@ -677,7 +777,7 @@
      connector's card are gone with the boards that did not draw them (2026-10-09). A
      pressed answer is marked the boards' way — the primary's ring and wash — and
      Continue is the one filled press. Back on every screen but the first. */
-  function drawArrival(readers, shared, finish) {
+  function drawArrival(readers, shared, finish, skipped) {
     var host = document.getElementById("arrival");
     var langs = document.getElementById("arrival-langs");
     var row = document.getElementById("arrival-doors");
@@ -692,11 +792,20 @@
     var tongues = document.getElementById("arrival-tongues");
     var asksIn = document.getElementById("arrival-asks-language");
     var asksLevel = document.getElementById("arrival-asks-level");
+    var wordList = document.getElementById("arrival-words");
+    var tapped = document.getElementById("arrival-tapped");
+    var skip = document.getElementById("arrival-skip");
+    var thanks = document.getElementById("arrival-asks-thanks");
+    var checkScreen = document.getElementById("arrival-check");
     var screenOf = {
       tongue: document.getElementById("arrival-language"),
       learning: document.getElementById("arrival-learning"),
       subjects: document.getElementById("arrival-subjects"),
       level: document.getElementById("arrival-level"),
+      // The check's two rounds are one screen drawn twice.
+      check1: checkScreen,
+      check2: checkScreen,
+      thanks: document.getElementById("arrival-thanks"),
     };
     if (!host || !langs || !row || !rungs || !done || !screenOf.learning) return;
     var labels = interestLabels();
@@ -708,11 +817,25 @@
       return one.code === learning;
     })) learning = "he";
     var level = null;
+    // The rung the words check put the estimate nearest, once the account has answered.
+    var measured = "";
+    var posting = null;
+    // The words the round on the screen shows.
+    var showing = [];
 
     var withTongue = !!(screenOf.tongue && tongues && asksIn && asksTongue());
-    var order = withTongue
+    var questions = withTongue
       ? ["tongue", "learning", "subjects", "level"]
       : ["learning", "subjects", "level"];
+    /* Hebrew asks which words they know after the level, in two rounds, and thanks them;
+       every other language ends on the level. Worked out again when the language
+       changes, which is only ever on the first or second screen. */
+    function stepsFor(code) {
+      return code === "he" && CHECK && wordList && checkScreen
+        ? questions.concat(["check1", "check2", "thanks"])
+        : questions.slice();
+    }
+    var order = stepsFor(learning);
     var step = withTongue && thisVisit() ? 1 : 0;
     if (order.indexOf(underway()) > step) step = order.indexOf(underway());
     if (!withTongue) handOverTongue();
@@ -732,14 +855,31 @@
 
     function settle() {
       var now = order[step];
+      var up = screenOf[now];
       Object.keys(screenOf).forEach(function (name) {
-        if (screenOf[name]) screenOf[name].hidden = name !== now;
+        if (screenOf[name]) screenOf[name].hidden = screenOf[name] !== up;
+      });
+      // The thanks is not a step: it is said with no count over it.
+      var numbered = order.filter(function (name) {
+        return name !== "thanks";
       });
       if (where) {
-        where.textContent = t("learn.arrival.step", "{n} of {of}")
-          .replace("{n}", String(step + 1))
-          .replace("{of}", String(order.length));
+        where.textContent =
+          now === "thanks"
+            ? ""
+            : t("learn.arrival.step", "{n} of {of}")
+                .replace("{n}", String(step + 1))
+                .replace("{of}", String(numbered.length));
       }
+      var checking = now === "check1" || now === "check2";
+      if (skip) skip.hidden = !checking;
+      if (tapped) tapped.hidden = !checking;
+      done.textContent =
+        now === "check1"
+          ? t("welcome.check.next", "Next")
+          : now === "check2"
+            ? t("welcome.check.done", "Done")
+            : t("learn.arrival.continue", "Continue");
       // The language question answers itself on a press, as it always did; the rest
       // wait for Continue, which wakes when there is an answer to take.
       done.hidden = now === "tongue";
@@ -749,8 +889,9 @@
       if (why) why.hidden = !waiting;
       if (why && waiting) done.setAttribute("aria-describedby", "arrival-why");
       else done.removeAttribute("aria-describedby");
-      if (back) back.hidden = step === 0;
-      if (backMark) backMark.hidden = step === 0;
+      // Nothing to go back to from the thanks: the check has been sent.
+      if (back) back.hidden = step === 0 || now === "thanks";
+      if (backMark) backMark.hidden = step === 0 || now === "thanks";
       if (note) {
         note.textContent =
           now === "learning"
@@ -763,10 +904,16 @@
     }
 
     function arrive() {
+      var now = order[step];
+      if (now === "check1" || now === "check2") drawWords(now);
       settle();
       if (window.scrollTo) window.scrollTo(0, 0);
-      var now = order[step];
       var first = null;
+      if ((now === "check1" || now === "check2") && wordList.children[0]) {
+        first = wordList.children[0].children[0];
+      }
+      // The thanks takes the focus itself, so a screen reader says it.
+      if (now === "thanks") first = thanks;
       if (now === "tongue") first = tongues.children[0];
       if (now === "learning") first = langs.querySelector(".is-on") || langs.children[0];
       if (now === "subjects") first = row.children[0];
@@ -793,7 +940,89 @@
         arrive();
         return;
       }
-      finish(learning, level);
+      whenSent(function () {
+        finish(learning, withMeasured(level));
+      });
+    }
+
+    //: The level as said, carrying the rung the check measured where there is one.
+    function withMeasured(said) {
+      if (!measured) return said;
+      return {
+        id: said ? said.id : "",
+        rung: said ? said.rung : "",
+        share: said ? said.share : 0,
+        measured: measured,
+      };
+    }
+
+    /* The check's answer, waited for at most two seconds: a reader who presses Continue
+       the moment the thanks comes up still opens the text the check chose, and one on a
+       slow connection is not kept waiting for it. */
+    function whenSent(then) {
+      if (!posting) return then();
+      var gone = false;
+      function go() {
+        if (gone) return;
+        gone = true;
+        then();
+      }
+      posting.then(go, go);
+      setTimeout(go, 2000);
+    }
+
+    /* A round of the check: tappable words, each a toggle, in a fixed mixed order. A tap
+       marks the word for the estimate and nothing else; it is never put on their list. */
+    function drawWords(now) {
+      var items = now === "check1" ? checkFirst() : checkSecond(ticked);
+      wordList.textContent = "";
+      showing = items.map(function (item) {
+        return item.word;
+      });
+      mixed(items, now === "check1" ? 613 : 614 + checkStart(ticked)).forEach(function (item) {
+        var li = document.createElement("li");
+        var press = document.createElement("button");
+        press.type = "button";
+        press.className = "arrival-word";
+        press.textContent = item.word;
+        press.setAttribute("aria-pressed", ticked[item.word] ? "true" : "false");
+        press.addEventListener("click", function () {
+          var on = !ticked[item.word];
+          if (on) ticked[item.word] = true;
+          else delete ticked[item.word];
+          press.setAttribute("aria-pressed", on ? "true" : "false");
+          keepTicks();
+          tally();
+        });
+        li.appendChild(press);
+        wordList.appendChild(li);
+      });
+      tally();
+    }
+
+    //: How many of this round's words are tapped, in the foot.
+    function tally() {
+      if (!tapped) return;
+      var n = showing.filter(function (word) {
+        return !!ticked[word];
+      }).length;
+      tapped.textContent = n
+        ? t("welcome.check.tapped", "{n} tapped").replace("{n}", String(n))
+        : t("welcome.check.none", "None tapped");
+    }
+
+    /* Both rounds' ticks, to the account: the ticks alone, since what was shown follows
+       from them. The answer is the rung the estimate now stands nearest, for the first
+       text and nothing else. Signed out there is nowhere to keep it, and nothing waits. */
+    function sendCheck() {
+      if (!who || !who.signedIn) return;
+      posting = ask("/account/check", { version: CHECK.version, ticked: Object.keys(ticked) })
+        .then(function (answer) {
+          if (answer && typeof answer.rung === "string") measured = answer.rung;
+        })
+        .catch(function () {
+          /* the rung they said still picks the first text */
+        });
     }
     try {
       history.replaceState({ arrival: step }, "", location.href);
@@ -832,10 +1061,12 @@
       press.addEventListener("click", function () {
         learning = one.code;
         level = null;
+        order = stepsFor(learning);
         mark(langs, function (p) {
           return p.getAttribute("data-code") === learning;
         });
         fitSubjects();
+        settle();
       });
       langs.appendChild(press);
     });
@@ -949,6 +1180,9 @@
       } else if (now === "subjects") {
         counted("welcome-likes");
         remember(picked);
+      } else if (now === "check2") {
+        counted("welcome-check");
+        sendCheck();
       }
     }
     done.onclick = function () {
@@ -978,7 +1212,16 @@
     }
     if (back) back.onclick = goBack;
     if (backMark) backMark.onclick = goBack;
+    // Skip goes straight home, past the thanks (David, 2026-11-01), and keeps nothing of
+    // the check: not even round one's ticks.
+    if (skip) {
+      skip.onclick = function () {
+        counted("welcome-check-skip");
+        skipped(learning, level);
+      };
+    }
     if (order[step] === "level") drawLevels();
+    if (order[step] === "check1" || order[step] === "check2") drawWords(order[step]);
     settle();
     host.hidden = false;
     document.body.classList.add("arriving");
@@ -1068,6 +1311,7 @@
     try {
       window.sessionStorage.setItem(OVER, "1");
       window.sessionStorage.removeItem(UNDERWAY);
+      window.sessionStorage.removeItem(TICKED);
     } catch (e) {
       /* no session store: home asks this page again, and this page sends them back */
     }
@@ -1195,7 +1439,10 @@
       var waiting = document.getElementById("arrival-waiting");
       if (waiting) waiting.hidden = true;
       if (!asking) return home();
-      drawArrival(readers, shared, function (code, level) {
+      drawArrival(
+        readers,
+        shared,
+        function (code, level) {
         keep(WELCOMED, "1");
         over();
         var handed = shared.filter(function (reader) {
@@ -1206,7 +1453,7 @@
         if (code === "he") {
           // The rung is Hebrew's to keep: "I'm not sure" takes an earlier one back.
           rememberLevel(level && level.rung ? level.rung : "");
-          target = firstText(handed, code);
+          target = firstText(handed, code, level && level.measured);
           if (!target) {
             // Nothing their answers can choose: the track's own start, the page the
             // FirstRun board's "One to start with" offers.
@@ -1224,7 +1471,14 @@
         })[0];
         if (opening) via = { state: "start", path: target.name + "/reader/" + opening.file };
         window.location.href = hrefOf(target, via);
-      });
+        },
+        // Skip on the words check: the level they said is kept, and home opens.
+        function (code, level) {
+          keep(WELCOMED, "1");
+          if (code === "he") rememberLevel(level && level.rung ? level.rung : "");
+          home(code);
+        }
+      );
     })
     // Signed out on a box that wants an account answers in words, not by failing, so
     // what lands here is the connection or the server.
@@ -1238,5 +1492,16 @@
     offered: OFFERED,
     offeredFor: offeredFor,
     over: OVER,
+    // The check's rounds, for the test that holds them to `check.py`'s.
+    checkFirst: function () {
+      return CHECK ? checkFirst() : [];
+    },
+    checkSecond: function (list) {
+      var said = {};
+      (list || []).forEach(function (word) {
+        said[word] = true;
+      });
+      return CHECK ? checkSecond(said) : [];
+    },
   };
 })();

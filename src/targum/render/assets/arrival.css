@@ -1,4 +1,5 @@
-/* The arrival — the three questions a new reader is asked, on `/welcome`.
+/* The arrival — the three questions a new reader is asked, on `/welcome`, and for a
+ * Hebrew reader the words check after them.
  *
  * Drawn as the FirstRun boards draw it (David, 2026-10-09: the boards win; design.md
  * §12, "The arrival is three plain questions"): straight on paper, a bare head with the
@@ -229,6 +230,40 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
 .arrival-unsure:hover { text-decoration: underline; }
 .arrival-unsure:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
 
+/* --- which words they know ------------------------------------------------------ */
+
+/* The words check (design.md §12, "The arrival asks which words you know", 2026-11-01):
+   the approved mock's pills, on the card colour with a hairline at rest and filled in
+   the primary when tapped, in the modern Hebrew face, wrapping right to left. */
+.arrival-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.arrival-word {
+  font-family: var(--reading-hebrew);
+  font-size: 1.25rem;
+  line-height: 1.6;
+  min-block-size: 44px;
+  min-inline-size: 5.5rem;
+  padding: 4px 18px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 160ms var(--ease), background-color 160ms var(--ease), color 160ms var(--ease);
+}
+.arrival-word:hover { border-color: var(--well); }
+.arrival-word[aria-pressed="true"] { border-color: var(--teal); background: var(--teal); color: var(--teal-ink); }
+.arrival-word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .arrival-word { transition: none; }
+}
+
 /* --- the foot ---------------------------------------------------------------- */
 
 .arrival-foot {
@@ -270,6 +305,27 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
 .arrival-done[hidden] { display: none; }
 .arrival-done:disabled { opacity: 0.4; cursor: default; }
 .arrival-done:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The check's tally, and Skip in the primary's text beside Next, as the mock draws them. */
+.arrival-tapped { font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.arrival-tapped[hidden] { display: none; }
+.arrival-skip {
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-inline-start: auto;
+  min-block-size: 48px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--teal);
+  cursor: pointer;
+}
+.arrival-skip[hidden] { display: none; }
+.arrival-skip:hover { background: var(--teal-wash); }
+.arrival-skip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.arrival-skip:not([hidden]) + .arrival-done { margin-inline-start: 0; }
+
 /* Why Continue is asleep (targum-internal#523): a quiet line beside it, at its end. */
 .arrival-why { margin-inline-start: auto; font-size: 0.8125rem; color: var(--ink-soft); }
 .arrival-why[hidden] { display: none; }
@@ -350,5 +406,11 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
   .arrival-foot { flex-wrap: wrap; row-gap: 8px; }
   .arrival-why { flex: 1 0 100%; margin: 0; padding-block: 4px; text-align: center; background: var(--paper); border-radius: var(--radius-control); }
   body[data-step="level"] .arrival { padding-block-end: 136px; }
+  /* The check's foot: Skip and Next side by side, Next the wider; the tally is the
+     pressed pills themselves. */
+  .arrival-tapped { display: none; }
+  .arrival-skip { margin: 0; flex: none; background: var(--paper); }
+  .arrival-skip:not([hidden]) + .arrival-done { inline-size: auto; flex: 1 1 auto; }
+  .arrival-words { gap: 8px; }
 }
 .arrival-door[hidden] { display: none; }

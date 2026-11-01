@@ -2322,11 +2322,14 @@ def welcome_page(token: str, language: str = "en") -> str:
 
     Which language they are learning, what they like and how much they read, as the
     FirstRun boards draw them (design.md §12, "The arrival is three plain questions",
-    2026-10-09). Home sends a reader with nothing of their own here, and `arrival.js`
-    sends anybody it has nothing to ask straight back. Nothing about the reader is baked
-    in: the shelf comes from `/readers` and the answers from the account, so one page
-    serves everybody.
+    2026-10-09), and for a Hebrew reader which words they know, in two rounds ("The
+    arrival asks which words you know", 2026-11-01). Home sends a reader with nothing of
+    their own here, and `arrival.js` sends anybody it has nothing to ask straight back.
+    Nothing about the reader is baked in: the shelf comes from `/readers` and the answers
+    from the account, so one page serves everybody; the words check's lists are the same
+    for everybody too.
     """
+    from .. import check as check_module
     from ..translate.prompts import INTO
 
     return (
@@ -2342,6 +2345,8 @@ def welcome_page(token: str, language: str = "en") -> str:
             # Which languages a translation can be in, for the first question
             # (targum-internal#243).
             into=[code for code, _ in INTO],
+            # The words check's fixed lists, for a Hebrew reader (targum-internal#613).
+            check=check_module.page_data(),
         )
     )
 

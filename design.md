@@ -384,6 +384,55 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The arrival asks which words you know — 2026-11-01
+
+David, 2026-11-01 (targum-internal#613, approving the mock of 2026-10-31): the cold-start
+check that "The chooser estimates the words you have not marked" (below) left for later.
+It amends "The arrival is three plain questions" (2026-10-09) in two respects: the count
+of steps, and Skip.
+
+- **Where.** After the level, for a Hebrew reader only: two screens, counted with the
+  rest ("4 of 5", "5 of 5"), then "Thanks." with no count over it and no way back. Every
+  other language still ends on the level ("1 of 3"), and the count changes with the
+  language pressed. "I'm not sure, show me a page" still shows a page at once, because
+  that is what it promises.
+- **What.** "Which of these words do you know?" Round one is 18 real words, three from
+  each of six frequency bands (from about the 50th place in wordfreq's Hebrew list to
+  about the 19,000th), and 4 made-up words. Round two is 15 more from three bands: the one
+  where round one's yeses ran out (the last with at least two of its three ticked) and one
+  each side. It has 4 more made-up words. The words are tappable pills, filled in the
+  primary when tapped, in one fixed mixed order, unpointed. There is no score, no level
+  and nothing said back. Next, Done, the thanks, then Continue opens the first text.
+- **Skip is back, on these two screens only** (it went with the old flow on 2026-10-09).
+  It goes straight home, past the thanks. It keeps the level said, and nothing of the
+  check, not even round one's ticks.
+- **A tick is evidence only.** It never puts a word on the reader's list. In
+  `estimate.py` a tick says known, and a word shown and left says not known. The share
+  of made-up words ticked, pulled towards 15% by two words' worth, is this reader's guess
+  rate. It is read into every tick, their claim-grid ticks included. The first text is
+  picked by the rung the estimate stands nearest after the check, which `/account/check`
+  answers, rather than by the rung said. No page prints it.
+- **What is kept** is the ticked words and when, one row a reader (`checked`, schema 55),
+  with the lists' version. They are words marked by the reader, which privacy notice
+  clause 3.2 already covers. The words left are never kept. Round one is fixed and round
+  two follows from round one's ticks, so what was shown is worked out again
+  (`check.shown`). A check taken against lists that have since changed says nothing.
+  The row is exported, wiped with a test account and deleted with the account. This
+  amends "Nothing new is stored" in "The chooser estimates…" by this one table.
+- **The words are fixed, not drawn.** `check.py` holds 48 real words and 16 made-up
+  ones. ling-he vetted the made-up words (2026-11-01, `tests/test_check.py` holds the
+  checks). None is in wordfreq's 592,000 Hebrew forms, the 104,000 verb forms or the
+  Tanakh. None is a word once a ו or י is restored (מרגזת is מרוגזת written short) or a
+  prefix letter or ending is dropped. None is one letter from a common word a reader
+  would take it for. None has the shape מ + root + ת, the feminine participle written
+  short, which is how מסגפת, a real word, got through an earlier list. Each is a real
+  noun pattern on a real root (taCCuCa as in תחבורה, taCCoCet as in תלבושת). Four real
+  words of the same shape (תמיד, תקופה, תחבורה, תערוכה) keep a ת at the start from
+  giving the made-up ones away. Changing a list means a new `check.VERSION`.
+- **By keyboard and screen reader**, each word is a toggle button with `aria-pressed`,
+  in a list named by the question, in Hebrew and right to left. Focus lands on the first
+  word of each round and on the thanks. Every press reaches 44px.
+
 ### The chooser estimates the words you have not marked — 2026-11-01
 
 David, 2026-10-31 (targum-internal#613, Phase 1 of the comprehensible-input epic #617):
@@ -404,6 +453,8 @@ on running words" (2026-10-31), whose share was marks only.
   costs nothing. The rung named on arrival is the starting guess, then the rung the marks
   reach, then aleph. It is fitted again whenever the list, the look-ups or the meetings
   change, which is after a sync, and kept in memory between. Nothing new is stored.
+  *(One table since 2026-11-01, the words check's ticks: "The arrival asks which words
+  you know".)*
 - **A mark always wins.** Known is 1, a word being learned is 0, an ignored word is out
   of the total. Only an unmarked word gets a chance.
 - **What goes by it.** Home's card and Something else, Your Progress's "Texts at your
@@ -425,8 +476,8 @@ on running words" (2026-10-31), whose share was marks only.
   coverage is predicted within 4–5 points, where marks alone are 36–78 points off. Before
   any reading the first pick lands in the band for about half of readers, against 1% on
   marks. After reading, the estimate runs 3–4 points high and picks as well as marks do.
-- **Not yet:** the cold-start check that replaces the claim grid for new readers (its
-  screen awaits David's approval), pooled difficulty (#586), and forgetting.
+- **Not yet:** pooled difficulty (#586) and forgetting. *(The cold-start check was built
+  on 2026-11-01: "The arrival asks which words you know", above.)*
 
 ### The Library's bands count running words — 2026-11-01
 
@@ -3988,7 +4039,8 @@ What goes with the old flow, each because the boards draw none of it:
   other three places it is met stand: a line at every finish, the banner, and the front
   door.
 - **Skip.** No screen has one. Continue is live on the first two, and "I'm not sure" is
-  the third's way past. The interface question's "Other · Другой" was already its answer
+  the third's way past. *(Back on the words check's two screens alone since 2026-11-01:
+  "The arrival asks which words you know".)* The interface question's "Other · Другой" was already its answer
   for somebody who reads neither.
 - **The bars.** Where they are is said in words alone, "1 of 3", in the head.
 - **The site's head, pill and foot**, on this page only (the review's P1): a bare head
