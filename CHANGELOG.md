@@ -690,6 +690,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   find my level" and leads into the check, keeping no level; other languages, which have
   no check, still show a page. Privacy notice clause 3.2 now names the check's words in
   David's wording. The Russian for the new label is a draft.
+- What to read next weighs the words a text would teach (targum-internal#614, Phase 2 of
+  epic #617; design.md §12, "What to read next teaches words that come back"). A text's
+  learning value (`learning.py`) is its expected new words per hundred running words that
+  come round twice or more in it, are common in everyday Hebrew (the conversation and news
+  yardsticks) and are likely to come back: in the next texts of its collection, among the
+  words the reader met before, or in its topic or theirs. Inside the band `choose.key`
+  orders by fit in steps of a point from the 94–97% aim, then learning value, then
+  interest (a liked topic, or the next part of a collection the reader started), then a
+  find's freshness. Medium bands: text and video keep the 90% floor, audio with no text on
+  screen needs 95% (nothing is audio-only yet). Catalogue texts carry topics from the topic
+  lexicon, which Home, Your Progress and Something else use. No page changes. Offline on
+  simulated readers (`scripts/eval_learning.py`): after eight texts read, the first pick's
+  recurring new words rose from 0.49 to 0.81 per hundred with the pick landing in the band
+  as often (43% to 46%) and its mean coverage within a point.
 - YouTube finds, nightly, behind a switch (targum-internal#620; design.md §12, "YouTube
   finds are scored on the track somebody wrote", 2026-11-01). `targum finds youtube`, on
   a new timer at 01:00 UTC, asks YouTube's Data API for Hebrew videos with closed captions

@@ -263,6 +263,7 @@ def at_level(
     ui_language: str = "en",
     limit: int = TEXTS,
     chances: Sequence[float] | None = None,
+    taught: Any = None,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
@@ -273,6 +274,9 @@ def at_level(
     chances`), makes "known" the estimated share of running words, as Home's card
     chooses since 2026-11-01 ("The chooser estimates the words you have not marked");
     `known` on each row is still the marked share, because a page says what was marked.
+
+    `taught` (`chat.tools.teaching`) weighs what each text would teach the reader, as
+    Home's card does since 2026-11-01 ("What to read next teaches words that come back").
 
     An entry the index holds no running counts for is measured by its distinct forms, as
     before, rather than left out.
@@ -292,12 +296,23 @@ def at_level(
             continue
         expected = index.expected(entry_id, statuses, chances) if chances is not None else None
         chosen_on = measured.known if expected is None else expected
-        if chosen_on < choose.FLOOR:
+        medium = choose.medium_of(
+            str(getattr(entry, "kind", "")), source=str(getattr(entry, "source", ""))
+        )
+        if chosen_on < choose.band(medium).floor:
             continue
+        learn, interest = (
+            taught.of(index, entry_id, choose.fit(chosen_on, medium))
+            if taught is not None and index.counts.get(entry_id) is not None
+            else (None, 0)
+        )
         rank = choose.key(
             chosen_on,
             scene=bool(catalogue_module.scene_number(entry_id)),
             gentle=int(getattr(entry, "difficulty", 0) or 0),
+            medium=medium,
+            learn=learn or 0.0,
+            interest=interest,
         )
         found.append((rank, measured.known, entry))
     found.sort(key=lambda one: one[0])

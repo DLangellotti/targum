@@ -15,7 +15,9 @@ provider's margin). Where the reader chose chips (`chips.CHIPS`), a find must al
 about one of them: brought in by a live look for that chip, or carrying its lexicon
 topic's words (`interests.ABOUT_LEAST`) where the lexicon has the topic. Where they
 skipped the chips, the topics their reading suggests (`interests.inferred`) put a find
-ahead of an equal one and keep none out. Inside that, `choose.key`: nearest the 94–97% aim first.
+ahead of an equal one and keep none out. Inside that, `choose.key`: nearest the 94–97% aim
+first, and among finds that fit as well, the one whose new words come back (`learning.
+bag_value`, targum-internal#614).
 
 **Credits.** A find that costs more than the reader has left is still offered here, and
 says so (`over`), because the reader asked; Read next leaves it out, because it was not
@@ -32,7 +34,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .. import choose
+from .. import choose, learning
 from . import chips, provider
 from . import interests as interests_module
 
@@ -112,6 +114,7 @@ def ranked(
         estimate=estimate,
     )
     shown = known.shown if known else ()
+    useful = learning.usefulness(ask.language)
     out: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     for scored in found:
         find = scored.find
@@ -130,12 +133,25 @@ def ranked(
             on_topic = bool(liked)
             if liked:
                 row["because_topic"] = max(liked, key=lambda code: topics[code])
-        row["fit"] = choose.fit(scored.chosen_on)
         row["about"] = sorted(topics, key=lambda code: -topics[code])
         row["topics"] = [one for one in find.topics if not one.startswith(chips.TAG)]
         row["over"] = credits_left is not None and find.credits > credits_left
-        rank = choose.key(scored.chosen_on)
-        # Inside a tier, a find on the reader's topics first, then the aim, then fresh.
+        medium = choose.medium_of(find.medium)
+        row["fit"] = choose.fit(scored.chosen_on, medium)
+        learn = 0.0
+        if estimate is not None:
+            learn = learning.bag_value(
+                find.bag,
+                find.tokens,
+                estimate.p_known,
+                useful,
+                liked=ask.wanted,
+                lexicon=known,
+            )
+            row["learn"] = round(learn, 3)
+        rank = choose.key(scored.chosen_on, medium=medium, learn=learn)
+        # Inside a tier, a find on the reader's topics first, then fit and what it would
+        # teach (`choose.key`), then fresh.
         key = (rank[0], 0 if on_topic else 1, *rank[1:], -find.published, find.id)
         out.append((key, row))
     out.sort(key=lambda pair: pair[0])

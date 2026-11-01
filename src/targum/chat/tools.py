@@ -59,8 +59,10 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, unquote, urlparse
 
 from .. import catalogue as catalogue_module
+from .. import choose as choose_module
 from .. import coverage as coverage_module
 from .. import estimate as estimate_module
+from .. import learning as learning_module
 from .. import level as level_module
 from .. import remembered as remembered_module
 from .. import sentence_level
@@ -1107,9 +1109,29 @@ CANDIDATE_SOURCES: list[tuple[str, CandidateSource]] = [
 #: chat, the connector and a playlist's next set name catalogue ids and are not offered
 #: them.
 RowSource = Callable[
-    ["Ctx", str, Mapping[str, int], list[dict[str, Any]], set[str], "estimate_module.Estimate"],
+    [
+        "Ctx",
+        str,
+        Mapping[str, int],
+        list[dict[str, Any]],
+        set[str],
+        "estimate_module.Estimate",
+        "Teach | None",
+    ],
     Iterable[tuple[float, dict[str, Any]]],
 ]
+
+
+@dataclass(frozen=True)
+class Teach:
+    """What a found page's learning value and topics are worked out with (`learning.
+    bag_value`, targum-internal#614): the reader's met words and liked topics, the topic
+    lexicon, and how useful each word is."""
+
+    useful: Any
+    met: frozenset[str] = frozenset()
+    liked: tuple[str, ...] = ()
+    lexicon: Any = None
 
 
 def _finds(
@@ -1119,10 +1141,12 @@ def _finds(
     mine: list[dict[str, Any]],
     skip: set[str],
     known: estimate_module.Estimate | None = None,
+    teach: Teach | None = None,
 ) -> list[tuple[float, dict[str, Any]]]:
     """The pool's finds this reader may be offered (`finds.provider.offered`), with
     nothing fetched: the rows near their rung, scored against the marks already loaded,
-    and chosen on the estimate where there is one, as a shelf text is."""
+    and chosen on the estimate where there is one, as a shelf text is. Where `teach` is
+    given each row carries its learning value (`learn`) and its topics (`about`)."""
     from ..finds import provider
     from ..weekly.feeds import link_key
 
@@ -1146,7 +1170,31 @@ def _finds(
         skip=skip,
         estimate=known,
     )
-    return [(one.chosen_on, provider.row(one)) for one in found]
+    out = []
+    for one in found:
+        row = provider.row(one)
+        if teach is not None and known is not None:
+            from .. import learning
+            from ..finds import interests
+
+            find = one.find
+            row["learn"] = round(
+                learning.bag_value(
+                    find.bag,
+                    find.tokens,
+                    known.p_known,
+                    teach.useful,
+                    met=teach.met,
+                    liked=teach.liked,
+                    lexicon=teach.lexicon,
+                ),
+                3,
+            )
+            if teach.lexicon is not None:
+                about = interests.about(find.bag, find.tokens, teach.lexicon)
+                row["about"] = sorted(about, key=lambda code: (-about[code], code))
+        out.append((one.chosen_on, row))
+    return out
 
 
 def _credits_left(ctx: Ctx) -> int | None:
@@ -1178,15 +1226,92 @@ def _candidates(ctx: Ctx) -> Iterator[tuple[str, catalogue_module.Entry]]:
             yield origin, entry
 
 
+@dataclass(frozen=True)
+class Taught:
+    """One reader's learning-value context for one choice (`teaching`)."""
+
+    teach: Teach
+    who: Any = None
+    useful: Any = None
+    narrow: Any = None
+
+    def of(self, index: Any, entry_id: str, fits: bool | str) -> tuple[float | None, int]:
+        """A text's learning value, where it fits (`choose.BAND`) and was counted, and
+        its interest: 1 on a topic the reader likes or continuing what they started."""
+        if fits != choose_module.BAND or self.who is None or self.useful is None:
+            return None, 0
+        about = learning_module.text_topics(index, entry_id, self.teach.lexicon)
+        continuing = self.narrow is not None and entry_id in self.narrow.continuing
+        learn = learning_module.value(
+            index,
+            entry_id,
+            self.who,
+            self.useful,
+            following=self.narrow.following.get(entry_id, ()) if self.narrow else (),
+            topics=about,
+            lexicon=self.teach.lexicon,
+            continuing=continuing,
+        )
+        interest = int(continuing or bool(set(about) & set(self.teach.liked)))
+        return learn, interest
+
+
+def teaching(
+    store: Any,
+    person_id: int | None,
+    language: str,
+    index: Any,
+    statuses: Mapping[int, int],
+    chances: Any,
+    own: Mapping[str, Any],
+    finished: set[str],
+) -> Taught:
+    """What the chooser needs to weigh what each text would teach this reader: the words
+    they met and the topics their reading suggests (`finds.interests`), how useful each
+    word is, and where they stand in the collections (`learning.narrow`). `own` is the
+    catalogue keys (`catalogue._key`) of the texts on their shelf and `finished` the
+    catalogue ids the page says they finished; both count as read. A reader with no
+    account gets usefulness and the collections alone. Home's card and Your Progress's
+    list both ask this, so they weigh alike."""
+    from ..finds import interests
+
+    code = language.split("-")[0].lower()
+    lexicon = interests.lexicon() if code == "he" else None
+    useful = learning_module.usefulness(code)
+    met: set[str] = set()
+    liked: tuple[str, ...] = ()
+    knowledge = getattr(store, "knowledge", None)
+    if knowledge is not None and person_id is not None:
+        words, _, met = knowledge(person_id, code)
+        if lexicon is not None:
+            liked = tuple(one.topic for one in interests.inferred(words, met, lexicon))
+    teach = Teach(useful=useful, met=frozenset(met), liked=liked, lexicon=lexicon)
+    if not index.counts:
+        return Taught(teach)
+    read = set(finished)
+    if own:
+        for entry in catalogue_module.everything():
+            if catalogue_module._key(str(getattr(entry, "source", "") or "")) in own:
+                read.add(str(entry.id))
+    narrow = learning_module.narrow(
+        ((one.members, one.ordered) for one in catalogue_module.collections()), read
+    )
+    who = learning_module.reader(index, statuses, chances, met, liked)
+    return Taught(teach, who, learning_module.useful_table(index, useful), narrow)
+
+
 def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What to read next, chosen by `choose.key` (design.md §12, "What to read next is
     chosen on running words", 2026-10-31): the texts whose running words the reader knows
     90% of and up, the nearest the 94–97% aim first and a real text before a scene; then,
     where nothing fits, the nearest under the floor; then the gentlest not measured.
+    Among texts that fit as well, the one whose new words come back first, then one on
+    the reader's topics or continuing what they started (design.md §12, "What to read
+    next teaches words that come back", 2026-11-01; `teaching`, `learning.py`).
 
     `instead_of`, a catalogue id, is Home's "Something else": that text is set aside and
-    the pick is the next best, of another kind or collection where one is as good
-    (`choose.alternative`).
+    the pick is the next best, of another kind or collection, and topic, where one is as
+    good (`choose.alternative`).
 
     `finds`, where true, adds the pool's web finds (`ROW_SOURCES`, targum-internal#619),
     ranked by the same key; only Home's Read next asks for them.
@@ -1229,15 +1354,25 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # still says the marked share.
     known = estimate_module.for_reader(ctx.store, ctx.person_id, language, ctx.level)
     chances = known.chances(index) if index.counts else None
+    # What each text would teach this reader (design.md §12, "What to read next teaches
+    # words that come back", 2026-11-01; targum-internal#614): its new words that come
+    # back, worked out only for the texts that fit, and what it is about.
+    taught = teaching(
+        ctx.store, ctx.person_id, language, index, statuses, chances, own, skip - {instead_of}
+    )
     candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     collections = _collections()
     shown: tuple[str, str] | None = None
+    shown_topic = ""
     for origin, entry in _candidates(ctx):
         key = catalogue_module._key(entry.source)
         if entry.language.split("-")[0] != language.split("-")[0]:
             continue
         if instead_of and entry.id == instead_of:
             shown = choose.cluster(_entry_row(entry, None, collections))
+            shown_topic = learning_module.main_topic(
+                learning_module.text_topics(index, entry.id, taught.teach.lexicon)
+            )
         if key in own or entry.id in skip:
             continue
         if register and entry.register.value != register:
@@ -1263,7 +1398,14 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if expected is not None:
             row["expected_share"] = round(expected, 4)
         chosen_on = share if expected is None else expected
-        row["fit"] = choose.fit(chosen_on)
+        medium = choose.medium_of(entry.kind.value, source=entry.source)
+        row["fit"] = choose.fit(chosen_on, medium)
+        learn, interest = taught.of(index, entry.id, running is not None and row["fit"])
+        if learn is not None:
+            row["learn"] = round(learn, 3)
+        about = learning_module.text_topics(index, entry.id, taught.teach.lexicon)
+        if about:
+            row["about"] = sorted(about, key=lambda code: (-about[code], code))
         if share is not None and (share > 0 or not entry.difficulty):
             row["known_line"] = level_module.known_line(share)
             # Said the way the card says it, because a host repeats `because` (prompts.py).
@@ -1294,6 +1436,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             scene=bool(catalogue_module.scene_number(entry.id)),
             gentle=int(entry.difficulty or 0),
             liked=tilt,
+            medium=medium,
+            learn=learn or 0.0,
+            interest=interest,
         )
         if levels and rung is not None and key in built and row["on_shelf"]:
             _passage(ctx, row, built[key], rung, levels)
@@ -1303,14 +1448,24 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
         if instead_of.startswith(provider.PREFIX):
             shown = provider.CLUSTER
+        now = int(time.time() * 1000)
         for origin, row_source in ROW_SOURCES:
-            for share, row in row_source(ctx, language, marked, mine, skip, known):
+            for share, row in row_source(ctx, language, marked, mine, skip, known, taught.teach):
                 row["origin"] = origin
-                row["fit"] = choose.fit(share)
-                candidates.append((choose.key(share), row))
+                medium = choose.medium_of(str(row.get("kind") or ""))
+                row["fit"] = choose.fit(share, medium)
+                on_topic = bool(set(row.get("about") or ()) & set(taught.teach.liked))
+                rank = choose.key(
+                    share,
+                    medium=medium,
+                    learn=float(row.get("learn") or 0.0),
+                    interest=int(on_topic),
+                    fresh=choose.freshness(int(row.get("published") or 0), now),
+                )
+                candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
     if instead_of and candidates:
-        at = choose.alternative(candidates, shown)
+        at = choose.alternative(candidates, shown, shown_topic)
         candidates.insert(0, candidates.pop(at))
     chosen = [row for _, row in candidates[:limit]]
     # One slot for a passage. A hard book whose third chapter reads at the reader's rung

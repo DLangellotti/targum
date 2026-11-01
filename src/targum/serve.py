@@ -14733,13 +14733,33 @@ class Handler(BaseHTTPRequestHandler):
         from . import estimate as estimate_module
 
         known = estimate_module.for_reader(self.store, person.id, language, found)
+        chances = known.chances(index) if index.counts else None
+        # And weighed by what each would teach them, as Home's card weighs it (design.md
+        # §12, "What to read next teaches words that come back", 2026-11-01).
+        from .chat import tools as chat_tools
+
+        home = self.library.home(person)
+        mine = self.library.readers(home)
+        chat_tools._sourced(home, mine)
+        own = {catalogue_module._key(str(row.get("source") or "")): row for row in mine}
+        taught = chat_tools.teaching(
+            self.store,
+            person.id,
+            language,
+            index,
+            index.statuses(marked),
+            chances,
+            own,
+            set(),
+        )
         answer["texts"] = touchstones.at_level(
             entries,
             index,
             marked,
             language,
             ui_language=self._ui_language(),
-            chances=known.chances(index) if index.counts else None,
+            chances=chances,
+            taught=taught,
         )
 
         # The words still being learned that they keep meeting, met the way the card
