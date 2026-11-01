@@ -442,6 +442,39 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
   only to somebody who already knows who stopped that day, and the backups are ours
   alone.
 
+### What became of a suggestion is recorded, and the estimate is checked against it — 2026-11-01
+
+David approved the notice's words on 2026-11-01 (targum-internal#612, Phase 0 of the
+comprehensible-input epic), and the code followed them. Clause 3.6 now names, for each
+text, recording or page targum suggests, whether it was shown, opened, finished or set
+aside for another, and the share of its words targum estimated the reader to know, with
+choosing what to suggest as a purpose. Clause 3.7 adds a pooled count. The notice's date
+moved to 1 November 2026.
+
+- **Home's card says what became of it.** `home.js` notes `shown` when the card is drawn
+  (once a visit per text), `aside` when Something else sets it aside, and `opened` on
+  Open. A text opened from the card is remembered in this browser until it is finished
+  there (a catalogue text by its id, a find by the folder its build made), and `finished`
+  is said then, once. Each `suggest` row carries its origin (`shelf` or `find`), a find's
+  pool id and the share of the text's running words the chooser estimated, or nothing
+  where there was none. It names no segment and no amount.
+- **A finished section carries its estimate.** The reader takes the share of the
+  section's running words the reader knows, by marks, with ignored words and names out,
+  the first time it is drawn after the section is first opened, and keeps it beside the
+  foot's figures. The `section` row says it, with the distinct words looked up in it.
+  A section opened before this says neither.
+- **Both are the record of use.** They go through `/events` like every other row: kept
+  only where the box keeps the record and the reader has it on, and taken by Erase.
+  The account page says each in a plain line of its own.
+- **The back office checks the estimate** (clause 3.7): words looked up per hundred read
+  in finished sections against the words per hundred the estimate said were new, banded
+  by the estimate at `choose`'s floor, aim and ceiling. It is pooled across readers,
+  names none and leaves staff out. It counts only the shared library's texts whose
+  licence lets them be redistributed, so no upload is in it. A band of fewer than ten
+  readers shows nothing but that it has fewer than ten.
+- **Not yet:** Your Progress's "Texts at your level" is not recorded. It is a list the
+  reader reads down, not a card with one pick, and it waits for a reason to record it.
+
 ### A web find is a pasted link targum found — 2026-10-31
 
 David, 2026-10-31 (targum-internal#617, slice 1 #619), on the web-discovery plan

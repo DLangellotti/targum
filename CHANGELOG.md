@@ -671,7 +671,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   overwritten, never kept as history, and it is never pushed. Rewrites, chat speech,
   scenes and the weekly are left out, and so are operators, admins and test accounts.
   The account page has "Counting the words you bring", on by default, whose Stop takes a
-  reader out by morning (`person.counted`, schema 53, `POST /account/counting`). Your
+  reader out by morning (`person.counted`, schema 54, `POST /account/counting`). Your
   Progress offers "What learners bring" as a fifth yardstick once the pool crosses
   50,000 words. The switch is off, and the box's unit gains `--store`, until clause
   3.7's sentence is published.
@@ -689,7 +689,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   sources (`CANDIDATE_SOURCES`, the shelf for now) and each row says its `origin`, ready
   for the fresh finds of #619. Each suggestion logs its
   running and distinct shares side by side. Recording the suggestions themselves waits on
-  notice wording. Russian: «Что-нибудь другое» (draft).
+  notice wording. Russian: «Что-нибудь другое» (approved by David, 2026-11-01).
 - Read next offers things to read targum found in the news (David, 2026-10-31;
   targum-internal#619, epic #617, plan `docs/web-discovery-2026-10-31.md`). An hourly
   round on the box reads the items the followed feeds already hold for `search_sources`,
@@ -712,6 +712,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The back office counts the pool by language, rung and topic, drops by reason, the last
   calibration and the month's spend. Hebrew only: Russian measured 4–8.5 points off and
   waits for a map of its own. Russian strings are drafts.
+- What became of a suggestion is recorded, and the back office checks the difficulty
+  estimate against it (David, 2026-11-01; targum-internal#612). The privacy notice
+  changed first: clause 3.6 names each suggestion's shown, opened, finished or set aside
+  and its estimated share, clause 3.7 a pooled count, dated 1 November 2026. Home's card
+  notes each as a `suggest` event with its origin (shelf or find), a find's pool id and
+  the predicted running-word coverage. A finished section carries the share of its
+  running words the reader was estimated to know when they opened it, and the words
+  looked up in it (account schema 53). Both respect the record-of-use switch and Erase,
+  and the account page says each in a line of its own. The back office's "Difficulty
+  estimate" gives lookups per 100 words against the predicted new words per 100, by band,
+  pooled across at least ten readers, over redistributable library texts only.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and

@@ -336,7 +336,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    counts, never the text. Three new tables (`finds.pool.SCHEMA`), so `CREATE TABLE IF
 #    NOT EXISTS` is the whole migration.
 #
-# 52→53: person.counted — whether what this reader brings is counted into the language
+# 52→53: event.act, event.origin, event.pool, event.coverage and event.looked — what
+#    became of a text targum suggested, and how much of a finished section the reader was
+#    estimated to know (targum-internal#612; privacy notice clauses 3.6 and 3.7 as amended
+#    2026-11-01). A `suggest` row says shown, opened, finished or aside, where the
+#    candidate came from (shelf or find), the pool id of a find, and the share of the
+#    text's running words the chooser estimated the reader to know. A `section` row adds
+#    that estimate for the section, taken when it was first opened, and the words looked
+#    up in it. NULL or empty on every other row and on everything recorded before. On a
+#    table every box has, so they are in MIGRATIONS.
+#
+# 53→54: person.counted — whether what this reader brings is counted into the language
 #    tables' imports pool (David, 2026-11-01; design.md §12, "What learners bring is
 #    counted in the tables, never kept"). '' is on, which every account is by default;
 #    'off' is the reader's own switch on the account page. The pool reads it nightly and
@@ -345,7 +355,7 @@ REGISTRATIONS_PER_HOUR = 60
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 53
+SCHEMA_VERSION = 54
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -518,7 +528,12 @@ CREATE TABLE IF NOT EXISTS event (
   control   TEXT    NOT NULL DEFAULT '',
   width     TEXT    NOT NULL DEFAULT '',
   word      TEXT    NOT NULL DEFAULT '',
-  text_on_screen INTEGER
+  text_on_screen INTEGER,
+  act       TEXT    NOT NULL DEFAULT '',
+  origin    TEXT    NOT NULL DEFAULT '',
+  pool      INTEGER,
+  coverage  REAL,
+  looked    INTEGER
 );
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
@@ -526,10 +541,43 @@ CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
 
 #: What can happen, and what `amount` is for each: seconds for a stretch played, words for
 #: a page or a section, a fraction of the text for where a sitting stopped, nothing else.
-EVENT_KINDS = ("lookup", "play", "replay", "page", "section", "stop", "control")
+EVENT_KINDS = (
+    "lookup",
+    "play",
+    "replay",
+    "page",
+    "section",
+    "stop",
+    "control",
+    "suggest",
+)
+#: What became of a text targum suggested (targum-internal#612, clause 3.6 as amended
+#: 2026-11-01): drawn on Home's card, opened from it, finished, or set aside for another
+#: by "Something else". A `suggest` row's `document` is the catalogue id, or the find's.
+SUGGEST_ACTS = ("shown", "opened", "finished", "aside")
+#: Where a suggested text came from, as `choose.ORIGINS` names them.
+SUGGEST_ORIGINS = ("shelf", "find")
 #: What a text is, to whoever is at it (targum-internal#337).
 EVENT_MEDIA = ("read", "listen", "watch")
 EVENT_WIDTHS = ("phone", "narrow", "desk")
+
+
+def _share(said: object) -> float | None:
+    """A share between nought and one as the page gave it, or None for anything else:
+    an estimate nobody made is not a nought."""
+    if isinstance(said, bool) or not isinstance(said, (int, float)):
+        return None
+    share = float(said)
+    if share != share or share < 0 or share > 1:
+        return None
+    return round(share, 4)
+
+
+def _count(said: object, most: int = 100000) -> int | None:
+    """A whole count the page gave, or None."""
+    if isinstance(said, bool) or not isinstance(said, int) or said < 0:
+        return None
+    return min(said, most)
 
 
 def _on_screen(said: object) -> int | None:
@@ -695,6 +743,13 @@ MIGRATIONS: tuple[str, ...] = (
     # Whether the text was on the screen while a stretch played (schema 51,
     # targum-internal#602). NULL where nobody knows: every other kind, every play before it.
     "ALTER TABLE event ADD COLUMN text_on_screen INTEGER",
+    # What became of a suggestion, and the estimate a finished section was read at
+    # (schema 53, targum-internal#612, clauses 3.6 and 3.7 as amended 2026-11-01).
+    "ALTER TABLE event ADD COLUMN act TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE event ADD COLUMN origin TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE event ADD COLUMN pool INTEGER",
+    "ALTER TABLE event ADD COLUMN coverage REAL",
+    "ALTER TABLE event ADD COLUMN looked INTEGER",
     # Bumped by every write to the record that `revision` does not stamp (2026-10-06):
     # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
     # is a key like any other.
@@ -745,7 +800,7 @@ MIGRATIONS: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS waiting_asked ON waiting (asked)",
     "CREATE INDEX IF NOT EXISTS person_made ON person (made)",
     "CREATE INDEX IF NOT EXISTS event_kind ON event (kind)",
-    # Whether what they bring is counted, pooled with everybody's (schema 53, David
+    # Whether what they bring is counted, pooled with everybody's (schema 54, David
     # 2026-11-01): '' for yes, the default, 'off' for no. The switch is theirs, on the
     # account page, and the nightly pool reads it.
     "ALTER TABLE person ADD COLUMN counted TEXT NOT NULL DEFAULT ''",
@@ -2234,6 +2289,28 @@ class Store:
             medium = str(raw.get("medium") or "")
             width = str(raw.get("width") or "")
             control = kind == "control"
+            # A suggestion (clause 3.6 as amended 2026-11-01) says what became of it and
+            # where it came from, or it is dropped; only a find has a pool id.
+            act = origin = ""
+            pool: int | None = None
+            coverage: float | None = None
+            looked: int | None = None
+            if kind == "suggest":
+                act = str(raw.get("act") or "")
+                origin = str(raw.get("origin") or "")
+                if act not in SUGGEST_ACTS or origin not in SUGGEST_ORIGINS:
+                    continue
+                if not str(raw.get("document") or ""):
+                    continue
+                pool = _count(raw.get("pool"), 2**62) if origin == "find" else None
+                coverage = _share(raw.get("coverage"))
+                amount = 0.0
+            elif kind == "section":
+                # The share of the section's running words the reader was estimated to
+                # know when it was first opened, and the words looked up in it: what
+                # clause 3.7's count of looking up against the estimate is drawn from.
+                coverage = _share(raw.get("coverage"))
+                looked = _count(raw.get("looked"))
             rows.append(
                 (
                     person.id,
@@ -2242,11 +2319,12 @@ class Store:
                     # A control pressed says which day and nothing finer.
                     0 if control else at,
                     "" if control else str(raw.get("language") or "")[:12],
-                    "" if control or medium not in EVENT_MEDIA else medium,
+                    "" if control or act or medium not in EVENT_MEDIA else medium,
                     # Nor which text, nor where in it: decided, and enforced here rather
                     # than trusted to the page.
                     "" if control else str(raw.get("document") or "")[:80],
-                    "" if control else str(raw.get("segment") or "")[:40],
+                    # Nor does a suggestion say where in a text: it is of the text.
+                    "" if control or act else str(raw.get("segment") or "")[:40],
                     0.0 if control else min(amount, 86400.0),
                     str(raw.get("control") or "")[:60] if control else "",
                     width if control and width in EVENT_WIDTHS else "",
@@ -2255,6 +2333,11 @@ class Store:
                     # Whether the text was on the screen, and only for a stretch played
                     # (clause 3.6, 2026-10-30); unknown unless the page said yes or no.
                     _on_screen(raw.get("text")) if kind == "play" else None,
+                    act,
+                    origin,
+                    pool,
+                    coverage,
+                    looked,
                 )
             )
         if not rows:
@@ -2262,8 +2345,9 @@ class Store:
         with self.write() as db:
             db.executemany(
                 "INSERT INTO event (person, kind, day, at, language, medium, document, "
-                "segment, amount, control, width, word, text_on_screen)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "segment, amount, control, width, word, text_on_screen, act, origin, pool,"
+                " coverage, looked)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         return len(rows)
