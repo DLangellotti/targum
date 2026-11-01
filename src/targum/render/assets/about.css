@@ -175,3 +175,11 @@ body.about {
   padding: 0;
 }
 .speaker li { font-family: var(--reading); font-size: 1.0625rem; line-height: 1.6; }
+
+/* /credits, Word counts (design.md §12, 2026-11-01): a source to a row, ruled like the
+   speakers above it. */
+.sources { list-style: none; margin: 1rem 0 0; padding: 0; border-block-start: 1px solid var(--rule); }
+.source { padding-block: 0.75rem; border-block-end: 1px solid var(--rule); }
+.source p { margin: 0; font-size: 0.9375rem; line-height: 1.45; text-wrap: pretty; }
+.source p + p { margin-block-start: 0.25rem; }
+.source .cite { color: var(--ink-soft); }
