@@ -71,13 +71,30 @@
       <div class="arrival-opts arrival-levels" id="arrival-levels" role="radiogroup" aria-labelledby="arrival-asks-level"></div>
       <button type="button" class="arrival-unsure" id="arrival-unsure">{{ t("welcome.level.unsure", "I’m not sure, show me a page") }}</button>
     </div>
+    {#- 4 and 5, for a Hebrew reader: which of these words do you know (design.md §12, "The
+        arrival asks which words you know", 2026-11-01). Two rounds on one screen, the
+        second chosen from the first's ticks; a few of the words are made up. Tapping
+        marks a word for the estimate and never puts it on the reader's list. -#}
+    <div class="arrival-screen" id="arrival-check" hidden>
+      <h1 class="arrival-asks" id="arrival-asks-check">{{ t("welcome.check.asks", "Which of these words do you know?") }}</h1>
+      <p class="arrival-hint" id="arrival-check-hint">{{ t("welcome.check.hint", "Tap the ones you know. A few aren’t real words, so leave any you’re unsure of. It helps us choose what you read first.") }}</p>
+      <ul class="arrival-words" id="arrival-words" lang="he" dir="rtl" aria-labelledby="arrival-asks-check" aria-describedby="arrival-check-hint"></ul>
+    </div>
+    {#- After the check, and only after it: Skip goes straight home. -#}
+    <div class="arrival-screen" id="arrival-thanks" hidden>
+      <h1 class="arrival-asks" id="arrival-asks-thanks" tabindex="-1">{{ t("welcome.check.thanks", "Thanks.") }}</h1>
+      <p class="arrival-hint">{{ t("welcome.check.thanks-note", "We’ll choose what you read first from this. You can mark any word as you read.") }}</p>
+    </div>
     <p class="arrival-foot">
       <span class="arrival-foot-note" id="arrival-foot-note"></span>
       <button type="button" class="arrival-back" id="arrival-back" hidden>{{ t("welcome.back", "← Back") }}</button>
       {#- Why Continue is asleep on the level step, said to the eye and, through
           `aria-describedby`, to a screen reader (targum-internal#523): it said nothing,
           and a press that does nothing reads as broken. `arrival.js` shows it. -#}
+      {#- How many words are tapped this round, on the check's two screens. -#}
+      <span class="arrival-tapped" id="arrival-tapped" hidden></span>
       <span class="arrival-why" id="arrival-why" hidden>{{ t("learn.arrival.choose-level", "Choose a level to continue.") }}</span>
+      <button type="button" class="arrival-skip" id="arrival-skip" hidden>{{ t("welcome.check.skip", "Skip") }}</button>
       <button type="button" class="arrival-done" id="arrival-done" disabled>{{ t("learn.arrival.continue", "Continue") }}</button>
     </p>
   </section>
@@ -90,6 +107,8 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_STAGES = {{ stage_table()|safe }};
+{#- The words check's lists and round sizes (`check.page_data`). -#}
+window.TARGUM_CHECK = {{ check|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 {{ script('strings.js') }}

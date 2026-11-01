@@ -348,11 +348,15 @@ def test_back_keeps_what_was_pressed() -> None:
 
 
 def test_nothing_but_the_three_questions_is_on_the_way() -> None:
-    """No welcome card, no name, no connector card: the boards draw none (2026-10-09)."""
+    """No welcome card, no name, no connector card: the boards draw none (2026-10-09).
+    Skip came back on 2026-11-01 for the words check alone ("The arrival asks which words
+    you know"): it starts hidden, and the check's screens are the only ones that show it
+    (`test_check_js.py`)."""
     root = Path(__file__).resolve().parent.parent / "src" / "targum" / "render"
     page = (root / "templates" / "welcome.html.j2").read_text(encoding="utf-8")
-    for gone in ("arrival-welcome", "arrival-name", "arrival-connect", "arrival-skip"):
+    for gone in ("arrival-welcome", "arrival-name", "arrival-connect"):
         assert gone not in page, gone
+    assert 'id="arrival-skip" hidden' in page
 
 
 def hard_and_easy() -> list[dict[str, Any]]:

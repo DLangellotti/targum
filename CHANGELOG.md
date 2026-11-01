@@ -653,6 +653,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
+  targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
+  words, three from each of six frequency bands, and 4 made-up words; round two is 15
+  more from the three bands around where round one's yeses ran out, and 4 more made-up
+  words. Then "Thanks." and the first text, picked by the rung the estimate now stands
+  nearest. Skip goes straight home. Nothing is scored or said back. The ticks are kept as
+  evidence for `estimate.py` and never put on the reader's list. A tick says known and a
+  word left says not known, and the made-up words ticked set this reader's guess rate,
+  for the claim grid too. The account keeps the ticked words alone (`checked`, schema 55,
+  privacy notice clause 3.2), because both rounds follow from them (`check.py`). The words
+  are a fixed, unpointed list. The 16 made-up ones were vetted by ling-he against every
+  Hebrew list on the laptop, after an earlier list let the real word מסגפת through.
+  "I'm not sure, show me a page" still opens a page at once. Only Hebrew has the check.
+  The Russian strings are drafts.
 - `/credits` credits the word counts (David, 2026-11-01; targum-internal#580, #581). A
   "Word counts" section under the voices says the yardsticks measure how much of everyday
   conversation, classic literature or the Bible a reader understands, and that only

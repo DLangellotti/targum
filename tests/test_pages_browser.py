@@ -815,9 +815,11 @@ def test_the_arrival_is_the_screen_on_a_phone(browser, width: int) -> None:
     assert not got["sideways"]
 
 
-def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
-    """Continue on Hebrew, a subject, Continue, a level, Continue — and the reader is
-    open, at the level they named (design.md §12, 2026-09-19 and 2026-10-09)."""
+def test_the_arrival_leads_into_a_text_past_the_words_check(browser) -> None:
+    """Continue on Hebrew, a subject, Continue, a level, Continue — then the words check's
+    two rounds and its thanks (design.md §12, "The arrival asks which words you know",
+    2026-11-01) — and the reader is open, at the level they named (2026-09-19 and
+    2026-10-09)."""
     context, page, went = _arrival_page(browser, 375, locale="en-US")
     page.locator("#arrival-done").tap()
     page.wait_for_selector("#arrival-subjects:not([hidden]) .arrival-door")
@@ -842,7 +844,7 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
           })(),
         })"""
     )
-    assert second["step"] == "3 of 3" and len(second["rungs"]) == 4, second
+    assert second["step"] == "3 of 5" and len(second["rungs"]) == 4, second
     assert second["asked"] and second["asleep"], second
     # Why it is asleep, over the press on a phone and tied to it (targum-internal#523).
     why = second["why"]
@@ -851,6 +853,13 @@ def test_the_arrival_leads_into_a_text_in_five_presses(browser) -> None:
     page.locator(".arrival-rung", has_text="I’m just starting").tap()
     assert page.locator("#arrival-why").is_hidden(), "awake, it needs no reason"
     page.locator("#arrival-done").tap()
+    page.wait_for_selector("#arrival-check:not([hidden]) .arrival-word")
+    assert page.inner_text("#arrival-step") == "4 of 5"
+    page.locator("#arrival-done").tap()  # Next
+    page.wait_for_function("document.getElementById('arrival-step').textContent === '5 of 5'")
+    page.locator("#arrival-done").tap()  # Done
+    page.wait_for_selector("#arrival-thanks:not([hidden])")
+    page.locator("#arrival-done").tap()  # Continue
     page.wait_for_timeout(300)
     context.close()
     assert went and "/reader/easy" in went[-1], f"the letters open the easiest text: {went}"
@@ -945,7 +954,8 @@ def test_the_arrival_asks_which_language_first_on_a_phone(browser, width: int) -
     context, page, _ = _arrival_page(browser, width, language=None)
     got = page.evaluate(LANGUAGE_MEASURE)
     context.close()
-    assert got["step"] == "1 of 4", got
+    # Four questions and the words check's two rounds (2026-11-01).
+    assert got["step"] == "1 of 6", got
     assert got["rows"] == ["English", "Русский", "Other · Другой"], got
     # Each language's row says which language it is in; the last is in both, and says none.
     assert got["spoken"] == ["en", "ru", None], got

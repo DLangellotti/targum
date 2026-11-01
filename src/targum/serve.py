@@ -9826,6 +9826,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._interest(payload)
         if route == "/account/level":
             return self._declared(payload)
+        if route == "/account/check":
+            return self._checked(payload)
         if route == "/events":
             return self._events(payload)
         if route == "/account/events":
@@ -12750,6 +12752,36 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
         self._json({"signedIn": True, "declared": kept})
+
+    def _checked(self, payload: dict[str, Any]) -> None:
+        """The words a new Hebrew reader ticked on the arrival's words check (design.md
+        §12, "The arrival asks which words you know", 2026-11-01; targum-internal#613).
+
+        Kept as evidence for the estimate and nowhere else: no word goes on the reader's
+        list, and only the ticked words are kept, because what was shown follows from them
+        (`check.shown`). A word the rounds could not have shown is dropped. The answer is
+        the rung the estimate now stands nearest, for the arrival's first text alone; no
+        page prints it.
+        """
+        from . import check as check_module
+        from . import estimate as estimate_module
+        from . import level as level_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if str(payload.get("version") or "") != check_module.VERSION:
+            return self._json({"error": "That check has changed. Load the page again."}, 409)
+        said = payload.get("ticked")
+        if not isinstance(said, list):
+            return self._json({"error": "No answers."}, 400)
+        ticked = check_module.kept(str(word) for word in said if isinstance(word, str))
+        self.store.set_checked(person, check_module.LANGUAGE, check_module.VERSION, ticked)
+        found = self._snapshot(person, check_module.LANGUAGE)
+        known = estimate_module.for_reader(self.store, person.id, check_module.LANGUAGE, found)
+        reached = [rung for rung in level_module.ULPAN if rung.at <= known.words()]
+        rung = (reached[-1] if reached else level_module.ULPAN[0]).name.replace(" ", "-")
+        self._json({"signedIn": True, "rung": rung})
 
     def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
         """ "I know this" on a line that came back changed (2026-09-18).

@@ -352,10 +352,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    'off' is the reader's own switch on the account page. The pool reads it nightly and
 #    stores nothing of it.
 #
+# 54→55: checked — the words a new Hebrew reader ticked on the arrival's words check
+#    (targum-internal#613; design.md §12, "The arrival asks which words you know",
+#    2026-11-01; privacy notice clause 3.2, words marked by the Data Subject). One row a
+#    reader and language: the ticked words as a JSON list, the lists' version
+#    (`check.VERSION`) and when. Never the words left unticked: both rounds follow from
+#    the ticks (`check.shown`). A new table, so it needs no MIGRATIONS entry.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 54
+SCHEMA_VERSION = 55
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -420,6 +427,8 @@ WIPED = (
     "reading",
     # The first section each word was met in (targum-internal#603).
     "met",
+    # The words ticked on the arrival's words check (targum-internal#613).
+    "checked",
     "event",
     "chosen",
     "slip",
@@ -898,6 +907,19 @@ CREATE TABLE IF NOT EXISTS met (
   lemma    TEXT    NOT NULL,
   at       INTEGER NOT NULL,
   PRIMARY KEY (person, language, lemma)
+);
+
+-- The words a new Hebrew reader ticked on the arrival's words check (targum-internal
+-- #613), as a JSON list, with the version of the lists they were shown (`check.VERSION`).
+-- Evidence for the estimate and nothing else: a word here is not on the reader's list.
+-- What they were shown, and so left unticked, follows from the ticks (`check.shown`).
+CREATE TABLE IF NOT EXISTS checked (
+  person   INTEGER NOT NULL,
+  language TEXT    NOT NULL,
+  version  TEXT    NOT NULL,
+  ticked   TEXT    NOT NULL DEFAULT '[]',
+  at       INTEGER NOT NULL,
+  PRIMARY KEY (person, language)
 );
 
 -- When a record began on this box: the first start of the code that keeps it. Not
@@ -2203,6 +2225,39 @@ class Store:
                 (said, person.id),
             )
         return said
+
+    # -- the words check on arrival (targum-internal#613) ----------------------------
+
+    def set_checked(self, person: Person, language: str, version: str, ticked: list[str]) -> None:
+        """Keep the words a reader ticked on the arrival's words check, replacing any check
+        they took before in that language. `ticked` is already `check.kept`: the words the
+        rounds could have shown them, each once. None of them goes on the reader's list."""
+        code = language.split("-")[0].lower()
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO checked (person, language, version, ticked, at)"
+                " VALUES (?, ?, ?, ?, ?)"
+                " ON CONFLICT (person, language) DO UPDATE SET"
+                " version = excluded.version, ticked = excluded.ticked, at = excluded.at",
+                (person.id, code, version, json.dumps(ticked, ensure_ascii=False), now()),
+            )
+
+    def checked(self, person_id: int | None, language: str) -> tuple[str, list[str]] | None:
+        """The check a reader took in one language, as (version, ticked words), or None
+        where they took none or skipped it."""
+        if person_id is None:
+            return None
+        row = self.db.execute(
+            "SELECT version, ticked FROM checked WHERE person = ? AND language = ?",
+            (int(person_id), language.split("-")[0].lower()),
+        ).fetchone()
+        if row is None:
+            return None
+        try:
+            said = json.loads(str(row["ticked"] or "[]"))
+        except ValueError:
+            said = []
+        return str(row["version"]), [str(word) for word in said if isinstance(word, str)]
 
     # -- what a reader did in a text (targum-internal#127) -------------------------
 
@@ -3981,6 +4036,8 @@ class Store:
                     "reading",
                     # And where they first met each word (targum-internal#603).
                     "met",
+                    # And the words they ticked on arrival (targum-internal#613).
+                    "checked",
                     # And where they left off in each text (targum-internal#430).
                     "place",
                     # And what they did in each text (targum-internal#127).
@@ -4358,6 +4415,20 @@ class Store:
             dict(row)
             for row in self.db.execute(
                 "SELECT language, lemma, at FROM met WHERE person = ? ORDER BY at, lemma",
+                (person.id,),
+            )
+        ]
+        # And the words they ticked on the arrival's words check (targum-internal#613).
+        out["checked"] = [
+            {
+                "language": str(row["language"]),
+                "version": str(row["version"]),
+                "ticked": json.loads(str(row["ticked"] or "[]")),
+                "at": int(row["at"]),
+            }
+            for row in self.db.execute(
+                "SELECT language, version, ticked, at FROM checked WHERE person = ?"
+                " ORDER BY language",
                 (person.id,),
             )
         ]
