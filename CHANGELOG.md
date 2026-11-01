@@ -670,6 +670,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   find my level" and leads into the check, keeping no level; other languages, which have
   no check, still show a page. Privacy notice clause 3.2 now names the check's words in
   David's wording. The Russian for the new label is a draft.
+- "Find me something", behind a switch (David, 2026-11-01; targum-internal#615). Off
+  unless `TARGUM_FIND_BUTTON` is set, and no page draws it yet: this is the server half.
+  `POST /find` answers one pick for the reader: a find from the ready pool, in the band
+  and, where the reader chose topics on the chips, about one of them; with the chips
+  skipped, the topics their reading suggests (the topic lexicon over the words met in
+  finished sections and the words they saved, never a claimed word, and only the shown
+  topics) put a find ahead of an equal one. "Another" passes over the cards already
+  shown. The card's "Read it" is the web find's own press (`/finds/<id>/open`), so the
+  reader pays only the build. Where nothing in the pool fits, a live look on the web may
+  run (`finds/live.py`): Anthropic's web search is sent topic words, a language and a
+  level and nothing else, the pages are fetched on the box and screened, scored and
+  pooled by the news round's own rules (robots.txt, the host and word screens), and the
+  button chooses again. targum pays for a look inside `TARGUM_FINDS_BUDGET_USD`, three a
+  reader a day (counted in memory only), thirty a box a day, and the same query not
+  twice in a day. The look has a second switch, `TARGUM_FIND_LIVE`, which waits on a
+  line in the privacy notice naming a search provider. English strings only; the
+  Russian drafts are with David.
 - `/credits` credits the word counts (David, 2026-11-01; targum-internal#580, #581). A
   "Word counts" section under the voices says the yardsticks measure how much of everyday
   conversation, classic literature or the Bible a reader understands, and that only
