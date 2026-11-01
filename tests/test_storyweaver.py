@@ -174,6 +174,23 @@ def test_every_text_box_on_a_page_is_read_and_a_nested_paragraph_once() -> None:
     )
 
 
+def test_text_outside_every_paragraph_is_read_in_its_place() -> None:
+    """Too Big! Too Small! (16411): the editor wraps paragraphs and loose text together
+    in one <span>, and leaves words between paragraphs. Reading the paragraphs alone lost
+    the loose words, and a page with no paragraph holding words came back empty."""
+    html = (
+        "<div class='content'><p><span><br></span></p><p></p>"
+        "<span><p><span><br></span></p>"
+        "<p><span>One fox</span> <span>runs</span> <br></p>"
+        "<span>to the</span> <span>river.</span> </span>"
+        "<p><b>Two birds sing!</b></p><p></p>"
+        "</div>"
+        "<div class='content'><span><p><br></p>"
+        "<span>Then</span><b> it</b> <br><span>rains.</span></span><p></p></div>"
+    )
+    assert page_text(html) == "One fox runs to the river. Two birds sing! Then it rains."
+
+
 def test_a_book_with_no_words_says_so() -> None:
     data = saved(7686)["data"]
     data["pages"] = [page for page in data["pages"] if page["pageType"] != "StoryPage"]
