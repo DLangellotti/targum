@@ -818,6 +818,34 @@ _LINK_LANGUAGE = re.compile(
 )
 
 
+#: The line Project Ben-Yehuda ends every download with: "את הטקסט[ים] לעיל הפיקו מתנדבי
+#: פרויקט בן־יהודה באינטרנט. הכל זמין תמיד בכתובת הבאה:https://benyehuda.org/read/N".
+#: It is unpointed boilerplate under a pointed text, a reader was shown it as the text's
+#: last line, and its thirteen common words moved a short poem's difficulty by up to a
+#: third (the children's pilot, 2026-10-31). The credit itself is kept where credits
+#: live: every Ben-Yehuda row names Project Ben-Yehuda in `credit` and links its terms.
+#: Matched on the volunteers and the project, either spelling of the hyphen, so an older
+#: wording of the rest of the line still goes.
+_BEN_YEHUDA_CREDIT = re.compile(r"מתנדבי\s+פרויקט\s+בן\s*[\u05be\-\u2010-\u2013]?\s*יהודה")
+
+
+def _ben_yehuda(source: str) -> bool:
+    host = (urlparse(source).hostname or "").lower()
+    return host == "benyehuda.org" or host.endswith(".benyehuda.org")
+
+
+def drop_ben_yehuda_credit(text: str) -> str:
+    """A Ben-Yehuda download without its closing credit line, and nothing else changed.
+
+    Only trailing lines go: the line is always the last thing in the file, and a text
+    that quotes the sentence somewhere in its middle keeps it there.
+    """
+    lines = text.rstrip().split("\n")
+    while lines and (not lines[-1].strip() or _BEN_YEHUDA_CREDIT.search(lines[-1])):
+        lines.pop()
+    return "\n".join(lines).rstrip()
+
+
 def _translated_edition(source: str) -> bool:
     """A Global Voices edition in a language other than English.
 
@@ -948,13 +976,19 @@ class UrlIngester:
     # A .txt served over http is a text file that happens to live on the web, and the
     # artifact says so: what a text arrived as decides what may later be inferred about
     # it. A page's markup states its structure; a plain file has none to state.
-    plain_name = "url-text/1"
+    # 2: a Project Ben-Yehuda download loses its volunteers' credit line
+    # (`drop_ben_yehuda_credit`, 2026-11-01). Without the bump a text already built would
+    # keep the line for ever, because an artifact that differs from a fresh read under
+    # the same name is taken for a hand edit and wins.
+    plain_name = "url-text/2"
 
     def _plain(self, source: str, body: str) -> Document:
         """A text file fetched over http, read the way a text file on disk is read."""
         from .base import classify_plain_paragraph, parse_frontmatter
 
         fields, text = parse_frontmatter(normalize(body))
+        if _ben_yehuda(source):
+            text = drop_ben_yehuda_credit(text)
         paragraphs: list[Paragraph] = [
             classify_plain_paragraph(chunk) for chunk in text.split("\n\n") if chunk.strip()
         ]
