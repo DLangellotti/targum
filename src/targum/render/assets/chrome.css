@@ -1646,6 +1646,12 @@ body .site-footer { max-inline-size: var(--column); }
 .tab[aria-selected="true"],
 .tab[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); cursor: default; }
 .tab:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Tabs on a field (`.tabs.on-field`): paper pills on the field's tint, so the row reads
+   on it; one the reader's own reading suggests (`.is-likely`) carries a light teal ring
+   (home's topics, targum-internal#615). Chosen is filled as everywhere. */
+.tabs.on-field .tab:not([aria-pressed="true"]):not([aria-current="page"]) { background: var(--card); }
+.tabs.on-field .tab:not([aria-pressed="true"]):hover { background: var(--teal-wash); }
+.tab.is-likely { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--teal) 45%, transparent); }
 /* The count keeps the chip's own colour at full ink: at 0.8 it read at about 3:1 on the
    tint (#475 B11). Its lighter weight is what sets it apart. */
 .tab .tab-count { font-variant-numeric: tabular-nums; font-weight: 400; }

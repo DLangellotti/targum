@@ -670,6 +670,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   find my level" and leads into the check, keeping no level; other languages, which have
   no check, still show a page. Privacy notice clause 3.2 now names the check's words in
   David's wording. The Russian for the new label is a draft.
+- Home's one card finds what fits you, behind `TARGUM_FIND_BUTTON` (David, 2026-11-01;
+  targum-internal#615; design.md §12). The try-next card and the upload slab become one
+  "One to try next" card, built as the approved mock v3: the pick with its share known
+  ("94% known") and its facts line, Read or Watch, Something else and Topic, and Upload
+  under a hairline as the page's one filled press. Something else goes from the shelf to
+  the pool of finds and then to a live web search in the pick's place, step by step as
+  the server reports it, with Stop, which the server now honours (`POST /find {stop}`: no
+  page fetched after it, nothing offered). Topic opens the forty chips, likely ones
+  first, and a chip picks again at once. "N web searches left today" shows only at two
+  or fewer (`left` on every `/find` answer); credits only where a pick costs. How we
+  choose names comprehensible input once. After Read on a find the reader opens by
+  itself. Under the card, More that fit you: three to six library texts in the band from
+  the same chooser (`/suggest {more}`), each with its share known and kind. Off, the page
+  is as before. Russian strings are drafts for David.
 - "Find me something" steers by forty everyday topics, and the privacy notice names its
   search (David, 2026-11-01; targum-internal#615). The chips are Sport, Football, Music,
   Cooking, the army and thirty-five more (`finds/chips.py`), the reader's likely ones

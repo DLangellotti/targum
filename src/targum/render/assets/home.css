@@ -604,3 +604,90 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   .home-card:not(.is-building):active,
   .upload-card:active { transform: none; }
 }
+
+/* --- Home's one card (design.md §12, "Home's one card finds what fits you", 2026-11-01;
+   targum-internal#615). Behind `TARGUM_FIND_BUTTON`: the try-next card, the Find card
+   and the upload slab become one card, with More that fit you under it. Every press is a
+   shared `.btn`; Upload stays the page's one filled press. ----------------------------- */
+.read-card { display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem; }
+.rc-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-block-size: 2rem; }
+.rc-head .home-label { margin: 0; }
+.rc-how { margin: -0.25rem 0 0; font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.rc-how[hidden] { display: none; }
+.rc-how b { font-weight: 600; }
+.rc-body { display: flex; flex-direction: column; gap: 1rem; }
+.rc-body:empty { display: none; }
+.read-card .home-note { padding: 0; }
+.rc-pick { display: flex; gap: 1rem; }
+.rc-pick .home-thumb { flex: none; inline-size: 5.25rem; block-size: 7rem; border-radius: var(--radius-control); }
+.rc-pick .home-thumb.is-letter .glyph { font-size: 2.25rem; }
+.rc-what { display: flex; flex-direction: column; gap: 0.3rem; min-inline-size: 0; flex: 1 1 auto; }
+.rc-what .home-card-title { margin: 0 0 0.15rem; overflow-wrap: anywhere; }
+.rc-known { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.rc-what .home-card-facts { margin: 0; }
+.rc-credits { margin: 0; font-size: 0.875rem; color: var(--ink); }
+.rc-status { margin: 0.2rem 0 0; font-size: 0.9375rem; color: var(--ink); }
+.rc-quiet { margin: -0.375rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.rc-says { margin: 0; font-size: 0.9375rem; line-height: 1.5; }
+.rc-presses { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+.rc-presses .btn { padding-inline: 0.75rem; }
+/* At a desk the side column is narrower than the rem grows, so the three presses keep
+   to one row at the small size. */
+@media (min-width: 40.01rem) { .rc-presses .btn { font-size: 0.875rem; } }
+.rc-presses .chev { inline-size: 0.75rem; block-size: 0.75rem; transition: transform 160ms var(--ease); }
+.rc-presses [aria-expanded="true"] .chev { transform: rotate(180deg); }
+/* The forty topics: the reader's likely ones first, in a field that scrolls inside the
+   card, so the page never scrolls sideways at any width. */
+.rc-topics { padding: 0.75rem; border-radius: var(--radius-row); background: var(--field); max-block-size: 12.5rem; overflow-y: auto; overscroll-behavior: contain; }
+.rc-topics[hidden] { display: none; }
+.rc-topics .tabs { flex-wrap: wrap; gap: 0.375rem; list-style: none; overflow: visible; margin: 0; padding: 0; }
+.rc-topics .tab { min-block-size: 2rem; padding-inline: 0.75rem; }
+/* The web, in the pick's place: the steps as text, done in leaf, nothing spinning. */
+.rc-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.rc-steps li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9375rem; color: var(--ink-soft); }
+.rc-steps .dot { flex: none; inline-size: 1rem; block-size: 1rem; display: inline-grid; place-items: center; }
+.rc-steps .dot::before { content: ""; inline-size: 0.5rem; block-size: 0.5rem; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.rc-steps .dot svg { display: none; inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.rc-steps li.done { color: var(--leaf); }
+.rc-steps li.done .dot::before { content: none; }
+.rc-steps li.done .dot svg { display: block; }
+.rc-steps li.now { color: var(--ink); font-weight: 600; }
+.rc-steps li.now .dot::before { background: var(--teal); box-shadow: none; animation: rc-breathe 1.6s ease-in-out infinite alternate; }
+@keyframes rc-breathe { from { opacity: 0.35; } to { opacity: 1; } }
+.rc-web-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.rc-web-foot .home-card-facts { margin: 0; }
+.rc-foot { display: flex; padding-block-start: 1rem; border-block-start: 1px solid var(--hairline); }
+.rc-foot .upload-glyph { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* More that fit you: library texts at the reader's level, under the card. */
+.more-fit { display: flex; flex-direction: column; gap: 0.5rem; padding: 1.25rem; }
+.more-fit[hidden] { display: none; }
+.more-fit .home-label { margin: 0; }
+.more-rows { list-style: none; margin: 0; padding: 0; }
+.more-rows li + li { border-block-start: 1px solid var(--rule); }
+.more-rows a { display: grid; grid-template-columns: 2.75rem minmax(0, 1fr); gap: 0.75rem; align-items: center; padding-block: 0.625rem; color: var(--ink); text-decoration: none; border-radius: var(--radius-control); }
+.more-rows a:hover .more-title { color: var(--teal); }
+.more-rows a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.more-rows .home-thumb { inline-size: 2.75rem; block-size: 2.75rem; border-radius: var(--radius-control); }
+.more-rows .home-thumb.is-letter .glyph { font-size: 1.25rem; }
+.more-what { min-inline-size: 0; }
+.more-title { display: block; margin: 0; font-family: var(--reading); font-size: 1.0625rem; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.more-title[lang|="he"], .more-title[lang|="yi"], .more-title[lang|="arc"] { font-family: var(--reading-hebrew); }
+.more-facts { display: block; margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+
+@media (max-width: 40rem) {
+  .home-side.is-one-card { display: flex; order: -1; }
+  .read-card { padding: 1rem; }
+  .more-fit { padding: 1rem; }
+  .rc-pick .home-thumb { inline-size: 4rem; block-size: 5.5rem; }
+  .rc-pick .home-thumb.is-letter .glyph { font-size: 1.75rem; }
+  .rc-foot .btn.filled { flex: 1 1 100%; }
+  .rc-topics { max-block-size: 14rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .rc-presses .btn, .rc-topics .tab, .rc-head .btn { min-block-size: 44px; }
+  .more-rows a { min-block-size: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-steps li.now .dot::before { animation: none; }
+  .rc-presses .chev { transition: none; }
+}

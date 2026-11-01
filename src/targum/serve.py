@@ -11212,7 +11212,46 @@ class Handler(BaseHTTPRequestHandler):
         # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
         code = (spoken or "").split("-")[0].lower()
         library = any(code in entry.languages for entry in catalogue_module.everything())
-        return self._json({"suggestion": rows[0] if rows else None, "library": library})
+        answer: dict[str, Any] = {"suggestion": rows[0] if rows else None, "library": library}
+        if payload is not None and payload.get("more"):
+            answer["more"] = self._more_that_fit(ctx, done, rows[0] if rows else None)
+        return self._json(answer)
+
+    #: How many library texts "More that fit you" shows under home's card: none under
+    #: the least, and never more than the most (David, 2026-11-01).
+    MORE_LEAST = 3
+    MORE_MOST = 6
+
+    def _more_that_fit(
+        self, ctx: Any, done: list[str], shown: dict[str, Any] | None
+    ) -> list[dict[str, Any]]:
+        """Library texts at this reader's level, for the row under home's card
+        (targum-internal#615; David, 2026-11-01): the shelf only, in the band, ranked by
+        the same chooser as the card (`choose.key`), the card's own pick left out. Each
+        row says its share known and its kind; the page draws the rest. Behind the find
+        button's switch, with the card it sits under."""
+        from . import choose
+        from .chat import tools as chat_tools
+        from .finds import button
+
+        if not button.on():
+            return []
+        skip = list(done)
+        if shown and shown.get("id"):
+            skip.append(str(shown["id"]))
+        rows = chat_tools.suggest_next(ctx, {"limit": 10, "skip": skip}).get("suggestions") or []
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            # A web find has the card; this row is the library's.
+            fits = row.get("fit") == choose.BAND and row.get("origin") in (None, "shelf")
+            reason = row.get("reason") or {}
+            measured = reason.get("key") == "suggest.known" and reason.get("share")
+            if not fits or not measured:
+                continue
+            out.append({**row, "percent": int(reason["share"])})
+            if len(out) >= self.MORE_MOST:
+                break
+        return out if len(out) >= self.MORE_LEAST else []
 
     def _chat_suggest(self, payload: dict[str, Any]) -> None:
         """The commonest ask, answered without the model (targum-internal#240): the
@@ -15188,6 +15227,11 @@ class Handler(BaseHTTPRequestHandler):
           nothing; where nothing there fits and a look on the web may run
           (`finds.live.refused`), the look starts and the answer is its id and stage.
         - `{"search": id}`: how that look is getting on, and its pick when it is done.
+        - `{"stop": id}`: the reader's Stop. No page is fetched after it and nothing is
+          offered; the search itself, once asked, is spent.
+
+        Every answer says `left`, the looks this reader may still start today, where a
+        look may run at all.
 
         Nothing here spends the reader's credits: the card's "Read it" is the web find's
         own press, `POST /finds/<id>/open`. A look on the web is targum's spend, inside
@@ -15207,6 +15251,20 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"signedIn": False}, 401)
         if self.chats is None or self.chats.store is None:
             return self._json({"pick": None})
+
+        def answer(body: dict[str, Any], status: int = 200) -> None:
+            # The looks this reader has left today, where a look may run at all: the
+            # card says it only once two or fewer are left.
+            if live.on():
+                body["left"] = live.looks_left(person.id)
+            return self._json(body, status)
+
+        stopping = str(payload.get("stop") or "")[:40]
+        if stopping:
+            look = live.LOOKS.stop(stopping, person.id)
+            if look is None:
+                return answer({"error": "not found"}, 404)
+            return answer(look.state())
         polled = str(payload.get("search") or "")[:40]
         if polled:
             look = live.LOOKS.get(polled, person.id)
@@ -15218,11 +15276,11 @@ class Handler(BaseHTTPRequestHandler):
             state = look.state()
             if look.stage == "failed":
                 state["error"] = self._say(
-                    "find.look-failed", "We couldn't search the web just now. Try again later."
+                    "find.look-failed", "We couldn't search the web just now."
                 )
             elif look.stage == "done" and look.pick is not None:
                 state["pick"] = self._find_row(look.pick)
-            return self._json(state)
+            return answer(state)
         admin = bool(self.store.is_admin(person.email))
         spoken = self._asked_language(str(payload.get("language") or ""))
         code = spoken.split("-")[0].lower()
@@ -15273,7 +15331,7 @@ class Handler(BaseHTTPRequestHandler):
 
         rows = choose()
         if button.fits(rows):
-            return self._json({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
+            return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
         asked = live.query(ask.wanted, code, rung)
         why = live.refused(self.store, person.id, asked)
         if not why:
@@ -15285,26 +15343,25 @@ class Handler(BaseHTTPRequestHandler):
                 choose,
                 tags=tuple(chips_module.tag(one) for one in chosen),
             )
-            return self._json(look.state())
+            return answer(look.state())
         if rows:
             # Nothing in the band and no look to run: the best of what is left, which
             # is a find the reader knows almost all of, and the card says so.
-            return self._json({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
+            return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
         message = {
             "reader": self._say(
                 "find.cap-reader",
-                "We've looked on the web for you {n} times today. Try again tomorrow.",
+                "That's today's {n} web searches. More tomorrow.",
                 n=live.READER_DAY_MOST,
             ),
         }.get(
             why,
             self._say(
                 "find.none",
-                "We couldn't find one that fits you today. Try another topic, or come back "
-                "tomorrow.",
+                "We found nothing at your level today.",
             ),
         )
-        return self._json({"pick": None, "why": why, "message": message})
+        return answer({"pick": None, "why": why, "message": message})
 
     def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
         """A pick as the card draws it, its lines in the page's language."""

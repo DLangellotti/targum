@@ -864,6 +864,7 @@
   }
 
   function drawTry(row, first) {
+    if (ONE_CARD) return drawPick(row, first);
     var host = document.getElementById("try-next");
     if (!host) return;
     host.textContent = "";
@@ -1049,6 +1050,488 @@
       });
   }
 
+  /* --- home's one card (design.md §12, "Home's one card finds what fits you",
+     2026-11-01; targum-internal#615) -------------------------------------------------------
+     Behind `TARGUM_FIND_BUTTON` (`data-find` on the body). One card: the pick, from the
+     shelf or found on the web, with Read (or Watch), Something else and Topic. Something
+     else asks the shelf for the next best; once the shelf has nothing more, it goes on to
+     `/find`, which answers from the pool of finds at once or looks on the web, a look the
+     page follows step by step and the reader can stop. A topic picks again at once. What
+     a pick costs is said only where it costs something, and Read on a find builds it as
+     the reader's own and opens it when it is ready (`openFind`'s press). Under the card,
+     More that fit you: library texts at the reader's level, from the same chooser. */
+  var ONE_CARD = !!document.body && document.body.getAttribute("data-find") === "1";
+  var FIND_STEP_MS = 1500;
+  var FIND_STEPS_MOST = 120;
+  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null };
+
+  function chevron() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "chev");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "1.6");
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M4 6l4 4 4-4");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function tick() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M3.5 8.5l3 3 6-7");
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function cardBody() {
+    var host = document.getElementById("try-next");
+    if (host) {
+      host.textContent = "";
+      host.hidden = false;
+    }
+    return host;
+  }
+
+  function cardLabel(row, first) {
+    var label = document.getElementById("rc-label");
+    if (!label) return;
+    var scene = row && row.scene;
+    label.textContent = scene
+      ? scene.first
+        ? t("home.try.scene.first", "Start here")
+        : t("home.try.scene.next", "Your next scene")
+      : first
+        ? t("home.try.first", "One to start with")
+        : t("home.try.next", "One to try next");
+  }
+
+  // The share known, said short (the copy review, 2026-11-01): only where we know some of
+  // the reader's words, and never on the first pick of a reader with none.
+  function percentOf(row) {
+    var reason = (row && row.reason) || {};
+    if (reason.key === "suggest.known" && reason.share) return reason.share;
+    if (row && typeof row.percent === "number" && row.percent > 0) return row.percent;
+    return 0;
+  }
+
+  function siteOf(host) {
+    return String(host || "").replace(/^www\./, "");
+  }
+
+  function isVideo(row) {
+    return !!row && (row.video || row.kind === "video" || row.kind === "talk");
+  }
+
+  // The facts line: the kind for a library text, the site for a web find. Nothing else
+  // tells the two apart (David, 2026-11-01).
+  function factsOf(row) {
+    var facts = [];
+    var minutes = row.minutes ? t("home.minutes", "{n} min", { n: row.minutes }) : "";
+    if (row.find) {
+      if (isVideo(row)) facts.push(t("home.kind.video", "Video"));
+      if (minutes) facts.push(minutes);
+      if (row.host) facts.push(siteOf(row.host));
+    } else {
+      facts.push(kindWord({ kind: row.kind, video: row.video }));
+      if (minutes) facts.push(minutes);
+    }
+    return facts.join(" · ");
+  }
+
+  function pickBlock(row) {
+    var pick = el("div", "rc-pick");
+    var reader = { id: row.id, entry: row.id, title: row.title, language: row.language || "he", kind: row.kind, register: row.register, drawn: row.drawn };
+    if (row.find) reader.picture = false;
+    pick.appendChild(coverFor(reader, row.title, row.language));
+    var what = el("div", "rc-what");
+    var title = titled(row.title, row.language || "he");
+    title.setAttribute("dir", "auto");
+    what.appendChild(title);
+    pick.appendChild(what);
+    return { pick: pick, what: what };
+  }
+
+  function topicPress(tonal) {
+    var press = el("button", "btn " + (tonal ? "tonal" : "ghost") + " rc-topic");
+    press.type = "button";
+    press.appendChild(document.createTextNode(oneCard.chipLabel || t("home.card.topic", "Topic")));
+    press.appendChild(chevron());
+    press.setAttribute("aria-expanded", oneCard.open ? "true" : "false");
+    press.setAttribute("aria-controls", "rc-topics");
+    press.addEventListener("click", function () {
+      oneCard.open = !oneCard.open;
+      press.setAttribute("aria-expanded", oneCard.open ? "true" : "false");
+      var field = document.getElementById("rc-topics");
+      if (field) field.hidden = !oneCard.open;
+      if (oneCard.open) fillTopics();
+    });
+    return press;
+  }
+
+  function topicsField(body) {
+    var field = el("div", "rc-topics");
+    field.id = "rc-topics";
+    field.hidden = !oneCard.open;
+    var list = el("ul", "tabs on-field");
+    list.setAttribute("aria-label", t("home.card.topics", "Topics"));
+    field.appendChild(list);
+    body.appendChild(field);
+    if (oneCard.open) fillTopics();
+  }
+
+  // The forty topics, asked once a visit: the server orders them, the reader's likely ones
+  // first, and says each in the page's language.
+  function fillTopics() {
+    var field = document.getElementById("rc-topics");
+    var list = field && field.querySelector("ul");
+    if (!list) return;
+    var draw = function (chips) {
+      list.textContent = "";
+      (chips || []).forEach(function (chip) {
+        var item = el("li");
+        var press = el("button", "tab" + (chip.suggested ? " is-likely" : ""), chip.label);
+        press.type = "button";
+        press.setAttribute("aria-pressed", chip.topic === oneCard.chip ? "true" : "false");
+        press.addEventListener("click", function () {
+          oneCard.chip = chip.topic;
+          oneCard.chipLabel = chip.label;
+          oneCard.open = false;
+          askFind({ topics: [chip.topic] });
+        });
+        item.appendChild(press);
+        list.appendChild(item);
+      });
+    };
+    if (oneCard.chips) return draw(oneCard.chips);
+    askWith("/find", { chips: true, language: cardAsk.code })
+      .then(function (got) {
+        oneCard.chips = (got && got.chips) || [];
+        draw(oneCard.chips);
+      })
+      .catch(function () {});
+  }
+
+  function leftLine(body) {
+    if (oneCard.left === null || oneCard.left === undefined || oneCard.left > 2) return;
+    body.appendChild(el("p", "rc-quiet", tn("home.card.left", oneCard.left, "{n} web search left today", "{n} web searches left today")));
+  }
+
+  function drawPick(row, first) {
+    if (first !== undefined) oneCard.first = !!first;
+    first = oneCard.first;
+    cardLabel(row, first);
+    var already =
+      !!row &&
+      !row.find &&
+      (continuing.entries.indexOf(String(row.id)) >= 0 ||
+        continuing.folders.some(function (folder) {
+          var to = String(row.reader || "");
+          return to.indexOf("/reader/" + encodeURIComponent(folder) + "/") >= 0 || to.indexOf("/reader/" + folder + "/") >= 0;
+        }));
+    var body = cardBody();
+    if (!body) return;
+    if (!row || !row.id || already) {
+      oneCard.row = null;
+      body.hidden = true;
+      return;
+    }
+    oneCard.row = row;
+    if (row.find && oneCard.shown.indexOf(String(row.id)) < 0) oneCard.shown.push(String(row.id));
+    var parts = pickBlock(row);
+    var share = percentOf(row);
+    if (share && !first && !row.scene) parts.what.appendChild(el("p", "rc-known", t("home.card.known-short", "{n}% known", { n: share })));
+    var facts = row.scene ? "" : factsOf(row);
+    if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
+    if (row.find && row.credits) {
+      parts.what.appendChild(el("p", "rc-credits", tn("home.find.uses-credits", row.credits, "Uses {n} credit", "Uses {n} credits")));
+    }
+    body.appendChild(parts.pick);
+    var presses = el("div", "rc-presses");
+    var verb = isVideo(row) ? t("home.card.watch", "Watch") : t("home.card.read", "Read");
+    var open;
+    if (row.find) {
+      open = el("button", "btn tonal rc-open", verb);
+      open.type = "button";
+      open.addEventListener("click", function () {
+        openPick(row);
+      });
+    } else {
+      open = el("a", "btn tonal rc-open", verb);
+      open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+      open.addEventListener("click", function () {
+        suggestOpened(row);
+      });
+    }
+    presses.appendChild(open);
+    var other = el("button", "btn ghost rc-else", t("home.try.else", "Something else"));
+    other.type = "button";
+    other.addEventListener("click", function () {
+      nextPick(row);
+    });
+    presses.appendChild(other);
+    presses.appendChild(topicPress(false));
+    body.appendChild(presses);
+    topicsField(body);
+    leftLine(body);
+    suggestShown(row);
+  }
+
+  // Something else: the shelf's next best while it has one and no topic is chosen, and
+  // after that the pool of finds, then the web.
+  function nextPick(row) {
+    if (row && row.id && cardAsk.aside.indexOf(String(row.id)) < 0) cardAsk.aside.push(String(row.id));
+    if (row) suggestNote("aside", row);
+    if (oneCard.chip || cardAsk.spent || (row && row.find)) {
+      askFind(oneCard.chip ? { topics: [oneCard.chip] } : {});
+      return;
+    }
+    var code = cardAsk.code;
+    askWith("/suggest", { language: code, skip: cardAsk.skip.concat(cardAsk.aside), instead_of: row && row.id })
+      .then(function (got) {
+        if (code !== suggesting) return;
+        var next = got && got.suggestion;
+        if (!next || !next.id || next.find) {
+          // The shelf has nothing more of its own: the pool and the web take over.
+          cardAsk.spent = true;
+          if (next && next.find && oneCard.shown.indexOf(String(next.id)) < 0) return drawPick(next);
+          return askFind({});
+        }
+        drawPick(next);
+        var again = document.querySelector("#try-next .rc-else");
+        if (again) again.focus();
+      })
+      .catch(function () {});
+  }
+
+  function askFind(extra) {
+    var body = { language: cardAsk.code, skip: oneCard.shown.slice() };
+    Object.keys(extra || {}).forEach(function (key) {
+      body[key] = extra[key];
+    });
+    oneCard.lastAsk = body;
+    var host = cardBody();
+    if (host) {
+      var looking = el("p", "rc-says", t("home.card.looking", "Looking…"));
+      looking.setAttribute("role", "status");
+      host.appendChild(looking);
+    }
+    return askWith("/find", body)
+      .then(answered)
+      .catch(function () {
+        drawSaid(t("home.card.failed", "We couldn't search the web just now."), "again");
+      });
+  }
+
+  function answered(got) {
+    if (!got) return drawSaid(t("home.card.failed", "We couldn't search the web just now."), "again");
+    if (typeof got.left === "number") oneCard.left = got.left;
+    if (got.pick) return drawPick(got.pick);
+    if (got.search) {
+      oneCard.look = got.search;
+      if (got.stage === "done") return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+      drawWeb(got);
+      return follow(got.search, 0);
+    }
+    if (got.why === "reader") return drawSaid(got.message || t("home.card.cap", "That's today's 3 web searches. More tomorrow."), "topic");
+    return drawSaid(got.message || t("home.card.none", "We found nothing at your level today."), "topic");
+  }
+
+  function follow(id, asked) {
+    window.setTimeout(function () {
+      if (oneCard.look !== id) return;
+      askWith("/find", { search: id })
+        .then(function (got) {
+          if (oneCard.look !== id || !got) return;
+          if (typeof got.left === "number") oneCard.left = got.left;
+          if (got.stage === "done") {
+            oneCard.look = "";
+            if (got.pick) return drawPick(got.pick);
+            return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+          }
+          if (got.stage === "failed") {
+            oneCard.look = "";
+            return drawSaid(got.error || t("home.card.failed", "We couldn't search the web just now."), "again");
+          }
+          if (got.stage === "stopped") return;
+          drawWeb(got);
+          if (asked + 1 < FIND_STEPS_MOST) follow(id, asked + 1);
+        })
+        .catch(function () {
+          if (asked + 1 < FIND_STEPS_MOST) follow(id, asked + 1);
+        });
+    }, FIND_STEP_MS);
+  }
+
+  // The look, step by step as the server says it (never on a timer of the page's own).
+  function drawWeb(state) {
+    var body = cardBody();
+    if (!body) return;
+    var says = el("p", "rc-says", t("home.card.web", "Looking on the web."));
+    says.setAttribute("role", "status");
+    body.appendChild(says);
+    var order = ["searching", "reading", "checking"];
+    var at = Math.max(0, order.indexOf(state.stage));
+    var steps = el("ol", "rc-steps");
+    [
+      t("home.card.web.searching", "Searching"),
+      state.pages ? t("home.card.web.reading", "Reading {n} pages", { n: state.pages }) : t("home.card.web.reading-some", "Reading pages"),
+      t("home.card.web.checking", "Counting the words you know"),
+    ].forEach(function (said, index) {
+      var step = el("li", index < at ? "done" : index === at ? "now" : "");
+      var dot = el("span", "dot");
+      dot.appendChild(tick());
+      step.appendChild(dot);
+      step.appendChild(document.createTextNode(said));
+      steps.appendChild(step);
+    });
+    body.appendChild(steps);
+    var foot = el("div", "rc-web-foot");
+    foot.appendChild(el("p", "home-card-facts", t("home.card.web.time", "About 30 seconds.")));
+    var stop = el("button", "btn ghost outline small rc-stop", t("home.card.stop", "Stop"));
+    stop.type = "button";
+    stop.addEventListener("click", function () {
+      var id = oneCard.look;
+      oneCard.look = "";
+      if (id) askWith("/find", { stop: id }).catch(function () {});
+      // Stop puts the last pick back.
+      if (oneCard.row) drawPick(oneCard.row);
+      else drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+    });
+    foot.appendChild(stop);
+    body.appendChild(foot);
+  }
+
+  // A sentence in the pick's place, and its one press: a topic, or try again.
+  function drawSaid(said, press) {
+    var body = cardBody();
+    if (!body) return;
+    body.appendChild(el("p", "rc-says", said));
+    var presses = el("div", "rc-presses");
+    if (press === "again") {
+      var again = el("button", "btn tonal rc-again", t("home.card.again", "Try again"));
+      again.type = "button";
+      again.addEventListener("click", function () {
+        askFind(oneCard.lastAsk || {});
+      });
+      presses.appendChild(again);
+      body.appendChild(presses);
+      return;
+    }
+    presses.appendChild(topicPress(true));
+    body.appendChild(presses);
+    topicsField(body);
+  }
+
+  // Read on a find: the press is this tap, and the reader opens by itself once it is ready.
+  function openPick(row) {
+    var body = cardBody();
+    if (!body) return;
+    var parts = pickBlock(row);
+    var facts = factsOf(row);
+    if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
+    var said = el("p", "rc-status", t("home.card.getting", "We're getting it ready."));
+    said.setAttribute("role", "status");
+    parts.what.appendChild(said);
+    body.appendChild(parts.pick);
+    askWith("/finds/" + encodeURIComponent(row.find) + "/open", {})
+      .then(function (got) {
+        if (got && got.pressed && got.id) {
+          suggestOpened(row);
+          if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+          return waitForFind(got.id, said, row);
+        }
+        if (got && got.confirm) {
+          suggestOpened(row);
+          window.location.href = keyed(got.confirm);
+          return;
+        }
+        throw new Error("not opened");
+      })
+      .catch(function () {
+        said.textContent = t("home.find.failed", "We couldn't open that one. Try again, or choose Something else.");
+        var presses = el("div", "rc-presses");
+        var other = el("button", "btn ghost rc-else", t("home.try.else", "Something else"));
+        other.type = "button";
+        other.addEventListener("click", function () {
+          nextPick(row);
+        });
+        presses.appendChild(other);
+        body.appendChild(presses);
+      });
+  }
+
+  function drawHow(code) {
+    var says = document.getElementById("rc-how-says");
+    if (!says) return;
+    var name = (window.TARGUM_LANGUAGES || {})[code] || code;
+    says.textContent = t(
+      "home.card.how.says",
+      "We look for {language} written for native speakers where you already know 90% of the words. You pick up the rest from context.",
+      { language: name }
+    );
+  }
+
+  // More that fit you: three to six library texts at the reader's level, each with its
+  // share known and its kind. None at all where fewer than three fit.
+  function drawMore(rows) {
+    var host = document.getElementById("more-fit");
+    var list = document.getElementById("more-rows");
+    if (!host || !list) return;
+    list.textContent = "";
+    rows = (rows || []).filter(function (row) {
+      return row && row.id && continuing.entries.indexOf(String(row.id)) < 0;
+    });
+    if (rows.length < 3) {
+      host.hidden = true;
+      return;
+    }
+    rows.slice(0, 6).forEach(function (row) {
+      var item = el("li");
+      var link = el("a");
+      link.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+      link.addEventListener("click", function () {
+        suggestOpened(row);
+      });
+      var reader = { id: row.id, entry: row.id, title: row.title, language: row.language || "he", kind: row.kind, register: row.register, drawn: row.drawn };
+      link.appendChild(coverFor(reader, row.title, row.language));
+      var what = el("span", "more-what");
+      var title = el("bdi", "more-title", row.title);
+      title.setAttribute("lang", row.language || "he");
+      title.setAttribute("dir", "auto");
+      what.appendChild(title);
+      var facts = [];
+      var share = percentOf(row);
+      if (share) facts.push(t("home.card.known-short", "{n}% known", { n: share }));
+      facts.push(kindWord({ kind: row.kind, video: row.video }));
+      what.appendChild(el("span", "more-facts", facts.join(" · ")));
+      link.appendChild(what);
+      item.appendChild(link);
+      list.appendChild(item);
+    });
+    host.hidden = false;
+  }
+
+  (function howPress() {
+    var press = document.getElementById("rc-how-press");
+    var how = document.getElementById("rc-how");
+    if (!press || !how) return;
+    press.addEventListener("click", function () {
+      var open = press.getAttribute("aria-expanded") !== "true";
+      press.setAttribute("aria-expanded", open ? "true" : "false");
+      how.hidden = !open;
+    });
+  })();
+
   /* --- what differs by language (the language boards, P4 2026-10-09) ------------------ */
 
   /* The upload says the language it is for (board RuHome: "Upload something in
@@ -1144,11 +1627,21 @@
       if (skip.indexOf(entry) < 0) skip.push(entry);
     });
     cardAsk = { code: code, skip: skip.slice(), aside: [], spent: false };
-    askWith("/suggest", { language: code, skip: skip })
+    if (ONE_CARD) {
+      oneCard.shown = [];
+      oneCard.chip = "";
+      oneCard.chipLabel = "";
+      oneCard.chips = null;
+      oneCard.open = false;
+      oneCard.look = "";
+      drawHow(code);
+    }
+    askWith("/suggest", ONE_CARD ? { language: code, skip: skip, more: true } : { language: code, skip: skip })
       .then(function (got) {
         if (code !== suggesting) return;
         drawTry(got && got.suggestion, first);
         drawNote(code, got ? got.library : undefined);
+        if (ONE_CARD) drawMore(got && got.more);
       })
       .catch(function () {
         drawTry(null, first);

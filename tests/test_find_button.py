@@ -338,7 +338,7 @@ def test_with_nothing_that_fits_a_look_runs_and_the_page_polls_it(
     cookie = sign_in(home.port, home.postbox)
     status, got, _ = call(home.port, "POST", "/find", {"language": "he"}, cookie=cookie)
     assert status == 200 and got["pick"] is None and got["why"] == "off"
-    assert "couldn't find one" in got["message"]
+    assert got["message"] == "We found nothing at your level today."
 
     monkeypatch.setenv(live.FLAG, "1")
     started = live.LOOKS.start
@@ -427,3 +427,105 @@ def test_a_look_tags_what_it_pools_and_what_the_pool_already_held(store: Store) 
     old = pool.get(store, held)
     assert fresh is not None and fresh.topics == ("chip:football",)
     assert old is not None and old.topics == ("world", "chip:football")
+
+
+# -- Stop, the looks left, and More that fit you ---------------------------------------
+
+
+def test_stop_during_the_search_fetches_no_page_and_offers_nothing(store: Store) -> None:
+    look = live.Look(id="z", person=1, language="he", asked="כתבה על כדורגל")
+    door = Door({"https://b.example/a": PAGE})
+
+    def ask(asked: str, language: str) -> live.Searched:
+        look.stopped = True  # the reader pressed Stop while the search ran
+        return live.Searched(results=[live.Result("https://b.example/a", "")], cost=0.05)
+
+    added = live.top_up(
+        store,
+        look,
+        ask=ask,
+        read=door,
+        robots=robots.Robots(read=lambda url: ""),
+        forms_for=lambda language: page_forms(),
+    )
+    assert added == [] and door.asked == [], "no page after Stop"
+    assert look.state()["stage"] == "stopped" and "pick" not in look.state()
+    run = store.db.execute("SELECT spent, note FROM find_run").fetchone()
+    assert run["spent"] == pytest.approx(0.05), "the search, once asked, is spent"
+    assert json.loads(run["note"])["stopped"] == "the reader"
+
+
+def test_looks_stop_only_for_the_reader_who_started_them(store: Store) -> None:
+    looks = live.Looks()
+    look = looks.start(
+        store, 1, "he", "q", lambda: [], ask=lambda q, lang: live.Searched(), wait=False
+    )
+    assert looks.stop(look.id, 2) is None
+    stopped = looks.stop(look.id, 1)
+    assert stopped is not None and stopped.state()["stage"] in ("stopped", "done")
+    assert live.looks_left(1) == live.READER_DAY_MOST - 1
+
+
+def test_stop_and_the_looks_left_are_answered_by_post_find(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cookie = sign_in(home.port, home.postbox)
+    monkeypatch.setenv(live.FLAG, "1")
+    held = live.Look(id="held", person=0, language="he", asked="q", stage="reading")
+    person = home.store.person_by_email("reader@example.com")
+    assert person is not None
+    held.person = person.id
+    live.LOOKS._held["held"] = held
+    status, got, _ = call(home.port, "POST", "/find", {"stop": "held"}, cookie=cookie)
+    assert status == 200 and got["stage"] == "stopped" and held.stopped
+    assert got["left"] == live.READER_DAY_MOST
+    assert call(home.port, "POST", "/find", {"stop": "nobody"}, cookie=cookie)[0] == 404
+
+
+def test_more_that_fit_is_three_to_six_library_texts_in_the_band(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum.chat import tools as chat_tools
+
+    def rows(n: int, **more: Any) -> list[dict[str, Any]]:
+        return [
+            {"id": f"t{i}", "title": "ספר", "fit": "band",
+             "reason": {"key": "suggest.known", "share": 95 - i}, **more}
+            for i in range(n)
+        ]  # fmt: skip
+
+    offered: list[dict[str, Any]] = rows(8) + rows(1, origin="find") + [{"id": "u", "fit": "under"}]
+    asked: list[dict[str, Any]] = []
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        asked.append(args)
+        if args.get("limit") == 1:
+            return {"suggestions": [{"id": "card", "fit": "band"}]}
+        return {"suggestions": offered}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    cookie = sign_in(home.port, home.postbox)
+    status, got, _ = call(
+        home.port,
+        "POST",
+        "/suggest",
+        {"language": "he", "skip": ["done"], "more": True},
+        cookie=cookie,
+    )
+    assert status == 200 and [row["id"] for row in got["more"]] == [f"t{i}" for i in range(6)]
+    assert got["more"][0]["percent"] == 95
+    assert asked[-1]["skip"] == ["done", "card"], "the card's own pick is left out"
+    offered[:] = rows(2)
+    status, got, _ = call(
+        home.port, "POST", "/suggest", {"language": "he", "more": True}, cookie=cookie
+    )
+    assert got["more"] == [], "fewer than three draw no row"
+    monkeypatch.delenv(button.FLAG)
+    status, got, _ = call(
+        home.port, "POST", "/suggest", {"language": "he", "more": True}, cookie=cookie
+    )
+    assert "more" not in got or got["more"] == []
