@@ -2936,7 +2936,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "30 October 2026"
+LEGAL_CHANGED = "1 November 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -3051,6 +3051,7 @@ def back_office_page(
     faults: list[dict[str, Any]] | None = None,
     reader: object | None = None,
     finds: object | None = None,
+    fit: list[Any] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -3146,6 +3147,8 @@ def back_office_page(
             # loosely for the reason `found` is, and its rungs by their letters.
             finds=finds,
             find_rungs=_find_rungs(finds),
+            # Looking up against the estimate, pooled (#612, clause 3.7): `backoffice.Fit`.
+            fit=fit or [],
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],

@@ -734,6 +734,30 @@
   {%- endif %}
   {%- endif %}
 
+  {#- How well targum estimates how hard a text is for a reader (targum-internal#612,
+      privacy notice clause 3.7 as amended 2026-11-01): the words looked up per hundred
+      read in finished sections, against the words per hundred the estimate said were new,
+      by how much of each section the reader was estimated to know. Pooled across readers
+      and naming none, over library texts whose licence lets them be redistributed, so no
+      upload is in it. A band of fewer than ten readers shows nothing but that. -#}
+  <h2 id="fit">Difficulty estimate</h2>
+  {%- if not fit %}
+  <p class="nothing">No finished section carries an estimate yet.</p>
+  {%- else %}
+  <table>
+    <thead><tr><th>Estimated known</th><th class="n">Readers</th><th class="n">Words read</th><th class="n">Looked up per 100</th><th class="n">Predicted new per 100</th></tr></thead>
+    <tbody>
+      {%- for row in fit %}
+      {%- if row.shown %}
+      <tr><td>{{ row.band }}</td><td class="n">{{ row.readers }}</td><td class="n">{{ row.words }}</td><td class="n">{{ '%.1f'|format(row.looked_per_100) }}</td><td class="n">{{ '%.1f'|format(row.unknown_per_100) }}</td></tr>
+      {%- else %}
+      <tr><td>{{ row.band }}</td><td class="quiet" colspan="4">Fewer than ten readers</td></tr>
+      {%- endif %}
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+
   {#- What broke in readers' browsers (targum-internal#457, clause 3.14), counted by
       message and page over thirty days: how often, for how many accounts, and where in
       the script. A message reported five times in an hour has mailed the operator. Fixed
