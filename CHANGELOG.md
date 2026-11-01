@@ -721,7 +721,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   looked up in it (account schema 53). Both respect the record-of-use switch and Erase,
   and the account page says each in a line of its own. The back office's "Difficulty
   estimate" gives lookups per 100 words against the predicted new words per 100, by band,
-  pooled across at least ten readers, over redistributable library texts only.
+  pooled across at least ten readers, over redistributable library texts only. Clause
+  3.6 also names, for each finished section, the share estimated known when it was
+  opened and how many of its words were looked up (David, 2026-11-01). Russian:
+  `you.page.record-suggest` and `you.page.record-fit` approved by David, 2026-11-01.
 - News is counted into the language tables every night from the feeds themselves (David,
   2026-10-30 and 2026-11-01; targum-internal#582, epic #588), so the news yardstick can
   reach its 50,000-word floor and the picker can offer it. At 01:30 UTC the service reads

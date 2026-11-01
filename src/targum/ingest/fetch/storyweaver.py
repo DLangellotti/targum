@@ -229,14 +229,33 @@ def page_text(html: str) -> str:
     # Italian books came back with no words at all.
     lines: list[str] = []
     for box in BeautifulSoup(html, "html.parser").select("div.content"):
-        # Outermost only. Pasted text nests a <p> inside a <p>, and html.parser keeps the
-        # nesting, so every paragraph under another was read twice.
-        paragraphs = [p for p in box.find_all("p") if p.find_parent("p") is None]
-        if paragraphs:
-            lines.extend(_plain(p) for p in paragraphs)
-        else:
-            lines.append(_plain(box))
-    return " ".join(drop_capital_copies([line for line in lines if line]))
+        lines.extend(_box_lines(box))
+    return " ".join(drop_capital_copies(lines))
+
+
+#: Marks a paragraph's edges inside a box while its text is read in order. A control
+#: character, because no page types one.
+_EDGE = "\x00"
+
+
+def _box_lines(box: Any) -> list[str]:
+    """A box's lines in the order the page reads them: each paragraph a line, and the
+    text between paragraphs a line of its own.
+
+    Reading only the paragraphs lost every word typed outside one. The editor leaves
+    text loose between them, or wraps a run of paragraphs and loose text in one <span>:
+    the English *Too Big! Too Small!* (16411) lost half a sentence on one page, a first
+    sentence on two, the end of its last page, and two pages entirely. Outermost
+    paragraphs only, because pasted text nests a <p> inside a <p>, html.parser keeps the
+    nesting, and every paragraph under another was read twice.
+    """
+    for br in box.find_all("br"):
+        br.replace_with(" ")
+    for paragraph in box.find_all("p"):
+        if paragraph.find_parent("p") is None:
+            paragraph.insert_before(_EDGE)
+            paragraph.insert_after(_EDGE)
+    return [line for part in box.get_text("").split(_EDGE) if (line := _clean(part))]
 
 
 def _cover(pages: list[dict[str, Any]]) -> tuple[str, list[str]]:

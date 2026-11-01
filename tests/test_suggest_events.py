@@ -184,7 +184,9 @@ def test_the_notice_says_both_new_sentences_word_for_word() -> None:
         "the controls of the reader that were pressed. Also, for each text, recording or"
         " page the Service suggests to the Data Subject, whether the suggestion was shown,"
         " opened, finished or set aside for another, and the share of its words the Service"
-        " estimated the Data Subject to know at the time." in page
+        " estimated the Data Subject to know at the time, and, for each section the Data"
+        " Subject marks as finished, the share of its words the Service estimated the Data"
+        " Subject to know when it was opened, and how many of its words were looked up." in page
     )
     assert (
         "in a given week and of choosing the texts the Service suggests to the Data Subject."

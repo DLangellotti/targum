@@ -292,3 +292,17 @@ def test_the_about_page_names_its_own_address() -> None:
     """Indexed and in the sitemap, so it says which address is the one to index."""
     assert f'<link rel="canonical" href="{ADDRESS}/about">' in about_page(address=ADDRESS)
     assert 'rel="canonical"' not in about_page(), "no address, no claim to one"
+
+
+def test_clause_3_6_names_what_a_finished_section_records() -> None:
+    """David, 2026-11-01: the recommendation sentence of clause 3.6 also names a finished
+    section's estimated share and its look-ups, word for word as approved."""
+    notice = said(legal_page("privacy"))
+    assert (
+        "Also, for each text, recording or page the Service suggests to the Data Subject,"
+        " whether the suggestion was shown, opened, finished or set aside for another, and"
+        " the share of its words the Service estimated the Data Subject to know at the time,"
+        " and, for each section the Data Subject marks as finished, the share of its words"
+        " the Service estimated the Data Subject to know when it was opened, and how many of"
+        " its words were looked up."
+    ) in notice
