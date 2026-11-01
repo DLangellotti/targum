@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Each turn's play plays that turn again on the site (David, 2026-11-01). Since a served
+  reader began handing its recording out as a file of its own (#981, 2026-10-30), the file
+  came whole, with no `Accept-Ranges`. Chrome will not seek in a file served like that,
+  so every per-line play and every seek began at nought: turn 4 of a scene said turn 1.
+  Safari did seek. `/clips/` now answers in ranges, as a film's parts do. A reader on disk
+  carries its recording inline and was never affected. The scene data was right.
 - A word's card no longer follows a lemma the word does not spell (David, 2026-10-31).
   נשתיק, "we will silence", showed התקין "install; set up", root ת־ק־ן and "All forms of
   התקין": DICTA has no השתיק, and the annotator's letter check let every nun drop as if
@@ -647,6 +653,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- `/credits` credits the word counts (David, 2026-11-01; targum-internal#580, #581). A
+  "Word counts" section under the voices says the yardsticks measure how much of everyday
+  conversation, classic literature or the Bible a reader understands, and that only
+  counts are kept, never text. It credits OPUS OpenSubtitles with Lison and Tiedemann's
+  2016 citation and a link to opensubtitles.org, "Project Ben-Yehuda volunteers" with
+  benyehuda.org, and the Open Scriptures Hebrew Bible Project (CC BY 4.0) over the
+  Westminster Leningrad Codex (public domain). The Russian strings are drafts. `/about`'s
+  rule is unchanged.
 - A word is said by a person where one recorded it (David, 2026-10-31;
   targum-internal#610). `scripts/fetch_lingualibre.py` reads Lingua Libre's Hebrew
   recordings off the Commons API, one request a second, with each file's licence and
@@ -722,7 +736,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   looked up in it (account schema 53). Both respect the record-of-use switch and Erase,
   and the account page says each in a line of its own. The back office's "Difficulty
   estimate" gives lookups per 100 words against the predicted new words per 100, by band,
-  pooled across at least ten readers, over redistributable library texts only.
+  pooled across at least ten readers, over redistributable library texts only. Clause
+  3.6 also names, for each finished section, the share estimated known when it was
+  opened and how many of its words were looked up (David, 2026-11-01). Russian:
+  `you.page.record-suggest` and `you.page.record-fit` approved by David, 2026-11-01.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and

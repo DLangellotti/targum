@@ -260,5 +260,14 @@ def test_the_credits_page_is_open_and_names_every_speaker(tmp_path: Path, kept: 
         assert "YaronSh" in page_text and "Buffer" in page_text
         assert "CC BY-SA 4.0" in page_text and "CC0" in page_text
         assert "אֶחָד" in page_text and "https://commons.wikimedia.org/wiki/File:1" in page_text
+        # The yardsticks' sources (design.md §12, 2026-11-01): the citation OPUS asks for
+        # with its link, the volunteers Ben-Yehuda asks to be named, and OSHB's licence.
+        assert 'id="word-counts"' in page_text
+        assert "Lison and J. Tiedemann, 2016" in page_text
+        assert 'href="https://www.opensubtitles.org"' in page_text
+        assert "Project Ben-Yehuda volunteers" in page_text
+        assert 'href="https://benyehuda.org"' in page_text
+        assert "Open Scriptures Hebrew Bible Project" in page_text
+        assert "Westminster Leningrad Codex" in page_text
     finally:
         server.shutdown()
