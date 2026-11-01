@@ -15182,8 +15182,8 @@ class Handler(BaseHTTPRequestHandler):
 
         One POST, four questions, by what the body carries:
 
-        - `{"chips": true}`: the topics the page may offer to steer, each with whether
-          the reader's own reading suggests it (`finds.interests`).
+        - `{"chips": true}`: the topics the page offers to steer (`finds.chips`), the
+          ones the reader's own reading suggests first (`finds.interests`).
         - `{"language", "topics", "skip"}`: one pick. The pool first, which fetches
           nothing; where nothing there fits and a look on the web may run
           (`finds.live.refused`), the look starts and the answer is its id and stage.
@@ -15196,8 +15196,8 @@ class Handler(BaseHTTPRequestHandler):
         from . import estimate as estimate_module
         from .chat import tools as chat_tools
         from .finds import button, live
+        from .finds import chips as chips_module
         from .finds import interests as interests_module
-        from .topics import TOPICS
         from .weekly.feeds import link_key
 
         if not button.on():
@@ -15229,23 +15229,24 @@ class Handler(BaseHTTPRequestHandler):
         known = interests_module.lexicon()
         words, _, met = self.store.knowledge(person.id, code)
         liked = [one.topic for one in interests_module.inferred(words, met, known)] if known else []
-        shown = known.shown if known else ()
         if payload.get("chips"):
+            # About forty everyday topics (David, 2026-11-01), the reader's likely ones
+            # first and the rest after, in a row the page scrolls. No free text.
             return self._json(
                 {
                     "chips": [
                         {
-                            "topic": topic,
-                            "label": self._say(f"find.topic.{topic}", TOPICS[topic]),
-                            "suggested": topic in liked,
+                            "topic": chip.code,
+                            "label": self._say(f"find.chip.{chip.code}", chip.label),
+                            "suggested": suggested,
                         }
-                        for topic in shown
+                        for chip, suggested in chips_module.ordered(liked)
                     ]
                 }
             )
         given = payload.get("topics")
-        picked = {str(one) for one in given} if isinstance(given, list) else set()
-        chosen = tuple(topic for topic in shown if topic in picked)
+        picked = [str(one) for one in given[:40]] if isinstance(given, list) else []
+        chosen = tuple(dict.fromkeys(code for code in picked if code in chips_module.BY_CODE))
         passed = payload.get("skip")
         skip = tuple(str(one)[:40] for one in passed[:200]) if isinstance(passed, list) else ()
         ask = button.Ask(code, chosen, tuple(liked), skip)
@@ -15276,7 +15277,14 @@ class Handler(BaseHTTPRequestHandler):
         asked = live.query(ask.wanted, code, rung)
         why = live.refused(self.store, person.id, asked)
         if not why:
-            look = live.LOOKS.start(self.store, person.id, code, asked, choose)
+            look = live.LOOKS.start(
+                self.store,
+                person.id,
+                code,
+                asked,
+                choose,
+                tags=tuple(chips_module.tag(one) for one in chosen),
+            )
             return self._json(look.state())
         if rows:
             # Nothing in the band and no look to run: the best of what is left, which

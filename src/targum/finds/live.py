@@ -23,8 +23,13 @@ The per-reader count is kept in memory and nowhere else, so no table records whi
 looked for what; a restart forgives the day, which costs at most one day's cap.
 
 **Off twice.** Only where the button is on (`button.on`) and the deployment also says
-`TARGUM_FIND_LIVE`: the privacy notice does not yet name a search provider as a recipient
-of anything, and turning this on waits on that sentence (targum-internal#615).
+`TARGUM_FIND_LIVE`, so the day it starts spending is one line in `targum.env`. The privacy
+notice names it since 2026-11-01 (clauses 4.2 and 5.2: Anthropic receives, for such a
+search, the topics and the level of difficulty, without any identifier).
+
+**A chip's pages stay its own.** A look made for chips (`chips.CHIPS`) tags what it pools
+with them (`chips.tag`), so the next press of the same chip finds those pages in the pool
+even where the lexicon has no topic for it, and the same query is not bought twice.
 """
 
 from __future__ import annotations
@@ -131,13 +136,20 @@ ANY_TOPIC = "everyday"
 
 def query(topics: Sequence[str], language: str, rung: int | None) -> str:
     """The words sent to the search: topic words, the language's own phrasing, the level.
-    Built from this module's constants alone, so it cannot carry anything of a reader's.
-    Empty for a language with no words here."""
+    `topics` are chip codes (`chips.CHIPS`, each with its fixed phrase) or lexicon topics
+    (`TOPIC_WORDS`). Built from constants alone, so it cannot carry anything of a
+    reader's. Empty for a language with no words here."""
+    from . import chips
+
     code = score_module.code(language)
     words = TOPIC_WORDS.get(code)
     if not words:
         return ""
-    named = [words[one] for one in topics if one in words][:2] or [words[ANY_TOPIC]]
+    named = [
+        chips.phrase(one, code) or words.get(one, "")
+        for one in topics
+        if chips.phrase(one, code) or one in words
+    ][:2] or [words[ANY_TOPIC]]
     level = ""
     for top, said in LEVEL_WORDS.get(code, ()):
         if rung is None or rung <= top:
@@ -323,6 +335,8 @@ class Look:
     person: int
     language: str
     asked: str
+    #: What the pages it pools carry in their `topics`: the chips it was made for.
+    tags: tuple[str, ...] = ()
     #: `searching`, `reading`, `checking`, then `done` or `failed`.
     stage: str = "searching"
     #: Pages being read, once the search has answered.
@@ -377,6 +391,9 @@ def top_up(
         for result in searched.results:
             link = link_key(result.url)
             if pool.known(store, link):
+                # Already pooled, by the news round or another look: it is about this
+                # chip too, so the pool matches it from now on.
+                _tag(store, link, look.tags)
                 continue
             item = news.Item(
                 link=link,
@@ -385,7 +402,7 @@ def top_up(
                 publisher=_host(link),
                 published=when,
                 full_text="",
-                topics=(),
+                topics=look.tags,
             )
             found.seen += 1
             why = screen.passes(_host(link), result.title)
@@ -441,6 +458,21 @@ def top_up(
         )
 
 
+def _tag(store: Store, link: str, tags: Sequence[str]) -> None:
+    if not tags:
+        return
+    row = store.db.execute(
+        "SELECT topics FROM find WHERE url = ? AND screen = ?", (link, pool.KEPT)
+    ).fetchone()
+    if row is None:
+        return
+    held = [one for one in str(row[0] or "").split(",") if one]
+    more = [one for one in tags if one not in held]
+    if more:
+        with store.write() as db:
+            db.execute("UPDATE find SET topics = ? WHERE url = ?", (",".join(held + more), link))
+
+
 def _drop(store: Store, item: news.Item, why: str, found: news.Round, when: int) -> None:
     found.dropped[why] += 1
     pool.drop(
@@ -488,6 +520,7 @@ def _keep(
         host=_host(item.link),
         publisher=item.publisher,
         published=item.published,
+        topics=item.topics,
         at=when,
     )
     if added:
@@ -521,6 +554,7 @@ class Looks:
         ask: Callable[[str, str], Searched] | None = None,
         clock: Callable[[], float] | None = None,
         wait: bool = False,
+        tags: Sequence[str] = (),
         **more: Any,
     ) -> Look:
         """Start one look in a thread of its own; `choose` is the button's ranking for
@@ -530,7 +564,12 @@ class Looks:
 
         now = (clock or time.monotonic)()
         look = Look(
-            id=secrets.token_hex(8), person=person, language=language, asked=asked, started=now
+            id=secrets.token_hex(8),
+            person=person,
+            language=language,
+            asked=asked,
+            tags=tuple(tags),
+            started=now,
         )
         _count_reader(person, pool.now_ms())
         with self._lock:

@@ -670,6 +670,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   find my level" and leads into the check, keeping no level; other languages, which have
   no check, still show a page. Privacy notice clause 3.2 now names the check's words in
   David's wording. The Russian for the new label is a draft.
+- "Find me something" steers by forty everyday topics, and the privacy notice names its
+  search (David, 2026-11-01; targum-internal#615). The chips are Sport, Football, Music,
+  Cooking, the army and thirty-five more (`finds/chips.py`), the reader's likely ones
+  first, with no free-text box. A chip matches a pool find by its lexicon topic where
+  that topic is shown, or by having been brought in by a live look for that chip, which
+  tags what it pools; otherwise the chip goes to a live look, whose query is the chip's
+  fixed Hebrew phrase (waiting on ling-he's read). Caps approved as built: three looks a
+  reader a day, thirty a box, one query a day, eight pages a look. Notice clauses 3.2,
+  3.13, 4.2 and 5.2 now say, in David's approved words, that the topics a reader reads
+  choose what is suggested and that a web search for them is sent the topics and level
+  of difficulty without any identifier; 3.13 no longer says "or profiling". Word-for-word
+  test. English chip labels only; the Russian drafts are with David. Still off unless
+  `TARGUM_FIND_BUTTON` (and `TARGUM_FIND_LIVE` for the look) is set.
 - "Find me something", behind a switch (David, 2026-11-01; targum-internal#615). Off
   unless `TARGUM_FIND_BUTTON` is set, and no page draws it yet: this is the server half.
   `POST /find` answers one pick for the reader: a find from the ready pool, in the band

@@ -14,7 +14,7 @@ from test_serve import call, sign_in
 
 from targum.accounts import Store
 from targum.coverage import IGNORED, KNOWN
-from targum.finds import button, interests, live, pool, robots, score
+from targum.finds import button, chips, interests, live, pool, robots, score
 
 LETTERS = "אבגדהזחטלמנסעפקרשת"
 
@@ -112,10 +112,11 @@ def test_chosen_topics_keep_the_rest_out_and_liked_ones_only_lead(store: Store) 
         store, button.Ask("he", chosen=("food",)), MARKED, known=lexicon(), credits_left=2
     )
     assert [row["url"] for row in steered] == ["https://a.example/food"]
-    assert steered[0]["because_topic"] == "food" and steered[0]["over"] is True
+    assert steered[0]["chip"] == "food" and steered[0]["over"] is True
     assert steered[0]["fit"] == "band" and button.fits(steered)
     liked = button.ranked(store, button.Ask("he", liked=("law",)), MARKED, known=lexicon())
     assert [row["url"] for row in liked] == ["https://a.example/law", "https://a.example/food"]
+    assert liked[0]["because_topic"] == "law" and "because_topic" not in liked[1]
     passed = button.ranked(
         store, button.Ask("he", liked=("law",), skip=(liked[0]["id"],)), MARKED, known=lexicon()
     )
@@ -133,16 +134,18 @@ def test_nothing_in_the_band_does_not_fit(store: Store) -> None:
 
 
 def test_the_query_is_topic_words_language_and_level_and_nothing_else() -> None:
-    said = live.query(("food", "law"), "he", 1)
+    said = live.query(("cooking", "football"), "he", 1)
     allowed = {
         *live.TOPIC_WORDS["he"].values(),
+        *(chip.phrases["he"] for chip in chips.CHIPS),
         *(words for _, words in live.LEVEL_WORDS["he"]),
         live.KIND_WORDS["he"],
         "או",
     }
     pieces = set(said.split())
     assert pieces <= {word for phrase in allowed for word in phrase.split()}
-    assert "מתכונים" in said and "בעברית קלה" in said
+    assert said == "כתבה על מתכונים ובישול או כדורגל בעברית קלה"
+    assert live.query(("law",), "he", 5) == "כתבה על משפט ופשיעה", "a lexicon topic liked"
     assert "בעברית קלה" not in live.query(("food",), "he", 5), "a level past the easy rungs"
     assert live.query((), "he", None) == "כתבה על חיי היומיום בעברית קלה"
     assert live.query(("food",), "ru", 1) == "", "no words for the language, no look"
@@ -309,15 +312,17 @@ def test_one_pick_from_the_pool_and_another_after_it(home: Any, on: None) -> Non
     assert call(home.port, "POST", "/find", {"language": "he"})[0] == 401
     keep(home.store, "https://a.example/food", FOOD, title="שקשוקה")
     keep(home.store, "https://a.example/law", LAW, title="בית משפט")
-    status, chips, _ = call(home.port, "POST", "/find", {"chips": True}, cookie=cookie)
+    status, offered, _ = call(home.port, "POST", "/find", {"chips": True}, cookie=cookie)
     assert status == 200
-    assert [one["topic"] for one in chips["chips"]] == ["food", "law"]
-    assert chips["chips"][0]["label"] == "Food & drink"
+    codes = [one["topic"] for one in offered["chips"]]
+    assert codes == [chip.code for chip in chips.CHIPS], "nothing liked yet, so the list order"
+    assert len(codes) == 40 and offered["chips"][0]["label"] == "Sport"
+    assert not any(one["suggested"] for one in offered["chips"])
     status, got, _ = call(
         home.port, "POST", "/find", {"language": "he", "topics": ["food"]}, cookie=cookie
     )
     assert status == 200 and got["pick"]["url"] == "https://a.example/food"
-    assert got["pick"]["because_topic_line"] == "Because you read about food & drink"
+    assert got["pick"]["chip"] == "food" and "because_topic_line" not in got["pick"]
     assert got["more"] == 0
     status, other, _ = call(
         home.port, "POST", "/find", {"language": "he", "skip": [got["pick"]["id"]]}, cookie=cookie
@@ -361,3 +366,64 @@ def test_with_nothing_that_fits_a_look_runs_and_the_page_polls_it(
     assert live.reader_looks(home.store.person_by_email("reader@example.com").id) == 1
     other = call(home.port, "POST", "/find", {"search": "nobody"}, cookie=cookie)
     assert other[0] == 404
+
+
+# -- the forty chips -------------------------------------------------------------------
+
+
+def test_forty_chips_each_with_a_label_a_hebrew_phrase_and_at_most_a_shown_match() -> None:
+    from targum import topics as topics_module
+    from targum.strings import catalogue
+
+    codes = [chip.code for chip in chips.CHIPS]
+    assert len(codes) == 40 == len(set(codes))
+    english = catalogue("en")
+    for chip in chips.CHIPS:
+        assert english[f"find.chip.{chip.code}"] == chip.label
+        assert chip.phrases["he"] and not any(
+            ch.isascii() and ch.isalpha() for ch in chip.phrases["he"]
+        )
+        assert chip.lexicon in ("", *topics_module.TOPICS)
+    assert chips.matcher("cooking", ("food",)) == "food"
+    assert chips.matcher("cooking", ()) == "", "a topic not shown does not match"
+    assert chips.matcher("football", ("food", "law")) == ""
+
+
+def test_the_reader_s_likely_chips_come_first() -> None:
+    got = chips.ordered(("law", "food"))
+    first = [(chip.code, suggested) for chip, suggested in got[:3]]
+    assert first == [("crime", True), ("cooking", True), ("food", True)]
+    assert len(got) == 40 and not any(suggested for _, suggested in got[3:])
+
+
+def test_a_chip_the_lexicon_lacks_matches_only_what_a_look_brought_for_it(store: Store) -> None:
+    keep(store, "https://a.example/plain", FOOD)
+    keep(store, "https://a.example/ball", FOOD, topics=(chips.tag("football"),))
+    got = button.ranked(store, button.Ask("he", chosen=("football",)), MARKED, known=lexicon())
+    assert [row["url"] for row in got] == ["https://a.example/ball"]
+    assert got[0]["chip"] == "football" and got[0]["topics"] == []
+
+
+def test_a_look_tags_what_it_pools_and_what_the_pool_already_held(store: Store) -> None:
+    held = keep(store, "https://news.example/held", FOOD, topics=("world",))
+    look = live.Look(
+        id="y", person=1, language="he", asked="כתבה על כדורגל", tags=(chips.tag("football"),)
+    )
+    searched = live.Searched(
+        results=[
+            live.Result("https://news.example/held", ""),
+            live.Result("https://b.example/a", ""),
+        ]
+    )
+    added = live.top_up(
+        store,
+        look,
+        ask=lambda asked, language: searched,
+        read=Door({"https://b.example/a": PAGE}),
+        robots=robots.Robots(read=lambda url: ""),
+        forms_for=lambda language: page_forms(),
+    )
+    fresh = pool.get(store, added[0])
+    old = pool.get(store, held)
+    assert fresh is not None and fresh.topics == ("chip:football",)
+    assert old is not None and old.topics == ("world", "chip:football")
