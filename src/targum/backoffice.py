@@ -1496,3 +1496,119 @@ def survey_store(
         )
     finally:
         db.close()
+
+
+# -- how well targum estimates difficulty (targum-internal#612, clause 3.7) ------------
+
+#: No count drawn from fewer readers than this is used, and the page shows none of its
+#: figures (privacy notice clause 3.7 as amended 2026-11-01).
+FIT_FLOOR = 10
+
+#: The bands a finished section is counted in, by the share of its running words the
+#: reader was estimated to know when they opened it: `choose`'s floor, aim and ceiling
+#: cut it, with two bands under the floor.
+FIT_BANDS: tuple[tuple[float, float, str], ...] = (
+    (0.0, 0.80, "under 80%"),
+    (0.80, 0.90, "80–90%"),
+    (0.90, 0.94, "90–94%"),
+    (0.94, 0.97, "94–97%"),
+    (0.97, 0.995, "97–99.5%"),
+    (0.995, 1.01, "99.5% and over"),
+)
+
+
+@dataclass
+class Fit:
+    """One band of finished sections, pooled across readers and naming none."""
+
+    band: str
+    readers: int
+    words: int = 0
+    looked: int = 0
+    #: The words the estimate said the readers did not know, summed over the sections.
+    expected: float = 0.0
+
+    @property
+    def shown(self) -> bool:
+        """Whether this band is drawn from enough readers to be used at all."""
+        return self.readers >= FIT_FLOOR
+
+    @property
+    def looked_per_100(self) -> float:
+        return 100.0 * self.looked / self.words if self.words else 0.0
+
+    @property
+    def unknown_per_100(self) -> float:
+        """The predicted unknown rate: words per hundred the estimate said were new."""
+        return 100.0 * self.expected / self.words if self.words else 0.0
+
+
+def fit_counts(
+    db: sqlite3.Connection,
+    documents: Iterable[str],
+    operators: Iterable[str] = (),
+) -> list[Fit]:
+    """Words looked up per hundred read in finished sections, against the share of those
+    sections' running words the reader was estimated to know, by band (targum-internal
+    #612; privacy notice clause 3.7 as amended 2026-11-01).
+
+    Across every reader and naming nobody: it returns counts and a tally of readers per
+    band, never a person, a day or a text. Confined to `documents`, the shared library's
+    texts whose licence lets them be redistributed, which leaves out by construction
+    everything a reader uploaded. Staff accounts are not readers here. A band drawn from
+    fewer than `FIT_FLOOR` readers comes back with its tally alone (`Fit.shown` false),
+    and the page draws none of its figures.
+    """
+    docs = sorted({str(one) for one in documents if one})
+    if not docs:
+        return []
+    _functions(db)
+    staff = _staff(db, frozenset(bare(one) for one in operators))
+    cases = " ".join(
+        f"WHEN coverage < {high} THEN {at}" for at, (_, high, _) in enumerate(FIT_BANDS)
+    )
+    sql = (
+        f"SELECT CASE {cases} ELSE {len(FIT_BANDS) - 1} END AS band,"  # noqa: S608
+        " COUNT(DISTINCT person) AS readers, SUM(amount) AS words, SUM(looked) AS looked,"
+        " SUM((1 - coverage) * amount) AS expected"
+        " FROM event WHERE kind = 'section' AND coverage IS NOT NULL"
+        " AND looked IS NOT NULL AND amount > 0"
+        " AND document IN (SELECT value FROM json_each(:docs))"
+        " AND person IN (SELECT id FROM person WHERE bare(email) NOT IN"
+        " (SELECT value FROM json_each(:staff)))"
+        " GROUP BY band ORDER BY band"
+    )
+    try:
+        rows = db.execute(
+            sql, {"docs": json.dumps(docs), "staff": json.dumps(sorted(staff))}
+        ).fetchall()
+    except sqlite3.Error:
+        return []
+    found: list[Fit] = []
+    for row in rows:
+        label = FIT_BANDS[int(row[0])][2]
+        readers = int(row[1] or 0)
+        if readers < FIT_FLOOR:
+            found.append(Fit(label, readers))
+            continue
+        found.append(
+            Fit(
+                label,
+                readers,
+                words=round(float(row[2] or 0)),
+                looked=int(row[3] or 0),
+                expected=float(row[4] or 0),
+            )
+        )
+    return found
+
+
+def fit_counts_store(
+    store: Path, documents: Iterable[str], operators: Iterable[str] | None = None
+) -> list[Fit]:
+    """`fit_counts`, opening the database read-only."""
+    db = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    try:
+        return fit_counts(db, documents, operators_from_env() if operators is None else operators)
+    finally:
+        db.close()

@@ -2841,6 +2841,7 @@ def _home(
     stored: dict[str, str],
     over: bool = True,
     suggestion: dict | None = None,
+    other: dict | None = None,
 ):
     """Home, served as the box would serve it, with `readers` on the shelf and `stored` in
     this browser's storage. Signed out: the account's places are refused, and this
@@ -2862,6 +2863,8 @@ def _home(
             return route.fulfill(status=401, content_type="application/json", body="{}")
         elif path == "/account/me":
             body = {"signedIn": False}
+        elif path == "/suggest" and other and "instead_of" in (request.post_data or ""):
+            body = {"suggestion": other}
         elif path == "/suggest":
             body = {
                 "suggestion": suggestion
@@ -2974,6 +2977,84 @@ def test_a_new_reader_is_asked_first_and_then_sees_an_honest_home(browser) -> No
     context.close()
     assert went == []
     assert got == {"label": "One to start with", "tabs": "none", "shelf": True}, got
+
+
+def test_home_notes_what_became_of_its_suggestion(browser) -> None:
+    """targum-internal#612, clause 3.6 as amended 2026-11-01: the card drawn is noted as
+    shown, Something else as the text set aside and the next shown, Open as opened with
+    its origin, pool id and estimate, and a text opened from the card and since finished
+    as finished, once. Signed out here, so `events.js` only holds them."""
+    first = {
+        "id": "ruth",
+        "title": "רות",
+        "language": "he",
+        "minutes": 9,
+        "origin": "shelf",
+        "running_share": 0.95,
+        "fit": "band",
+    }
+    find = {
+        "id": "find-12",
+        "find": 12,
+        "origin": "find",
+        "title": "חדשות",
+        "language": "he",
+        "minutes": 3,
+        "running_share": 0.931,
+        "credits": 0,
+        "host": "example.com",
+    }
+    readers = [_shelf_row("jonah-he", "יונה", 100, entry="jonah", document="jonah-doc")]
+    opened = {
+        "jonah": {
+            "id": "jonah",
+            "origin": "shelf",
+            "running_share": 0.96,
+            "language": "he",
+            "folder": "",
+            "at": 1_900_000_000_000,
+        }
+    }
+    stored = {
+        "targum:suggest-opened": json.dumps(opened),
+        "targum:docs": json.dumps({"jonah-doc": {"done": 1}}),
+    }  # fmt: skip
+    context, page, went = _home(browser, 1280, readers, stored, suggestion=first, other=find)
+    page.wait_for_selector("#try-next:not([hidden]) .try-else")
+    page.click("#try-next .try-else")
+    page.wait_for_function(
+        "() => document.querySelector('#try-next .home-label').textContent === 'From the news'"
+    )
+    held = page.evaluate("() => window.TargumEvents.held()")
+    left = page.evaluate("() => localStorage.getItem('targum:suggest-opened')")
+    context.close()
+    said = [
+        (e["act"], e["document"], e["origin"], e.get("pool"), e.get("coverage"))
+        for e in held
+        if e["kind"] == "suggest"
+    ]
+    assert said == [
+        ("finished", "jonah", "shelf", None, 0.96),
+        ("shown", "ruth", "shelf", None, 0.95),
+        ("aside", "ruth", "shelf", None, 0.95),
+        ("shown", "find-12", "find", 12, 0.931),
+    ], held
+    assert all(not e.get("segment") and not e.get("amount") for e in held if e["kind"] == "suggest")
+    assert json.loads(left or "{}") == {}, "a finish is said once and then forgotten"
+
+    # Open on a shelf text: opened, and remembered until it is finished.
+    context, page, went = _home(browser, 1280, [], {}, suggestion=first)
+    page.wait_for_selector("#try-next:not([hidden]) .try-open")
+    page.evaluate(
+        "() => document.querySelector('#try-next .try-open')"
+        ".addEventListener('click', (e) => e.preventDefault())"
+    )
+    page.click("#try-next .try-open")
+    held = page.evaluate("() => window.TargumEvents.held()")
+    kept = json.loads(page.evaluate("() => localStorage.getItem('targum:suggest-opened')"))
+    context.close()
+    assert [e["act"] for e in held if e["kind"] == "suggest"] == ["shown", "opened"], held
+    assert kept["ruth"]["origin"] == "shelf" and kept["ruth"]["running_share"] == 0.95, kept
 
 
 SCENE_SEEN = """() => {
