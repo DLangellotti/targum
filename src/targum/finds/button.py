@@ -11,10 +11,11 @@ margin). Only when nothing there fits does it look on the web (`live.py`), and t
 targum's spend inside the discovery budget, never the reader's.
 
 **What fits.** A find in the band (`choose.FLOOR`, 90% of its running words, plus the
-provider's margin). Where the reader chose topics on the chips, a find must also be about
-one of them (`interests.ABOUT_LEAST`); where they skipped the chips, the topics their
-reading suggests (`interests.inferred`) put a find ahead of an equal one and keep none
-out. Inside that, `choose.key`: nearest the 94–97% aim first.
+provider's margin). Where the reader chose chips (`chips.CHIPS`), a find must also be
+about one of them: brought in by a live look for that chip, or carrying its lexicon
+topic's words (`interests.ABOUT_LEAST`) where the lexicon has the topic. Where they
+skipped the chips, the topics their reading suggests (`interests.inferred`) put a find
+ahead of an equal one and keep none out. Inside that, `choose.key`: nearest the 94–97% aim first.
 
 **Credits.** A find that costs more than the reader has left is still offered here, and
 says so (`over`), because the reader asked; Read next leaves it out, because it was not
@@ -32,8 +33,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .. import choose
+from . import chips, provider
 from . import interests as interests_module
-from . import provider
 
 if TYPE_CHECKING:
     from ..accounts import Store
@@ -52,21 +53,37 @@ class Ask:
     """What one press of the button asks for."""
 
     language: str
-    #: Topics the reader chose on the chips; empty where they skipped them.
+    #: Chips the reader chose (`chips.CHIPS` codes); empty where they skipped them.
     chosen: tuple[str, ...] = ()
-    #: Topics their reading suggests (`interests.inferred`), used only where `chosen`
-    #: is empty.
+    #: Lexicon topics their reading suggests (`interests.inferred`), used only where
+    #: `chosen` is empty.
     liked: tuple[str, ...] = ()
     #: Card ids already shown on this visit, which "Another" passes over.
     skip: tuple[str, ...] = ()
 
     @property
     def wanted(self) -> tuple[str, ...]:
+        """What a live look searches for: the chips chosen, else the topics liked."""
         return self.chosen or self.liked
 
     @property
     def steered(self) -> bool:
         return bool(self.chosen)
+
+
+def _chip_matched(
+    ask: Ask, find_topics: Iterable[str], about: Mapping[str, float], shown: Iterable[str]
+) -> str:
+    """The first chosen chip a find is about, or "": a find a live look brought in for
+    the chip, or one whose words are the chip's lexicon topic where that is shown."""
+    tags = set(find_topics)
+    for code in ask.chosen:
+        if chips.tag(code) in tags:
+            return code
+        topic = chips.matcher(code, shown)
+        if topic and about.get(topic, 0.0) >= interests_module.ABOUT_LEAST:
+            return code
+    return ""
 
 
 def ranked(
@@ -82,7 +99,7 @@ def ranked(
     at: int | None = None,
 ) -> list[dict[str, Any]]:
     """Every pool find this reader could be offered for this press, best first, each as
-    the card's row. Fetches nothing."""
+    the card's row. Fetches nothing. With chips chosen, only finds about one of them."""
     found = provider.offered(
         store,
         ask.language,
@@ -94,23 +111,28 @@ def ranked(
         at=at,
         estimate=estimate,
     )
-    wanted = ask.wanted
+    shown = known.shown if known else ()
     out: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     for scored in found:
         find = scored.find
         topics = interests_module.about(find.bag, find.tokens, known) if known else {}
-        matched = max((topics.get(code, 0.0) for code in wanted), default=0.0)
-        on_topic = matched >= interests_module.ABOUT_LEAST
-        if ask.steered and not on_topic:
-            continue
         row = provider.row(scored)
+        if ask.steered:
+            chip = _chip_matched(ask, find.topics, topics, shown)
+            if not chip:
+                continue
+            row["chip"] = chip
+            on_topic = True
+        else:
+            liked = [
+                code for code in ask.liked if topics.get(code, 0.0) >= interests_module.ABOUT_LEAST
+            ]
+            on_topic = bool(liked)
+            if liked:
+                row["because_topic"] = max(liked, key=lambda code: topics[code])
         row["fit"] = choose.fit(scored.chosen_on)
         row["about"] = sorted(topics, key=lambda code: -topics[code])
-        if on_topic:
-            row["because_topic"] = max(
-                (code for code in wanted if topics.get(code, 0.0) >= interests_module.ABOUT_LEAST),
-                key=lambda code: topics[code],
-            )
+        row["topics"] = [one for one in find.topics if not one.startswith(chips.TAG)]
         row["over"] = credits_left is not None and find.credits > credits_left
         rank = choose.key(scored.chosen_on)
         # Inside a tier, a find on the reader's topics first, then the aim, then fresh.

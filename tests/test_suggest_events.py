@@ -216,3 +216,37 @@ def test_the_notice_names_the_words_check_word_for_word() -> None:
         " only to estimate which texts suit them, and the dictionary forms of the words in"
         " sections the Data Subject has marked as finished" in page
     )
+
+
+def test_the_notice_names_topics_and_the_web_search_word_for_word() -> None:
+    """David approved the wording on 2026-11-01 (targum-internal#615): the topics a reader
+    reads choose what is suggested, and a search of the web for them is sent the topics
+    and the level alone."""
+    assert LEGAL_CHANGED == "1 November 2026"
+    page = _said(legal_page("privacy"))
+    assert (
+        "which are never combined with those of any other Data Subject, and the topics of"
+        " the words the Data Subject has saved and of the words in sections they have marked"
+        " as finished, which are used only to choose the texts the Service suggests to them."
+        in page
+    )
+    assert (
+        "No processing is undertaken for the purposes of advertising, and no profile of a"
+        " Data Subject is made save the estimate of the words they know and of the topics"
+        " they read, used only to choose the texts the Service suggests to them; and no"
+        " record of the conduct of a Data Subject is kept save as stated at clauses 3.6,"
+        " 3.7 and 3.14." in page
+    )
+    assert "advertising or profiling" not in page
+    assert (
+        "and the replies of the Service's chat, and searches of the web for material to"
+        " suggest to the Data Subject. Receives that text, those pictures and what the Data"
+        " Subject writes in the chat and, for such a search, the topics and the level of"
+        " difficulty for which it is made, without any identifier of the Data Subject, and"
+        " does not receive the electronic mail address of the Data Subject." in page
+    )
+    assert (
+        'sends by means of "Tell us", pictures and recordings supplied by the Data Subject,'
+        " and the topics and level of a search made for the Data Subject are transferred to"
+        " that third country." in page
+    )
