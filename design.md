@@ -384,6 +384,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### News is counted from the feeds every night, and its first list lands when it is ready — 2026-11-01
+
+David, 2026-10-30 (the language tables' question 1) and 2026-11-01 (targum-internal#582).
+The picker under "How much Hebrew you understand" offered conversation, literature and the
+Bible only: news held about 1,900 counted words on the box, under the yardstick's 50,000
+floor, and news is meant to be the default.
+
+- **The box counts what the feeds carry, at 01:30 UTC each night.** An item's words are
+  the feed's own full text where the feed carries one, and otherwise its title and
+  summary. No page is fetched. The round runs inside the service (`tables.news`,
+  started by `serve.start`), reading the items the server already keeps warm for
+  `search_sources`, so it adds no pull of its own. It reads them with the service's own
+  DICTA, one item per call, waiting its turn on the model's lock, so no second copy of the
+  model is ever loaded (memory: box OOM was DICTA batching). That is why it is not in the
+  `targum-tables` unit, which refuses to load a model at all. The round logs the
+  process's memory before and after, with its high-water mark, in the journal's
+  `tables: news` line.
+- **Only counts are kept.** Each item is its own unit, a hash of its address, so an item is
+  counted once, however many nights it stays in a feed and however many of one outlet's
+  feeds carry it. Its source is the outlet (`feed:<key>`) and its licence is the outlet's
+  own, or "all rights reserved", followed by "counts only; the text is never stored". No
+  title reaches a log. Only the Hebrew news feeds `sources.json` lists are read. A reader's
+  import, a subscription, a chat turn and the web finds (#619, which keep word bags of
+  their own) never reach these tables.
+- **A night's cap is 20,000 words or 400 items, not 40 items.** "Up to ~40 articles" was
+  sized on whole articles. Nearly every feed item is a headline and a summary, about
+  sixty words, so forty items would have been 2,500 words a night, three weeks from the
+  floor. 20,000 words is about forty articles' worth. On 2026-11-01 the feeds held 479
+  items and 30,000 words, so a night reads at most two thirds of what is there. Outlets
+  take turns, newest first, so one busy feed, or the one feed that carries whole
+  articles, cannot take the whole night. Headlines are a clipped register. The list
+  carries them until full-text feeds outnumber them.
+- **News gets its first list on the night it crosses the floor, not at the month's
+  turn.** `tables snapshot` already writes a register's first list as soon as it holds
+  50,000 counted content words, and this keeps that behaviour on purpose. The floor is
+  what keeps a list from resting on a handful of texts, and by then news rests on more
+  than a thousand items from seventeen outlets. Waiting for 1 December would leave the
+  default yardstick missing for a month for no gain. After the first list, news keeps
+  the monthly rule like every other register, so its v2 lands when December begins.
 ### What learners bring is counted in the tables, never kept — 2026-11-01
 
 David, 2026-11-01, toward "build a moat around language learning data". It reverses the

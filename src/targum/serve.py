@@ -17616,6 +17616,13 @@ def start(
                 time.sleep(finds_news.EVERY_S)
 
         threading.Thread(target=keep_finding, name="finds", daemon=True).start()
+        # The news yardstick's counts (targum-internal#582), nightly at 01:30 UTC, off the
+        # same items: read by this process's own DICTA, so no second copy of the model is
+        # loaded beside it, and an hour before targum-tables.timer takes them into its
+        # snapshot. Nothing is fetched and no text is kept. Off where the ledger is.
+        from .tables import news as tables_news
+
+        threading.Thread(target=tables_news.keep_counting, name="tables-news", daemon=True).start()
     # A stop drains first (`Stopping`). Only where signals can be caught at all, which is
     # the main thread: the suite starts servers on threads of their own by the dozen.
     previous: dict[signal.Signals, Any] = {}
