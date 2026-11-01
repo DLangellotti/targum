@@ -17,7 +17,7 @@ the lemma index beside it, with nothing fetched and nothing spent.
 from __future__ import annotations
 
 import unicodedata
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from statistics import median
 from typing import Any
@@ -262,14 +262,20 @@ def at_level(
     language: str,
     ui_language: str = "en",
     limit: int = TEXTS,
+    chances: Sequence[float] | None = None,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
     2026-10-31): at least 90% of their running words known, the nearest the 94–97% aim
     first, a real text before a scene, and a text known through and through last.
 
+    `chances`, the reader's estimate by position in the index (`estimate.Estimate.
+    chances`), makes "known" the estimated share of running words, as Home's card
+    chooses since 2026-11-01 ("The chooser estimates the words you have not marked");
+    `known` on each row is still the marked share, because a page says what was marked.
+
     An entry the index holds no running counts for is measured by its distinct forms, as
-    before, rather than left out. `known` is the share that chose it.
+    before, rather than left out.
     """
     from . import catalogue as catalogue_module
     from . import choose
@@ -282,10 +288,14 @@ def at_level(
             continue
         entry_id = str(entry.id)
         measured = index.running(entry_id, held, statuses) or index.against(entry_id, held)
-        if measured is None or measured.known < choose.FLOOR:
+        if measured is None:
+            continue
+        expected = index.expected(entry_id, statuses, chances) if chances is not None else None
+        chosen_on = measured.known if expected is None else expected
+        if chosen_on < choose.FLOOR:
             continue
         rank = choose.key(
-            measured.known,
+            chosen_on,
             scene=bool(catalogue_module.scene_number(entry_id)),
             gentle=int(getattr(entry, "difficulty", 0) or 0),
         )

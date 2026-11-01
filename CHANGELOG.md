@@ -661,6 +661,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   benyehuda.org, and the Open Scriptures Hebrew Bible Project (CC BY 4.0) over the
   Westminster Leningrad Codex (public domain). The Russian strings are drafts. `/about`'s
   rule is unchanged.
+- The chooser estimates the words a reader has not marked, and the Library counts running
+  words (David, 2026-10-31; targum-internal#613, epic #617). `estimate.py` fits one number
+  per reader from their marks, their steps 1–3, their look-ups, the words they met in a
+  finished section and left alone, and claim-grid ticks read as part guesses, with the
+  rung they named as the starting guess. An unmarked word's chance of being known is
+  σ(0.8 × (theta − log frequency rank)), and a mark always wins. It is fitted again after
+  a sync and kept in memory. Home's card, Something else, Your Progress's "Texts at your
+  level now" and the web finds rank on the estimated share of running words
+  (`Index.expected`), and every page still says the marked share. The Library's figures
+  and shelves, Home's shelf rows, playlists and the conversation's shelf list count
+  running words: a built text's counts are kept beside its forms in `lemmas.json`, read
+  again once where an older cache has none. A stretch is now 80–90% (it was 75–90% of
+  distinct forms). Measured offline in `scripts/eval_estimate.py`: AUC 0.92 held out on
+  the laptop's marks, and coverage predicted within 4–5 points for simulated readers. The
+  Russian strings are drafts. The cold-start check that replaces the claim grid waits on
+  its screen's approval.
 - A word is said by a person where one recorded it (David, 2026-10-31;
   targum-internal#610). `scripts/fetch_lingualibre.py` reads Lingua Libre's Hebrew
   recordings off the Commons API, one request a second, with each file's licence and
