@@ -384,6 +384,43 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Home's one card finds what fits you — 2026-11-01
+
+David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,
+v3" the same day). It amends "A web find is a pasted link targum found" (2026-10-31) and
+"Home is Your targums, and Continue leads it" (2026-10-08) in the side column only. Behind
+`TARGUM_FIND_BUTTON` until David has seen the real build.
+
+- **One card.** The try-next card, the Find card of the first mock and the upload slab
+  become one "One to try next" card: the pick, then Read (Watch for a video), Something
+  else and Topic ▾, all shared `.btn`s, and under a hairline the page's one filled press,
+  Upload. Another, the separate Find card and the upload's three wordings are gone. On a
+  phone the card comes straight after Continue.
+- **Something else goes on to the web.** It asks the shelf for the next best while the
+  shelf has one. After that it asks the pool of finds, and where nothing there fits, it
+  looks on the web in the pick's place: three steps as the server reports them, about
+  30 seconds, and Stop, which puts the last pick back and stops the look fetching. The
+  search is targum's spend, not the reader's: three a reader a day, thirty a box, the
+  same query once a day, eight pages a look, inside the discovery budget. "N web searches
+  left today" shows only at two or fewer.
+- **Topic** opens forty everyday topics, the reader's likely ones first (from the topic
+  lexicon over what they finished and saved). A chip picks again at once, and the press
+  then names it. There is no free-text box: the query is fixed words, a topic phrase, the
+  language and a level.
+- **The pick says little.** Its share known, short ("94% known"), its facts line and, only
+  where it costs something, its credits. The facts line is the one thing that tells a
+  library text from a web find: the kind for one, the site for the other. "Uses none of
+  your credits" is no longer said on this card, so a press that costs still says so first
+  and a free one says nothing.
+- **Comprehensible input is named once**, at the top of How we choose: "We look for
+  Hebrew written for native speakers where you already know 90% of the words. You pick up
+  the rest from context." The floor is 90% of running words, the chooser's own.
+- **After Read on a find** the card says "We're getting it ready." and the reader opens by
+  itself when the build is done, through the web find's own press.
+- **More that fit you** sits under the card: three to six library texts at the reader's
+  level, from the same chooser, each with its share known and its kind, and a tap opens
+  it. Fewer than three fit and the row is not drawn.
+
 ### The arrival asks which words you know — 2026-11-01
 
 David, 2026-11-01 (targum-internal#613, approving the mock of 2026-10-31): the cold-start

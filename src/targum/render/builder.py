@@ -2363,6 +2363,13 @@ LISTS = {
 }
 
 
+def _find_button() -> bool:
+    """Whether home draws "Find me something" in its one card (targum-internal#615)."""
+    from ..finds.button import on
+
+    return on()
+
+
 def list_page(token: str, which: str, language: str = "en") -> str:
     """One of the three lists, whole, its words said in `language` (targum-internal#184).
 
@@ -2383,6 +2390,7 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             token=token,
             which=which,
             languages=_language_names(language),
+            find_button=_find_button(),
             strings=script_strings(
                 language,
                 "yours.",

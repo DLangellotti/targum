@@ -172,6 +172,11 @@ _READERS: dict[tuple[int, int], int] = {}
 _READERS_LOCK = threading.Lock()
 
 
+def looks_left(person: int, at: int | None = None) -> int:
+    """How many looks this reader may still start today."""
+    return max(0, READER_DAY_MOST - reader_looks(person, at))
+
+
 def reader_looks(person: int, at: int | None = None) -> int:
     when = pool.now_ms() if at is None else at
     with _READERS_LOCK:
@@ -349,10 +354,13 @@ class Look:
     started: float = 0.0
     finished: float = 0.0
     spent: float = 0.0
+    #: The reader pressed Stop: no page is fetched after it, and no pick is offered.
+    stopped: bool = False
 
     def state(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"search": self.id, "stage": self.stage, "pages": self.pages}
-        if self.stage == "done":
+        stage = "stopped" if self.stopped else self.stage
+        out: dict[str, Any] = {"search": self.id, "stage": stage, "pages": self.pages}
+        if stage == "done":
             out["pick"] = self.pick
             out["more"] = self.more
         return out
@@ -414,6 +422,10 @@ def top_up(
             todo.append(item)
             if len(todo) >= PAGES_MOST:
                 break
+        if look.stopped:
+            # Stop came while the search ran: what it cost is spent, and nothing more is.
+            note["stopped"] = "the reader"
+            return []
         look.stage = "reading"
         look.pages = len(todo)
 
@@ -583,6 +595,9 @@ class Looks:
         def run() -> None:
             try:
                 look.added = top_up(store, look, ask=asker, **more)
+                if look.stopped:
+                    look.stage = "stopped"
+                    return
                 rows = list(choose())
                 from .button import fits
 
@@ -601,6 +616,15 @@ class Looks:
             run()
         else:
             threading.Thread(target=run, name="find-live", daemon=True).start()
+        return look
+
+    def stop(self, look_id: str, person: int) -> Look | None:
+        """Stop a look for the reader who started it: pages not yet fetched are not, and
+        it offers nothing. What it found before the press stays in the pool."""
+        look = self.get(look_id, person)
+        if look is not None and look.stage not in ("done", "failed"):
+            look.stopped = True
+            look.stage = "stopped"
         return look
 
     def get(self, look_id: str, person: int) -> Look | None:

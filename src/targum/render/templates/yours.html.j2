@@ -32,7 +32,7 @@
     may already know, and the phrases, on one page — and `phrases` the phrases alone.
     Same markup and the same scripts as anywhere else a row is drawn, so a row here and a
     row there cannot drift. -#}
-<body class="yours">
+<body class="yours"{% if which == 'texts' and find_button %} data-find="1"{% endif %}>
 {#- Your targums has its own place in the nav since 2026-09-24 (design.md §12, "The shelf
     says what a text is at a glance"). Your words and phrases are reached from the
     account, and a nav that lit Learn on them said the reader was somewhere they were not
@@ -145,6 +145,34 @@
   </section>
   </div>
 
+  {%- if find_button %}
+  {#- One card (design.md §12, "Home's one card finds what fits you", 2026-11-01;
+      targum-internal#615): one text to try next, or one to start with, from the shelf or
+      found on the web, with Read, Something else and Topic; How we choose names
+      comprehensible input once; Upload, the page's one filled press, under a hairline.
+      Under the card, More that fit you: library texts at the reader's level. `home.js`
+      draws both. On a phone the side column comes straight after Continue. -#}
+  <aside class="home-side is-one-card" aria-label="{{ t("home.side", "Something new") }}">
+    <section class="card read-card" id="read-card" aria-labelledby="rc-label">
+      <div class="rc-head">
+        <p class="home-label" id="rc-label">{{ t("home.try.next", "One to try next") }}</p>
+        <button type="button" class="btn text small" id="rc-how-press" aria-expanded="false" aria-controls="rc-how">{{ t("home.card.how", "How we choose") }}</button>
+      </div>
+      <p class="rc-how" id="rc-how" hidden><b>{{ t("home.card.how.term", "Comprehensible input.") }}</b> <span id="rc-how-says"></span></p>
+      <div class="rc-body" id="try-next" aria-live="polite"></div>
+      {#- Per language (the language boards): a language whose library is empty says so in
+          the pick's place, and Aramaic says where its words are met. -#}
+      <div class="home-note" id="home-note" hidden></div>
+      <div class="rc-foot">
+        <a class="btn filled" href="/add" data-home-link><svg class="upload-glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 3.5v9M3.5 8h9"/></svg>{{ t("home.card.upload", "Upload") }}</a>
+      </div>
+    </section>
+    <section class="card more-fit" id="more-fit" aria-labelledby="more-label" hidden>
+      <p class="home-label" id="more-label">{{ t("home.more.label", "More that fit you") }}</p>
+      <ul class="more-rows" id="more-rows"></ul>
+    </section>
+  </aside>
+  {%- else %}
   {#- One text to try next — or, for a reader with nothing yet, one to start with — and the
       way to upload. Learn's suggestion, kept when the rest of Learn went (2026-10-08). On
       a phone the upload stands under Continue and the suggestion under the shelf. -#}
@@ -159,6 +187,7 @@
       <span class="upload-card-short" aria-hidden="true">{{ t("home.upload.short", "link · file · post") }}</span>
     </a>
   </aside>
+  {%- endif %}
   </div>
 
   <section class="panel trash" id="trash-panel" hidden>
