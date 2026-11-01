@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-10-31
+Home suggests a text where you know 94 to 97% of the words you will meet, and Something else offers another.
+Where a person has recorded a Hebrew word, its card plays their voice and says who it is.
+A Hebrew word's card no longer shows a verb the word cannot be, such as install for we will silence.
+
 2026-10-30
 Your Progress says how much of everyday talk, the news, literature and the Bible your Hebrew words cover.
 Your Progress names the Hebrew binyan you know least, with a grid of each binyan by tense.

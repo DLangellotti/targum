@@ -924,6 +924,34 @@ def test_a_reader_can_stop_the_record_and_erase_it(
     assert got["totals"] == []
 
 
+def test_a_reader_can_stop_their_material_being_counted(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """David, 2026-11-01: what readers bring is pooled into the language tables, on by
+    default, and the switch is the reader's on the account page. The page draws it only
+    where the box pools anything (`TARGUM_IMPORT_COUNTS`)."""
+    monkeypatch.delenv("TARGUM_IMPORT_COUNTS", raising=False)
+    port, token, _ = served
+    status, answer, _ = call(port, "POST", f"/account/counting?k={token}", {"count": False})
+    assert status == 401
+
+    cookie = sign_in(port, postbox)
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["counting"] == {"kept": False, "on": True}
+
+    monkeypatch.setenv("TARGUM_IMPORT_COUNTS", "1")
+    status, answer, _ = call(
+        port, "POST", f"/account/counting?k={token}", {"count": False}, cookie=cookie
+    )
+    assert status == 200 and answer["counting"] == {"kept": True, "on": False}
+    status, me, _ = call(port, "GET", f"/account/me?k={token}", cookie=cookie)
+    assert me["counting"] == {"kept": True, "on": False}
+    status, answer, _ = call(
+        port, "POST", f"/account/counting?k={token}", {"count": True}, cookie=cookie
+    )
+    assert answer["counting"]["on"] is True
+
+
 def test_a_text_left_by_its_corner_turns_its_language_on(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:
