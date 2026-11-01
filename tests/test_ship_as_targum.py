@@ -130,3 +130,46 @@ def test_the_audio_heredoc_keeps_only_root_s_own_work() -> None:
         stripped = line.strip()
         if stripped and not stripped.startswith("#") and "targum.env" not in stripped:
             assert stripped == "systemctl restart targum", stripped
+
+
+def test_a_folder_named_with_a_slash_is_shipped_as_the_folder(tmp_path: Path) -> None:
+    """`ship-shared.sh */` hands rsync `book/`, which copies what is inside the folder into
+    the shelf's own directory. On 2026-11-01 that left a document.json loose in the shared
+    shelf, the restart took the whole shelf for a pre-homes build and moved it into
+    local/, and the shared texts were gone until it was moved back by hand."""
+    for name in ("one", "two"):
+        (tmp_path / name / "reader").mkdir(parents=True)
+        (tmp_path / name / "reader" / "index.html").write_text("<p>", encoding="utf-8")
+        (tmp_path / name / "document.json").write_text("{}", encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    sent = tmp_path / "rsync-args"
+    for tool, body in (
+        ("ssh", "exit 0"),
+        ("rsync", f'printf "%s\\n" "$@" > "{sent}"'),
+        ("curl", "echo '{\"ok\": true}'"),
+    ):
+        (bin_dir / tool).write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+        (bin_dir / tool).chmod(0o755)
+    subprocess.run(
+        ["bash", str(DEPLOY / "ship-shared.sh"), "one/", "two/"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        env={"PATH": f"{bin_dir}:/usr/bin:/bin", "TARGUM_HOST": "box"},
+    )
+    args = sent.read_text(encoding="utf-8").splitlines()
+    assert "one" in args and "two" in args
+    assert not [arg for arg in args if arg.endswith("/") and ":" not in arg]
+
+
+def test_the_directory_the_folders_sit_in_is_refused(tmp_path: Path) -> None:
+    done = subprocess.run(
+        ["bash", str(DEPLOY / "ship-shared.sh"), "./"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        env={"PATH": "/usr/bin:/bin", "TARGUM_HOST": "box"},
+    )
+    assert done.returncode != 0
+    assert "name each folder" in done.stderr
