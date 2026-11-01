@@ -325,6 +325,8 @@ function report() {
       footNote: at("arrival-foot-note").hidden ? "" : at("arrival-foot-note").textContent,
       languageSet,
       doneSays: at("arrival-done").textContent,
+      // What "not sure" says it will do (2026-11-01): find the level, or show a page.
+      unsureSays: at("arrival-unsure").textContent,
       arriving: global.document.body.classList.contains("arriving"),
       kept: (() => {
         const out = {};

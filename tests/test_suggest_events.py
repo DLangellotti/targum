@@ -203,3 +203,16 @@ def test_the_notice_says_both_new_sentences_word_for_word() -> None:
         " text for a reader. Legal basis: Article 6(1)(f)." in page
     )
     assert FIT_FLOOR == 10, "the notice says at least ten"
+
+
+def test_the_notice_names_the_words_check_word_for_word() -> None:
+    """David approved the wording on 2026-11-01 (targum-internal#613): clause 3.2 names the
+    words a reader marks as known on the arrival's words check, in his words."""
+    assert LEGAL_CHANGED == "1 November 2026"
+    page = _said(legal_page("privacy"))
+    assert (
+        "the date on which each word was marked as known, and the words the Data Subject"
+        " marked as known on the check offered on arrival, with the date, which are used"
+        " only to estimate which texts suit them, and the dictionary forms of the words in"
+        " sections the Data Subject has marked as finished" in page
+    )

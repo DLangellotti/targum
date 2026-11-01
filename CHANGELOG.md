@@ -665,8 +665,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   privacy notice clause 3.2), because both rounds follow from them (`check.py`). The words
   are a fixed, unpointed list. The 16 made-up ones were vetted by ling-he against every
   Hebrew list on the laptop, after an earlier list let the real word מסגפת through.
-  "I'm not sure, show me a page" still opens a page at once. Only Hebrew has the check.
-  The Russian strings are drafts.
+  Only Hebrew has the check. David approved the nine Russian strings on 2026-11-01.
+  The same day, in Hebrew, "I'm not sure, show me a page" became "I'm not sure, help me
+  find my level" and leads into the check, keeping no level; other languages, which have
+  no check, still show a page. Privacy notice clause 3.2 now names the check's words in
+  David's wording. The Russian for the new label is a draft.
 - `/credits` credits the word counts (David, 2026-11-01; targum-internal#580, #581). A
   "Word counts" section under the voices says the yardsticks measure how much of everyday
   conversation, classic literature or the Bible a reader understands, and that only
