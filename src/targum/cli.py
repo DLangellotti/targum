@@ -4868,6 +4868,8 @@ def tables_sweep(
     readers who have not turned counting off are pooled, sorted by source into registers:
     counts only, a row only where ten readers' material holds it, made again from
     nothing every night (`tables.imports`). With the switch off, any pool is deleted.
+    With `--store`, the discovery pool's public finds are counted too, as counts only,
+    whatever the switch says (`tables.finds`).
     """
     from time import monotonic
 
@@ -4891,6 +4893,24 @@ def tables_sweep(
     )
     for register, texts in sorted(result.by_register.items()):
         console.print(f"  {register}: {texts}")
+    if accounts is not None:
+        from .accounts import Store as FindStore
+        from .tables import finds as finds_module
+
+        # Public finds count whatever the imports switch says: they are web material
+        # targum found itself, never a reader's (design.md §12, 2026-11-01).
+        find_store = FindStore(accounts)
+        with no_models():
+            found = finds_module.fold_finds(
+                store,
+                finds_module.public_finds(find_store, news=imports_module.news_hosts(find_store)),
+            )
+        console.print(
+            f"[green]Counted[/green] {found.counted} finds, {found.held} already counted,"
+            f" {found.in_feeds} in the news counts, {found.retired} retired"
+        )
+        for register, n in sorted(found.by_register.items()):
+            console.print(f"  {register}: {n}")
     if not imports_module.on():
         if store.clear_pool():
             console.print("[yellow]Deleted[/yellow] the imports pool: counting is off.")

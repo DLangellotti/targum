@@ -384,6 +384,44 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Public finds count into the yardsticks, as counts — 2026-11-01
+
+David, 2026-11-01. It amends "YouTube finds are scored on the track somebody wrote" and
+"What learners bring is counted in the tables, never kept" (both the same day), and "A
+web find is a pasted link targum found" (2026-10-31), whose pool kept its bags out of
+the tables until now.
+
+- **Every kept find's lemma counts are folded into `words` each night** by `targum tables
+  sweep --store` (`tables.finds`), as public contributions: a YouTube video find into
+  `video`, a podcast find into `podcasts`, a news find into `news`. A live search's web
+  find is sorted by its host the way what readers bring is (`imports.sort`): news,
+  social, video or podcasts, and a host on none of those lists is not counted at all.
+- **Counts only, because a find was only ever counts.** The pool never held a find's
+  words, so the tables cannot either. A row's unit is `finds:` and a hash of the
+  address, its source `finds:<kind>`, its licence "counts only; text never stored", its
+  tool the scorer's map (`forms/1`). A bag has no word order, so a find adds to `words`
+  and never to `phrases` or `roots`, and its words take the part of speech the shelf
+  counts them under most often, so "of" and "the" stay out of a weighting.
+- **A find is public web material targum found itself, not a reader's.** It goes
+  through a guard of its own (`public_finds` makes the only thing `fold_finds` takes),
+  and it never reads a reader's home. What a reader builds from a find with Watch or
+  Read is their own import, and reaches the tables only through the imports pool's floor
+  of ten readers. So the fold runs whatever `TARGUM_IMPORT_COUNTS` says: it covers no
+  reader's material, and the privacy notice has nothing to add for it.
+- **One address is counted once.** A find's unit carries the same hash as the nightly
+  feed count's unit for the address (2026-11-01, "News is counted from the feeds every
+  night"). A find whose item the feeds have counted is passed over, and one counted
+  before the feeds reached its item is retired the night they do. The feed's count
+  stands, because DICTA read it, phrases and roots too.
+- **The counts outlive the find.** A find leaves the pool after a week, thirty days or
+  two months. Its count stays, as a news item's stays after it leaves its feed and an
+  outside corpus's stays after it is put away. A list measures the language as it was
+  written, and nothing of the find's words was kept to take back out.
+- **A web find's host is not news for being found.** "A host the finds pool has pooled
+  an article from" now means a news find's host, read off a followed feed. A live search
+  lands on blogs and shops too, and those would otherwise have filed as news, both here
+  and in what readers bring.
+
 ### YouTube finds are scored on the track somebody wrote — 2026-11-01
 
 David, 2026-10-31 (targum-internal#620, slice B of the web-discovery plan): targum may
@@ -414,9 +452,8 @@ web find is a pasted link targum found" (2026-10-31) and changes no rail. Behind
   month as the other sources.
 - **The card is a video's.** It says Video, its minutes and the site, and its credits are
   a credit a minute, which is what Watch will quote.
-- **Not counted into the language tables.** A find is not a public text: nothing of it
-  is on the shelf and its words are not kept. Counting finds into the `video` register
-  (David's note on #620, 2026-11-01) needs a decision of its own on what a pool count is.
+- **Counted into the `video` register as counts.** Decided the same day: see "Public
+  finds count into the yardsticks, as counts" (2026-11-01).
 
 ### Home's one card finds what fits you — 2026-11-01
 
@@ -601,8 +638,9 @@ floor, and news is meant to be the default.
   feeds carry it. Its source is the outlet (`feed:<key>`) and its licence is the outlet's
   own, or "all rights reserved", followed by "counts only; the text is never stored". No
   title reaches a log. Only the Hebrew news feeds `sources.json` lists are read. A reader's
-  import, a subscription, a chat turn and the web finds (#619, which keep word bags of
-  their own) never reach these tables.
+  import, a subscription and a chat turn never reach this count. The web finds' own word
+  bags are folded beside it, never twice for one address: see "Public finds count into
+  the yardsticks, as counts" (2026-11-01).
 - **A night's cap is 20,000 words or 400 items, not 40 items.** "Up to ~40 articles" was
   sized on whole articles. Nearly every feed item is a headline and a summary, about
   sixty words, so forty items would have been 2,500 words a night, three weeks from the
@@ -636,7 +674,7 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
 
   | the text | register |
   |---|---|
-  | a link on a news publisher's domain: a `news` publisher in `sources.json`, or a host the finds pool has pooled an article from | news |
+  | a link on a news publisher's domain: a `news` publisher in `sources.json`, or a host the finds pool has pooled a news article from (a live search's web find does not make its host news) | news |
   | an Instagram, TikTok or Facebook post or reel, or a post on X | social |
   | YouTube and the other video hosts in `video.hosts` | video |
   | a podcast's page (Apple Podcasts, Spotify and the like), or an episode read from its audio | podcasts |
@@ -688,9 +726,8 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
   `yardstick.blend_share`). News must still reach 50,000 words on its own feeds. The list
   records the share and size under `blend`, with the pool's provenance beside its own.
   Like every list it changes only when the month turns.
-- **Later, public finds count too.** The discovery pool's YouTube (#620) and podcast
-  (#621) finds will count into video and podcasts as public texts, through the ordinary
-  guard. Not built.
+- **Public finds count too**, as public counts beside these: see "Public finds count into
+  the yardsticks, as counts" (2026-11-01).
 - **A reader who turns counting off leaves the pool that night but leaves a list at the
   month's turn**, since a list is a frozen snapshot (2026-10-30, question 4). The list
   holds shares of the commonest words, which were already ten readers deep, and the

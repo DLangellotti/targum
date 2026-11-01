@@ -663,6 +663,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- Public finds count into the yardsticks, as counts (David, 2026-11-01; design.md §12).
+  Each night `targum tables sweep --store` folds every kept find's lemma counts into
+  `words` (`tables.finds`): YouTube finds into `video`, news finds into `news`, and a
+  live search's web finds by their host as imports are sorted (news, social, video,
+  podcasts, or not at all). Rows carry `finds:<kind>` and "counts only; text never
+  stored", never an address or a word. A news item the nightly feed count already holds
+  is passed over, and a find counted first is retired when the feeds catch up. The counts
+  stay after a find expires. No reader's home is read, and it runs whatever
+  `TARGUM_IMPORT_COUNTS` says. A web find's host no longer makes it a news host, here or
+  for what readers bring.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15

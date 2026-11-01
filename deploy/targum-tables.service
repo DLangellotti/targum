@@ -21,6 +21,12 @@
 # made again from nothing each night, so a reader who turns it off is out by morning.
 # With the switch off the pool is deleted.
 #
+# With --store, the same run also folds the discovery pool's public finds into the tables
+# (David, 2026-11-01; `tables.finds`): each kept find's lemma counts, never its words,
+# into video, news, or by a web find's host, whatever TARGUM_IMPORT_COUNTS says, since a
+# find is web material targum found itself. A news item the 01:30 feed count holds is not
+# counted again.
+#
 # Before the backup at 04:00, so the night's rows are in the night's copy of corpus.db.
 #
 # Then `tables snapshot` (targum-internal#579): the yardsticks "How much Hebrew you

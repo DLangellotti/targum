@@ -6,9 +6,9 @@ the text**, no subtitles and no transcript: the page is fetched, scored in memor
 let go. A derived count is analysis, not a copy.
 
 It lives in `targum.db` as its own tables with an expiry, and nowhere else: not in
-`corpus.db`, whose ledger is exported and kept; not in the language tables, which
-`tables.public_text` keeps to the public shelf; and not in `forms.json`, which is built
-from the public shelf alone.
+`corpus.db`, whose ledger is exported and kept, and not in `forms.json`, which is built
+from the public shelf alone. The language tables take a kept find's lemma counts each
+night, as counts and nothing more (`tables.finds`, David, 2026-11-01).
 
 A row's `screen` is `kept`, or the reason it was dropped (`host`, `words`, `robots`,
 `closed`, `unreadable`, `short`, `same`; and for a video, `age`, `gate` and `subs`, no
