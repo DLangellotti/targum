@@ -786,7 +786,10 @@
       language: String(row.language || ""),
     };
     if (event.origin === "find" && typeof row.find === "number") event.pool = row.find;
-    if (typeof row.running_share === "number") event.coverage = row.running_share;
+    // The share the chooser went by: the estimate where there was one (design.md §12,
+    // "The chooser estimates the words you have not marked", 2026-11-01), else the marks.
+    if (typeof row.expected_share === "number") event.coverage = row.expected_share;
+    else if (typeof row.running_share === "number") event.coverage = row.running_share;
     events.note(event);
   }
   function suggestShown(row) {
@@ -807,6 +810,7 @@
       origin: row.origin === "find" || row.find ? "find" : "shelf",
       find: typeof row.find === "number" ? row.find : was.find,
       running_share: typeof row.running_share === "number" ? row.running_share : was.running_share,
+      expected_share: typeof row.expected_share === "number" ? row.expected_share : was.expected_share,
       language: String(row.language || ""),
       folder: folder || was.folder || "",
       at: Date.now(),

@@ -384,6 +384,73 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The chooser estimates the words you have not marked — 2026-11-01
+
+David, 2026-10-31 (targum-internal#613, Phase 1 of the comprehensible-input epic #617):
+the chooser may use an estimate of what a reader knows, pages keep showing marked-only
+figures, and nothing asks the reader for feedback. It amends "What to read next is chosen
+on running words" (2026-10-31), whose share was marks only.
+
+- **One number per reader.** `estimate.py` gives each word a difficulty, the log of its
+  place in the language's frequency list, and each reader a `theta` on the same scale:
+  roughly where in the list they know half the words. The chance they know a word they
+  have not marked is σ(0.8 × (theta − difficulty)), a one-parameter Rasch model. It
+  says nothing about part of speech, loanwords or root families yet.
+- **What theta is fitted on.** A word marked known says known. A word at steps 1–3 says
+  not known. A word looked up and not since marked known says not known, once. A word met
+  in a finished section and neither looked up nor marked says probably known, at a tenth
+  of a mark's weight. A word ticked on "Words you may already know" says known, but is
+  read as from a reader who also ticks 15% of the words they do not know, because a tick
+  costs nothing. The rung named on arrival is the starting guess, then the rung the marks
+  reach, then aleph. It is fitted again whenever the list, the look-ups or the meetings
+  change, which is after a sync, and kept in memory between. Nothing new is stored.
+- **A mark always wins.** Known is 1, a word being learned is 0, an ignored word is out
+  of the total. Only an unmarked word gets a chance.
+- **What goes by it.** Home's card and Something else, Your Progress's "Texts at your
+  level now", and whether a web find is offered all rank on the estimated share of a
+  text's running words. `choose`'s floor, aim and ceiling are unchanged. A Hebrew
+  beginner's card yields to a real text whose estimated share is in the band.
+- **What is shown does not change.** The card's line, the list's figure and a find's
+  figure still say the share the reader marked ("Known means marked"). A reader who marks
+  little can be offered a text as at their level that says "You know 40% of the words
+  here". The suggestion record (clause 3.6, "the share of its words the Service estimated
+  the Data Subject to know") now carries the estimate.
+- **Whose data.** Only the reader's own: their list, the words they met (kept with the
+  list) and their look-ups (the record of use, so none where the box keeps no record or
+  the reader switched it off). It is used only to choose what to suggest to them, the
+  purpose clause 3.6 names. Nothing is pooled across readers yet (#586).
+- **Measured, 2026-11-01** (`scripts/eval_estimate.py`, offline, no spend). Held out on
+  the laptop's own marks: pooled AUC 0.92, Brier 0.057 against 0.078 for the base rate,
+  calibration error 0.03. On simulated readers over 434 Hebrew texts, an unread text's
+  coverage is predicted within 4–5 points, where marks alone are 36–78 points off. Before
+  any reading the first pick lands in the band for about half of readers, against 1% on
+  marks. After reading, the estimate runs 3–4 points high and picks as well as marks do.
+- **Not yet:** the cold-start check that replaces the claim grid for new readers (its
+  screen awaits David's approval), pooled difficulty (#586), and forgetting.
+
+### The Library's bands count running words — 2026-11-01
+
+targum-internal#613, as the comprehensible-input plan set out: the Library, Your Progress
+and Home say one number. It amends "The Library is shelved by how much you'd follow"
+(2026-10-09) and closes the gap "What to read next is chosen on running words"
+(2026-10-31) left open.
+
+- **Every share of a text a page shows counts running words**, marks only: the Library's
+  figures and shelves, a Home shelf row's "You know N% of the whole text", a playlist's
+  figure and the conversation's shelf list. A catalogue text is counted from the lemma
+  index, and a built text from its own annotation's counts, kept beside its forms in
+  `lemmas.json`. Names, numbers, one-letter clitics and ignored words are out, as the
+  chooser counts.
+- **Read it now is 90% and up, A stretch 80–90%, Hard for now under 80%.** 90% is the
+  chooser's floor. The stretch used to start at 75% of distinct forms. 75% of running words
+  is one new word in four, and reading with help stops working at about 80%. The 80 is
+  the builder's proposal, for David to confirm.
+- **Your Progress's ladder counts readable texts the same way**, so a row still opens a
+  shelf holding exactly the texts it counted.
+- **The shelf is roomier.** A distinct-form 90% was about 95% of running words. In
+  ling-he's simulation a gimel reader went from 8 to 105 of 191 modern texts.
+- **The reader's own bar is unchanged.** "N of M known" counts the words on the page.
+
 ### News is counted from the feeds every night, and its first list lands when it is ready — 2026-11-01
 
 David, 2026-10-30 (the language tables' question 1) and 2026-11-01 (targum-internal#582).
@@ -634,7 +701,9 @@ three parts" (2026-10-09) chooses.
   chose the text, still from marks only ("Known means marked"). The Library's bands still
   count distinct forms until they move with Phase 1 (#613), so for a while one text can
   read higher on Home than in the Library. Each suggestion logs both shares side by side,
-  with the text but no reader.
+  with the text but no reader. *(Since 2026-11-01 the chooser goes by an estimate and the
+  Library counts running words: "The chooser estimates the words you have not marked" and
+  "The Library's bands count running words", above.)*
 - **Candidates come from a list of sources** (`CANDIDATE_SOURCES`): today only the shelf,
   and later the fresh finds (#619), scored the same way. Each row says its `origin`,
   shelf or find, so a recommendation's record can carry it.
@@ -4522,7 +4591,8 @@ is browsed, not looked up" (2026-09-17).
   will find, and a text known at 80% is not read "now". The measure is the one the band
   already used: the share of the text's words this reader knows, the text's own hard-word
   share until they have marked any (said once, above the shelves), and the rung named on
-  arrival until their words have one.
+  arrival until their words have one. *(Since 2026-11-01 the share is of running words
+  and A stretch is 80–90%: "The Library's bands count running words".)*
 - **A shelf is the nearest texts first, one from each collection**, up to ten: a hundred
   scenes or an author's thirty-nine stories are one place to start, so they are one card.
   The next scene leads Read it now with its Start here, which replaces opening a first

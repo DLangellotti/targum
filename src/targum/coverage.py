@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from array import array
 from bisect import bisect_left
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import tzinfo
 from functools import cached_property, lru_cache
@@ -57,7 +57,19 @@ class Coverage:
 
 
 def lemmas(folder: Path) -> list[str]:
-    """Every distinct dictionary form in a built targum.
+    """Every distinct dictionary form in a built targum (`_lemmas_and_counts`)."""
+    return list(_lemmas_and_counts(folder, counted=False)[0])
+
+
+def tally(folder: Path) -> dict[str, int]:
+    """How often each dictionary form comes round in a built targum, running words, read
+    as `lemmas` reads the forms (names, numbers and a post's tags out). Empty for a targum
+    built without word-level annotation."""
+    return _lemmas_and_counts(folder, counted=True)[1]
+
+
+def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int]]:
+    """Every distinct dictionary form in a built targum, and each one's running count.
 
     Cached beside the annotation it came from, because the annotation is large — 4.4 MB
     for Psalms — and this reduces it to about 21 KB. Written on first ask rather than at
@@ -69,7 +81,7 @@ def lemmas(folder: Path) -> list[str]:
     """
     annotation = folder / ANNOTATION
     if not annotation.is_file():
-        return []
+        return [], {}
     # The cache is stamped with the annotation it was read from. An annotation is
     # rewritten in place when the annotator learns something — every word became a
     # token on 2026-08-28 — and a cache that outlived that would go on reporting a
@@ -80,7 +92,7 @@ def lemmas(folder: Path) -> list[str]:
         stat = annotation.stat()
         stamp = [stat.st_mtime_ns, stat.st_size]
     except OSError:
-        return []
+        return [], {}
     # A post's hashtags, mentions and addresses are names, not words (design.md §12, "A
     # post keeps its shape"), and are left out here as the page leaves them out. The
     # stamp says so, because a count cached before the post's manifest was there counted
@@ -94,40 +106,54 @@ def lemmas(folder: Path) -> list[str]:
             found = json.loads(cached.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             found = None
-        if isinstance(found, dict) and found.get("stamp") == stamp:
-            return [str(lemma) for lemma in found.get("lemmas") or []]
+        # A cache written before the counts were kept (2026-11-01, targum-internal#613)
+        # still answers for the forms; asked for counts, it is read again once.
+        if (
+            isinstance(found, dict)
+            and found.get("stamp") == stamp
+            and (not counted or isinstance(found.get("counts"), dict))
+        ):
+            kept = found.get("counts") if isinstance(found.get("counts"), dict) else {}
+            return (
+                [str(lemma) for lemma in found.get("lemmas") or []],
+                {str(lemma): int(n) for lemma, n in (kept or {}).items()},
+            )
 
     try:
         loaded = json.loads(annotation.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return []
+        return [], {}
 
     from .annotate.base import not_vocabulary
 
     # A name is not a word the reader has to know, so it is not one they can fail to
     # know either: left out of the denominator, or a book of names could never be read.
-    distinct = {
-        str(token.get("lemma") or "")
-        for sid, tokens in (loaded.get("tokens") or {}).items()
-        for token in tokens
-        if not not_vocabulary(token.get("pos"), token.get("entity"))
-        and not (
-            unwordly
-            and sid in unwordly
-            and post_module.inside(
-                int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
-            )
-        )
-    }
-    distinct.discard("")
-    out = sorted(distinct)
+    counts: dict[str, int] = {}
+    for sid, tokens in (loaded.get("tokens") or {}).items():
+        for token in tokens:
+            lemma = str(token.get("lemma") or "")
+            if not lemma or not_vocabulary(token.get("pos"), token.get("entity")):
+                continue
+            if (
+                unwordly
+                and sid in unwordly
+                and post_module.inside(
+                    int(token.get("start") or 0), int(token.get("end") or 0), unwordly[sid]
+                )
+            ):
+                continue
+            counts[lemma] = counts.get(lemma, 0) + 1
+    out = sorted(counts)
 
     try:
-        write_atomic(cached, json.dumps({"stamp": stamp, "lemmas": out}, ensure_ascii=False))
+        write_atomic(
+            cached,
+            json.dumps({"stamp": stamp, "lemmas": out, "counts": counts}, ensure_ascii=False),
+        )
     except OSError:
         # A read-only or full disk costs the cache, not the answer.
         pass
-    return out
+    return out, counts
 
 
 def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
@@ -141,6 +167,38 @@ def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
     if not words:
         return None
     return measure(words, marked)
+
+
+def running_against(folder: Path, marked: Mapping[str, int]) -> Coverage | None:
+    """A built text's running words measured against one person's marks, as
+    `Index.running` measures a catalogue entry (design.md §12, "The Library's bands count
+    running words", 2026-11-01): each word weighs as often as it comes round, one-letter
+    clitics and the words the reader ignored are out of the total. None where the text
+    carries no word-level annotation."""
+    counts = tally(folder)
+    if not counts:
+        return None
+    return measure_running(counts, marked)
+
+
+def measure_running(counts: Mapping[str, int], marked: Mapping[str, int]) -> Coverage:
+    """Running counts measured against marks: `known` the share of running words marked
+    known, `fresh` the distinct forms not on the list, `total` running words."""
+    from .touchstones import a_word
+
+    known = scored = fresh = 0
+    for lemma, n in counts.items():
+        if not a_word(lemma):
+            continue
+        status = marked.get(lemma)
+        if status == IGNORED:
+            continue
+        scored += n
+        if status == KNOWN:
+            known += n
+        elif status is None:
+            fresh += 1
+    return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
 
 
 def measure(words: list[str], marked: dict[str, int]) -> Coverage:
@@ -314,6 +372,42 @@ class Index:
             elif status is None:
                 fresh += 1
         return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
+
+    def expected(
+        self,
+        entry_id: str,
+        statuses: Mapping[int, int],
+        chances: Sequence[float],
+    ) -> float | None:
+        """The share of an entry's running words a reader is *estimated* to know: the
+        chooser's number (design.md §12, "The chooser estimates the words you have not
+        marked", 2026-11-01; targum-internal#613), never a page's.
+
+        Counted as `running` counts, except that a word with no mark counts as its chance
+        of being known (`estimate.Estimate.chances`, by position in the shared table)
+        rather than as unknown. A mark still wins: known is 1, learning 0, ignored out.
+        None where the entry was not counted.
+        """
+        tally = self.counts.get(entry_id)
+        positions = self.texts.get(entry_id)
+        if tally is None or not positions:
+            return None
+        skip = self._not_words
+        known = 0.0
+        scored = 0
+        last = len(chances)
+        for at, n in zip(positions, tally, strict=False):
+            if at in skip:
+                continue
+            status = statuses.get(at)
+            if status == IGNORED:
+                continue
+            scored += n
+            if status == KNOWN:
+                known += n
+            elif status is None and at < last:
+                known += n * chances[at]
+        return known / scored if scored else 0.0
 
 
 EMPTY = Index(words=(), texts={})

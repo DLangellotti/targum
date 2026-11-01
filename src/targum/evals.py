@@ -100,6 +100,8 @@ SCRIPTS = {
     "chat": "eval_why.py",
     "ask": "eval_ask.py",
     "suggest": "eval_suggest.py",
+    # The estimate of the words a reader has not marked, held out and simulated (#613).
+    "suggest/estimate": "eval_estimate.py",
     "rail": "eval_rail.py",
     "said": "eval_liaison.py",
     "connector": "eval_connector.py",

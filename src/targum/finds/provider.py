@@ -32,6 +32,7 @@ from .score import Score
 
 if TYPE_CHECKING:
     from ..accounts import Store
+    from ..estimate import Estimate
 
 #: The chooser's floor (`choose.FLOOR`), restated so this module has no import cycle
 #: with it; a test holds the two equal.
@@ -55,7 +56,15 @@ NEAR_LEAST = 30
 @dataclass(frozen=True)
 class Scored:
     find: pool.Find
+    #: The marked share, which the card says.
     share: float
+    #: The estimated share (`estimate`), which the chooser goes by; None where there is
+    #: no estimate, and then the marked share chooses.
+    expected: float | None = None
+
+    @property
+    def chosen_on(self) -> float:
+        return self.share if self.expected is None else self.expected
 
 
 def share_of(find: pool.Find, marked: Mapping[str, int]) -> float | None:
@@ -64,6 +73,16 @@ def share_of(find: pool.Find, marked: Mapping[str, int]) -> float | None:
     if not scored.measured:
         return None
     return scored.coverage(marked)
+
+
+def expected_of(find: pool.Find, known: Estimate) -> float | None:
+    """A find's running-word coverage as the reader is estimated to know it
+    (`estimate.Estimate.p_known`: a mark wins, an unmarked word counts as its chance),
+    or None where it is not measured. An unresolved word stays in as unknown."""
+    scored = Score(tokens=find.tokens, unresolved=find.unresolved, bag=dict(find.bag))
+    if not scored.measured:
+        return None
+    return scored.expected(known.p_known)
 
 
 def offered(
@@ -76,8 +95,13 @@ def offered(
     built: Iterable[str] = (),
     skip: Iterable[str] = (),
     at: int | None = None,
+    estimate: Estimate | None = None,
 ) -> list[Scored]:
     """The finds this reader may be offered on Read next, each with its share.
+
+    Where `estimate` is given, a find is offered and ranked on the share of its running
+    words the reader is estimated to know (design.md §12, "The chooser estimates the
+    words you have not marked", 2026-11-01), and the card still says the marked share.
 
     `credits_left` is None for a reader held to no monthly allowance. `built` is the
     addresses of the reader's own texts, as `weekly.feeds.link_key` writes them. `skip`
@@ -96,9 +120,13 @@ def offered(
         if credits_left is not None and find.credits > credits_left:
             continue
         share = share_of(find, marked)
-        if share is None or share < FLOOR + MARGIN:
+        if share is None:
             continue
-        out.append(Scored(find, share))
+        expected = expected_of(find, estimate) if estimate is not None else None
+        chosen = Scored(find, share, expected)
+        if chosen.chosen_on < FLOOR + MARGIN:
+            continue
+        out.append(chosen)
     return out
 
 
@@ -126,6 +154,7 @@ def row(scored: Scored) -> dict[str, Any]:
         "on_shelf": False,
         "reader": "",
         "running_share": round(scored.share, 4),
+        **({} if scored.expected is None else {"expected_share": round(scored.expected, 4)}),
         "known_share": level_module.page_share(scored.share),
         "known_line": known_line,
         "because": known_line,

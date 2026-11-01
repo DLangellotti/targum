@@ -60,6 +60,7 @@ from urllib.parse import quote, unquote, urlparse
 
 from .. import catalogue as catalogue_module
 from .. import coverage as coverage_module
+from .. import estimate as estimate_module
 from .. import level as level_module
 from .. import remembered as remembered_module
 from .. import sentence_level
@@ -428,7 +429,9 @@ def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
         folder = home / name
 
         def count(folder: Path = folder, language: str = language) -> Any:
-            return coverage_module.against(folder, _marked(ctx, language, cache))
+            # Running words, as the Library and Home count them (design.md §12, "The
+            # Library's bands count running words", 2026-11-01).
+            return coverage_module.running_against(folder, _marked(ctx, language, cache))
 
         if whose is None:
             measured = count()
@@ -443,7 +446,7 @@ def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
                     ]
                 )
             )
-            measured = KEPT.get(("measure", *whose, language, str(folder), files), count)
+            measured = KEPT.get(("measure-running", *whose, language, str(folder), files), count)
         if measured is not None:
             row.update(measured.state())
 
@@ -1104,7 +1107,7 @@ CANDIDATE_SOURCES: list[tuple[str, CandidateSource]] = [
 #: chat, the connector and a playlist's next set name catalogue ids and are not offered
 #: them.
 RowSource = Callable[
-    ["Ctx", str, Mapping[str, int], list[dict[str, Any]], set[str]],
+    ["Ctx", str, Mapping[str, int], list[dict[str, Any]], set[str], "estimate_module.Estimate"],
     Iterable[tuple[float, dict[str, Any]]],
 ]
 
@@ -1115,9 +1118,11 @@ def _finds(
     marked: Mapping[str, int],
     mine: list[dict[str, Any]],
     skip: set[str],
+    known: estimate_module.Estimate | None = None,
 ) -> list[tuple[float, dict[str, Any]]]:
     """The pool's finds this reader may be offered (`finds.provider.offered`), with
-    nothing fetched: the rows near their rung, scored against the marks already loaded."""
+    nothing fetched: the rows near their rung, scored against the marks already loaded,
+    and chosen on the estimate where there is one, as a shelf text is."""
     from ..finds import provider
     from ..weekly.feeds import link_key
 
@@ -1139,8 +1144,9 @@ def _finds(
         credits_left=_credits_left(ctx),
         built=built,
         skip=skip,
+        estimate=known,
     )
-    return [(one.share, provider.row(one)) for one in found]
+    return [(one.chosen_on, provider.row(one)) for one in found]
 
 
 def _credits_left(ctx: Ctx) -> int | None:
@@ -1217,6 +1223,12 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     index = coverage_module.read_index(catalogue_module.lemmas_path())
     marked = _marked(ctx, language.split("-")[0], {})
     statuses = index.statuses(marked) if index.counts else {}
+    # The chooser's own number is the share of running words the reader is *estimated*
+    # to know: their marks, and a chance for each word they have not marked (design.md
+    # §12, "The chooser estimates the words you have not marked", 2026-11-01). The card
+    # still says the marked share.
+    known = estimate_module.for_reader(ctx.store, ctx.person_id, language, ctx.level)
+    chances = known.chances(index) if index.counts else None
     candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     collections = _collections()
     shown: tuple[str, str] | None = None
@@ -1241,11 +1253,17 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # Running words where the index counted the text; otherwise the distinct-form share
         # a built copy measured, as before, rather than nothing.
         share: float | None = running.known if running is not None else None
+        expected: float | None = None
         if running is not None:
             row["running_share"] = round(running.known, 4)
+            if chances is not None:
+                expected = index.expected(entry.id, statuses, chances)
         elif row.get("known_share") is not None:
             share = float(row["known_share"])
-        row["fit"] = choose.fit(share)
+        if expected is not None:
+            row["expected_share"] = round(expected, 4)
+        chosen_on = share if expected is None else expected
+        row["fit"] = choose.fit(chosen_on)
         if share is not None and (share > 0 or not entry.difficulty):
             row["known_line"] = level_module.known_line(share)
             # Said the way the card says it, because a host repeats `because` (prompts.py).
@@ -1272,7 +1290,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             row["because"] = "Not measured yet."
             row["reason"] = {"key": "suggest.unmeasured"}
         rank = choose.key(
-            share,
+            chosen_on,
             scene=bool(catalogue_module.scene_number(entry.id)),
             gentle=int(entry.difficulty or 0),
             liked=tilt,
@@ -1286,7 +1304,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if instead_of.startswith(provider.PREFIX):
             shown = provider.CLUSTER
         for origin, row_source in ROW_SOURCES:
-            for share, row in row_source(ctx, language, marked, mine, skip):
+            for share, row in row_source(ctx, language, marked, mine, skip, known):
                 row["origin"] = origin
                 row["fit"] = choose.fit(share)
                 candidates.append((choose.key(share), row))

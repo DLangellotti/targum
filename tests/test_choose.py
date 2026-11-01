@@ -11,6 +11,7 @@ import pytest
 
 from targum import catalogue as catalogue_module
 from targum import choose
+from targum import estimate as estimate_module
 from targum import level as level_module
 from targum.chat import tools
 from targum.coverage import IGNORED, KNOWN, build_index, write_index
@@ -158,7 +159,16 @@ def library(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
         level = replace(level_module.EMPTY, language="he")
         store = Store()
         person = object()
+        person_id = 1
 
+    # Marks alone, as Phase 0 chose: the estimate's own tests are below.
+    monkeypatch.setattr(
+        estimate_module,
+        "for_reader",
+        lambda store, person_id, language, level=None: estimate_module.Estimate(
+            "he", 0.0, {}, ranked=False
+        ),
+    )
     return Ctx(), entries, lemmas
 
 
