@@ -507,8 +507,9 @@ def test_the_coarsest_view_with_two_points_is_the_default() -> None:
         {"targum:vocab:he": vocab(known=3)},
         reading=reading_of(day(date.today(), 68), day(days_ago(1), 60)),
     )["reading"]
-    # Two days a week apart are also two weeks; in one week, Day is the only view.
-    assert two_days["by"] in ("day", "week")
+    # Two days a week apart are also two weeks; in one week, Day is the only view. On the
+    # first of a month yesterday is last month, so the two days are two months as well.
+    assert two_days["by"] in (("day", "week") if date.today().day > 1 else ("month",))
     assert two_days["shown"] and two_days["drawn"]
     if two_days["by"] == "day":
         assert two_days["said"] == ["Today you knew 68% of the words you read."]
