@@ -1636,7 +1636,10 @@
       oneCard.look = "";
       drawHow(code);
     }
-    askWith("/suggest", ONE_CARD ? { language: code, skip: skip, more: true } : { language: code, skip: skip })
+    var asked = ONE_CARD
+      ? askWith("/suggest", { language: code, skip: skip, more: true })
+      : askWith("/suggest", { language: code, skip: skip });
+    asked
       .then(function (got) {
         if (code !== suggesting) return;
         drawTry(got && got.suggestion, first);
