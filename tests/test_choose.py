@@ -224,3 +224,73 @@ def test_candidates_come_from_a_list_of_sources_and_say_which(
     origins = {row["id"]: row["origin"] for row in got}
     assert origins["found-story"] == "find" and origins["band-story"] == "shelf"
     assert set(origins.values()) <= set(choose.ORIGINS)
+
+
+# -- learning value (design.md §12, "What to read next teaches words that come back",
+# 2026-11-01; targum-internal#614) ---------------------------------------------------------
+
+
+@pytest.fixture
+def teaching(library: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Two texts inside the aim, one whose new word comes round and one whose new words
+    are each met once, and a lexicon that says what each is about."""
+    from targum import learning
+    from targum.finds import interests
+
+    ctx, _, _ = library
+    entries = [entry("once-story"), entry("again-story", kind="essay"), entry("food-talk", "talk")]
+    lemmas = tmp_path / "teaching.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                # 96% known; four new words, each met once.
+                "once-story": {"ים": 96, "ספר": 1, "שולחן": 1, "חתול": 1, "כלב": 1},
+                # 95% known; one new word, met five times.
+                "again-story": {"ים": 95, "ספר": 5},
+                # 95% known; one new word met five times, on food.
+                "food-talk": {"ים": 95, "לחם": 5},
+            }
+        ),
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: list(entries))
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+    weights = {word: 0.001 for word in ("ספר", "שולחן", "חתול", "כלב", "לחם")}
+    monkeypatch.setattr(learning, "usefulness", lambda language: learning.Usefulness("he", weights))
+    lexicon = interests.from_lemmas({"לחם": ["food"], "ספר": ["school"]}, ["food", "school"])
+    monkeypatch.setattr(interests, "lexicon", lambda file=None: lexicon)
+    learning.forget()
+    return ctx, entries, lemmas
+
+
+def test_inside_the_aim_the_text_whose_new_words_come_back_comes_first(teaching: Any) -> None:
+    ctx, _, _ = teaching
+    got = tools.suggest_next(ctx, {"limit": 3})["suggestions"]
+    ids = [row["id"] for row in got]
+    assert ids[-1] == "once-story", "four words met once teach less than one met five times"
+    assert all(row["fit"] == "band" for row in got)
+    assert got[0]["learn"] > 0 and got[-1]["learn"] == 0
+    assert {row["id"]: row.get("about") for row in got}["food-talk"] == ["food"]
+
+
+def test_something_else_changes_topic_too(teaching: Any) -> None:
+    ctx, _, _ = teaching
+    first = tools.suggest_next(ctx, {"limit": 1})["suggestions"][0]["id"]
+    other = tools.suggest_next(ctx, {"limit": 1, "instead_of": first})["suggestions"][0]
+    assert other["id"] != first
+    assert other.get("about") != tools.suggest_next(ctx, {"limit": 1})["suggestions"][0].get(
+        "about"
+    )
+
+
+def test_progress_weighs_what_a_text_teaches_as_home_does(teaching: Any) -> None:
+    from targum import touchstones
+    from targum.coverage import read_index
+
+    ctx, entries, lemmas = teaching
+    index = read_index(lemmas)
+    marked = ctx.store.marked(None, "he")
+    taught = tools.teaching(None, None, "he", index, index.statuses(marked), None, {}, set())
+    listed = touchstones.at_level(entries, index, marked, "he", limit=10, taught=taught)
+    home = [row["id"] for row in tools.suggest_next(ctx, {"limit": 10})["suggestions"]]
+    assert [row["id"] for row in listed] == home

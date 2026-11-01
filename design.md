@@ -384,6 +384,69 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### What to read next teaches words that come back — 2026-11-01
+
+targum-internal#614, Phase 2 of the comprehensible-input epic #617, from ling-he's research
+of 2026-10-31 (recommendation 3) and David's decisions of the same day: floor 90% of
+running words, aim 94–97%, the chooser goes by the estimate, and nothing asks for
+feedback. It amends "What to read next is chosen on running words" (2026-10-31), whose
+band ordered by nearness to the aim alone.
+
+- **Why.** Words are learned from reading only when they come back: one graded reader
+  leaves about one new word in 25 after three months, and none met fewer than eight
+  times. So of two texts a reader can read equally well, the better one is the one whose
+  new words return.
+- **The score** (`learning.py`) is the expected number of such words per hundred running
+  words, for one reader and one text. A word adds its chance of being unknown (1 on the
+  list at steps 1–3, 1 − the estimate's chance where unmarked, nothing where known),
+  times how useful it is, times how often it comes round in the text (nothing for once,
+  half for twice, whole from three), times one plus how likely it is to come back. Useful
+  means common in everyday Hebrew: its share of the conversation and news yardsticks,
+  log-damped, and nothing for a word on neither. It comes back (1) where it is in the
+  next three unread texts of the text's collection or the reader met it already in a
+  finished section, or (½) where it is a word of the text's own topic or one the reader
+  likes. Per hundred words, so a long book is not preferred for being long.
+- **Narrow reading.** A text that continues a collection the reader started (the next
+  unread part of an ordered one, any unread member of an author's shelf) is worth half as
+  much again, and counts as on the reader's interests.
+- **The order inside the band**, in `choose.key`: real texts before scenes, as before;
+  then **fit**, in steps of a point from the aim, every text inside 94–97% being one step;
+  then **learning value**, in steps of a quarter of a word per hundred; then
+  **interest** (a topic the reader likes, or continuing what they started); then
+  **freshness** (a find's: within a day, within a week; the shelf has none); then exactly
+  how near the aim. Fit stays first so that what a text teaches never lifts it past one
+  that reads better, only decides between texts that read as well as each other. The
+  steps are coarse so each later term gets a say: with exact distances the aim would
+  decide everything and the rest would never be read. Under the floor, too easy and
+  unmeasured are ordered as before.
+- **Medium bands.** Reading with targum's glosses and video keep a floor of 90% and the
+  94–97% aim. Audio with no text on screen has a floor of 95% and an aim of 97–99%, as the
+  listening research asks. Every reader targum builds shows its text, so nothing on the
+  shelf or in the finds is held to the audio band yet; it waits for a surface that plays
+  with the text away. "Something light" (98% and up) is named and not offered.
+- **Per-text topics.** Each catalogue text has the topics of the topic lexicon its
+  running words are about (3% or more of them, shown topics only), worked out once per
+  index. The shelf is matched to the topics a reader's reading suggests, as a web find
+  already was, and Something else prefers a pick of another kind or collection that is
+  also on another topic.
+- **What is shown does not change.** The card, the list and More that fit you draw what
+  they drew. A suggestion row now carries `learn` and `about`; no page prints them.
+  Nothing new is stored and nothing is asked: the score reads the reader's marks,
+  look-ups and met words and the library's own counts.
+- **Measured, 2026-11-01** (`scripts/eval_learning.py`, offline, no spend), over 274
+  Hebrew catalogue texts built on the laptop, 100 simulated readers a row whose true
+  vocabulary the estimate does not see. After two texts read, the first pick's new words
+  that come round twice or more rose from 0.64 to 0.83 per hundred, the everyday ones from
+  0.60 to 0.75, and new words met three or more times over the next two picks from 5.1
+  to 5.5 per thousand words read. After eight, 0.49 to 0.81, 0.34 to 0.63 and 2.9 to 3.5.
+  Fit held: the pick lands in the band as often or more (34% to 35%, 43% to 46%), its
+  mean coverage moved under a point (91.6% to 91.1%, 92.1% to 91.8%), and inside the aim
+  it went from 28% to 25% after two texts and from 23% to 25% after eight. Before any
+  reading nothing changes, because nothing is in the band to weigh. Weighing every text
+  for one pick took a median 14 ms.
+- **Not yet:** speech rate for audio, multiword expressions as one unit, and offering a
+  text's three to five most recurring words before it (the rest of #614's card).
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,
@@ -790,7 +853,9 @@ three parts" (2026-10-09) chooses.
   choosing one of another kind or collection over the same kind when both rank equally,
   and never a worse fit for the sake of variety. It asks no reason, and the end of a text
   asks nothing either. The engine learns from what readers do. Per-text topics come later
-  (#614).
+  (#614). *(Since 2026-11-01 fit leads inside the band in steps of a point, then what a
+  text teaches, and Something else changes topic too: "What to read next teaches words
+  that come back", above.)*
 - **What is shown.** The card's line and the list's figure give the running share that
   chose the text, still from marks only ("Known means marked"). The Library's bands still
   count distinct forms until they move with Phase 1 (#613), so for a while one text can
