@@ -13,9 +13,9 @@ import shutil
 from typing import Any
 
 import pytest
+from test_arrival_js import draw, seeded
 
 from targum import check
-from tests.test_arrival_js import draw, seeded
 
 pytestmark = pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 

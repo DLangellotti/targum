@@ -260,6 +260,9 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
 .arrival-word:hover { border-color: var(--well); }
 .arrival-word[aria-pressed="true"] { border-color: var(--teal); background: var(--teal); color: var(--teal-ink); }
 .arrival-word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The thanks takes the focus so a screen reader says it; it is not a control, so it draws
+   no ring. */
+#arrival-asks-thanks:focus { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   .arrival-word { transition: none; }
 }
