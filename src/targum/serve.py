@@ -6506,7 +6506,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, target.read_bytes(), kind, cache="public, max-age=86400")
         return self._send(404, b"not found", "text/plain")
 
-    def _send_file(self, target: Path, kind: str) -> None:
+    def _send_file(self, target: Path, kind: str, cache: str = "private, max-age=86400") -> None:
         """A slice of a file on disk, the way a browser asks for video.
 
         Ranges, because seeking is Range requests — and because Safari opens every
@@ -6563,7 +6563,7 @@ class Handler(BaseHTTPRequestHandler):
         # Private rather than no-store: the same reasoning as the covers — refetching
         # tens of megabytes on every visit is the whole reader's weight many times
         # over, and `private` keeps it in the one browser it already travelled to.
-        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("Cache-Control", cache)
         self.send_header("Last-Modified", stamp)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
@@ -16642,7 +16642,10 @@ class Handler(BaseHTTPRequestHandler):
         path = clips_dir() / name
         if not path.is_file():
             return self._send(404, b"not found", "text/plain")
-        return self._send(200, path.read_bytes(), kind, cache=self.ASSET_CACHE)
+        # In ranges, as a film is: Chrome seeks a recording only where the answer says
+        # `Accept-Ranges`, and sent whole without it every line's play started at nought,
+        # so every turn of a scene said its first (2026-11-01).
+        return self._send_file(path, kind, cache=self.ASSET_CACHE)
 
     def _offline_files(self) -> None:
         """What saving a text for offline would keep: every page of it and every sidecar

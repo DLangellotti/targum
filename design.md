@@ -423,6 +423,28 @@ floor, and news is meant to be the default.
   than a thousand items from seventeen outlets. Waiting for 1 December would leave the
   default yardstick missing for a month for no gain. After the first list, news keeps
   the monthly rule like every other register, so its v2 lands when December begins.
+### The word counts are credited on /credits — 2026-11-01
+
+David, 2026-11-01 (targum-internal#580, #581). It adds to "A word is said by a person
+where one recorded it" (2026-10-31), which made `/credits`, and follows LICENSING.md's
+"The yardsticks' outside corpora, counted and never kept" (2026-10-31).
+
+- **`/credits` has a second section, "Word counts"**, under "Words said by people". It
+  says what the sources are for: measuring how much of everyday conversation, classic
+  literature or the Bible a reader understands (the yardsticks of "How much Hebrew you
+  understand", 2026-10-30). It says that only the counts are kept, never the text.
+- **One row for each source, ruled like a speaker's row.** Conversation is OPUS
+  OpenSubtitles, with the citation the corpus asks for (Lison and Tiedemann, 2016,
+  LREC 2016) and a link to opensubtitles.org. Classic literature is Project Ben-Yehuda,
+  crediting "Project Ben-Yehuda volunteers" and linking benyehuda.org, as they ask. The
+  Bible is the Open Scriptures Hebrew Bible Project's morphology under CC BY 4.0, over
+  the Westminster Leningrad Codex in the public domain.
+- **News is not listed.** It is counted from our own news feeds, and none of its text
+  is kept.
+- **The changes log still names no source.** `/about`'s rule (`about.UNSAID`, "where a
+  text comes from") is unchanged: credits live on `/credits`, and the log says what
+  changed.
+
 ### What became of a suggestion is recorded, and the estimate is checked against it — 2026-11-01
 
 David approved the notice's words on 2026-11-01 (targum-internal#612, Phase 0 of the

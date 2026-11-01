@@ -4264,6 +4264,14 @@
   "credits.page.words.one": "{n} word",
   "credits.page.words.other": "{n} words",
   "credits.page.none": "No recordings are kept here yet.",
+  "credits.page.counts-heading": "Word counts",
+  "credits.page.counts-intro": "How much of everyday conversation, classic literature or the Bible you understand is measured against a list of the commonest words in each. We count those words ourselves from the texts below. Only the counts are kept, never the text.",
+  "credits.page.counts-conversation-name": "Everyday conversation",
+  "credits.page.counts-conversation": "OPUS OpenSubtitles, Hebrew. The subtitles belong to the people who wrote them.",
+  "credits.page.counts-literature-name": "Classic literature",
+  "credits.page.counts-literature": "Project Ben-Yehuda's public-domain library, made by Project Ben-Yehuda volunteers.",
+  "credits.page.counts-bible-name": "The Bible",
+  "credits.page.counts-bible": "The Open Scriptures Hebrew Bible Project's morphology, under CC BY 4.0, of the Westminster Leningrad Codex, which is in the public domain.",
   "you.page.record-suggest": "When we suggest something to read, we note whether you saw it, opened it, finished it or chose something else, and how much of it we thought you knew. It helps us choose what to suggest next.",
   "you.page.record-fit": "For each section you finish, we also note how much of it we thought you knew. Added up across at least ten readers and naming nobody, that shows us how well we judge how hard a text is. Only library texts we may share count, never what you upload."
 }
