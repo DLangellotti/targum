@@ -14,6 +14,13 @@
 # refuses to load, so the service counts the feeds itself at 01:30 UTC with the copy it
 # already holds (`tables.news`), and the snapshot below takes those counts in.
 #
+# With TARGUM_IMPORT_COUNTS=1 in targum.env (David, 2026-11-01; off until the privacy
+# notice's sentence is live), the same run pools what readers brought into the `imports`
+# register: the homes of every account that has not turned counting off, read from
+# targum.db (--store), counts only, a row only where ten readers' material holds it, and
+# made again from nothing each night, so a reader who turns it off is out by morning.
+# With the switch off the pool is deleted.
+#
 # Before the backup at 04:00, so the night's rows are in the night's copy of corpus.db.
 #
 # Then `tables snapshot` (targum-internal#579): the yardsticks "How much Hebrew you
@@ -39,7 +46,7 @@ User=targum
 Group=targum
 Environment=HOME=/srv/targum
 EnvironmentFile=/etc/targum/targum.env
-ExecStart=/usr/local/bin/targum tables sweep --library /var/lib/targum/targums
+ExecStart=/usr/local/bin/targum tables sweep --library /var/lib/targum/targums --store /var/lib/targum/targum.db
 ExecStart=/usr/local/bin/targum tables snapshot --out /var/lib/targum/tables
 # Out of the way of readers: a count can wait, a page cannot.
 Nice=19

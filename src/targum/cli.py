@@ -4849,16 +4849,29 @@ def tables_sweep(
         Path | None,
         typer.Option("--library", help="Where the built targums are. Default: ./targum-out"),
     ] = None,
+    accounts: Annotated[
+        Path | None,
+        typer.Option(
+            "--store",
+            help="The account database, which says whose material may be pooled."
+            " Without it nothing readers brought is counted.",
+        ),
+    ] = None,
 ) -> None:
     """Count every public text's words and phrases into the language tables
-    (targum-internal#577).
+    (targum-internal#577), and pool what readers brought.
 
     Reads each built folder's `annotation.json`: no annotator runs and nothing is
-    fetched or spent. A reader's home is skipped, whatever it holds. Run again, it
-    counts only what is new or was annotated under a new name since.
+    fetched or spent. Run again, it counts only what is new or was annotated under a new
+    name since. A reader's home is never folded as a text of its own. Where
+    `TARGUM_IMPORT_COUNTS=1` and `--store` names the account database, the homes of the
+    readers who have not turned counting off are pooled into the `imports` register:
+    counts only, a row only where ten readers' material holds it, made again from
+    nothing every night (`tables.imports`). With the switch off, any pool is deleted.
     """
     from time import monotonic
 
+    from .tables import imports as imports_module
     from .tables import no_models, sweep
 
     store = _tables_store()
@@ -4878,6 +4891,25 @@ def tables_sweep(
     )
     for register, texts in sorted(result.by_register.items()):
         console.print(f"  {register}: {texts}")
+    if not imports_module.on():
+        if store.clear_pool():
+            console.print("[yellow]Deleted[/yellow] the imports pool: counting is off.")
+        return
+    if accounts is None:
+        console.print("[yellow]Pooled nothing[/yellow]: pass --store to say whose material counts.")
+        return
+    from .accounts import Store as AccountStore
+    from .backoffice import operators_from_env
+
+    readers = AccountStore(accounts).counted_readers(operators_from_env())
+    with no_models():
+        pooled = imports_module.pool(root, store, readers)
+    rows = ", ".join(f"{n} {table}" for table, n in pooled.rows.items())
+    console.print(
+        f"[green]Pooled[/green] {pooled.texts} texts from {pooled.readers} readers,"
+        f" {pooled.left_out} left out: {rows}"
+        f" [dim]{pooled.model_written} model-written, {pooled.unreadable} unreadable[/dim]"
+    )
 
 
 #: The box's corpus ledger, where `targum tables push` imports the laptop's rows.

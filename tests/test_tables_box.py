@@ -47,7 +47,9 @@ def test_the_sweep_runs_nightly_as_targum_with_the_ledger_and_a_low_priority() -
     assert backup > timer["OnCalendar"][0], "the night's rows are in the night's backup"
     service = _unit("targum-tables.service")
     assert service["ExecStart"] == [
-        "/usr/local/bin/targum tables sweep --library /var/lib/targum/targums",
+        # The account database says whose material the imports pool may read (2026-11-01).
+        "/usr/local/bin/targum tables sweep --library /var/lib/targum/targums"
+        " --store /var/lib/targum/targum.db",
         # The yardsticks after it, once a month by their own rule (targum-internal#579).
         "/usr/local/bin/targum tables snapshot --out /var/lib/targum/tables",
     ]
@@ -133,6 +135,37 @@ def test_a_sweep_in_a_fresh_process_imports_no_model(tmp_path: Path) -> None:
     )
     assert done.returncode == 0, done.stderr
     assert "Counted 1 texts" in done.stdout
+    assert "HEAVY []" in done.stdout
+
+
+def test_a_pooling_sweep_in_a_fresh_process_imports_no_model(tmp_path: Path) -> None:
+    """The same, with the imports pool on (2026-11-01): reading readers' homes, and the
+    account database for whose, reaches no model package either."""
+    library = tmp_path / "library"
+    _built(library / "p1" / "x", H["a"])
+    probe = (
+        "import sys\n"
+        "from targum.cli import app\n"
+        "try:\n"
+        f"    app(['tables', 'sweep', '--library', {str(library)!r},"
+        f" '--store', {str(tmp_path / 'targum.db')!r}])\n"
+        "except SystemExit as stop:\n"
+        "    assert not stop.code, stop.code\n"
+        "heavy = sorted(m for m in sys.modules if m.split('.')[0] in"
+        " __import__('targum.tables', fromlist=['x']).MODEL_PACKAGES)\n"
+        "print('HEAVY', heavy)\n"
+    )
+    env = {
+        "TARGUM_LEDGER": str(tmp_path / "corpus.db"),
+        "TARGUM_IMPORT_COUNTS": "1",
+        "PATH": "/usr/bin:/bin",
+    }
+    env.update({key: os.environ[key] for key in ("PYTHONPATH", "HOME") if key in os.environ})
+    done = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, env=env, check=False
+    )
+    assert done.returncode == 0, done.stderr
+    assert "Pooled 0 texts from 0 readers, 1 left out" in done.stdout
     assert "HEAVY []" in done.stdout
 
 

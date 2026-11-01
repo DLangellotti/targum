@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import YARDSTICKS
+from .registers import PICKER
 
 if TYPE_CHECKING:
     from .store import Store
@@ -228,9 +228,11 @@ def write(
 def write_all(
     store: Store, where: Path | None = None, *, force: bool = False, now: datetime | None = None
 ) -> list[Written]:
-    """`write` for each of the four registers the card shows, and no other: targum's own
-    scenes and the weekly are never a yardstick (David, 2026-10-30)."""
-    return [write(store, register, where, force=force, now=now) for register in YARDSTICKS]
+    """`write` for each register the card's picker may offer, and no other: targum's own
+    scenes and the weekly are never a yardstick (David, 2026-10-30). What learners bring
+    is (`registers.IMPORTS`, 2026-11-01), once its pool crosses `FLOOR` like any other:
+    every row of it already stands on ten readers' material."""
+    return [write(store, register, where, force=force, now=now) for register in PICKER]
 
 
 #: (file, its mtime) → the yardstick read from it, so a page load reads no file twice.
@@ -240,7 +242,7 @@ _LOADED: dict[tuple[str, float], Yardstick] = {}
 def load(register: str, where: Path | None = None) -> Yardstick | None:
     """The newest snapshot of one register, or None where there is none (or it cannot be
     read). A register with none is absent from the card, never a 0%."""
-    if register not in YARDSTICKS:
+    if register not in PICKER:
         return None
     held = versions(register, where)
     for version, file in reversed(held):

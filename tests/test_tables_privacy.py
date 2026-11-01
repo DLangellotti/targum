@@ -1,5 +1,10 @@
-"""The language tables count public texts only, never twice, and never leave
+"""The language tables fold public texts only, never twice, and never leave
 (targum-internal#577).
+
+Since 2026-11-01 what readers bring is counted too, but never by a fold and never as a
+text of its own: only as the imports pool, floor-gated, opt-out-respecting and keyed by
+nothing that leads back (`tests/test_tables_imports.py`). Everything here still holds:
+a reader's home writes no row of its own in any register.
 
 Every token here is synthetic: placeholder lemmas, no sentence of any text.
 """
@@ -120,7 +125,7 @@ def test_a_home_writes_nothing_and_the_shelf_writes_rows(book: Path, library: Pa
     assert units == {H["b"]}
 
 
-def test_a_private_text_writes_no_root_rows(book: Path, library: Path) -> None:
+def test_a_private_text_is_never_folded_as_a_text(book: Path, library: Path) -> None:
     store = Store(book)
     _built(library / "p1" / "x", H["a"])
     _built(library / "local" / "x", H["c"])
