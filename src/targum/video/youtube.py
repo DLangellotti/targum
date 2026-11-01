@@ -867,3 +867,46 @@ def fetch_subtitles(url: str, into: Path, languages: tuple[str, ...] = ("he", "i
             "That video has no subtitle track anybody wrote in " + ", ".join(languages) + "."
         )
     return written[0]
+
+
+def subtitles_for_finding(
+    url: str, into: Path, languages: tuple[str, ...] = ("he", "iw")
+) -> tuple[Path | None, dict[str, Any]]:
+    """The subtitle track somebody wrote in one of these languages, and what yt-dlp
+    said about the video, for the nightly YouTube finds (targum-internal#620).
+
+    Only the track and the player's answer: `--skip-download`, so no picture and no sound
+    crosses the proxy. Manual tracks only, as `fetch_subtitles`: a find is offered on the
+    words a person wrote, never on YouTube's guess. The info JSON is read for its
+    `age_limit` and thrown away with the folder by the caller. The track is None where
+    the video has no such track, which is an answer, not a failure.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    _run(
+        [
+            "yt-dlp",
+            "--skip-download",
+            "--no-playlist",
+            "--write-subs",
+            "--write-info-json",
+            "--sub-langs",
+            ",".join(f"{language}.*" for language in languages),
+            "--sub-format",
+            "srt/vtt/best",
+            "-o",
+            str(into / "%(id)s.%(ext)s"),
+            url,
+        ],
+        timeout=120,
+    )
+    info: dict[str, Any] = {}
+    for file in into.glob("*.info.json"):
+        try:
+            loaded = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(loaded, dict):
+            info = loaded
+            break
+    written = sorted(p for p in into.iterdir() if p.suffix.lower() in (".srt", ".vtt"))
+    return (written[0] if written else None), info

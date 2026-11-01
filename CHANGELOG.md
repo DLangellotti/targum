@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- "Find me something" searches in ling-he's Hebrew (2026-11-01; targum-internal#615).
+  Fourteen fixed phrases changed: ten chips (Film & TV, Gaming, The world, Money, Comedy,
+  Relationships, Home, Crime, The army, Holidays) and four lexicon topics (people, money,
+  health, law), for words that pull a second meaning (יחסים, ביטחון, משפט), a phrase that
+  finds writing about humour rather than sketches, and dated or awkward wording. A query
+  no longer starts with "כתבה על", which pulled news sites over recipes and blogs, and
+  no longer joins two topics with "או", which the engine reads as a word: a look for two
+  topics now sends two queries, one search each, inside the same cap of two. "בעברית
+  קלה" stays for aleph to bet only. A query run in the last day is still not bought
+  again, now one query at a time. Still off unless `TARGUM_FIND_LIVE` is set.
 - Each turn's play plays that turn again on the site (David, 2026-11-01). Since a served
   reader began handing its recording out as a file of its own (#981, 2026-10-30), the file
   came whole, with no `Accept-Ranges`. Chrome will not seek in a file served like that,
@@ -684,6 +694,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   simulated readers (`scripts/eval_learning.py`): after eight texts read, the first pick's
   recurring new words rose from 0.49 to 0.81 per hundred with the pick landing in the band
   as often (43% to 46%) and its mean coverage within a point.
+- YouTube finds, nightly, behind a switch (targum-internal#620; design.md §12, "YouTube
+  finds are scored on the track somebody wrote", 2026-11-01). `targum finds youtube`, on
+  a new timer at 01:00 UTC, asks YouTube's Data API for Hebrew videos with closed captions
+  by the forty chips and easy Hebrew (safe search strict, the last thirty days, at most
+  3,000 units a night), drops what the gate refuses off the API's own answer, then fetches
+  only the Hebrew track somebody wrote for at most 120 videos a day through the
+  residential proxy. Each track is screened, scored and deleted, and the video is pooled
+  as a `video` find tagged with its chip, at a credit a minute. The proxy is counted at
+  about 1.5 MB a run inside `TARGUM_FINDS_BUDGET_USD`. It does nothing until
+  `TARGUM_FINDS_YOUTUBE=1` is in targum.env.
 - Home's one card finds what fits you, behind `TARGUM_FIND_BUTTON` (David, 2026-11-01;
   targum-internal#615; design.md §12). The try-next card and the upload slab become one
   "One to try next" card, built as the approved mock v3: the pick with its share known

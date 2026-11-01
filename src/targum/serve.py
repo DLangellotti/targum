@@ -15352,7 +15352,7 @@ class Handler(BaseHTTPRequestHandler):
         rows = choose()
         if button.fits(rows):
             return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
-        asked = live.query(ask.wanted, code, rung)
+        asked = live.queries(ask.wanted, code, rung)
         why = live.refused(self.store, person.id, asked)
         if not why:
             look = live.LOOKS.start(

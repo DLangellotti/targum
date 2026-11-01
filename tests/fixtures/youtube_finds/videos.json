@@ -1,0 +1,229 @@
+{
+ "kind": "youtube#videoListResponse",
+ "items": [
+  {
+   "kind": "youtube#video",
+   "id": "goodVideo01",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCgoodVideo01",
+    "title": "מתכון לשקשוקה בעשר דקות",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT6M10S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "goodVideo02",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCgoodVideo02",
+    "title": "טיול בגליל העליון",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT12M3S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "ageRestrict",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCageRestrict",
+    "title": "סרט תיעודי",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT6M10S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {
+     "ytRating": "ytAgeRestricted"
+    },
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "asrOnly0001",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCasrOnly0001",
+    "title": "חדשות הערב",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT6M10S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "false",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "tooLong0001",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCtooLong0001",
+    "title": "הרצאה ארוכה",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT1H2M",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "blockedInIL",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCblockedInIL",
+    "title": "קליפ",
+    "description": "",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT6M10S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular",
+    "regionRestriction": {
+     "blocked": [
+      "IL"
+     ]
+    }
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  },
+  {
+   "kind": "youtube#video",
+   "id": "explicit001",
+   "snippet": {
+    "publishedAt": "2026-10-20T08:00:00Z",
+    "channelId": "UCexplicit001",
+    "title": "סרטון",
+    "description": "פורנו",
+    "channelTitle": "ערוץ לדוגמה",
+    "categoryId": "22",
+    "liveBroadcastContent": "none",
+    "defaultAudioLanguage": "iw"
+   },
+   "contentDetails": {
+    "duration": "PT6M10S",
+    "dimension": "2d",
+    "definition": "hd",
+    "caption": "true",
+    "licensedContent": true,
+    "contentRating": {},
+    "projection": "rectangular"
+   },
+   "status": {
+    "uploadStatus": "processed",
+    "privacyStatus": "public",
+    "license": "youtube",
+    "embeddable": true,
+    "publicStatsViewable": true,
+    "madeForKids": false
+   }
+  }
+ ]
+}
