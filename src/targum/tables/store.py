@@ -27,7 +27,7 @@ from pathlib import Path
 
 from .. import ledger as ledger_module
 from . import weights
-from .registers import IMPORTS
+from .registers import IMPORTS, is_pooled
 
 #: The tables' own schema, independent of the ledger's and of `models.SCHEMA_VERSION`.
 TABLES_SCHEMA = 1
@@ -179,8 +179,8 @@ class Store:
         Never the imports register: a contribution here names its unit, and a unit of a
         reader's material is a way back to the reader. Only `replace_pool` writes that one.
         """
-        if contribution.register == IMPORTS:
-            raise ValueError("the imports register is written by tables.imports.pool alone")
+        if is_pooled(contribution.register):
+            raise ValueError("the imports registers are written by tables.imports.pool alone")
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
@@ -234,11 +234,11 @@ class Store:
         tonight's, and the difference between two nights is what one reader who stopped
         being counted had brought. So nothing of an earlier pool stays: an opted-out
         reader's material is gone from the file, not marked as gone. `counts` is keyed by
-        each contribution's table.
+        each contribution's id (or, where there is one register, its table).
         """
         made = list(made)
-        if any(one.register != IMPORTS for one in made):
-            raise ValueError("replace_pool writes the imports register and nothing else")
+        if any(not is_pooled(one.register) for one in made):
+            raise ValueError("replace_pool writes the imports registers and nothing else")
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         rows = 0
         with closing(self._connect()) as db, db:
@@ -247,7 +247,7 @@ class Store:
             # they were until they are reused).
             db.execute("PRAGMA secure_delete = ON")
             db.execute("BEGIN IMMEDIATE")
-            _drop_register(db, IMPORTS)
+            _drop_pool(db)
             for one in made:
                 db.execute(
                     "INSERT INTO contribution (id, tbl, register, unit, source, licence, tool,"
@@ -264,7 +264,7 @@ class Store:
                         stamp,
                     ),
                 )
-                tallies = counts.get(one.table, {})
+                tallies = counts.get(one.id, counts.get(one.table, {}))
                 db.executemany(
                     "INSERT INTO tally (contribution_id, key, variant, n) VALUES (?, ?, ?, ?)",
                     [(one.id, key, variant, n) for (key, variant), n in tallies.items()],
@@ -279,7 +279,7 @@ class Store:
         with closing(self._connect()) as db, db:
             db.execute("PRAGMA secure_delete = ON")
             db.execute("BEGIN IMMEDIATE")
-            return _drop_register(db, IMPORTS) > 0
+            return _drop_pool(db) > 0
 
     def counted(self, contribution: str) -> dict[str, int]:
         """What one contribution counted, key by key over its variants."""
@@ -382,8 +382,8 @@ class Store:
                 row[0]
                 for row in db.execute(
                     "SELECT id FROM contribution WHERE origin = ? AND register != ?"
-                    " ORDER BY written_at, id",
-                    (origin, IMPORTS),
+                    " AND register NOT LIKE ? ORDER BY written_at, id",
+                    (origin, IMPORTS, f"{IMPORTS}:%"),
                 )
             ]
             for one in ids:
@@ -427,7 +427,7 @@ class Store:
                 row, tallies = parsed
                 if (
                     row["origin"] != "laptop"
-                    or row["register"] == IMPORTS
+                    or is_pooled(str(row["register"]))
                     or book.is_private(str(row["unit"]))
                 ):
                     result.refused += 1
@@ -450,6 +450,15 @@ def _drop_register(db: sqlite3.Connection, register: str) -> int:
         (register,),
     )
     return int(db.execute("DELETE FROM contribution WHERE register = ?", (register,)).rowcount)
+
+
+def _drop_pool(db: sqlite3.Connection) -> int:
+    """Delete every register only the imports pool writes."""
+    return sum(
+        _drop_register(db, str(row[0]))
+        for row in db.execute("SELECT DISTINCT register FROM contribution").fetchall()
+        if is_pooled(str(row[0]))
+    )
 
 
 def _parse(raw: str) -> tuple[dict[str, str | None], list[tuple[str, str, int]]] | None:

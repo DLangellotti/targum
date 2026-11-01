@@ -49,12 +49,23 @@ def _annotation(document_hash: str, lemmas: list[str]) -> dict[str, Any]:
 
 
 def _brought(
-    library: Path, person: int, name: str, lemmas: list[str], *, source: str = "", doc: str = ""
+    library: Path,
+    person: int,
+    name: str,
+    lemmas: list[str],
+    *,
+    source: str = "",
+    doc: str = "",
+    ingester: str = "url/6",
 ) -> Path:
     folder = library / f"p{person}" / name
     folder.mkdir(parents=True, exist_ok=True)
     document_hash = doc or f"{person:04d}{name}".encode().hex().ljust(64, "0")[:64]
-    document = {"content_hash": document_hash, "source": source or f"https://x.test/{name}"}
+    document = {
+        "content_hash": document_hash,
+        "source": source or f"https://x.test/{name}",
+        "ingester": ingester,
+    }
     (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
     (folder / "annotation.json").write_text(
         json.dumps(_annotation(document_hash, lemmas)), encoding="utf-8"
@@ -158,7 +169,10 @@ def test_last_nights_pool_is_deleted_not_superseded(book: Path, library: Path) -
         ).fetchone()[0]
     # One contribution a table, the pool's own unit, and no history beside it: the
     # difference between two nights would be one reader's material.
-    assert sorted(held) == sorted((table, imports.UNIT, None) for table in imports.TABLES)
+    assert sorted((tbl, unit) for tbl, unit, _ in held if unit == imports.UNIT) == sorted(
+        (table, imports.UNIT) for table in imports.TABLES
+    )
+    assert all(at is None and unit.startswith(imports.UNIT) for _, unit, at in held)
     assert _pooled(store)["common"] == 10
     assert tallies == len(_pooled(store)) + len(_pooled(store, PHRASES)) + 1
 
@@ -184,7 +198,8 @@ def test_nothing_in_the_file_leads_back_to_a_reader_or_their_text(
     with sqlite3.connect(book) as db:
         units = {row[0] for row in db.execute("SELECT unit FROM contribution")}
         sources = {row[0] for row in db.execute("SELECT source FROM contribution")}
-    assert units == {imports.UNIT} and sources == {imports.SOURCE}
+    assert all(unit.startswith(imports.UNIT) for unit in units)
+    assert sources == {imports.SOURCE}
 
 
 def test_the_file_keeps_no_copy_of_a_deleted_pool(book: Path, library: Path) -> None:
@@ -323,3 +338,76 @@ def test_who_may_be_counted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> 
     accounts.set_counts_material(quiet, True)
     assert quiet.id in accounts.counted_readers()
     assert operator.id not in accounts.counted_readers(["owner@gmail.com"])
+
+
+@pytest.mark.parametrize(
+    ("source", "ingester", "expected"),
+    [
+        ("https://www.ynet.co.il/news/article/abc", "url/6", "news"),
+        ("https://www.instagram.com/reel/AbC123/", "subtitles/1", "social"),
+        ("https://www.tiktok.com/@someone/video/7300000000000000000", "audio/2", "social"),
+        ("https://x.com/someone/status/1800000000000000000", "post/1", "social"),
+        ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "subtitles/1", "video"),
+        ("https://podcasts.apple.com/il/podcast/x/id123", "url/6", "podcasts"),
+        ("https://media.example.org/episode-12.mp3", "audio/2", "podcasts"),
+        ("/var/lib/targum/targums/p3/uploads/menu.jpg", "picture/2", "everyday"),
+        ("/var/lib/targum/targums/p3/uploads/form.pdf", "pdf/1", "everyday"),
+        ("https://he.wikipedia.org/wiki/x", "url/6", "imports"),
+        ("/var/lib/targum/targums/p3/uploads/book.epub", "epub/4", "imports"),
+        ("", "", "imports"),
+    ],
+)
+def test_a_brought_text_is_sorted_by_its_source(source: str, ingester: str, expected: str) -> None:
+    """From what is already written beside the text, and nothing else (David, 2026-11-01).
+    A host is news only when it is a news publisher's; anything unclear is imports."""
+    assert imports.sort(source, ingester, news={"ynet.co.il"}) == expected
+    if expected == "news":
+        assert imports.sort(source, ingester) == "imports", "news only from the list"
+
+
+def test_the_floor_is_counted_in_each_register(book: Path, library: Path) -> None:
+    """Five readers' videos and five readers' posts hold a word: ten readers in all, but
+    five in each register, so it is written in neither."""
+    for person in range(1, 6):
+        _brought(library, person, "v", ["shared"], source="https://youtu.be/dQw4w9WgXcQ")
+    for person in range(6, 11):
+        _brought(library, person, "s", ["shared"], source="https://www.instagram.com/p/AbC/")
+    store = Store(book)
+    result = imports.pool(library, store, set(range(1, 11)))
+    assert result.by_register == {"video": 5, "social": 5}
+    for register in ("video", "social", "imports"):
+        assert "shared" not in dict(
+            store.top(WORDS, registers.pooled(register), limit=100, weighed=False)
+        )
+
+    for person in range(11, 16):
+        _brought(library, person, "v", ["shared"], source="https://youtu.be/dQw4w9WgXcQ")
+    imports.pool(library, store, set(range(1, 16)))
+    video = dict(store.top(WORDS, registers.pooled("video"), limit=100, weighed=False))
+    assert video["shared"] == 10
+    assert "shared" not in _pooled(store), "and only in video"
+
+
+def test_news_hosts_come_from_the_publishers_and_the_finds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listed = tmp_path / "sources.json"
+    listed.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {"key": "a", "homepage": "https://www.ynet.co.il/", "kind": "news"},
+                    {"key": "b", "homepage": "https://pod.example.org/", "kind": "podcast"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(listed))
+    accounts = AccountStore(tmp_path / "targum.db")
+    accounts.db.execute(
+        "INSERT INTO find (language, source, url, host, found, expires, medium)"
+        " VALUES ('he', 'feed', 'https://www.maariv.co.il/a', 'www.maariv.co.il', 1, 2, 'text')"
+    )
+    accounts.db.commit()
+    assert imports.news_hosts(accounts) == {"ynet.co.il", "maariv.co.il"}

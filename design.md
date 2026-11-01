@@ -394,11 +394,28 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
 - **Everything a reader brings is pooled** into the language tables: links pasted, files
   uploaded, pages photographed and read, a channel subscribed to. Every table a fold
   writes is written (`words`, `phrases`, `roots`, and the readings of a spelling when that
-  table lands), under one register of its own, `imports` (`tables.imports`). What a model
-  wrote is left out though it sits in a home: a rewrite, a chat's speech, a scene, the
-  weekly.
-- **A row needs ten readers.** A word, a phrase or a root in a part of speech is written
-  only once the material of at least ten distinct readers holds it. One reader with a
+  table lands). What a model wrote is left out though it sits in a home: a rewrite, a
+  chat's speech, a scene, the weekly.
+- **Each text is sorted by its source** (David, 2026-11-01, the same day;
+  `tables.imports.sort`), from what is already written beside it: the source's address
+  and the ingester that read it. Nothing new is stored to sort it.
+
+  | the text | register |
+  |---|---|
+  | a link on a news publisher's domain: a `news` publisher in `sources.json`, or a host the finds pool has pooled an article from | news |
+  | an Instagram, TikTok or Facebook post or reel, or a post on X | social |
+  | YouTube and the other video hosts in `video.hosts` | video |
+  | a podcast's page (Apple Podcasts, Spotify and the like), or an episode read from its audio | podcasts |
+  | a photo, or an uploaded document (PDF, Word, text): signs, menus, forms, letters, messages | everyday |
+  | anything else, or anything in doubt: a book uploaded, an audio file, a page on no list | imports, "What learners bring" |
+
+  Conversation stays film and TV subtitles, and literature and the Bible stay pure: no
+  import is sorted into them. Each register's import counts are filed apart from its
+  public counts, as `imports:<register>` (`registers.pooled`), so the pool deletes them
+  all together and a list can say how much of it readers brought.
+- **A row needs ten readers, in its register.** A word, a phrase or a root in a part of
+  speech is written only once the material of at least ten distinct readers holds it in
+  that register. One reader with a
   hundred texts is one reader, and a text two readers brought is counted once with both
   behind it.
 - **The switch is the reader's**, on the account page, on by default: "Counting the words
@@ -422,22 +439,24 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
   of use was: publishing clause 3.7's sentence and turning this on are one decision.
   With the switch off the pool is deleted.
 
-**How the yardsticks use it** (proposal, the default built):
+**How the yardsticks use it** (David, 2026-11-01):
 
-- **"What learners bring" is a fifth option in the picker**, after the Bible, offered by
-  the yardsticks' own rule: once the pool holds 50,000 counted content words it gets a
-  monthly list (`registers.PICKER`), and until then it is absent, never 0%. It never
-  opens the card while another list exists. This is built.
-- **Past 200,000 words it is blended into conversation and news** (David, 2026-11-01,
-  the same day). Below that, those two lists are their own sources alone, and their
-  digest does not move. From `yardstick.BLEND_FLOOR` up, each lemma's weight is its rate
-  in the register and its rate in the pool, mixed by the pool's share of the two
-  registers' content words together, never more than half (`BLEND_CAP`,
-  `yardstick.blend_share`). The register must still reach 50,000 words on its own
-  sources before it gets a list. Literature and the Bible are never blended. The list
-  records the share and the pool's size under `blend`, and the pool's provenance beside
-  its own. Like every list it changes only when the month turns, so a reader's line moves
-  by the blend once, at a snapshot.
+- **Four modern registers get yardsticks of their own**: social media, online video,
+  podcasts and radio, and everyday life, beside conversation, news, literature and the
+  Bible, with "What learners bring" last. Each is made of what readers brought of it, with
+  any public counts of the register added (`yardstick.SUMMED`). Each appears in the
+  picker by the yardsticks' own rule, once it holds 50,000 counted content words, and
+  until then it is absent, never 0%. The picker shows every one that has a list.
+- **News takes in the news readers brought past 200,000 words.** Below that the news
+  list is its own sources alone, and its digest does not move. From `BLEND_FLOOR` up,
+  each lemma's weight is its rate in news and its rate in the news readers brought,
+  mixed by the brought share of the two, never more than half (`BLEND_CAP`,
+  `yardstick.blend_share`). News must still reach 50,000 words on its own feeds. The list
+  records the share and size under `blend`, with the pool's provenance beside its own.
+  Like every list it changes only when the month turns.
+- **Later, public finds count too.** The discovery pool's YouTube (#620) and podcast
+  (#621) finds will count into video and podcasts as public texts, through the ordinary
+  guard. Not built.
 - **A reader who turns counting off leaves the pool that night but leaves a list at the
   month's turn**, since a list is a frozen snapshot (2026-10-30, question 4). The list
   holds shares of the commonest words, which were already ten readers deep, and the

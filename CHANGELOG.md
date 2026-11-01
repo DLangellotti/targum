@@ -674,13 +674,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   under Hear, linked to the new `/credits`, which is open to strangers and lists every
   speaker, licence and file. On Your Words the button's title says it. Coverage: 33% of
   the tables' top 5,000 lemmas, 66% of the top 1,000 and 94% of the top 100.
-- The conversation and news yardsticks take in what learners bring once the imports
-  pool passes 200,000 content words (David, 2026-11-01; design.md §12, "What learners
-  bring is counted in the tables, never kept"). Each lemma's weight mixes its rate in
-  the register with its rate in the pool, by the pool's share of the two, never more than
-  half (`yardstick.blend_share`). Below the floor a list and its digest are exactly as
-  before. Literature and the Bible are never blended. It reaches readers at the next
-  monthly snapshot.
+- What learners bring is sorted by source into four new registers, and news takes in its
+  share (David, 2026-11-01; design.md §12, "What learners bring is counted in the tables,
+  never kept"). The nightly pool sorts each brought text by its address and ingester
+  alone (`tables.imports.sort`): a news publisher's link is news (`sources.json` and the
+  finds pool's hosts); Instagram, TikTok, Facebook and X are social; YouTube and the other
+  video hosts are video; a podcast page or episode is podcasts; a photo or uploaded
+  document is everyday. Anything unclear stays in imports. Each register keeps the floor of
+  ten readers per key, counted in that register, filed as `imports:<register>`. Social,
+  video, podcasts and everyday become yardsticks, offered once each holds 50,000 words.
+  The news readers brought is blended into news past 200,000 words, never more than half
+  the list (`yardstick.blend_share`). Conversation, literature and the Bible stay pure.
+  The 16 Russian picker strings for the four are drafts awaiting David's read.
 - What learners bring is counted in the language tables, behind a switch (David,
   2026-11-01; epic targum-internal#588; design.md §12, "What learners bring is counted in
   the tables, never kept"). With `TARGUM_IMPORT_COUNTS=1`, the nightly `targum tables

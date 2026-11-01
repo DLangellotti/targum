@@ -19,18 +19,43 @@ WEEKLY = "weekly"
 #: A text the catalogue does not file and no rule above names.
 UNFILED = "unfiled"
 
-#: What readers bring (David, 2026-11-01): their own material, pooled. Never a catalogue
-#: register and never a fold's: only `tables.imports.pool` writes it, one contribution a
-#: table, nightly, with no row below the floor of ten readers (`imports.FLOOR`).
+#: The four modern registers what readers bring is sorted into by its source (David,
+#: 2026-11-01; design.md §12, "What learners bring is counted in the tables, never kept").
+#: Each is a yardstick of its own; none is a catalogue register today, and later the
+#: discovery pool's public YouTube and podcast finds count into video and podcasts as
+#: public texts through the ordinary guard (targum-internal#620, #621).
+SOCIAL = "social"
+VIDEO = "video"
+PODCASTS = "podcasts"
+EVERYDAY = "everyday"
+
+#: What readers bring that sorts into no register (David, 2026-11-01): "What learners
+#: bring". Never a catalogue register and never a fold's: only `tables.imports.pool`
+#: writes it, with no row below the floor of ten readers (`imports.FLOOR`).
 IMPORTS = "imports"
 
-#: The registers a yardstick is drawn from: the four the card shows.
+#: The registers a yardstick is drawn from: the four the card shows first.
 YARDSTICKS = (NEWS, BIBLE, LITERATURE, CONVERSATION)
 
-#: The registers the card's picker may offer: the four, and "What learners bring" once
-#: its counts cross the yardstick's floor (design.md §12, "What learners bring is counted
-#: in the tables, never kept", 2026-11-01). Each is still offered only where it has a list.
-PICKER = (*YARDSTICKS, IMPORTS)
+#: The registers what readers bring may be sorted into, besides `IMPORTS`.
+SORTED = (NEWS, SOCIAL, VIDEO, PODCASTS, EVERYDAY)
+
+#: The registers the card's picker may offer: every one that has a list (David,
+#: 2026-11-01). Each is still offered only where it has a list.
+PICKER = (*YARDSTICKS, SOCIAL, VIDEO, PODCASTS, EVERYDAY, IMPORTS)
+
+
+def pooled(register: str) -> str:
+    """Where the pool files what readers brought of one register: `imports` for what
+    sorts into none, `imports:<register>` otherwise, so their counts never mix with the
+    public counts of the same register and the pool can delete all of them at once."""
+    return IMPORTS if register == IMPORTS else f"{IMPORTS}:{register}"
+
+
+def is_pooled(register: str) -> bool:
+    """Whether a register is one only the imports pool writes."""
+    return register == IMPORTS or register.startswith(f"{IMPORTS}:")
+
 
 #: Where targum's own scenes are counted. Open question 3 of the spec, not yet answered:
 #: the proposal is that model-written Hebrew stays out of every yardstick, counted only

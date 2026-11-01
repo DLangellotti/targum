@@ -123,9 +123,13 @@ def test_scenes_and_the_weekly_are_never_a_yardstick(tmp_path: Path) -> None:
         "bible",
         "literature",
         "conversation",
+        "social",
+        "video",
+        "podcasts",
+        "everyday",
         "imports",
     }
-    assert all(one.outcome == "short" for one in done), "the five are empty here"
+    assert all(one.outcome == "short" for one in done), "they are all empty here"
 
 
 def test_what_learners_bring_is_offered_once_its_pool_crosses_the_floor(tmp_path: Path) -> None:
@@ -137,10 +141,10 @@ def test_what_learners_bring_is_offered_once_its_pool_crosses_the_floor(tmp_path
     store = Store(tmp_path / "corpus.db")
     where = tmp_path / "tables"
     made = [imports._contribution("words")]
-    store.replace_pool(made, {"words": _counts(20, scale=10)})
+    store.replace_pool(made, {made[0].id: _counts(20, scale=10)})
     assert yardstick.write(store, "imports", where, now=NOW).outcome == "short"
     assert yardstick.load("imports", where) is None, "absent from the picker, never 0%"
-    store.replace_pool(made, {"words": _counts(400)})
+    store.replace_pool(made, {made[0].id: _counts(400)})
     assert yardstick.write(store, "imports", where, now=NOW).outcome == "written"
     stick = yardstick.load("imports", where)
     assert stick is not None and "של" not in stick.weights
@@ -259,17 +263,16 @@ def test_the_account_gives_each_known_word_with_its_date(tmp_path: Path) -> None
     assert store.known_dated(None, "he") == []
 
 
-def _pool(store: Store, counts: dict[tuple[str, str], int]) -> None:
+def _pool(store: Store, counts: dict[tuple[str, str], int], register: str = "news") -> None:
     from targum.tables import imports
 
-    store.replace_pool([imports._contribution("words")], {"words": counts})
+    one = imports._contribution("words", register)
+    store.replace_pool([one], {one.id: counts})
 
 
-def test_what_learners_bring_is_blended_into_conversation_and_news_past_its_floor(
-    tmp_path: Path,
-) -> None:
-    """David, 2026-11-01: past 200,000 content words the pool is mixed into conversation
-    and news, by its share of the two together, and never more than half of either."""
+def test_the_news_readers_bring_is_blended_into_news_past_its_floor(tmp_path: Path) -> None:
+    """David, 2026-11-01: past 200,000 content words the news readers brought is mixed into
+    the news list, by its share of the two together, and never more than half of it."""
     store = _store(tmp_path, register="news")
     _store(tmp_path, register="literature")
     alone = yardstick.build(store, "news")
@@ -291,10 +294,30 @@ def test_what_learners_bring_is_blended_into_conversation_and_news_past_its_floo
     assert blended["digest"] != alone["digest"]
     assert any(row["tool"].startswith("imports/") for row in blended["provenance"])
 
-    # Literature and the Bible are never blended.
+    # Literature, the Bible and conversation are never blended, and what readers brought
+    # that sorts into no register never reaches news.
     literature = yardstick.build(store, "literature")
     assert literature is not None and "פול" not in literature["weights"]
     assert "blend" not in literature
+    _pool(store, {("זרזיר", "NOUN"): yardstick.BLEND_FLOOR * 100}, register="imports")
+    news = yardstick.build(store, "news")
+    assert news is not None and "זרזיר" not in news["weights"] and "blend" not in news
+
+
+def test_the_modern_registers_are_what_readers_brought_of_each(tmp_path: Path) -> None:
+    """Social, video, podcasts and everyday are lists of their own, made of what readers
+    brought of each, and appear by the same 50,000-word floor."""
+    store = Store(tmp_path / "corpus.db")
+    where = tmp_path / "tables"
+    _pool(store, _counts(20, scale=10), register="social")
+    assert yardstick.write(store, "social", where, now=NOW).outcome == "short"
+    _pool(store, _counts(400), register="video")
+    assert yardstick.write(store, "video", where, now=NOW).outcome == "written"
+    assert yardstick.load("social", where) is None
+    video = yardstick.load("video", where)
+    assert video is not None and "של" not in video.weights
+    # The pool is made again each night: social's rows went with last night's.
+    assert yardstick.build(store, "podcasts") is None
 
 
 def test_a_small_pool_is_blended_by_its_size() -> None:

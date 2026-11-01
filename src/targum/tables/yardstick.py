@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import CONVERSATION, IMPORTS, NEWS, PICKER
+from .registers import EVERYDAY, NEWS, PICKER, PODCASTS, SOCIAL, VIDEO, pooled
 
 if TYPE_CHECKING:
     from .store import Store
@@ -44,14 +44,21 @@ DEPTH = 20_000
 #: of the picker, as one with no counts at all is.
 FLOOR = 50_000
 
-#: The content words the imports pool must hold before it is blended into a list (David,
-#: 2026-11-01; design.md §12, "What learners bring is counted in the tables, never
-#: kept"). Below it, conversation and news are their own sources alone.
+#: The content words a register's share of the imports pool must hold before it is
+#: blended into that register's list (David, 2026-11-01; design.md §12, "What learners
+#: bring is counted in the tables, never kept"). Below it, news is its own sources alone.
 BLEND_FLOOR = 200_000
 
-#: The lists the imports pool is blended into, and the most of either it may be.
-BLENDED = (CONVERSATION, NEWS)
+#: The lists with sources of their own that what readers bring is blended into, and the
+#: most of one it may be. Conversation stays film and TV subtitles; literature and the
+#: Bible stay pure.
+BLENDED = (NEWS,)
 BLEND_CAP = 0.5
+
+#: The lists made of what readers bring, sorted by source, with any public counts of the
+#: same register added in plainly: both are the same kind of text, and there is no other
+#: source for these to be held to half of.
+SUMMED = (SOCIAL, VIDEO, PODCASTS, EVERYDAY)
 
 #: The version of the snapshot's own rule (what is read, and how it is weighed). A new
 #: number writes a new version at the next run, whatever the month.
@@ -126,12 +133,17 @@ def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | N
     """The snapshot of one register as it stands in the tables now, or None where the
     register holds fewer than `FLOOR` running content words. Not written: `write` does.
 
-    Conversation and news take in what learners bring once the imports pool holds
+    News takes in the news readers brought once that share of the pool holds
     `BLEND_FLOOR` content words: each lemma's weight is its rate in the register and its
-    rate in the pool, mixed by `blend_share`, so readers' material is never more than
-    half of either list. The register must still cross `FLOOR` on its own sources.
+    rate in the pool, mixed by `blend_share`, so readers' material is never more than half
+    of the list. News must still cross `FLOOR` on its own sources. Social, video,
+    podcasts and everyday are what readers brought of each, with any public counts of
+    the register added (`SUMMED`); "What learners bring" is the rest of the pool.
     """
     counts = _counts(store, register, depth)
+    if register in SUMMED:
+        for lemma, n in _counts(store, pooled(register), depth).items():
+            counts[lemma] = counts.get(lemma, 0) + n
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:depth]
     total = sum(n for _, n in ranked)
     if total < FLOOR:
@@ -140,7 +152,7 @@ def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | N
     brought_total = 0
     brought: list[tuple[str, int]] = []
     if register in BLENDED:
-        pool = _counts(store, IMPORTS, depth)
+        pool = _counts(store, pooled(register), depth)
         brought = sorted(pool.items(), key=lambda item: (-item[1], item[0]))[:depth]
         brought_total = sum(n for _, n in brought)
         share = blend_share(total, brought_total)
@@ -172,7 +184,9 @@ def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | N
     }
     if share:
         made["blend"] = {"imports_share": share, "imports_tokens": brought_total}
-        made["provenance"] += provenance(store, IMPORTS)
+        made["provenance"] += provenance(store, pooled(register))
+    elif register in SUMMED:
+        made["provenance"] += provenance(store, pooled(register))
     return made
 
 
