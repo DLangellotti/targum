@@ -34,10 +34,9 @@ round stops fetching when the month's budget would not cover the next track.
 **Off unless the box says so** (`TARGUM_FINDS_YOUTUBE`): the timer runs every night and
 does nothing until then.
 
-**Not counted into the language tables.** A find is not a public text: nothing of it is
-on the shelf, its words are not kept, and `tables.public_text` reads built folders on
-the shelf. Counting finds into the `video` register (#620's note of 2026-11-01) waits on
-a decision of its own.
+**Counted into the language tables as counts** (David, 2026-11-01): the nightly sweep
+folds each kept find's lemma counts into the `video` register (`tables.finds`), never
+its words, which were never kept.
 """
 
 from __future__ import annotations

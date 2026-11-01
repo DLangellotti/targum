@@ -21,9 +21,8 @@ UNFILED = "unfiled"
 
 #: The four modern registers what readers bring is sorted into by its source (David,
 #: 2026-11-01; design.md §12, "What learners bring is counted in the tables, never kept").
-#: Each is a yardstick of its own; none is a catalogue register today, and later the
-#: discovery pool's public YouTube and podcast finds count into video and podcasts as
-#: public texts through the ordinary guard (targum-internal#620, #621).
+#: Each is a yardstick of its own; none is a catalogue register today. The discovery
+#: pool's public finds count into them too, as counts only (`tables.finds`, 2026-11-01).
 SOCIAL = "social"
 VIDEO = "video"
 PODCASTS = "podcasts"
