@@ -11,9 +11,11 @@ reader asks for football, and the lexicon knows only Free time & culture. Each c
   whose tags failed ling-he's gold set is not trusted to match. A chip with none is
   matched in the pool only by a find a live look brought in for that chip (`TAG`), and
   otherwise goes straight to a live look;
-- a fixed Hebrew search phrase, so the live query (`live.query`) still contains only
-  words targum wrote. The phrases wait on ling-he's read
-  (`~/targum-team/ling-he/keep/find-chips-hebrew-2026-11-01.md`).
+- a fixed Hebrew search phrase, so the live queries (`live.queries`) still contain only
+  words targum wrote. The phrases are ling-he's (2026-11-01,
+  `~/targum-team/ling-he/keep/find-chips-hebrew-2026-11-01.md`): fourteen changed for a
+  word that pulls a second meaning (יחסים, ביטחון, משפט), a phrase that finds writing
+  *about* a topic rather than the thing (הומור), or wording dated or awkward.
 
 There is no free-text box (David, 2026-11-01): a reader steers by these chips or not at
 all, which is also what keeps a reader's own words off a search provider.
@@ -45,9 +47,9 @@ CHIPS: tuple[Chip, ...] = (
     _chip("football", "Football", "", "כדורגל"),
     _chip("basketball", "Basketball", "", "כדורסל"),
     _chip("music", "Music", "", "מוזיקה"),
-    _chip("film", "Film & TV", "", "סרטים וסדרות טלוויזיה"),
+    _chip("film", "Film & TV", "", "סרטים וסדרות"),
     _chip("tech", "Tech", "science", "טכנולוגיה"),
-    _chip("gaming", "Gaming", "", "משחקי מחשב"),
+    _chip("gaming", "Gaming", "", "משחקי וידאו"),
     _chip("cooking", "Cooking", "food", "מתכונים ובישול"),
     _chip("food", "Food", "food", "אוכל ומסעדות"),
     _chip("travel", "Travel", "travel", "טיולים וחופשות"),
@@ -59,27 +61,27 @@ CHIPS: tuple[Chip, ...] = (
     _chip("history", "History", "", "היסטוריה"),
     _chip("politics", "Politics", "politics", "פוליטיקה"),
     _chip("israel", "Israel", "", "החיים בישראל"),
-    _chip("world", "The world", "", "חדשות מהעולם"),
+    _chip("world", "The world", "", "חדשות בעולם"),
     _chip("religion", "Religion", "religion", "דת ומסורת"),
     _chip("nature", "Nature", "nature", "טבע"),
     _chip("animals", "Animals", "nature", "בעלי חיים"),
     _chip("cars", "Cars", "travel", "מכוניות ורכב"),
     _chip("business", "Business", "work", "עסקים וכלכלה"),
-    _chip("money", "Money", "money", "כסף וחיסכון"),
+    _chip("money", "Money", "money", "כלכלה אישית וחיסכון"),
     _chip("work", "Work", "work", "עבודה וקריירה"),
     _chip("art", "Art", "", "אמנות"),
     _chip("books", "Books", "", "ספרים וספרות"),
-    _chip("comedy", "Comedy", "", "הומור וקומדיה"),
+    _chip("comedy", "Comedy", "", "מערכונים וסטנדאפ"),
     _chip("celebrities", "Celebrities", "", "סלבס ורכילות"),
     _chip("parenting", "Parenting", "family", "הורות וגידול ילדים"),
     _chip("school", "School", "school", "לימודים ובית ספר"),
-    _chip("relationships", "Relationships", "people", "זוגיות ויחסים"),
-    _chip("home", "Home", "family", "הבית ועיצוב הבית"),
+    _chip("relationships", "Relationships", "people", "זוגיות ואהבה"),
+    _chip("home", "Home", "family", "עיצוב הבית"),
     _chip("gardening", "Gardening", "nature", "גינון"),
-    _chip("crime", "Crime", "law", "פשיעה ומשטרה"),
-    _chip("army", "The army", "security", "צבא וביטחון"),
+    _chip("crime", "Crime", "law", "פלילים ומשטרה"),
+    _chip("army", "The army", "security", "צבא ושירות צבאי"),
     _chip("weather", "Weather", "nature", "מזג אוויר"),
-    _chip("holidays", "Holidays", "religion", "חגים ומועדים"),
+    _chip("holidays", "Holidays", "religion", "חגי ישראל"),
     _chip("language", "Language", "", "השפה העברית"),
 )
 

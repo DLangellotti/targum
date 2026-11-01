@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- "Find me something" searches in ling-he's Hebrew (2026-11-01; targum-internal#615).
+  Fourteen fixed phrases changed: ten chips (Film & TV, Gaming, The world, Money, Comedy,
+  Relationships, Home, Crime, The army, Holidays) and four lexicon topics (people, money,
+  health, law), for words that pull a second meaning (יחסים, ביטחון, משפט), a phrase that
+  finds writing about humour rather than sketches, and dated or awkward wording. A query
+  no longer starts with "כתבה על", which pulled news sites over recipes and blogs, and
+  no longer joins two topics with "או", which the engine reads as a word: a look for two
+  topics now sends two queries, one search each, inside the same cap of two. "בעברית
+  קלה" stays for aleph to bet only. A query run in the last day is still not bought
+  again, now one query at a time. Still off unless `TARGUM_FIND_LIVE` is set.
 - Each turn's play plays that turn again on the site (David, 2026-11-01). Since a served
   reader began handing its recording out as a file of its own (#981, 2026-10-30), the file
   came whole, with no `Accept-Ranges`. Chrome will not seek in a file served like that,
