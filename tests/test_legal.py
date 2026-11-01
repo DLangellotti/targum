@@ -294,6 +294,24 @@ def test_the_about_page_names_its_own_address() -> None:
     assert 'rel="canonical"' not in about_page(), "no address, no claim to one"
 
 
+def test_clause_3_7_says_what_learners_bring_is_counted() -> None:
+    """David approved this sentence on 2026-11-01 for the imports pool (`tables.imports`):
+    counts of words, runs of two or three, verb roots and readings across readers, ten
+    readers each, none from a reader who asked not to be counted. It is the sentence
+    `TARGUM_IMPORT_COUNTS` waits on."""
+    notice = said(legal_page("privacy"))
+    assert (
+        "Also counts, across all Data Subjects and bearing no identifier of any of them, of"
+        " how often each word, in its dictionary form, each sequence of two or three such"
+        " words, the root of each verb, and each reading given to a word as written occurs in"
+        " the material Data Subjects have brought to the Service, none of them being counted"
+        " unless it occurs in the material of at least ten Data Subjects, and no count being"
+        " made from the material of a Data Subject who has asked that their material not be"
+        " counted. Processed for the purpose of measuring how much of the Hebrew that"
+        " learners meet a Data Subject understands. Legal basis: Article 6(1)(f)."
+    ) in notice
+
+
 def test_clause_3_6_names_what_a_finished_section_records() -> None:
     """David, 2026-11-01: the recommendation sentence of clause 3.6 also names a finished
     section's estimated share and its look-ups, word for word as approved."""

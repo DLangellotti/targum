@@ -688,7 +688,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   reader out by morning (`person.counted`, schema 54, `POST /account/counting`). Your
   Progress offers "What learners bring" as a fifth yardstick once the pool crosses
   50,000 words. The switch is off, and the box's unit gains `--store`, until clause
-  3.7's sentence is published.
+  3.7's sentence is published. Clause 3.7 now says it, in wording David approved on
+  2026-11-01 that names words, runs of two or three words, verb roots and readings. The
+  ten Russian strings (`you.page.counting`, `you.page.counting-short`, `you.counting.*`,
+  `progress.understand.*.imports`) were approved by David, 2026-11-01.
 - What to read next is chosen on running words, by one chooser (David, 2026-10-31;
   targum-internal#612, epic #617). `coverage.Index.running` reads the per-text counts the
   lemma index has carried since #95: each word weighs as often as it comes round, with
