@@ -1800,9 +1800,10 @@
    * were learned, and the card says from when it counts.
    */
   var understandSeries = null;
-  /* What learners bring (2026-11-01) is last: it is offered only once its pooled counts
-     have a list, and it is never the one the card opens on while another has one. */
-  var UNDERSTAND_ORDER = ["conversation", "news", "literature", "bible", "imports"];
+  /* The four modern registers what readers bring is sorted into, and what learners bring
+     that sorts into none, follow the first four (David, 2026-11-01): each is offered once
+     it has a list, and the picker shows every one that has. */
+  var UNDERSTAND_ORDER = ["conversation", "news", "literature", "bible", "social", "video", "podcasts", "everyday", "imports"];
   var UNDERSTAND_KEY = "targum.progress.understand";
   var UNDERSTAND_BY_KEY = "targum.progress.understand-by";
   var UNDERSTAND_SPAN = 12;
@@ -1845,6 +1846,46 @@
       },
       up: function (p, q, then) {
         return t("progress.understand.up.bible", "You know {p}% of the words in the Bible, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    social: {
+      option: t("progress.understand.option.social", "Social media"),
+      chosen: t("progress.understand.chosen.social", "social media"),
+      said: function (p) {
+        return t("progress.understand.said.social", "You know {p}% of the words in social media posts.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.social", "You know {p}% of the words in social media posts, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    video: {
+      option: t("progress.understand.option.video", "Online video"),
+      chosen: t("progress.understand.chosen.video", "online video"),
+      said: function (p) {
+        return t("progress.understand.said.video", "You know {p}% of the words in online video.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.video", "You know {p}% of the words in online video, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    podcasts: {
+      option: t("progress.understand.option.podcasts", "Podcasts and radio"),
+      chosen: t("progress.understand.chosen.podcasts", "podcasts and radio"),
+      said: function (p) {
+        return t("progress.understand.said.podcasts", "You know {p}% of the words in podcasts and radio.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.podcasts", "You know {p}% of the words in podcasts and radio, up from {q}% {then}.", { p: p, q: q, then: then });
+      },
+    },
+    everyday: {
+      option: t("progress.understand.option.everyday", "Everyday life"),
+      chosen: t("progress.understand.chosen.everyday", "everyday life"),
+      said: function (p) {
+        return t("progress.understand.said.everyday", "You know {p}% of the words of everyday life.", { p: p });
+      },
+      up: function (p, q, then) {
+        return t("progress.understand.up.everyday", "You know {p}% of the words of everyday life, up from {q}% {then}.", { p: p, q: q, then: then });
       },
     },
     imports: {

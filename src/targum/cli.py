@@ -4865,7 +4865,7 @@ def tables_sweep(
     fetched or spent. Run again, it counts only what is new or was annotated under a new
     name since. A reader's home is never folded as a text of its own. Where
     `TARGUM_IMPORT_COUNTS=1` and `--store` names the account database, the homes of the
-    readers who have not turned counting off are pooled into the `imports` register:
+    readers who have not turned counting off are pooled, sorted by source into registers:
     counts only, a row only where ten readers' material holds it, made again from
     nothing every night (`tables.imports`). With the switch off, any pool is deleted.
     """
@@ -4901,15 +4901,19 @@ def tables_sweep(
     from .accounts import Store as AccountStore
     from .backoffice import operators_from_env
 
-    readers = AccountStore(accounts).counted_readers(operators_from_env())
+    account_store = AccountStore(accounts)
+    readers = account_store.counted_readers(operators_from_env())
+    news = imports_module.news_hosts(account_store)
     with no_models():
-        pooled = imports_module.pool(root, store, readers)
+        pooled = imports_module.pool(root, store, readers, news=news)
     rows = ", ".join(f"{n} {table}" for table, n in pooled.rows.items())
     console.print(
         f"[green]Pooled[/green] {pooled.texts} texts from {pooled.readers} readers,"
         f" {pooled.left_out} left out: {rows}"
         f" [dim]{pooled.model_written} model-written, {pooled.unreadable} unreadable[/dim]"
     )
+    for register, texts in sorted(pooled.by_register.items()):
+        console.print(f"  {register}: {texts}")
 
 
 #: The box's corpus ledger, where `targum tables push` imports the laptop's rows.

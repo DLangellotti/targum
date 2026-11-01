@@ -4283,5 +4283,21 @@
   "you.counting.stop": "Stop counting",
   "you.counting.start": "Start counting again",
   "you.counting.started": "We'll count your texts again from tonight.",
-  "you.counting.stopped": "Stopped. Your texts leave the counts tonight."
+  "you.counting.stopped": "Stopped. Your texts leave the counts tonight.",
+  "progress.understand.option.social": "Social media",
+  "progress.understand.chosen.social": "social media",
+  "progress.understand.said.social": "You know {p}% of the words in social media posts.",
+  "progress.understand.up.social": "You know {p}% of the words in social media posts, up from {q}% {then}.",
+  "progress.understand.option.video": "Online video",
+  "progress.understand.chosen.video": "online video",
+  "progress.understand.said.video": "You know {p}% of the words in online video.",
+  "progress.understand.up.video": "You know {p}% of the words in online video, up from {q}% {then}.",
+  "progress.understand.option.podcasts": "Podcasts and radio",
+  "progress.understand.chosen.podcasts": "podcasts and radio",
+  "progress.understand.said.podcasts": "You know {p}% of the words in podcasts and radio.",
+  "progress.understand.up.podcasts": "You know {p}% of the words in podcasts and radio, up from {q}% {then}.",
+  "progress.understand.option.everyday": "Everyday life",
+  "progress.understand.chosen.everyday": "everyday life",
+  "progress.understand.said.everyday": "You know {p}% of the words of everyday life.",
+  "progress.understand.up.everyday": "You know {p}% of the words of everyday life, up from {q}% {then}."
 }

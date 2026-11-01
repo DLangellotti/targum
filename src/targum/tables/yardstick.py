@@ -30,7 +30,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .registers import PICKER
+from .registers import EVERYDAY, NEWS, PICKER, PODCASTS, SOCIAL, VIDEO, pooled
 
 if TYPE_CHECKING:
     from .store import Store
@@ -43,6 +43,22 @@ DEPTH = 20_000
 #: against whatever those few happened to be about. A register short of it is left out
 #: of the picker, as one with no counts at all is.
 FLOOR = 50_000
+
+#: The content words a register's share of the imports pool must hold before it is
+#: blended into that register's list (David, 2026-11-01; design.md §12, "What learners
+#: bring is counted in the tables, never kept"). Below it, news is its own sources alone.
+BLEND_FLOOR = 200_000
+
+#: The lists with sources of their own that what readers bring is blended into, and the
+#: most of one it may be. Conversation stays film and TV subtitles; literature and the
+#: Bible stay pure.
+BLENDED = (NEWS,)
+BLEND_CAP = 0.5
+
+#: The lists made of what readers bring, sorted by source, with any public counts of the
+#: same register added in plainly: both are the same kind of text, and there is no other
+#: source for these to be held to half of.
+SUMMED = (SOCIAL, VIDEO, PODCASTS, EVERYDAY)
 
 #: The version of the snapshot's own rule (what is read, and how it is weighed). A new
 #: number writes a new version at the next run, whatever the month.
@@ -92,35 +108,86 @@ class Yardstick:
         return min(1.0, math.fsum(self.weights.get(key, 0.0) for key in keys))
 
 
-def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | None:
-    """The snapshot of one register as it stands in the tables now, or None where the
-    register holds fewer than `FLOOR` running content words. Not written: `write` does."""
+def _counts(store: Store, register: str, depth: int) -> dict[str, int]:
+    """One register's commonest content lemmas, bare, with their counts."""
     from .words import WORDS
 
-    top = store.top(WORDS, register, limit=depth * 2)
     counts: dict[str, int] = {}
-    for key, n in top:
+    for key, n in store.top(WORDS, register, limit=depth * 2):
         lemma = bare(key)
         if lemma:
             counts[lemma] = counts.get(lemma, 0) + int(n)
+    return counts
+
+
+def blend_share(own: int, brought: int) -> float:
+    """How much of a blended list is readers' material: its share of the two registers'
+    content words together, and never more than `BLEND_CAP`. Nothing where the pool is
+    under `BLEND_FLOOR`."""
+    if brought < BLEND_FLOOR or own <= 0:
+        return 0.0
+    return min(BLEND_CAP, brought / (own + brought))
+
+
+def build(store: Store, register: str, depth: int = DEPTH) -> dict[str, Any] | None:
+    """The snapshot of one register as it stands in the tables now, or None where the
+    register holds fewer than `FLOOR` running content words. Not written: `write` does.
+
+    News takes in the news readers brought once that share of the pool holds
+    `BLEND_FLOOR` content words: each lemma's weight is its rate in the register and its
+    rate in the pool, mixed by `blend_share`, so readers' material is never more than half
+    of the list. News must still cross `FLOOR` on its own sources. Social, video,
+    podcasts and everyday are what readers brought of each, with any public counts of
+    the register added (`SUMMED`); "What learners bring" is the rest of the pool.
+    """
+    counts = _counts(store, register, depth)
+    if register in SUMMED:
+        for lemma, n in _counts(store, pooled(register), depth).items():
+            counts[lemma] = counts.get(lemma, 0) + n
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:depth]
     total = sum(n for _, n in ranked)
     if total < FLOOR:
         return None
-    weights = {lemma: n / total for lemma, n in ranked}
+    share = 0.0
+    brought_total = 0
+    brought: list[tuple[str, int]] = []
+    if register in BLENDED:
+        pool = _counts(store, pooled(register), depth)
+        brought = sorted(pool.items(), key=lambda item: (-item[1], item[0]))[:depth]
+        brought_total = sum(n for _, n in brought)
+        share = blend_share(total, brought_total)
+    if share:
+        mixed: dict[str, float] = {}
+        for lemma, n in ranked:
+            mixed[lemma] = mixed.get(lemma, 0.0) + (1 - share) * n / total
+        for lemma, n in brought:
+            mixed[lemma] = mixed.get(lemma, 0.0) + share * n / brought_total
+        kept = sorted(mixed.items(), key=lambda item: (-item[1], item[0]))[:depth]
+        whole = math.fsum(weight for _, weight in kept)
+        weights = {lemma: weight / whole for lemma, weight in kept}
+        hashed: list[Any] = [RULE, ranked, {"imports": brought, "share": share}]
+    else:
+        weights = {lemma: n / total for lemma, n in ranked}
+        hashed = [RULE, ranked]
     digest = hashlib.sha256(
-        json.dumps([RULE, ranked], ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        json.dumps(hashed, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
-    return {
+    made: dict[str, Any] = {
         "register": register,
         "rule": RULE,
         "depth": depth,
         "tokens": total,
-        "lemmas": len(ranked),
+        "lemmas": len(weights),
         "digest": digest,
         "provenance": provenance(store, register),
         "weights": weights,
     }
+    if share:
+        made["blend"] = {"imports_share": share, "imports_tokens": brought_total}
+        made["provenance"] += provenance(store, pooled(register))
+    elif register in SUMMED:
+        made["provenance"] += provenance(store, pooled(register))
+    return made
 
 
 def provenance(store: Store, register: str) -> list[dict[str, Any]]:

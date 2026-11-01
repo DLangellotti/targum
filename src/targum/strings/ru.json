@@ -4636,5 +4636,21 @@
   "you.counting.stop": "Остановить подсчёт",
   "you.counting.start": "Возобновить подсчёт",
   "you.counting.started": "С сегодняшней ночи мы снова учитываем ваши тексты.",
-  "you.counting.stopped": "Остановлено. Сегодня ночью ваши тексты уйдут из подсчёта."
+  "you.counting.stopped": "Остановлено. Сегодня ночью ваши тексты уйдут из подсчёта.",
+  "progress.understand.option.social": "Соцсети",
+  "progress.understand.chosen.social": "соцсетях",
+  "progress.understand.said.social": "Вы знаете {p}% слов в постах в соцсетях.",
+  "progress.understand.up.social": "Вы знаете {p}% слов в постах в соцсетях, {then} знали {q}%.",
+  "progress.understand.option.video": "Видео в интернете",
+  "progress.understand.chosen.video": "видео в интернете",
+  "progress.understand.said.video": "Вы знаете {p}% слов в видео в интернете.",
+  "progress.understand.up.video": "Вы знаете {p}% слов в видео в интернете, {then} знали {q}%.",
+  "progress.understand.option.podcasts": "Подкасты и радио",
+  "progress.understand.chosen.podcasts": "подкастах и радио",
+  "progress.understand.said.podcasts": "Вы знаете {p}% слов в подкастах и на радио.",
+  "progress.understand.up.podcasts": "Вы знаете {p}% слов в подкастах и на радио, {then} знали {q}%.",
+  "progress.understand.option.everyday": "Повседневная жизнь",
+  "progress.understand.chosen.everyday": "повседневной жизни",
+  "progress.understand.said.everyday": "Вы знаете {p}% слов повседневной жизни.",
+  "progress.understand.up.everyday": "Вы знаете {p}% слов повседневной жизни, {then} знали {q}%."
 }
