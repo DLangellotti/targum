@@ -86,10 +86,12 @@ def test_every_file_a_served_reader_names_is_warmed_by_a_desk_page(tmp_path: Pat
 
 
 def _get(
-    port: int, path: str, *, navigate: bool, kept: bool = True
+    port: int, path: str, *, navigate: bool, kept: bool = True, asked: str = ""
 ) -> tuple[int, dict[str, str], bytes]:
     headers = {"Accept": "text/html"} if navigate else {"Accept": "*/*"}
     headers["Sec-Fetch-Mode"] = "navigate" if navigate else "cors"
+    if asked:
+        headers["Range"] = asked
     if kept:
         headers["Cookie"] = f"{KEPT_COOKIE}={asset_set()}"
     connection = HTTPConnection("127.0.0.1", port, timeout=10)
@@ -158,6 +160,16 @@ def test_a_recording_rides_as_a_file_of_its_own(
     status, head, got = _get(port, f"{clip.group(1).decode()}?k={TOKEN}", navigate=False)
     assert status == 200 and got == sound
     assert head["content-type"] == "audio/mpeg"
+    assert head["cache-control"] == Handler.ASSET_CACHE
+    # Seekable: Chrome takes a seek into a recording only where the answer offers ranges.
+    # Sent whole without them, every line's play began at nought, so each turn of a scene
+    # said the first one (2026-11-01).
+    assert head["accept-ranges"] == "bytes"
+    status, head, got = _get(
+        port, f"{clip.group(1).decode()}?k={TOKEN}", navigate=False, asked="bytes=100-199"
+    )
+    assert status == 206 and got == sound[100:200]
+    assert head["content-range"] == f"bytes 100-199/{len(sound)}"
     assert head["cache-control"] == Handler.ASSET_CACHE
     for wrong in ("../x.mp3", "abc.mp3", "0" * 32 + ".exe", "0" * 32 + ".mp3"):
         assert _get(port, f"{CLIP_ROUTE}{wrong}?k={TOKEN}", navigate=False)[0] == 404, wrong
