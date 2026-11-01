@@ -33,7 +33,7 @@ import json
 import os
 import re
 from collections import Counter
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache
@@ -207,6 +207,21 @@ class Score:
                 known += n
             elif status == IGNORED:
                 ignored += n
+        scored = self.tokens - ignored
+        return known / scored if scored > 0 else None
+
+    def expected(self, p_known: Callable[[str], float | None]) -> float | None:
+        """The share of the page's running words this reader is estimated to know, each
+        lemma counted at `p_known` (`estimate.Estimate.p_known`; None is ignored, out of
+        the total). An unresolved word stays in as unknown, as in `coverage`."""
+        known = 0.0
+        ignored = 0
+        for lemma, n in self.bag.items():
+            chance = p_known(lemma)
+            if chance is None:
+                ignored += n
+            else:
+                known += n * chance
         scored = self.tokens - ignored
         return known / scored if scored > 0 else None
 

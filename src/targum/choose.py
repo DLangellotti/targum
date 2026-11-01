@@ -15,9 +15,11 @@ is never put ahead of one in the band.
 **Real before scenes.** The model-written scenes are beginner supply until real easy
 content fills the gap: where a real text and a scene both fit, the real one comes first.
 
-**What it is not, yet.** The share is the reader's marks only. The estimate of what an
-unmarked word is likely to be (Phase 1, targum-internal#613), medium bands and learning
-value (Phase 2) come later; each changes `key`, not its callers.
+**The share is an estimate** since 2026-11-01 (Phase 1, targum-internal#613; design.md
+§12, "The chooser estimates the words you have not marked"): the callers pass the share
+of running words the reader is estimated to know (`coverage.Index.expected`, from
+`estimate.py`), and pages still print the marked share. Medium bands and learning value
+(Phase 2) come later; each changes `key`, not its callers.
 """
 
 from __future__ import annotations

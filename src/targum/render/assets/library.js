@@ -110,13 +110,15 @@
      them — and not `difficulty`, which is a fact about the text alone. A reader asking
      "can I read this" is asking the first (design.md §12, 2026-09-17).
 
-     The cutoffs are David's, 2026-10-08, and the Library's shelves are drawn by them:
-     90% and up is Read it now, 75–90% is A stretch, and under that is Hard for now
-     (design.md §12, "The Library is shelved by how much you'd follow"). They were 85 and
-     65 while a band was a filter over one list; as the names of shelves they say what a
-     reader would find on opening one, and a text read at 80% is not read "now". */
+     The cutoffs were David's, 2026-10-08, over distinct forms: 90% and up Read it now,
+     75–90% A stretch, under that Hard for now (design.md §12, "The Library is shelved by
+     how much you'd follow"). Since 2026-11-01 the share is of running words, as Home and
+     Your Progress count it ("The Library's bands count running words"): Read it now is
+     the chooser's floor, 90% (`choose.FLOOR`), and A stretch goes down to 80%, about
+     where reading with help stops working; a text at 75% of its running words is a new
+     word in every four. */
   var COMFORTABLE = 90;
-  var WORKABLE = 75;
+  var WORKABLE = 80;
 
   /* The three shelves, in the order the page stands them, and the words each is called
      by. One band each: since the shelves (2026-10-09) a band is exactly itself, and See
@@ -1696,8 +1698,8 @@
 
   var BAND_NOTES = {
     now: t("library.band.now-note", "You know 90% or more of their words."),
-    stretch: t("library.band.stretch-note", "You know 75–90% of their words: a word to look up every line or two."),
-    hard: t("library.band.hard-note", "You know less than 75% of their words. The nearest come first."),
+    stretch: t("library.band.stretch-note", "You know 80–90% of their words: a word or two to look up on every line."),
+    hard: t("library.band.hard-note", "You know less than 80% of their words. The nearest come first."),
   };
 
   /* Hebrew's Start here shelf (design.md §12, "A Hebrew beginner's one card is their next
@@ -3061,11 +3063,11 @@
     }
 
     /* See all's head: "All Hebrew texts 720", or the band it was opened from with what
-       the band means ("A stretch [75–90%] known", board SubFromLibrary). */
+       the band means ("A stretch [80–90%] known", board SubFromLibrary). */
     var BAND_RANGES = {
       now: t("library.band.now-range", "90% known and up"),
-      stretch: t("library.band.stretch-range", "75–90% known"),
-      hard: t("library.band.hard-range", "under 75% known"),
+      stretch: t("library.band.stretch-range", "80–90% known"),
+      hard: t("library.band.hard-range", "under 80% known"),
     };
     function seeTitle(titleHost, count) {
       if (!titleHost) return;

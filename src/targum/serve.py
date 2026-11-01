@@ -8085,13 +8085,16 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             if language not in vocabulary:
                 vocabulary[language] = self.store.marked(person, language)
-            measured = coverage_module.against(home / name, vocabulary[language])
+            # Running words since 2026-11-01 (design.md §12, "The Library's bands count
+            # running words"), so a text says one number on Home, the Library and Progress.
+            measured = coverage_module.running_against(home / name, vocabulary[language])
             if measured is not None:
                 reader.update(measured.state())
 
     def _measure_catalogue(self) -> dict[str, dict[str, float | int]]:
         """How much of each *unbuilt* catalogue text the reader knows
-        (targum-internal#293).
+        (targum-internal#293), in running words where the index counted it (design.md
+        §12, "The Library's bands count running words", 2026-11-01), else distinct forms.
 
         The shelf's own promise — sorted by the words you already know — was true only of
         texts this reader had built, which for somebody who has just arrived is none of
@@ -8112,6 +8115,7 @@ class Handler(BaseHTTPRequestHandler):
         if not index.texts:
             return {}
         vocabulary: dict[str, dict[str, int]] = {}
+        statuses: dict[str, dict[int, int]] = {}
         out: dict[str, dict[str, float | int]] = {}
         for entry in catalogue_module.everything():
             if entry.id not in index.texts:
@@ -8119,7 +8123,11 @@ class Handler(BaseHTTPRequestHandler):
             language = entry.language
             if language not in vocabulary:
                 vocabulary[language] = self.store.marked(person, language)
-            measured = index.against(entry.id, vocabulary[language])
+            if language not in statuses:
+                statuses[language] = index.statuses(vocabulary[language])
+            measured = index.running(
+                entry.id, vocabulary[language], statuses[language]
+            ) or index.against(entry.id, vocabulary[language])
             if measured is not None:
                 out[entry.id] = measured.state()
         return out
@@ -11176,12 +11184,13 @@ class Handler(BaseHTTPRequestHandler):
             if scene is not None:
                 return self._json({"suggestion": scene, "library": True})
         if rows:
-            # Both shares, for the comparison the chooser changed on (targum-internal#612):
-            # a text and two numbers, and nobody's name.
+            # The shares, for the comparison the chooser changed on (targum-internal#612,
+            # #613): a text and three numbers, and nobody's name.
             log.info(
-                "suggest: %s fit=%s running=%s distinct=%s",
+                "suggest: %s fit=%s expected=%s running=%s distinct=%s",
                 rows[0].get("id"),
                 rows[0].get("fit"),
+                rows[0].get("expected_share"),
                 rows[0].get("running_share"),
                 rows[0].get("distinct_share", rows[0].get("known_share")),
             )
@@ -11886,7 +11895,7 @@ class Handler(BaseHTTPRequestHandler):
                     if language and language not in vocabulary:
                         vocabulary[language] = self.store.marked(person, language)
                     measured = (
-                        coverage_module.against(root / name, vocabulary[language])
+                        coverage_module.running_against(root / name, vocabulary[language])
                         if language
                         else None
                     )
@@ -14620,8 +14629,19 @@ class Handler(BaseHTTPRequestHandler):
         # Week one: no rung yet, and the words left to the first (design.md §12, "Your
         # level, v3"): the bar and "{n} words to א׳" on the Start card.
         answer["first"] = self._first_rung(found)
+        # Chosen as Home's card chooses, on the estimate of the words not marked
+        # (design.md §12, "The chooser estimates the words you have not marked",
+        # 2026-11-01); each row's figure is still the marked share.
+        from . import estimate as estimate_module
+
+        known = estimate_module.for_reader(self.store, person.id, language, found)
         answer["texts"] = touchstones.at_level(
-            entries, index, marked, language, ui_language=self._ui_language()
+            entries,
+            index,
+            marked,
+            language,
+            ui_language=self._ui_language(),
+            chances=known.chances(index) if index.counts else None,
         )
 
         # The words still being learned that they keep meeting, met the way the card
@@ -14696,10 +14716,14 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     built.pop(str(reader["entry"]), None)
 
+        statuses = index.statuses(marked) if index.counts else {}
+
         def known_of(entry_id: str) -> float | None:
             if entry_id in built:
                 return built[entry_id]
-            measured = index.against(entry_id, marked)
+            # Running words where counted, as `_measure_catalogue` reads it (design.md §12,
+            # "The Library's bands count running words", 2026-11-01).
+            measured = index.running(entry_id, marked, statuses) or index.against(entry_id, marked)
             # A text at 89.996% is on the shelf on both pages or neither.
             return float(measured.state()["known"]) if measured is not None else None
 

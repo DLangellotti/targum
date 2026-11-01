@@ -2490,13 +2490,13 @@ def test_my_shelf_answers_ten_and_counts_them_all(world, monkeypatch) -> None:
         built(home, f"extra-{n:02d}", f"test:extra-{n}", ["שלום"], f"Extra {n}")
     ctx = context(library, store, person, home)
     measured: list[str] = []
-    real = tools.coverage_module.against
+    real = tools.coverage_module.running_against
 
     def counting(folder, marked):  # type: ignore[no-untyped-def]
         measured.append(folder.name)
         return real(folder, marked)
 
-    monkeypatch.setattr(tools.coverage_module, "against", counting)
+    monkeypatch.setattr(tools.coverage_module, "running_against", counting)
     got = tools.search_my_shelf(ctx, {})
     assert got["count"] == 14 and len(got["texts"]) == tools.SHELF_LIMIT
     assert sorted(measured) == sorted(row["name"] for row in got["texts"]), "only those kept"
@@ -2620,13 +2620,13 @@ def test_a_text_is_measured_once_until_the_ledger_or_the_text_changes(world, mon
     tools.KEPT.clear()
     ctx = context(library, store, person, home)
     measured: list[str] = []
-    real = tools.coverage_module.against
+    real = tools.coverage_module.running_against
 
     def counting(folder, marked):  # type: ignore[no-untyped-def]
         measured.append(folder.name)
         return real(folder, marked)
 
-    monkeypatch.setattr(tools.coverage_module, "against", counting)
+    monkeypatch.setattr(tools.coverage_module, "running_against", counting)
     one = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]
     assert measured == ["ruth-he"] and one["known_share"] == pytest.approx(0.5)
     tools.search_my_shelf(ctx, {"query": "רות"})
@@ -2646,7 +2646,10 @@ def test_a_text_is_measured_once_until_the_ledger_or_the_text_changes(world, mon
     # A rebuilt text is counted again, with the ledger unchanged.
     measured.clear()
     (home / "ruth-he" / "annotation.json").write_text(
-        json.dumps({"tokens": {"0001.001-a": [{"lemma": "שלום", "pos": "NOUN"}, {"lemma": "x"}]}}),
+        json.dumps(
+            {"tokens": {"0001.001-a": [{"lemma": "שלום", "pos": "NOUN"}, {"lemma": "חדש"}]}},
+            ensure_ascii=False,
+        ),
         encoding="utf-8",
     )
     rebuilt = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]

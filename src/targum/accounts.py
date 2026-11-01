@@ -4495,6 +4495,40 @@ class Store:
         )
         return {row["lemma"]: row["status"] for row in rows if row["status"] is not None}
 
+    def knowledge(
+        self, person_id: int, language: str
+    ) -> tuple[list[tuple[str, int | None, str]], set[str], set[str]]:
+        """What the estimate of the words a reader has not marked is fitted on
+        (`estimate.for_reader`; targum-internal#613): their list as (lemma, status,
+        source), the words they looked up, and the words they met in a finished section.
+
+        The look-ups are the record of use's, so a box that keeps no record, or a reader
+        who switched it off, gives none; the meetings are kept with the word list."""
+        code = language.split("-")[0].lower()
+        words = [
+            (str(row["lemma"]), row["status"], str(row["source"] or ""))
+            for row in self.db.execute(
+                "SELECT lemma, status, source FROM word"
+                " WHERE person = ? AND language = ? AND gone = 0 ORDER BY lemma",
+                (int(person_id), code),
+            )
+        ]
+        looked_up = {
+            str(row["word"])
+            for row in self.db.execute(
+                "SELECT DISTINCT word FROM event"
+                " WHERE person = ? AND kind = 'lookup' AND language = ? AND word <> ''",
+                (int(person_id), code),
+            )
+        }
+        met = {
+            str(row["lemma"])
+            for row in self.db.execute(
+                "SELECT lemma FROM met WHERE person = ? AND language = ?", (int(person_id), code)
+            )
+        }
+        return words, looked_up, met
+
     def known_count(self, person: Person, language: str) -> int:
         """How many words this person knows in one language, as Your Progress's ledger
         counts them: names and numbers are not vocabulary (`level.NOT_VOCABULARY`), so

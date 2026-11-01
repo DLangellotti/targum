@@ -1023,8 +1023,9 @@ BANDED = {
 
 
 def test_the_library_is_shelved_by_how_much_you_would_follow(tmp_path: Path) -> None:
-    """design.md §12, 2026-10-09: Read it now (90% and up), A stretch (75–90%), Hard for
-    now — each band a shelf, with its own See all, said in the reader's own measure."""
+    """design.md §12, 2026-10-09: Read it now (90% and up), A stretch (80–90% of running
+    words since 2026-11-01), Hard for now — each band a shelf, with its own See all, said
+    in the reader's own measure."""
     drawn = browse(tmp_path, shelves=True, catalogueKnown=BANDED)
     assert drawn["shelving"] is True
     assert drawn["backShown"] is False

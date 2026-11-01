@@ -259,14 +259,15 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
     assert status == 200, said
     assert said["library"] is True and said["known"] == 1
-    # By distinct words, as the Library: d2 is all known, d1 half, a1 half; t1 is not
-    # indexed. A2 is easy on d2 alone, so A1 below it is easy too, with none to count.
+    # By running words, as the Library since 2026-11-01 ("The Library's bands count
+    # running words"): d2 is all known, d1 nine in ten, a1 one in ten; t1 is not indexed.
+    # So A1's one text, d1, is readable now, and A2 is easy on d2.
     assert said["ladder"][0] == {
         "kind": "A1",
         "name": "A1",
         "state": "easy",
         "texts": 1,
-        "readable": 0,
+        "readable": 1,
         # One word known, weighing 1.0 with no band, and nothing marked in the last 30
         # days: the next word is reckoned at the commonest band's 0.8, so (250 - 1) / 0.8
         # is 311.25, which is 312 words to aleph (design.md §12, "Your level, v3").
@@ -379,7 +380,9 @@ def test_each_ladder_count_is_its_library_shelf_count(
         Entry("a1", "he", "article", 17, "ידיעה", sentence=12),  # B1
         Entry("p1", "he", "poetry", 25, "שיר", sentence=20),  # Native: C1 by the ruler
     ]
-    known = [f"w{n}" for n in range(9)]
+    # Words of two letters and up: a one-letter form is a clitic, never a word, and is
+    # out of every running count (`touchstones.a_word`).
+    known = [f"w{chr(ord('a') + n)}" for n in range(9)]
     lemmas = tmp_path / "lemmas.json"
     write_index(
         lemmas,
@@ -388,12 +391,12 @@ def test_each_ladder_count_is_its_library_shelf_count(
                 # Every word known; nine in ten, on the line; eight in ten; all again.
                 "d1": {word: 1 for word in known},
                 "d2": {**{word: 1 for word in known}, "rare": 1},
-                "d3": {**{word: 1 for word in known[:8]}, "x": 1, "y": 1},
+                "d3": {**{word: 1 for word in known[:8]}, "xq": 1, "yq": 1},
                 "d4": {word: 1 for word in known[:4]},
                 "t1": {word: 1 for word in known},
-                "t2": {"w0": 1, "x": 1},
+                "t2": {"wa": 1, "xq": 1},
                 "a1": {**{word: 1 for word in known}, "rare": 1},
-                "p1": {"w0": 1, "x": 1, "y": 1},
+                "p1": {"wa": 1, "x": 1, "y": 1, "xq": 1, "yq": 1},
             }
         ),
     )
@@ -411,8 +414,9 @@ def test_each_ladder_count_is_its_library_shelf_count(
     assert status == 200, said
     counts = {rung["kind"]: rung["readable"] for rung in said["ladder"]}
     assert counts == {"A1": 2, "A2": 2, "B1": 1, "B2": 0, "C1": 0, "C2": 0, "past-C2": 0}
-    # p1's "w0" is on no frequency list and is not counted; "x" and "y" rank 3,231 and
-    # 7,019 in Hebrew's, so 85% of what is ranked needs 7,019 words, past dalet: C1.
+    # p1's "wa", "xq" and "yq" are on no frequency list and are not counted; "x" and "y"
+    # rank 3,231 and 7,019 in Hebrew's, so 85% of what is ranked needs 7,019 words, past
+    # dalet: C1.
     assert {rung["kind"]: rung["texts"] for rung in said["ladder"]}["C1"] == 1
 
     status, shelf_said, _ = call(port, "GET", f"/readers?k={token}", cookie=cookie)

@@ -442,6 +442,10 @@ class Marks:
     def marked(self, person: Any, language: str) -> dict[str, int]:
         return self.marked_words
 
+    def knowledge(self, person_id: int, language: str) -> Any:
+        """The same marks, as the estimate reads them (`estimate.for_reader`)."""
+        return [(lemma, status, "") for lemma, status in self.marked_words.items()], set(), set()
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self.inner, name)
 
@@ -451,6 +455,7 @@ def ctx_for(store: Store, marked: dict[str, int]) -> Any:
         level=replace(level_module.EMPTY, language="he"),
         store=Marks(store, marked),
         person=SimpleNamespace(id=1, email="r@example.com", admin=False),
+        person_id=1,
         admin=False,
         library=SimpleNamespace(allowance=lambda paid_plan=False: None),
     )
