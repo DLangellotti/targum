@@ -8701,6 +8701,7 @@ class Handler(BaseHTTPRequestHandler):
             faults=self.store.faults(),
             reader=one,
             finds=self._finds_survey(),
+            fit=self._fit_survey(),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -8715,6 +8716,21 @@ class Handler(BaseHTTPRequestHandler):
             return finds_pool.survey(db)
         finally:
             db.close()
+
+    def _fit_survey(self) -> list[Any]:
+        """Words looked up per hundred read against the estimate, pooled (targum-internal
+        #612, clause 3.7 as amended 2026-11-01): over the shared library's texts whose
+        licence lets them be redistributed, which no upload is among."""
+        from . import catalogue as catalogue_module
+        from .backoffice import fit_counts_store
+        from .licensing import exportable
+
+        documents: set[str] = set()
+        for row in self.library.readers(self.library.shared):
+            entry = catalogue_module.by_id(str(row.get("entry") or ""))
+            if entry is not None and row.get("document") and exportable(entry.licence):
+                documents.add(str(row["document"]))
+        return fit_counts_store(self.store.path, documents)
 
     def _open_the_door(self, form: dict[str, str]) -> None:
         """Let the next few off the waitlist in, from the back office's own form.

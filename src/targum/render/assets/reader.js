@@ -806,7 +806,19 @@ var targumReader = function () {
   function sectionRead() {
     if (outOfSight()) return;
     var words = wordsIn(0, pairs.length - 1);
-    if (words) happened({ kind: "section", amount: words, segment: sectionId });
+    if (!words) return;
+    var event = { kind: "section", amount: words, segment: sectionId };
+    // How much of it the reader was estimated to know when they first opened it, and the
+    // words they looked up in it (targum-internal#612, privacy notice clause 3.7 as
+    // amended 2026-11-01): what the pooled count of looking up against the estimate is
+    // drawn from. Said only where both were kept, so a section opened before either says
+    // neither.
+    var entry = footRead()[footKey()];
+    if (entry && typeof entry.share === "number" && !entry.tally) {
+      event.coverage = entry.share;
+      event.looked = Object.keys(entry.looked || {}).length;
+    }
+    happened(event);
   }
 
 
@@ -3523,7 +3535,45 @@ var targumReader = function () {
   //: automatic one on the next redraw would take it back.
   var finishedBySelf = false;
 
+  /* The share of this section's running words the reader knows, by their marks: every
+     word counted as often as it occurs, ignored words and names out. Null where nothing
+     is counted. The estimate the finished section is later counted against. */
+  function runningShare() {
+    var known = 0;
+    var counted = 0;
+    Object.keys(wordData).forEach(function (segmentId) {
+      (wordData[segmentId] || []).forEach(function (token) {
+        if (isName(token)) return;
+        var lemma = lemmas[token[4]];
+        if (!lemma) return;
+        var status = statusOf(lemma);
+        if (status === IGNORED) return;
+        counted += 1;
+        if (status === KNOWN) known += 1;
+      });
+    });
+    return counted ? Math.round((known / counted) * 10000) / 10000 : null;
+  }
+
+  /* Taken once, the first time the page is drawn on this section's first opening, and
+     kept beside the foot's other figures (targum-internal#612). */
+  var shareNoted = false;
+  function noteShare() {
+    if (shareNoted) return;
+    shareNoted = true;
+    try {
+      var foot = footRead();
+      var entry = foot[footKey()];
+      if (!entry || entry.tally || typeof entry.share === "number") return;
+      var share = runningShare();
+      if (share === null) return;
+      entry.share = share;
+      footWrite(foot);
+    } catch (e) {}
+  }
+
   function renderStats() {
+    noteShare();
     var counts = coverage();
     footDrawn = true;
     renderFoot();
