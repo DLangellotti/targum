@@ -1,7 +1,8 @@
 /* What a reader did in a text, handed to the account (targum-internal#127).
  *
  * A word looked up (which word, since 2026-09-28), a stretch of a recording played, a page turned, a section finished,
- * where a sitting stopped, a control pressed. "It is worthless retroactively", which is
+ * where a sitting stopped, a control pressed, and what became of a text Home's card
+ * suggested (since 2026-11-01). "It is worthless retroactively", which is
  * the whole argument for keeping it — and it is a record of a person, so most of this file
  * is about when it does nothing:
  *
@@ -106,6 +107,19 @@
       row.control = String(event.control || "");
       row.width = width();
       if (!row.control) return;
+    } else if (event.kind === "suggest") {
+      // What became of a text targum suggested (clause 3.6 as amended 2026-11-01): it
+      // names its own text, says shown, opened, finished or aside, where it came from,
+      // a find's pool id, and the share of its running words the reader was estimated
+      // to know. Nothing else: no segment, no amount.
+      row.at = Date.now();
+      row.document = String(event.document || "");
+      row.language = String(event.language || "");
+      row.act = String(event.act || "");
+      row.origin = String(event.origin || "");
+      if (typeof event.pool === "number") row.pool = event.pool;
+      if (typeof event.coverage === "number") row.coverage = event.coverage;
+      if (!row.document || !row.act) return;
     } else {
       row.at = Date.now();
       row.document = about.document;
@@ -116,6 +130,12 @@
       // Whether the text was on the screen while it played (clause 3.6, 2026-10-30):
       // only a stretch played says so, and it says yes or no, never nothing.
       if (event.kind === "play" && typeof event.text === "boolean") row.text = event.text;
+      // A finished section says how much of it the reader was estimated to know when
+      // they opened it, and the words looked up in it (clause 3.7 as amended 2026-11-01).
+      if (event.kind === "section") {
+        if (typeof event.coverage === "number") row.coverage = event.coverage;
+        if (typeof event.looked === "number") row.looked = event.looked;
+      }
       // A look-up names its word, in the language of the row it was met in: Onkelos
       // beside a Hebrew text is Aramaic (targum-internal#105). Nothing else names one.
       if (event.kind === "lookup" && event.word) {

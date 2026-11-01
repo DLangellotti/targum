@@ -762,6 +762,93 @@
 
   /* --- one to try next ------------------------------------------------------------------ */
 
+  /* What became of a suggestion (targum-internal#612; privacy notice clause 3.6 as amended
+     2026-11-01): shown, opened, finished, or set aside by Something else, with where it
+     came from, a find's pool id and the share of its running words the chooser estimated
+     the reader to know. Handed to `events.js`, which keeps nothing unless the box keeps
+     the record and the reader has it on. */
+  var SUGGEST_OPENED = "targum:suggest-opened";
+  var shownOnce = {};
+  var aboutSaid = false;
+  function suggestNote(act, row) {
+    var events = window.TargumEvents;
+    if (!events || !events.note || !row || !row.id) return;
+    if (!aboutSaid && events.about) {
+      // Home is no text: each suggestion names its own (`events.js`).
+      events.about({ document: "", language: "", address: keyed });
+      aboutSaid = true;
+    }
+    var event = {
+      kind: "suggest",
+      act: act,
+      document: String(row.id),
+      origin: row.origin === "find" || row.find ? "find" : "shelf",
+      language: String(row.language || ""),
+    };
+    if (event.origin === "find" && typeof row.find === "number") event.pool = row.find;
+    if (typeof row.running_share === "number") event.coverage = row.running_share;
+    events.note(event);
+  }
+  function suggestShown(row) {
+    var at = String(row.id);
+    if (shownOnce[at]) return;
+    shownOnce[at] = true;
+    suggestNote("shown", row);
+  }
+  /* Opened from the card: noted now, and remembered in this browser until it is finished
+     here, so the finish can be said too. Stored only as long as that takes. */
+  function suggestOpened(row, folder) {
+    // Said once: a find's build finishing comes back here only to remember its folder.
+    if (!folder) suggestNote("opened", row);
+    var opened = stored(SUGGEST_OPENED);
+    var was = opened[String(row.id)] || {};
+    opened[String(row.id)] = {
+      id: String(row.id),
+      origin: row.origin === "find" || row.find ? "find" : "shelf",
+      find: typeof row.find === "number" ? row.find : was.find,
+      running_share: typeof row.running_share === "number" ? row.running_share : was.running_share,
+      language: String(row.language || ""),
+      folder: folder || was.folder || "",
+      at: Date.now(),
+    };
+    keepSuggested(opened);
+  }
+  function keepSuggested(opened) {
+    try {
+      if (window.targumKeep) window.targumKeep(SUGGEST_OPENED, JSON.stringify(opened));
+      else localStorage.setItem(SUGGEST_OPENED, JSON.stringify(opened));
+    } catch (e) {}
+  }
+  //: A suggestion opened and never finished is forgotten after this long.
+  var SUGGEST_KEPT_MS = 60 * 24 * 60 * 60 * 1000;
+  /* The suggestions opened from the card that are now finished: a catalogue text by its
+     id, a find by the folder its build made. Each is said once and then forgotten. */
+  function suggestFinished(readers) {
+    var opened = stored(SUGGEST_OPENED);
+    var ids = Object.keys(opened);
+    if (!ids.length) return;
+    var docs = stored("targum:docs");
+    var done = { entries: {}, folders: {} };
+    (readers || []).forEach(function (reader) {
+      if (progress(reader, docs) < 1) return;
+      if (reader.entry) done.entries[String(reader.entry)] = true;
+      if (reader.name) done.folders[String(reader.name)] = true;
+    });
+    var changed = false;
+    ids.forEach(function (id) {
+      var was = opened[id] || {};
+      if (done.entries[id] || (was.folder && done.folders[was.folder])) {
+        suggestNote("finished", was);
+        delete opened[id];
+        changed = true;
+      } else if (Date.now() - Number(was.at || 0) > SUGGEST_KEPT_MS) {
+        delete opened[id];
+        changed = true;
+      }
+    });
+    if (changed) keepSuggested(opened);
+  }
+
   // What this reader has finished, by catalogue id, so it is not suggested again.
   function finished(readers) {
     var docs = stored("targum:docs");
@@ -848,6 +935,9 @@
       open = el("a", "try-open", t("home.try.open", "Open it"));
       // targum-internal#313: the press opens the text, not the library row.
       open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
+      open.addEventListener("click", function () {
+        suggestOpened(row);
+      });
     }
     var presses = el("div", "try-presses");
     presses.appendChild(open);
@@ -865,6 +955,7 @@
     what.appendChild(presses);
     host.appendChild(what);
     host.hidden = false;
+    suggestShown(row);
   }
 
   /* Open on a web find (targum-internal#619): a pasted link's press on a link targum
@@ -882,11 +973,14 @@
     askWith("/finds/" + encodeURIComponent(row.find) + "/open", {})
       .then(function (got) {
         if (got && got.pressed && got.id) {
+          suggestOpened(row);
           said.textContent = t("home.find.started", "We're getting it ready. You'll find it in Your targums.");
           if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
-          return waitForFind(got.id, said);
+          return waitForFind(got.id, said, row);
         }
         if (got && got.confirm) {
+          // Add takes over with the link: opened from the card, even if not yet built.
+          suggestOpened(row);
           window.location.href = keyed(got.confirm);
           return;
         }
@@ -897,12 +991,14 @@
         said.textContent = t("home.find.failed", "We couldn't open that one. Try again, or choose Something else.");
       });
   }
-  function waitForFind(id, said) {
+  function waitForFind(id, said, findRow) {
     var asked = 0;
     function again() {
       asked += 1;
       return ask("/job/" + encodeURIComponent(id)).then(function (job) {
         if (job && job.stage === "done" && job.reader) {
+          // The folder its build made, so its finish can be told on a later visit.
+          if (findRow) suggestOpened(findRow, String(job.reader).split("/")[0]);
           window.location.href = keyed(
             "/reader/" + String(job.reader).split("/").map(encodeURIComponent).join("/")
           );
@@ -928,6 +1024,7 @@
   function somethingElse(row, first) {
     var code = cardAsk.code;
     if (cardAsk.aside.indexOf(String(row.id)) < 0) cardAsk.aside.push(String(row.id));
+    suggestNote("aside", row);
     askWith("/suggest", { language: code, skip: cardAsk.skip.concat(cardAsk.aside), instead_of: row.id })
       .then(function (got) {
         if (code !== suggesting) return;
@@ -1038,6 +1135,7 @@
       if (reader.name) continuing.folders.push(String(reader.name));
     });
     var skip = finished(readers);
+    suggestFinished(readers);
     continuing.entries.forEach(function (entry) {
       if (skip.indexOf(entry) < 0) skip.push(entry);
     });
