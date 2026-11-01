@@ -5081,6 +5081,64 @@ def tables_snapshot(
             console.print(f"  {one.register}: v{one.version} {one.outcome}")
 
 
+@tables_app.command("news")
+def tables_news() -> None:
+    """Say what tonight's news count would take (targum-internal#582): the items the
+    followed Hebrew news feeds carry now, which are new, and how many words.
+
+    Pulls each feed once, as the server does every few minutes, and fetches no page.
+    Counts nothing and runs no model: the box counts at night inside the service, with
+    the DICTA it already holds, and this only reads.
+    """
+    from .chat import sources as sources_module
+    from .chat import tools as tools_module
+    from .tables import news as news_module
+    from .tables import no_models
+    from .tables import yardstick as yardstick_module
+    from .tables.registers import NEWS
+    from .tables.words import WORDS
+
+    store = _tables_store()
+    with no_models():
+        publishers = sources_module.load()
+        urls = [one.feed for one in publishers if one.feed and one.kind in news_module.KINDS]
+        pulled = tools_module.FEEDS.pull(urls, 60.0)
+        kept = {url: items for url, items in pulled.items() if items}
+        items = news_module.feed_items(kept, publishers)
+        done = store.current_units(WORDS, (item.unit for item in items))
+        fresh = [item for item in items if item.unit not in done]
+        night: list[news_module.FeedItem] = []
+        words = 0
+        for item in news_module.in_turn(fresh):
+            if len(night) >= news_module.NIGHT_ITEMS or (
+                night and words + item.words > news_module.NIGHT_WORDS
+            ):
+                break
+            night.append(item)
+            words += item.words
+        by_outlet: dict[str, list[int]] = {}
+        for item in items:
+            row = by_outlet.setdefault(item.outlet, [0, 0, 0, 0])
+            row[0] += 1
+            row[1] += item.words
+            if item.unit not in done:
+                row[2] += 1
+                row[3] += item.words
+        content = sum(n for _, n in store.top(WORDS, NEWS, limit=10**6))
+    console.print(f"{'outlet':<16}{'items':>7}{'words':>8}{'new':>6}{'new words':>11}")
+    for outlet, (n, w, new, new_words) in sorted(by_outlet.items()):
+        console.print(f"{outlet:<16}{n:>7}{w:>8}{new:>6}{new_words:>11}")
+    console.print(
+        f"Tonight would count {len(night)} of {len(fresh)} new items, {words:,} words"
+        f" (caps: {news_module.NIGHT_ITEMS} items, {news_module.NIGHT_WORDS:,} words)."
+    )
+    console.print(
+        f"News holds {store.total(WORDS, NEWS):,} words now,"
+        f" {content:,} of them content words; its first list needs"
+        f" {yardstick_module.FLOOR:,}."
+    )
+
+
 @tables_app.command("count-corpus")
 def tables_count_corpus(
     file: Annotated[Path, typer.Argument(help="The corpus: one sentence a line, UTF-8.")],

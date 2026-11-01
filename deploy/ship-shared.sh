@@ -30,6 +30,17 @@ AS_TARGUM="runuser -u targum --"
 
 [ "$#" -gt 0 ] || { echo "usage: ship-shared.sh <built-reader-folder> [folder…]" >&2; exit 1; }
 
+# A folder named with a trailing slash — which is what a shell's `*/` hands over — tells
+# rsync to copy what is inside it rather than the folder itself, so every book's
+# document.json, reader/ and the rest landed loose in the shared shelf's own directory.
+# The restart below then found a document.json there, took the whole shelf for a
+# pre-homes build, and moved it into local/ (`Library.adopt`): the shared shelf
+# was gone until it was moved back by hand (2026-11-01). So the slashes come off first.
+set -- "${@%/}"
+for folder in "$@"; do
+  [ -n "$folder" ] && [ "$folder" != "." ] || { echo "name each folder, not the directory they sit in" >&2; exit 1; }
+done
+
 # A folder without a rendered reader is a build that started and did not finish, and
 # `Library.readers` skips it — so it would arrive on the box and be invisible there,
 # which is worse than not arriving.

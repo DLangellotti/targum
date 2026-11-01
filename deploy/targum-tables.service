@@ -10,6 +10,10 @@
 # A reader's home is skipped, whatever it holds. Nothing is fetched and nothing is spent.
 # Run again, it counts only what is new, so a missed night costs nothing.
 #
+# News is not counted here (targum-internal#582): that needs DICTA, which this unit
+# refuses to load, so the service counts the feeds itself at 01:30 UTC with the copy it
+# already holds (`tables.news`), and the snapshot below takes those counts in.
+#
 # With TARGUM_IMPORT_COUNTS=1 in targum.env (David, 2026-11-01; off until the privacy
 # notice's sentence is live), the same run pools what readers brought into the `imports`
 # register: the homes of every account that has not turned counting off, read from

@@ -130,8 +130,13 @@ def default_annotator() -> Any:
     return Annotator(lemmatizer=for_source("corpus:he", language="he"))
 
 
-def tally(chunk: list[str], annotator: Any, unit: str) -> dict[str, Counter[tuple[str, str]]]:
-    """One chunk's counts, table by table. The sentences live only inside this call."""
+def tally(
+    chunk: list[str], annotator: Any, unit: str, *, floor: int = PHRASE_FLOOR
+) -> dict[str, Counter[tuple[str, str]]]:
+    """One chunk's counts, table by table. The sentences live only inside this call.
+
+    `floor` prunes the phrases; the news feeds (`tables.news`) pass 1, since one article
+    is a unit there and a floor of three would leave it no phrase at all."""
     from ..models import Segment, SegmentedDocument
 
     document = SegmentedDocument(
@@ -148,7 +153,7 @@ def tally(chunk: list[str], annotator: Any, unit: str) -> dict[str, Counter[tupl
         segment: [token.model_dump() for token in run] for segment, run in annotation.tokens.items()
     }
     counted = count(tokens)
-    phrases = Counter({key: n for key, n in counted[PHRASES].items() if n >= PHRASE_FLOOR})
+    phrases = Counter({key: n for key, n in counted[PHRASES].items() if n >= floor})
     return {WORDS: counted[WORDS], PHRASES: phrases, roots.ROOTS: roots.count(tokens, "he")}
 
 
