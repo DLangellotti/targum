@@ -1,0 +1,15 @@
+# /etc/systemd/system/targum-finds-youtube.timer — installed and enabled by deploy.sh.
+#
+# 01:00 UTC is 03:00 in Israel in winter (plan §3), clear of the tables sweep at 02:30
+# and before the backup at 04:00, which carries what it pooled.
+
+[Unit]
+Description=targum YouTube finds, nightly
+
+[Timer]
+OnCalendar=*-*-* 01:00:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

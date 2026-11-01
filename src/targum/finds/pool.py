@@ -11,7 +11,8 @@ It lives in `targum.db` as its own tables with an expiry, and nowhere else: not 
 from the public shelf alone.
 
 A row's `screen` is `kept`, or the reason it was dropped (`host`, `words`, `robots`,
-`closed`, `unreadable`, `short`, `same`). A dropped row keeps only its address, so the
+`closed`, `unreadable`, `short`, `same`; and for a video, `age`, `gate` and `subs`, no
+Hebrew track anybody wrote). A dropped row keeps only its address, so the
 next round does not fetch it again, and goes when it expires like any other; the back
 office counts the reasons.
 
@@ -98,7 +99,19 @@ CREATE INDEX IF NOT EXISTS find_run_source ON find_run (source, started);
 KEPT = "kept"
 
 #: Why a row was dropped, in the order the back office lists them.
-DROPS = ("host", "words", "robots", "closed", "unreadable", "short", "same", "budget")
+DROPS = (
+    "host",
+    "words",
+    "age",
+    "gate",
+    "subs",
+    "robots",
+    "closed",
+    "unreadable",
+    "short",
+    "same",
+    "budget",
+)
 
 #: How long a find stays, by where it came from (plan §1): a week of news, the YouTube
 #: API's thirty days, two months of the open web.

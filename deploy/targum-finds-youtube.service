@@ -1,0 +1,39 @@
+# /etc/systemd/system/targum-finds-youtube.service — installed by deploy.sh, started by
+# targum-finds-youtube.timer at 01:00 UTC (targum-internal#620, David 2026-10-31).
+#
+# The nightly round of YouTube finds: Hebrew videos with a Hebrew subtitle track somebody
+# wrote, found through YouTube's Data API (TARGUM_YOUTUBE_API_KEY, at most 3,000 of the
+# project's 10,000 daily units), their tracks fetched through the residential proxy
+# (TARGUM_YTDLP_PROXY, at most 120 a day, counted inside TARGUM_FINDS_BUDGET_USD),
+# screened, scored and pooled in targum.db as `video` finds. No track is kept: only the
+# counts. Each video is written as it is done, so a killed run keeps what it found.
+#
+# It does nothing until TARGUM_FINDS_YOUTUBE=1 is in targum.env: the timer runs every
+# night and the command says it is off.
+#
+#   systemctl start targum-finds-youtube      # one now, by hand
+#   journalctl -u targum-finds-youtube -n 20
+
+[Unit]
+Description=targum YouTube finds, nightly
+After=network-online.target targum.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# As targum, never as root: a root-owned targum.db or __pycache__ breaks the service.
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+WorkingDirectory=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum finds youtube --store /var/lib/targum/targum.db
+Nice=10
+MemoryHigh=400M
+MemoryMax=800M
+TimeoutStartSec=1h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum

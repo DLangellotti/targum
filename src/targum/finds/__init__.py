@@ -10,6 +10,8 @@ a pasted link targum found", 2026-10-31.
 - `screen` and `robots`: what keeps a find off Home, and what keeps targum's own fetches
   polite.
 - `news`: the hourly round over the feeds targum already follows.
+- `youtube`: the nightly round over YouTube (#620): Hebrew videos with a Hebrew track
+  somebody wrote, scored on that track, behind `TARGUM_FINDS_YOUTUBE`.
 - `provider`: the pool scored for one reader, as candidates for Read next.
 - `button`, `interests` and `live`: "Find me something" (#615): one pick for one reader,
   steered by topics, and a capped look on the web when the pool has nothing that fits.

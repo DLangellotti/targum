@@ -384,6 +384,40 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### YouTube finds are scored on the track somebody wrote — 2026-11-01
+
+David, 2026-10-31 (targum-internal#620, slice B of the web-discovery plan): targum may
+fetch YouTube subtitles nightly through the box's residential proxy, at most 120 videos a
+night, keeping hard news and dropping adult and graphic content. It adds a source to "A
+web find is a pasted link targum found" (2026-10-31) and changes no rail. Behind
+`TARGUM_FINDS_YOUTUBE` until David switches it on.
+
+- **Found by the Data API, one query a chip.** Each of the forty chips' fixed Hebrew
+  phrases, and four for easy Hebrew, searched with closed captions, Hebrew, Israel, safe
+  search strict and the last thirty days. A night spends at most 3,000 of the project's
+  10,000 daily units, so it asks about thirty queries and the next night starts where it
+  stopped. A video carries the chip that found it, so "Topic" finds it at once.
+- **Only a track somebody wrote.** The plan let an auto-caption track score too, flagged.
+  This slice takes only Hebrew tracks a person wrote: a find is offered on its words, and
+  YouTube's guess is not words anybody checked. A video whose only track is YouTube's own
+  is dropped, by the Data API's word before anything is fetched, or by yt-dlp's.
+- **Any licence.** A find is the reader's own reading, built when they press Watch as a
+  pasted link is, and never shelved.
+- **The gate comes before the proxy.** An age-restricted video, one not public, not
+  embeddable, live, blocked in Israel, under a minute or over thirty, said to be in
+  another language, or whose title or description the screen refuses, is dropped off the
+  Data API's answer, which costs nothing. The track's own words are screened again, and
+  yt-dlp's age limit of 18 drops a video too. Hard news stays.
+- **Only the track crosses the proxy**, never a picture or a sound, and the track is
+  read, scored and deleted: the pool keeps the counts. Each run is counted at about
+  1.5 MB at $1 a gigabyte and written on the round as it goes, inside the same $30 a
+  month as the other sources.
+- **The card is a video's.** It says Video, its minutes and the site, and its credits are
+  a credit a minute, which is what Watch will quote.
+- **Not counted into the language tables.** A find is not a public text: nothing of it
+  is on the shelf and its words are not kept. Counting finds into the `video` register
+  (David's note on #620, 2026-11-01) needs a decision of its own on what a pool count is.
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,
