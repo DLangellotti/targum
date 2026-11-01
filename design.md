@@ -428,11 +428,16 @@ never train" (2026-09-03) left open: a lemma and a count, never a sentence.
   the yardsticks' own rule: once the pool holds 50,000 counted content words it gets a
   monthly list (`registers.PICKER`), and until then it is absent, never 0%. It never
   opens the card while another list exists. This is built.
-- **It is not blended into conversation or news.** Those stay what their sources say
-  (OpenSubtitles, our feeds), so a figure on them keeps meaning the same thing. Once the
-  pool is over 200,000 words, a blend could be offered: conversation becomes the mean of
-  the two registers' rates, as `topics.weights` already blends, with readers' material
-  never more than half. That is David's call and is not built.
+- **Past 200,000 words it is blended into conversation and news** (David, 2026-11-01,
+  the same day). Below that, those two lists are their own sources alone, and their
+  digest does not move. From `yardstick.BLEND_FLOOR` up, each lemma's weight is its rate
+  in the register and its rate in the pool, mixed by the pool's share of the two
+  registers' content words together, never more than half (`BLEND_CAP`,
+  `yardstick.blend_share`). The register must still reach 50,000 words on its own
+  sources before it gets a list. Literature and the Bible are never blended. The list
+  records the share and the pool's size under `blend`, and the pool's provenance beside
+  its own. Like every list it changes only when the month turns, so a reader's line moves
+  by the blend once, at a snapshot.
 - **A reader who turns counting off leaves the pool that night but leaves a list at the
   month's turn**, since a list is a frozen snapshot (2026-10-30, question 4). The list
   holds shares of the commonest words, which were already ten readers deep, and the

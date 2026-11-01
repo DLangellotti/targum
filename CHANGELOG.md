@@ -674,6 +674,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   under Hear, linked to the new `/credits`, which is open to strangers and lists every
   speaker, licence and file. On Your Words the button's title says it. Coverage: 33% of
   the tables' top 5,000 lemmas, 66% of the top 1,000 and 94% of the top 100.
+- The conversation and news yardsticks take in what learners bring once the imports
+  pool passes 200,000 content words (David, 2026-11-01; design.md §12, "What learners
+  bring is counted in the tables, never kept"). Each lemma's weight mixes its rate in
+  the register with its rate in the pool, by the pool's share of the two, never more than
+  half (`yardstick.blend_share`). Below the floor a list and its digest are exactly as
+  before. Literature and the Bible are never blended. It reaches readers at the next
+  monthly snapshot.
 - What learners bring is counted in the language tables, behind a switch (David,
   2026-11-01; epic targum-internal#588; design.md §12, "What learners bring is counted in
   the tables, never kept"). With `TARGUM_IMPORT_COUNTS=1`, the nightly `targum tables
