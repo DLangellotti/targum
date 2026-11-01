@@ -721,7 +721,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   looked up in it (account schema 53). Both respect the record-of-use switch and Erase,
   and the account page says each in a line of its own. The back office's "Difficulty
   estimate" gives lookups per 100 words against the predicted new words per 100, by band,
-  pooled across at least ten readers, over redistributable library texts only.
+  pooled across at least ten readers, over redistributable library texts only. Clause
+  3.6 also names, for each finished section, the share estimated known when it was
+  opened and how many of its words were looked up (David, 2026-11-01). Russian:
+  `you.page.record-suggest` and `you.page.record-fit` approved by David, 2026-11-01.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and
