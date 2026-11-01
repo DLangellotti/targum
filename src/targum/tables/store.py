@@ -27,6 +27,7 @@ from pathlib import Path
 
 from .. import ledger as ledger_module
 from . import weights
+from .registers import IMPORTS
 
 #: The tables' own schema, independent of the ledger's and of `models.SCHEMA_VERSION`.
 TABLES_SCHEMA = 1
@@ -174,7 +175,12 @@ class Store:
         A contribution written before and since superseded — an annotator renamed back —
         is made current again rather than written twice, since its id says it counted
         exactly this.
+
+        Never the imports register: a contribution here names its unit, and a unit of a
+        reader's material is a way back to the reader. Only `replace_pool` writes that one.
         """
+        if contribution.register == IMPORTS:
+            raise ValueError("the imports register is written by tables.imports.pool alone")
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
@@ -214,6 +220,66 @@ class Store:
                 [(contribution.id, key, variant, n) for (key, variant), n in counts.items()],
             )
         return True
+
+    def replace_pool(
+        self,
+        made: Iterable[Contribution],
+        counts: Mapping[str, Mapping[tuple[str, str], int]],
+    ) -> int:
+        """Put the night's imports pool in place of every row the imports register held,
+        in one transaction. Returns the tally rows written.
+
+        The one writer that deletes. Everywhere else a count is superseded and kept, to
+        compare annotators by; here the old rows would be last night's pool beside
+        tonight's, and the difference between two nights is what one reader who stopped
+        being counted had brought. So nothing of an earlier pool stays: an opted-out
+        reader's material is gone from the file, not marked as gone. `counts` is keyed by
+        each contribution's table.
+        """
+        made = list(made)
+        if any(one.register != IMPORTS for one in made):
+            raise ValueError("replace_pool writes the imports register and nothing else")
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
+        rows = 0
+        with closing(self._connect()) as db, db:
+            # The pages the old pool sat on are overwritten, not only unlinked, so the
+            # file holds no copy of it either (SQLite otherwise leaves freed pages as
+            # they were until they are reused).
+            db.execute("PRAGMA secure_delete = ON")
+            db.execute("BEGIN IMMEDIATE")
+            _drop_register(db, IMPORTS)
+            for one in made:
+                db.execute(
+                    "INSERT INTO contribution (id, tbl, register, unit, source, licence, tool,"
+                    " origin, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        one.id,
+                        one.table,
+                        one.register,
+                        one.unit,
+                        one.source,
+                        one.licence,
+                        one.tool,
+                        self.origin(),
+                        stamp,
+                    ),
+                )
+                tallies = counts.get(one.table, {})
+                db.executemany(
+                    "INSERT INTO tally (contribution_id, key, variant, n) VALUES (?, ?, ?, ?)",
+                    [(one.id, key, variant, n) for (key, variant), n in tallies.items()],
+                )
+                rows += len(tallies)
+        return rows
+
+    def clear_pool(self) -> bool:
+        """Delete the imports pool, every row of it. True when there was one."""
+        if not self.file.is_file():
+            return False
+        with closing(self._connect()) as db, db:
+            db.execute("PRAGMA secure_delete = ON")
+            db.execute("BEGIN IMMEDIATE")
+            return _drop_register(db, IMPORTS) > 0
 
     def counted(self, contribution: str) -> dict[str, int]:
         """What one contribution counted, key by key over its variants."""
@@ -306,7 +372,8 @@ class Store:
         with its tallies: what `targum tables push` carries to the box.
 
         A line holds lemmas and counts, never a sentence and never a reader, because a
-        contribution never held more (`tables.public_text`).
+        contribution never held more (`tables.public_text`). The imports pool is never
+        carried: it is the box's, made from the box's readers, and remade every night.
         """
         if not self.file.is_file():
             return
@@ -314,8 +381,9 @@ class Store:
             ids = [
                 row[0]
                 for row in db.execute(
-                    "SELECT id FROM contribution WHERE origin = ? ORDER BY written_at, id",
-                    (origin,),
+                    "SELECT id FROM contribution WHERE origin = ? AND register != ?"
+                    " ORDER BY written_at, id",
+                    (origin, IMPORTS),
                 )
             ]
             for one in ids:
@@ -342,7 +410,8 @@ class Store:
         current row supersedes this ledger's current count for the same (table, unit) when
         it is the newer of the two; when this ledger's is newer, the laptop's goes in as
         history, so the two can still be compared and nothing counts twice. Only rows the
-        laptop wrote are taken, and none for a unit this ledger holds as a private text.
+        laptop wrote are taken, none for a unit this ledger holds as a private text, and
+        none in the imports register, which only this ledger's own pool writes.
         Each contribution is its own transaction, so the server's writes never wait long.
         """
         result = ImportResult()
@@ -356,7 +425,11 @@ class Store:
                     result.refused += 1
                     continue
                 row, tallies = parsed
-                if row["origin"] != "laptop" or book.is_private(str(row["unit"])):
+                if (
+                    row["origin"] != "laptop"
+                    or row["register"] == IMPORTS
+                    or book.is_private(str(row["unit"]))
+                ):
                     result.refused += 1
                     continue
                 outcome = _take(db, row, tallies)
@@ -367,6 +440,16 @@ class Store:
                 else:
                     result.unchanged += 1
         return result
+
+
+def _drop_register(db: sqlite3.Connection, register: str) -> int:
+    """Delete every contribution of one register, current or not, and its tallies."""
+    db.execute(
+        "DELETE FROM tally WHERE contribution_id IN"
+        " (SELECT id FROM contribution WHERE register = ?)",
+        (register,),
+    )
+    return int(db.execute("DELETE FROM contribution WHERE register = ?", (register,)).rowcount)
 
 
 def _parse(raw: str) -> tuple[dict[str, str | None], list[tuple[str, str, int]]] | None:
