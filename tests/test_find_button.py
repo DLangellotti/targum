@@ -134,21 +134,26 @@ def test_nothing_in_the_band_does_not_fit(store: Store) -> None:
 
 
 def test_the_query_is_topic_words_language_and_level_and_nothing_else() -> None:
-    said = live.query(("cooking", "football"), "he", 1)
+    said = live.queries(("cooking", "football"), "he", 1)
     allowed = {
         *live.TOPIC_WORDS["he"].values(),
         *(chip.phrases["he"] for chip in chips.CHIPS),
         *(words for _, words in live.LEVEL_WORDS["he"]),
-        live.KIND_WORDS["he"],
-        "או",
     }
-    pieces = set(said.split())
+    pieces = {word for one in said for word in one.split()}
     assert pieces <= {word for phrase in allowed for word in phrase.split()}
-    assert said == "כתבה על מתכונים ובישול או כדורגל בעברית קלה"
-    assert live.query(("law",), "he", 5) == "כתבה על משפט ופשיעה", "a lexicon topic liked"
-    assert "בעברית קלה" not in live.query(("food",), "he", 5), "a level past the easy rungs"
-    assert live.query((), "he", None) == "כתבה על חיי היומיום בעברית קלה"
-    assert live.query(("food",), "ru", 1) == "", "no words for the language, no look"
+    # One topic to a query, never joined with "או", and no "כתבה על" (ling-he, 2026-11-01).
+    assert said == ("מתכונים ובישול בעברית קלה", "כדורגל בעברית קלה")
+    assert len(said) <= live.MAX_USES, "two topics, two searches, inside the cap"
+    assert live.queries(("cooking", "football", "army"), "he", 1)[1:] == ("כדורגל בעברית קלה",)
+    assert live.queries(("law",), "he", 5) == ("פלילים ומשפט",), "a lexicon topic liked"
+    assert live.queries(("army",), "he", 5) == ("צבא ושירות צבאי",), "ling-he's phrase"
+    # Easy Hebrew at aleph, aleph plus and bet (rungs 0-2), never past bet.
+    assert live.queries(("food",), "he", 0) == ("אוכל ומסעדות בעברית קלה",)
+    assert live.queries(("food",), "he", 2) == ("אוכל ומסעדות בעברית קלה",)
+    assert live.queries(("food",), "he", 3) == ("אוכל ומסעדות",), "bet plus is past bet"
+    assert live.queries((), "he", None) == ("חיי היומיום בעברית קלה",)
+    assert live.queries(("food",), "ru", 1) == (), "no words for the language, no look"
 
 
 class Client:
@@ -176,28 +181,32 @@ class Client:
 
 def test_the_search_is_sent_the_query_alone_and_says_what_it_cost() -> None:
     client = Client([{"url": "https://blog.example/a", "title": "שקשוקה"}])
-    got = live.search(client, "כתבה על מתכונים ובישול", "he")
+    got = live.search(client, ("מתכונים ובישול",), "he")
     assert got.results == [live.Result("https://blog.example/a", "שקשוקה")]
     assert got.searches == 1
     assert got.cost == pytest.approx(20_000 * 2 / 1e6 + 50 * 10 / 1e6 + 0.01)
     sent = client.sent[0]
-    assert sent["messages"] == [{"role": "user", "content": "Query: כתבה על מתכונים ובישול"}]
+    assert sent["messages"] == [{"role": "user", "content": "Query: מתכונים ובישול"}]
     tool = sent["tools"][0]
     assert tool["type"] == live.TOOL and "user_location" not in tool
     assert "pornhub.com" in tool["blocked_domains"]
     assert "@" not in json.dumps(sent, ensure_ascii=False), "no address, no account"
+    live.search(client, ("מתכונים ובישול", "כדורגל"), "he")
+    two = client.sent[1]
+    assert two["messages"] == [{"role": "user", "content": "Queries:\nמתכונים ובישול\nכדורגל"}]
+    assert two["tools"][0]["max_uses"] == live.MAX_USES == 2, "one search a topic"
 
 
 def test_a_look_is_off_until_both_switches_say_so_and_then_capped(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    asked = live.query(("food",), "he", 1)
+    asked = live.queries(("food",), "he", 1)
     assert live.refused(store, 1, asked) == "off"
     monkeypatch.setenv(button.FLAG, "1")
     assert live.refused(store, 1, asked) == "off", "the button alone does not search"
     monkeypatch.setenv(live.FLAG, "1")
     assert live.refused(store, 1, asked) == ""
-    assert live.refused(store, 1, "") == "language"
+    assert live.refused(store, 1, ()) == "language"
     for _ in range(live.READER_DAY_MOST):
         live._count_reader(1, pool.now_ms())
     assert live.refused(store, 1, asked) == "reader"
@@ -206,11 +215,14 @@ def test_a_look_is_off_until_both_switches_say_so_and_then_capped(
     assert live.refused(store, 2, asked) == "budget"
     monkeypatch.setenv(pool.BUDGET_ENV, "30")
     run = pool.start_run(store, live.RUN_SOURCE)
-    pool.finish_run(store, run, note={"query": asked})
+    pool.finish_run(store, run, note={"queries": list(asked)})
     assert live.refused(store, 2, asked) == "lately", "its pages are in the pool already"
+    both = live.queries(("food", "football"), "he", 1)
+    assert live.refused(store, 2, both) == "", "one of the two is new"
+    assert live.unrun(store, both) == both[1:], "only the new one is bought"
     for _ in range(live.BOX_DAY_MOST):
         pool.start_run(store, live.RUN_SOURCE)
-    assert live.refused(store, 2, live.query(("law",), "he", 1)) == "box"
+    assert live.refused(store, 2, live.queries(("law",), "he", 1)) == "box"
 
 
 PAGE = " ".join(["עגבנייה"] * 3 + ["ביצה"] * 3 + [G1] * 89 + [G2] * 5)
@@ -238,7 +250,7 @@ class Door:
 
 
 def look_with(store: Store, results: list[str], door: Door) -> tuple[live.Look, list[int]]:
-    look = live.Look(id="x", person=1, language="he", asked="כתבה על מתכונים ובישול")
+    look = live.Look(id="x", person=1, language="he", asked=("מתכונים ובישול",))
     searched = live.Searched(
         results=[live.Result(url, "שקשוקה") for url in results], searches=1, cost=0.05
     )
@@ -276,7 +288,7 @@ def test_a_look_pools_what_passes_the_round_s_own_screens_and_targum_pays(store:
     ).fetchone()
     assert run["source"] == "live" and run["spent"] == pytest.approx(0.05)
     assert json.loads(run["dropped"]) == {"host": 1, "robots": 1, "short": 1, "unreadable": 1}
-    assert json.loads(run["note"])["query"] == "כתבה על מתכונים ובישול"
+    assert json.loads(run["note"])["queries"] == ["מתכונים ובישול"]
     assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0, "never a job row"
     columns = {row[1] for row in store.db.execute("PRAGMA table_info(find_run)")}
     assert not columns & {"person", "reader", "owner"}, "no record of who looked"
@@ -407,7 +419,7 @@ def test_a_chip_the_lexicon_lacks_matches_only_what_a_look_brought_for_it(store:
 def test_a_look_tags_what_it_pools_and_what_the_pool_already_held(store: Store) -> None:
     held = keep(store, "https://news.example/held", FOOD, topics=("world",))
     look = live.Look(
-        id="y", person=1, language="he", asked="כתבה על כדורגל", tags=(chips.tag("football"),)
+        id="y", person=1, language="he", asked=("כדורגל",), tags=(chips.tag("football"),)
     )
     searched = live.Searched(
         results=[
@@ -433,10 +445,10 @@ def test_a_look_tags_what_it_pools_and_what_the_pool_already_held(store: Store) 
 
 
 def test_stop_during_the_search_fetches_no_page_and_offers_nothing(store: Store) -> None:
-    look = live.Look(id="z", person=1, language="he", asked="כתבה על כדורגל")
+    look = live.Look(id="z", person=1, language="he", asked=("כדורגל",))
     door = Door({"https://b.example/a": PAGE})
 
-    def ask(asked: str, language: str) -> live.Searched:
+    def ask(asked: tuple[str, ...], language: str) -> live.Searched:
         look.stopped = True  # the reader pressed Stop while the search ran
         return live.Searched(results=[live.Result("https://b.example/a", "")], cost=0.05)
 
@@ -458,7 +470,7 @@ def test_stop_during_the_search_fetches_no_page_and_offers_nothing(store: Store)
 def test_looks_stop_only_for_the_reader_who_started_them(store: Store) -> None:
     looks = live.Looks()
     look = looks.start(
-        store, 1, "he", "q", lambda: [], ask=lambda q, lang: live.Searched(), wait=False
+        store, 1, "he", ("q",), lambda: [], ask=lambda q, lang: live.Searched(), wait=False
     )
     assert looks.stop(look.id, 2) is None
     stopped = looks.stop(look.id, 1)
@@ -473,7 +485,7 @@ def test_stop_and_the_looks_left_are_answered_by_post_find(
 ) -> None:
     cookie = sign_in(home.port, home.postbox)
     monkeypatch.setenv(live.FLAG, "1")
-    held = live.Look(id="held", person=0, language="he", asked="q", stage="reading")
+    held = live.Look(id="held", person=0, language="he", asked=("q",), stage="reading")
     person = home.store.person_by_email("reader@example.com")
     assert person is not None
     held.person = person.id

@@ -10,8 +10,11 @@ so the next reader who wants the same thing gets it at once and for nothing.
 
 **What the query says.** Topic words, a language and a level, all written by targum
 (`TOPIC_WORDS`, `LEVEL_WORDS`): nothing the reader typed, no title they read, no word from
-their list, no account. The model is told to run that query and is shown nothing else.
-The results come back as the API's own result blocks; the model writes nothing we use.
+their list, no account. One topic to a query (ling-he, 2026-11-01: "או" is not an
+operator, and two topics in one query blur both), so a look for two topics runs two
+queries, one search each, inside the same `MAX_USES`. The model is told to run those
+queries and is shown nothing else. The results come back as the API's own result blocks;
+the model writes nothing we use.
 
 **Who pays.** targum, inside the discovery budget (`pool.left`, `TARGUM_FINDS_BUDGET_USD`)
 and written on the run's own row as it is spent (`pool.spend`), never a reader's credits
@@ -61,7 +64,8 @@ FLAG = "TARGUM_FIND_LIVE"
 #: already prices (`translate.anthropic_provider.PRICES`) that takes the current tool.
 MODEL = "claude-sonnet-5"
 TOOL = "web_search_20260209"
-#: Searches one look may run: the query, and one retry where it found nothing.
+#: Searches one look may run: one query per topic, at most two topics, and where there is
+#: only one, one retry where it found nothing.
 MAX_USES = 2
 MAX_TOKENS = 1024
 
@@ -104,17 +108,17 @@ TOPIC_WORDS: dict[str, dict[str, str]] = {
     "he": {
         "everyday": "חיי היומיום",
         "family": "משפחה והורות",
-        "people": "אנשים ורגשות",
+        "people": "פסיכולוגיה ויחסים בין אנשים",
         "food": "מתכונים ובישול",
-        "money": "כסף וצרכנות",
+        "money": "כלכלה אישית וצרכנות",
         "travel": "טיולים ותחבורה",
         "work": "עבודה וקריירה",
         "school": "לימודים ובית ספר",
-        "health": "בריאות וגוף",
+        "health": "בריאות ורפואה",
         "culture": "תרבות ופנאי",
         "nature": "טבע ומזג אוויר",
         "politics": "פוליטיקה וממשל",
-        "law": "משפט ופשיעה",
+        "law": "פלילים ומשפט",
         "security": "צבא וביטחון",
         "science": "מדע וטכנולוגיה",
         "religion": "דת ומסורת",
@@ -122,43 +126,47 @@ TOPIC_WORDS: dict[str, dict[str, str]] = {
 }
 
 #: What a level adds to the query, by rung index on the language's ladder: an easy page
-#: for the lower rungs, nothing for the rest.
+#: for the lower rungs, nothing for the rest. In Hebrew "בעברית קלה" is what learner and
+#: olim pages call themselves, so it finds ulpan-style pages: right at aleph to bet
+#: (rungs 0–2), where native press is out of reach, and never past bet (ling-he,
+#: 2026-11-01).
 LEVEL_WORDS: dict[str, tuple[tuple[int, str], ...]] = {
     "he": ((2, "בעברית קלה"), (99, "")),
 }
 
-#: What every query starts with: a page to read, not a shop or a video.
-KIND_WORDS: dict[str, str] = {"he": "כתבה על"}
+# No kind word leads the query. "כתבה על" was dropped (ling-he, 2026-11-01): the engine
+# matches "כתבה" as a keyword, a press piece, which pulls news sites over the recipes,
+# blogs and sketches the chips ask for. A look only ever reads pages; were it to look
+# for videos, ling-he's word for that is "סרטונים".
 
 #: The topic searched where the reader skipped the chips and their reading said nothing.
 ANY_TOPIC = "everyday"
 
 
-def query(topics: Sequence[str], language: str, rung: int | None) -> str:
-    """The words sent to the search: topic words, the language's own phrasing, the level.
-    `topics` are chip codes (`chips.CHIPS`, each with its fixed phrase) or lexicon topics
-    (`TOPIC_WORDS`). Built from constants alone, so it cannot carry anything of a
-    reader's. Empty for a language with no words here."""
+def queries(topics: Sequence[str], language: str, rung: int | None) -> tuple[str, ...]:
+    """The queries sent to the search, one per topic and at most `MAX_USES`, the first
+    topics first: each a topic's words and the level's. `topics` are chip codes
+    (`chips.CHIPS`, each with its fixed phrase) or lexicon topics (`TOPIC_WORDS`). Built
+    from constants alone, so they cannot carry anything of a reader's. Empty for a
+    language with no words here."""
     from . import chips
 
     code = score_module.code(language)
     words = TOPIC_WORDS.get(code)
     if not words:
-        return ""
+        return ()
     named = [
         chips.phrase(one, code) or words.get(one, "")
         for one in topics
         if chips.phrase(one, code) or one in words
-    ][:2] or [words[ANY_TOPIC]]
+    ]
+    named = list(dict.fromkeys(named))[:MAX_USES] or [words[ANY_TOPIC]]
     level = ""
     for top, said in LEVEL_WORDS.get(code, ()):
         if rung is None or rung <= top:
             level = said
             break
-    parts = [KIND_WORDS.get(code, ""), " או ".join(named) if code == "he" else ", ".join(named)]
-    if level:
-        parts.append(level)
-    return " ".join(part for part in parts if part)
+    return tuple(" ".join(part for part in (one, level) if part) for one in named)
 
 
 # -- caps ---------------------------------------------------------------------------
@@ -201,7 +209,8 @@ def box_looks(store: Store, at: int | None = None) -> int:
 
 
 def ran_lately(store: Store, asked: str, at: int | None = None) -> bool:
-    """Whether this exact query was run inside `QUERY_KEEP_MS`."""
+    """Whether this exact query was run inside `QUERY_KEEP_MS`. A run's note names its
+    `queries`; one made before a look took two, its one `query`."""
     when = pool.now_ms() if at is None else at
     for (note,) in store.db.execute(
         "SELECT note FROM find_run WHERE source = ? AND started > ?",
@@ -211,15 +220,23 @@ def ran_lately(store: Store, asked: str, at: int | None = None) -> bool:
             said = json.loads(note or "{}")
         except ValueError:
             continue
-        if isinstance(said, dict) and said.get("query") == asked:
+        if not isinstance(said, dict):
+            continue
+        ran = said.get("queries")
+        if said.get("query") == asked or (isinstance(ran, list) and asked in ran):
             return True
     return False
 
 
-def refused(store: Store, person: int, asked: str, at: int | None = None) -> str:
+def unrun(store: Store, asked: Sequence[str], at: int | None = None) -> tuple[str, ...]:
+    """The queries not run inside `QUERY_KEEP_MS`: the others' pages are in the pool."""
+    return tuple(one for one in asked if not ran_lately(store, one, at))
+
+
+def refused(store: Store, person: int, asked: Sequence[str], at: int | None = None) -> str:
     """Why a look may not start now, or "": `off`, `language` (no words for it), `reader`
-    (this reader's day), `box` (the box's day), `budget` (the month), `lately` (the same
-    query ran inside a day, and its pages are already in the pool)."""
+    (this reader's day), `box` (the box's day), `budget` (the month), `lately` (every
+    query ran inside a day, and their pages are already in the pool)."""
     if not on():
         return "off"
     if not asked:
@@ -231,7 +248,7 @@ def refused(store: Store, person: int, asked: str, at: int | None = None) -> str
         return "box"
     if pool.left(store, when) < WORST_USD:
         return "budget"
-    if ran_lately(store, asked, when):
+    if not unrun(store, asked, when):
         return "lately"
     return ""
 
@@ -239,10 +256,11 @@ def refused(store: Store, person: int, asked: str, at: int | None = None) -> str
 # -- the search ---------------------------------------------------------------------
 
 SYSTEM = (
-    "You run one web search for targum, a reading app for language learners, and say "
-    "nothing else. Search with exactly the query you are given. Only if it returns "
-    "nothing written in {language}, search once more with the same words shortened. Then "
-    "answer with the single word: done."
+    "You run web searches for targum, a reading app for language learners, and say "
+    "nothing else. Search once with each query you are given, exactly as written. Only "
+    "if you were given a single query and it returns nothing written in {language}, "
+    "search once more with the same words shortened. Then answer with the single word: "
+    "done."
 )
 
 LANGUAGE_NAMES = {"he": "Hebrew"}
@@ -276,15 +294,22 @@ def price(model: str, input_tokens: int, output_tokens: int, searches: int) -> f
     return input_tokens * in_price / 1e6 + output_tokens * out_price / 1e6 + searches * SEARCH_PRICE
 
 
-def search(client: Any, asked: str, language: str) -> Searched:
-    """One look: the query to the API's web search, and the pages it returned, with what
-    the call cost. Raises what the client raises."""
+def said(asked: Sequence[str]) -> str:
+    """What the model is shown: the queries, one to a line, and nothing else."""
+    if len(asked) == 1:
+        return f"Query: {asked[0]}"
+    return "Queries:\n" + "\n".join(asked)
+
+
+def search(client: Any, asked: Sequence[str], language: str) -> Searched:
+    """One look: the queries to the API's web search, and the pages they returned, with
+    what the call cost. Raises what the client raises."""
     code = score_module.code(language)
     reply = client.messages.create(
         model=MODEL,
         max_tokens=MAX_TOKENS,
         system=SYSTEM.format(language=LANGUAGE_NAMES.get(code, code)),
-        messages=[{"role": "user", "content": f"Query: {asked}"}],
+        messages=[{"role": "user", "content": said(asked[:MAX_USES])}],
         tools=[
             {
                 "type": TOOL,
@@ -339,7 +364,8 @@ class Look:
     id: str
     person: int
     language: str
-    asked: str
+    #: The queries it runs, one per topic (`queries`).
+    asked: tuple[str, ...]
     #: What the pages it pools carry in their `topics`: the chips it was made for.
     tags: tuple[str, ...] = ()
     #: `searching`, `reading`, `checking`, then `done` or `failed`.
@@ -370,7 +396,7 @@ def top_up(
     store: Store,
     look: Look,
     *,
-    ask: Callable[[str, str], Searched],
+    ask: Callable[[tuple[str, ...], str], Searched],
     read: Callable[..., tuple[str, float]] = news.article,
     robots: Robots = ROBOTS,
     forms_for: Callable[[str], score_module.Forms | None] = score_module.load,
@@ -380,11 +406,13 @@ def top_up(
     when = pool.now_ms() if at is None else at
     code = score_module.code(look.language)
     forms = forms_for(code) if code in score_module.POOLED else None
+    # A query run inside the day is not bought again: its pages are in the pool.
+    asked = unrun(store, look.asked, when) or tuple(look.asked)
     run = pool.start_run(store, RUN_SOURCE, when)
     found = news.Round()
-    note: dict[str, Any] = {"query": look.asked}
+    note: dict[str, Any] = {"queries": list(asked)}
     try:
-        searched = ask(look.asked, code)
+        searched = ask(asked, code)
         pool.spend(store, run, searched.cost)
         found.spent += searched.cost
         look.spent += searched.cost
@@ -560,10 +588,10 @@ class Looks:
         store: Store,
         person: int,
         language: str,
-        asked: str,
+        asked: Sequence[str],
         choose: Callable[[], Sequence[dict[str, Any]]],
         *,
-        ask: Callable[[str, str], Searched] | None = None,
+        ask: Callable[[tuple[str, ...], str], Searched] | None = None,
         clock: Callable[[], float] | None = None,
         wait: bool = False,
         tags: Sequence[str] = (),
@@ -579,7 +607,7 @@ class Looks:
             id=secrets.token_hex(8),
             person=person,
             language=language,
-            asked=asked,
+            asked=tuple(asked),
             tags=tuple(tags),
             started=now,
         )
