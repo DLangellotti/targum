@@ -755,6 +755,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   3.6 also names, for each finished section, the share estimated known when it was
   opened and how many of its words were looked up (David, 2026-11-01). Russian:
   `you.page.record-suggest` and `you.page.record-fit` approved by David, 2026-11-01.
+- News is counted into the language tables every night from the feeds themselves (David,
+  2026-10-30 and 2026-11-01; targum-internal#582, epic #588), so the news yardstick can
+  reach its 50,000-word floor and the picker can offer it. At 01:30 UTC the service reads
+  the items it already keeps warm for `search_sources` from the Hebrew news feeds
+  `sources.json` lists: the feed's full text where it has one, otherwise the title and
+  summary. It fetches no page and reads with its own DICTA, one item per call, so no
+  second model loads (`tables.news`, started by `serve.start`). Each item is counted once,
+  as its own unit, a hash of its address, with the outlet as source and its licence
+  marked "counts only". No text or title is kept or logged. A night takes at most 20,000
+  words or 400 items, outlet by outlet, newest first, and logs the process's memory and
+  its high-water mark. `targum tables snapshot` already writes a register's first list on
+  the night the register crosses the floor, and design.md §12 records why that stays.
+  `targum tables news` shows, without counting, what tonight's round would take. No spend.
 - The language tables, slice 1 (targum-internal#577): `src/targum/tables/`, kept in the
   corpus ledger (`TARGUM_LEDGER`) under `meta.tables_schema` and never exported or
   served. `contribution` and `tally` rows are append-only, with source, licence, tool and

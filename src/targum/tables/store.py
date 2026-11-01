@@ -168,6 +168,27 @@ class Store:
             ).fetchone()
         return row is not None
 
+    def current_units(self, table: str, units: Iterable[str]) -> set[str]:
+        """Which of `units` hold a current contribution in `table`, under any tool: one
+        connection for a whole round, rather than one per unit."""
+        wanted = list(dict.fromkeys(units))
+        if not wanted or not self.file.is_file():
+            return set()
+        found: set[str] = set()
+        with closing(self._connect()) as db:
+            for start in range(0, len(wanted), 500):
+                chunk = wanted[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                found.update(
+                    str(row[0])
+                    for row in db.execute(
+                        "SELECT unit FROM contribution WHERE superseded_at IS NULL"
+                        f" AND tbl = ? AND unit IN ({marks})",  # noqa: S608
+                        (table, *chunk),
+                    )
+                )
+        return found
+
     def write(self, contribution: Contribution, counts: Mapping[tuple[str, str], int]) -> bool:
         """Write one contribution and its tallies, superseding whatever was current for
         its (table, unit). Returns False, and writes nothing, when it is already current.
