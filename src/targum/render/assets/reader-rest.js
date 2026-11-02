@@ -2048,6 +2048,110 @@ window.targumReaderRest = function (R) {
     };
   }
 
+  // The meaning of a mishkal, where it has one (design.md §12, 2026-11-02): ling-he's
+  // reviewed 25, the same list as `annotate/mishkal.py`. Any other shows its template.
+  var MISHKALIM = null;
+  function mishkalMeaning(pattern) {
+    if (!MISHKALIM) {
+      MISHKALIM = {};
+      var said = [
+        ["קַטָּל", t("reader.card.mishkal.qattal", "often someone whose trade it is")],
+        ["קַטֶּלֶת", t("reader.card.mishkal.qattelet", "often an illness")],
+        ["מִקְטָל", t("reader.card.mishkal.miqtal", "often a place or a thing done")],
+        ["מִקְטָלָה", t("reader.card.mishkal.miqtala", "often a place or an institution")],
+        ["מַקְטֵל", t("reader.card.mishkal.maqtel", "often a tool or a device")],
+        ["מַקְטֵלָה", t("reader.card.mishkal.maqtela", "often a device")],
+        ["מִקְטֶלֶת", t("reader.card.mishkal.miqtelet", "often an object or a tool")],
+        ["מַקְטֶלֶת", t("reader.card.mishkal.maqtelet", "often an object or a system")],
+        ["קְטִילָה", t("reader.card.mishkal.qtila", "doing it (a pa'al verb's noun)")],
+        ["קִטּוּל", t("reader.card.mishkal.qittul", "doing it (a pi'el verb's noun)")],
+        ["הַקְטָלָה", t("reader.card.mishkal.haqtala", "doing it (a hif'il verb's noun)")],
+        ["הִתְקַטְּלוּת", t("reader.card.mishkal.hitqattlut", "doing it (a hitpa'el verb's noun)")],
+        ["הִקָּטְלוּת", t("reader.card.mishkal.hiqqatlut", "doing it (a nif'al verb's noun)")],
+        ["קָטוּל", t("reader.card.mishkal.qatul", "had it done to it")],
+        ["קָטִיל", t("reader.card.mishkal.qatil", "often -able, in newer words")],
+        ["קַטְלָן", t("reader.card.mishkal.qatlan", "someone who does it a lot, or for a living")],
+        ["קוֹטֵל", t("reader.card.mishkal.qotel", "the one who does it")],
+        ["מְקַטֵּל", t("reader.card.mishkal.meqattel", "who or what does it")],
+        ["תַּקְטִיל", t("reader.card.mishkal.taqtil", "often a thing made or done")],
+        ["קַטְלוּת", t("reader.card.mishkal.qatlut", "often a quality or a state")],
+        ["־ות", t("reader.card.mishkal.qatlut", "often a quality or a state")],
+        ["־י", t("reader.card.mishkal.suffix-i", "of or from, as an adjective")],
+        ["־אי", t("reader.card.mishkal.suffix-ai", "a person who works with it")],
+        ["־ייה", t("reader.card.mishkal.suffix-iya", "often a place, or a set or group")],
+        ["־ית", t("reader.card.mishkal.suffix-it", "often something smaller, a vehicle or a language")],
+        ["־ון", t("reader.card.mishkal.suffix-on", "something small, a periodical, or a place in order")],
+      ];
+      for (var i = 0; i < said.length; i++) MISHKALIM[nfc(said[i][0])] = said[i][1];
+    }
+    return MISHKALIM[nfc(pattern)] || "";
+  }
+  function nfc(text) {
+    return String(text || "").normalize ? String(text || "").normalize("NFC") : String(text || "");
+  }
+
+  /* --- a noun's root and mishkal, a Russian word's root (design.md §12, 2026-11-02) --- */
+  var drawnRoot = R.drawnRoot, rootLink = R.rootLink, tn = R.tn, uiLanguage = R.uiLanguage;
+  function piece(tag, name, text, lang) {
+    var made = document.createElement(tag);
+    if (name) made.className = name;
+    if (lang) made.setAttribute("lang", lang);
+    made.textContent = text;
+    return made;
+  }
+  // " · write" in the soft ink. The lexicon's meanings are English: under it only.
+  function soft(text, english) {
+    return text && (!english || uiLanguage === "en") ? piece("span", "card-root-sense", " \u00b7 " + text) : null;
+  }
+  function rowOf(first) {
+    var value = document.createElement("span");
+    for (var i = 0; i < arguments.length; i++) if (arguments[i]) value.appendChild(arguments[i]);
+    return value;
+  }
+  function rootValue(shoresh, index, root, meaning, also, redraw) {
+    return rowOf(
+      root ? rootLink(shoresh, index, root, redraw) : shoresh,
+      soft(meaning, true),
+      also && also.length && soft(t("reader.card.root-also", "also {spellings}", { spellings: also.join(", ") }))
+    );
+  }
+
+  function lexiconRows(facts, index, shape, morpheme, redrawCard) {
+    if (shape) {
+      // A noun or adjective, or a loanword (#593).
+      if (shape[0]) {
+        var rootRow = piece("bdi", "root", drawnRoot(shape[0]), language);
+        facts.add(t("reader.card.root-label", "Root"), rootValue(rootRow, index, shape[0], shape[2], null, redrawCard));
+        if (shape[1]) {
+          facts.add(
+            t("reader.card.mishkal", "Mishkal"),
+            rowOf(piece("bdi", "", shape[1], language), soft(mishkalMeaning(shape[1])))
+          );
+        }
+      } else if (shape[3]) {
+        facts.add(
+          t("reader.card.root-label", "Root"),
+          piece("span", "card-root-sense", t("reader.card.borrowed", "Borrowed, no Hebrew root"))
+        );
+      }
+    } else if (morpheme && morpheme[0].length) {
+      // A Russian word (#596).
+      var morphs = document.createElement("span");
+      morpheme[0].forEach(function (one, m) {
+        if (m) morphs.appendChild(document.createTextNode(" + "));
+        morphs.appendChild(rootValue(piece("bdi", "root", one[0], "ru"), index, m ? "" : one[0], one[2], one[1], redrawCard));
+      });
+      facts.add(t("reader.card.root-label", "Root"), morphs);
+      var prefixes = morpheme[1] || [];
+      if (prefixes.length) {
+        facts.add(
+          tn("reader.card.prefix", prefixes.length, "Prefix", "Prefixes"),
+          piece("bdi", "", prefixes.join("- \u00b7 ") + "-", "ru")
+        );
+      }
+    }
+  }
+
   // What `reader.js` passes on to (`passOn`).
   return {
     advancePractice: advancePractice,
@@ -2057,6 +2161,9 @@ window.targumReaderRest = function (R) {
     exportAnki: exportAnki,
     exportCsv: exportCsv,
     hideChip: hideChip,
+    lexiconRows: lexiconRows,
+    mishkalMeaning: mishkalMeaning,
+    rootValue: rootValue,
     offerLenses: offerLenses,
     placeChip: placeChip,
     practiceKind: practiceKind,

@@ -689,6 +689,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   as the eval set. `targum tables push` carries the laptop's author, editor and model
   fixes to the box's account database, once; a reader's never travel. Settling a
   reader's proposal now carries its line onto the decision row.
+- A noun's card names its root and mishkal (David, 2026-11-02; targum-internal#593, #596;
+  design.md §12). A Hebrew noun or adjective now has a Root row from targum's own lexicon
+  ("כ־ת־ב · write"), a Mishkal row with the pattern's template and, for about 25 productive
+  patterns, what it means ("מִקְטָל · often a place or a thing done", ling-he's reviewed
+  list), and the "N words from this root met, K known" line verbs have. A loanword says
+  "Borrowed, no Hebrew root". A verb's Root row gains the root's meaning. A Russian word
+  shows its root with its meaning and other spellings ("ход · go · also хож, ш"), a Prefix
+  row and the same family line. The lexicon's meanings are English, so the Russian
+  interface leaves them off. The rows are drawn by `reader-rest.js`, so a word answers its
+  first tap as fast as before. The Russian strings are drafts.
 - Public finds count into the yardsticks, as counts (David, 2026-11-01; design.md §12).
   Each night `targum tables sweep --store` folds every kept find's lemma counts into
   `words` (`tables.finds`): YouTube finds into `video`, news finds into `news`, and a
