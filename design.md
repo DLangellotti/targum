@@ -384,6 +384,62 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A suggested text says where it comes from, and a find with an open licence joins the library — 2026-11-02
+
+David, 2026-11-02, approving the mock: every suggested text says plainly where it comes
+from and lets the reader open the original themselves; and a find whose licence clears
+our bar joins the library when a reader opens it. This changes "A web find is a pasted
+link targum found" (2026-10-31) in one place: the reader's build is still theirs, and a
+copy of it may now also go on the shelf, naming nobody.
+
+- **The source line.** On home's pick card and on every row of More that fit you, under
+  the facts, one muted line: the outlet, and for a dated find its day ("Ynet · 2 Nov";
+  "2 нояб." in Russian, the page's own date format). A shelf text is undated ("Project
+  Ben-Yehuda"). The outlet is always a name the row already holds: a find's publisher (the
+  feed list's, a YouTube channel's, a podcast show's), the site for a live web look that
+  stored none, or the outlet a catalogue `credit` names ("…, via Sefaria" says Sefaria).
+  Never a name a model wrote. A row targum wrote itself (a dialogue) has no line.
+- **The outlet is the link**, underlined in teal with ↗, opening the original in a new tab
+  (`rel="noopener noreferrer"`). Read, Watch or Listen stays the press. A shelf text links
+  its page where one can be named (its http source, Sefaria's page, YouTube's watch page,
+  Ben-Yehuda's `/read/N`, or `licence_url` when that is the text's own page and not a
+  licence's terms) and otherwise names the outlet without a link. In More that fit you the
+  line sits under the row's own link, never inside it. Under a coarse pointer the link's
+  press grows to 44px with no line moved (David: enough for §14). Home is a desk page and
+  fetches nothing from the outlet: no favicon, no picture.
+- **The bar for joining the library** is a list, not a standing: CC0 or public domain,
+  CC BY, CC BY-SA, and their NonCommercial forms (BY-NC, BY-NC-SA). NoDerivatives in any
+  combination, all rights reserved, unknown, and terms the list does not name ("free use,
+  attribution required", MIT) never join (`promote.clears`). NC is in because reading the
+  shelf stays free (David). `licensing.verdict` now reads ND before NC, so "CC BY-NC-ND"
+  is the refusal it was always meant to be.
+- **The licence is read from the source.** In order: the article page's own licence tag
+  (`rel="license"`, a licence `meta`, schema.org `license`) pointing at a Creative Commons
+  licence or the CC0/public-domain deeds; YouTube's `status.license`; and, where the page
+  carries no tag, the licence the outlet states for its whole site as `sources.json`
+  records it for that publisher (David: it counts). A licence that came from the
+  site-wide statement says so in the entry (`licence_from: "publisher"`) and links that
+  statement. Nothing a model read and no footer text counts.
+- **What joins.** When a reader's build of a find finishes and its licence clears, the
+  finished folder is copied onto the shared shelf and its reader is rendered again from the
+  artifacts with a credit line naming the outlet and linking the original and the
+  licence. Nothing is bought: no model, no voice, no fetch beyond reading the page's
+  licence tag. Its catalogue entry carries the title, the original's address as `source`,
+  the outlet as `credit`, the licence as read, `licence_url`, where the licence came from,
+  and the day it was added. One copy per original, keyed on its address; a second reader
+  adds nothing.
+- **No trace of the reader.** Not the account, the home, the job, nor the time it was
+  opened beyond the day added. The shelf's folder is named from the original's address,
+  and no proposal row is written for it. A failure here never fails the reader's build.
+  This is the shared shelf's second writer after `targum seed`, and it writes only from
+  the build queue, never from a request.
+- **The back office lists what joined**: title, outlet, licence and day, with a count and
+  no reader data. One press takes one down, removing its catalogue entry and its shared
+  copy, and keeps its address so it never joins again.
+- **A shared copy's reader links two addresses of its own**: its catalogue `source` and its
+  `licence_url`, and none beyond the allowlist every reader has. `test_render.py` pins it.
+- **No notice change** (David). The copy holds no personal data.
+
 ### "from N roots" is a label on the known-words count — 2026-11-02
 
 David, 2026-11-02 (targum-internal#594), choosing between two mocks: under "words known" in

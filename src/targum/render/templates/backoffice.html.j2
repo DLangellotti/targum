@@ -643,6 +643,35 @@
   </table>
   {% endif %}
 
+  {#- Finds that joined the library when a reader opened them (design.md §12, 2026-11-02):
+      what, from where, on what licence and since when. Never who opened it, which is
+      written nowhere. Take down removes its catalogue entry and its shared copy, and the
+      same original never joins again. -#}
+  <h2>Joined from finds <span class="quiet">{{ joined|length }}</span></h2>
+  {% if not joined %}
+  <p class="nothing">No find has joined the library yet.</p>
+  {% else %}
+  <table>
+    <thead><tr><th>Text</th><th>Outlet</th><th>Licence</th><th>Added</th><th>Take down</th></tr></thead>
+    <tbody>
+      {% for one in joined %}
+      <tr>
+        <td><bdi lang="{{ one.language }}">{{ one.title }}</bdi></td>
+        <td>{{ one.outlet }}</td>
+        <td class="quiet">{% if one.licence_url %}<a href="{{ one.licence_url }}" rel="noopener noreferrer">{{ one.licence }}</a>{% else %}{{ one.licence }}{% endif %}{% if one.licence_from == 'publisher' %} <span class="quiet">(site-wide)</span>{% endif %}</td>
+        <td class="quiet">{{ one.added }}</td>
+        <td>
+          <form method="post" action="/back-office/take-down" class="decide">
+            <input type="hidden" name="id" value="{{ one.id }}">
+            <button type="submit">Take down</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
   {#- What readers asked for and the shelf could not give. Counts, never who. -#}
   <h2>Wanted</h2>
   {% if not wanted %}

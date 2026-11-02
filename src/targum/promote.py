@@ -14,6 +14,9 @@ being a shelf. So a candidate is proposed by machine and accepted by a person in
 office — with one exception: a source whose licence is certain by construction (the
 public-domain fetchers: Gutenberg, Wikisource, Sefaria behind its own allowlist, the
 siddur) is a catalogue row that simply was not there yet, and it promotes on completion.
+And a second (design.md §12, 2026-11-02): a find a reader opened, whose licence its source
+states and clears `JOIN_BAR`, joins by itself, copied onto the shared shelf and naming
+nobody (`join_find`); the back office lists those and takes one down (`take_down`).
 
 **What accepting does, and reuses.** Nothing is rebuilt and nothing moves: the reader's
 folder stays theirs. The translation they paid for is re-keyed into the shared cache the
@@ -118,6 +121,12 @@ def candidate(library: Library, store: Store | None, job: Job) -> Proposal | Non
     it, and everything here that can be asked without raising is.
     """
     if store is None or job.kind != "build" or not job.reader or job.home is None:
+        return None
+    # A find the reader opened joins the library by itself where its licence clears the
+    # bar, and is never a proposal: a proposal row names the reader (design.md §12,
+    # 2026-11-02).
+    if (job.options or {}).get("via") == "find":
+        join_find(library, store, job)
         return None
     source = str(job.source)
     if not source or catalogue_module.matching(source) is not None:
@@ -361,3 +370,349 @@ def decline(store: Store, proposal_id: str, *, by: str = "person") -> None:
     if row is None or row["state"] != "proposed":
         raise TargumError("No such proposal, or it was already decided.")
     store.proposal_state(proposal_id, "declined", by)
+
+
+# -- a find that joins the library (design.md §12, 2026-11-02) --------------------------
+#
+# A reader opened a find, a text targum found on the web, and its build is done. Where the
+# licence its source states clears the bar, the build is copied onto the shared shelf and
+# entered in the catalogue, credited to the outlet, naming nobody. Automatic, unlike the
+# rest of this module, because nothing is left for a person to judge: the licence was read
+# from the source, the outlet is the find's own, and the back office can take it down.
+
+#: The licences a find may join on (David, 2026-11-02): CC0 and public domain, CC BY,
+#: CC BY-SA, and their NonCommercial forms. Never ND, never all rights reserved, never
+#: unknown, and never terms not on this list.
+JOIN_BAR = "CC0 / public domain, CC BY, CC BY-SA, CC BY-NC, CC BY-NC-SA"
+
+#: Files a reader's build keeps that are never copied: the page itself, which is rendered
+#: again for the shelf; the shelf row's remembered answer, worked out again; a deck of the
+#: reader's own words; and anything a door marks a folder with.
+NOT_COPIED = frozenset({"reader", "shelf.json", "deck.apkg"})
+
+
+def _flat(licence: str) -> str:
+    import re
+
+    return re.sub(r"[^a-z0-9]+", " ", (licence or "").lower()).strip()
+
+
+def clears(licence: str) -> bool:
+    """Whether a find on this licence may join the library: on `JOIN_BAR`, and allowed
+    derivatives by `licensing.verdict`, which reads NoDerivatives first."""
+    call = verdict(licence)
+    if not call.derivatives or call.standing is Standing.unknown:
+        return False
+    flat = _flat(licence)
+    words = flat.split()
+    if call.standing is Standing.free:
+        return any(word in flat for word in ("public domain", "publicdomain", "cc0")) or (
+            "pd" in words
+        )
+    creative = "cc" in words or "creative commons" in flat or flat.startswith("cc ")
+    attributed = "by" in words or "attribution" in flat
+    return creative and attributed
+
+
+def _deed(address: str) -> str:
+    """A Creative Commons address said as a licence: "CC BY-SA 4.0", "CC0 1.0", "Public
+    Domain Mark 1.0". "" for any other address."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(address.strip())
+    host = (parsed.hostname or "").removeprefix("www.")
+    if host != "creativecommons.org":
+        return ""
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) >= 2 and parts[0] == "licenses":
+        version = parts[2] if len(parts) > 2 else ""
+        return f"CC {parts[1].upper()} {version}".strip()
+    if len(parts) >= 2 and parts[0] == "publicdomain":
+        version = parts[2] if len(parts) > 2 else ""
+        name = {"zero": "CC0", "mark": "Public Domain Mark"}.get(parts[1], "")
+        return f"{name} {version}".strip() if name else ""
+    return ""
+
+
+def page_licence(html: str) -> tuple[str, str]:
+    """The licence a page states in its own markup, as (licence, the licence's address):
+    `rel="license"` on a link or an anchor, a licence `meta`, or schema.org `license` in
+    its JSON-LD, and only where it points at a Creative Commons licence or deed. A footer's
+    words are not markup and are never read. ("", "") where the page states none."""
+    import json as json_module
+    from html.parser import HTMLParser
+
+    found: list[str] = []
+    scripts: list[str] = []
+
+    class Reader(HTMLParser):
+        in_ld = False
+
+        def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+            said = {name.lower(): (value or "") for name, value in attrs}
+            if tag in ("link", "a") and "license" in said.get("rel", "").lower().split():
+                found.append(said.get("href", ""))
+            elif tag == "meta" and said.get("name", "").lower() in (
+                "license",
+                "dcterms.license",
+                "dc.rights",
+                "dcterms.rights",
+            ):
+                found.append(said.get("content", ""))
+            elif tag == "script" and said.get("type", "").lower() == "application/ld+json":
+                self.in_ld = True
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag == "script":
+                self.in_ld = False
+
+        def handle_data(self, data: str) -> None:
+            if self.in_ld:
+                scripts.append(data)
+
+    try:
+        Reader().feed(html or "")
+    except Exception:  # noqa: BLE001 - a page we cannot parse states nothing
+        return "", ""
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            value = node.get("license")
+            if isinstance(value, str):
+                found.append(value)
+            for child in node.values():
+                walk(child)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child)
+
+    for script in scripts:
+        try:
+            walk(json_module.loads(script))
+        except ValueError:
+            continue
+    for address in found:
+        said = _deed(address)
+        if said:
+            return said, address.strip()
+    return "", ""
+
+
+def read_page(url: str) -> str:
+    """The page's HTML, for its licence tag: the copy read through the door in the last
+    ten minutes where there is one, else one direct knock where robots.txt allows. Never
+    through the proxy, never spending; "" where it cannot be had."""
+    from .finds.robots import ROBOTS
+    from .ingest.url import PAGES, fetch
+
+    held = PAGES.held(url)
+    if held is not None and held.is_html and held.via != "feed":
+        return held.text
+    if not ROBOTS.allowed(url):
+        return ""
+    try:
+        got = fetch(url, proxy=False)
+    except Exception:  # noqa: BLE001 - a page that will not come states nothing
+        return ""
+    return got.text if got.is_html else ""
+
+
+def find_licence(found: Any, read: Any = read_page) -> tuple[str, str, str]:
+    """A find's licence as (licence, where it was read, which statement): the article
+    page's own tag first, then what the find carries from its source — YouTube's licence
+    field, or the licence its outlet states for the whole site (David, 2026-11-02: that
+    counts where the page has no tag). ("", "", "") where nothing was stated."""
+    if getattr(found, "medium", "text") == "text":
+        licence, address = page_licence(read(found.url))
+        if licence:
+            return licence, address, "page"
+    if found.licence:
+        return found.licence, found.licence_url, found.licence_from
+    return "", "", ""
+
+
+def joined_name(source: str) -> str:
+    """The shelf's folder for an original, named from its address and nothing else."""
+    import hashlib
+
+    return "find-" + hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]
+
+
+def _copy_build(folder: Path, into: Path) -> None:
+    """The reader's finished artifacts, copied into a fresh folder: never the page, which
+    is rendered again for the shelf, nor anything in `NOT_COPIED` or marked with a dot."""
+    import shutil
+
+    into.mkdir(parents=True)
+    for item in folder.iterdir():
+        if item.name in NOT_COPIED or item.name.startswith(".") or item.name.endswith(".part"):
+            continue
+        if item.is_dir():
+            shutil.copytree(item, into / item.name)
+        else:
+            shutil.copy2(item, into / item.name)
+
+
+def join_find(
+    library: Library,
+    store: Store | None,
+    job: Job,
+    *,
+    read: Any = read_page,
+    render: Any = None,
+    today: date | None = None,
+) -> dict[str, Any] | None:
+    """Copy a finished find onto the shared shelf where its licence clears the bar;
+    the catalogue entry, or None where nothing joined.
+
+    Called from `candidate` for a build whose press was a find (`options.via == "find"`).
+    Nothing is bought: the copy is the reader's artifacts, the page is rendered again from
+    them (`render`, `cli.rebuild_one` unless a test passes one), and the translation is
+    re-keyed for the next reader (`warm_folder`). No proposal row is written, and nothing
+    written here names the reader, their home, the job or when it was opened.
+    """
+    from .finds import pool as finds_pool
+    from .source_line import outlet_of
+    from .weekly.feeds import link_key
+
+    if store is None or job.kind != "build" or not job.reader or job.home is None:
+        return None
+    if (job.options or {}).get("via") != "find":
+        return None
+    try:
+        find_id = int((job.options or {}).get("find") or 0)
+    except (TypeError, ValueError):
+        return None
+    found = finds_pool.get(store, find_id) if find_id else None
+    if found is None:
+        return None
+    source = link_key(found.url)
+    if store.joined_source(source) is not None or catalogue_module.matching(source) is not None:
+        return None
+    licence, licence_url, licence_from = find_licence(found, read)
+    if not clears(licence):
+        return None
+    folder = job.home / job.reader.split("/")[0]
+    document = read_artifact(Document, folder / "document.json")
+    if document is None:
+        return None
+    name = joined_name(source)
+    shelf = library.shared / name
+    if shelf.exists():
+        return None
+    library.shared.mkdir(parents=True, exist_ok=True)
+    staging = library.shared / f".{name}.part"
+    if staging.exists():
+        import shutil
+
+        shutil.rmtree(staging)
+    _copy_build(folder, staging)
+    outlet = outlet_of(found.publisher) or found.host.removeprefix("www.")
+    (staging / "credit.json").write_text(
+        json.dumps(
+            {
+                "outlet": outlet,
+                "source": found.url,
+                "licence": licence,
+                "licence_url": licence_url,
+                "licence_from": licence_from,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    staging.rename(shelf)
+    if render is None:
+        from .cli import rebuild_one
+
+        def render(where: Path) -> None:
+            rebuild_one(where, reads=None, covers=library.out / "thumbs")
+
+    try:
+        render(shelf)
+    except Exception:
+        import shutil
+
+        shutil.rmtree(shelf, ignore_errors=True)
+        raise
+    from .cache import Cache
+
+    warm_folder(shelf, Cache())
+    words = sum(len(block.text.split()) for block in document.blocks)
+    added = (today or date.today()).isoformat()
+    entry: dict[str, Any] = {
+        "id": name,
+        "title": document.title or found.title,
+        "author": "",
+        "language": document.language,
+        "source": found.url,
+        "blurb": "",
+        "english": "",
+        "words": words,
+        "tags": [],
+        "translations": [],
+        "kind": "article" if found.medium == "text" else "talk",
+        "register": "modern",
+        "difficulty": _difficulty(shelf, document.language),
+        "sentence": _sentence(shelf),
+        "model": _model_of(shelf),
+        "licence": licence,
+        "credit": outlet,
+        "licence_url": licence_url,
+        "licence_from": licence_from if licence_from != "page" else "",
+        "added": added,
+    }
+    if not store.join(
+        {
+            "id": name,
+            "source": source,
+            "title": entry["title"],
+            "outlet": outlet,
+            "language": entry["language"],
+            "licence": licence,
+            "licence_url": licence_url,
+            "licence_from": licence_from,
+            "added": added,
+        }
+    ):
+        # Another build of the same original got here first: its copy stands.
+        import shutil
+
+        shutil.rmtree(shelf, ignore_errors=True)
+        return None
+    merge_into_catalogue(entry)
+    return entry
+
+
+def remove_from_catalogue(entry_id: str) -> bool:
+    """Take one entry out of the catalogue file; whether it was there."""
+    path = catalogue_module.catalogue_path()
+    if path is None:
+        return False
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    rows: list[dict[str, Any]] = list(loaded.get("entries") or [])
+    kept = [row for row in rows if row.get("id") != entry_id]
+    if len(kept) == len(rows):
+        return False
+    loaded["entries"] = kept
+    write_atomic(path, json.dumps(loaded, ensure_ascii=False, indent=2) + "\n")
+    catalogue_module.reload()
+    return True
+
+
+def take_down(library: Library, store: Store, entry_id: str) -> bool:
+    """The back office's one press on a find that joined: its catalogue entry and its
+    shared copy go, and its row stays, `removed`, so the same original never joins again."""
+    import shutil
+
+    row = store.joined_one(entry_id)
+    if row is None or row["state"] != "joined":
+        return False
+    remove_from_catalogue(entry_id)
+    shelf = library.shared / entry_id
+    if entry_id.startswith("find-") and shelf.is_dir():
+        shutil.rmtree(shelf, ignore_errors=True)
+    store.joined_removed(entry_id)
+    return True

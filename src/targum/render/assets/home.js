@@ -1143,8 +1143,55 @@
     return "read";
   }
 
+  /* Where it comes from (David, 2026-11-02; design.md §12): the outlet the row names, a
+     find's publisher or a shelf text's credit, never a model's, and the day for a dated
+     find. The name is the link and opens the original in a new tab; Read stays the press.
+     A row with nowhere to send the reader names the outlet without a link. */
+  function sourceDay(ms) {
+    var code = words.language || "en";
+    try {
+      return new Date(Number(ms)).toLocaleDateString(code === "en" ? "en-GB" : code, {
+        day: "numeric",
+        month: "short",
+      });
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function sourceLine(row, className) {
+    var line = row && row.source_line;
+    if (!line || !line.name) return null;
+    var host = el("p", className);
+    var name;
+    if (line.url && /^https?:\/\//.test(line.url)) {
+      name = el("a", "source-link");
+      name.href = line.url;
+      name.target = "_blank";
+      name.rel = "noopener noreferrer";
+      var said = el("bdi", "", line.name);
+      said.setAttribute("dir", "auto");
+      name.appendChild(said);
+      var arrow = el("span", "source-out", "\u2197");
+      arrow.setAttribute("aria-hidden", "true");
+      name.appendChild(arrow);
+      name.setAttribute(
+        "aria-label",
+        t("home.source.open", "{outlet}, opens the original in a new tab", { outlet: line.name })
+      );
+    } else {
+      name = el("bdi", "", line.name);
+      name.setAttribute("dir", "auto");
+    }
+    host.appendChild(name);
+    var day = line.date ? sourceDay(line.date) : "";
+    if (day) host.appendChild(document.createTextNode(" \u00b7 " + day));
+    return host;
+  }
+
   // The facts line: the kind for a library text, the site for a web find. Nothing else
-  // tells the two apart (David, 2026-11-01).
+  // tells the two apart (David, 2026-11-01). Where the source line names the outlet, the
+  // site is said there instead, once.
   function factsOf(row) {
     var facts = [];
     var minutes = row.minutes ? t("home.minutes", "{n} min", { n: row.minutes }) : "";
@@ -1152,7 +1199,7 @@
       if (isVideo(row)) facts.push(t("home.kind.video", "Video"));
       else if (row.kind === "podcast") facts.push(t("home.kind.podcast", "Podcast"));
       if (minutes) facts.push(minutes);
-      if (row.host) facts.push(siteOf(row.host));
+      if (row.host && !(row.source_line && row.source_line.name)) facts.push(siteOf(row.host));
     } else {
       facts.push(kindWord({ kind: row.kind, video: row.video }));
       if (minutes) facts.push(minutes);
@@ -1265,6 +1312,8 @@
     if (share && (row.harder || (!first && !row.scene))) parts.what.appendChild(el("p", "rc-known", t("home.card.known-short", "{n}% known", { n: share })));
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
+    var from = sourceLine(row, "rc-source");
+    if (from) parts.what.appendChild(from);
     if (row.find && row.credits) {
       parts.what.appendChild(el("p", "rc-credits", tn("home.find.uses-credits", row.credits, "Uses {n} credit", "Uses {n} credits")));
     }
@@ -1597,6 +1646,9 @@
       what.appendChild(el("span", "more-facts", facts.join(" · ")));
       link.appendChild(what);
       item.appendChild(link);
+      // Beside the row's link, never inside it: a link in a link is no link at all.
+      var from = sourceLine(row, "more-source");
+      if (from) item.appendChild(from);
       list.appendChild(item);
     });
     host.hidden = false;

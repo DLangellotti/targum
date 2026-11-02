@@ -106,16 +106,9 @@ def verdict(licence: str) -> Verdict:
             because="no licence recorded",
         )
 
-    # Refused first, and both are refusals rather than obligations.
-    if re.search(r"\bnc\b|noncommercial|non commercial", flat):
-        return Verdict(
-            Standing.closed,
-            exportable=False,
-            derivatives=True,
-            attribution=True,
-            sharealike="sa" in flat.split(),
-            because="NonCommercial: bites on the offering, not on who paid",
-        )
+    # Refused first, and both are refusals rather than obligations. NoDerivatives before
+    # NonCommercial: "CC BY-NC-ND" carries both, and read NC-first it came back as allowing
+    # derivatives, which is the one thing ND forbids at any price (2026-11-02).
     if re.search(r"\bnd\b|noderiv|no derivatives", flat):
         return Verdict(
             Standing.closed,
@@ -124,6 +117,15 @@ def verdict(licence: str) -> Verdict:
             attribution=True,
             sharealike=False,
             because="NoDerivatives: everything targum makes is a derivative",
+        )
+    if re.search(r"\bnc\b|noncommercial|non commercial", flat):
+        return Verdict(
+            Standing.closed,
+            exportable=False,
+            derivatives=True,
+            attribution=True,
+            sharealike="sa" in flat.split(),
+            because="NonCommercial: bites on the offering, not on who paid",
         )
 
     if any(word in flat for word in _PUBLIC):

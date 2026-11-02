@@ -1799,9 +1799,11 @@ class Library:
         self.mailer = mailer
         self.address = address
         # A home nobody owns, read by everybody: what a reader with nothing on their
-        # shelf is handed to start with. Written only by `targum seed`, never by a
-        # request — nothing routed through `within(home, …)` can reach it, so a shared
-        # text cannot be bought, trashed or rebuilt by whoever is reading it.
+        # shelf is handed to start with. Written by `targum seed`, and by the build queue
+        # when a find with an open licence joins the library (`promote.join_find`,
+        # design.md §12, 2026-11-02); never by a request — nothing routed through
+        # `within(home, …)` can reach it, so a shared text cannot be bought, trashed or
+        # rebuilt by whoever is reading it.
         self.shared = out / "shared"
         # The corpus ledger decides a build's home by its top folder under this root.
         from . import ledger as ledger_module
@@ -8698,6 +8700,7 @@ class Handler(BaseHTTPRequestHandler):
             found,
             DAYS,
             proposed=self.store.proposals(),
+            joined=self.store.joined(),
             wanted=self.store.wanted(),
             said=said,
             incidents=incidents_module.recent(self.library.incidents),
@@ -8900,6 +8903,21 @@ class Handler(BaseHTTPRequestHandler):
         except TargumError as error:
             said = f"{error.message} {error.hint or ''}".strip()
             return self._go(f"{BACK_OFFICE_ROUTE}?said={quote(said)}#shelf")
+        self._go(f"{BACK_OFFICE_ROUTE}#shelf")
+
+    def _take_down(self, form: dict[str, str]) -> None:
+        """Take down a find that joined the library (design.md §12, 2026-11-02): its
+        catalogue entry and its shared copy go, and its original never joins again. The
+        same door as `_promote`: an admin session, and 404 for anyone else."""
+        from . import promote as promote_module
+
+        person = self._person()
+        if person is None or not person.admin or self.store is None:
+            return self._send(404, b"not found", "text/plain")
+        entry_id = form.get("id", "")
+        if not promote_module.take_down(self.library, self.store, entry_id):
+            said = quote("That one is not on the shelf.")
+            return self._go(f"{BACK_OFFICE_ROUTE}?said={said}#shelf")
         self._go(f"{BACK_OFFICE_ROUTE}#shelf")
 
     def _settle_told(self, form: dict[str, str]) -> None:
@@ -9634,6 +9652,8 @@ class Handler(BaseHTTPRequestHandler):
         # The back office's one action, a form post from the page an admin is on.
         if route == BACK_OFFICE_ROUTE + "/promote":
             return self._promote(self._form())
+        if route == BACK_OFFICE_ROUTE + "/take-down":
+            return self._take_down(self._form())
         if route == BACK_OFFICE_ROUTE + "/open-the-door":
             return self._open_the_door(self._form())
         if route == BACK_OFFICE_ROUTE + "/let-in":
@@ -11212,9 +11232,17 @@ class Handler(BaseHTTPRequestHandler):
         # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
         code = (spoken or "").split("-")[0].lower()
         library = any(code in entry.languages for entry in catalogue_module.everything())
-        answer: dict[str, Any] = {"suggestion": rows[0] if rows else None, "library": library}
+        from . import source_line
+
+        answer: dict[str, Any] = {
+            "suggestion": source_line.attach(rows[0]) if rows else None,
+            "library": library,
+        }
         if payload is not None and payload.get("more"):
-            answer["more"] = self._more_that_fit(ctx, done, rows[0] if rows else None)
+            answer["more"] = [
+                source_line.attach(row) or row
+                for row in self._more_that_fit(ctx, done, rows[0] if rows else None)
+            ]
         return self._json(answer)
 
     #: How many library texts "More that fit you" shows under home's card: none under
@@ -15519,10 +15547,11 @@ class Handler(BaseHTTPRequestHandler):
 
     def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
         """A pick as the card draws it, its lines in the page's language."""
+        from . import source_line
         from .chat import tools as chat_tools
         from .topics import TOPICS
 
-        out = dict(row)
+        out = dict(source_line.attach(row) or row)
         out["because"] = chat_tools.because_in(out, self._page_language())
         topic = str(out.get("because_topic") or "")
         if topic in TOPICS:

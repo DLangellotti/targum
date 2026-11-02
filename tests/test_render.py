@@ -416,6 +416,46 @@ def test_a_video_reader_links_home_and_nowhere_else(tmp_path: Path) -> None:
     assert YOUTUBE not in html
 
 
+def test_a_shared_copy_links_its_own_source_and_licence_and_nothing_else(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """A find that joined the library credits where it came from (design.md §12,
+    2026-11-02). The source can be any site, so no prefix can pin it: the rule is that a
+    shared copy's reader may link two addresses of its own — the catalogue `source` in its
+    `credit.json` and that file's `licence_url` — beside the allowlist every reader has,
+    and nothing else. A folder without the file links neither."""
+    source = "https://he.globalvoices.org/2026/11/02/a-story/"
+    terms = "https://globalvoices.org/about/"
+    (tmp_path / "credit.json").write_text(
+        json.dumps(
+            {
+                "outlet": "Global Voices",
+                "source": source,
+                "licence": "CC BY 3.0",
+                "licence_url": terms,
+                "licence_from": "publisher",
+            }
+        ),
+        encoding="utf-8",
+    )
+    document = Document(source=source, title="סיפור", language="he", blocks=[], content_hash="h")
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert f'href="{source}" rel="noopener noreferrer">Global Voices</a>' in html
+    assert f'href="{terms}" rel="noopener noreferrer">CC BY 3.0</a>' in html
+    own = (source, terms)
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        address = match.group(0)
+        assert address.startswith(OUTBOUND) or address in own, address
+
+    # A reader's own build of the same link carries no credit and so neither address.
+    (tmp_path / "credit.json").unlink()
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert terms not in html
+    assert f'href="{source}"' not in html
+
+
 def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
     """Instagram's address takes no time, so the control is not marked for one and does
     not promise the line — it names the service and opens the reel."""

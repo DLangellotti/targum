@@ -319,6 +319,10 @@ class Publisher:
     #: The licence as the publisher states it, recorded on what is imported from here
     #: and read at promotion — never enforced against the reader who imports.
     licence: str = ""
+    #: Where the outlet states that licence for its whole site, so a find that joins the
+    #: library on it links the statement (design.md §12, 2026-11-02). "" for none written
+    #: down, where the homepage stands in.
+    licence_url: str = ""
     language: str = "he"
     #: What every item of the feed is about, where the feed is one section of a paper
     #: (`ynet-sport`, `walla-culture`, `globes-tech`) — written `"topic"` in sources.json,
@@ -362,6 +366,7 @@ def load() -> list[Publisher]:
                 homepage=str(row.get("homepage") or ""),
                 kind=kind if kind in KINDS else "news",
                 licence=str(row.get("licence") or ""),
+                licence_url=str(row.get("licence_url") or ""),
                 language=str(row.get("language") or "he"),
                 topics=_topics_said(row.get("topic")),
             )

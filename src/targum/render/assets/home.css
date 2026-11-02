@@ -626,6 +626,19 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 .rc-known { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
 .rc-what .home-card-facts { margin: 0; }
 .rc-credits { margin: 0; font-size: 0.875rem; color: var(--ink); }
+/* Where it comes from (§12, 2026-11-02): the outlet is the link, the day beside it. */
+.rc-source, .more-source { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); min-inline-size: 0; overflow-wrap: anywhere; }
+.source-link { color: var(--teal); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; border-radius: var(--radius-control); }
+.source-link:hover { text-decoration-thickness: 2px; }
+.source-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.source-out { margin-inline-start: 0.2em; }
+.more-source { margin-block: -0.375rem 0.625rem; padding-inline-start: 3.5rem; }
+/* The row's own link is a grid; the outlet's is a line of text inside one. */
+.more-rows .more-source a { display: inline; padding: 0; color: var(--teal); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+/* 44px to a finger without moving a line: the press grows, the text does not. */
+@media (pointer: coarse) {
+  .source-link, .more-rows .more-source a { display: inline-block; padding-block: 0.875rem; margin-block: -0.875rem; min-block-size: 0; }
+}
 .rc-status { margin: 0.2rem 0 0; font-size: 0.9375rem; color: var(--ink); }
 .rc-quiet { margin: -0.375rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .rc-says { margin: 0; font-size: 0.9375rem; line-height: 1.5; }
