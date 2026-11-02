@@ -184,7 +184,7 @@
     <div class="gap" id="gap" hidden>
       <p class="gap-said" id="gap-said" hidden></p>
       <div class="gap-halves" id="gap-halves">
-        <div class="gap-grammar">
+        <div class="gap-grammar" id="gap-grammar">
           <h3 class="gap-sub" id="grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
           {#- A real table, its headers scoped, so a screen reader says "hitpa'el, Past,
               38%". A square with a figure is a button that opens its words below. On a
@@ -209,12 +209,30 @@
             <ul class="next-rows" id="grammar-word-rows" aria-labelledby="grammar-words-title"></ul>
           </div>
         </div>
-        {#- Topics: the slot and its layout, hidden until topic tagging exists (a card of
-            its own). Nothing is drawn here from anything else in the meantime. -#}
-        <div class="gap-topics" id="gap-topics" hidden>
-          <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
-          <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
+        {#- The Mishkal list (design.md §12, "The Mishkal list beside the Grammar grid",
+            2026-11-02): a row a noun pattern on ling-he's reviewed list, met at least
+            once, one square a row. Beside the grid from 80rem, under it below that, in
+            two columns of rows wherever it has the room (the tables are split in half by
+            the script), so the block is not one long column beside a short grid. Each
+            table is real, its headers scoped and spoken only: "miktal, Known, 34%".
+            Hidden on a machine with no root lexicon. -#}
+        <div class="gap-mishkal" id="gap-mishkal" hidden>
+          <h3 class="gap-sub" id="mishkal-title">{{ t("progress.gap.mishkal", "Mishkal") }}</h3>
+          <div class="mishkal-cols" id="mishkal-cols"></div>
+          <p class="gap-note" id="mishkal-note">{{ t("progress.gap.mishkal-note", "Share of the nouns and adjectives you met in each pattern that you know. Tap a square to see its words.") }}</p>
+          <p class="gap-note" id="mishkal-floor"></p>
+          <div class="grammar-words" id="mishkal-words" hidden>
+            <h4 class="grammar-words-title" id="mishkal-words-title"></h4>
+            <ul class="next-rows" id="mishkal-word-rows" aria-labelledby="mishkal-words-title"></ul>
+          </div>
         </div>
+      </div>
+      {#- Topics: hidden until topic tagging exists (a card of its own), and then a row of
+          its own under Grammar and Mishkal (2026-11-02). Nothing is drawn here from
+          anything else in the meantime. -#}
+      <div class="gap-topics" id="gap-topics" hidden>
+        <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
+        <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
       </div>
     </div>
     <div class="next-halves">

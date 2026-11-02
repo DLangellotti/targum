@@ -420,18 +420,20 @@ reads the same root lexicon as "A noun's card names its root and mishkal" (2026-
   patterns.", the pattern's sentence and two words of it the reader met. Each list still
   outlines its own weakest. The heading over the grid stays "Grammar".
 - **Where it stands.** In What next's gap block. From 80rem the list stands beside the
-  grid, in the half that was kept for Topics, and the grid narrows from 36rem to 33rem to
-  give it room. Below 80rem, 1024 included, it stands under the grid across the column.
+  grid, in the half that was kept for Topics, and the grid narrows from 36rem to 30rem to
+  give it room, its columns saying their short names as on a phone (at 30rem
+  «Повелительное» ran into «Инфинитив»). Below 80rem, 1024 included, it stands under the grid across the column.
   On a phone it stacks under Grammar. Topics, when it exists, gets a row of its own under
   both.
 - **Two columns of rows, not one long one** (David on the mock: "too much space under the
   binyanim chart"). A reader meets 10 to 18 patterns, and one column of them beside a
   seven-row grid left a tall empty band under Grammar. So the list is split into two
-  tables of rows in its own order, which stand side by side wherever the block is 28rem
+  tables of rows in its own order, which stand side by side wherever the block is 26rem
   wide and stack as one list on a phone. Beside the grid at 1440 each row puts its meaning
-  on a second line, and the two columns come out about as tall as the grid with its notes;
-  under the grid at 1024 each column is wide enough for the meaning on the pattern's own
-  line. Moving the floor notes, the open word list or What next's two lists into the band
+  under the pattern, and fourteen patterns come out within about a third of the grid's
+  height with its notes, where one column was more than twice it; under the grid at 1024
+  each column is wide enough for the meaning on the pattern's own line, and a meaning cut
+  short there says itself whole on hover. Moving the floor notes, the open word list or What next's two lists into the band
   was weighed and left: those change size with what is open, and the band came back as
   soon as a list was closed. Balancing the list itself holds whatever is open.
 - **It feeds nothing.** No pattern is counted into the level ruler, the ledger, "How much

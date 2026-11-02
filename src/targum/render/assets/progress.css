@@ -547,12 +547,18 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   border-block-end: 1px solid var(--rule);
 }
 .progress .gap[hidden], .progress .gap-said[hidden], .progress .gap-topics[hidden],
-.progress .grammar-words[hidden] { display: none; }
+.progress .grammar-words[hidden], .progress .gap-grammar[hidden],
+.progress .gap-mishkal[hidden] { display: none; }
 .progress .gap-pattern { font-family: var(--reading-hebrew); }
 .progress .gap-said { margin: -0.5rem 0 1.25rem; max-inline-size: 64ch; color: var(--ink); line-height: 1.5; }
 .progress .gap-said bdi[lang="he"] { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
 .progress .gap-halves { display: grid; grid-template-columns: minmax(0, 36rem); gap: 1.5rem 3rem; align-items: start; }
-.progress .gap-halves.with-topics { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* With the Mishkal list the block takes the column's whole width, and the grid keeps its
+   own 36rem (design.md §12, "The Mishkal list beside the Grammar grid", 2026-11-02). */
+.progress .gap-halves.with-mishkal { grid-template-columns: minmax(0, 1fr); }
+.progress .gap-halves.with-mishkal .gap-grammar { max-inline-size: 36rem; }
+/* Topics, once it exists, is a row of its own under the two. */
+.progress .gap-topics { margin-block-start: 1.5rem; }
 .progress .gap-sub { margin: 0 0 0.5rem; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
 .progress .grammar { inline-size: 100%; border-collapse: separate; border-spacing: 0.25rem; table-layout: fixed; }
 .progress .grammar thead th {
@@ -594,13 +600,58 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .grammar-words-title { margin: 0 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
 .progress .topic-rows { list-style: none; margin: 0; padding: 0; }
 
+/* The Mishkal list: a row a pattern, one square a row, drawn with the grid's own squares
+   and outline. The script splits it into two tables of rows; they stand side by side
+   wherever the block has 28rem, and stack as one list where it has not, so a list of 10
+   to 18 rows is never one long column beside a seven-row grid. */
+.progress .gap-mishkal { min-inline-size: 0; container: mishkal / inline-size; }
+.progress .mishkal-cols.split { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.progress .mishkal { inline-size: 100%; border-collapse: separate; border-spacing: 0.25rem; table-layout: fixed; }
+.progress .mishkal + .mishkal { margin-block-start: -0.25rem; }
+.progress .mishkal thead th {
+  position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+.progress .mishkal col.mishkal-share { inline-size: 4.25rem; }
+.progress .mishkal .grammar-cell { min-block-size: 2.25rem; }
+.progress .mishkal-pattern { padding: 0.125rem 0.5rem 0.125rem 0.25rem; font-weight: 400; text-align: start; vertical-align: middle; }
+.progress .mishkal-line { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.5rem; }
+.progress .mishkal-he { font-family: var(--reading-hebrew); font-size: 1.0625rem; line-height: 1.45; color: var(--ink); }
+.progress .mishkal-name { font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .mishkal-means { flex-basis: 100%; font-size: 0.8125rem; line-height: 1.35; color: var(--ink-soft); }
+.progress .mishkal-row.weakest { outline: 2px solid var(--focus); outline-offset: 1px; }
+@container mishkal (min-width: 26rem) {
+  .progress .mishkal-cols.split { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 1.25rem; }
+  .progress .mishkal + .mishkal { margin-block-start: 0; }
+}
+/* With a column of rows 24rem wide, the meaning stands on the pattern's own line, so a
+   row is as tall as a binyan's. */
+@container mishkal (min-width: 50rem) {
+  .progress .mishkal-line { flex-wrap: nowrap; }
+  .progress .mishkal-he, .progress .mishkal-name { flex: none; }
+  .progress .mishkal-means { flex: 0 1 auto; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .progress .mishkal-means::before { content: "·" / ""; margin-inline-end: 0.5rem; }
+}
+/* From 80rem the list stands beside the grid, in the half Topics was kept for. Below
+   that it stands under the grid, where it has the whole column for its two columns. */
+@media (min-width: 80rem) {
+  .progress .gap-halves.with-mishkal { grid-template-columns: minmax(0, 30rem) minmax(0, 1fr); }
+  /* At 30rem «Повелительное» runs into «Инфинитив»: the columns say their short names,
+     as on a phone, and the long ones stay spoken. */
+  .progress .with-mishkal .grammar .tense-short { display: inline; }
+  .progress .with-mishkal .grammar .tense-long {
+    position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  .progress .with-mishkal .mishkal col.mishkal-share { inline-size: 3.75rem; }
+}
+
 @media (max-width: 40rem) {
   .progress .ledger { padding: 1.1rem 1rem; }
   .progress .ledger .counts { gap: 1rem 0.75rem; }
   .progress .story-head { font-size: 1.25rem; }
   .progress .panel.story { padding: 1.125rem; }
   .progress .next-halves { grid-template-columns: minmax(0, 1fr); }
-  .progress .gap-halves.with-topics { grid-template-columns: minmax(0, 1fr); }
   /* At 390 the columns say their short names; the long ones stay for a screen reader. */
   .progress .grammar .tense-short { display: inline; }
   .progress .grammar .tense-long {
@@ -630,7 +681,7 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .next-more { display: inline-flex; align-items: center; min-block-size: 44px; }
   .next-link { flex: 1; align-self: stretch; min-block-size: 2.75rem; }
   /* A square of the Grammar grid opens its words. */
-  .progress .grammar-cell { min-block-size: 44px; }
+  .progress .grammar-cell, .progress .mishkal .grammar-cell { min-block-size: 44px; }
 }
 .next-more[hidden] { display: none; }
 .story-wait[hidden],

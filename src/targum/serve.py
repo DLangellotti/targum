@@ -14685,6 +14685,7 @@ class Handler(BaseHTTPRequestHandler):
         from . import gaps as gaps_module
         from . import occurrences as occurrences_module
         from . import touchstones
+        from .annotate import root_card
 
         person = self._person()
         if person is None:
@@ -14788,6 +14789,19 @@ class Handler(BaseHTTPRequestHandler):
             if language == "he"
             else None
         )
+        # The Mishkal list beside it (design.md §12, 2026-11-02): Hebrew nouns and
+        # adjectives, met the same way, their patterns from the root lexicon the word card
+        # reads. A machine without roots-he.json draws no list. What next names whichever
+        # of the two gaps sits further under its own kind (`gaps.lead`).
+        answer["mishkal"] = (
+            gaps_module.mishkal_list(
+                occurrences_module.mishkal_forms(finished, folder_for, language),
+                marked,
+            )
+            if language == "he" and root_card.lexicon("he") is not None
+            else None
+        )
+        answer["lead"] = gaps_module.lead(answer["grammar"], answer["mishkal"])
 
         # A language with no library has nothing to offer at its level but what the
         # reader brought (board ProgressYi): their own texts, measured as the shelf does.

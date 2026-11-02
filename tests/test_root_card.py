@@ -450,3 +450,46 @@ def test_a_russian_family_is_counted_by_root_morph(tmp_path: Path) -> None:
         "пароход",
     ]
     assert occurrences.family("лет", finished, folder_for, "ru", "летать") == ["летать"]
+
+
+# --- The Mishkal list's counts (design.md §12, 2026-11-02) -----------------------------------
+
+
+@pytest.mark.usefixtures("lexicons")
+def test_a_nouns_mishkal_on_the_reviewed_list_is_counted_where_it_was_met(
+    tmp_path: Path,
+) -> None:
+    """The pattern the card is given (`hebrew_shape`), kept in the occurrences cache: a
+    pattern off the list (קֶטְלוֹן) and a verb's binyan are not counted, nor is a word the
+    annotation gave a root of its own."""
+    folder = _text(
+        tmp_path / "t",
+        [
+            _word("מכתב", "NOUN"),
+            _word("מכתב", "NOUN"),
+            _word("ערבות", "NOUN"),
+            _word("חשבון", "NOUN"),
+            _word("נזיר", "NOUN", "נזל"),
+            _word("כתב", "VERB", "כתב"),
+        ],
+    )
+    counted = occurrences.text_occurrences(folder)
+    assert counted is not None
+    assert set(counted.mishkalim) == {"miqtal|מכתב", "qatlut|ערבות"}
+    occurrences._cached.cache_clear()
+    assert occurrences.text_occurrences(folder) == counted, "read back from the cache"
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "doc" else None
+
+    assert occurrences.mishkal_forms([("doc", "1", 10)], folder_for, "he") == {
+        "miqtal": {"מכתב": 2},
+        "qatlut": {"ערבות": 1},
+    }
+    assert occurrences.mishkal_forms([("doc", "9", 10)], folder_for, "he") == {}
+
+
+def test_with_no_lexicon_no_mishkal_is_counted(tmp_path: Path) -> None:
+    folder = _text(tmp_path / "t", [_word("מכתב", "NOUN")])
+    counted = occurrences.text_occurrences(folder)
+    assert counted is not None and counted.mishkalim == {}

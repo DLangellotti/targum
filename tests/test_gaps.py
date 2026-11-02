@@ -151,3 +151,70 @@ def test_no_gap_where_the_weakest_is_as_strong_as_the_rest() -> None:
         {"כתב": KNOWN, "נכנס": KNOWN},
     )
     assert said is not None and said["gap"] is None
+
+
+# -- the Mishkal list (design.md §12, "The Mishkal list beside the Grammar grid", 2026-11-02)
+
+
+def test_the_reviewed_list_is_25_patterns_in_one_fixed_order() -> None:
+    from targum.annotate.mishkal import KEYS, key_of, template
+
+    assert len(KEYS) == 25 and len(set(KEYS)) == 25
+    assert KEYS[0] == "qattal" and KEYS[-1] == "suffix-on"
+    assert key_of("מִקְטָל") == "miqtal" and template("miqtal") == "מִקְטָל"
+    # קַטְלוּת and the suffix ־ות are one row, drawn as the suffix.
+    assert key_of("קַטְלוּת") == key_of("־ות") == "qatlut" and template("qatlut") == "־ות"
+    assert key_of("קֶטֶל") == "", "a pattern off the list is left out"
+    assert key_of("פעל") == key_of(None) == ""
+
+
+def test_a_mishkal_row_is_the_share_of_its_tokens_known_in_the_lists_order() -> None:
+    said = gaps.mishkal_list(
+        {"suffix-i": {"ישראלי": 12}, "miqtal": {"מספר": 30, "מפעל": 10}},
+        {"מספר": KNOWN, "מפעל": LEARNING},
+    )
+    assert said is not None
+    assert [row["pattern"] for row in said["rows"]] == ["miqtal", "suffix-i"]
+    miqtal = said["rows"][0]
+    assert miqtal["template"] == "מִקְטָל" and miqtal["known"] == 75 and miqtal["tokens"] == 40
+    assert [word["lemma"] for word in miqtal["words"]] == ["מספר", "מפעל"]
+    assert said["rows"][1]["known"] == 0
+
+
+def test_a_pattern_met_once_shows_a_dash_and_one_never_met_is_left_out() -> None:
+    said = gaps.mishkal_list({"qattal": {"טבח": 3}, "qatul": {}}, {})
+    assert said is not None
+    assert said["rows"] == [
+        {"pattern": "qattal", "template": "קַטָּל", "tokens": 3, "known": None, "words": []}
+    ]
+    assert said["cellFloor"] == CELL_FLOOR and said["gap"] is None
+    assert gaps.mishkal_list({}, {}) is None
+    assert gaps.mishkal_list({"qattal": {"טבח": 3}}, {"טבח": IGNORED}) is None
+
+
+def test_the_mishkal_gap_needs_30_tokens_and_sits_under_the_others() -> None:
+    patterns = {
+        "miqtal": {"מספר": 10, "מפעל": 30},
+        "qtila": {"כתיבה": 40},
+        "suffix-i": {"ישראלי": 29},
+    }
+    marked = {"מספר": KNOWN, "כתיבה": KNOWN}
+    said = gaps.mishkal_list(patterns, marked) or {}
+    assert said["gap"] == {
+        "pattern": "miqtal",
+        "template": "מִקְטָל",
+        "known": 25,
+        "others": 100,
+        "examples": ["מפעל", "מספר"],
+    }, "־י has 29 tokens, under the floor to be named, and out of the pool"
+    assert ROW_FLOOR == 30
+
+
+def test_what_next_names_the_gap_further_under_its_own_kind_and_a_tie_is_the_binyan() -> None:
+    verbs = {"gap": {"binyan": "hitpael", "known": 31, "others": 80}}
+    nouns = {"gap": {"pattern": "miqtal", "known": 34, "others": 68}}
+    assert gaps.lead(verbs, nouns) == "binyan", "49 points under against 34"
+    assert gaps.lead({"gap": {"known": 50, "others": 70}}, nouns) == "mishkal"
+    assert gaps.lead({"gap": {"known": 54, "others": 88}}, nouns) == "binyan", "a tie"
+    assert gaps.lead(None, nouns) == "mishkal"
+    assert gaps.lead({"gap": None}, None) is None

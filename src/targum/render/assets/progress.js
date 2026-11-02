@@ -1039,6 +1039,136 @@
       does: t("progress.gap.does.hitpael", "Hitpa'el verbs are often reflexive or mutual."),
     },
   };
+  // Each reviewed mishkal's transliteration, what it means (the word card's own line,
+  // `reader.card.mishkal.*`, one meaning for both) and what What next says it does. The
+  // pointed template comes with the row from the account (`annotate.mishkal`).
+  var MISHKALIM = {
+    qattal: {
+      name: t("progress.gap.mishkal.qattal", "kattal"),
+      means: t("reader.card.mishkal.qattal", "often someone whose trade it is"),
+      does: t("progress.gap.does-mishkal.qattal", "Kattal words often name a person by their trade."),
+    },
+    qattelet: {
+      name: t("progress.gap.mishkal.qattelet", "kattelet"),
+      means: t("reader.card.mishkal.qattelet", "often an illness"),
+      does: t("progress.gap.does-mishkal.qattelet", "Kattelet words are often an illness."),
+    },
+    miqtal: {
+      name: t("progress.gap.mishkal.miqtal", "miktal"),
+      means: t("reader.card.mishkal.miqtal", "often a place or a thing done"),
+      does: t("progress.gap.does-mishkal.miqtal", "Miktal words are often a place or a thing done."),
+    },
+    miqtala: {
+      name: t("progress.gap.mishkal.miqtala", "miktala"),
+      means: t("reader.card.mishkal.miqtala", "often a place or an institution"),
+      does: t("progress.gap.does-mishkal.miqtala", "Miktala words are often a place or an institution."),
+    },
+    maqtel: {
+      name: t("progress.gap.mishkal.maqtel", "maktel"),
+      means: t("reader.card.mishkal.maqtel", "often a tool or a device"),
+      does: t("progress.gap.does-mishkal.maqtel", "Maktel words are often a tool or a device."),
+    },
+    maqtela: {
+      name: t("progress.gap.mishkal.maqtela", "maktela"),
+      means: t("reader.card.mishkal.maqtela", "often a device"),
+      does: t("progress.gap.does-mishkal.maqtela", "Maktela words are often a device."),
+    },
+    miqtelet: {
+      name: t("progress.gap.mishkal.miqtelet", "miktelet"),
+      means: t("reader.card.mishkal.miqtelet", "often an object or a tool"),
+      does: t("progress.gap.does-mishkal.miqtelet", "Miktelet words are often an object or a tool."),
+    },
+    maqtelet: {
+      name: t("progress.gap.mishkal.maqtelet", "maktelet"),
+      means: t("reader.card.mishkal.maqtelet", "often an object or a system"),
+      does: t("progress.gap.does-mishkal.maqtelet", "Maktelet words are often an object or a system."),
+    },
+    qtila: {
+      name: t("progress.gap.mishkal.qtila", "ktila"),
+      means: t("reader.card.mishkal.qtila", "doing it (a pa'al verb's noun)"),
+      does: t("progress.gap.does-mishkal.qtila", "Ktila words name the doing of a pa'al verb."),
+    },
+    qittul: {
+      name: t("progress.gap.mishkal.qittul", "kittul"),
+      means: t("reader.card.mishkal.qittul", "doing it (a pi'el verb's noun)"),
+      does: t("progress.gap.does-mishkal.qittul", "Kittul words name the doing of a pi'el verb."),
+    },
+    haqtala: {
+      name: t("progress.gap.mishkal.haqtala", "haktala"),
+      means: t("reader.card.mishkal.haqtala", "doing it (a hif'il verb's noun)"),
+      does: t("progress.gap.does-mishkal.haqtala", "Haktala words name the doing of a hif'il verb."),
+    },
+    hitqattlut: {
+      name: t("progress.gap.mishkal.hitqattlut", "hitkattlut"),
+      means: t("reader.card.mishkal.hitqattlut", "doing it (a hitpa'el verb's noun)"),
+      does: t("progress.gap.does-mishkal.hitqattlut", "Hitkattlut words name the doing of a hitpa'el verb."),
+    },
+    hiqqatlut: {
+      name: t("progress.gap.mishkal.hiqqatlut", "hikkatlut"),
+      means: t("reader.card.mishkal.hiqqatlut", "doing it (a nif'al verb's noun)"),
+      does: t("progress.gap.does-mishkal.hiqqatlut", "Hikkatlut words name the doing of a nif'al verb."),
+    },
+    qatul: {
+      name: t("progress.gap.mishkal.qatul", "katul"),
+      means: t("reader.card.mishkal.qatul", "had it done to it"),
+      does: t("progress.gap.does-mishkal.qatul", "Katul words say something had it done to it, like written or closed."),
+    },
+    qatil: {
+      name: t("progress.gap.mishkal.qatil", "katil"),
+      means: t("reader.card.mishkal.qatil", "often -able, in newer words"),
+      does: t("progress.gap.does-mishkal.qatil", "In newer words, katil often means -able, like edible or breakable."),
+    },
+    qatlan: {
+      name: t("progress.gap.mishkal.qatlan", "katlan"),
+      means: t("reader.card.mishkal.qatlan", "someone who does it a lot, or for a living"),
+      does: t("progress.gap.does-mishkal.qatlan", "Katlan words name someone who does it a lot, or for a living."),
+    },
+    qotel: {
+      name: t("progress.gap.mishkal.qotel", "kotel"),
+      means: t("reader.card.mishkal.qotel", "the one who does it"),
+      does: t("progress.gap.does-mishkal.qotel", "Kotel words name the one who does it."),
+    },
+    meqattel: {
+      name: t("progress.gap.mishkal.meqattel", "mekattel"),
+      means: t("reader.card.mishkal.meqattel", "who or what does it"),
+      does: t("progress.gap.does-mishkal.meqattel", "Mekattel words name who or what does it."),
+    },
+    taqtil: {
+      name: t("progress.gap.mishkal.taqtil", "taktil"),
+      means: t("reader.card.mishkal.taqtil", "often a thing made or done"),
+      does: t("progress.gap.does-mishkal.taqtil", "Taktil words are often a thing made or done."),
+    },
+    qatlut: {
+      name: t("progress.gap.mishkal.qatlut", "-ut"),
+      means: t("reader.card.mishkal.qatlut", "often a quality or a state"),
+      does: t("progress.gap.does-mishkal.qatlut", "Words ending in -ut are often a quality or a state."),
+    },
+    "suffix-i": {
+      name: t("progress.gap.mishkal.suffix-i", "-i"),
+      means: t("reader.card.mishkal.suffix-i", "of or from, as an adjective"),
+      does: t("progress.gap.does-mishkal.suffix-i", "Words ending in -i are adjectives meaning of or from something."),
+    },
+    "suffix-ai": {
+      name: t("progress.gap.mishkal.suffix-ai", "-ai"),
+      means: t("reader.card.mishkal.suffix-ai", "a person who works with it"),
+      does: t("progress.gap.does-mishkal.suffix-ai", "Words ending in -ai are often a person who works with something."),
+    },
+    "suffix-iya": {
+      name: t("progress.gap.mishkal.suffix-iya", "-iya"),
+      means: t("reader.card.mishkal.suffix-iya", "often a place, or a set or group"),
+      does: t("progress.gap.does-mishkal.suffix-iya", "Words ending in -iya are often a place, or a set or group."),
+    },
+    "suffix-it": {
+      name: t("progress.gap.mishkal.suffix-it", "-it"),
+      means: t("reader.card.mishkal.suffix-it", "often something smaller, a vehicle or a language"),
+      does: t("progress.gap.does-mishkal.suffix-it", "Words ending in -it are often something smaller, a vehicle or a language."),
+    },
+    "suffix-on": {
+      name: t("progress.gap.mishkal.suffix-on", "-on"),
+      means: t("reader.card.mishkal.suffix-on", "something small, a periodical, or a place in order"),
+      does: t("progress.gap.does-mishkal.suffix-on", "Words ending in -on are often something small, a periodical, or a place in order."),
+    },
+  };
   var TENSES = ["past", "present", "future", "imperative", "infinitive"];
   var TENSE_NAMES = {
     past: t("progress.gap.past", "Past"),
@@ -1065,30 +1195,29 @@
     return holder;
   }
 
+  // One list of words open at a time, under its own table: a square of the Grammar grid
+  // or of the Mishkal list. Pressing the open square again shuts it.
   var openSquare = null;
+  var openBox = null;
 
   function shutWords() {
-    var box = document.getElementById("grammar-words");
-    if (box) box.hidden = true;
+    if (openBox) openBox.hidden = true;
     if (openSquare) openSquare.setAttribute("aria-expanded", "false");
     openSquare = null;
+    openBox = null;
   }
 
-  function showWords(code, button, binyan, tense, cell) {
+  function showWords(code, button, where, title, words) {
     if (openSquare === button) {
       shutWords();
       return;
     }
     shutWords();
-    var box = document.getElementById("grammar-words");
-    var title = document.getElementById("grammar-words-title");
-    var list = document.getElementById("grammar-word-rows");
-    title.textContent = t("progress.gap.words-title", "{pattern}, {tense}: the words you met", {
-      pattern: BINYANIM[binyan].name,
-      tense: TENSE_NAMES[tense],
-    });
+    var box = document.getElementById(where + "-words");
+    var list = document.getElementById(where + "-word-rows");
+    document.getElementById(where + "-words-title").textContent = title;
     list.textContent = "";
-    (cell.words || []).forEach(function (one) {
+    (words || []).forEach(function (one) {
       var word = meaningOf(code, one.lemma);
       row(
         list,
@@ -1105,11 +1234,125 @@
     box.hidden = false;
     button.setAttribute("aria-expanded", "true");
     openSquare = button;
+    openBox = box;
+  }
+
+  // A square with a figure: a button that opens its words. The fill is leaf mixed into
+  // the card in proportion to the share (§12).
+  function squareFor(known, where, open) {
+    var td = el("td", "grammar-square");
+    if (known === null || known === undefined) {
+      td.className += " empty";
+      td.appendChild(el("span", "", "—"));
+      return td;
+    }
+    var square = el("button", "grammar-cell", t("progress.gap.percent", "{n}%", { n: known }));
+    square.type = "button";
+    square.setAttribute("aria-expanded", "false");
+    square.setAttribute("aria-controls", where + "-words");
+    square.style.setProperty("--share", String(known));
+    square.addEventListener("click", function () {
+      open(square);
+    });
+    td.appendChild(square);
+    return td;
+  }
+
+  // Two words of the pattern the reader met, from their own reading; those on their list
+  // first, since those can carry a meaning.
+  function addExamples(lead, code, met) {
+    var mine = (met || []).filter(function (lemma) {
+      return !!meaningOf(code, lemma);
+    });
+    var two = mine.concat((met || []).filter(function (lemma) { return mine.indexOf(lemma) < 0; })).slice(0, 2);
+    if (two.length === 2) {
+      lead.appendChild(document.createTextNode(" "));
+      sentenceWith(lead, t("progress.gap.examples", "You've met {first} and {second}."), {
+        "{first}": example(code, two[0]),
+        "{second}": example(code, two[1]),
+      });
+    } else if (two.length === 1) {
+      lead.appendChild(document.createTextNode(" "));
+      sentenceWith(lead, t("progress.gap.example", "You've met {first}."), { "{first}": example(code, two[0]) });
+    }
+  }
+
+  // The Mishkal list (design.md §12, "The Mishkal list beside the Grammar grid",
+  // 2026-11-02): a row a pattern, in the reviewed list's order, as the account sends it.
+  // Split in two tables of rows from six rows up, so that wherever it has the room it
+  // stands as two columns and not one long one; on a phone the two stack as one list.
+  function drawMishkal(code, mishkal) {
+    var cols = document.getElementById("mishkal-cols");
+    cols.textContent = "";
+    if (!mishkal) return;
+    var rows = (mishkal.rows || []).filter(function (line) {
+      return !!MISHKALIM[line.pattern];
+    });
+    var weakest = mishkal.gap ? mishkal.gap.pattern : null;
+    var halves = rows.length >= 6 ? [rows.slice(0, Math.ceil(rows.length / 2)), rows.slice(Math.ceil(rows.length / 2))] : [rows];
+    cols.classList.toggle("split", halves.length === 2);
+    halves.forEach(function (part) {
+      var table = el("table", "mishkal");
+      table.setAttribute("aria-labelledby", "mishkal-title");
+      table.setAttribute("aria-describedby", "mishkal-note mishkal-floor");
+      // The square's width is the column's: the spoken-only headers take no room.
+      var widths = el("colgroup");
+      widths.appendChild(el("col"));
+      widths.appendChild(el("col", "mishkal-share"));
+      table.appendChild(widths);
+      var head = el("thead");
+      var headRow = el("tr");
+      [t("progress.gap.mishkal-head-pattern", "Pattern"), t("progress.gap.mishkal-head-known", "Known")].forEach(function (name) {
+        var th = el("th", "", name);
+        th.setAttribute("scope", "col");
+        headRow.appendChild(th);
+      });
+      head.appendChild(headRow);
+      table.appendChild(head);
+      var body = el("tbody");
+      part.forEach(function (line) {
+        var named = MISHKALIM[line.pattern];
+        var tr = el("tr", "mishkal-row" + (weakest === line.pattern ? " weakest" : ""));
+        var th = el("th", "mishkal-pattern");
+        th.setAttribute("scope", "row");
+        var said = el("span", "mishkal-line");
+        said.appendChild(hebrew(line.template, "mishkal-he"));
+        said.appendChild(document.createTextNode(" "));
+        said.appendChild(el("span", "mishkal-name", named.name));
+        said.appendChild(document.createTextNode(" "));
+        var means = el("span", "mishkal-means", named.means);
+        // Where a wide row cuts the meaning short, the whole of it on hover.
+        means.title = named.means;
+        said.appendChild(means);
+        th.appendChild(said);
+        tr.appendChild(th);
+        tr.appendChild(
+          squareFor(line.known, "mishkal", function (square) {
+            showWords(
+              code,
+              square,
+              "mishkal",
+              t("progress.gap.mishkal-words-title", "{pattern}: the words you met", { pattern: named.name }),
+              line.words
+            );
+          })
+        );
+        body.appendChild(tr);
+      });
+      table.appendChild(body);
+      cols.appendChild(table);
+    });
+    document.getElementById("mishkal-floor").textContent = t(
+      "progress.gap.mishkal-floor",
+      "A dash means you met these fewer than {n} times, too few to say.",
+      { n: mishkal.cellFloor }
+    );
   }
 
   function drawGap(code) {
     var said = story[code];
     var grammar = (said && said.grammar) || null;
+    var mishkal = (said && said.mishkal) || null;
     var box = document.getElementById("gap");
     var title = document.getElementById("next-title");
     var lead = document.getElementById("gap-said");
@@ -1121,10 +1364,18 @@
     rows.textContent = "";
     lead.textContent = "";
     title.textContent = t("progress.next.title", "The words and texts that would help most");
-    var gap = grammar && grammar.gap && BINYANIM[grammar.gap.binyan] ? grammar.gap : null;
-    box.hidden = !grammar;
-    lead.hidden = !gap;
-    if (!grammar) return;
+    // What next names one gap, the one further under the other common patterns of its
+    // own kind (`gaps.lead`); an account from before the Mishkal list names the binyan.
+    var leads = said && said.lead !== undefined ? said.lead : grammar && grammar.gap ? "binyan" : null;
+    var gap = leads === "binyan" && grammar && grammar.gap && BINYANIM[grammar.gap.binyan] ? grammar.gap : null;
+    var nouns = leads === "mishkal" && mishkal && mishkal.gap && MISHKALIM[mishkal.gap.pattern] ? mishkal.gap : null;
+    box.hidden = !grammar && !mishkal;
+    document.getElementById("gap-grammar").hidden = !grammar;
+    document.getElementById("gap-mishkal").hidden = !mishkal;
+    halves.classList.toggle("with-mishkal", !!grammar && !!mishkal);
+    lead.hidden = !gap && !nouns;
+    drawMishkal(code, mishkal);
+    if (!grammar && !mishkal) return;
 
     if (gap) {
       var named = BINYANIM[gap.binyan];
@@ -1143,69 +1394,70 @@
             named.does
         )
       );
-      // Two words of the pattern the reader met, from their own reading; those on their
-      // list first, since those can carry a meaning.
-      var met = gap.examples || [];
-      var mine = met.filter(function (lemma) {
-        return !!meaningOf(code, lemma);
+      addExamples(lead, code, gap.examples);
+    } else if (nouns) {
+      var pattern = MISHKALIM[nouns.pattern];
+      title.textContent = "";
+      sentenceWith(title, t("progress.gap.title-mishkal", "Your biggest gap: {pattern} words"), {
+        "{pattern}": hebrew(nouns.template, "gap-pattern"),
       });
-      var two = mine.concat(met.filter(function (lemma) { return mine.indexOf(lemma) < 0; })).slice(0, 2);
-      if (two.length === 2) {
-        lead.appendChild(document.createTextNode(" "));
-        sentenceWith(lead, t("progress.gap.examples", "You've met {first} and {second}."), {
-          "{first}": example(code, two[0]),
-          "{second}": example(code, two[1]),
-        });
-      } else if (two.length === 1) {
-        lead.appendChild(document.createTextNode(" "));
-        sentenceWith(lead, t("progress.gap.example", "You've met {first}."), { "{first}": example(code, two[0]) });
-      }
+      lead.appendChild(
+        document.createTextNode(
+          t(
+            "progress.gap.said-mishkal",
+            "You know {n}% of the {pattern} words you meet, against {m}% for the other common patterns.",
+            { n: nouns.known, m: nouns.others, pattern: pattern.name }
+          ) +
+            " " +
+            pattern.does
+        )
+      );
+      addExamples(lead, code, nouns.examples);
     }
 
-    document.getElementById("grammar-floor").textContent = t(
-      "progress.gap.floor",
-      "A dash means fewer than {n} forms met, too few to say.",
-      { n: grammar.cellFloor }
-    );
-
-    (grammar.rows || []).forEach(function (line) {
-      var named = BINYANIM[line.binyan];
-      if (!named) return;
-      var tr = el("tr", "grammar-row" + (gap && gap.binyan === line.binyan ? " weakest" : ""));
-      var head = el("th", "grammar-binyan");
-      head.setAttribute("scope", "row");
-      head.appendChild(hebrew(named.he, "grammar-he"));
-      head.appendChild(document.createTextNode(" "));
-      head.appendChild(el("span", "grammar-name", named.name));
-      tr.appendChild(head);
-      TENSES.forEach(function (tense) {
-        var cell = (line.cells || {})[tense];
-        var td = el("td", "grammar-square");
-        if (!cell) {
-          td.className += " empty";
-          td.appendChild(el("span", "", "—"));
-          tr.appendChild(td);
-          return;
-        }
-        var square = el("button", "grammar-cell", t("progress.gap.percent", "{n}%", { n: cell.known }));
-        square.type = "button";
-        square.setAttribute("aria-expanded", "false");
-        square.setAttribute("aria-controls", "grammar-words");
-        // The fill is leaf mixed into the card in proportion to the share (§12).
-        square.style.setProperty("--share", String(cell.known));
-        square.addEventListener("click", function () {
-          showWords(code, square, line.binyan, tense, cell);
+    if (grammar) {
+      document.getElementById("grammar-floor").textContent = t(
+        "progress.gap.floor",
+        "A dash means fewer than {n} forms met, too few to say.",
+        { n: grammar.cellFloor }
+      );
+      // Each list outlines its own weakest pattern, whichever of the two What next names.
+      var weakest = grammar.gap ? grammar.gap.binyan : null;
+      (grammar.rows || []).forEach(function (line) {
+        var named = BINYANIM[line.binyan];
+        if (!named) return;
+        var tr = el("tr", "grammar-row" + (weakest === line.binyan ? " weakest" : ""));
+        var head = el("th", "grammar-binyan");
+        head.setAttribute("scope", "row");
+        head.appendChild(hebrew(named.he, "grammar-he"));
+        head.appendChild(document.createTextNode(" "));
+        head.appendChild(el("span", "grammar-name", named.name));
+        tr.appendChild(head);
+        TENSES.forEach(function (tense) {
+          var cell = (line.cells || {})[tense];
+          tr.appendChild(
+            squareFor(cell ? cell.known : null, "grammar", function (square) {
+              showWords(
+                code,
+                square,
+                "grammar",
+                t("progress.gap.words-title", "{pattern}, {tense}: the words you met", {
+                  pattern: named.name,
+                  tense: TENSE_NAMES[tense],
+                }),
+                cell.words
+              );
+            })
+          );
         });
-        td.appendChild(square);
-        tr.appendChild(td);
+        rows.appendChild(tr);
       });
-      rows.appendChild(tr);
-    });
+    }
 
-    // Topics: hidden until topic tagging sends something (a card of its own).
+    // Topics: hidden until topic tagging sends something (a card of its own), and then a
+    // row of its own under the two.
     var topicRows = (said && said.topics) || [];
     topics.hidden = !topicRows.length;
-    halves.classList.toggle("with-topics", !!topicRows.length);
   }
 
   function drawNext(code) {
