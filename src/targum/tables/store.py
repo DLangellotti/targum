@@ -412,6 +412,29 @@ class Store:
                     out.setdefault(str(key), {})[str(variant)] = int(n)
         return out
 
+    def counts(self, table: str, key: str, register: str | None = None) -> dict[str, int]:
+        """How often one key was counted under each variant now, in one register, or in
+        every register but the imports pool's where `register` is None."""
+        if not key or not self.file.is_file():
+            return {}
+        query = (
+            "SELECT t.variant, SUM(t.n) FROM tally t JOIN contribution c"
+            " ON c.id = t.contribution_id WHERE c.superseded_at IS NULL"
+            " AND c.tbl = ? AND t.key = ?"
+        )
+        args: list[str] = [table, key]
+        if register is None:
+            query += " AND c.register != ? AND c.register NOT LIKE ?"
+            args += [IMPORTS, f"{IMPORTS}:%"]
+        else:
+            query += " AND c.register = ?"
+            args.append(register)
+        with closing(self._connect()) as db:
+            return {
+                str(variant): int(n)
+                for variant, n in db.execute(query + " GROUP BY t.variant", args)
+            }
+
     def registers(self, table: str) -> dict[str, int]:
         """How many units each register holds a current contribution for, in one table."""
         if not self.file.is_file():
