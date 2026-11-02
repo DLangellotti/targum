@@ -689,6 +689,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   as the eval set. `targum tables push` carries the laptop's author, editor and model
   fixes to the box's account database, once; a reader's never travel. Settling a
   reader's proposal now carries its line onto the decision row.
+- A paid editor's own fixes are gold (David, 2026-11-02; targum-internal#585).
+  `targum tables fixes --gold` now exports the author's rows, a paid human editor's rows
+  and every accepted row. A refused proposal, and the row that refused it, stay out.
 - A noun's card names its root and mishkal (David, 2026-11-02; targum-internal#593, #596;
   design.md §12). A Hebrew noun or adjective now has a Root row from targum's own lexicon
   ("כ־ת־ב · write"), a Mishkal row with the pattern's template and, for about 25 productive
