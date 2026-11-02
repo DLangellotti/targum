@@ -55,6 +55,12 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   color: color-mix(in srgb, var(--page-max) 62%, var(--ink-max));
 }
 
+/* "from N roots", a second label on the known-words count and not a figure (design.md
+   §12, 2026-11-02): the label's own size and colour, set close under it. */
+.progress .ledger .counts span.count-roots {
+  margin-block-start: 0.1rem;
+}
+
 /* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
    reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
    iris for phrases, sun for turning up. The figure takes the hue; its label stays muted,

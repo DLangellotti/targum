@@ -243,6 +243,24 @@
     count(days.length, tn("progress.count.days", days.length, "day on targum", "days on targum"), null, null, "days");
     var read = wordsRead(code);
     if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
+    drawRoots(code);
+  }
+
+  /* "from N roots" under "words known" (design.md §12, '"from N roots" is a label on the
+     known-words count', 2026-11-02): a second muted label on that count, never a figure
+     of its own. The account's count, so it waits for the story; Hebrew only, and none
+     without a root lexicon (`roots` is null) or with no root to say. */
+  function drawRoots(code) {
+    var tile = document.querySelector("#counts .count-known");
+    if (!tile) return;
+    var old = tile.querySelector(".count-roots");
+    if (old) old.remove();
+    var said = story[code];
+    var roots = said && typeof said.roots === "number" ? said.roots : 0;
+    if (roots < 1) return;
+    tile.appendChild(
+      el("span", "count-roots", tn("progress.count.roots", roots, "from {n} root", "from {n} roots", { n: grouped(roots) }))
+    );
   }
 
   /* --- Level ----------------------------------------------------------------- */
@@ -610,6 +628,7 @@
           storyState(code);
           drawWhere(code);
           drawNext(code);
+          drawRoots(code);
         }
       })
       .catch(function () {

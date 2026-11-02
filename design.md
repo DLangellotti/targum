@@ -384,6 +384,36 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### "from N roots" is a label on the known-words count — 2026-11-02
+
+David, 2026-11-02 (targum-internal#594), choosing between two mocks: under "words known" in
+the ledger, rather than a line on the Reading level card. It reads the root lexicon as
+"A noun's card names its root and mishkal" (2026-11-02) and counts a root as the family
+line does.
+
+- **A label, not a ledger count.** It is a second muted line under "words known", in that
+  label's own size and colour, and it adds no figure: no number of its own in the
+  reading face, no hue, no tile. The headline stays the number of words (Decision 1,
+  2026-10-30); the roots are said about it, never instead of it. It feeds nothing: not
+  the ledger's totals, the level ruler, coverage, "How much Hebrew you understand" or any
+  yardstick, and nothing calls a reader's roots an achievement (Decision 3, "show, don't
+  credit").
+- **What it counts.** The distinct roots among the words the reader has marked known,
+  each word under the root its family line counts it under (`root_card.family_root`): a
+  verb's as the page draws it, with `verb_roots.denied` holding; a noun's or adjective's
+  only where the lexicon grades it transparent, so חשבון is not counted under ח־ש־ב. One
+  root string with unrelated meanings counts once a meaning (ע־ר־ב evening, guarantee). A
+  known word met in no text the reader has finished a section of has no part of speech
+  to go on and no root to count; nothing is guessed. The count is exact, never rounded.
+- **Live, never stored.** Worked out on each ask from the reader's own word rows and the
+  occurrences cache (`occurrences.roots_known`), returned in the story as `roots`. No
+  column, no status, no `SCHEMA_VERSION` change, no annotator rename.
+- **Where it shows.** Hebrew only; Russian waits for the Russian morpheme card. A machine
+  without `roots-he.json` shows no label. Signed out there is no count and no label. It
+  stays on the phone's three tiles: at 390 it sits under "words known" without crowding
+  the row, as the mock showed.
+- The Russian «из {n} корня / корней» is a draft and waits for David's read.
+
 ### The Mishkal list beside the Grammar grid — 2026-11-02
 
 David, 2026-11-02, answering the Mishkal grid mock. It amends "What next leads with your
