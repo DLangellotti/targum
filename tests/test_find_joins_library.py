@@ -136,6 +136,14 @@ def test_the_bar_lets_in_the_list_david_named(licence: str) -> None:
     assert promote.clears(licence)
 
 
+@pytest.mark.parametrize("licence", sorted(promote.FREE_USE_WITH_CREDIT))
+def test_attribution_only_free_use_joins_on_its_exact_recorded_terms(licence: str) -> None:
+    """David, 2026-11-02: the Government's and the Knesset's "free use, attribution
+    required", as `sources.json` records it, is treated as CC BY."""
+    assert promote.clears(licence)
+    assert promote.clears(f"  {licence} ")
+
+
 @pytest.mark.parametrize(
     "licence",
     [
@@ -144,7 +152,11 @@ def test_the_bar_lets_in_the_list_david_named(licence: str) -> None:
         "",
         "All rights reserved",
         "BBC — all rights reserved",
-        "State of Israel — free use, attribution required",
+        # Free-use wording that is not the exact recorded terms (David, 2026-11-02).
+        "free use, attribution required",
+        "State of Israel - free use, attribution required",
+        "Free use with attribution",
+        "The Knesset — free use, attribution required, no derivatives",
         "MIT",
         "Copyright, updated 2020",
     ],
@@ -498,3 +510,21 @@ def test_the_back_office_lists_what_joined_and_names_no_reader(world, shelf) -> 
     assert "Global Voices" in page and "CC BY 3.0" in page and "(site-wide)" in page
     assert f'name="id" value="{entry["id"]}"' in page and 'action="/back-office/take-down"' in page
     assert job.id not in page and "story-he" not in page
+
+
+def test_a_government_release_joins_credited_on_its_recorded_terms(world, shelf) -> None:
+    library, store, home, owner = world
+    terms = "State of Israel — free use, attribution required"
+    find_id = a_find(
+        store,
+        publisher="Government of Israel",
+        licence=terms,
+        licence_url="https://www.gov.il",
+        licence_from="publisher",
+    )
+    built(home, "story-he", URL)
+    entry = promote.join_find(
+        library, store, opened(home, "story-he", find_id, owner), read=no_tag, render=drawn
+    )
+    assert entry is not None
+    assert (entry["credit"], entry["licence"]) == ("Government of Israel", terms)

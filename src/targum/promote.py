@@ -383,7 +383,10 @@ def decline(store: Store, proposal_id: str, *, by: str = "person") -> None:
 #: The licences a find may join on (David, 2026-11-02): CC0 and public domain, CC BY,
 #: CC BY-SA, and their NonCommercial forms. Never ND, never all rights reserved, never
 #: unknown, and never terms not on this list.
-JOIN_BAR = "CC0 / public domain, CC BY, CC BY-SA, CC BY-NC, CC BY-NC-SA"
+JOIN_BAR = (
+    "CC0 / public domain, CC BY, CC BY-SA, CC BY-NC, CC BY-NC-SA,"
+    " and attribution-only free use as recorded"
+)
 
 #: Files a reader's build keeps that are never copied: the page itself, which is rendered
 #: again for the shelf; the shelf row's remembered answer, worked out again; a deck of the
@@ -397,9 +400,23 @@ def _flat(licence: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (licence or "").lower()).strip()
 
 
+#: Attribution-only free use, as `sources.json` records it for the outlets that state it
+#: (David, 2026-11-02): treated as CC BY, a credit owed and derivatives allowed. Matched on
+#: these exact recorded terms and nothing like them.
+FREE_USE_WITH_CREDIT = frozenset(
+    {
+        "State of Israel — free use, attribution required",
+        "The Knesset — free use, attribution required",
+    }
+)
+
+
 def clears(licence: str) -> bool:
     """Whether a find on this licence may join the library: on `JOIN_BAR`, and allowed
-    derivatives by `licensing.verdict`, which reads NoDerivatives first."""
+    derivatives by `licensing.verdict`, which reads NoDerivatives first; or one of the
+    exact attribution-only free-use terms in `FREE_USE_WITH_CREDIT`."""
+    if (licence or "").strip() in FREE_USE_WITH_CREDIT:
+        return True
     call = verdict(licence)
     if not call.derivatives or call.standing is Standing.unknown:
         return False
