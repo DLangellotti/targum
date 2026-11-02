@@ -176,7 +176,13 @@ def _ledger(store: Store) -> None:
 def test_the_recurrence_counts_fixes_places_and_what_comes_back(store: Store) -> None:
     _ledger(store)
     proposed = store.propose_correction(
-        stage="reader", who="reader", term="זזז", before="זזז", after="חחח", span="s-07 t0", kind="wording"
+        stage="reader",
+        who="reader",
+        term="זזז",
+        before="זזז",
+        after="חחח",
+        span="s-07 t0",
+        kind="wording",
     )
     store.settle_correction(proposed, accept=False)
     by_kind = {row["kind"]: row for row in fixes.recurrence(store)}
