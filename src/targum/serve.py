@@ -15275,11 +15275,16 @@ class Handler(BaseHTTPRequestHandler):
           nothing; where nothing there fits and a look on the web may run
           (`finds.live.refused`), the look starts and the answer is its id and stage.
         - `{"search": id}`: how that look is getting on, and its pick when it is done.
-        - `{"harder": true, "topics", "skip", "done"}`: "Show me something harder", only
+        - `{"harder": true, "topics", "skip", "done"}`: "Read one at 78% known", only
           where nothing fits: the nearest miss under the floor, from the shelf and the
           pool, with no look on the web (`finds.button.harder`).
         - `{"stop": id}`: the reader's Stop. No page is fetched after it and nothing is
           offered; the search itself, once asked, is spent.
+
+        Where an answer leaves the card with nothing at the reader's level, it carries
+        `nearest`, the text that press would open first, ranked from `near` (the press's
+        own body, which the page sends beside an ask, a look's polls and a Stop), so the
+        press can say its share known before anything runs (David, 2026-11-02).
 
         Every answer says `left`, the looks this reader may still start today, where a
         look may run at all.
@@ -15288,6 +15293,7 @@ class Handler(BaseHTTPRequestHandler):
         own press, `POST /finds/<id>/open`. A look on the web is targum's spend, inside
         the discovery budget. Off unless `TARGUM_FIND_BUTTON` is set.
         """
+        from . import choose as choose_module
         from . import estimate as estimate_module
         from .chat import tools as chat_tools
         from .finds import button, live
@@ -15310,14 +15316,20 @@ class Handler(BaseHTTPRequestHandler):
                 body["left"] = live.looks_left(person.id)
             return self._json(body, status)
 
+        # A Stop or a look's last poll that leaves the card with nothing says what the
+        # empty card says, the nearest text under the floor included, where the page sent
+        # what it needs to rank it (`language`, `near`); every other poll answers here.
+        ended: dict[str, Any] | None = None
         stopping = str(payload.get("stop") or "")[:40]
         if stopping:
             look = live.LOOKS.stop(stopping, person.id)
             if look is None:
                 return answer({"error": "not found"}, 404)
-            return answer(look.state())
+            ended = look.state()
+            if not payload.get("language"):
+                return answer(ended)
         polled = str(payload.get("search") or "")[:40]
-        if polled:
+        if polled and ended is None:
             look = live.LOOKS.get(polled, person.id)
             if look is None:
                 return self._json(
@@ -15331,7 +15343,9 @@ class Handler(BaseHTTPRequestHandler):
                 )
             elif look.stage == "done" and look.pick is not None:
                 state["pick"] = self._find_row(look.pick)
-            return answer(state)
+            if look.stage != "done" or look.pick is not None or not payload.get("language"):
+                return answer(state)
+            ended = state
         admin = bool(self.store.is_admin(person.email))
         spoken = self._asked_language(str(payload.get("language") or ""))
         code = spoken.split("-")[0].lower()
@@ -15380,27 +15394,47 @@ class Handler(BaseHTTPRequestHandler):
                 known=known,
             )
 
-        if payload.get("harder"):
-            # "Show me something harder" (David, 2026-11-02; design.md §12): pressed only
-            # where the card found nothing at the reader's level. The texts under the floor
-            # from the shelf and what the pool already holds, nearest miss first; never a
-            # look on the web. `done` is what the page says is finished or set aside.
-            given_done = payload.get("done")
+        def under_floor(body: Mapping[str, Any]) -> list[dict[str, Any]]:
+            """ "Show me something harder" (David, 2026-11-02; design.md §12): the texts
+            under the floor from the shelf and what the pool already holds, nearest miss
+            first; never a look on the web. `body` is what the page sends for the press, or
+            beside an ask as `near` to preview it, so the two rank the same texts the same
+            way: `topics`, `skip` (finds already shown) and `done` (what the page says is
+            finished or set aside)."""
+            given_topics = body.get("topics")
+            named = (
+                [str(one) for one in given_topics[:40]] if isinstance(given_topics, list) else []
+            )
+            steer = tuple(dict.fromkeys(one for one in named if one in chips_module.BY_CODE))
+            given_skip = body.get("skip")
+            passed_over = (
+                tuple(str(one)[:40] for one in given_skip[:200])
+                if isinstance(given_skip, list)
+                else ()
+            )
+            given_done = body.get("done")
             done = (
                 [str(one)[:200] for one in given_done[: self.SUGGEST_SKIP_MOST]]
                 if isinstance(given_done, list)
                 else []
             )
+            near_ask = button.Ask(code, steer, tuple(liked), passed_over)
             shelf = (
                 chat_tools.suggest_next(
-                    ctx, {"language": code, "under": True, "skip": [*done, *skip], "limit": 200}
+                    ctx,
+                    {
+                        "language": code,
+                        "under": True,
+                        "skip": [*done, *passed_over],
+                        "limit": 200,
+                    },
                 ).get("suggestions")
                 or []
             )
             mine, _ = chat_tools._shelf(ctx)
             found = button.ranked(
                 self.store,
-                ask,
+                near_ask,
                 chat_tools._marked(ctx, code, {}),
                 estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
                 rung=rung,
@@ -15413,7 +15447,34 @@ class Handler(BaseHTTPRequestHandler):
                 known=known,
                 harder=True,
             )
-            harder = button.nearest([*button.harder(shelf, ask, known), *found])
+            return button.nearest([*button.harder(shelf, near_ask, known), *found])
+
+        def nothing_fits(body: dict[str, Any]) -> dict[str, Any]:
+            """The card's empty answer (David, 2026-11-02; design.md §12): where things
+            stand, said from the floor, and the nearest text under it as `nearest`, the
+            fields the card names its press from ("Read one at 78% known"), the same text
+            the press then opens first. No `nearest` where there is none."""
+            body["pick"] = None
+            body["message"] = self._say(
+                "find.none",
+                "No new text is {n}% known for you yet.",
+                n=round(choose_module.FLOOR * 100),
+            )
+            near = payload.get("near")
+            rows = under_floor(near) if isinstance(near, dict) else []
+            if rows:
+                first = rows[0]
+                body["nearest"] = {
+                    key: first[key]
+                    for key in ("id", "kind", "video", "find", "reason", "percent")
+                    if key in first
+                }
+            return body
+
+        if ended is not None:
+            return answer(nothing_fits(ended))
+        if payload.get("harder"):
+            harder = under_floor(payload)
             if harder:
                 return answer(
                     {"pick": self._find_row(harder[0]), "harder": True, "more": len(harder) - 1}
@@ -15422,7 +15483,7 @@ class Handler(BaseHTTPRequestHandler):
                 {
                     "pick": None,
                     "why": "harder",
-                    "message": self._say("find.harder-none", "We found nothing harder today."),
+                    "message": self._say("find.harder-none", "No other new text is close yet."),
                 }
             )
         rows = choose()
@@ -15439,25 +15500,22 @@ class Handler(BaseHTTPRequestHandler):
                 choose,
                 tags=tuple(chips_module.tag(one) for one in chosen),
             )
-            return answer(look.state())
+            started = look.state()
+            if started.get("stage") == "done" and not started.get("pick"):
+                return answer(nothing_fits(started))
+            return answer(started)
         if rows:
             # Nothing in the band and no look to run: the best of what is left, which
             # is a find the reader knows almost all of, and the card says so.
             return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
-        message = {
-            "reader": self._say(
+        if why == "reader":
+            message = self._say(
                 "find.cap-reader",
                 "That's today's {n} web searches. More tomorrow.",
                 n=live.READER_DAY_MOST,
-            ),
-        }.get(
-            why,
-            self._say(
-                "find.none",
-                "We found nothing at your level today.",
-            ),
-        )
-        return answer({"pick": None, "why": why, "message": message})
+            )
+            return answer({"pick": None, "why": why, "message": message})
+        return answer(nothing_fits({"why": why}))
 
     def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
         """A pick as the card draws it, its lines in the page's language."""

@@ -723,6 +723,21 @@ behind `TARGUM_FIND_BUTTON`.
   aside, under clause 3.6 as it stands; its rows carry `harder` (schema 56), and nothing
   else changes.
 
+Amended 2026-11-02 (David, the same day): **when nothing fits, the card reads as a next
+step, not a dead end.** It says plainly where things stand, and its press says what you
+will get: the closest text and how much of it you know. No "today".
+
+- **The sentence.** "No new text is 90% known for you yet.", the figure the floor's own
+  (`choose.FLOOR`), never written into the copy.
+- **The press.** "Read one at 78% known": the exact share known of the very text the
+  press opens first, the nearest miss in the order above, said as that pick says it, and
+  with the pick's own verb, "Watch one at 64% known" for a video and "Listen to one at 83%
+  known" for a podcast. The figure comes with the empty answer (`nearest`, ranked from the
+  press's own body), so it starts no look on the web and spends nothing. With no text
+  under the floor there is no press, and the sentence stays.
+- **After the last miss.** "No other new text is close yet.", with Topic alone, in place
+  of "We found nothing harder today."
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,

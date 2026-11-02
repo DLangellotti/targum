@@ -1135,6 +1135,14 @@
     return !!row && (row.video || row.kind === "video" || row.kind === "talk");
   }
 
+  // How a pick is opened: watched, listened to or read. The pick's press and the empty
+  // card's "Read one at 78% known" both say it from here.
+  function verbOf(row) {
+    if (isVideo(row)) return "watch";
+    if (row && row.find && row.kind === "podcast") return "listen";
+    return "read";
+  }
+
   // The facts line: the kind for a library text, the site for a web find. Nothing else
   // tells the two apart (David, 2026-11-01).
   function factsOf(row) {
@@ -1262,11 +1270,13 @@
     }
     body.appendChild(parts.pick);
     var presses = el("div", "rc-presses");
-    var verb = isVideo(row)
-      ? t("home.card.watch", "Watch")
-      : row.find && row.kind === "podcast"
-        ? t("home.card.listen", "Listen")
-        : t("home.card.read", "Read");
+    var how = verbOf(row);
+    var verb =
+      how === "watch"
+        ? t("home.card.watch", "Watch")
+        : how === "listen"
+          ? t("home.card.listen", "Listen")
+          : t("home.card.read", "Read");
     var open;
     if (row.find) {
       open = el("button", "btn tonal rc-open", verb);
@@ -1329,6 +1339,9 @@
     Object.keys(extra || {}).forEach(function (key) {
       body[key] = extra[key];
     });
+    // Beside every ask, what the harder press would send, so an empty answer can name
+    // the text it would open (`nearest`).
+    if (!body.harder) body.near = harderBody();
     oneCard.lastAsk = body;
     var host = cardBody();
     if (host) {
@@ -1347,13 +1360,29 @@
      found nothing at the reader's level. The nearest text under the floor, on the topic
      chosen or the reader's own, from the shelf and the finds already pooled; never a look
      on the web. Something else on it walks to the next nearest miss. */
-  function askHarder() {
-    return askFind({
-      harder: true,
+  function harderBody() {
+    return {
       topics: oneCard.chip ? [oneCard.chip] : [],
       skip: oneCard.shown.concat(oneCard.harder).slice(-200),
       done: cardAsk.skip.concat(cardAsk.aside),
-    });
+    };
+  }
+  function askHarder() {
+    var body = harderBody();
+    body.harder = true;
+    return askFind(body);
+  }
+
+  // The floor the empty card states, from the server (`choose.FLOOR`).
+  function floorPercent() {
+    var said = document.body ? Number(document.body.getAttribute("data-floor")) : NaN;
+    return said > 0 ? said : 90;
+  }
+  // Nothing at the reader's level (David, 2026-11-02; design.md §12): where things stand,
+  // and the press that opens the nearest text under the floor, named by its share known.
+  function drawNone(got) {
+    var said = (got && got.message) || t("home.card.none", "No new text is {n}% known for you yet.", { n: floorPercent() });
+    drawSaid(said, "topic", (got && got.nearest) || null);
   }
 
   function answered(got) {
@@ -1362,26 +1391,26 @@
     if (got.pick) return drawPick(got.pick);
     if (got.search) {
       oneCard.look = got.search;
-      if (got.stage === "done") return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
+      if (got.stage === "done") return drawNone(got);
       drawWeb(got);
       return follow(got.search, 0);
     }
     if (got.why === "reader") return drawSaid(got.message || t("home.card.cap", "That's today's 3 web searches. More tomorrow."), "topic");
-    if (got.why === "harder") return drawSaid(got.message || t("home.card.harder-none", "We found nothing harder today."), "topic");
-    return drawSaid(got.message || t("home.card.none", "We found nothing at your level today."), "topic", true);
+    if (got.why === "harder") return drawSaid(got.message || t("home.card.harder-none", "No other new text is close yet."), "topic");
+    return drawNone(got);
   }
 
   function follow(id, asked) {
     window.setTimeout(function () {
       if (oneCard.look !== id) return;
-      askWith("/find", { search: id })
+      askWith("/find", { search: id, language: cardAsk.code, near: harderBody() })
         .then(function (got) {
           if (oneCard.look !== id || !got) return;
           if (typeof got.left === "number") oneCard.left = got.left;
           if (got.stage === "done") {
             oneCard.look = "";
             if (got.pick) return drawPick(got.pick);
-            return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
+            return drawNone(got);
           }
           if (got.stage === "failed") {
             oneCard.look = "";
@@ -1427,18 +1456,27 @@
     stop.addEventListener("click", function () {
       var id = oneCard.look;
       oneCard.look = "";
-      if (id) askWith("/find", { stop: id }).catch(function () {});
-      // Stop puts the last pick back.
-      if (oneCard.row) drawPick(oneCard.row);
-      else drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
+      // Stop puts the last pick back; with none, the card says nothing fits, and names
+      // the nearest text under the floor once the Stop's answer says which.
+      if (oneCard.row) {
+        if (id) askWith("/find", { stop: id }).catch(function () {});
+        return drawPick(oneCard.row);
+      }
+      if (!id) return drawNone(null);
+      askWith("/find", { stop: id, language: cardAsk.code, near: harderBody() })
+        .then(drawNone)
+        .catch(function () {
+          drawNone(null);
+        });
     });
     foot.appendChild(stop);
     body.appendChild(foot);
   }
 
   // A sentence in the pick's place, and its one press: a topic, or try again. Where it
-  // says nothing fits (`harder`), Show me something harder sits beside Topic.
-  function drawSaid(said, press, harder) {
+  // says nothing fits and a text under the floor is there (`nearest`), the press that
+  // opens it sits beside Topic, saying how much of it is known: "Read one at 78% known".
+  function drawSaid(said, press, nearest) {
     var body = cardBody();
     if (!body) return;
     body.appendChild(el("p", "rc-says", said));
@@ -1454,8 +1492,16 @@
       return;
     }
     presses.appendChild(topicPress(true));
-    if (harder) {
-      var up = el("button", "btn ghost rc-harder", t("home.card.harder", "Show me something harder"));
+    var near = nearest ? percentOf(nearest) : 0;
+    if (near) {
+      var how = verbOf(nearest);
+      var label =
+        how === "watch"
+          ? t("home.card.harder.watch", "Watch one at {n}% known", { n: near })
+          : how === "listen"
+            ? t("home.card.harder.listen", "Listen to one at {n}% known", { n: near })
+            : t("home.card.harder.read", "Read one at {n}% known", { n: near });
+      var up = el("button", "btn ghost rc-harder", label);
       up.type = "button";
       up.addEventListener("click", function () {
         oneCard.open = false;

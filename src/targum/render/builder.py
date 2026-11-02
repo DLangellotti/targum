@@ -2370,6 +2370,14 @@ def _find_button() -> bool:
     return on()
 
 
+def _floor_percent() -> int:
+    """The floor home's one card states when nothing fits, as a whole percentage
+    (`choose.FLOOR`; design.md §12, "Show me something harder", 2026-11-02)."""
+    from ..choose import FLOOR
+
+    return round(FLOOR * 100)
+
+
 def list_page(token: str, which: str, language: str = "en") -> str:
     """One of the three lists, whole, its words said in `language` (targum-internal#184).
 
@@ -2391,6 +2399,8 @@ def list_page(token: str, which: str, language: str = "en") -> str:
             which=which,
             languages=_language_names(language),
             find_button=_find_button(),
+            # The floor home's empty card states (`choose.FLOOR`, design.md §12).
+            floor=_floor_percent(),
             strings=script_strings(
                 language,
                 "yours.",
