@@ -6,6 +6,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A podcast find's sample that whisper refuses no longer drops the episode or uses up the
+  day's cap (targum-internal#621, 2026-11-02). The first run on the box had all ten
+  samples refused by OpenAI, 429 `credit_balance_exhausted`, and dropped ten good episodes
+  as unreadable with nothing in the log to say why. A refusal by the transcriber now
+  stops the night's sampling, says why on the round ("the transcriber refused (OpenAI 429
+  credit_balance_exhausted)"), and leaves the episodes for another night; nothing was
+  charged. A sample whose audio would not come or would not cut is still dropped, with
+  its step and reason in the run's note and the journal, and does not count against the
+  cap either: only a sample whisper heard does. Five failures in a row stop the sampling.
 - "Find me something" searches in ling-he's Hebrew (2026-11-01; targum-internal#615).
   Fourteen fixed phrases changed: ten chips (Film & TV, Gaming, The world, Money, Comedy,
   Relationships, Home, Crime, The army, Holidays) and four lexicon topics (people, money,

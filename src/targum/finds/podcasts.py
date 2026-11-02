@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import tempfile
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -90,6 +91,10 @@ BYTES_A_SECOND = 16_000
 
 #: Seconds read either side of the two minutes, so the cut lands on whole frames.
 PAD_SECONDS = 10
+
+#: Samples not heard in a row (the audio would not come, or ffmpeg could not cut it)
+#: after which a round stops sampling.
+UNHEARD_MOST = 5
 
 #: A show's words, a minute: speech under this is mostly music, and is not offered.
 LEAST_RATE = 30.0
@@ -327,9 +332,46 @@ def ready() -> str:
     return "" if able else f"no transcriber ({why})"
 
 
+class Unheard(Exception):  # noqa: N818 - a sample that was not heard, not an error class
+    """A sample that could not be heard, and at which step: `fetch` (the stretch of audio),
+    `cut` (ffmpeg on it) or `transcriber` (whisper). `why` is short enough for a log line
+    and a run's note.
+
+    A `transcriber` refusal is targum's, not the episode's: on 2026-11-02 the first run on
+    the box had all ten samples refused by OpenAI with a 429, `credit_balance_exhausted`,
+    and the round dropped ten good episodes as unreadable and counted them against the
+    day's cap. It now stops the sampling, says why, and leaves the episodes for another
+    night. Nothing is charged for a refusal."""
+
+    def __init__(self, where: str, why: str) -> None:
+        super().__init__(f"{where}: {why}")
+        self.where = where
+        self.why = why
+
+
+def _why(error: BaseException) -> str:
+    """One line of what went wrong: a provider's own code where it gave one, ffmpeg's last
+    words, or the error itself."""
+    import re
+
+    hint = str(getattr(error, "hint", "") or "")
+    said = hint or str(error)
+    status = re.match(r"(\w+ \d{3})", said)
+    code = re.search(r'"code"\s*:\s*"([^"]+)"', said)
+    if status and code:
+        return f"{status.group(1)} {code.group(1)}"
+    cause = error.__cause__
+    stderr = getattr(cause, "stderr", b"") if cause is not None else b""
+    if isinstance(stderr, bytes) and stderr.strip():
+        last = stderr.decode("utf-8", "replace").strip().splitlines()[-1]
+        return f"{error}: {last}"[:200]
+    return " ".join(said.split())[:200] or type(error).__name__
+
+
 def hear(episode: Episode) -> Heard:
     """Two minutes from the middle of an episode, transcribed by whisper, in a folder
-    that is then deleted with the sound and the words in it."""
+    that is then deleted with the sound and the words in it. Raises `Unheard`, naming the
+    step that failed."""
     from ..audio import tools
     from ..ingest.url import window
     from ..transcribe.openai_whisper import WhisperTranscriber
@@ -337,10 +379,19 @@ def hear(episode: Episode) -> Heard:
     start, most, lead = window_of(episode)
     with tempfile.TemporaryDirectory(prefix="targum-podcast-") as folder:
         stretch = Path(folder) / "stretch.mp3"
-        window(episode.audio, stretch, start, most)
+        try:
+            window(episode.audio, stretch, start, most)
+        except Exception as error:
+            raise Unheard("fetch", _why(error)) from error
         sample = Path(folder) / "sample.mp3"
-        tools.cut(stretch, sample, lead, lead + SAMPLE_SECONDS)
-        heard = WhisperTranscriber().transcribe(sample, "he", hint=episode.title)
+        try:
+            tools.cut(stretch, sample, lead, lead + SAMPLE_SECONDS)
+        except Exception as error:
+            raise Unheard("cut", _why(error)) from error
+        try:
+            heard = WhisperTranscriber().transcribe(sample, "he", hint=episode.title)
+        except Exception as error:
+            raise Unheard("transcriber", _why(error)) from error
         text = " ".join(word.text for word in heard.words if word.text.strip())
         seconds = float(heard.duration or 0.0)
         return Heard(text=text, seconds=seconds, cost=seconds / 60 * whisper_usd_a_minute())
@@ -358,12 +409,19 @@ class Round(news.Round):
     feeds: int = 0
     failed: int = 0
     left: list[str] = field(default_factory=list)
+    #: Samples not heard, by step and reason ("fetch: HTTP 403"), for the run's note.
+    unheard: Counter[str] = field(default_factory=Counter)
 
     def __str__(self) -> str:
         return (
             f"{super().__str__()}, {self.feeds} feeds read"
             + (f" ({self.failed} failed)" if self.failed else "")
             + f", {self.transcripts} transcripts, {self.sampled} samples"
+            + (
+                "; not heard: " + "; ".join(f"{n} × {why}" for why, n in self.unheard.items())
+                if self.unheard
+                else ""
+            )
         )
 
 
@@ -424,6 +482,8 @@ def refresh(
 
     def checkpoint() -> None:
         note.update(sampled=found.sampled, transcripts=found.transcripts, feeds=found.feeds)
+        if found.unheard:
+            note["unheard"] = dict(found.unheard)
         pool.finish_run(
             store,
             run,
@@ -515,13 +575,18 @@ def refresh(
     day_room = max(0, DAY_SAMPLES - sampled_since(store, day_from))
     month_room = max(0, MONTH_SAMPLES - sampled_since(store, pool.month_from(when)))
     why_not = ""
+    #: Samples tried since the last one heard: a host or ffmpeg failing every time stops
+    #: the round's sampling rather than walking the whole queue.
+    tries = 0
 
     def may_sample() -> str:
         """Why no more samples tonight, or ""."""
         nonlocal why_not
         if why_not:
             return why_not
-        if found.sampled >= month_room:
+        if tries >= UNHEARD_MOST:
+            why_not = f"{UNHEARD_MOST} samples not heard in a row"
+        elif found.sampled >= month_room:
             why_not = f"the month's {MONTH_SAMPLES} samples"
         elif found.sampled >= day_room:
             why_not = f"the day's {DAY_SAMPLES} samples"
@@ -552,15 +617,26 @@ def refresh(
                 # Not pooled and not dropped: a later night may still hear it.
                 found.left.append(episode.url)
                 continue
-            found.sampled += 1
             found.fetched += 1
             try:
                 heard = hear(episode)
             except Exception as error:  # noqa: BLE001 - one episode never stops a round
-                log.info("finds: no sample of %s: %s", episode.url, error)
-                dropped(episode.url, "unreadable", episode.show)
+                unheard = error if isinstance(error, Unheard) else Unheard("other", _why(error))
+                found.unheard[f"{unheard.where}: {unheard.why}"] += 1
+                log.warning("finds: no sample of %s: %s", episode.url, unheard)
+                if unheard.where == "transcriber":
+                    # targum's refusal, not the episode's: nothing heard, nothing charged,
+                    # nothing counted against the cap, and the episode waits.
+                    why_not = f"the transcriber refused ({unheard.why})"
+                    found.left.append(episode.url)
+                else:
+                    tries += 1
+                    dropped(episode.url, "unreadable", episode.show)
                 checkpoint()
                 continue
+            # Only a sample whisper heard counts against the day's and the month's caps.
+            found.sampled += 1
+            tries = 0
             found.spent += heard.cost
             pool.spend(store, run, heard.cost)
         _keep(store, episode, heard, forms, found, dropped, when)

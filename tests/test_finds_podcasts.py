@@ -261,13 +261,116 @@ def test_a_killed_round_has_kept_what_it_found(store: Store) -> None:
     assert json.loads(note)["transcripts"] == 1
 
 
-def test_an_unreadable_sample_is_dropped_and_still_counted(store: Store) -> None:
+def test_an_unreadable_sample_is_dropped_says_why_and_eats_no_cap(store: Store) -> None:
     class Deaf(Ears):
         def __call__(self, episode: podcasts.Episode) -> podcasts.Heard:
-            raise RuntimeError("ffmpeg could not read the stretch")
+            raise podcasts.Unheard("cut", "ffmpeg: Invalid data found when processing input")
 
     found = night(store, Deaf())
-    assert found.sampled == 1 and found.dropped["unreadable"] == 1
+    assert found.dropped["unreadable"] == 1
+    assert found.sampled == 0, "nothing was transcribed, so the day's cap is untouched"
+    assert "cut: ffmpeg: Invalid data" in str(found)
+    (note,) = store.db.execute("SELECT note FROM find_run WHERE source = 'podcast'").fetchone()
+    assert json.loads(note)["unheard"] == {
+        "cut: ffmpeg: Invalid data found when processing input": 1
+    }
+
+
+#: What OpenAI answered every sample on the box's first run (2026-11-02).
+NO_CREDITS = (
+    'OpenAI 429: {\n    "error": {\n        "message": "You have no credits remaining.",\n'
+    '        "type": "insufficient_quota",\n        "param": null,\n'
+    '        "code": "credit_balance_exhausted"\n    }\n}\n'
+)
+
+
+def test_a_transcriber_refusal_stops_the_sampling_and_drops_nothing(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#621, the first run on the box: whisper refused all ten samples
+    (no credits), and ten good episodes were dropped and counted against the cap."""
+    from targum.errors import ProviderError
+
+    monkeypatch.setattr(podcasts, "PER_FEED", 10)
+    second = podcasts.Show(**{**SHOW.__dict__, "key": "other", "feed": FEED + "?2"})
+    other = FEED_BODY.replace(b"https://audio.example/show/", b"https://audio.example/other/")
+    bodies = {FEED: FEED_BODY, FEED + "?2": other}
+
+    class Refused(Ears):
+        def __call__(self, episode: podcasts.Episode) -> podcasts.Heard:
+            self.asked.append(episode.audio)
+            error = ProviderError("The recording could not be transcribed.", NO_CREDITS)
+            raise podcasts.Unheard("transcriber", podcasts._why(error)) from error
+
+    ears = Refused()
+    found = night(store, ears, listed=[SHOW, second], pull=bodies.__getitem__)
+    assert len(ears.asked) == 1, "one refusal stops the night's sampling"
+    assert found.stopped == "the transcriber refused (OpenAI 429 credit_balance_exhausted)"
+    assert found.sampled == 0 and found.spent == 0 and found.dropped["unreadable"] == 0
+    assert SAMPLED in found.left and not pool.known(store, SAMPLED), "it waits for a night"
+    again = night(store, Ears(), listed=[SHOW, second], pull=bodies.__getitem__, at=AT + 1)
+    assert again.sampled == 2, "the next run hears them, the cap untouched"
+
+
+def test_samples_failing_in_a_row_stop_the_sampling(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(podcasts, "UNHEARD_MOST", 1)
+    second = podcasts.Show(**{**SHOW.__dict__, "key": "other", "feed": FEED + "?2"})
+    other = FEED_BODY.replace(b"https://audio.example/show/", b"https://audio.example/other/")
+    bodies = {FEED: FEED_BODY, FEED + "?2": other}
+
+    class Deaf(Ears):
+        def __call__(self, episode: podcasts.Episode) -> podcasts.Heard:
+            self.asked.append(episode.audio)
+            raise podcasts.Unheard("fetch", "HTTP 403")
+
+    ears = Deaf()
+    found = night(store, ears, listed=[SHOW, second], pull=bodies.__getitem__)
+    assert len(ears.asked) == 1 and found.stopped == "1 samples not heard in a row"
+
+
+def test_why_a_sample_was_not_heard_names_the_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+
+    from targum.audio import tools
+    from targum.errors import ProviderError, TargumError
+    from targum.ingest import url as door
+    from targum.transcribe import openai_whisper
+
+    episode = podcasts.Episode(
+        show=SHOW, audio=SAMPLED, title="", published=0, seconds=2400, length=38_400_000
+    )
+
+    def refused(url: str, into: Path, start: int, most: int) -> Any:
+        raise TargumError("We couldn't open it.", "HTTP 403")
+
+    monkeypatch.setattr(door, "window", refused)
+    with pytest.raises(podcasts.Unheard) as caught:
+        podcasts.hear(episode)
+    assert caught.value.where == "fetch" and "HTTP 403" in caught.value.why
+
+    monkeypatch.setattr(door, "window", lambda url, into, s, m: into.write_bytes(b"x"))
+
+    def broken(source: Path, into: Path, start: float, end: float) -> None:
+        failed = subprocess.CalledProcessError(1, ["ffmpeg"], stderr=b"x\nInvalid data found\n")
+        raise TargumError("We couldn't read the recording.") from failed
+
+    monkeypatch.setattr(tools, "cut", broken)
+    with pytest.raises(podcasts.Unheard) as caught:
+        podcasts.hear(episode)
+    assert caught.value.where == "cut" and caught.value.why.endswith("Invalid data found")
+
+    monkeypatch.setattr(tools, "cut", lambda source, into, a, b: into.write_bytes(b"x"))
+
+    def no_credits(self: Any, audio: Path, language: str = "", **more: Any) -> Any:
+        raise ProviderError("The recording could not be transcribed.", NO_CREDITS)
+
+    monkeypatch.setattr(openai_whisper.WhisperTranscriber, "transcribe", no_credits)
+    with pytest.raises(podcasts.Unheard) as caught:
+        podcasts.hear(episode)
+    assert caught.value.where == "transcriber"
+    assert caught.value.why == "OpenAI 429 credit_balance_exhausted"
 
 
 def test_music_with_hardly_a_word_is_not_offered(store: Store) -> None:
