@@ -433,7 +433,7 @@ reads the same root lexicon as "A noun's card names its root and mishkal" (2026-
   פ־ע־ל, מִקְטָל would be מִפְעָל, a real word in its own list. A pattern is the one the
   card is given (`root_card.hebrew_shape`): none where the annotation gave the noun a root
   of its own, and never a binyan's name.
-- **The meanings are ling-he's, reviewed 2026-11-02.** Eleven of the 25 drafts changed
+- **The meanings are ling-he's, reviewed 2026-11-02.** Thirteen of the 25 drafts changed
   (מִקְטָל is "often a place or a thing done", not "a place or a tool"; קָטִיל is
   "-able" only in newer words). One meaning a pattern, said once in the catalogue under
   `reader.card.mishkal.<key>` and read by both the card and this list. Each pattern also
@@ -449,23 +449,24 @@ reads the same root lexicon as "A noun's card names its root and mishkal" (2026-
   "You know 34% of the miktal words you meet, against 68% for the other common
   patterns.", the pattern's sentence and two words of it the reader met. Each list still
   outlines its own weakest. The heading over the grid stays "Grammar".
-- **Where it stands.** In What next's gap block. From 80rem the list stands beside the
-  grid, in the half that was kept for Topics, and the grid narrows from 36rem to 30rem to
-  give it room, its columns saying their short names as on a phone (at 30rem
-  «Повелительное» ran into «Инфинитив»). Below 80rem, 1024 included, it stands under the grid across the column.
-  On a phone it stacks under Grammar. Topics, when it exists, gets a row of its own under
+- **Where it stands: under the grid, at every width** (David, 2026-11-02, choosing
+  between the two desk layouts drawn from the built page at 1440, 1280 and 1024). In What
+  next's gap block, the list stands under Grammar across the whole column, and the grid
+  keeps its 36rem and its long column names. It was built beside the grid from 80rem, in
+  the half kept for Topics, with the grid narrowed to 30rem; there the meanings wrapped to
+  two or three lines in columns of about 14rem, and a band was still left under Grammar.
+  Under the grid every row fits on one line and nothing is left empty. On a phone it
+  stacks under Grammar as before. Topics, when it exists, gets a row of its own under
   both.
 - **Two columns of rows, not one long one** (David on the mock: "too much space under the
   binyanim chart"). A reader meets 10 to 18 patterns, and one column of them beside a
   seven-row grid left a tall empty band under Grammar. So the list is split into two
   tables of rows in its own order, which stand side by side wherever the block is 26rem
-  wide and stack as one list on a phone. Beside the grid at 1440 each row puts its meaning
-  under the pattern, and fourteen patterns come out within about a third of the grid's
-  height with its notes, where one column was more than twice it; under the grid at 1024
-  each column is wide enough for the meaning on the pattern's own line, and a meaning cut
-  short there says itself whole on hover. Moving the floor notes, the open word list or What next's two lists into the band
-  was weighed and left: those change size with what is open, and the band came back as
-  soon as a list was closed. Balancing the list itself holds whatever is open.
+  wide and stack as one list on a phone. At a desk each column is wide enough for the
+  meaning on the pattern's own line, and a meaning cut short says itself whole on hover.
+  Moving the floor notes, the open word list or What next's two lists into the band was
+  weighed and left: those change size with what is open, and the band came back as soon
+  as a list was closed. Balancing the list itself holds whatever is open.
 - **It feeds nothing.** No pattern is counted into the level ruler, the ledger, "How much
   Hebrew you understand" or any headline count, and nothing says a reader "knows" a
   pattern. A machine without `roots-he.json` draws no list, and What next stands as it
@@ -476,6 +477,7 @@ reads the same root lexicon as "A noun's card names its root and mishkal" (2026-
 - The Russian strings («Мишкаль», the transliterations, the meanings with the shipped
   binyan spellings «паал», «хифъиль», «хитпаэль», and the 25 sentences) are drafts and
   wait for David's read.
+
 ### Podcast finds are scored on a transcript or two minutes — 2026-11-02
 
 David, 2026-10-31 (targum-internal#621, slice C of the web-discovery plan): podcasts and

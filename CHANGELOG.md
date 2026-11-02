@@ -760,10 +760,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from 10 tokens, the gap from 30), the weakest row outlined, and a square opens its words.
   What next names whichever gap, binyan or mishkal, sits further under the other common
   patterns of its own kind, a tie going to the binyan: "Your biggest gap: מִקְטָל words".
-  Beside the grid from 80rem and under it below, in two columns of rows so it is not one
-  long column beside a short grid; stacked under Grammar on a phone. Feeds no level,
+  Under the grid at every width (David chose it over beside the grid from a comparison of
+  the built page), in two columns of rows at a desk, each meaning on its pattern's line;
+  stacked under Grammar on a phone. Feeds no level,
   ledger or headline count. A machine without `roots-he.json` draws no list. ling-he
-  reviewed the 25 meanings (eleven changed), now one source in the catalogue
+  reviewed the 25 meanings (thirteen changed), now one source in the catalogue
   (`reader.card.mishkal.*`) with the pattern list in `annotate.mishkal`. Occurrences cache
   version 8, rebuilt free. The Russian strings are drafts.
 - "from N roots" under "words known" on Your Progress (David, 2026-11-02; design.md §12;

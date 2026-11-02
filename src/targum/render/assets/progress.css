@@ -638,20 +638,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .mishkal-means { flex: 0 1 auto; min-inline-size: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .progress .mishkal-means::before { content: "·" / ""; margin-inline-end: 0.5rem; }
 }
-/* From 80rem the list stands beside the grid, in the half Topics was kept for. Below
-   that it stands under the grid, where it has the whole column for its two columns. */
-@media (min-width: 80rem) {
-  .progress .gap-halves.with-mishkal { grid-template-columns: minmax(0, 30rem) minmax(0, 1fr); }
-  /* At 30rem «Повелительное» runs into «Инфинитив»: the columns say their short names,
-     as on a phone, and the long ones stay spoken. */
-  .progress .with-mishkal .grammar .tense-short { display: inline; }
-  .progress .with-mishkal .grammar .tense-long {
-    position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden;
-    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
-  }
-  .progress .with-mishkal .mishkal col.mishkal-share { inline-size: 3.75rem; }
-}
-
 @media (max-width: 40rem) {
   .progress .ledger { padding: 1.1rem 1rem; }
   .progress .ledger .counts { gap: 1rem 0.75rem; }
