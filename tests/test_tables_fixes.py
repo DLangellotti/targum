@@ -64,7 +64,7 @@ def test_an_older_database_gains_the_three_columns(tmp_path: Path) -> None:
     opened = Store(file)
     columns = {row[1] for row in opened.db.execute("PRAGMA table_info(correction)")}
     assert {"kind", "tool", "run", "judge", "state"} <= columns
-    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 57
+    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 58
     row = opened.corrections()[0]
     assert (row["kind"], row["tool"], row["run"]) == ("", "", ""), "nobody said, before"
 
