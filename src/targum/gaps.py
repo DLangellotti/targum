@@ -7,6 +7,12 @@ what a build already wrote: the tense in each Hebrew verb token's `feats`, and i
 where the annotation named one, or the CC0 paradigm table's where every verb it finds
 agrees, kept beside each form in the occurrences cache. Nothing is annotated again,
 nothing is bought, and nothing here is a source of truth.
+
+The Mishkal list beside it (design.md §12, "The Mishkal list beside the Grammar grid",
+2026-11-02) is the same arithmetic over Hebrew nouns and adjectives, a row a pattern on
+ling-he's reviewed list (`annotate.mishkal`), read off the root lexicon the word card
+reads. What next names one gap of the two (`lead`). Neither feeds the level ruler, the
+ledger, "How much Hebrew you understand" or any headline count.
 """
 
 from __future__ import annotations
@@ -180,11 +186,106 @@ def grid(forms: Forms, marked: Mapping[str, int]) -> dict[str, Any] | None:
         "binyan": weakest,
         "known": known_percent(share(weakest)),
         "others": known_percent(others),
-        "examples": [
-            lemma
-            for lemma, _n in sorted(examples.items(), key=lambda pair: (-pair[1], pair[0]))[
-                :EXAMPLES
-            ]
-        ],
+        "examples": _most_met(examples),
     }
     return answer
+
+
+def _most_met(counted: Mapping[str, int]) -> list[str]:
+    ordered = sorted(counted.items(), key=lambda pair: (-pair[1], pair[0]))
+    return [lemma for lemma, _n in ordered[:EXAMPLES]]
+
+
+#: pattern key -> dictionary form -> noun and adjective tokens met.
+Patterns = Mapping[str, Mapping[str, int]]
+
+
+def mishkal_list(patterns: Patterns, marked: Mapping[str, int]) -> dict[str, Any] | None:
+    """The Mishkal list and its gap, as the page draws them; None where no pattern on the
+    list was met at all.
+
+    A row a pattern met at least once, in the list's fixed order (`annotate.mishkal`),
+    each one square: the share of its tokens whose word is known, or None under
+    `CELL_FLOOR`. A pattern needs `ROW_FLOOR` tokens to be named the gap, as a binyan
+    does; the weakest of those is the gap where it sits under the others pooled.
+    """
+    from .annotate.mishkal import PATTERNS, template
+
+    rows: list[dict[str, Any]] = []
+    totals: dict[str, tuple[int, int]] = {}
+    kept: dict[str, dict[str, int]] = {}
+    for key, _templates in PATTERNS:
+        met = {
+            lemma: n
+            for lemma, n in (patterns.get(key) or {}).items()
+            if marked.get(lemma) != IGNORED and n > 0
+        }
+        total = sum(met.values())
+        if not total:
+            continue
+        known = sum(n for lemma, n in met.items() if marked.get(lemma) == KNOWN)
+        totals[key] = (known, total)
+        kept[key] = met
+        row: dict[str, Any] = {"pattern": key, "template": template(key), "tokens": total}
+        if total < CELL_FLOOR:
+            row["known"] = None
+            row["words"] = []
+        else:
+            ordered = sorted(met.items(), key=lambda pair: (-pair[1], pair[0]))
+            row["known"] = known_percent(known / total)
+            row["words"] = [
+                {"lemma": lemma, "count": n, "known": marked.get(lemma) == KNOWN}
+                for lemma, n in ordered[:WORDS]
+            ]
+        rows.append(row)
+    if not rows:
+        return None
+    answer: dict[str, Any] = {
+        "rows": rows,
+        "cellFloor": CELL_FLOOR,
+        "rowFloor": ROW_FLOOR,
+        "gap": None,
+    }
+    enough = [key for key, (_known, total) in totals.items() if total >= ROW_FLOOR]
+    if len(enough) < 2:
+        return answer
+
+    def share(key: str) -> float:
+        known, total = totals[key]
+        return known / total
+
+    weakest = min(enough, key=lambda key: (share(key), key))
+    others_known = sum(totals[key][0] for key in enough if key != weakest)
+    others_total = sum(totals[key][1] for key in enough if key != weakest)
+    others = others_known / others_total
+    if share(weakest) >= others:
+        return answer
+    answer["gap"] = {
+        "pattern": weakest,
+        "template": template(weakest),
+        "known": known_percent(share(weakest)),
+        "others": known_percent(others),
+        "examples": _most_met(kept[weakest]),
+    }
+    return answer
+
+
+def lead(grammar: Mapping[str, Any] | None, mishkal: Mapping[str, Any] | None) -> str | None:
+    """Which gap What next names: "binyan", "mishkal" or None.
+
+    Raw shares are not compared across the two kinds, since noun patterns run higher than
+    verb forms. Each gap is measured against the other common patterns of its own kind,
+    and the one further under them is named; a tie goes to the binyan (David,
+    2026-11-02)."""
+    verbs = (grammar or {}).get("gap")
+    nouns = (mishkal or {}).get("gap")
+    if verbs and nouns:
+        # In the points the two sentences say ("31%, against 80%"), so a tie is one a
+        # reader could see.
+        further = nouns["others"] - nouns["known"] > verbs["others"] - verbs["known"]
+        return "mishkal" if further else "binyan"
+    if verbs:
+        return "binyan"
+    if nouns:
+        return "mishkal"
+    return None

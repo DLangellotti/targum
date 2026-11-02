@@ -739,6 +739,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   credit a minute; the card says Podcast and its press is Listen. A feed's transcript is
   now taken as SRT or VTT where it offers one among several, for imports too. It does
   nothing until `TARGUM_FINDS_PODCASTS=1` is in targum.env.
+- A Mishkal list beside the Grammar grid on Your Progress (David, 2026-11-02; design.md
+  §12). A row a noun pattern from ling-he's reviewed 25, suffixes included, shown once the
+  reader has met it and in the list's fixed order: the template in ק־ט־ל, its
+  transliteration and meaning, and one square, the exact share of that pattern's noun and
+  adjective tokens in finished sections whose word is known. The grid's floors (a figure
+  from 10 tokens, the gap from 30), the weakest row outlined, and a square opens its words.
+  What next names whichever gap, binyan or mishkal, sits further under the other common
+  patterns of its own kind, a tie going to the binyan: "Your biggest gap: מִקְטָל words".
+  Beside the grid from 80rem and under it below, in two columns of rows so it is not one
+  long column beside a short grid; stacked under Grammar on a phone. Feeds no level,
+  ledger or headline count. A machine without `roots-he.json` draws no list. ling-he
+  reviewed the 25 meanings (eleven changed), now one source in the catalogue
+  (`reader.card.mishkal.*`) with the pattern list in `annotate.mishkal`. Occurrences cache
+  version 8, rebuilt free. The Russian strings are drafts.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15

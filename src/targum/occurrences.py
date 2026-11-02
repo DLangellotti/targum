@@ -26,6 +26,9 @@ build already writes beside each reader, and can be thrown away and rebuilt from
   the words of one root a reader has met, from the root the annotation already carries.
 - **Which verb forms a reader met** — `verb_forms`, each Hebrew verb's binyan and tense
   as the annotation already carries them, for Your Progress's Grammar grid (`gaps.py`).
+- **Which noun patterns a reader met** — `mishkal_forms`, each Hebrew noun's or
+  adjective's mishkal on the reviewed list (`annotate.mishkal`), as the root lexicon gives
+  it the word card, for Your Progress's Mishkal list.
 
 **"Met" means a section the reader finished.** Three definitions were on the table, and
 the store holds the data for each:
@@ -78,8 +81,10 @@ OCCURRENCES = "occurrences.json"
 #: as a closed-class word (`function`), so a split-off כ is never a word to learn; 6 counts
 #: a lemma the word does not spell under the one the page shows (`annotate.lemma_check`);
 #: 7 counts a Hebrew noun's or adjective's root and a Russian word's from targum's root
-#: lexicons (`annotate.root_card.family_root`), and the lexicons' own files join the stamp.
-VERSION = 7
+#: lexicons (`annotate.root_card.family_root`), and the lexicons' own files join the stamp;
+#: 8 adds each Hebrew noun's and adjective's mishkal on the reviewed list (`mishkalim`,
+#: design.md §12, 2026-11-02), read off the same lexicon the card reads.
+VERSION = 8
 
 
 @dataclass(frozen=True)
@@ -102,7 +107,10 @@ class Occurrences:
     verb's as the page draws it, a transparent noun's or Russian word's from the root
     lexicon, several joined by a space; `verbs`
     maps "binyan|tense|form" to the same flat run, for the verb tokens that carry both
-    (`gaps.verb_form`); `function` names the forms every token of which here was a
+    (`gaps.verb_form`); `mishkalim` maps "pattern|form" to the same flat run, for the
+    Hebrew nouns and adjectives whose mishkal is on the reviewed list
+    (`annotate.mishkal`), as the card is given it (`root_card.hebrew_shape`); `function`
+    names the forms every token of which here was a
     closed-class word (`tables.weights.EXCLUDED`): a prefix DICTA split off, כ ה ו ב ל
     מ ש, or a word like של or את, which are met and never words to learn.
     """
@@ -112,6 +120,7 @@ class Occurrences:
     roots: dict[str, str] = field(default_factory=dict)
     verbs: dict[str, tuple[int, ...]] = field(default_factory=dict)
     function: frozenset[str] = frozenset()
+    mishkalim: dict[str, tuple[int, ...]] = field(default_factory=dict)
 
     def count(self, lemma: str) -> int:
         """How many running words in the text have this dictionary form."""
@@ -189,7 +198,19 @@ def _from(loaded: object) -> Occurrences | None:
         if isinstance(flat, list) and len(flat) % 2 == 0
     }
     function = frozenset(str(lemma) for lemma in loaded.get("function") or ())
-    return Occurrences(places=places, lemmas=lemmas, roots=roots, verbs=verbs, function=function)
+    mishkalim = {
+        str(form): tuple(int(n) for n in flat)
+        for form, flat in (loaded.get("mishkalim") or {}).items()
+        if isinstance(flat, list) and len(flat) % 2 == 0
+    }
+    return Occurrences(
+        places=places,
+        lemmas=lemmas,
+        roots=roots,
+        verbs=verbs,
+        function=function,
+        mishkalim=mishkalim,
+    )
 
 
 def count_text(folder: Path) -> Occurrences | None:
@@ -202,7 +223,8 @@ def count_text(folder: Path) -> Occurrences | None:
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
     from .annotate.lemma_check import applies, mend_row
-    from .annotate.root_card import family_root
+    from .annotate.mishkal import key_of
+    from .annotate.root_card import HEBREW_KINDS, family_root, hebrew_shape
     from .annotate.verb_roots import root_for
     from .gaps import verb_form
     from .ingest import post as post_module
@@ -230,6 +252,9 @@ def count_text(folder: Path) -> Occurrences | None:
     tally: dict[str, dict[int, int]] = {}
     roots: dict[str, str] = {}
     verbs: dict[str, dict[int, int]] = {}
+    mishkalim: dict[str, dict[int, int]] = {}
+    # A noun's mishkal, worked out once a form and part of speech in each text.
+    pattern_of: dict[tuple[str, str], str] = {}
     # The forms met at least once as an open-class word; the rest are `function`.
     content: set[str] = set()
     for segment in segmented.segments:
@@ -257,6 +282,20 @@ def count_text(folder: Path) -> Occurrences | None:
             if form := verb_form(token):
                 verb = verbs.setdefault(f"{form[0]}|{form[1]}|{lemma}", {})
                 verb[at] = verb.get(at, 0) + 1
+            pos = str(token.get("pos") or "")
+            if language.split("-")[0] == "he" and pos in HEBREW_KINDS:
+                if (lemma, pos) not in pattern_of:
+                    # The pattern the card shows: none where the annotation gave the
+                    # noun a root of its own, or the lexicon's is a binyan's name.
+                    shape = hebrew_shape(
+                        lemma, pos, root_for(lemma, token.get("root"), pos, language)
+                    )
+                    pattern_of[lemma, pos] = (
+                        key_of(shape[1]) if isinstance(shape, list) and shape[1] else ""
+                    )
+                if pattern := pattern_of[lemma, pos]:
+                    held = mishkalim.setdefault(f"{pattern}|{lemma}", {})
+                    held[at] = held.get(at, 0) + 1
             if lemma not in roots and (
                 found_root := family_root(
                     lemma,
@@ -281,6 +320,10 @@ def count_text(folder: Path) -> Occurrences | None:
             for form, row in verbs.items()
         },
         function=frozenset(tally) - content,
+        mishkalim={
+            form: tuple(n for at, count in row.items() for n in (at, count))
+            for form, row in mishkalim.items()
+        },
     )
 
 
@@ -325,6 +368,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> Occurrences | None:
                     "roots": counted.roots,
                     "verbs": {form: list(flat) for form, flat in counted.verbs.items()},
                     "function": sorted(counted.function),
+                    "mishkalim": {form: list(flat) for form, flat in counted.mishkalim.items()},
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -540,6 +584,32 @@ def verb_forms(
             if n:
                 cell = out.setdefault((binyan, tense), {})
                 cell[lemma] = cell.get(lemma, 0) + n
+    return out
+
+
+def mishkal_forms(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "he",
+) -> dict[str, dict[str, int]]:
+    """The noun and adjective tokens a reader met, by mishkal and dictionary form: what
+    Your Progress's Mishkal list is drawn from (`gaps.mishkal_list`, design.md §12,
+    2026-11-02). Met as `verb_forms` means it, and every token counts."""
+    out: dict[str, dict[str, int]] = {}
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        if not counted.mishkalim:
+            continue
+        inside = [section in sections for section, _ref in counted.places]
+        for form, flat in counted.mishkalim.items():
+            pattern, lemma = form.split("|", 1)
+            n = sum(
+                count
+                for at, count in zip(flat[0::2], flat[1::2], strict=True)
+                if at < len(inside) and inside[at]
+            )
+            if n:
+                row = out.setdefault(pattern, {})
+                row[lemma] = row.get(lemma, 0) + n
     return out
 
 
