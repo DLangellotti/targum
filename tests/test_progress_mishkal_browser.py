@@ -163,7 +163,7 @@ BOTH = {"grammar": grammar(), "mishkal": mishkal(), "lead": "mishkal"}
 
 
 @pytest.mark.parametrize("width", [1440, 1024, 390])
-def test_the_list_is_a_table_beside_or_under_the_grid_and_fits(chromium: Any, width: int) -> None:
+def test_the_list_is_a_table_under_the_grid_and_fits(chromium: Any, width: int) -> None:
     context, page, thrown = open_page(chromium, BOTH, width)
     try:
         assert page.get_by_role("heading", name="Grammar").is_visible(), "the heading stays"
@@ -192,6 +192,9 @@ def test_the_list_is_a_table_beside_or_under_the_grid_and_fits(chromium: Any, wi
                 client: document.documentElement.clientWidth,
                 grammar: box('.gap-grammar'), mishkal: box('.gap-mishkal'),
                 tables: tables.map((t) => ({left: t.left, top: t.top, height: t.height})),
+                rows: [...document.querySelectorAll('.mishkal tbody tr')]
+                  .map((tr) => tr.getBoundingClientRect().height),
+                rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
                 cell: Math.min(...[...document.querySelectorAll('.mishkal .grammar-cell')]
                   .map((one) => one.getBoundingClientRect().height)),
               };
@@ -203,17 +206,14 @@ def test_the_list_is_a_table_beside_or_under_the_grid_and_fits(chromium: Any, wi
             measured["mishkal"],
             measured["tables"],
         )
-        if width >= 1280:
-            assert abs(mishkal_box["top"] - grammar_box["top"]) < 2, "beside the grid"
-        else:
-            assert mishkal_box["top"] >= grammar_box["bottom"], "under the grid"
+        # Under the grid at every width (David, 2026-11-02), and the grid keeps its 36rem.
+        assert mishkal_box["top"] >= grammar_box["bottom"], "under the grid"
         if width >= 600:
             # Two columns of rows side by side, so no band is left empty beside them.
             assert len(tables) == 2 and tables[0]["top"] == tables[1]["top"]
             assert tables[1]["left"] > tables[0]["left"]
-            taller = max(mishkal_box["height"], grammar_box["height"])
-            if width >= 1280:
-                assert taller < 1.5 * min(mishkal_box["height"], grammar_box["height"])
+            # Each row on one line: no row is taller than two lines of the pattern.
+            assert max(measured["rows"]) < 3.2 * measured["rem"], measured["rows"]
         else:
             assert tables[1]["top"] > tables[0]["top"], "one list on a phone"
             assert measured["cell"] >= 44, "a square answers a thumb over 44px (§8)"
