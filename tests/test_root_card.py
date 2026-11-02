@@ -452,6 +452,38 @@ def test_a_russian_family_is_counted_by_root_morph(tmp_path: Path) -> None:
     assert occurrences.family("лет", finished, folder_for, "ru", "летать") == ["летать"]
 
 
+@pytest.mark.usefixtures("lexicons")
+def test_words_from_n_roots_counts_the_roots_of_known_words_as_the_family_line_does(
+    tmp_path: Path,
+) -> None:
+    """Your Progress's "words from N roots" (targum-internal#594): a verb and a noun of
+    כ־ת־ב are one root; a noun the lexicon grades partly transparent is none; a root
+    `verb_roots.denied` refuses is none; one root string with two meanings is two; and a
+    known word met in no text the reader finished has no root to count."""
+    folder = _text(
+        tmp_path / "t",
+        [
+            _word("כתב", "VERB", "כתב"),
+            _word("מכתב", "NOUN"),
+            _word("חשבון", "NOUN"),
+            _word("ערב", "NOUN"),
+            _word("ערבות", "NOUN"),
+            _word("גדול", "VERB", "גדול"),
+        ],
+    )
+
+    def folder_for(document: str) -> tuple[Path, str] | None:
+        return (folder, "he") if document == "doc" else None
+
+    finished = [("doc", "1", 10)]
+    known = ["כתב", "מכתב", "חשבון", "גדול", "זמן"]
+    assert occurrences.roots_known(known, finished, folder_for, "he") == 1
+    assert occurrences.roots_known([*known, "ערב"], finished, folder_for, "he") == 2
+    assert occurrences.roots_known([*known, "ערב", "ערבות"], finished, folder_for, "he") == 3
+    assert occurrences.roots_known([], finished, folder_for, "he") == 0
+    assert occurrences.roots_known(known, [], folder_for, "he") == 0
+
+
 # --- The Mishkal list's counts (design.md §12, 2026-11-02) -----------------------------------
 
 

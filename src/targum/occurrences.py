@@ -520,6 +520,45 @@ def family(
     return list(out)
 
 
+def roots_known(
+    known: Iterable[str],
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "he",
+) -> int:
+    """How many roots the reader's known words come from: Your Progress's "words from N
+    roots" (targum-internal#594, design.md §12, 2026-11-02).
+
+    A word's root is the one the family line counts it under (`Occurrences.roots`,
+    `root_card.family_root`): a verb's as the page draws it, `verb_roots.denied` holding,
+    and a noun's or adjective's only where the root lexicon grades it transparent. It is
+    read off the texts the reader has finished a section of, which is where the cache
+    has seen the word's part of speech; a known word met in none of them has no root to
+    count, and nothing is guessed. One root string with unrelated meanings (ע־ר־ב
+    evening, guarantee) counts once a meaning (`root_card.sense_of`); a word whose
+    meaning the lexicon does not give joins whichever meaning is there.
+
+    Derived on each ask from the reader's own word rows, never stored, and fed into
+    nothing else.
+    """
+    from .annotate.root_card import keys, sense_of
+
+    wanted = set(known)
+    if not wanted:
+        return 0
+    root_of: dict[str, str] = {}
+    for _document, _sections, counted in _finished_texts(finished, folder_for, language):
+        for form in wanted & counted.roots.keys():
+            root_of.setdefault(form, counted.roots[form])
+        if len(root_of) == len(wanted):
+            break
+    senses: dict[str, set[int]] = {}
+    for form, counted_under in root_of.items():
+        for root in keys(counted_under):
+            senses.setdefault(root, set()).add(sense_of(language, form, root))
+    return sum(max(1, len(found - {0})) for found in senses.values())
+
+
 def texts_met(
     lemmas: Iterable[str],
     finished: Iterable[tuple[str, str, int]],

@@ -582,6 +582,8 @@
   "progress.count.saved.other": "saved words",
   "progress.count.known.one": "word known",
   "progress.count.known.other": "words known",
+  "progress.count.roots.one": "from {n} root",
+  "progress.count.roots.other": "from {n} roots",
   "progress.count.learned.one": "learned on targum",
   "progress.count.learned.other": "learned on targum",
   "progress.count.phrases.one": "phrase saved",

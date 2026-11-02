@@ -386,6 +386,7 @@ def test_the_story_draws_the_mishkal_list_where_there_is_a_lexicon(
 
     status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
     assert said["mishkal"] is None, "no lexicon on this machine, no list"
+    assert said["roots"] is None, "no lexicon, no roots line"
 
     row = {"root": "כ־ת־ב", "borrowed": False, "meaning": "write", "transparent": "yes"}
     lexicon = tmp_path / "roots-he.json"
@@ -411,9 +412,12 @@ def test_the_story_draws_the_mishkal_list_where_there_is_a_lexicon(
     assert said["mishkal"]["gap"]["pattern"] == "miqtal"
     assert said["lead"] == "mishkal"
     assert said["grammar"] is None
+    # "words from N roots" (targum-internal#594): the one known word's root, כ־ת־ב.
+    assert said["roots"] == 1
 
     status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)
     assert said["mishkal"] is None
+    assert said["roots"] is None
 
 
 def test_each_ladder_count_is_its_library_shelf_count(

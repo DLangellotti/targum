@@ -766,6 +766,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   reviewed the 25 meanings (eleven changed), now one source in the catalogue
   (`reader.card.mishkal.*`) with the pattern list in `annotate.mishkal`. Occurrences cache
   version 8, rebuilt free. The Russian strings are drafts.
+- "from N roots" under "words known" on Your Progress (David, 2026-11-02; design.md §12;
+  targum-internal#594). A second muted label on the known-words count, not a figure of
+  its own: the distinct roots among the words the reader knows, each under the root the
+  family line counts it under (a verb's as the page draws it, `verb_roots.denied`
+  holding; a noun's or adjective's only where the root lexicon grades it transparent),
+  one root string with unrelated meanings counted once a meaning. Worked out live off the
+  reader's word rows (`occurrences.roots_known`, the story's `roots`), stored nowhere and
+  fed into nothing: not the ledger's totals, the level, coverage or a yardstick. Hebrew
+  only, and none without `roots-he.json`. The Russian label is a draft for David.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15
