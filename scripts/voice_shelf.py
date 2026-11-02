@@ -63,6 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import voice_scenes as vs  # noqa: E402
 
 from targum.dialogue.checks import voice_gender  # noqa: E402
+from targum.tables.fixes import KINDS, record  # noqa: E402
 
 CAP = 30.0
 #: The shelf's usual voices, for a speaker whose own is missing, unknown or the wrong
@@ -273,6 +274,41 @@ def give_hints(scenes: list[dict[str, Any]], hints: dict[tuple[str, int], str]) 
         by_id[sid]["turns"][n]["hint"] = text
 
 
+#: What a hint is, kept as a fix (targum-internal#585): the line as the voice first said
+#: it, and the pronunciation the author gave so it would be said right.
+HINT_WHY = "a pronunciation hint, said after the line when it was voiced again"
+
+
+def keep_hints(scene: dict[str, Any], args: argparse.Namespace) -> int:
+    """Write each hint a voiced scene used into the corrections ledger, as the author's
+    fix to the voice, once a scene is done: a hint becomes a row when it is used, never
+    when it is only given. Returns how many were new. Without `args.keep` (tests, a run
+    with no hints) nothing is written, and a failed write never stops the run."""
+    keep = getattr(args, "keep", None)
+    if keep is None:
+        return 0
+    kept = 0
+    for n, turn in enumerate(scene["turns"]):
+        if not turn.get("hint"):
+            continue
+        written = record(
+            keep,
+            stage="voice",
+            who="author",
+            language=language(scene),
+            before=str(turn.get("text") or ""),
+            after=str(turn["hint"]),
+            why=HINT_WHY,
+            kind=getattr(args, "hint_kind", "stress"),
+            tool=vs.MODEL,
+            unit=f"{scene['id']} t{n}",
+            run=getattr(args, "run_id", ""),
+            text=str(turn.get("english") or ""),
+        )
+        kept += 1 if written else 0
+    return kept
+
+
 def dry_run(
     scenes: list[dict[str, Any]], into: Path, progress: Progress, spacing: float, cap: float
 ) -> None:
@@ -447,6 +483,7 @@ def run(
                 bought=round(paid, 2),
                 reason=None,
             )
+            keep_hints(scene, args)
             print(f"  {seconds:.1f}s, ${progress.spent:.2f} this run", flush=True)
             break
     progress.set(current=None, stopped="finished")
@@ -473,6 +510,15 @@ def main() -> None:
         default=[],
         help="scene:turn=text, a pronunciation said after the line's own; repeatable. "
         "e.g. 65-the-leak:22='Read עוֹשָׂה as \"osa\", the feminine'",
+    )
+    parser.add_argument(
+        "--hint-kind",
+        choices=KINDS,
+        default="stress",
+        help="what the hints fix, as the corrections ledger files it; default stress",
+    )
+    parser.add_argument(
+        "--store", type=Path, default=None, help="where a used hint is kept as a fix"
     )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
@@ -507,6 +553,12 @@ def main() -> None:
     if not args.no_direction and not director_key:
         sys.exit("no ANTHROPIC_API_KEY for the director: run under op run, or --no-direction")
     into.mkdir(parents=True, exist_ok=True)
+    if args.hint:
+        from targum.accounts import Store
+        from targum.serve import default_store
+
+        args.keep = Store(args.store or default_store())
+        args.run_id = f"voice_shelf-{datetime.now(UTC):%Y-%m-%dT%H%M}"
     run(scenes, into, Progress(progress_path, args.cap), tts_key, director_key, args)
 
 

@@ -369,10 +369,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    or two minutes", 2026-11-02), 0 on every other find. On a table every box has, so it
 #    is in MIGRATIONS.
 #
+# 57→58: correction.kind, correction.tool and correction.run — the corrections ledger
+#    (targum-internal#585, language tables spec §4). `kind` is the mistake's class from
+#    the closed list `tables.fixes.KINDS`, `tool` what made the "before" (a model, a
+#    vocalizer, a voice), `run` the batch it was fixed in. Empty on every row written
+#    before. On a table every box has, so they are in MIGRATIONS, with an index on what
+#    makes one fix the same fix twice.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 57
+SCHEMA_VERSION = 58
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -729,6 +736,13 @@ MIGRATIONS: tuple[str, ...] = (
     # correction is a proposal until somebody with standing accepts it: this card's own
     # words, "not a vote".
     "ALTER TABLE correction ADD COLUMN state TEXT NOT NULL DEFAULT ''",
+    # The corrections ledger (schema 58, targum-internal#585): what kind of mistake,
+    # what made it, and in which run it was fixed. Empty on every row before.
+    "ALTER TABLE correction ADD COLUMN kind TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE correction ADD COLUMN tool TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE correction ADD COLUMN run TEXT NOT NULL DEFAULT ''",
+    # What `tables.fixes.record` asks before every write: has this fix been kept already.
+    'CREATE INDEX IF NOT EXISTS correction_fix ON correction (stage, span, "before", "after")',
     # When this reader accepted the contribution grant, or 0. It gates the control
     # rather than the recording: no grant, no way to offer a correction at all.
     "ALTER TABLE person ADD COLUMN granted INTEGER NOT NULL DEFAULT 0",
@@ -1334,7 +1348,13 @@ CREATE TABLE IF NOT EXISTS correction (
   state    TEXT    NOT NULL DEFAULT '',
   licence  TEXT    NOT NULL DEFAULT '',
   context  TEXT    NOT NULL DEFAULT '',
-  reason   TEXT    NOT NULL DEFAULT ''
+  reason   TEXT    NOT NULL DEFAULT '',
+  -- The corrections ledger (schema 58, targum-internal#585): the mistake's class from
+  -- `tables.fixes.KINDS`, what made the "before" (a model, a vocalizer, a voice), and
+  -- the batch it was fixed in. Empty where nobody said, which is every row before.
+  kind     TEXT    NOT NULL DEFAULT '',
+  tool     TEXT    NOT NULL DEFAULT '',
+  run      TEXT    NOT NULL DEFAULT ''
 );
 
 -- The secret a judge's pseudonym is made with (targum-internal#164). One row, minted on
@@ -1794,6 +1814,49 @@ NULLABLE = frozenset({"status", "known_at"})
 NUMERIC = frozenset(
     {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
 )
+
+
+#: Every column of `correction` but its id and time, in the order they are written.
+CORRECTION_FIELDS = (
+    "stage",
+    "language",
+    "target",
+    "term",
+    "text",
+    "span",
+    "before",
+    "after",
+    "who",
+    "judge",
+    "state",
+    "licence",
+    "context",
+    "reason",
+    "kind",
+    "tool",
+    "run",
+)
+
+
+def _insert_correction(
+    db: sqlite3.Connection, *, stage: str, who: str, at: int = 0, **fields: str
+) -> int:
+    """One `correction` row, inside a transaction the caller holds. The context and the
+    reason are cut short here, so every door cuts them the same. `at` is now unless a
+    row carried from another machine says when it was written there."""
+    unknown = set(fields) - set(CORRECTION_FIELDS)
+    if unknown:
+        raise TypeError(f"not a correction column: {sorted(unknown)}")
+    values = {name: str(fields.get(name, "") or "") for name in CORRECTION_FIELDS}
+    values["stage"], values["who"] = stage, who
+    values["context"] = values["context"][:500]
+    values["reason"] = values["reason"][:300]
+    cursor = db.execute(
+        f"INSERT INTO correction (at, {', '.join(CORRECTION_FIELDS)})"
+        f" VALUES (?, {', '.join('?' for _ in CORRECTION_FIELDS)})",
+        (at or now(), *(values[name] for name in CORRECTION_FIELDS)),
+    )
+    return int(cursor.lastrowid or 0)
 
 
 def exportable_corrections(
@@ -5293,12 +5356,16 @@ class Store:
             language=str(row["language"]),
             target=str(row["target"]),
             text=str(row["text"]),
+            span=str(row["span"]),
             before=str(row["before"]),
             after=str(row["after"]),
             judge=judge,
             state=state,
             licence="targum",
             reason=f"{state} a reader's proposal",
+            kind=str(row["kind"]),
+            tool=str(row["tool"]),
+            run=str(row["run"]),
         )
 
     def judge_for(self, person_id: int) -> str:
@@ -5351,7 +5418,13 @@ class Store:
         return hmac.new(salt.encode("utf-8"), key.encode("utf-8"), hashlib.sha256).hexdigest()[:16]
 
     def editor_pass(
-        self, stage: str, rows: list[dict[str, str]], *, judge: str = ""
+        self,
+        stage: str,
+        rows: list[dict[str, str]],
+        *,
+        judge: str = "",
+        tool: str = "",
+        run: str = "",
     ) -> tuple[list[int], int]:
         """Write a paid editor's pass down as rows (targum-internal#354, door 2).
 
@@ -5365,6 +5438,9 @@ class Store:
         stage, word, line, before and after — is skipped rather than written again,
         because a duplicate is a second judge who does not exist and `agreed` counts
         judges. Returns the ids written and how many were already there.
+
+        Each row's `kind` goes to the corrections ledger (targum-internal#585), with
+        `tool`, what made the text the editor read, and `run`, which pass this was.
         """
         todo = self.unkept_editor_rows(stage, rows, judge=judge)
         written = [
@@ -5373,7 +5449,12 @@ class Store:
                 who="editor",
                 judge=judge,
                 licence="targum",
-                **{k: str(row.get(k, "")) for k in (*EDITOR_FIELDS, "text", "context", "reason")},
+                tool=tool,
+                run=run,
+                **{
+                    k: str(row.get(k, ""))
+                    for k in (*EDITOR_FIELDS, "text", "context", "reason", "kind")
+                },
             )
             for row in todo
         ]
@@ -5416,37 +5497,63 @@ class Store:
         licence: str = "",
         context: str = "",
         reason: str = "",
+        kind: str = "",
+        tool: str = "",
+        run: str = "",
     ) -> int:
         """Write one judgement down. Returns the row's id.
 
         `who` is a role, never a person: the store is the company's record of what was
         decided about Hebrew, and a reader's name is not part of that. The sentence is
         cut short because a judgement wants the line it was made on, not the page.
+        `kind`, `tool` and `run` are the corrections ledger's (targum-internal#585);
+        `tables.fixes.record` is the door that fills them.
         """
         with self.write() as db:
-            cursor = db.execute(
-                "INSERT INTO correction (at, stage, language, target, term, text, span,"
-                " before, after, who, judge, state, licence, context, reason)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    now(),
-                    stage,
-                    language,
-                    target,
-                    term,
-                    text,
-                    span,
-                    before,
-                    after,
-                    who,
-                    judge,
-                    state,
-                    licence,
-                    context[:500],
-                    reason[:300],
-                ),
+            return _insert_correction(
+                db,
+                stage=stage,
+                who=who,
+                term=term,
+                language=language,
+                target=target,
+                text=text,
+                span=span,
+                before=before,
+                after=after,
+                judge=judge,
+                state=state,
+                licence=licence,
+                context=context,
+                reason=reason,
+                kind=kind,
+                tool=tool,
+                run=run,
             )
-            return int(cursor.lastrowid or 0)
+
+    def correct_once(self, stage: str, *, who: str, at: int = 0, **fields: str) -> int:
+        """Write a fix down unless this judge has already (targum-internal#585). Returns
+        the new row's id, or 0 when it was already there.
+
+        One fix is its stage, its unit (`span`), what stood and what stands: a run that
+        meets the same mistake twice, or is run twice, keeps one row. It is also the
+        judge's, so two editors reaching the same fix stay two judges for `agreed`;
+        for a model's or the author's hand the judge is empty and the key is exactly
+        the four. The check and the write are one transaction.
+        """
+        span = fields.get("span", "")
+        before = fields.get("before", "")
+        after = fields.get("after", "")
+        judge = fields.get("judge", "")
+        with self.write() as db:
+            held = db.execute(
+                "SELECT 1 FROM correction WHERE stage = ? AND span = ? AND before = ?"
+                " AND after = ? AND judge = ? LIMIT 1",
+                (stage, span, before, after, judge),
+            ).fetchone()
+            if held is not None:
+                return 0
+            return _insert_correction(db, stage=stage, who=who, at=at, **fields)
 
     def corrections(self, stage: str = "", limit: int = 100) -> list[dict[str, Any]]:
         """The latest judgements, newest first, all stages or one."""

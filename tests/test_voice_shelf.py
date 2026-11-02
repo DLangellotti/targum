@@ -481,3 +481,22 @@ def test_a_hint_for_a_turn_that_is_not_there_is_refused() -> None:
         shelf.give_hints([scene("he-06")], {("he-06", 5): "x"})
     with pytest.raises(ValueError, match="not among"):
         shelf.give_hints([scene("he-06")], {("he-07", 0): "x"})
+
+
+def test_a_hint_used_is_kept_as_the_authors_fix_once(tmp_path: Path) -> None:
+    """targum-internal#585: a hint becomes a row in the corrections ledger when the scene
+    it was given for is voiced, and voicing it again keeps no second row."""
+    from targum.accounts import Store
+
+    keep = Store(tmp_path / "targum.db")
+    one, two = scene("he-08"), scene("he-09")
+    shelf.give_hints([one, two], shelf.read_hints(["he-08:1=Say sha-LOM"]))
+    into = tmp_path / "voiced"
+    into.mkdir()
+    go(into, [one, two], Voicer(1), keep=keep, hint_kind="stress", run_id="run-1")
+    (row,) = keep.corrections()
+    assert (row["stage"], row["who"], row["kind"]) == ("voice", "author", "stress")
+    assert (row["before"], row["after"], row["span"]) == ("שָׁלוֹם", "Say sha-LOM", "he-08 t1")
+    assert (row["tool"], row["run"], row["language"]) == (vs.MODEL, "run-1", "he")
+    assert shelf.keep_hints(one, options(keep=keep, run_id="run-2")) == 0, "kept once"
+    assert shelf.keep_hints(one, options()) == 0, "no store, nothing written"

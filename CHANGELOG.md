@@ -675,6 +675,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   cannot feed it. `tables.readings(spelling, register)` answers reader-free and nothing
   visible reads it yet; `targum tables readings SPELLING [--register R]` prints the
   shares.
+- The corrections ledger: before, after, why, stage, kind and tool for every fix
+  (targum-internal#585; schema 58). The `correction` table gains `kind` (one of
+  `tables.fixes.KINDS`: nikkud, gender, wording, stress, lifted, gloss, segmentation,
+  other), `tool` (what made the "before") and `run`. `targum.tables.fixes.record` is the
+  one door, public so the private half can call it; a failed write is logged and never
+  fails a run, and the same stage, unit, before and after (from the same judge) is never
+  a second row. `editor-pass` reads a `kind` column or works one out and takes `--tool`
+  and `--run`; `scripts/scene_corrections.py` writes through `record` and classes the
+  rows it kept before; `voice_shelf.py --hint` keeps each hint it used as the author's
+  fix to the voice. `targum tables fixes --by kind --by tool` counts fixes, places and
+  the mistakes that recur; `--gold` exports the author's rows and what a person accepted
+  as the eval set. `targum tables push` carries the laptop's author, editor and model
+  fixes to the box's account database, once; a reader's never travel. Settling a
+  reader's proposal now carries its line onto the decision row.
 - Public finds count into the yardsticks, as counts (David, 2026-11-01; design.md §12).
   Each night `targum tables sweep --store` folds every kept find's lemma counts into
   `words` (`tables.finds`): YouTube finds into `video`, news finds into `news`, and a

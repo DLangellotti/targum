@@ -21,6 +21,9 @@ The columns, in either:
   stage where that would be wrong, because there `before` is an English meaning and not
   the word, so a gloss row must name its term.
 - `context`, `text`, `language` (default `he`), `target` (default `en`): optional.
+- `kind`: the class of mistake, one of `tables.fixes.KINDS` (targum-internal#585). Left
+  out, a gloss row is `gloss`, a row whose letters stayed and points moved is `nikkud`,
+  any other row with both sides is `wording`, and a deletion is `other`.
 
 A file with a bad row is refused whole, with every bad line named, so a pass is never
 half in the store.
@@ -34,6 +37,7 @@ from pathlib import Path
 
 from .dialogue.checks import bare
 from .errors import TargumError
+from .tables.fixes import KINDS, kind_of
 
 #: What a column may be called, and what it is called in the store.
 ALIASES = {
@@ -50,6 +54,7 @@ ALIASES = {
     "text": "text",
     "language": "language",
     "target": "target",
+    "kind": "kind",
 }
 
 
@@ -85,6 +90,15 @@ def _records(path: Path) -> list[tuple[int, dict[str, object]]]:
     )
 
 
+def _kind(stage: str, row: dict[str, str]) -> str:
+    """The class of a row the editor did not classify (`tables.fixes.kind_of`)."""
+    if stage == "gloss":
+        return "gloss"
+    if not row.get("before") or not row.get("after"):
+        return "other"
+    return kind_of(row["before"], row["after"])
+
+
 def read_editor_pass(path: Path, stage: str) -> list[dict[str, str]]:
     """The rows of an editor's file, checked, in the store's own column names."""
     rows: list[dict[str, str]] = []
@@ -105,6 +119,11 @@ def read_editor_pass(path: Path, stage: str) -> list[dict[str, str]]:
                 wrong.append(f"line {number}: a gloss row must name its term")
                 continue
             row["term"] = bare(row.get("before") or row.get("after") or "")
+        kind = row.get("kind", "").lower()
+        if kind and kind not in KINDS:
+            wrong.append(f"line {number}: kind {kind!r} is not one of {', '.join(KINDS)}")
+            continue
+        row["kind"] = kind or _kind(stage, row)
         rows.append(row)
     if wrong:
         raise TargumError(
