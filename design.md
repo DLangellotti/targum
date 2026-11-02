@@ -409,10 +409,16 @@ copy of it may now also go on the shelf, naming nobody.
   fetches nothing from the outlet: no favicon, no picture.
 - **The bar for joining the library** is a list, not a standing: CC0 or public domain,
   CC BY, CC BY-SA, and their NonCommercial forms (BY-NC, BY-NC-SA). NoDerivatives in any
-  combination, all rights reserved, unknown, and terms the list does not name ("free use,
-  attribution required", MIT) never join (`promote.clears`). NC is in because reading the
+  combination, all rights reserved, unknown, and terms the list does not name (MIT, or
+  free-use wording other than the exact recorded terms below) never join
+  (`promote.clears`). NC is in because reading the
   shelf stays free (David). `licensing.verdict` now reads ND before NC, so "CC BY-NC-ND"
   is the refusal it was always meant to be.
+- **Attribution-only free use joins too** (David, 2026-11-02, later the same day): "free
+  use, attribution required", as `sources.json` records it for the Government of Israel
+  and the Knesset, is treated as CC BY, a credit owed and derivatives allowed. It is
+  matched on those exact recorded terms (`promote.FREE_USE_WITH_CREDIT`), never on text
+  that merely reads like them.
 - **The licence is read from the source.** In order: the article page's own licence tag
   (`rel="license"`, a licence `meta`, schema.org `license`) pointing at a Creative Commons
   licence or the CC0/public-domain deeds; YouTube's `status.license`; and, where the page

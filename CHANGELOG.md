@@ -681,6 +681,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- Attribution-only free use joins the library too (David, 2026-11-02; design.md §12).
+  "free use, attribution required", as `sources.json` records it for the Government of
+  Israel and the Knesset, now clears `promote.clears` as CC BY does: a credit owed,
+  derivatives allowed. Only those exact recorded terms match
+  (`promote.FREE_USE_WITH_CREDIT`), never wording that merely resembles them.
 - Every suggested text says where it comes from, and a find with an open licence joins
   the library (David, 2026-11-02; design.md §12). Home's pick card and each row of More
   that fit you carry a line under the facts: the outlet, and the day for a dated find
