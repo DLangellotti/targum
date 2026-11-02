@@ -70,6 +70,26 @@ def test_a_suggestion_keeps_what_became_of_it_and_nothing_else(tmp_path: Path) -
     ]
 
 
+def test_a_harder_pick_says_so_and_nothing_else_does(tmp_path: Path) -> None:
+    """ "Show me something harder" (David, 2026-11-02): still a suggestion shown, opened,
+    finished or set aside (clause 3.6), with a flag; only `true` sets it."""
+    store = Store(tmp_path / "words.db")
+    person = _person(store)
+    kept = store.add_events(
+        person,
+        [
+            {"kind": "suggest", "day": DAY, "act": "shown", "origin": "shelf",
+             "document": "hard-story", "coverage": 0.88, "harder": True},
+            {"kind": "suggest", "day": DAY, "act": "aside", "origin": "find",
+             "document": "find-3", "pool": 3, "harder": "yes"},
+            {"kind": "page", "day": DAY, "amount": 5, "harder": True},
+        ],
+    )  # fmt: skip
+    assert kept == 3
+    rows = store.db.execute("SELECT document, harder FROM event ORDER BY id").fetchall()
+    assert [tuple(row) for row in rows] == [("hard-story", 1), ("find-3", None), ("", None)]
+
+
 def test_a_finished_section_keeps_its_estimate_and_its_look_ups(tmp_path: Path) -> None:
     store = Store(tmp_path / "words.db")
     person = _person(store)
@@ -110,14 +130,16 @@ def test_a_store_from_before_gains_the_columns_empty(tmp_path: Path) -> None:
     old = tmp_path / "old.db"
     Store(old)
     with sqlite3.connect(old) as db:
-        for column in ("act", "origin", "pool", "coverage", "looked"):
+        for column in ("act", "origin", "pool", "coverage", "looked", "harder"):
             db.execute(f"ALTER TABLE event DROP COLUMN {column}")
         db.execute(
             "INSERT INTO event (person, kind, day, amount) VALUES (1, 'section', ?, 3)", (DAY,)
         )
     reopened = Store(old)
-    row = reopened.db.execute("SELECT act, origin, pool, coverage, looked FROM event").fetchone()
-    assert tuple(row) == ("", "", None, None, None)
+    row = reopened.db.execute(
+        "SELECT act, origin, pool, coverage, looked, harder FROM event"
+    ).fetchone()
+    assert tuple(row) == ("", "", None, None, None, None)
 
 
 def _finish(

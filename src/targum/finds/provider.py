@@ -96,8 +96,13 @@ def offered(
     skip: Iterable[str] = (),
     at: int | None = None,
     estimate: Estimate | None = None,
+    under: bool = False,
 ) -> list[Scored]:
     """The finds this reader may be offered on Read next, each with its share.
+
+    With `under`, the finds under the floor instead, and only those: what "Show me
+    something harder" offers once nothing fits (design.md §12, "Show me something harder",
+    2026-11-02). Nothing else asks for them.
 
     Where `estimate` is given, a find is offered and ranked on the share of its running
     words the reader is estimated to know (design.md §12, "The chooser estimates the
@@ -124,7 +129,10 @@ def offered(
             continue
         expected = expected_of(find, estimate) if estimate is not None else None
         chosen = Scored(find, share, expected)
-        if chosen.chosen_on < FLOOR + MARGIN:
+        if under:
+            if chosen.chosen_on >= FLOOR:
+                continue
+        elif chosen.chosen_on < FLOOR + MARGIN:
             continue
         out.append(chosen)
     return out

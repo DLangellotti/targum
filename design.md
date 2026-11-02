@@ -518,6 +518,29 @@ web find is a pasted link targum found" (2026-10-31) and changes no rail. Behind
 - **Counted into the `video` register as counts.** Decided the same day: see "Public
   finds count into the yardsticks, as counts" (2026-11-01).
 
+### Show me something harder — 2026-11-02
+
+David, 2026-11-02. It adds to "Home's one card finds what fits you" (2026-11-01), still
+behind `TARGUM_FIND_BUTTON`.
+
+- **Only where nothing fits.** When the card says "We found nothing at your level
+  today.", a ghost "Show me something harder" sits beside Topic. Nowhere else: not under
+  a pick, not after the day's searches are used up, not once it has found nothing harder.
+- **What it offers.** The text nearest above the reader's level: a text under the 90%
+  floor, the one whose estimated share of running words known comes closest under it
+  first, in whole points, and inside a point one on the topic chosen, or on the reader's
+  own topics where none is. With a topic chosen, only texts on it. From the shelf and the
+  finds the pool already holds; it never starts a look on the web.
+- **The pick says what any pick says.** Its share known ("78% known"), its facts line and
+  the usual Read or Watch. No warning and no extra help. Something else on it walks to
+  the next nearest miss; with none left the card says "We found nothing harder today."
+- **Read next is unchanged.** Nothing under the floor is offered by the card, the finds
+  or More that fit you unless this press asks for it (`suggest_next`'s `under`,
+  `provider.offered`'s `under`, `finds.button.harder`).
+- **The record.** A harder pick is still a suggestion shown, opened, finished or set
+  aside, under clause 3.6 as it stands; its rows carry `harder` (schema 56), and nothing
+  else changes.
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,

@@ -1300,6 +1300,10 @@ def teaching(
     return Taught(teach, who, learning_module.useful_table(index, useful), narrow)
 
 
+#: The most texts under the floor `suggest_next` answers when asked for them (`under`).
+UNDER_MOST = 200
+
+
 def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What to read next, chosen by `choose.key` (design.md §12, "What to read next is
     chosen on running words", 2026-10-31): the texts whose running words the reader knows
@@ -1315,13 +1319,18 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 
     `finds`, where true, adds the pool's web finds (`ROW_SOURCES`, targum-internal#619),
     ranked by the same key; only Home's Read next asks for them.
+
+    `under`, where true, answers only the real texts under the floor, as many as
+    `UNDER_MOST`, nearest the floor first: what Home's "Show me something harder" ranks
+    from (`finds.button.harder`; design.md §12, 2026-11-02). Nothing else asks for them.
     """
     from .. import choose
 
     language = str(args.get("language") or ctx.level.language)
     register = str(args.get("register") or "")
     minutes = args.get("max_minutes")
-    limit = max(1, min(int(args.get("limit") or 5), 10))
+    under = bool(args.get("under"))
+    limit = max(1, min(int(args.get("limit") or 5), UNDER_MOST if under else 10))
     # Catalogue ids to leave out — what the page says the reader has finished, which
     # only the browser knows (2026-09-11: the top ten were all finished scenes, and
     # skipping after the cut left nothing). Applied before the cut, so the next one
@@ -1440,9 +1449,14 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             learn=learn or 0.0,
             interest=interest,
         )
+        if under and (row["fit"] != choose.UNDER or catalogue_module.scene_number(entry.id)):
+            continue
         if levels and rung is not None and key in built and row["on_shelf"]:
             _passage(ctx, row, built[key], rung, levels)
         candidates.append((rank, row))
+    if under:
+        candidates.sort(key=lambda pair: pair[0])
+        return {"suggestions": [row for _, row in candidates[:limit]]}
     if args.get("finds"):
         from ..finds import provider
 

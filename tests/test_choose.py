@@ -294,3 +294,12 @@ def test_progress_weighs_what_a_text_teaches_as_home_does(teaching: Any) -> None
     listed = touchstones.at_level(entries, index, marked, "he", limit=10, taught=taught)
     home = [row["id"] for row in tools.suggest_next(ctx, {"limit": 10})["suggestions"]]
     assert [row["id"] for row in listed] == home
+
+
+def test_under_answers_only_the_real_texts_under_the_floor(library: Any) -> None:
+    """Home's "Show me something harder" (design.md §12, 2026-11-02) ranks from these;
+    Read next itself is never asked for them."""
+    ctx, _, _ = library
+    got = tools.suggest_next(ctx, {"under": True, "limit": 200})["suggestions"]
+    assert [row["id"] for row in got] == ["hard-story"]
+    assert got[0]["fit"] == choose.UNDER

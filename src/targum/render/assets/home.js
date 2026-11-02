@@ -790,6 +790,8 @@
     // "The chooser estimates the words you have not marked", 2026-11-01), else the marks.
     if (typeof row.expected_share === "number") event.coverage = row.expected_share;
     else if (typeof row.running_share === "number") event.coverage = row.running_share;
+    // A pick the reader asked for with "Show me something harder" says so (2026-11-02).
+    if (row.harder === true) event.harder = true;
     events.note(event);
   }
   function suggestShown(row) {
@@ -812,6 +814,7 @@
       running_share: typeof row.running_share === "number" ? row.running_share : was.running_share,
       expected_share: typeof row.expected_share === "number" ? row.expected_share : was.expected_share,
       language: String(row.language || ""),
+      harder: row.harder === true || was.harder === true,
       folder: folder || was.folder || "",
       at: Date.now(),
     };
@@ -1063,7 +1066,7 @@
   var ONE_CARD = !!document.body && document.body.getAttribute("data-find") === "1";
   var FIND_STEP_MS = 1500;
   var FIND_STEPS_MOST = 120;
-  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null };
+  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [] };
 
   function chevron() {
     var ns = "http://www.w3.org/2000/svg";
@@ -1247,9 +1250,10 @@
     }
     oneCard.row = row;
     if (row.find && oneCard.shown.indexOf(String(row.id)) < 0) oneCard.shown.push(String(row.id));
+    if (row.harder && oneCard.harder.indexOf(String(row.id)) < 0) oneCard.harder.push(String(row.id));
     var parts = pickBlock(row);
     var share = percentOf(row);
-    if (share && !first && !row.scene) parts.what.appendChild(el("p", "rc-known", t("home.card.known-short", "{n}% known", { n: share })));
+    if (share && (row.harder || (!first && !row.scene))) parts.what.appendChild(el("p", "rc-known", t("home.card.known-short", "{n}% known", { n: share })));
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
     if (row.find && row.credits) {
@@ -1291,6 +1295,8 @@
   function nextPick(row) {
     if (row && row.id && cardAsk.aside.indexOf(String(row.id)) < 0) cardAsk.aside.push(String(row.id));
     if (row) suggestNote("aside", row);
+    // Something else on a harder pick: the next nearest miss.
+    if (row && row.harder) return askHarder();
     if (oneCard.chip || cardAsk.spent || (row && row.find)) {
       askFind(oneCard.chip ? { topics: [oneCard.chip] } : {});
       return;
@@ -1332,18 +1338,32 @@
       });
   }
 
+  /* Show me something harder (David, 2026-11-02; design.md §12): only where the card
+     found nothing at the reader's level. The nearest text under the floor, on the topic
+     chosen or the reader's own, from the shelf and the finds already pooled; never a look
+     on the web. Something else on it walks to the next nearest miss. */
+  function askHarder() {
+    return askFind({
+      harder: true,
+      topics: oneCard.chip ? [oneCard.chip] : [],
+      skip: oneCard.shown.concat(oneCard.harder).slice(-200),
+      done: cardAsk.skip.concat(cardAsk.aside),
+    });
+  }
+
   function answered(got) {
     if (!got) return drawSaid(t("home.card.failed", "We couldn't search the web just now."), "again");
     if (typeof got.left === "number") oneCard.left = got.left;
     if (got.pick) return drawPick(got.pick);
     if (got.search) {
       oneCard.look = got.search;
-      if (got.stage === "done") return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+      if (got.stage === "done") return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
       drawWeb(got);
       return follow(got.search, 0);
     }
     if (got.why === "reader") return drawSaid(got.message || t("home.card.cap", "That's today's 3 web searches. More tomorrow."), "topic");
-    return drawSaid(got.message || t("home.card.none", "We found nothing at your level today."), "topic");
+    if (got.why === "harder") return drawSaid(got.message || t("home.card.harder-none", "We found nothing harder today."), "topic");
+    return drawSaid(got.message || t("home.card.none", "We found nothing at your level today."), "topic", true);
   }
 
   function follow(id, asked) {
@@ -1356,7 +1376,7 @@
           if (got.stage === "done") {
             oneCard.look = "";
             if (got.pick) return drawPick(got.pick);
-            return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+            return drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
           }
           if (got.stage === "failed") {
             oneCard.look = "";
@@ -1405,14 +1425,15 @@
       if (id) askWith("/find", { stop: id }).catch(function () {});
       // Stop puts the last pick back.
       if (oneCard.row) drawPick(oneCard.row);
-      else drawSaid(t("home.card.none", "We found nothing at your level today."), "topic");
+      else drawSaid(t("home.card.none", "We found nothing at your level today."), "topic", true);
     });
     foot.appendChild(stop);
     body.appendChild(foot);
   }
 
-  // A sentence in the pick's place, and its one press: a topic, or try again.
-  function drawSaid(said, press) {
+  // A sentence in the pick's place, and its one press: a topic, or try again. Where it
+  // says nothing fits (`harder`), Show me something harder sits beside Topic.
+  function drawSaid(said, press, harder) {
     var body = cardBody();
     if (!body) return;
     body.appendChild(el("p", "rc-says", said));
@@ -1428,6 +1449,15 @@
       return;
     }
     presses.appendChild(topicPress(true));
+    if (harder) {
+      var up = el("button", "btn ghost rc-harder", t("home.card.harder", "Show me something harder"));
+      up.type = "button";
+      up.addEventListener("click", function () {
+        oneCard.open = false;
+        askHarder();
+      });
+      presses.appendChild(up);
+    }
     body.appendChild(presses);
     topicsField(body);
   }

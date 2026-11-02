@@ -359,10 +359,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    (`check.VERSION`) and when. Never the words left unticked: both rounds follow from
 #    the ticks (`check.shown`). A new table, so it needs no MIGRATIONS entry.
 #
+# 55→56: event.harder — 1 where a suggestion was a "Show me something harder" pick, a
+#    text under the floor the reader asked for once nothing fitted (David, 2026-11-02;
+#    design.md §12; clause 3.6, still a suggestion shown, opened, finished or set aside).
+#    NULL on every other row and on everything recorded before. In MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 55
+SCHEMA_VERSION = 56
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -542,7 +547,8 @@ CREATE TABLE IF NOT EXISTS event (
   origin    TEXT    NOT NULL DEFAULT '',
   pool      INTEGER,
   coverage  REAL,
-  looked    INTEGER
+  looked    INTEGER,
+  harder    INTEGER
 );
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
@@ -759,6 +765,9 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE event ADD COLUMN pool INTEGER",
     "ALTER TABLE event ADD COLUMN coverage REAL",
     "ALTER TABLE event ADD COLUMN looked INTEGER",
+    # A suggestion the reader asked for as harder than their level (schema 56, David,
+    # 2026-11-02): 1, or NULL.
+    "ALTER TABLE event ADD COLUMN harder INTEGER",
     # Bumped by every write to the record that `revision` does not stamp (2026-10-06):
     # see `Store.ledger_stamp`. Zero for everybody until their first such write, which
     # is a key like any other.
@@ -2350,6 +2359,7 @@ class Store:
             pool: int | None = None
             coverage: float | None = None
             looked: int | None = None
+            harder: int | None = None
             if kind == "suggest":
                 act = str(raw.get("act") or "")
                 origin = str(raw.get("origin") or "")
@@ -2359,6 +2369,8 @@ class Store:
                     continue
                 pool = _count(raw.get("pool"), 2**62) if origin == "find" else None
                 coverage = _share(raw.get("coverage"))
+                # A "Show me something harder" pick says so, and nothing more.
+                harder = 1 if raw.get("harder") is True else None
                 amount = 0.0
             elif kind == "section":
                 # The share of the section's running words the reader was estimated to
@@ -2393,6 +2405,7 @@ class Store:
                     pool,
                     coverage,
                     looked,
+                    harder,
                 )
             )
         if not rows:
@@ -2401,8 +2414,8 @@ class Store:
             db.executemany(
                 "INSERT INTO event (person, kind, day, at, language, medium, document, "
                 "segment, amount, control, width, word, text_on_screen, act, origin, pool,"
-                " coverage, looked)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                " coverage, looked, harder)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 rows,
             )
         return len(rows)

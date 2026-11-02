@@ -541,3 +541,86 @@ def test_more_that_fit_is_three_to_six_library_texts_in_the_band(
         home.port, "POST", "/suggest", {"language": "he", "more": True}, cookie=cookie
     )
     assert "more" not in got or got["more"] == []
+
+
+# -- show me something harder (David, 2026-11-02; design.md §12) ------------------------
+
+# 85% and 70% of their running words known: under the floor, the first the nearer miss.
+NEAR = {"עגבנייה": 3, "ביצה": 3, G1: 79, G2: 15}
+FAR = {"שופט": 3, "משטרה": 3, G1: 64, G2: 30}
+
+
+def test_harder_is_the_finds_under_the_floor_nearest_miss_first(store: Store) -> None:
+    keep(store, "https://a.example/band", FOOD)
+    keep(store, "https://a.example/far", FAR)
+    keep(store, "https://a.example/near", NEAR)
+    plain = button.ranked(store, button.Ask("he"), MARKED, known=lexicon())
+    assert [row["url"] for row in plain] == ["https://a.example/band"], "never unasked"
+    got = button.ranked(store, button.Ask("he"), MARKED, known=lexicon(), harder=True)
+    assert [row["url"] for row in got] == ["https://a.example/near", "https://a.example/far"]
+    assert all(row["harder"] and row["fit"] == "under" for row in got)
+    assert got[0]["miss"] == 0.05 and got[0]["known_share"] < 0.9
+    steered = button.ranked(
+        store, button.Ask("he", chosen=("crime",)), MARKED, known=lexicon(), harder=True
+    )
+    assert [row["url"] for row in steered] == ["https://a.example/far"], "on the topic only"
+
+
+def test_harder_shelf_rows_join_the_finds_nearest_first_and_topic_inside_a_point() -> None:
+    shelf = [
+        {"id": "story", "fit": "under", "expected_share": 0.875, "kind": "story"},
+        {"id": "law-talk", "fit": "under", "expected_share": 0.871, "about": ["law"]},
+        {"id": "far-story", "fit": "under", "running_share": 0.6, "kind": "story"},
+        {"id": "fits", "fit": "band", "expected_share": 0.93},
+    ]
+    found = [{"id": "find-1", "miss": 0.02, "on_topic": False, "harder": True}]
+    got = button.nearest([*button.harder(shelf, button.Ask("he", liked=("law",))), *found])
+    assert [row["id"] for row in got] == ["find-1", "law-talk", "story", "far-story"]
+    assert all(row["harder"] for row in got)
+    steered = button.harder(shelf, button.Ask("he", chosen=("crime",)), lexicon())
+    assert [row["id"] for row in steered] == ["law-talk"]
+
+
+def test_post_find_harder_walks_the_nearest_misses_and_never_looks(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum.chat import tools as chat_tools
+
+    monkeypatch.setenv(live.FLAG, "1")
+
+    def no_look(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("a harder pick never searches the web")
+
+    monkeypatch.setattr(live.LOOKS, "start", no_look)
+    real = chat_tools.suggest_next
+    asked: list[dict[str, Any]] = []
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("under"):
+            return real(ctx, args)
+        asked.append(args)
+        row = {
+            "id": "shelf-story", "title": "סיפור", "language": "he", "kind": "story",
+            "fit": "under", "expected_share": 0.88, "running_share": 0.8,
+            "reason": {"key": "suggest.known", "share": 80}, "origin": "shelf",
+        }  # fmt: skip
+        return {"suggestions": [row] if row["id"] not in args.get("skip", []) else []}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    # Far enough under that the estimate of its unmarked words cannot lift it to the floor.
+    keep(home.store, "https://a.example/near", FAR, title="שקשוקה")
+    cookie = sign_in(home.port, home.postbox)
+    body: dict[str, Any] = {"language": "he", "harder": True, "skip": [], "done": ["ruth-he"]}
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert status == 200 and got["harder"] is True
+    assert got["pick"]["id"] == "shelf-story" and got["pick"]["harder"] is True
+    assert got["more"] == 1 and "ruth-he" in asked[0]["skip"]
+    body["skip"] = [got["pick"]["id"]]
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert got["pick"]["url"] == "https://a.example/near" and got["pick"]["harder"] is True
+    body["skip"].append(got["pick"]["id"])
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert got["pick"] is None and got["why"] == "harder"
+    assert got["message"] == "We found nothing harder today."

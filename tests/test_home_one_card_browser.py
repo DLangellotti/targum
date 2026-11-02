@@ -340,3 +340,68 @@ def test_the_card_is_the_old_one_while_the_switch_is_off(
     monkeypatch.setenv(button.FLAG, "1")
     html = list_page(TOKEN, "texts")
     assert 'data-find="1"' in html and 'id="read-card"' in html and "upload-card" not in html
+
+
+HARD_PICK = {
+    "id": "hard-story",
+    "title": "סיפור קשה",
+    "language": "he",
+    "kind": "story",
+    "minutes": 9,
+    "origin": "shelf",
+    "reason": {"key": "suggest.known", "share": 78},
+    "fit": "under",
+    "harder": True,
+}
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_nothing_fits_offers_something_harder_and_something_else_walks_on(
+    browser, width: int
+) -> None:
+    """David, 2026-11-02 (design.md §12, "Show me something harder"): only where nothing
+    fits, beside Topic; the pick says its share known and nothing else new, and Something
+    else on it asks for the next nearest miss."""
+    harder_pick = {**WEB_PICK, "id": "find-8", "find": 8, "title": "בית המשפט העליון",
+                   "reason": {"key": "suggest.known", "share": 71}, "fit": "under",
+                   "harder": True}  # fmt: skip
+
+    def find(body: dict[str, Any]) -> Any:
+        if not body.get("harder"):
+            return {"pick": None, "why": "off", "message": "We found nothing at your level today."}
+        if not body.get("skip"):
+            return {"pick": HARD_PICK, "harder": True, "more": 1}
+        if body["skip"] == ["hard-story"]:
+            return {"pick": harder_pick, "harder": True, "more": 0}
+        return {"pick": None, "why": "harder", "message": "We found nothing harder today."}
+
+    context, page, thrown, posted, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.click("#try-next .rc-else")
+    page.wait_for_selector("#try-next .rc-harder")
+    none = page.evaluate(CARD)
+    shot(page, "harder-offered", width)
+    page.click("#try-next .rc-harder")
+    page.wait_for_selector("#try-next .home-card-title:has-text('סיפור קשה')")
+    first = page.evaluate(CARD)
+    shot(page, "harder-pick", width)
+    page.click("#try-next .rc-else")
+    page.wait_for_selector("#try-next .home-card-title:has-text('בית המשפט העליון')")
+    second = page.evaluate(CARD)
+    page.click("#try-next .rc-else")
+    page.wait_for_selector("#try-next .rc-says:has-text('nothing harder')")
+    last = page.evaluate(CARD)
+    context.close()
+    assert not thrown, thrown
+    assert none["says"] == "We found nothing at your level today."
+    assert none["presses"] == ["Topic", "Show me something harder"], none
+    asked = [body for body in posted if body.get("harder")]
+    assert asked[0]["skip"] == [] and "hannah" in asked[0]["done"], asked[0]
+    assert asked[0]["topics"] == [] and "search" not in asked[0]
+    assert first["known"] == "78% known" and first["facts"] == "Story · 9 min", first
+    assert first["presses"] == ["Read", "Something else", "Topic"], first
+    assert asked[1]["skip"] == ["hard-story"], asked[1]
+    assert second["known"] == "71% known" and second["presses"][0] == "Read", second
+    assert last["presses"] == ["Topic"], "nothing harder left: no second offer"
+    assert not any(body.get("search") for body in posted), "never a look on the web"
+    assert not first["sideways"] and not none["sideways"]
