@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-01
+A new Hebrew reader can tick the words they know on arrival, and the first text is chosen from them.
+What to read next favours a text whose new words come back, in it and in the texts after it.
+In a dialogue, playing a line plays that line from its start, rather than the first line.
+
 2026-10-31
 Home suggests a text where you know 94 to 97% of the words you will meet, and Something else offers another.
 Where a person has recorded a Hebrew word, its card plays their voice and says who it is.
