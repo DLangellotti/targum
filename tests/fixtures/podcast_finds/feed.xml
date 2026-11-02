@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+  <channel>
+    <title>תוכנית לדוגמה</title>
+    <link>https://show.example/</link>
+    <language>he</language>
+    <item>
+      <title>פרק עם תמליל</title>
+      <guid>ep-transcript</guid>
+      <pubDate>Fri, 30 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-transcript.mp3" length="28800000" type="audio/mpeg"/>
+      <itunes:duration>30:00</itunes:duration>
+      <podcast:transcript url="https://audio.example/show/ep-transcript/transcript" type="text/html"/>
+      <podcast:transcript url="https://audio.example/show/ep-transcript/transcript.srt" type="application/x-subrip"/>
+    </item>
+    <item>
+      <title>פרק בלי תמליל</title>
+      <guid>ep-sample</guid>
+      <pubDate>Thu, 29 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-sample.mp3" length="38400000" type="audio/mpeg"/>
+      <itunes:duration>00:40:00</itunes:duration>
+    </item>
+    <item>
+      <title>פרק מסומן</title>
+      <guid>ep-explicit</guid>
+      <pubDate>Wed, 28 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-explicit.mp3" length="9600000" type="audio/mpeg"/>
+      <itunes:duration>600</itunes:duration>
+      <itunes:explicit>yes</itunes:explicit>
+    </item>
+    <item>
+      <title>טריילר</title>
+      <guid>ep-trailer</guid>
+      <pubDate>Tue, 27 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-trailer.mp3" length="960000" type="audio/mpeg"/>
+      <itunes:duration>60</itunes:duration>
+    </item>
+    <item>
+      <title>תמונות עירום בפרק</title>
+      <guid>ep-words</guid>
+      <pubDate>Mon, 26 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-words.mp3" length="9600000" type="audio/mpeg"/>
+      <itunes:duration>600</itunes:duration>
+    </item>
+    <item>
+      <title>פרק בלי אורך</title>
+      <guid>ep-no-length</guid>
+      <pubDate>Sun, 25 Oct 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-no-length.mp3" type="audio/mpeg"/>
+    </item>
+    <item>
+      <title>פרק ישן</title>
+      <guid>ep-old</guid>
+      <pubDate>Tue, 01 Sep 2026 08:00:00 +0000</pubDate>
+      <enclosure url="https://audio.example/show/ep-old.mp3" length="9600000" type="audio/mpeg"/>
+      <itunes:duration>600</itunes:duration>
+    </item>
+  </channel>
+</rss>

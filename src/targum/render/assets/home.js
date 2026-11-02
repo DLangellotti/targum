@@ -1142,6 +1142,7 @@
     var minutes = row.minutes ? t("home.minutes", "{n} min", { n: row.minutes }) : "";
     if (row.find) {
       if (isVideo(row)) facts.push(t("home.kind.video", "Video"));
+      else if (row.kind === "podcast") facts.push(t("home.kind.podcast", "Podcast"));
       if (minutes) facts.push(minutes);
       if (row.host) facts.push(siteOf(row.host));
     } else {
@@ -1261,7 +1262,11 @@
     }
     body.appendChild(parts.pick);
     var presses = el("div", "rc-presses");
-    var verb = isVideo(row) ? t("home.card.watch", "Watch") : t("home.card.read", "Read");
+    var verb = isVideo(row)
+      ? t("home.card.watch", "Watch")
+      : row.find && row.kind === "podcast"
+        ? t("home.card.listen", "Listen")
+        : t("home.card.read", "Read");
     var open;
     if (row.find) {
       open = el("button", "btn tonal rc-open", verb);

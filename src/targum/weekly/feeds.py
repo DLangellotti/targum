@@ -77,6 +77,12 @@ class Item:
     #: on the item; targum-internal#429). The show's, for an item with none, is the
     #: channel's (`artwork`).
     artwork: str = ""
+    #: The enclosure's size in bytes as the feed states it (`<enclosure length>`), or 0.
+    #: With `seconds` it says where an episode's middle is, for the podcast finds'
+    #: sample (targum-internal#621).
+    length: int = 0
+    #: Whether the feed marks the episode explicit (`<itunes:explicit>` yes or true).
+    explicit: bool = False
 
 
 def _name(tag: str) -> str:
@@ -161,12 +167,32 @@ def _enclosure(entry: ElementTree.Element) -> str:
     return ""
 
 
+#: A transcript with timings, which is the kind the import reads (`pipeline.
+#: _fetch_episode_transcript`) and the podcast finds score.
+_TIMED = ("application/x-subrip", "application/srt", "text/srt", "text/vtt")
+
+
 def _transcript(entry: ElementTree.Element) -> tuple[str, str]:
-    """A <podcast:transcript url type>, matched on the local name like everything here."""
+    """A <podcast:transcript url type>, matched on the local name like everything here.
+    Where an episode offers several (Buzzsprout lists HTML, JSON and SRT, in that order),
+    an SRT or VTT one, which has timings; otherwise the first."""
+    offered: list[tuple[str, str]] = []
     for child in entry:
-        if _name(child.tag) == "transcript":
-            return child.get("url", ""), child.get("type", "")
-    return "", ""
+        if _name(child.tag) == "transcript" and child.get("url"):
+            offered.append((str(child.get("url") or ""), str(child.get("type") or "")))
+    for url, kind in offered:
+        suffix = url.lower().split("?", 1)[0].rsplit(".", 1)[-1]
+        if kind.lower() in _TIMED or suffix in ("srt", "vtt"):
+            return url, kind
+    return offered[0] if offered else ("", "")
+
+
+def _enclosure_length(entry: ElementTree.Element) -> int:
+    for child in entry:
+        if _name(child.tag) == "enclosure":
+            raw = child.get("length", "").strip()
+            return int(raw) if raw.isdigit() else 0
+    return 0
 
 
 def _seconds(raw: str) -> float:
@@ -275,6 +301,8 @@ def parse(xml: bytes) -> list[Item]:
                 full_text=whole,
                 categories=_categories(element),
                 artwork=_image(fields.get("image")),
+                length=_enclosure_length(element),
+                explicit=_text(fields.get("explicit")).lower() in {"yes", "true", "explicit"},
             )
         )
     return items

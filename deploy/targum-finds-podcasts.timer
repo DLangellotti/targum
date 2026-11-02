@@ -1,0 +1,16 @@
+# /etc/systemd/system/targum-finds-podcasts.timer — installed and enabled by deploy.sh.
+#
+# 02:00 UTC is 04:00 in Israel in winter: clear of the YouTube finds at 01:00, the feed
+# count at 01:30 and the subscriptions' :05 and :35, and done before the tables sweep at
+# 02:30, which counts what it pooled the same night, and the backup at 04:00.
+
+[Unit]
+Description=targum podcast finds, nightly
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

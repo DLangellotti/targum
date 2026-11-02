@@ -1,0 +1,539 @@
+{
+  "reviewed": "2026-11-02",
+  "by": "targum-internal#621, from Apple's podcast directory (country IL), each feed fetched and its robots.txt read",
+  "feeds": [
+    {
+      "key": "kan-the-lab",
+      "name": "המעבדה",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/304b2cf5-dea9-4263-8a33-a919008d5a41/a82055c0-d8eb-4780-b6bb-a919008d5a42/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["science", "tech"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-three-who-know",
+      "name": "שלושה שיודעים",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/1870742d-7e8b-424f-b3ed-a919008d58e8/5e84154a-096c-459d-b4af-a919008d58ec/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["science"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-hayot-kiss",
+      "name": "חיות כיס",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/dbe32976-5401-4c93-87ed-a919008d58ae/1ea69f94-8d46-4ff2-aaca-a919008d58b8/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["money", "business"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-under-cover",
+      "name": "מה שכרוך",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/d6c192cb-ecb0-4573-9fef-a919008d59f9/6d3c3571-7eef-4da2-a396-a919008d59fd/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["books"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-gam-ken-tarbut",
+      "name": "גם כן תרבות",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/a34f9fe5-d862-4a0e-bb6f-a919008d5a5c/f92f3786-f979-4266-a3a5-a919008d5a62/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["film", "music", "art"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-foreign-fire",
+      "name": "אש זרה",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/bec15f07-5abc-475c-8894-a9db00ccca55/270f6d1e-c7d6-45a2-b36a-a9db00cd0ef0/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["books"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-one-plus-one",
+      "name": "1+1 אסף ליברמן מארח",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/043b3115-028f-4b5a-8564-a919008d59d3/e263331f-16d3-4f3d-bddb-a919008d59d3/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["music"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-international-hour",
+      "name": "השעה הבינלאומית",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/0a54e6c0-a688-455a-99d5-a98a00c5b210/92e86c46-4dca-4484-802f-a98a00c5b214/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["world", "politics"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-ad-hakaze",
+      "name": "עד הקצה",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/eb6dbda2-3808-406b-a9ce-b47900a119e0/11751990-9d44-4ebc-9a43-b47900a11df5/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["israel"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-sakranit",
+      "name": "סקרנית",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/dece2afd-415b-4d9a-948a-b28800cfa825/60b40caa-7020-4bee-9928-b28800cfadd8/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["science", "school"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-pop-up",
+      "name": "פופ אפ",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/e603ec8e-379b-4e8b-bd88-acc5009be962/52c05192-ac2e-46fc-8755-acc5009dc691/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["art", "film"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-hithalnu",
+      "name": "התחלנו",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/8d4881a1-c151-428b-a7cf-b1a300d2bc43/21ebfd03-68bf-46b2-8639-b1a300dbb119/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["music"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-behind-the-curtain",
+      "name": "מאחורי הקלעים",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/1a3e6e0c-495b-455b-b553-a919008d5a33/28d89244-6b84-4b7f-ae76-a919008d5a33/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["art"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-zionism-unease",
+      "name": "ציונות באי נחת",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/10586ab1-21d5-42f7-b245-b43200806775/cf3b9b50-8053-451a-87cd-b43200806c2d/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["history", "israel"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-love-story",
+      "name": "סיפור אהבה",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/3dc1a9f5-8e94-4042-8d90-b247009a0877/f6d55dde-20b9-4358-aa72-b247009a09c8/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["books", "relationships"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-solitude",
+      "name": "התבודדות",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/3d6ca486-4734-403e-9769-a919008d5ad1/0a2aa2dc-0c42-45e1-ada3-a919008d5ad1/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["religion"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-moreshet",
+      "name": "כאן מורשת הסכתים",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/1155c6d5-9e42-429d-8326-b2a900f64c21/5a1caef0-cf2d-4565-8112-b2a900f655e5/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["religion", "holidays"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-father-have-mercy",
+      "name": "אבא תרחם",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/33b8677b-0f77-4b01-b572-b0e300c17102/472dfcd5-9b8b-4c11-bc8b-b0e300c63c74/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["comedy", "parenting"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-to-die-for",
+      "name": "מתים עליהם",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/d6e7cbc5-b26c-4d04-b00d-b28300ed558a/65aa013f-90a9-4009-934e-b28300ed5b23/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["celebrities", "history"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-shokolad",
+      "name": "שוקולד מנטה מסטיק",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/84e5f886-22ea-4fbc-a6fc-b45f00c29554/075e7d28-d468-4b09-88f5-b45f00c29987/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["relationships"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-tarbut-specials",
+      "name": "תוכניות מיוחדות כאן תרבות",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/6b006f0e-7dc1-42de-bdad-a919008d5b13/c486db88-e98f-47a7-9c8b-a919008d5b13/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["art", "music"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "kan-unbalanced",
+      "name": "הבלתי מאוזנים",
+      "publisher": "כאן",
+      "feed": "https://www.omnycontent.com/d/playlist/23f697a0-7e6a-4e96-a223-a82c00962b12/0dbd1972-b8d8-4d45-8e95-b3130080b347/433a5046-d594-4cbc-a914-b3130080b8b4/podcast.rss",
+      "site": "kan.org.il",
+      "chips": ["books"],
+      "licence": "All rights reserved, Kan (Israeli Public Broadcasting Corporation). Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "glz-foreign-diary",
+      "name": "יומן החוץ של גלי צה״ל",
+      "publisher": "גלי צה״ל",
+      "feed": "https://www.omnycontent.com/d/playlist/6dcbc33f-1fb6-49de-9ae2-ad8a00c01523/db206e97-4829-4540-b17d-b1b7005f5825/cfc54d25-17e1-48c6-9605-b1b7006152bb/podcast.rss",
+      "site": "glz.co.il",
+      "chips": ["world", "politics"],
+      "licence": "All rights reserved, Galei Tzahal. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "glz-osim-sport",
+      "name": "עושים ספורט",
+      "publisher": "גלי צה״ל",
+      "feed": "https://www.omnycontent.com/d/playlist/6dcbc33f-1fb6-49de-9ae2-ad8a00c01523/f046e655-c0db-4332-9ccf-ade9009590f9/b002becc-4b52-4599-a90b-ade90099b0ac/podcast.rss",
+      "site": "glz.co.il",
+      "chips": ["sport"],
+      "licence": "All rights reserved, Galei Tzahal. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "glz-shabbat-morning",
+      "name": "שבת בבוקר עם ירדן ודידי",
+      "publisher": "גלי צה״ל",
+      "feed": "https://www.omnycontent.com/d/playlist/6dcbc33f-1fb6-49de-9ae2-ad8a00c01523/714db7c5-7f92-4421-a22c-adef00ed9993/1403e967-0d2c-43c4-a8dc-adef00ee4bfa/podcast.rss",
+      "site": "glz.co.il",
+      "chips": ["parenting"],
+      "licence": "All rights reserved, Galei Tzahal. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "glz-books",
+      "name": "ספרים רבותיי ספרים",
+      "publisher": "גלי צה״ל",
+      "feed": "https://www.omnycontent.com/d/playlist/6dcbc33f-1fb6-49de-9ae2-ad8a00c01523/97ba5f48-002e-4536-9c06-adef00e8ea19/673f1c2a-4deb-4e46-aed6-adef00e9c527/podcast.rss",
+      "site": "glz.co.il",
+      "chips": ["books"],
+      "licence": "All rights reserved, Galei Tzahal. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "haaretz-hashavua",
+      "name": "השבוע",
+      "publisher": "הארץ",
+      "feed": "https://www.omnycontent.com/d/playlist/397b9456-4f75-4509-acff-ac0600b4a6a4/fdef9415-eb17-45d7-85fd-ac08009235b2/4c9f1a8f-8a0e-4f10-b01f-ac08009235b7/podcast.rss",
+      "site": "haaretz.co.il",
+      "chips": ["israel", "politics"],
+      "licence": "All rights reserved, Haaretz. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "haaretz-abroad",
+      "name": "חוץ לארץ",
+      "publisher": "הארץ",
+      "feed": "https://www.omnycontent.com/d/playlist/397b9456-4f75-4509-acff-ac0600b4a6a4/6b5c19f7-a385-49c0-bb95-ad4a0071daea/08535d76-8bf4-4bf2-af8d-ad4a007205a3/podcast.rss",
+      "site": "haaretz.co.il",
+      "chips": ["world"],
+      "licence": "All rights reserved, Haaretz. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "haaretz-galeria",
+      "name": "תרבות יום א'",
+      "publisher": "הארץ",
+      "feed": "https://www.omnycontent.com/d/playlist/397b9456-4f75-4509-acff-ac0600b4a6a4/7c5de4cf-ccef-4714-9d3c-ac0800925a7a/ea07b558-c67b-4414-9836-ac0800925a7a/podcast.rss",
+      "site": "haaretz.co.il",
+      "chips": ["art", "music", "film"],
+      "licence": "All rights reserved, Haaretz. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "globes-hatzolelet",
+      "name": "הצוללת",
+      "publisher": "גלובס",
+      "feed": "https://www.omnycontent.com/d/playlist/2b205f04-5ead-4e7a-9f30-a8d9007aa8c1/7c1eb7f0-9f1c-4b18-a5ef-aa2300f6f390/83ad6e02-49a1-45d1-adff-aa2300f9a658/podcast.rss",
+      "site": "globes.co.il",
+      "chips": ["politics", "business"],
+      "licence": "All rights reserved, Globes. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "globes-kesef-bakir",
+      "name": "כסף בקיר",
+      "publisher": "גלובס",
+      "feed": "https://www.omnycontent.com/d/playlist/2b205f04-5ead-4e7a-9f30-a8d9007aa8c1/c30f8010-1131-4555-88e4-a9df00eb91ea/c474592a-e388-472d-b060-a9df00ed3f57/podcast.rss",
+      "site": "globes.co.il",
+      "chips": ["money"],
+      "licence": "All rights reserved, Globes. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "globes-market-forces",
+      "name": "כוחות השוק",
+      "publisher": "גלובס",
+      "feed": "https://www.omnycontent.com/d/playlist/2b205f04-5ead-4e7a-9f30-a8d9007aa8c1/e8c816b8-27c8-46be-88a2-b18c00be16eb/edec835f-a61c-4805-a67d-b18c00c00638/podcast.rss",
+      "site": "globes.co.il",
+      "chips": ["business", "money"],
+      "licence": "All rights reserved, Globes. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "sport5-olim-laregel",
+      "name": "עולים לרגל",
+      "publisher": "ערוץ הספורט",
+      "feed": "https://www.omnycontent.com/d/playlist/178d72a7-a889-4132-8008-a5cc014ed109/7050b47b-371e-469c-9d10-ae83012b5e4b/f6f3b580-aace-4226-9216-ae83012c09a2/podcast.rss",
+      "site": "sport5.co.il",
+      "chips": ["football", "sport"],
+      "licence": "All rights reserved, Sport 5. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "sport5-frequent-traveller",
+      "name": "הנוסע המתמיד",
+      "publisher": "ערוץ הספורט",
+      "feed": "https://www.omnycontent.com/d/playlist/178d72a7-a889-4132-8008-a5cc014ed109/518cf380-e1a2-4884-abe0-ae83012c52c3/f10cd213-d9cc-42c7-a7a8-ae83012ca131/podcast.rss",
+      "site": "sport5.co.il",
+      "chips": ["football", "sport"],
+      "licence": "All rights reserved, Sport 5. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "sport1-serie-nostra",
+      "name": "סרייה נוסטרה",
+      "publisher": "ספורט1",
+      "feed": "https://www.omnycontent.com/d/playlist/178d72a7-a889-4132-8008-a5cc014ed109/ee1fc46f-1e50-4f22-bca4-b20400e78e14/bac329ef-e2d5-4060-8c39-b20400e7bcb8/podcast.rss",
+      "site": "sport1.maariv.co.il",
+      "chips": ["football"],
+      "licence": "All rights reserved, Sport1. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and traffic.omny.fm"
+    },
+    {
+      "key": "geekonomy",
+      "name": "גיקונומי",
+      "publisher": "ראם שרמן ודורון ניר",
+      "feed": "https://feed.podbean.com/geekonomy/feed.xml",
+      "chips": ["tech", "business", "science"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and mcdn.podbean.com"
+    },
+    {
+      "key": "cinemascope",
+      "name": "סינמסקופ",
+      "publisher": "יאיר רוה",
+      "feed": "https://anchor.fm/s/65c4e6f8/podcast/rss",
+      "chips": ["film"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "steimatzky-books",
+      "name": "מדברים על ספרים",
+      "publisher": "סטימצקי",
+      "feed": "https://anchor.fm/s/e8cec7e4/podcast/rss",
+      "chips": ["books"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "tau-ancient-land",
+      "name": "סודות הארץ הקדומה",
+      "publisher": "אוניברסיטת תל אביב",
+      "feed": "https://anchor.fm/s/10c153814/podcast/rss",
+      "chips": ["history"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "tau-meaning-of-life",
+      "name": "משמעות החיים",
+      "publisher": "אוניברסיטת תל אביב",
+      "feed": "https://anchor.fm/s/1060b1010/podcast/rss",
+      "chips": ["books"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "paper-planes",
+      "name": "מטוסי נייר",
+      "publisher": "איתי חן",
+      "feed": "https://anchor.fm/s/b8578100/podcast/rss",
+      "chips": ["travel"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm; some episodes carry an SRT transcript"
+    },
+    {
+      "key": "hachalalaim",
+      "name": "החללאים",
+      "publisher": "דוד מאיר-לוי",
+      "feed": "https://anchor.fm/s/11839d078/podcast/rss",
+      "chips": ["space", "science"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "ebm-medicine",
+      "name": "רפואה נתמכת ראיות",
+      "publisher": "ד\"ר ישי מינצקר",
+      "feed": "https://feed.podbean.com/ebm/feed.xml",
+      "chips": ["health"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and mcdn.podbean.com"
+    },
+    {
+      "key": "regulator",
+      "name": "הרגולטור",
+      "publisher": "גיא מור",
+      "feed": "https://feed.podbean.com/regulator/feed.xml",
+      "chips": ["politics", "business"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and mcdn.podbean.com"
+    },
+    {
+      "key": "yuvi-yam",
+      "name": "יובי ים",
+      "publisher": "יובל נחום",
+      "feed": "https://anchor.fm/s/8f3c8a7c/podcast/rss",
+      "chips": ["food", "cooking"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "idf-podcast",
+      "name": "פודקאסט צה\"ל",
+      "publisher": "צה\"ל",
+      "feed": "https://anchor.fm/s/a5182130/podcast/rss",
+      "chips": ["army"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "hakol-psychology",
+      "name": "הכל פסיכולוגיה",
+      "publisher": "עוז גוטרמן ואפרת גיל",
+      "feed": "https://anchor.fm/s/10db15928/podcast/rss",
+      "chips": ["health", "relationships"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "mideast-week",
+      "name": "השבוע במזרח התיכון",
+      "publisher": "ד״ר בוריס גורליק",
+      "feed": "https://anchor.fm/s/432ffb50/podcast/rss",
+      "chips": ["world", "politics"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "binah-baktana",
+      "name": "בינה בקטנה",
+      "publisher": "שירה וינברג הראל",
+      "feed": "https://anchor.fm/s/fb03c7e8/podcast/rss",
+      "chips": ["tech"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "lazy-investing",
+      "name": "השקעות לעצלנים",
+      "publisher": "תמיר מנדובסקי",
+      "feed": "https://anchor.fm/s/ef1f5500/podcast/rss",
+      "chips": ["money"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and anchor.fm"
+    },
+    {
+      "key": "sidenote-are",
+      "name": "סיידנוט",
+      "publisher": "מגזין ARE",
+      "feed": "https://rss.buzzsprout.com/951781.rss",
+      "chips": ["fashion"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and www.buzzsprout.com; some episodes carry an SRT transcript"
+    },
+    {
+      "key": "sarcastim",
+      "name": "סרקאסטים",
+      "publisher": "אורן וצחי",
+      "feed": "https://media.rss.com/sarcastim/feed.xml",
+      "chips": ["film"],
+      "licence": "All rights reserved by the show. Published free as a public podcast feed for any podcast app.",
+      "checked": "robots.txt allows the feed and content.rss.com"
+    }
+  ],
+  "excluded": [
+    {
+      "key": "osim-historia-network",
+      "why": "Spreaker's download host (api.spreaker.com) disallows every crawler in robots.txt, so no episode could be sampled; the feed also says English and explicit"
+    },
+    {
+      "key": "osim-historia-nitzan",
+      "why": "Spreaker's download host (api.spreaker.com) disallows every crawler in robots.txt, so no episode could be sampled"
+    },
+    {
+      "key": "anafim-kids",
+      "why": "media.transistor.fm and feeds.transistor.fm answer robots.txt with an error, which targum reads as no"
+    },
+    {
+      "key": "bedtime-stories",
+      "why": "the feed marks the show explicit; a children's show, but the flag is the publisher's and it is respected"
+    },
+    {
+      "key": "sport5-spick-n-roll",
+      "why": "the feed address answers 404"
+    },
+    {
+      "key": "tziun3",
+      "why": "the feed answers 406 to a plain request"
+    },
+    {
+      "key": "history-malchi",
+      "why": "the feed marks the show explicit"
+    }
+  ]
+}

@@ -364,10 +364,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    design.md §12; clause 3.6, still a suggestion shown, opened, finished or set aside).
 #    NULL on every other row and on everything recorded before. In MIGRATIONS.
 #
+# 56→57: find.rate — the words a minute heard in a podcast find's transcript or two-minute
+#    sample (targum-internal#621; design.md §12, "Podcast finds are scored on a transcript
+#    or two minutes", 2026-11-02), 0 on every other find. On a table every box has, so it
+#    is in MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 56
+SCHEMA_VERSION = 57
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -822,6 +827,9 @@ MIGRATIONS: tuple[str, ...] = (
     # 2026-11-01): '' for yes, the default, 'off' for no. The switch is theirs, on the
     # account page, and the nightly pool reads it.
     "ALTER TABLE person ADD COLUMN counted TEXT NOT NULL DEFAULT ''",
+    # The words a minute heard in a podcast find (schema 57, targum-internal#621): 0 on
+    # every find that was not heard, which is every find before it.
+    "ALTER TABLE find ADD COLUMN rate REAL NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """

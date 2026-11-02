@@ -12,7 +12,8 @@ night, as counts and nothing more (`tables.finds`, David, 2026-11-01).
 
 A row's `screen` is `kept`, or the reason it was dropped (`host`, `words`, `robots`,
 `closed`, `unreadable`, `short`, `same`; and for a video, `age`, `gate` and `subs`, no
-Hebrew track anybody wrote). A dropped row keeps only its address, so the
+Hebrew track anybody wrote; for a podcast episode, `age` for one its feed marks explicit
+and `gate` for one too short or too long). A dropped row keeps only its address, so the
 next round does not fetch it again, and goes when it expires like any other; the back
 office counts the reasons.
 
@@ -45,7 +46,8 @@ SCHEMA = """
 -- words read off it, so one article at two addresses is pooled once. `tokens` is the
 -- running words counted and `unresolved` those the map could not place; `rung` an index
 -- into the language's ladder, NULL where the find is not measured. `screen` is `kept` or
--- why it was dropped. Rows go when `expires` passes.
+-- why it was dropped. Rows go when `expires` passes. `rate` is the words a minute heard in
+-- a podcast find's transcript or sample (targum-internal#621), 0 where nothing was heard.
 CREATE TABLE IF NOT EXISTS find (
   id         INTEGER PRIMARY KEY,
   language   TEXT    NOT NULL,
@@ -65,7 +67,8 @@ CREATE TABLE IF NOT EXISTS find (
   rung       INTEGER,
   found      INTEGER NOT NULL,
   expires    INTEGER NOT NULL,
-  screen     TEXT    NOT NULL DEFAULT 'kept'
+  screen     TEXT    NOT NULL DEFAULT 'kept',
+  rate       REAL    NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS find_pick ON find (language, screen, rung, expires);
 CREATE INDEX IF NOT EXISTS find_digest ON find (digest);
@@ -166,6 +169,8 @@ class Find:
     rung: int | None
     found: int
     expires: int
+    #: Words a minute heard, for a podcast find; 0 for anything not heard.
+    rate: float = 0.0
     bag: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     @property
@@ -179,7 +184,7 @@ class Find:
 
 _COLUMNS = (
     "id, language, source, url, title, host, publisher, published, medium, seconds, tokens,"
-    " unresolved, credits, topics, rung, found, expires"
+    " unresolved, credits, topics, rung, found, expires, rate"
 )
 
 
@@ -202,6 +207,7 @@ def _find(row: sqlite3.Row, bag: Mapping[str, int] | None = None) -> Find:
         rung=None if row["rung"] is None else int(row["rung"]),
         found=int(row["found"]),
         expires=int(row["expires"]),
+        rate=float(row["rate"] or 0.0),
         bag=bag or {},
     )
 
@@ -243,6 +249,7 @@ def add(
     seconds: float = 0.0,
     credits: int = 0,
     topics: Sequence[str] = (),
+    rate: float = 0.0,
     at: int | None = None,
 ) -> int:
     """Keep one find and its lemma counts, in one transaction. Its id; or 0 where the
@@ -253,7 +260,7 @@ def add(
             cursor = db.execute(
                 "INSERT INTO find (language, source, url, digest, title, host, publisher,"
                 " published, medium, seconds, tokens, unresolved, credits, topics, rung, found,"
-                " expires, screen) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires, screen, rate) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     language,
                     source,
@@ -273,6 +280,7 @@ def add(
                     when,
                     expires_at(source, when),
                     KEPT,
+                    round(float(rate), 1),
                 ),
             )
         except sqlite3.IntegrityError:

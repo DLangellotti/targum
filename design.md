@@ -384,6 +384,51 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Podcast finds are scored on a transcript or two minutes — 2026-11-02
+
+David, 2026-10-31 (targum-internal#621, slice C of the web-discovery plan): podcasts and
+radio are found from their transcripts, or from a short sample transcribed on targum's
+budget. It adds a source to "A web find is a pasted link targum found" (2026-10-31) and
+changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
+
+- **A reviewed list, not a search.** The shows are a list in the code
+  (`finds/podcasts.json`), each with its licence and what its robots.txt said when it was
+  read: 52 Hebrew shows on 2026-11-02, Kan's programmes first (which is what "radio"
+  means here; a live stream is out), then Galei Tzahal, Haaretz, Globes, the sports
+  channels and independent shows, picked from Apple's directory for Israel. Each carries
+  the chips it is about, so "Topic" finds its episodes at once. The list says what was
+  left out and why: Spreaker's download host refuses every crawler, so no Spreaker show
+  can be sampled; two shows the feed marks explicit; two dead feeds. A curator adds one by
+  editing the list, or as a `kind: podcast` row in sources.json.
+- **Any licence, and the feed's own terms.** Almost every show is all rights reserved.
+  A find is the reader's own reading, built from the episode's audio when they press
+  Listen, as a pasted link is, and never shelved. targum reads only what a podcast app
+  reads (the public feed, and the audio file), direct and never through the paid exit,
+  and only where robots.txt allows the feed and the audio host.
+- **A transcript first, and it costs nothing.** An SRT or VTT `podcast:transcript` is
+  read and scored. One mostly not in Hebrew letters is not the episode's words
+  (Buzzsprout's machine transcripts of a Hebrew show came back in English) and gives way
+  to a sample.
+- **Otherwise two minutes from the middle.** The middle, because a show's first minutes
+  are its jingle and its sponsor. Only that stretch is asked for, by byte range, never the
+  episode. whisper hears it at $0.006 a minute, about 1.2¢, at most 10 a day and 300 a
+  month (about $3.60), inside the same $30 a month as the other sources. When a cap or
+  the budget is reached the round says so and stops sampling. The episodes left over are
+  not pooled, so one never measured is never offered, and another night may hear them.
+- **The pool keeps counts and a speech rate.** The sound and the words are deleted once
+  scored. The row keeps the lemma counts and the words a minute heard (`find.rate`,
+  schema 57), for the audio band. Under 30 words a minute is music, and is not offered.
+- **The gate costs nothing.** An episode its feed marks explicit, one under three minutes
+  or over two hours or of no stated length, and one whose title or summary the screen
+  refuses is dropped off the feed alone. The heard words are screened again. Hard news
+  stays.
+- **The card is a podcast's.** It says Podcast, its minutes and the show's site, its
+  press is Listen, and its credits are a credit a minute, which is what Listen will
+  quote.
+- **Counted into the `podcasts` register as counts**, by "Public finds count into the
+  yardsticks, as counts" (2026-11-01). No show-level prior is taken from readers' builds:
+  a built episode is a private import.
+
 ### What to read next teaches words that come back — 2026-11-01
 
 targum-internal#614, Phase 2 of the comprehensible-input epic #617, from ling-he's research
