@@ -266,7 +266,13 @@ def _streamed(response: Any, url: str, host: str, via: str, ends: float) -> Any:
 
 
 def _open(
-    url: str, params: dict[str, str] | None, *, via: str, proxy: str = "", ends: float
+    url: str,
+    params: dict[str, str] | None,
+    *,
+    via: str,
+    proxy: str = "",
+    ends: float,
+    headers: dict[str, str] | None = None,
 ) -> tuple[Any, str]:
     """Walk to the page, checking every hop, and return the streaming response.
 
@@ -279,6 +285,8 @@ def _open(
 
     `ends` is the `time.monotonic()` by which the whole fetch must be done, body
     included; each hop is checked against it and given no longer than what is left.
+    `headers` go on every hop, for the one fetch that asks for a stretch of a file
+    (`window`); every other fetch sends none of its own.
     """
     target = url
     session = _session(proxy)
@@ -295,6 +303,7 @@ def _open(
                 allow_redirects=False,
                 impersonate=BROWSER,
                 stream=True,
+                **({"headers": headers} if headers else {}),
             )
         except Exception as exc:
             # Never got an answer at all: a timeout, a refused connection, a name that
@@ -785,6 +794,47 @@ def _pull(url: str, into: Path, max_bytes: int, *, via: str, proxy: str = "") ->
                     )
                 out.write(chunk)
         return Downloaded(into, response.headers.get("content-type", ""), target, via=via)
+    except TargumError:
+        into.unlink(missing_ok=True)
+        raise
+    finally:
+        response.close()
+
+
+def window(url: str, into: Path, start: int, most: int) -> Downloaded:
+    """A stretch of a large file, `most` bytes from byte `start`, through the same door
+    and past the same checks as every fetch, written to `into`.
+
+    For the podcast finds' two-minute sample (targum-internal#621): the middle of an
+    episode, never the whole of it. Asked with `Range`, which the podcast hosts answer
+    with the stretch; a host that ignores it answers the file from its start, and the
+    read stops at `most` bytes either way, so no more than that ever crosses the wire.
+    Direct only: targum's own discovery never pays the residential exit for a sound.
+    """
+    into.parent.mkdir(parents=True, exist_ok=True)
+    first = max(0, int(start))
+    ends = time.monotonic() + DEADLINE_S
+    try:
+        response, target = _open(
+            url,
+            None,
+            via="direct",
+            ends=ends,
+            headers={"Range": f"bytes={first}-{first + max(1, int(most)) - 1}"},
+        )
+    except TargumError:
+        into.unlink(missing_ok=True)
+        raise
+    try:
+        written = 0
+        with into.open("wb") as out:
+            for chunk in _streamed(response, url, urlparse(target).hostname or "", "direct", ends):
+                room = most - written
+                out.write(chunk[:room])
+                written += min(len(chunk), room)
+                if written >= most:
+                    break
+        return Downloaded(into, response.headers.get("content-type", ""), target)
     except TargumError:
         into.unlink(missing_ok=True)
         raise

@@ -1,0 +1,41 @@
+# /etc/systemd/system/targum-finds-podcasts.service — installed by deploy.sh, started by
+# targum-finds-podcasts.timer at 02:00 UTC (targum-internal#621, David 2026-10-31).
+#
+# The nightly round of podcast finds: new episodes of the reviewed Hebrew shows
+# (src/targum/finds/podcasts.json), each feed read direct after its robots.txt says yes.
+# An episode with an SRT or VTT transcript is scored on it for nothing; any other has two
+# minutes from its middle fetched by byte range and transcribed by whisper
+# (OPENAI_API_KEY, about 1.2 cents, at most 10 a day and 300 a month, counted inside
+# TARGUM_FINDS_BUDGET_USD). The sound and the words are deleted once scored: the pool in
+# targum.db keeps the lemma counts and the words a minute. Each episode is written as it
+# is done, so a killed run keeps what it found.
+#
+# It does nothing until TARGUM_FINDS_PODCASTS=1 is in targum.env: the timer runs every
+# night and the command says it is off.
+#
+#   systemctl start targum-finds-podcasts      # one now, by hand
+#   journalctl -u targum-finds-podcasts -n 20
+
+[Unit]
+Description=targum podcast finds, nightly
+After=network-online.target targum.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# As targum, never as root: a root-owned targum.db or __pycache__ breaks the service.
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+WorkingDirectory=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum finds podcasts --store /var/lib/targum/targum.db
+Nice=10
+MemoryHigh=400M
+MemoryMax=800M
+TimeoutStartSec=1h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum

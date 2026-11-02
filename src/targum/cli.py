@@ -5495,6 +5495,34 @@ def finds_youtube(
     console.print(f"[green]YouTube[/green]: {found}")
 
 
+@finds_app.command("podcasts")
+def finds_podcasts(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """One night's round of podcast finds (targum-internal#621): new episodes of the
+    reviewed Hebrew shows, scored on their transcript or on two minutes from the middle
+    transcribed by whisper (at most 10 a day, 300 a month), screened and pooled. Does
+    nothing unless TARGUM_FINDS_PODCASTS is set: the box's timer runs it every night."""
+    from .accounts import Store
+    from .finds import podcasts
+    from .serve import default_store
+
+    if not podcasts.on():
+        console.print(f"[dim]Podcast finds are off ({podcasts.FLAG} is not set).[/dim]")
+        return
+    keeping = Store(store or default_store())
+    try:
+        found = podcasts.refresh(keeping)
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Podcasts[/green]: {found}")
+    if found.stopped:
+        console.print(
+            f"[yellow]Stopped[/yellow]: {found.stopped}; {len(found.left)} episodes wait "
+            "for another night."
+        )
+
+
 @finds_app.command("pool")
 def finds_pool(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,

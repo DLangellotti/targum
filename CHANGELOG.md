@@ -711,6 +711,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `TARGUM_ROOTS_HE` / `TARGUM_ROOTS_RU`, then `~/.targum/roots-<language>.json`, then
   `/etc/targum/roots-<language>.json`. `deploy.sh` copies the laptop's copy there when it
   has one, before the rebuild draws them into every reader.
+- Podcast finds, nightly, behind a switch (targum-internal#621; design.md §12, "Podcast
+  finds are scored on a transcript or two minutes", 2026-11-02). `targum finds podcasts`,
+  on a new timer at 02:00 UTC, reads a reviewed list of 52 Hebrew shows
+  (`finds/podcasts.json`: Kan, Galei Tzahal, Haaretz, Globes, the sports channels and
+  independent shows, each with its licence and robots.txt noted) and takes each show's
+  newest two episodes of the last thirty days. An SRT or VTT transcript is scored for
+  nothing. Any other episode has two minutes from its middle fetched by byte range and
+  heard by whisper, about 1.2¢, at most 10 a day and 300 a month inside
+  `TARGUM_FINDS_BUDGET_USD`. The cap stops the sampling and the round says so. The pool
+  keeps the counts and the words a minute (`find.rate`, schema 57), never the sound or
+  the words. Episodes are pooled as `podcast` finds tagged with their show's chips, at a
+  credit a minute; the card says Podcast and its press is Listen. A feed's transcript is
+  now taken as SRT or VTT where it offers one among several, for imports too. It does
+  nothing until `TARGUM_FINDS_PODCASTS=1` is in targum.env.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15

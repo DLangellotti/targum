@@ -228,7 +228,8 @@ scp -q deploy/targum-backup.service deploy/targum-backup.timer \
   deploy/targum-subscriptions.service deploy/targum-subscriptions.timer \
   deploy/targum-subscriptions-mail.service deploy/targum-subscriptions-mail.timer \
   deploy/targum-tables.service deploy/targum-tables.timer \
-  deploy/targum-finds-youtube.service deploy/targum-finds-youtube.timer "$HOST:/tmp/targum-units/"
+  deploy/targum-finds-youtube.service deploy/targum-finds-youtube.timer \
+  deploy/targum-finds-podcasts.service deploy/targum-finds-podcasts.timer "$HOST:/tmp/targum-units/"
 # The library's cover pictures, drawn on this machine by `targum thumbs` and served from
 # beside the shelf. Content, like the catalogue, and nothing carried them: they went over
 # by hand on 2026-10-08. Read from the main checkout's targum-out by default, so a deploy
@@ -521,12 +522,14 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # texts nobody has counted yet into corpus.db, runs no model and spends nothing.
   # And the nightly YouTube finds (targum-internal#620): off until TARGUM_FINDS_YOUTUBE=1
   # is in targum.env, and then inside its own caps and the discovery budget.
-  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer targum-tables.service targum-tables.timer targum-finds-youtube.service targum-finds-youtube.timer; do
+  # And the nightly podcast finds (targum-internal#621): off until
+  # TARGUM_FINDS_PODCASTS=1, and then at most 10 whisper samples a day inside the budget.
+  for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer targum-tables.service targum-tables.timer targum-finds-youtube.service targum-finds-youtube.timer targum-finds-podcasts.service targum-finds-podcasts.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done
   rm -rf /tmp/targum-units
   systemctl daemon-reload
-  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer targum-subscriptions.timer targum-subscriptions-mail.timer targum-tables.timer targum-finds-youtube.timer
+  systemctl enable --now --quiet targum-backup.timer targum-health.timer targum-visits.timer targum-weekly-watch.timer targum-subscriptions.timer targum-subscriptions-mail.timer targum-tables.timer targum-finds-youtube.timer targum-finds-podcasts.timer
   rm -f /etc/cron.d/targum-backup
   # The two tools the off-box copy needs: age seals a copy to a public key, rclone carries
   # it. Installed when missing and never fatal here, because the backup names whichever is

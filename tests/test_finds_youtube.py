@@ -309,6 +309,7 @@ def test_the_timer_runs_nightly_as_targum_and_every_deploy_carries_it() -> None:
     assert timer["OnCalendar"] == ["*-*-* 01:00:00 UTC"]
     script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
     assert "deploy/targum-finds-youtube.service deploy/targum-finds-youtube.timer" in script
-    assert "targum-finds-youtube.service targum-finds-youtube.timer; do" in script
+    installed = next(line for line in script.splitlines() if "for unit in" in line)
+    assert "targum-finds-youtube.service targum-finds-youtube.timer" in installed
     enable = next(line for line in script.splitlines() if "systemctl enable --now" in line)
     assert "targum-finds-youtube.timer" in enable
