@@ -189,6 +189,24 @@ if [ -f "$SENTENCE_LEVELS" ]; then
 else
   echo "no sentence levels at $SENTENCE_LEVELS — suggestions will not point into a text" >&2
 fi
+# targum's own root lexicons (targum-internal#593, #596): each word's root, pattern and
+# whether it is borrowed, written on this machine by scripts/build_roots.py and private
+# for the same reason as the catalogue. The service reads /etc/targum/roots-<language>.json
+# (annotate/root_card.py); the rebuild below draws them into every reader. Optional: a box
+# without them shows a noun no root, as it did before. Point ~/.targum/roots-he.json at the
+# run to ship (a symlink to roots-he-<run>.json), or name the file in TARGUM_ROOTS_HE.
+ROOTS_HE="${TARGUM_ROOTS_HE:-$HOME/.targum/roots-he.json}"
+ROOTS_RU="${TARGUM_ROOTS_RU:-$HOME/.targum/roots-ru.json}"
+ssh "${SSH_OPTS[@]}" "$HOST" "rm -f /tmp/roots-he.json /tmp/roots-ru.json"
+for held in "he:$ROOTS_HE" "ru:$ROOTS_RU"; do
+  language="${held%%:*}"
+  file="${held#*:}"
+  if [ -f "$file" ]; then
+    scp -q "$file" "$HOST:/tmp/roots-$language.json"
+  else
+    echo "no root lexicon at $file — cards keep the roots they had in $language" >&2
+  fi
+done
 # Published translations held as files of verses (ingest/fetch/published.py) — the 1875
 # Russian Torah is the first — are content in the same way, and optional the same way: a
 # box without them builds every text as before, with only those renderings missing.
@@ -472,6 +490,12 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
     install -o root -g targum -m 0640 /tmp/sentence-levels.json /etc/targum/sentence-levels.json
     rm -f /tmp/sentence-levels.json
   fi
+  for language in he ru; do
+    if [ -f /tmp/roots-\$language.json ]; then
+      install -o root -g targum -m 0640 /tmp/roots-\$language.json /etc/targum/roots-\$language.json
+      rm -f /tmp/roots-\$language.json
+    fi
+  done
   install -d -o root -g targum -m 0750 /etc/targum/published
   for held in /tmp/targum-published/*.json; do
     [ -e "\$held" ] || continue

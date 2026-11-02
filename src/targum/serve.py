@@ -14154,7 +14154,7 @@ class Handler(BaseHTTPRequestHandler):
             "more": more,
         }
         if root:
-            kin = occurrences_module.family(root, finished, folder_for, language)
+            kin = occurrences_module.family(root, finished, folder_for, language, lemma)
             marked = self.store.marked(person, language) if kin else {}
             known = [word for word in kin if marked.get(word) == coverage_module.KNOWN]
             answer["family"] = {
