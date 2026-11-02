@@ -444,6 +444,13 @@ def same_sense(language: str, asked: str, other: str, root: str) -> bool:
     return not first or not second or first == second
 
 
+def sense_of(language: str, lemma: str, root: str) -> int:
+    """Which of `root`'s meanings `lemma` carries, numbered as `same_sense` compares
+    them, or 0 where the lexicon does not say: what keeps ע־ר־ב (evening) and ע־ר־ב
+    (guarantee) two roots in "words from N roots"."""
+    return _sense(_code(language), lemma, root)
+
+
 def _sense(language: str, lemma: str, root: str) -> int:
     if language == "he":
         row = hebrew_row(lemma)

@@ -14802,6 +14802,20 @@ class Handler(BaseHTTPRequestHandler):
             else None
         )
         answer["lead"] = gaps_module.lead(answer["grammar"], answer["mishkal"])
+        # "words from N roots" (design.md §12, 2026-11-02): the distinct roots among the
+        # words the reader knows, counted live off their own rows as the family line
+        # counts a root. One quiet line; it feeds no headline, the level, the ledger or a
+        # yardstick. Hebrew only, and none on a machine without roots-he.json.
+        answer["roots"] = (
+            occurrences_module.roots_known(
+                [lemma for lemma, status in marked.items() if status == coverage_module.KNOWN],
+                finished,
+                folder_for,
+                language,
+            )
+            if language == "he" and root_card.lexicon("he") is not None
+            else None
+        )
 
         # A language with no library has nothing to offer at its level but what the
         # reader brought (board ProgressYi): their own texts, measured as the shelf does.
