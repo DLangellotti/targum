@@ -8,6 +8,7 @@ import sqlite3
 import subprocess
 import sys
 import time
+from collections.abc import Iterable, Iterator
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, NoReturn
@@ -3308,6 +3309,12 @@ def editor_pass_command(
     write: Annotated[
         bool, typer.Option("--write", help="Write the rows. Without it, say what would be.")
     ] = False,
+    tool: Annotated[
+        str, typer.Option("--tool", help="What wrote the text they read, e.g. claude-opus-5.")
+    ] = "",
+    run: Annotated[
+        str, typer.Option("--run", help="Which pass this was. Default: the file's name.")
+    ] = "",
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
     """Keep a paid editor's pass as rows, not as a corrected file (targum-internal#354).
@@ -3318,7 +3325,8 @@ def editor_pass_command(
     counts as a second judge beside the author and the readers.
 
     Columns: line, before, after, note — and term, which a gloss row must give and any
-    other row may leave to be read off `before`. `targum.editor_pass` has the rest.
+    other row may leave to be read off `before`, and kind, the class of mistake, which
+    is worked out where it is left out. `targum.editor_pass` has the rest.
 
     It applies nothing: a gloss the editor changed is recorded here and set with
     `targum correct --who editor`. Run twice, it writes nothing the second time.
@@ -3342,11 +3350,13 @@ def editor_pass_command(
         for row in todo[:5]:
             console.print(
                 f"  {row.get('span', '')}  [bold]{row['term']}[/bold]: "
-                f"{row.get('before', '')!r} -> {row.get('after', '')!r}"
+                f"{row.get('before', '')!r} -> {row.get('after', '')!r} [dim]{row['kind']}[/dim]"
             )
         console.print("\n[dim]Nothing was written. Add --write.[/dim]")
         return
-    written, skipped = keeping.editor_pass(stage, rows, judge=judge)
+    written, skipped = keeping.editor_pass(
+        stage, rows, judge=judge, tool=tool, run=run or path.stem
+    )
     console.print(
         f"[green]Kept[/green] {len(written)} of the editor's judgements as rows"
         + (f", {skipped} already there" if skipped else "")
@@ -4939,6 +4949,9 @@ def tables_sweep(
 #: The box's corpus ledger, where `targum tables push` imports the laptop's rows.
 BOX_LEDGER = "/var/lib/targum/corpus.db"
 
+#: The box's account database, where the pushed fixes go (targum-internal#585).
+BOX_STORE = "/var/lib/targum/targum.db"
+
 
 @tables_app.command("export")
 def tables_export(
@@ -4946,14 +4959,24 @@ def tables_export(
         Path | None, typer.Option("--out", help="Write here. Default: standard output.")
     ] = None,
     origin: Annotated[str, typer.Option("--origin", help="Whose rows: laptop or box.")] = "laptop",
+    accounts: Annotated[
+        Path | None,
+        typer.Option("--store", help="Also the fixes in this account database (#585)."),
+    ] = None,
 ) -> None:
     """Write the language tables' rows one machine made as JSON lines
     (targum-internal#587): what `targum tables push` carries to the box.
 
-    Lemmas and counts only: no sentence and no reader is in any row.
+    Lemmas and counts only: no sentence and no reader is in any row. With `--store`, the
+    corrections ledger's fixes by the author, an editor or a model follow
+    (targum-internal#585); a reader's never do.
     """
+    import itertools
+
     store = _tables_store()
-    lines = store.export(origin)
+    lines: Iterable[str] = store.export(origin)
+    if accounts is not None:
+        lines = itertools.chain(lines, _fix_lines(accounts))
     if out is None:
         for line in lines:
             sys.stdout.write(line + "\n")
@@ -4963,7 +4986,16 @@ def tables_export(
         for line in lines:
             handle.write(line + "\n")
             written += 1
-    console.print(f"[green]Wrote[/green] {written} contributions to {out}")
+    console.print(f"[green]Wrote[/green] {written} lines to {out}")
+
+
+def _fix_lines(accounts: Path) -> Iterator[str]:
+    """The corrections ledger's lines for a push, from an account database."""
+    from .accounts import Store as AccountStore
+    from .tables import fixes
+
+    if accounts.is_file():
+        yield from fixes.export(AccountStore(accounts))
 
 
 @tables_app.command("import")
@@ -4973,29 +5005,56 @@ def tables_import(
         Path | None,
         typer.Option("--ledger", help="The corpus ledger to import into. Default: TARGUM_LEDGER"),
     ] = None,
+    accounts: Annotated[
+        Path | None,
+        typer.Option("--store", help="The account database the fixes go into (#585)."),
+    ] = None,
 ) -> None:
     """Take the laptop's language-table rows into this machine's ledger
-    (targum-internal#587).
+    (targum-internal#587), and its fixes into the account database (#585).
 
     Run twice, it changes nothing: a row already here is left as it is. On the box, run
     it as targum, never as root: a root-owned ledger fails every write after it.
     """
-    from .tables import Store, no_models
+    from .tables import Store, fixes, no_models
 
     store = Store(ledger) if ledger is not None else _tables_store()
+    held: list[str] = []
+
+    def tables_only(lines: Iterable[str]) -> Iterator[str]:
+        for line in lines:
+            if fixes.is_fix_line(line):
+                held.append(line)
+            else:
+                yield line
+
     with no_models():
         if str(file) == "-":
-            result = store.import_rows(sys.stdin)
+            result = store.import_rows(tables_only(sys.stdin))
         else:
             if not file.is_file():
                 fail(TargumError(f"There is no file at {file}."))
             with file.open(encoding="utf-8") as handle:
-                result = store.import_rows(handle)
+                result = store.import_rows(tables_only(handle))
     console.print(
         f"[green]Imported[/green] {result.added} contributions, {result.history} as history,"
         f" {result.unchanged} already here, {result.refused} refused [dim]{store.file}[/dim]"
     )
-    if result.refused:
+    refused = result.refused
+    if held:
+        if accounts is None:
+            console.print(f"[yellow]Left[/yellow] {len(held)} fixes: pass --store to keep them.")
+            refused += len(held)
+        else:
+            from .accounts import Store as AccountStore
+
+            took = fixes.take(AccountStore(accounts), held)
+            console.print(
+                f"[green]Kept[/green] {took.added} fixes, {took.unchanged} already here,"
+                f" {took.refused} refused [dim]{accounts}[/dim]"
+            )
+            refused += took.refused
+    if refused:
         raise typer.Exit(1)
 
 
@@ -5004,31 +5063,112 @@ def tables_push(
     host: Annotated[
         str, typer.Option("--host", envvar="TARGUM_HOST", help="Where the box is.")
     ] = "root@targum.page",
+    accounts: Annotated[
+        Path | None,
+        typer.Option("--store", help="The account database whose fixes go. Default: the laptop's."),
+    ] = None,
 ) -> None:
-    """Carry the laptop's language-table rows to the box (targum-internal#587).
+    """Carry the laptop's language-table rows to the box (targum-internal#587), and the
+    fixes its corrections ledger holds by the author, an editor or a model (#585).
 
     Exports every row this laptop wrote and imports it there over SSH as the targum user,
     never as root. Safe to run again: the box keeps what it already holds.
     """
     import tempfile
 
+    from .serve import default_store
+
     store = _tables_store()
     if store.origin() != "laptop":
         fail(TargumError("This ledger is the box's own.", "Run push from the laptop."))
-    remote = f"sudo -u targum /usr/local/bin/targum tables import --ledger {BOX_LEDGER} -"
+    remote = f"sudo -u targum /usr/local/bin/targum tables import --ledger {BOX_LEDGER}"
     with tempfile.TemporaryFile("w+", encoding="utf-8") as handle:
         written = 0
         for line in store.export("laptop"):
             handle.write(line + "\n")
             written += 1
-        if not written:
+        carried = 0
+        for line in _fix_lines(accounts or default_store()):
+            handle.write(line + "\n")
+            carried += 1
+        if not written and not carried:
             console.print("Nothing to push: this laptop has written no rows.")
             return
+        # Named only when there are fixes, so a push with none still lands on a box that
+        # has not been deployed since the ledger began.
+        if carried:
+            remote += f" --store {BOX_STORE}"
         handle.seek(0)
-        done = subprocess.run(["ssh", "-C", host, remote], stdin=handle, check=False)
+        done = subprocess.run(["ssh", "-C", host, remote + " -"], stdin=handle, check=False)
     if done.returncode != 0:
         fail(TargumError(f"The import on {host} failed ({done.returncode}).", "See above."))
-    console.print(f"[green]Pushed[/green] {written} contributions to {host}")
+    console.print(f"[green]Pushed[/green] {written} contributions and {carried} fixes to {host}")
+
+
+@tables_app.command("fixes")
+def tables_fixes(
+    by: Annotated[
+        list[str] | None,
+        typer.Option("--by", help="kind, tool, stage, who or run; repeatable. Default: kind."),
+    ] = None,
+    top: Annotated[
+        int, typer.Option("--recurring", help="Also the fixes made in the most places.")
+    ] = 0,
+    gold: Annotated[
+        bool,
+        typer.Option(
+            "--gold", help="Export the eval set: the author's hand and what was accepted."
+        ),
+    ] = False,
+    stage: Annotated[str, typer.Option("--stage", help="Only this stage, with --gold.")] = "",
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Where --gold writes. Default: standard output.")
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """The corrections ledger (targum-internal#585): how many fixes each kind of mistake
+    and each tool holds, and how many of them recur in more than one place.
+
+    `--gold` writes the eval set as JSON lines instead: every fix by the author's own
+    hand and every fix a person accepted. A model's fix is counted here and is not gold
+    until somebody accepts it. Reads the account database; runs no model.
+    """
+    from .accounts import Store
+    from .serve import default_store
+    from .tables import fixes
+
+    keeping = Store(store or default_store())
+    if gold:
+        rows = fixes.gold(keeping, stage)
+        lines = [json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows]
+        if out is None:
+            for line in lines:
+                sys.stdout.write(line + "\n")
+            return
+        out.write_text("".join(line + "\n" for line in lines), encoding="utf-8")
+        console.print(f"[green]Wrote[/green] {len(rows)} gold fixes to {out}")
+        return
+    try:
+        groups = fixes.recurrence(keeping, by or ["kind"])
+    except ValueError as error:
+        fail(TargumError(str(error)))
+    if not groups:
+        console.print("[dim]No fixes kept yet.[/dim]")
+        return
+    columns = list(dict.fromkeys(by or ["kind"]))
+    for row in groups:
+        named = "  ".join(str(row[c]) or "-" for c in columns)
+        console.print(
+            f"{row['fixes']:>7} fixes  {row['units']:>6} places"
+            f"  {row['recurring']:>5} recur  {named}"
+        )
+    if top:
+        console.print()
+        for one in fixes.recurring(keeping, top):
+            console.print(
+                f"{one['units']:>5}x  {one['stage']} {one['kind'] or '-'}  "
+                f"{one['before']!r} -> {one['after']!r} [dim]{one['tools'] or ''}[/dim]"
+            )
 
 
 @tables_app.command("top")

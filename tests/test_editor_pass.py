@@ -209,3 +209,49 @@ def test_settle_takes_an_editors_hand(tmp_path: Path, monkeypatch: pytest.Monkey
     assert said.exit_code == 0, said.output
     decided = Store(db).corrections()[0]
     assert decided["who"] == "editor" and decided["state"] == "rejected"
+
+
+# -- the corrections ledger (targum-internal#585) ---------------------------------------
+
+
+def test_a_pass_says_each_rows_kind_or_has_it_worked_out(tmp_path: Path) -> None:
+    path = tmp_path / "pass.csv"
+    path.write_text(
+        "line,before,after,kind\n"
+        "m t1,שָלוֹם,שָׁלוֹם,\n"
+        "m t2,ילד,ילדה,Gender\n"
+        "m t3,ילד,ילדים,\n"
+        "m t4,ילד,,\n",
+        encoding="utf-8",
+    )
+    rows = read_editor_pass(path, "scene")
+    assert [r["kind"] for r in rows] == ["nikkud", "gender", "wording", "other"]
+    gloss = tmp_path / "gloss.csv"
+    gloss.write_text("line,term,before,after\na,עם,people,with\n", encoding="utf-8")
+    assert read_editor_pass(gloss, "gloss")[0]["kind"] == "gloss"
+    path.write_text("line,before,after,kind\nm t1,א,ב,vibes\n", encoding="utf-8")
+    with pytest.raises(TargumError, match="line 2: kind 'vibes'"):
+        read_editor_pass(path, "scene")
+
+
+def test_the_command_keeps_the_kind_tool_and_run(tmp_path: Path) -> None:
+    db = tmp_path / "words.db"
+    path = tmp_path / "pass-07.csv"
+    path.write_text("line,before,after\nm t1,ילד,ילדה\n", encoding="utf-8")
+    done = CliRunner().invoke(
+        app,
+        [
+            "editor-pass",
+            str(path),
+            "--stage",
+            "scene",
+            "--tool",
+            "model-a",
+            "--store",
+            str(db),
+            "--write",
+        ],
+    )
+    assert done.exit_code == 0, done.output
+    (row,) = Store(db).corrections()
+    assert (row["kind"], row["tool"], row["run"]) == ("wording", "model-a", "pass-07")

@@ -300,7 +300,8 @@ def test_push_imports_over_ssh_as_targum(
     monkeypatch.setattr(subprocess, "run", run)
     done = CliRunner().invoke(
         app,
-        ["tables", "push", "--host", "root@box.example"],
+        # An account database with no fixes, never the laptop's own (#585).
+        ["tables", "push", "--host", "root@box.example", "--store", str(tmp_path / "none.db")],
         env={"TARGUM_LEDGER": str(laptop.file)},
     )
     assert done.exit_code == 0, done.output
