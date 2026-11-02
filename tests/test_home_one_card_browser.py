@@ -86,6 +86,10 @@ WEB_PICK = {
     "fit": "band",
 }
 
+# What the card says when nothing fits (design.md §12, 2026-11-02), the floor from
+# `choose.FLOOR`.
+NONE = "No new text is 90% known for you yet."
+
 CHIPS = [
     {"topic": "cooking", "label": "Cooking", "suggested": True},
     {"topic": "sport", "label": "Sport", "suggested": False},
@@ -247,7 +251,11 @@ def test_something_else_goes_on_to_the_web_step_by_step(browser, width: int) -> 
     shot(page, "web-pick", width)
     context.close()
     assert not thrown, thrown
-    assert posted[0] == {"language": "he", "skip": []}, posted[0]
+    assert posted[0] == {
+        "language": "he",
+        "skip": [],
+        "near": {"topics": [], "skip": [], "done": ["hannah"]},
+    }, posted[0]
     assert first["says"] == "Looking on the web." and first["steps"][0][0] == "now", first
     assert [cls for cls, _ in reading["steps"]] == ["done", "now", ""], reading
     assert reading["steps"][2][1] == "Counting the words you know"
@@ -289,7 +297,7 @@ def test_a_topic_picks_again_at_once_and_names_the_press(browser, width: int) ->
         if body.get("topics") == ["football"]:
             return {"pick": {**WEB_PICK, "id": "find-9", "find": 9, "title": "מכבי חיפה",
                              "kind": "video", "credits": 11, "host": "youtube.com"}}  # fmt: skip
-        return {"pick": None, "why": "off", "message": "We found nothing at your level today."}
+        return {"pick": None, "why": "off", "message": NONE}
 
     context, page, thrown, posted, _ = home(browser, width, find)
     page.wait_for_selector("#try-next .rc-pick")
@@ -309,7 +317,8 @@ def test_a_topic_picks_again_at_once_and_names_the_press(browser, width: int) ->
     assert not thrown, thrown
     assert chips == [["Cooking", True], ["Sport", False], ["Football", False]], chips
     assert not sideways
-    assert {"language": "he", "skip": [], "topics": ["football"]} in posted, posted
+    asked = {"language": "he", "skip": [], "topics": ["football"]}
+    assert {**asked, "near": {"topics": ["football"], "skip": [], "done": []}} in posted, posted
     assert got["presses"] == ["Watch", "Something else", "Football"], got
     assert got["credits"] and got["facts"] == "Video · 6 min · youtube.com", got
 
@@ -355,25 +364,52 @@ HARD_PICK = {
 }
 
 
+def under(picks: list[dict[str, Any]], body: dict[str, Any]) -> list[dict[str, Any]]:
+    """What the server's harder ranking leaves for this body: every pick not shown, not
+    finished and not set aside, in the order given (the nearest miss first)."""
+    gone = {*(body.get("skip") or ()), *(body.get("done") or ())}
+    return [pick for pick in picks if pick["id"] not in gone]
+
+
+def empty(picks: list[dict[str, Any]], body: dict[str, Any], said: bool = True) -> Any:
+    """The server's empty answer: the floor sentence, and `nearest`, the first text the
+    harder press would open, ranked from the press's own body the page sends as `near`."""
+    out: dict[str, Any] = {"pick": None, "why": "off"}
+    if said:
+        out["message"] = NONE
+    near = under(picks, body["near"]) if isinstance(body.get("near"), dict) else []
+    if near:
+        out["nearest"] = {
+            key: near[0][key]
+            for key in ("id", "kind", "video", "find", "reason", "percent")
+            if key in near[0]
+        }
+    return out
+
+
+def figure(said: str) -> int:
+    """The whole percentage in a line ("Read one at 78% known" → 78)."""
+    return int(said.split("%")[0].split()[-1])
+
+
 @pytest.mark.parametrize("width", WIDTHS)
-def test_nothing_fits_offers_something_harder_and_something_else_walks_on(
-    browser, width: int
-) -> None:
-    """David, 2026-11-02 (design.md §12, "Show me something harder"): only where nothing
-    fits, beside Topic; the pick says its share known and nothing else new, and Something
-    else on it asks for the next nearest miss."""
+def test_nothing_fits_names_the_nearest_text_and_its_press_opens_it(browser, width: int) -> None:
+    """David, 2026-11-02 (design.md §12, "Show me something harder" and its amendment):
+    where nothing fits, the card says where things stand and its press says the share
+    known of the very text it opens; Something else on that pick walks to the next miss,
+    and once none is left the card says so with no second offer."""
     harder_pick = {**WEB_PICK, "id": "find-8", "find": 8, "title": "בית המשפט העליון",
                    "reason": {"key": "suggest.known", "share": 71}, "fit": "under",
                    "harder": True}  # fmt: skip
+    picks = [HARD_PICK, harder_pick]
 
     def find(body: dict[str, Any]) -> Any:
         if not body.get("harder"):
-            return {"pick": None, "why": "off", "message": "We found nothing at your level today."}
-        if not body.get("skip"):
-            return {"pick": HARD_PICK, "harder": True, "more": 1}
-        if body["skip"] == ["hard-story"]:
-            return {"pick": harder_pick, "harder": True, "more": 0}
-        return {"pick": None, "why": "harder", "message": "We found nothing harder today."}
+            return empty(picks, body)
+        left = under(picks, body)
+        if left:
+            return {"pick": left[0], "harder": True, "more": len(left) - 1}
+        return {"pick": None, "why": "harder", "message": "No other new text is close yet."}
 
     context, page, thrown, posted, _ = home(browser, width, find)
     page.wait_for_selector("#try-next .rc-pick")
@@ -389,19 +425,69 @@ def test_nothing_fits_offers_something_harder_and_something_else_walks_on(
     page.wait_for_selector("#try-next .home-card-title:has-text('בית המשפט העליון')")
     second = page.evaluate(CARD)
     page.click("#try-next .rc-else")
-    page.wait_for_selector("#try-next .rc-says:has-text('nothing harder')")
+    page.wait_for_selector("#try-next .rc-says:has-text('No other new text')")
     last = page.evaluate(CARD)
+    shot(page, "harder-none", width)
     context.close()
     assert not thrown, thrown
-    assert none["says"] == "We found nothing at your level today."
-    assert none["presses"] == ["Topic", "Show me something harder"], none
+    assert none["says"] == NONE and "today" not in none["says"]
+    assert none["presses"] == ["Topic", "Read one at 78% known"], none
+    assert figure(none["presses"][1]) == figure(first["known"]), (none, first)
     asked = [body for body in posted if body.get("harder")]
     assert asked[0]["skip"] == [] and "hannah" in asked[0]["done"], asked[0]
     assert asked[0]["topics"] == [] and "search" not in asked[0]
+    near = next(body["near"] for body in posted if "near" in body)
+    assert near == {key: asked[0][key] for key in ("topics", "skip", "done")}, (near, asked[0])
     assert first["known"] == "78% known" and first["facts"] == "Story · 9 min", first
     assert first["presses"] == ["Read", "Something else", "Topic"], first
     assert asked[1]["skip"] == ["hard-story"], asked[1]
     assert second["known"] == "71% known" and second["presses"][0] == "Read", second
+    assert last["says"] == "No other new text is close yet."
     assert last["presses"] == ["Topic"], "nothing harder left: no second offer"
     assert not any(body.get("search") for body in posted), "never a look on the web"
     assert not first["sideways"] and not none["sideways"]
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_the_press_says_watch_or_listen_and_is_gone_with_nothing_under_the_floor(
+    browser, width: int
+) -> None:
+    """The press says the pick's own verb: Watch for a video, Listen for a podcast, else
+    Read. With no text under the floor there is no press and the sentence stays, its
+    floor rendered from `choose.FLOOR` where the answer carries no sentence of its own."""
+    talk = {**HARD_PICK, "id": "talk-1", "title": "שיחה בטלוויזיה", "kind": "talk",
+            "video": True, "reason": {"key": "suggest.known", "share": 64}}  # fmt: skip
+    cast = {**WEB_PICK, "id": "find-5", "find": 5, "title": "פודקאסט על כלכלה",
+            "kind": "podcast", "fit": "under", "harder": True,
+            "reason": {"key": "suggest.known", "share": 83}}  # fmt: skip
+    seen: dict[str, Any] = {}
+    for name, picks in (("watch", [talk]), ("listen", [cast]), ("nothing", [])):
+
+        def find(body: dict[str, Any], picks: list[dict[str, Any]] = picks) -> Any:
+            if not body.get("harder"):
+                return empty(picks, body, said=False)
+            left = under(picks, body)
+            return {"pick": left[0], "harder": True, "more": len(left) - 1}
+
+        context, page, thrown, _, _ = home(browser, width, find)
+        page.wait_for_selector("#try-next .rc-pick")
+        page.click("#try-next .rc-else")
+        page.wait_for_selector("#try-next .rc-says")
+        none = page.evaluate(CARD)
+        shot(page, f"harder-{name}", width)
+        if picks:
+            page.click("#try-next .rc-harder")
+            page.wait_for_selector("#try-next .rc-known")
+            seen[name] = (none, page.evaluate(CARD))
+        else:
+            seen[name] = (none, None)
+        context.close()
+        assert not thrown, thrown
+    none, pick = seen["watch"]
+    assert none["presses"] == ["Topic", "Watch one at 64% known"], none
+    assert pick["presses"][0] == "Watch" and figure(none["presses"][1]) == figure(pick["known"])
+    none, pick = seen["listen"]
+    assert none["presses"] == ["Topic", "Listen to one at 83% known"], none
+    assert pick["presses"][0] == "Listen" and figure(none["presses"][1]) == figure(pick["known"])
+    none, _ = seen["nothing"]
+    assert none["says"] == NONE and none["presses"] == ["Topic"], none

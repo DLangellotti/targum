@@ -15,6 +15,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   charged. A sample whose audio would not come or would not cut is still dropped, with
   its step and reason in the run's note and the journal, and does not count against the
   cap either: only a sample whisper heard does. Five failures in a row stop the sampling.
+- Home's one card reads as a next step when nothing fits (David, 2026-11-02; design.md
+  §12, the amendment to "Show me something harder"). It says "No new text is 90% known
+  for you yet.", the figure from `choose.FLOOR`, and its press says what it opens: "Read
+  one at 78% known", or Watch or Listen to as the pick itself says, the share known of the
+  very text the press opens first. The empty answer of `POST /find` carries that text as
+  `nearest`, ranked from the press's own body the page sends beside each ask, a look's
+  polls and a Stop (`near`), with no look on the web and nothing spent; with no text under
+  the floor there is no press. Once the misses are walked the card says "No other new
+  text is close yet." `find.none` now has its Russian; the Russian strings are drafts.
 - "Find me something" searches in ling-he's Hebrew (2026-11-01; targum-internal#615).
   Fourteen fixed phrases changed: ten chips (Film & TV, Gaming, The world, Money, Comedy,
   Relationships, Home, Crime, The army, Holidays) and four lexicon topics (people, money,

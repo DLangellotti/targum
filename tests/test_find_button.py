@@ -350,7 +350,8 @@ def test_with_nothing_that_fits_a_look_runs_and_the_page_polls_it(
     cookie = sign_in(home.port, home.postbox)
     status, got, _ = call(home.port, "POST", "/find", {"language": "he"}, cookie=cookie)
     assert status == 200 and got["pick"] is None and got["why"] == "off"
-    assert got["message"] == "We found nothing at your level today."
+    assert got["message"] == "No new text is 90% known for you yet."
+    assert "nearest" not in got, "nothing named without the press's own body"
 
     monkeypatch.setenv(live.FLAG, "1")
     started = live.LOOKS.start
@@ -623,4 +624,120 @@ def test_post_find_harder_walks_the_nearest_misses_and_never_looks(
     body["skip"].append(got["pick"]["id"])
     status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
     assert got["pick"] is None and got["why"] == "harder"
-    assert got["message"] == "We found nothing harder today."
+    assert got["message"] == "No other new text is close yet."
+    assert "nearest" not in got, "no second offer once the misses are walked"
+
+
+def test_an_empty_answer_names_the_text_the_harder_press_opens_first(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-02 (design.md §12, "Show me something harder", the amendment): the
+    empty card says where things stand, from the floor, and its press says the share known
+    of the very text it opens. The figure comes with the empty answer, ranked from the
+    press's own body (`near`); nothing is searched for it and nothing spends."""
+    from targum.chat import tools as chat_tools
+
+    monkeypatch.setenv(live.FLAG, "1")
+    real = chat_tools.suggest_next
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("under"):
+            return real(ctx, args)
+        rows = [
+            {"id": "far-story", "title": "רחוק", "language": "he", "kind": "story",
+             "fit": "under", "expected_share": 0.70, "running_share": 0.66,
+             "reason": {"key": "suggest.known", "share": 66}, "origin": "shelf"},
+            {"id": "near-talk", "title": "קרוב", "language": "he", "kind": "talk",
+             "video": True, "fit": "under", "expected_share": 0.88, "running_share": 0.81,
+             "reason": {"key": "suggest.known", "share": 81}, "origin": "shelf"},
+        ]  # fmt: skip
+        return {"suggestions": [row for row in rows if row["id"] not in args.get("skip", [])]}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    monkeypatch.setattr(live, "refused", lambda *args, **kwargs: "off")
+    looks: list[Any] = []
+    monkeypatch.setattr(live.LOOKS, "start", lambda *a, **k: looks.append(a))
+    cookie = sign_in(home.port, home.postbox)
+    near = {"topics": [], "skip": [], "done": ["ruth-he"]}
+    status, got, _ = call(
+        home.port, "POST", "/find", {"language": "he", "skip": [], "near": near}, cookie=cookie
+    )
+    assert status == 200 and got["pick"] is None and not looks
+    assert got["message"] == "No new text is 90% known for you yet."
+    assert got["nearest"]["id"] == "near-talk" and got["nearest"]["video"] is True
+    assert got["nearest"]["reason"]["share"] == 81
+    status, pressed, _ = call(
+        home.port, "POST", "/find", {"language": "he", "harder": True, **near}, cookie=cookie
+    )
+    assert pressed["pick"]["id"] == got["nearest"]["id"]
+    assert pressed["pick"]["reason"] == got["nearest"]["reason"]
+    status, after, _ = call(
+        home.port,
+        "POST",
+        "/find",
+        {"language": "he", "near": {**near, "done": ["ruth-he", "near-talk"]}},
+        cookie=cookie,
+    )
+    assert after["nearest"]["id"] == "far-story", "what the page set aside is not named"
+    status, none, _ = call(
+        home.port,
+        "POST",
+        "/find",
+        {"language": "he", "near": {**near, "done": ["near-talk", "far-story"]}},
+        cookie=cookie,
+    )
+    assert none["pick"] is None and "nearest" not in none, "no text under the floor, no press"
+
+
+def test_a_look_that_finds_nothing_names_the_nearest_on_its_last_poll(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from targum.chat import tools as chat_tools
+
+    monkeypatch.setenv(live.FLAG, "1")
+    real = chat_tools.suggest_next
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("under"):
+            return real(ctx, args)
+        row = {"id": "near-story", "title": "קרוב", "language": "he", "kind": "story",
+               "fit": "under", "expected_share": 0.87, "running_share": 0.8,
+               "reason": {"key": "suggest.known", "share": 80}, "origin": "shelf"}  # fmt: skip
+        return {"suggestions": [row]}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    started = live.LOOKS.start
+
+    def start(*args: Any, **kwargs: Any) -> live.Look:
+        return started(
+            *args,
+            ask=lambda asked, language: live.Searched(results=[]),
+            robots=robots.Robots(read=lambda url: ""),
+            forms_for=lambda language: page_forms(),
+            wait=True,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(live.LOOKS, "start", start)
+    cookie = sign_in(home.port, home.postbox)
+    near = {"topics": [], "skip": [], "done": []}
+    status, got, _ = call(
+        home.port, "POST", "/find", {"language": "he", "near": near}, cookie=cookie
+    )
+    assert status == 200 and got["stage"] == "done" and got["pick"] is None
+    assert got["nearest"]["id"] == "near-story"
+    bare = call(home.port, "POST", "/find", {"search": got["search"]}, cookie=cookie)[1]
+    assert bare["pick"] is None and "nearest" not in bare
+    polled = call(
+        home.port,
+        "POST",
+        "/find",
+        {"search": got["search"], "language": "he", "near": near},
+        cookie=cookie,
+    )[1]
+    assert polled["stage"] == "done" and polled["nearest"]["reason"]["share"] == 80
+    assert polled["message"] == "No new text is 90% known for you yet."
