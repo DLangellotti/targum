@@ -673,6 +673,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   stay after a find expires. No reader's home is read, and it runs whatever
   `TARGUM_IMPORT_COUNTS` says. A web find's host no longer makes it a news host, here or
   for what readers bring.
+- Show me something harder (David, 2026-11-02; design.md §12). Where home's one card
+  says "We found nothing at your level today.", a ghost press beside Topic offers the
+  text nearest above the reader's level: under the 90% floor, the nearest miss first, on
+  the topic chosen (or the reader's own topics first), from the shelf and the finds
+  already pooled, never a new look on the web. The pick says its share known and the
+  usual Read or Watch; Something else walks to the next nearest miss. Read next still
+  never offers a text under the floor unasked. A harder pick's suggestion events carry
+  `harder` (schema 56, clause 3.6 as it stands). Behind `TARGUM_FIND_BUTTON`; the
+  Russian strings are drafts.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15

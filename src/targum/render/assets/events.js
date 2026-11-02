@@ -119,6 +119,8 @@
       row.origin = String(event.origin || "");
       if (typeof event.pool === "number") row.pool = event.pool;
       if (typeof event.coverage === "number") row.coverage = event.coverage;
+      // A pick asked for with "Show me something harder" (2026-11-02) says so.
+      if (event.harder === true) row.harder = true;
       if (!row.document || !row.act) return;
     } else {
       row.at = Date.now();

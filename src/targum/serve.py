@@ -15239,7 +15239,7 @@ class Handler(BaseHTTPRequestHandler):
     def _find(self, payload: dict[str, Any]) -> None:
         """ "Find me something" on Your targums (targum-internal#615; `finds/button.py`).
 
-        One POST, four questions, by what the body carries:
+        One POST, five questions, by what the body carries:
 
         - `{"chips": true}`: the topics the page offers to steer (`finds.chips`), the
           ones the reader's own reading suggests first (`finds.interests`).
@@ -15247,6 +15247,9 @@ class Handler(BaseHTTPRequestHandler):
           nothing; where nothing there fits and a look on the web may run
           (`finds.live.refused`), the look starts and the answer is its id and stage.
         - `{"search": id}`: how that look is getting on, and its pick when it is done.
+        - `{"harder": true, "topics", "skip", "done"}`: "Show me something harder", only
+          where nothing fits: the nearest miss under the floor, from the shelf and the
+          pool, with no look on the web (`finds.button.harder`).
         - `{"stop": id}`: the reader's Stop. No page is fetched after it and nothing is
           offered; the search itself, once asked, is spent.
 
@@ -15349,6 +15352,51 @@ class Handler(BaseHTTPRequestHandler):
                 known=known,
             )
 
+        if payload.get("harder"):
+            # "Show me something harder" (David, 2026-11-02; design.md §12): pressed only
+            # where the card found nothing at the reader's level. The texts under the floor
+            # from the shelf and what the pool already holds, nearest miss first; never a
+            # look on the web. `done` is what the page says is finished or set aside.
+            given_done = payload.get("done")
+            done = (
+                [str(one)[:200] for one in given_done[: self.SUGGEST_SKIP_MOST]]
+                if isinstance(given_done, list)
+                else []
+            )
+            shelf = (
+                chat_tools.suggest_next(
+                    ctx, {"language": code, "under": True, "skip": [*done, *skip], "limit": 200}
+                ).get("suggestions")
+                or []
+            )
+            mine, _ = chat_tools._shelf(ctx)
+            found = button.ranked(
+                self.store,
+                ask,
+                chat_tools._marked(ctx, code, {}),
+                estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
+                rung=rung,
+                built={
+                    link_key(str(row.get("source") or ""))
+                    for row in mine
+                    if str(row.get("source") or "").startswith(("http://", "https://"))
+                },
+                credits_left=chat_tools._credits_left(ctx),
+                known=known,
+                harder=True,
+            )
+            harder = button.nearest([*button.harder(shelf, ask, known), *found])
+            if harder:
+                return answer(
+                    {"pick": self._find_row(harder[0]), "harder": True, "more": len(harder) - 1}
+                )
+            return answer(
+                {
+                    "pick": None,
+                    "why": "harder",
+                    "message": self._say("find.harder-none", "We found nothing harder today."),
+                }
+            )
         rows = choose()
         if button.fits(rows):
             return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
