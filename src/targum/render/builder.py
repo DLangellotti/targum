@@ -6470,6 +6470,13 @@ def render(
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
         # — and the table itself is left out where no word on the page had one.
         roots: list[str] = []
+        # What targum's own root lexicons say of each word beyond a verb's root
+        # (`annotate.root_card`, targum-internal#593 and #596): a Hebrew noun's root and
+        # mishkal, a borrowed word, a Russian word's root morphs and prefixes. 0 for a
+        # word with nothing to say, and both tables left out where no word has anything,
+        # which is every page on a machine with no lexicon.
+        shapes: list[list[object] | int] = []
+        morphemes: list[list[object] | int] = []
         # Named `kin` and not `siblings`: on this page a sibling is another level of the
         # same weekly issue, and the word is taken.
         kin: list[int] = []
@@ -6546,6 +6553,8 @@ def render(
         # shown as the page's first ברך, a pi'el. Per segment, [the token's row, binyan];
         # only where it differs, like `paradigms_here`, and its table rides there.
         binyanim_here: dict[str, list[list[object]]] = {}
+        from ..annotate.base import not_vocabulary
+        from ..annotate.root_card import hebrew_shape, russian_shape
         from ..annotate.verb_roots import root_for
 
         if annotation is not None:
@@ -6604,13 +6613,18 @@ def render(
                         heads.append(token.head)
                         # Less the roots known to be wrong, and filled from the CC0
                         # table where the annotator gave none (`annotate.verb_roots`).
-                        roots.append(
-                            root_for(
-                                token.lemma,
-                                token.root,
-                                token.pos,
-                                "he" if hebrew_at.get(sid) else segmented.language,
-                            )
+                        word_language = "he" if hebrew_at.get(sid) else segmented.language
+                        roots.append(root_for(token.lemma, token.root, token.pos, word_language))
+                        word_code = word_language.split("-")[0].lower()
+                        shapes.append(
+                            hebrew_shape(token.lemma, token.pos, roots[-1])
+                            if word_code == "he" and not not_vocabulary(token.pos, token.entity)
+                            else 0
+                        )
+                        morphemes.append(
+                            russian_shape(token.lemma, token.pos)
+                            if word_code == "ru" and not not_vocabulary(token.pos, token.entity)
+                            else 0
                         )
                         binyanim.append(token.binyan or "")
                         # The other verbs built on this one's root, each with its binyan
@@ -6786,6 +6800,8 @@ def render(
             name: table
             for name, table in (
                 ("roots", roots),
+                ("shapes", shapes),
+                ("morphemes", morphemes),
                 ("binyanim", binyanim),
                 ("siblings", kin),
                 # The families themselves, and the empty row at 0 that `siblings` means

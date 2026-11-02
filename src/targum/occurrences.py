@@ -76,8 +76,10 @@ OCCURRENCES = "occurrences.json"
 #: added each verb's binyan and tense (`gaps.verb_form`, targum-internal#604); a change
 #: to how `gaps.verb_form` fills a binyan is a new number too; 5 added the forms met only
 #: as a closed-class word (`function`), so a split-off כ is never a word to learn; 6 counts
-#: a lemma the word does not spell under the one the page shows (`annotate.lemma_check`).
-VERSION = 6
+#: a lemma the word does not spell under the one the page shows (`annotate.lemma_check`);
+#: 7 counts a Hebrew noun's or adjective's root and a Russian word's from targum's root
+#: lexicons (`annotate.root_card.family_root`), and the lexicons' own files join the stamp.
+VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -96,7 +98,9 @@ class Occurrences:
 
     `places` is the text's places in reading order, as (section, ref); `lemmas` maps a
     dictionary form to a flat run of (place, count) pairs into it, in the same order;
-    `roots` maps a form to the root its annotation gave it, where it gave one; `verbs`
+    `roots` maps a form to the root it is counted under (`root_card.family_root`): a
+    verb's as the page draws it, a transparent noun's or Russian word's from the root
+    lexicon, several joined by a space; `verbs`
     maps "binyan|tense|form" to the same flat run, for the verb tokens that carry both
     (`gaps.verb_form`); `function` names the forms every token of which here was a
     closed-class word (`tables.weights.EXCLUDED`): a prefix DICTA split off, כ ה ו ב ל
@@ -156,12 +160,16 @@ def _stamp(folder: Path) -> list[int] | None:
         segments = (folder / "segments.json").stat()
     except OSError:
         return None
+    from .annotate.root_card import LANGUAGES, stamp
+
     return [
         annotation.st_mtime_ns,
         annotation.st_size,
         segments.st_mtime_ns,
         segments.st_size,
         len(list((folder / "reader").glob("sec-*.html"))),
+        # A root lexicon arriving or changed is a miss too: the roots are counted off it.
+        *(n for language in LANGUAGES for n in stamp(language)),
     ]
 
 
@@ -194,6 +202,7 @@ def count_text(folder: Path) -> Occurrences | None:
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
     from .annotate.lemma_check import applies, mend_row
+    from .annotate.root_card import family_root
     from .annotate.verb_roots import root_for
     from .gaps import verb_form
     from .ingest import post as post_module
@@ -249,7 +258,12 @@ def count_text(folder: Path) -> Occurrences | None:
                 verb = verbs.setdefault(f"{form[0]}|{form[1]}|{lemma}", {})
                 verb[at] = verb.get(at, 0) + 1
             if lemma not in roots and (
-                found_root := root_for(lemma, token.get("root"), token.get("pos"), language)
+                found_root := family_root(
+                    lemma,
+                    token.get("pos"),
+                    root_for(lemma, token.get("root"), token.get("pos"), language),
+                    language,
+                )
             ):
                 roots[lemma] = found_root
     # Drop the parsed annotation before building the answer: Jeremiah's is 10 MB on disk
@@ -432,6 +446,7 @@ def family(
     finished: Iterable[tuple[str, str, int]],
     folder_for: FolderFor,
     language: str = "",
+    lemma: str = "",
 ) -> list[str]:
     """Every dictionary form of one root a reader has met, in the order the texts give
     them (targum-internal#96: "6 words from כ־ת־ב met").
@@ -440,14 +455,24 @@ def family(
     annotation gave the form, which is the one the card draws, so the card and this
     count never disagree about which root a word has. A form the annotation gave no root
     is in no family: nothing is guessed.
+
+    `lemma`, the word whose card asks, keeps the family to its meaning of a root string
+    that has several (`root_card.same_sense`): ערבות's family has no ערב in it.
     """
+    from .annotate.root_card import keys, same_sense
+
     if not root:
         return []
     out: dict[str, None] = {}
     for _document, sections, counted in _finished_texts(finished, folder_for, language):
-        for lemma, its_root in counted.roots.items():
-            if its_root == root and lemma not in out and counted.where(lemma, sections):
-                out[lemma] = None
+        for form, its_root in counted.roots.items():
+            if (
+                root in keys(its_root)
+                and form not in out
+                and (not lemma or same_sense(language, lemma, form, root))
+                and counted.where(form, sections)
+            ):
+                out[form] = None
     return list(out)
 
 

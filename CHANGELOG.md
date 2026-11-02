@@ -694,6 +694,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   never offers a text under the floor unasked. A harder pick's suggestion events carry
   `harder` (schema 56, clause 3.6 as it stands). Behind `TARGUM_FIND_BUTTON`; the
   Russian strings are drafts.
+- The root lexicons reach the page and the family count (targum-internal#593, #596; epic
+  #597). Nothing on the card changes yet: its drawing waits for David's approval of the
+  mock. Each Hebrew page now carries, for the words on it only, a noun's or adjective's
+  root and mishkal from targum's own lexicon, the root's meaning, and whether a rootless
+  word is borrowed (`extensions.shapes`). A verb keeps its own root and binyan and gets
+  only the meaning, and only where the lexicon names the same root. A Russian page carries
+  each content word's root morphs with their other spellings and senses, and its prefixes
+  (`extensions.morphemes`). `verb_roots.denied` stays authoritative: a root denied for a
+  lemma is never shown, wherever it came from (`annotate.root_card`). "N words from this
+  root met, K known" now counts a Hebrew noun or adjective, and a Russian word, where the
+  lexicon grades it transparent (חשבון is not counted under "think"). A root string with
+  two meanings keeps the family to the asking word's (ערבות meets no ערב). The occurrences
+  cache goes to version 7 and is rebuilt free; its stamp includes the lexicon files. The
+  lexicons are private and never in the repository or the wheel. They are read from
+  `TARGUM_ROOTS_HE` / `TARGUM_ROOTS_RU`, then `~/.targum/roots-<language>.json`, then
+  `/etc/targum/roots-<language>.json`. `deploy.sh` copies the laptop's copy there when it
+  has one, before the rebuild draws them into every reader.
 - The arrival asks a new Hebrew reader which words they know (David, 2026-11-01;
   targum-internal#613). After the level, two rounds of tappable words: round one is 18 real
   words, three from each of six frequency bands, and 4 made-up words; round two is 15

@@ -7,8 +7,9 @@ the roots known to be wrong, filled from the CC0 paradigm table where it gave no
 variant is the binyan the annotation gave, "" where the root was filled and the
 annotation said no binyan.
 
-Verbs only for now. A noun's root waits for targum's own root lexicon; until then a
-noun has no root anywhere, and nothing here guesses one.
+Verbs only for now. A noun's root comes from targum's own root lexicon
+(`annotate.root_card`) and is counted in a reader's family line, but not here: counting it
+in the table is #594's, with the lexicon on the machine that folds.
 """
 
 from __future__ import annotations

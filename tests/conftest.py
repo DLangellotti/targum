@@ -127,6 +127,16 @@ def no_yardsticks(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.
 
 
 @pytest.fixture(autouse=True)
+def no_root_lexicons(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """The private root lexicons are absent unless a test writes one (targum-internal#593).
+    A named path is the path, found or not, so a laptop with `~/.targum/roots-he.json`
+    builds every page in the suite as CI's public checkout does."""
+    missing = tmp_path_factory.mktemp("roots")
+    monkeypatch.setenv("TARGUM_ROOTS_HE", str(missing / "roots-he.json"))
+    monkeypatch.setenv("TARGUM_ROOTS_RU", str(missing / "roots-ru.json"))
+
+
+@pytest.fixture(autouse=True)
 def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public catalogue is off unless a test says otherwise.
 
