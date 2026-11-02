@@ -299,6 +299,9 @@ var targumReader = function () {
   // into the families, and the families themselves. Both absent where no verb on the
   // page has a root the table could work out.
   var familyAt = extensions.siblings || [];
+  // The root lexicons' rows per lemma (design.md §12, 2026-11-02; `root_card.py`).
+  var shapes = extensions.shapes || [];
+  var morphemes = extensions.morphemes || [];
   var families = extensions.families || [];
 
   // The letters of a pointed word, for comparing one spelling with another. Hebrew
@@ -5987,6 +5990,10 @@ var targumReader = function () {
     return open;
   }
 
+  // A Hebrew root spaced out as a root is written (כ־ת־ב); a Russian morph as it is.
+  function drawnRoot(root) {
+    return /[\u05d0-\u05ea]/.test(root) ? root.split("").join("\u05be") : root;
+  }
   // "6 words from כ־ת־ב met, 3 known", and, with the root pressed, the words themselves.
   function rootFamilyLine(index, root, redraw) {
     var said = roundOf(index, root, redraw);
@@ -6000,7 +6007,7 @@ var targumReader = function () {
       kin.met,
       "{n} word from {root} met, {known} known",
       "{n} words from {root} met, {known} known",
-      { root: root.split("").join("\u05be"), known: kin.known }
+      { root: drawnRoot(root), known: kin.known }
     ));
     if (rootOpen[root] && kin.words && kin.words.length) {
       var words = document.createElement("bdi");
@@ -6414,6 +6421,8 @@ var targumReader = function () {
     // and the root follows from it. Where the root could not be had honestly the
     // binyan still shows on its own, and Pealim answers the rest.
     var root = roots[index];
+    var shape = shapes[index] || 0;
+    var morpheme = morphemes[index] || 0;
     var binyan = binyanOf(index, word, row);
     var table = null;
     if (root || binyan) {
@@ -6424,7 +6433,11 @@ var targumReader = function () {
         // Spaced out the way a root is written, so it reads as three letters rather
         // than as a word: כ־ת־ב, not כתב.
         shoresh.textContent = root.split("").join("\u05be");
-        facts.add(t("reader.card.root-label", "Root"), rootLink(shoresh, index, root, redrawCard));
+        facts.add(
+          t("reader.card.root-label", "Root"),
+          passOn("rootValue", [shoresh, index, root, shape && shape[2], null, redrawCard]) ||
+            rootLink(shoresh, index, root, redrawCard)
+        );
       }
       if (binyan) {
         // Not `built`: that name is the pieces line above, and `var` is one binding
@@ -6464,7 +6477,14 @@ var targumReader = function () {
       if (kin) card.appendChild(kin);
       var rootMet = root ? rootFamilyLine(index, root, redrawCard) : null;
       if (rootMet) card.appendChild(rootMet);
+    } else if (shape || morpheme) {
+      // A noun's or a Russian word's rows (#593, #596), drawn by `reader-rest.js`.
+      passOn("lexiconRows", [facts, index, shape, morpheme, redrawCard]);
     }
+
+    var ownRoot = root ? "" : shape ? shape[0] : morpheme && morpheme[0].length ? morpheme[0][0][0] : "";
+    var ownMet = ownRoot && rootFamilyLine(index, ownRoot, redrawCard);
+    if (ownMet) card.appendChild(ownMet);
 
     // The part of speech's own line. A name and a number say which they are — that is
     // all a card can honestly say about either — and a word says the one grammatical
@@ -10177,6 +10197,10 @@ var targumReader = function () {
     stamp: stamp,
     statusRow: statusRow,
     t: t,
+    tn: tn,
+    uiLanguage: uiLanguage,
+    drawnRoot: drawnRoot,
+    rootLink: rootLink,
     title: title,
     toBare: toBare,
     toggleTaamim: toggleTaamim,

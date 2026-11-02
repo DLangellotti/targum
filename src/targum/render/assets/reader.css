@@ -5911,6 +5911,10 @@ body.list-ended .list-end .list-end-over {
   cursor: pointer;
 }
 #gloss-card .card-facts .root-open bdi { color: inherit; }
+/* After a root, its meaning and its other spellings; a mishkal's meaning; "Borrowed, no
+   Hebrew root" (design.md §12, "A noun's card names its root and mishkal", 2026-11-02).
+   The soft ink: the root is the fact, these say what it is. */
+#gloss-card .card-facts .card-root-sense { color: var(--ink-soft); }
 #gloss-card .card-conj > summary::-webkit-details-marker { display: none; }
 #gloss-card .card-conj { align-self: stretch; }
 /* The label over the stage control: how many texts it was met in, and how often here. */

@@ -491,6 +491,45 @@ changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
   yardsticks, as counts" (2026-11-01). No show-level prior is taken from readers' builds:
   a built episode is a private import.
 
+### A noun's card names its root and mishkal — 2026-11-02
+
+targum-internal#593 and #596, epic #597. This follows ling-he's and ling-ru's sublexical
+research (2026-10-30) and David's decisions of that day: the numbers stay in words, a root
+family is an extra line, the card shows and never credits, and the roots come from our own
+lexicon. David answered the mock on 2026-11-02. It amends "'Met' means a section you
+finished" (2026-09-28), whose family line counted a verb's root only.
+
+- **Root, on a noun or adjective.** The card gets the same Root row a verb has, from
+  targum's own root lexicon (`annotate.root_card`, agreed rows only). `verb_roots`' deny
+  rules hold over every source, so a denied root shows nothing. A verb keeps its own root
+  and binyan.
+- **The root's meaning after every root** (David, 2026-11-02), on nouns and verbs alike,
+  in the soft ink: "כ־ת־ב · write". It is how one root string with two meanings is told
+  apart (ע־ר־ב "guarantee" against "evening"). The lexicon's meanings are English, so
+  **the Russian interface leaves them off** until a translation is quoted and bought.
+- **Mishkal.** The row is labelled as Binyan is, "Mishkal" / «Мишкаль» (David,
+  2026-11-02). Its value is a noun's or adjective's pattern as a pointed template
+  (מִקְטָל) or a suffix (־ות). About 25 productive patterns add a meaning after it ("often
+  a place or a thing done"); any other shows its template alone. The meanings are ling-he's
+  reviewed 25 (`annotate/mishkal.py`, "The Mishkal list beside the Grammar grid"), said
+  once under `reader.card.mishkal.*` for the card and the list alike.
+- **Borrowed, no Hebrew root.** A loanword says this in its Root row. It gets no mishkal
+  and no family line.
+- **The family line counts nouns.** "N words from this root met, K known" now counts a
+  noun or adjective the lexicon grades transparent. חשבון shows ח־ש־ב and is not counted
+  under "think". Where one root string has two meanings, the line counts only words with
+  the asking word's meaning. It is still never a headline: no count, level or yardstick
+  reads it, and a word marked known gives its root no credit.
+- **Russian.** The Root row shows the root morph with its meaning (English interface only)
+  and its other spellings after "also": "ход · go · also хож, ш". A Prefix row follows:
+  "при-". The same family line is counted by root morph over words graded transparent.
+- **A page carries only its own words' rows** (`extensions.shapes`,
+  `extensions.morphemes`). The lexicons are private, read from
+  `/etc/targum/roots-<language>.json` on the box, and never in the repository or the
+  wheel.
+- The Russian interface strings («Мишкаль», «Заимствовано, корня в иврите нет», «также
+  {spellings}», «Приставка») are drafts and wait for David's read.
+
 ### What to read next teaches words that come back — 2026-11-01
 
 targum-internal#614, Phase 2 of the comprehensible-input epic #617, from ling-he's research
