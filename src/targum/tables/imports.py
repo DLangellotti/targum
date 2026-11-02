@@ -5,8 +5,8 @@ language tables, sorted by its source into a register, as counts and nothing els
 A reader's home (`p<id>`) holds what they brought: links pasted, files uploaded, pages
 photographed and read, a channel subscribed to. Each night this reads those homes'
 `annotation.json` files, the same files a fold reads, and writes one contribution per
-table and register, `words`, `phrases` and `roots`, each register filed apart from the
-public counts of the same name (`registers.pooled`). The rules:
+table and register, `words`, `phrases`, `roots` and `readings`, each register filed
+apart from the public counts of the same name (`registers.pooled`). The rules:
 
 - **Sorted by its source** (`sort`), from what is already written beside the text: the
   source's address and the ingester that read it. A link to a news publisher is news; an
@@ -29,8 +29,8 @@ public counts of the same name (`registers.pooled`). The rules:
   what is worked out in memory, one reader at a time, and only the floor's verdict
   leaves: no reader id, no count of readers, no document hash and no text is written,
   and the night before's pool is deleted, not superseded (`Store.replace_pool`).
-- **Their text never.** A tally holds lemmas, runs of lemmas, roots, parts of speech and
-  counts, as every table does.
+- **Their text never.** A tally holds lemmas, runs of lemmas, roots, parts of speech,
+  single spellings with their readings, and counts, as every table does.
 - **Not what a model wrote.** A rewrite, a chat's speech, a scene and the weekly sit in a
   home too, and none of them is something a reader brought.
 
@@ -53,10 +53,10 @@ from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
-from . import roots
+from . import roots, spellings
 from .registers import EVERYDAY, IMPORTS, NEWS, PODCASTS, SOCIAL, SORTED, VIDEO, pooled
 from .store import Contribution, Store
-from .words import LANGUAGES, PHRASES, RULE, WORDS, count
+from .words import LANGUAGES, PHRASES, WORDS, count, rule_for
 
 log = logging.getLogger(__name__)
 
@@ -77,8 +77,10 @@ SOURCE = "readers' material"
 LICENCE = "the readers' own material: counts only, no text, no reader, ten readers a row"
 
 #: Every table the pool writes: the tables a fold writes, so what readers bring is
-#: counted exactly as the shelf is.
-TABLES = (WORDS, PHRASES, roots.ROOTS)
+#: counted exactly as the shelf is. `readings` (#583) is counted wherever a reader's text
+#: has a vocalization beside it, a spelling and its reading behind the same floor; the
+#: privacy notice's clause 3.7 names "each reading given to a word as written".
+TABLES = (WORDS, PHRASES, roots.ROOTS, spellings.READINGS)
 
 #: Sources a model wrote, which may sit in a home but no reader brought.
 MODEL_WRITTEN = ("dialogue:", "weekly:", "chat:")
@@ -116,7 +118,7 @@ class PoolResult:
 
 
 def _contribution(table: str, register: str = IMPORTS) -> Contribution:
-    rule = roots.rule() if table == roots.ROOTS else RULE
+    rule = rule_for(table)
     return Contribution(
         table=table,
         register=pooled(register),
@@ -259,7 +261,7 @@ def _model_written(folder: Path, document: Mapping[str, Any]) -> bool:
 
 
 def _tallies(
-    annotation: Mapping[str, Any], languages: Sequence[str]
+    annotation: Mapping[str, Any], languages: Sequence[str], folder: Path | None = None
 ) -> dict[str, Counter[tuple[str, str]]] | None:
     language = str(annotation.get("language") or "")
     if not any(language == one or language.startswith(f"{one}-") for one in languages):
@@ -267,7 +269,17 @@ def _tallies(
     tokens = annotation.get("tokens")
     if not isinstance(tokens, Mapping):
         raise ValueError("the annotation has no tokens")
-    return {**count(tokens), roots.ROOTS: roots.count(tokens, language)}
+    readings: Counter[tuple[str, str]] = Counter()
+    hashed = str(annotation.get("document_hash") or "")
+    if folder is not None and hashed and spellings.folds(language):
+        near = spellings.beside(folder, hashed)
+        if near is not None:
+            readings = spellings.count(tokens, near.texts, near.pointed, near.vocalizer)
+    return {
+        **count(tokens),
+        roots.ROOTS: roots.count(tokens, language),
+        spellings.READINGS: readings,
+    }
 
 
 def pool(
@@ -311,7 +323,7 @@ def pool(
                 annotation = json.loads(file.read_text(encoding="utf-8"))
                 if not isinstance(annotation, dict):
                     raise ValueError("not an annotation")
-                tallies = _tallies(annotation, languages)
+                tallies = _tallies(annotation, languages, folder)
             except (OSError, ValueError, TypeError, AttributeError) as error:
                 log.warning("tables: a reader's text was not pooled: %s", type(error).__name__)
                 result.unreadable += 1

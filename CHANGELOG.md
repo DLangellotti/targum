@@ -663,6 +663,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- Which reading a spelling takes, per register, is counted (targum-internal#583). The
+  fold and the nightly sweep now write a `readings` table wherever a vocalization sits
+  beside the annotation: per unpointed spelling, the pointed form the vocalizer gave each
+  occurrence (chanting marks off) and its `glossed_as`, aligned with
+  `vocalize.aligned_positions`. A token that cannot be aligned, or whose pointed word
+  spells something else or has no vowel, is counted as unaligned and never guessed;
+  names are not counted. The sweep backfills it over today's shelf with no rename. What
+  readers bring counts readings in the imports pool behind the same floor of ten readers
+  (clause 3.7, "each reading given to a word as written"). Finds keep lemmas only and
+  cannot feed it. `tables.readings(spelling, register)` answers reader-free and nothing
+  visible reads it yet; `targum tables readings SPELLING [--register R]` prints the
+  shares.
 - Public finds count into the yardsticks, as counts (David, 2026-11-01; design.md §12).
   Each night `targum tables sweep --store` folds every kept find's lemma counts into
   `words` (`tables.finds`): YouTube finds into `video`, news finds into `news`, and a

@@ -12,7 +12,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from . import roots, weights
+from . import roots, spellings, weights
 from .store import Contribution, Store
 
 if TYPE_CHECKING:
@@ -87,6 +87,7 @@ def fold(
     annotation: Mapping[str, Any],
     store: Store | None = None,
     languages: Sequence[str] = LANGUAGES,
+    beside: spellings.Beside | None = None,
 ) -> int:
     """Count one public text's annotation into the tables. Returns the contributions
     written: 0 when every one is already current, when the ledger is off, or for a language
@@ -99,6 +100,10 @@ def fold(
     `languages` is `LANGUAGES` everywhere a table is kept. Only the root-lexicon generator
     passes another (`root_lexicon.russian_store`), into a store file of its own, so a
     Russian lemma never sits in a register the Hebrew yardsticks read.
+
+    `beside` is the vocalization and segments beside the annotation
+    (`spellings.beside`): where it is given, and the text is Hebrew, the fold writes
+    `readings` too (targum-internal#583).
     """
     from . import PublicText
 
@@ -128,6 +133,14 @@ def fold(
             counted = {**count(tokens), ROOTS: roots.count(tokens, language)}
         if store.write(contribution, counted[table]):
             written += 1
+    if beside is not None and spellings.folds(language):
+        contribution = contribution_for(
+            text, spellings.READINGS, spellings.tool(tool, beside.vocalizer)
+        )
+        if not store.is_current(contribution.id):
+            readings = spellings.count(tokens, beside.texts, beside.pointed, beside.vocalizer)
+            if store.write(contribution, readings):
+                written += 1
     return written
 
 
@@ -140,5 +153,13 @@ def contribution_for(text: PublicText, table: str, tool: str) -> Contribution:
         source=text.source,
         licence=text.licence,
         tool=tool,
-        rule=roots.rule() if table == ROOTS else RULE,
+        rule=rule_for(table),
     )
+
+
+def rule_for(table: str) -> str:
+    if table == ROOTS:
+        return roots.rule()
+    if table == spellings.READINGS:
+        return spellings.RULE
+    return RULE

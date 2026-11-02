@@ -5062,6 +5062,31 @@ def tables_top(
         console.print(f"{n:>9}  {n / total:6.2%}  {key}")
 
 
+@tables_app.command("readings")
+def tables_readings(
+    spelling: Annotated[str, typer.Argument(help="A word as written, with or without vowels.")],
+    register: Annotated[
+        str | None,
+        typer.Option("--register", help="news, bible, literature… Default: every register."),
+    ] = None,
+) -> None:
+    """Which pointed reading, and which meaning's form, one spelling takes, with the
+    share of each (targum-internal#583). Reads the tables; runs no model.
+    """
+    from .tables import readings
+
+    found = readings(spelling, register, _tables_store())
+    where = register or "every register"
+    if not found.total and not found.unaligned:
+        console.print(f"{found.spelling} is not counted in {where}.")
+        return
+    console.print(f"{found.spelling} in {where}: {found.total} read")
+    for one in found.choices:
+        console.print(f"{one.n:>9}  {one.share:6.2%}  {one.pointed}  {one.glossed_as}")
+    if found.unaligned:
+        console.print(f"[dim]{found.unaligned} could not be aligned and are not shared out.[/dim]")
+
+
 @tables_app.command("snapshot")
 def tables_snapshot(
     out: Annotated[

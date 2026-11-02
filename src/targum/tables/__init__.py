@@ -3,9 +3,9 @@ language, left behind by everything targum builds, kept in the corpus ledger and
 published.
 
 Slice 1 is the store (`store`), the fold for `words` and `phrases` (`words`) and, by
-the same fold, `roots` (`roots`, sublexical slice 1), the sweep over the texts already
-built, and the guard: `public_text` is the only way into a fold,
-and it fails closed on anything a reader imported. No page shows a table, no export
+the same fold, `roots` (`roots`, sublexical slice 1) and `readings` (`spellings`,
+#583), the sweep over the texts already built, and the guard: `public_text` is the only
+way into a fold, and it fails closed on anything a reader imported. No page shows a table, no export
 carries one, and no row names a reader or holds a sentence.
 """
 
@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
+from . import spellings
 from .registers import register_of
 from .store import ImportResult, Store
 from .words import LANGUAGES, TABLES, contribution_for, fold
@@ -36,6 +37,7 @@ __all__ = [
     "fold",
     "no_models",
     "public_text",
+    "readings",
     "register_of",
     "sweep",
 ]
@@ -112,6 +114,25 @@ def public_text(folder: Path, root: Path | None = None) -> PublicText | None:
     )
 
 
+def readings(
+    spelling: str, register: str | None = None, store: Store | None = None
+) -> spellings.Readings:
+    """Which readings one spelling takes, with the share of each, in one register or in
+    every public one (`register` None): "ספר is סֵפֶר 81% in news" (targum-internal#583).
+
+    Reader-free: a row here holds a spelling, a reading and a count, never a text or a
+    reader, and what readers bring is read only where `register` names its pooled
+    register (`registers.pooled`), behind the pool's floor. Nothing on a page reads it
+    yet. Empty where the ledger is off or the spelling was never counted.
+    """
+    from ..vocalize.base import strip_nikkud
+
+    bare = strip_nikkud(spelling)[0].strip()
+    store = store if store is not None else Store.from_env()
+    counted = store.counts(spellings.READINGS, bare, register) if store is not None else {}
+    return spellings.shares(bare, register, counted)
+
+
 @dataclass
 class SweepResult:
     """What one sweep did, folder by folder."""
@@ -161,14 +182,19 @@ def sweep(library: Path, store: Store, languages: Sequence[str] = LANGUAGES) -> 
             result.private += 1
             continue
         head = _head(annotation_file)
+        vocalizer = spellings.vocalizer_on_disk(folder)
         if head is not None and head[0] == text.document_hash:
             ids = [contribution_for(text, table, head[1]).id for table in TABLES]
+            if vocalizer is not None:
+                tool = spellings.tool(head[1], vocalizer)
+                ids.append(contribution_for(text, spellings.READINGS, tool).id)
             if all(store.is_current(one) for one in ids):
                 result.unchanged += 1
                 continue
         try:
             annotation = json.loads(annotation_file.read_text(encoding="utf-8"))
-            written = fold(text, annotation, store, languages)
+            near = spellings.beside(folder, text.document_hash) if vocalizer else None
+            written = fold(text, annotation, store, languages, near)
         except (OSError, ValueError, TypeError, AttributeError) as error:
             log.warning("tables: %s not folded: %s", folder, error)
             result.unreadable += 1
