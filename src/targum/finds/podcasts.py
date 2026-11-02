@@ -698,6 +698,11 @@ def _keep(
         credits=credits_for(episode.seconds),
         topics=show.tags,
         rate=heard.rate,
+        # The licence the show states for every episode, as the reviewed list records it
+        # off its feed (design.md §12, 2026-11-02).
+        licence=show.licence,
+        licence_url=show.feed if show.licence else "",
+        licence_from="publisher" if show.licence else "",
         at=when,
     )
     if added:

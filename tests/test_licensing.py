@@ -59,6 +59,18 @@ def test_noderivatives_is_refused_outright() -> None:
     assert call.standing is Standing.closed and not call.exportable
 
 
+def test_noderivatives_is_read_before_noncommercial() -> None:
+    """ "CC BY-NC-ND" carries both refusals. Read NC-first it came back as allowing
+    derivatives, which ND forbids at any price (2026-11-02): ND decides."""
+    both = ("CC BY-NC-ND 4.0", "cc-by-nc-nd-3.0", "Creative Commons NonCommercial-NoDerivatives")
+    for licence in both:
+        call = verdict(licence)
+        assert call.standing is Standing.closed
+        assert not call.derivatives and not call.exportable, licence
+    # And NC alone still allows a reader nobody pays for.
+    assert verdict("CC BY-NC-SA 4.0").derivatives
+
+
 def test_attribution_alone_travels_with_a_credit() -> None:
     call = verdict("CC BY 4.0")
     assert call.standing is Standing.owed

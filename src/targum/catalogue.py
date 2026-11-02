@@ -550,6 +550,10 @@ class Entry:
     #: Where the licence was read, so the claim can be re-checked against the page rather
     #: than against somebody's summary of it. Empty rather than guessed.
     licence_url: str = ""
+    #: Which statement the licence is, where it is not the text's own page: `publisher`
+    #: for the licence an outlet states for its whole site, `youtube` for a video's own
+    #: licence field (design.md §12, 2026-11-02). Empty for every other row.
+    licence_from: str = ""
 
     #: The day this row joined the catalogue, as `YYYY-MM-DD`.
     #:
@@ -872,6 +876,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
         licence=str(raw.get("licence", "")),
         credit=str(raw.get("credit", "")),
         licence_url=str(raw.get("licence_url", "")),
+        licence_from=str(raw.get("licence_from", "")),
         # A row written before the field existed has no date, and the shelf reads that as
         # "not known" rather than as "new" — see `Entry.added`.
         added=str(raw.get("added", "")),

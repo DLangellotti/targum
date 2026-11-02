@@ -48,6 +48,10 @@ SCHEMA = """
 -- into the language's ladder, NULL where the find is not measured. `screen` is `kept` or
 -- why it was dropped. Rows go when `expires` passes. `rate` is the words a minute heard in
 -- a podcast find's transcript or sample (targum-internal#621), 0 where nothing was heard.
+-- `licence` is the find's licence as its source states it, `licence_url` where that was
+-- read, and `licence_from` which statement it is: `youtube` for a video's own licence
+-- field, `publisher` for the licence an outlet states for its whole site (`sources.json`,
+-- design.md §12, 2026-11-02). Empty where nothing was stated, which is most of the web.
 CREATE TABLE IF NOT EXISTS find (
   id         INTEGER PRIMARY KEY,
   language   TEXT    NOT NULL,
@@ -68,7 +72,10 @@ CREATE TABLE IF NOT EXISTS find (
   found      INTEGER NOT NULL,
   expires    INTEGER NOT NULL,
   screen     TEXT    NOT NULL DEFAULT 'kept',
-  rate       REAL    NOT NULL DEFAULT 0
+  rate       REAL    NOT NULL DEFAULT 0,
+  licence    TEXT    NOT NULL DEFAULT '',
+  licence_url TEXT   NOT NULL DEFAULT '',
+  licence_from TEXT  NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS find_pick ON find (language, screen, rung, expires);
 CREATE INDEX IF NOT EXISTS find_digest ON find (digest);
@@ -171,6 +178,11 @@ class Find:
     expires: int
     #: Words a minute heard, for a podcast find; 0 for anything not heard.
     rate: float = 0.0
+    #: The licence its source states, where that was read, and which statement it is
+    #: (`youtube`, `publisher`), or "" where none was (design.md §12, 2026-11-02).
+    licence: str = ""
+    licence_url: str = ""
+    licence_from: str = ""
     bag: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     @property
@@ -184,7 +196,7 @@ class Find:
 
 _COLUMNS = (
     "id, language, source, url, title, host, publisher, published, medium, seconds, tokens,"
-    " unresolved, credits, topics, rung, found, expires, rate"
+    " unresolved, credits, topics, rung, found, expires, rate, licence, licence_url, licence_from"
 )
 
 
@@ -208,6 +220,9 @@ def _find(row: sqlite3.Row, bag: Mapping[str, int] | None = None) -> Find:
         found=int(row["found"]),
         expires=int(row["expires"]),
         rate=float(row["rate"] or 0.0),
+        licence=str(row["licence"] or ""),
+        licence_url=str(row["licence_url"] or ""),
+        licence_from=str(row["licence_from"] or ""),
         bag=bag or {},
     )
 
@@ -250,6 +265,9 @@ def add(
     credits: int = 0,
     topics: Sequence[str] = (),
     rate: float = 0.0,
+    licence: str = "",
+    licence_url: str = "",
+    licence_from: str = "",
     at: int | None = None,
 ) -> int:
     """Keep one find and its lemma counts, in one transaction. Its id; or 0 where the
@@ -260,7 +278,8 @@ def add(
             cursor = db.execute(
                 "INSERT INTO find (language, source, url, digest, title, host, publisher,"
                 " published, medium, seconds, tokens, unresolved, credits, topics, rung, found,"
-                " expires, screen, rate) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires, screen, rate, licence, licence_url, licence_from)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     language,
                     source,
@@ -281,6 +300,9 @@ def add(
                     expires_at(source, when),
                     KEPT,
                     round(float(rate), 1),
+                    licence[:200],
+                    licence_url[:500],
+                    licence_from,
                 ),
             )
         except sqlite3.IntegrityError:

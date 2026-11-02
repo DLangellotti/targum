@@ -376,10 +376,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    before. On a table every box has, so they are in MIGRATIONS, with an index on what
 #    makes one fix the same fix twice.
 #
+# 58→59: find.licence, find.licence_url, find.licence_from — a find's licence as its source
+#    states it, where that was read, and which statement it was (design.md §12, "A suggested
+#    text says where it comes from, and a find with an open licence joins the library",
+#    2026-11-02); and `joined`, the finds that joined the library, by original address,
+#    naming no reader. On a table every box has, so the columns are in MIGRATIONS; `joined`
+#    is a new table, which needs none.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 58
+SCHEMA_VERSION = 59
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -844,6 +851,11 @@ MIGRATIONS: tuple[str, ...] = (
     # The words a minute heard in a podcast find (schema 57, targum-internal#621): 0 on
     # every find that was not heard, which is every find before it.
     "ALTER TABLE find ADD COLUMN rate REAL NOT NULL DEFAULT 0",
+    # A find's licence as its source states it (schema 59, design.md §12, 2026-11-02):
+    # empty on every find before it, which joins the library only on a page's own tag.
+    "ALTER TABLE find ADD COLUMN licence TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE find ADD COLUMN licence_url TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE find ADD COLUMN licence_from TEXT NOT NULL DEFAULT ''",
 )
 
 SCHEMA = """
@@ -1284,6 +1296,22 @@ CREATE TABLE IF NOT EXISTS proposed (
   state        TEXT    NOT NULL DEFAULT 'proposed',
   by           TEXT    NOT NULL DEFAULT '',
   made         INTEGER NOT NULL DEFAULT 0
+);
+-- Finds that joined the library when a reader opened them (design.md §12, 2026-11-02),
+-- one row an original address (`source`, the address as a server sees it). Naming no
+-- reader: no account, no home, no job and no time but the day it was added. A row taken
+-- down stays, `removed`, so the same original never joins again.
+CREATE TABLE IF NOT EXISTS joined (
+  id           TEXT    PRIMARY KEY,
+  source       TEXT    NOT NULL UNIQUE,
+  title        TEXT    NOT NULL DEFAULT '',
+  outlet       TEXT    NOT NULL DEFAULT '',
+  language     TEXT    NOT NULL DEFAULT '',
+  licence      TEXT    NOT NULL DEFAULT '',
+  licence_url  TEXT    NOT NULL DEFAULT '',
+  licence_from TEXT    NOT NULL DEFAULT '',
+  added        TEXT    NOT NULL DEFAULT '',
+  state        TEXT    NOT NULL DEFAULT 'joined'
 );
 -- What readers asked for that the shelf could not answer: a query with no library
 -- match, a link somebody had described. Counts, so the operator can see that eleven
@@ -5280,6 +5308,39 @@ class Store:
             db.execute(
                 "UPDATE proposed SET state = ?, by = ? WHERE id = ?", (state, by, proposal_id)
             )
+
+    # -- finds that joined the library (design.md §12, 2026-11-02) ---------------------
+
+    def joined_source(self, source: str) -> dict[str, Any] | None:
+        """The row for this original address, joined or taken down, or None."""
+        row = self.db.execute("SELECT * FROM joined WHERE source = ?", (source,)).fetchone()
+        return dict(row) if row else None
+
+    def join(self, fields: dict[str, Any]) -> bool:
+        """Write one joined find; False where its original already has a row, which is
+        how a second reader opening the same find adds nothing."""
+        columns = ", ".join(fields)
+        holes = ", ".join("?" for _ in fields)
+        with self.write() as db:
+            cursor = db.execute(
+                f"INSERT OR IGNORE INTO joined ({columns}) VALUES ({holes})",  # noqa: S608 - our own keys
+                tuple(fields.values()),
+            )
+        return bool(cursor.rowcount)
+
+    def joined(self, state: str = "joined") -> list[dict[str, Any]]:
+        rows = self.db.execute(
+            "SELECT * FROM joined WHERE state = ? ORDER BY added DESC, title", (state,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def joined_one(self, entry_id: str) -> dict[str, Any] | None:
+        row = self.db.execute("SELECT * FROM joined WHERE id = ?", (entry_id,)).fetchone()
+        return dict(row) if row else None
+
+    def joined_removed(self, entry_id: str) -> None:
+        with self.write() as db:
+            db.execute("UPDATE joined SET state = 'removed' WHERE id = ?", (entry_id,))
 
     # --- corrections (targum-internal#164, door 1) ---------------------------------
 

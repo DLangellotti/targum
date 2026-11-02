@@ -195,6 +195,9 @@ class Video:
     seconds: int
     published: int
     tags: list[str] = field(default_factory=list)
+    #: The licence the uploader set, as `status.license` says it: `creativeCommon` (CC BY)
+    #: or `youtube`, the standard licence (design.md §12, 2026-11-02).
+    licence: str = ""
 
     @property
     def url(self) -> str:
@@ -202,6 +205,12 @@ class Video:
         from ..weekly.feeds import link_key
 
         return link_key(f"{WATCH}{self.id}")
+
+
+#: YouTube's one Creative Commons licence, in yt-dlp's words (`video.youtube.CC_BY_SAID`,
+#: written out so a find round imports nothing of the video door), and its terms.
+CC_BY = "Creative Commons Attribution license (reuse allowed)"
+CC_BY_TERMS = "https://creativecommons.org/licenses/by/3.0/"
 
 
 def _published(said: str) -> int:
@@ -222,6 +231,7 @@ def _video(item: Mapping[str, Any], tags: Sequence[str]) -> Video:
         seconds=seconds(str((item.get("contentDetails") or {}).get("duration") or "")),
         published=_published(str(snippet.get("publishedAt") or "")),
         tags=list(tags),
+        licence=str((item.get("status") or {}).get("license") or ""),
     )
 
 
@@ -490,6 +500,7 @@ def _keep(
     if pool.known_digest(store, fingerprint):
         dropped(video.url, "same")
         return
+    open_licence = video.licence == "creativeCommon"
     added = pool.add(
         store,
         language=language,
@@ -510,6 +521,11 @@ def _keep(
         # builds nothing where the quote is higher than the card).
         credits=credits_for(video.seconds),
         topics=video.tags,
+        # The video's own licence field: YouTube's one Creative Commons licence is CC BY,
+        # said in yt-dlp's words so the licence reads the same whichever door answered.
+        licence=CC_BY if open_licence else "",
+        licence_url=CC_BY_TERMS if open_licence else "",
+        licence_from="youtube" if open_licence else "",
         at=when,
     )
     if added:

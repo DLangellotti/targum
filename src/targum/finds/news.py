@@ -119,6 +119,10 @@ class Item:
     published: int
     full_text: str
     topics: tuple[str, ...]
+    #: The licence the outlet states for its whole site, and where (design.md §12,
+    #: 2026-11-02): "" where `sources.json` records none.
+    licence: str = ""
+    licence_url: str = ""
 
 
 def items_from(kept: Mapping[str, list[Any]], publishers: Iterable[Publisher]) -> list[Item]:
@@ -144,6 +148,8 @@ def items_from(kept: Mapping[str, list[Any]], publishers: Iterable[Publisher]) -
                     published=int(when.timestamp() * 1000) if when else 0,
                     full_text=str(getattr(item, "full_text", "") or ""),
                     topics=tuple(_item_topics(publisher, item)),
+                    licence=publisher.licence,
+                    licence_url=publisher.licence_url or publisher.homepage,
                 )
             )
     out.sort(key=lambda one: -one.published)
@@ -307,6 +313,9 @@ def _keep(
         publisher=item.publisher,
         published=item.published,
         topics=item.topics,
+        licence=item.licence,
+        licence_url=item.licence_url if item.licence else "",
+        licence_from="publisher" if item.licence else "",
         at=when,
     )
     if added:

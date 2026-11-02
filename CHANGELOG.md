@@ -681,6 +681,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- Every suggested text says where it comes from, and a find with an open licence joins
+  the library (David, 2026-11-02; design.md §12). Home's pick card and each row of More
+  that fit you carry a line under the facts: the outlet, and the day for a dated find
+  ("Ynet · 2 Nov"; shelf texts undated, "Project Ben-Yehuda"). The outlet is always a name
+  the row already holds (a find's publisher, a YouTube channel, a podcast show, the site,
+  or the outlet a catalogue credit names), never a model's. It is the link: it opens the
+  original in a new tab with `rel="noopener noreferrer"`, and Read stays the press. When a
+  reader's build of a find finishes and its licence is CC0/PD, CC BY, CC BY-SA or their
+  NonCommercial forms, read from the page's own licence tag, YouTube's licence field or the
+  outlet's site-wide statement in `sources.json`, the build is copied onto the shared
+  shelf, its reader rendered again from the artifacts with a credit line, and entered in
+  the catalogue credited to the outlet, with its licence and where that was read. Nothing
+  is bought, one copy is kept per original, and nothing written names the reader. The back
+  office lists what joined and takes one down in one press. `licensing.verdict` now reads
+  NoDerivatives before NonCommercial, so "CC BY-NC-ND" no longer reads as allowing
+  derivatives. The store's schema is 59 (`find.licence*`, `joined`). The Russian strings
+  are drafts.
 - Which reading a spelling takes, per register, is counted (targum-internal#583). The
   fold and the nightly sweep now write a `readings` table wherever a vocalization sits
   beside the annotation: per unpointed spelling, the pointed form the vocalizer gave each

@@ -3067,6 +3067,7 @@ def back_office_page(
     proposed: list[dict[str, Any]] | None = None,
     wanted: list[dict[str, Any]] | None = None,
     said: str = "",
+    joined: list[dict[str, Any]] | None = None,
     incidents: list[Any] | None = None,
     balances: dict[str, dict[str, Any]] | None = None,
     visits: object | None = None,
@@ -3140,6 +3141,7 @@ def back_office_page(
             survey=found,
             days=days,
             proposed=proposed or [],
+            joined=joined or [],
             wanted=wanted or [],
             said=said,
             # What went wrong lately, newest first (`incidents.py`; targum-internal#24).
@@ -5941,6 +5943,38 @@ def _rides_late(entry: dict[str, Any], key: str, drawn_at: int) -> bool:
     return bool(entry.get("companion")) and bool(entry.get("commented")) and key != f"t{drawn_at}"
 
 
+def text_credit_in(folder: Path | None) -> dict[str, str] | None:
+    """A shared copy's credit (`credit.json`): the outlet, the original's address, the
+    licence and its address. None for every other folder, and for one whose addresses are
+    not plain web addresses."""
+    if folder is None:
+        return None
+    path = folder / "credit.json"
+    if not path.is_file():
+        return None
+    try:
+        said = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(said, dict):
+        return None
+
+    def web(address: object) -> str:
+        address = str(address or "").strip()
+        return address if address.startswith(("https://", "http://")) else ""
+
+    outlet = str(said.get("outlet") or "").strip()
+    source = web(said.get("source"))
+    if not outlet or not source:
+        return None
+    return {
+        "outlet": outlet,
+        "source": source,
+        "licence": str(said.get("licence") or "").strip(),
+        "licence_url": web(said.get("licence_url")),
+    }
+
+
 def render(
     document: Document,
     segmented: SegmentedDocument,
@@ -6076,6 +6110,11 @@ def render(
         for code, book in (glossaries or {}).items()
         if code.split("-")[0] == "en"
     )
+    # A find that joined the library names where it came from, linking the original and
+    # its licence (design.md §12, 2026-11-02): `credit.json`, which only the shelf's copy
+    # carries (`promote.join_find`). Its two addresses are the only ones of its own a
+    # shared copy may link, and `test_render.py` holds that.
+    text_credit = text_credit_in(folder)
 
     def beside_order(t: Translation) -> tuple[int, int]:
         if not with_companions:
@@ -7009,6 +7048,7 @@ def render(
             # carries Stanza's name and gets no DICTA credit it did not earn.
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             glosses_credit=glosses_credit,
+            text_credit=text_credit,
             # Russian's words read here (annotate/russian.py), named the same way and on the
             # same key: the carve-out in LICENSING.md promised it, and OpenCorpora's
             # CC BY-SA asks it.

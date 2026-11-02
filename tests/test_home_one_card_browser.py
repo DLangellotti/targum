@@ -491,3 +491,101 @@ def test_the_press_says_watch_or_listen_and_is_gone_with_nothing_under_the_floor
     assert pick["presses"][0] == "Listen" and figure(none["presses"][1]) == figure(pick["known"])
     none, _ = seen["nothing"]
     assert none["says"] == NONE and none["presses"] == ["Topic"], none
+
+
+SOURCED_FIND = {
+    **WEB_PICK,
+    "id": "find-41",
+    "find": 41,
+    "title": "הכנסת אישרה בקריאה ראשונה את החוק",
+    "host": "www.ynet.co.il",
+    # 2 November 2026, nine in the morning in Jerusalem.
+    "source_line": {"name": "Ynet", "url": "https://www.ynet.co.il/news/a", "date": 1793602800000},
+}
+
+SOURCED_MORE = [
+    {**row, "source_line": {"name": name, "url": url, "date": 0}}
+    for row, (name, url) in zip(
+        MORE,
+        [("Wikinews", "https://he.wikinews.org/wiki/x"), ("Project Ben-Yehuda", "https://benyehuda.org/read/6600"),
+         ("StoryWeaver", ""), ("Sefaria", "https://www.sefaria.org/Ruth")],
+        strict=True,
+    )
+]  # fmt: skip
+
+SOURCE = """() => {
+  const line = (e) => e && {
+    text: e.textContent,
+    link: !!e.querySelector('a') && {
+      href: e.querySelector('a').getAttribute('href'),
+      target: e.querySelector('a').target,
+      rel: e.querySelector('a').rel,
+      label: e.querySelector('a').getAttribute('aria-label'),
+    },
+    insideRowLink: !!e.closest('#more-rows li > a'),
+  };
+  return {
+    pick: line(document.querySelector('#try-next .rc-source')),
+    facts: (document.querySelector('#try-next .home-card-facts') || {}).textContent || '',
+    open: (document.querySelector('#try-next .rc-open') || {}).textContent || '',
+    more: [...document.querySelectorAll('#more-rows li')].map((li) => line(li.querySelector('.more-source'))),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    coarse: matchMedia('(pointer: coarse)').matches,
+    press: (() => { const a = document.querySelector('#try-next .rc-source a'); return a ? a.getBoundingClientRect().height : 0; })(),
+    lineHeight: (() => { const p = document.querySelector('#try-next .rc-source'); return p ? p.getBoundingClientRect().height : 0; })(),
+  };
+}"""  # noqa: E501
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_each_suggestion_says_where_it_comes_from_and_links_the_original(
+    browser, width: int
+) -> None:
+    """design.md §12, 2026-11-02: under the facts, the outlet and, for a dated find, its
+    day; the outlet is the link and opens the original in a new tab, never the row's own
+    press. A row with nowhere to link names its outlet without one; a row with no outlet
+    says nothing."""
+
+    def suggest(body: dict[str, Any]) -> Any:
+        return {"suggestion": SOURCED_FIND, "library": True, "more": SOURCED_MORE}
+
+    context, page, thrown, _, _ = home(browser, width, lambda body: {"pick": None}, suggest)
+    page.wait_for_selector("#try-next .rc-source")
+    page.wait_for_selector("#more-fit:not([hidden])")
+    got = page.evaluate(SOURCE)
+    shot(page, "source-line", width)
+    context.close()
+    assert not thrown, thrown
+    pick = got["pick"]
+    assert pick["text"] == "Ynet↗ · 2 Nov", pick
+    assert pick["link"] == {
+        "href": "https://www.ynet.co.il/news/a",
+        "target": "_blank",
+        "rel": "noopener noreferrer",
+        "label": "Ynet, opens the original in a new tab",
+    }
+    # Said once: the site is no longer in the facts beside it.
+    assert "ynet" not in got["facts"].lower()
+    assert got["open"] == "Read"
+    wiki, benyehuda, storyweaver, sefaria = got["more"]
+    assert wiki["text"] == "Wikinews↗" and wiki["link"]["target"] == "_blank"
+    assert benyehuda["link"]["href"] == "https://benyehuda.org/read/6600"
+    assert storyweaver == {"text": "StoryWeaver", "link": False, "insideRowLink": False}
+    assert not any(row["insideRowLink"] for row in got["more"])
+    assert sefaria["link"]["rel"] == "noopener noreferrer"
+    assert not got["sideways"]
+    # 44px to a finger, and the line it sits in no taller for it (David: enough for §14).
+    assert got["coarse"] == (width < 640), got
+    if got["coarse"]:
+        assert got["press"] >= 44 and got["lineHeight"] < 30, got
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_suggestion_with_no_outlet_has_no_source_line(browser, width: int) -> None:
+    context, page, thrown, _, _ = home(browser, width, lambda body: {"pick": None})
+    page.wait_for_selector("#try-next .rc-pick")
+    page.wait_for_selector("#more-fit:not([hidden])")
+    got = page.evaluate(SOURCE)
+    context.close()
+    assert not thrown, thrown
+    assert got["pick"] is None and got["more"] == [None] * len(MORE)
