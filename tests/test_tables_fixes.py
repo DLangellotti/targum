@@ -200,8 +200,15 @@ def test_the_recurrence_counts_fixes_places_and_what_comes_back(store: Store) ->
         fixes.recurrence(store, ["nonsense"])
 
 
-def test_gold_is_the_authors_hand_and_what_a_person_accepted(store: Store) -> None:
+def test_gold_is_the_authors_and_editors_hand_and_what_a_person_accepted(
+    store: Store,
+) -> None:
     _ledger(store)
+    fix(store, before="טטט", after="יייי", kind="wording", who="editor", judge="j1", unit="e t0")
+    refused = store.propose_correction(
+        stage="reader", who="reader", term="ממם", before="ממם", after="ננן", span="s-09 t0"
+    )
+    store.settle_correction(refused, accept=False, by="editor", judge="j1")
     proposed = store.propose_correction(
         stage="reader", who="reader", term="זזז", before="זזז", after="חחח", span="s-07 t0"
     )
@@ -213,8 +220,10 @@ def test_gold_is_the_authors_hand_and_what_a_person_accepted(store: Store) -> No
     found = fixes.gold(store)
     assert [(row["before"], row["after"]) for row in found] == [
         ("וָוָו", "וַוַו"),
+        ("טטט", "יייי"),
         ("זזז", "חחח"),
-    ], "no model's fix, no deletion, no unsettled proposal, one line per accepted fix"
+    ], "no model's fix, no deletion, no unsettled or refused proposal, one line per fix"
+    assert [row["who"] for row in found] == ["author", "editor", "reader"]
     assert "judge" not in found[0] and "id" not in found[0]
     assert fixes.gold(store, stage="nothing") == []
 

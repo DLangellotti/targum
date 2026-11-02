@@ -22,8 +22,10 @@ public half reaching into the private half, which never happens here.
   is written to the row's `span`, which is what that column has always held.
 
 `recurrence` is the count of mistakes that recur, by kind and by tool. `gold` is the
-eval set: the author's own hand, and what a person accepted (spec, Q5). A model's fix
-counts toward the recurrence and stays out of the gold set until somebody accepts it.
+eval set: the author's own hand, a paid editor's own fixes, and what a person accepted
+(spec, Q5; David, 2026-11-02, for the editor). A model's fix counts toward the
+recurrence and stays out of the gold set until somebody accepts it, and so does a
+reader's proposal.
 """
 
 from __future__ import annotations
@@ -52,7 +54,16 @@ BY = ("kind", "tool", "stage", "who", "run")
 
 #: The roles whose rows a laptop carries to the box. A reader's rows are the box's own;
 #: one on the laptop was made by somebody testing a local server.
+#:
+#: An editor's judge is a pseudonym salted per database (`Store.editor_judge`), so the
+#: same editor filed on the laptop and on the box would be two judges there. Editor
+#: passes are filed in one place only, the laptop (David, 2026-11-02), so nothing
+#: re-keys them; filing one on the box as well would need that first.
 PUSHED = ("author", "editor", "model")
+
+#: The hands whose own fixes are gold without anybody accepting them: the author's,
+#: and a paid human editor's (David, 2026-11-02).
+GOLD_HANDS = ("author", "editor")
 
 
 def record(
@@ -81,7 +92,8 @@ def record(
 
     `stage` is where it was caught: editor, director, asr, voice, author, reader, or a
     pipeline stage such as scene or gloss. `who` is the role behind the "after": a
-    model's pass is `model`, and only `author` rows and accepted ones are gold. An ASR
+    model's pass is `model`, and only `author` and `editor` rows and accepted ones are
+    gold. An ASR
     flag is written `state="proposed"` until a person settles it. `term` is read off
     `before` (its letters, points taken off) where it is not given.
     """
@@ -206,15 +218,23 @@ GOLD_FIELDS = (
 
 
 def gold(store: Store, stage: str = "") -> list[dict[str, Any]]:
-    """The eval set (spec, Q5): the author's own hand, and every fix a person accepted.
+    """The eval set (spec, Q5): the author's own hand, a paid editor's own fixes, and
+    every fix a person accepted (David, 2026-11-02, for the editor: a paid human
+    editor is a person, so their fix needs nobody's acceptance to be gold).
 
-    A model's fix and an unsettled proposal are not here, nor is a refused one. A
+    A model's fix and an unsettled proposal are not here, nor is a refused one, nor
+    the row that refused it. A
     deletion (`after` empty) is not an answer to score against and is left out, as
     `Store.agreed` leaves it. A proposal and the row that accepted it are one fix and
     one line, the earlier of the two.
     """
-    where = ["(who = 'author' OR state = 'accepted')", "after <> ''", "before <> after"]
-    values: list[Any] = []
+    hands = ", ".join("?" for _ in GOLD_HANDS)
+    where = [
+        f"((who IN ({hands}) AND state = '') OR state = 'accepted')",
+        "after <> ''",
+        "before <> after",
+    ]
+    values: list[Any] = list(GOLD_HANDS)
     if stage:
         where.append("stage = ?")
         values.append(stage)
