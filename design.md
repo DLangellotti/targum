@@ -477,6 +477,10 @@ changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
   month (about $3.60), inside the same $30 a month as the other sources. When a cap or
   the budget is reached the round says so and stops sampling. The episodes left over are
   not pooled, so one never measured is never offered, and another night may hear them.
+  Only a sample whisper heard counts against a cap. A refusal by the transcriber (on the
+  box's first run, OpenAI out of credits) stops the sampling and leaves the episodes
+  waiting, and a sample whose audio would not come or cut is dropped with its reason
+  written on the run (2026-11-02).
 - **The pool keeps counts and a speech rate.** The sound and the words are deleted once
   scored. The row keeps the lemma counts and the words a minute heard (`find.rate`,
   schema 57), for the audio band. Under 30 words a minute is music, and is not offered.
