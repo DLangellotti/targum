@@ -409,6 +409,53 @@ part says which chapter it is.
   annotated again. A reader shows the new label once it is written again, which
   `targum rebuild` in every deploy does without spending anything.
 
+### A suggestion never starts a series in the middle — 2026-11-03
+
+David, 2026-11-03, offered part 2 of a YouTube video on home's "One to try next": a
+suggestion never drops a reader into the middle of a series. The video was "מצאתי את
+הפלאפלים הכי זולים בישראל חלק 2!!! (דרום הארץ)", pooled the night before by a live look
+for the Israel chip, with no part 1 anywhere in the pool; nothing in the chooser knew a
+part from a whole. This holds on every suggestion path: home's pick ("One to try next" and
+"Read one at N% known"), More that fit you, Read next (`suggest_next`, so the chat and the
+connector's `find_text` with no query too), over the shelf and the pool alike.
+
+- **Part N only after part N−1.** A numbered later part is suggested only where the reader
+  has opened the part before it: built it (a find, or a text on their own shelf), or the
+  page says it is finished or in Continue (a shelf text). Then it is the natural next.
+- **Otherwise part 1, in its place.** Where part 1 of the same series, from the same
+  publisher, is in the list being chosen from (so it already cleared the floor, the
+  credits and everything else), it takes the later part's place, if it fits as well.
+  Where it is not there, or does not qualify, the series is left out; a later part is
+  never suggested on its own. Part 1 is looked for in the pool and on the shelf only:
+  finding it on the channel or the feed would be a fetch, and a suggestion fetches nothing.
+- **A part is said, never guessed** (`parts.py`). Part or episode wording with a number in
+  Hebrew, English or Russian ("חלק 2", "חלק א'", "החלק השני", "פרק 3", "עונה 3 פרק 14",
+  "Part 2", "Part Two", "Part II", "Ep. 3", "S2E3", «Часть 2», «вторая часть», «Серия
+  3»), a bracketed "(2/5)" (never "(n/10)", which reads as a score), or a podcast feed's
+  `itunes:episode` and `itunes:season`. A year, a date, "Toy Story 2", "Psalm 20", "2
+  Samuel 9", a book's chapter ("Глава I", "מאמר שני") and the word with no number of its
+  own ("חלק מהציפורים", "part-time", "ופרק ג" mid-sentence) are no part. "The last part"
+  ("החלק האחרון") is a later part whose number is unknown, so it is only ever replaced by
+  part 1. The parts of one thing share a key: the title's words before the marker, or the
+  show's name where the marker leads the title. Every doubt leaves a part out, never in.
+- **An episodic podcast's numbers are a counter.** A feed that says
+  `<itunes:type>episodic</itunes:type>`, whose episodes Apple defines as "intended to be
+  consumed without any specific order" (most of Kan's), is not held to "פרק 189" or
+  `itunes:episode` 189; only part wording counts there. A serial feed, or one that says
+  neither, is held to its numbers. A trailer or a bonus episode is never a part. This is
+  the one reading of David's rule that keeps the talk shows; reversing it is one line in
+  `parts.of_episode`.
+- **targum's own parts too.** A recording cut into parts ("One press gets the whole video,
+  a part at a time", 2026-10-07) is one text whose sections are its parts, so Read next's
+  passage slot ("Try chapter 3 first") is offered only for a text, never for a recording.
+  The dialogues keep their own order (`next_scene`) and are not a series here.
+- **What it keeps.** A find's series key, part and season (`find.series`, `part`,
+  `season`; schema 60). A find pooled before has part −1 and is read off its title; the
+  podcast round writes what its feed says the next time it reads the feed. Nothing about
+  the reader is kept: what they opened is read from their shelf at the moment of asking.
+- **No copy change.** The card offers part 1 by its own title, which already says "Part 1"
+  where the video does.
+
 ### A YouTube find is offered only when YouTube is in reach — 2026-11-03
 
 David pressed a YouTube find on home on 2026-11-03 and the build failed at once: the
@@ -431,6 +478,87 @@ file instead.") twice, once after a stray ": ".
 - **A failed build says what failed once.** The bell's row reads "We couldn't get {title}
   ready." and, opened, the reason and "Nothing was used." under it; with no reason of its
   own, "We couldn't get it ready." is said once, not twice.
+
+### What next is quick to take in: the gap and the two lists first, the grammar in tabs — 2026-11-03
+
+David, 2026-11-03, answering the What next tabs mock ("way too huge and hard to get
+through"). It amends "What next leads with your biggest grammar gap" (2026-10-30) and
+"The Mishkal list beside the Grammar grid" (2026-11-02), which stood the grid, the list
+and their notes between the headline and the two lists, so a reader scrolled 1,100 to
+1,650px of grammar to reach the words and texts they could act on.
+
+- **Before any tap, the gap and the two lists.** The headline ("Your biggest gap:
+  הִתְפַּעֵל verbs"), its sentence with the pattern's gloss and the two words met, then
+  "Words you keep meeting and don't know yet" and "Texts at your level now". The gloss and
+  the examples stay with the headline they explain; moving them into the tab to shorten
+  the top was mocked and not taken.
+- **The grammar sits below, one grid at a time.** A hairline, then "Grammar", which stays
+  the heading, with **Binyanim | Mishkalim** as its `.seg`, as Week | Month is. They are
+  real tabs (`role="tablist"`, arrows, Home and End), so a screen reader says the tab and
+  its panel. The Binyanim tab is the Grammar grid and the Mishkalim tab the Mishkal list,
+  each as it was: exact percentages, the floors and their notes, the weakest row outlined,
+  a square opening its words under its own table. The Mishkal list keeps its two columns
+  of rows.
+- **The tab of the headline's gap is open, on every load.** A binyan gap opens Binyanim, a
+  mishkal gap Mishkalim, and with no gap named, Binyanim. The reader's choice is never
+  remembered (David): the page always opens on what the headline says. Changing tab shuts
+  an open list of words, so one is open at a time across the two, as before.
+- **With one kind only there are no tabs.** A machine without `roots-he.json` sends no
+  Mishkal list, and "Grammar" stands over the grid alone. With neither, the two lists
+  stand alone under the old title, as before.
+- **The block keeps its place** in the page, third, after "How you got here". Nothing here
+  feeds a headline number, as before.
+- Measured on the built page with one reader's made-up record: What next went from 2,322
+  to 1,488px at 390, 1,353 to 986 at 1024 and 1,468 to 1,071 at 1440, and the two lists
+  now start about 210 to 240px into the block instead of 1,040 to 1,660.
+- The panel headings "Mishkal" and the inner "Grammar" gave way to the tab names;
+  `progress.gap.mishkal` left the catalogue. The Russian «Биньяны» and «Мишкали» are
+  drafts and wait for David's read.
+
+### The open web is searched each night, on the forty topics — 2026-11-03
+
+David, 2026-11-03 (targum-internal#622, slice D of the web-discovery plan): each night
+Anthropic's web search looks for real Hebrew pages on the forty topics of "Find me
+something", and what it finds is scored and pooled like every other find. It replaces the
+card's Brave Search and MediaWiki plan (David, 2026-11-01: Anthropic over Brave), adds a
+source to "A web find is a pasted link targum found" (2026-10-31) and changes no rail.
+Behind `TARGUM_FINDS_WEB` until it is switched on.
+
+- **The queries are the chips' own phrases.** One search for each topic's fixed Hebrew
+  phrase (`chips.CHIPS`, ling-he's), nothing else: no reader, no level, no word anybody
+  typed. The model only runs the search, one to a call, and is shown nothing but the
+  query. What is kept is the search's own result list (address and title), never a word
+  the model wrote. A night starts where the last one stopped, so every topic comes round
+  even when the cap stops a night short, and a query a live look bought in the last
+  twenty hours is not bought again.
+- **A dollar a night at most, inside the month's budget.** Each call's cost is counted
+  from what the API reports it used, the searches at $0.01 each and the tokens at the
+  model's price, and written on the run as it is spent. A search does not start unless
+  the night has room for the dearest call yet seen (at least 6¢), so the night stops
+  before $1, never after it. The night's dollar is also paced against the month: never
+  more than what is left of `TARGUM_FINDS_BUDGET_USD`, less $10 kept for the other
+  sources, shared over the days left in the month. At the default $30 that is about 65¢
+  a night; raising the budget lets it reach the dollar. The model is Claude Haiku 4.5,
+  the cheapest that takes the search tool, at about 2.5¢ a search.
+- **The pages are read direct and let go.** Each page is fetched once, straight from its
+  site and never through the paid proxy, only where its robots.txt allows, never from a
+  host that refused us, at most five from one host a night. The host and word screens,
+  "too short" and "one article pooled once" are the hourly round's. The pool keeps the
+  address, the title, the outlet, the day it was published where the page says, and the
+  lemma counts: no text.
+- **The card names the outlet and the day** (2026-11-02, "A suggested text says where
+  it comes from"): the publisher's name where `sources.json` lists the site, else the
+  site, and the day the page itself states. A page that states none shows no day rather
+  than the night it was found. A find whose licence clears the bar joins the library
+  when a reader opens it, by the same path as any find; nothing is added for it.
+- **Counted into the tables, under a register of its own.** A web find, from a live look
+  or a night, still counts as news, social, video or podcasts where its host says so.
+  Every other web find now counts under `web` instead of not at all, which amends "Public
+  finds count into the yardsticks, as counts" (2026-11-01). A blog or a shop still never
+  counts as news. `web` is not on the card's picker; it is counted, not offered.
+- **On a timer of its own**, at 00:10 UTC, stopping itself after 45 minutes: clear of
+  the YouTube round at 01:00, the feed count at 01:30, the podcasts at 02:00, and done
+  well before the tables sweep at 02:30 counts what it found.
 
 ### A suggested text says where it comes from, and a find with an open licence joins the library — 2026-11-02
 
@@ -851,6 +979,12 @@ will get: the closest text and how much of it you know. No "today".
   under the floor there is no press, and the sentence stays.
 - **After the last miss.** "No other new text is close yet.", with Topic alone, in place
   of "We found nothing harder today."
+
+Amended 2026-11-03: **a topic matches the shelf by register where its words cannot.** A
+chip matches a shelf text through its lexicon topic only where that topic is shown, and
+religion is not, so with Religion chosen the press vanished with the whole religious
+shelf under the floor. Religion now takes the biblical, rabbinic and medieval texts by
+register (`finds.chips`, `Chip.registers`); no other chip has registers.
 
 ### Home's one card finds what fits you — 2026-11-01
 

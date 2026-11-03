@@ -83,6 +83,13 @@ class Item:
     length: int = 0
     #: Whether the feed marks the episode explicit (`<itunes:explicit>` yes or true).
     explicit: bool = False
+    #: The episode's number and season as a podcast feed states them (`<itunes:episode>`,
+    #: `<itunes:season>`, or Podcasting 2.0's `<podcast:episode>`/`<podcast:season>`), 0
+    #: where it does not; and `<itunes:episodeType>` (full, trailer, bonus). The podcast
+    #: finds read them to tell a later part of a serial (design.md §12, 2026-11-03).
+    episode: int = 0
+    season: int = 0
+    episode_type: str = ""
 
 
 def _name(tag: str) -> str:
@@ -303,9 +310,37 @@ def parse(xml: bytes) -> list[Item]:
                 artwork=_image(fields.get("image")),
                 length=_enclosure_length(element),
                 explicit=_text(fields.get("explicit")).lower() in {"yes", "true", "explicit"},
+                episode=_count(_text(fields.get("episode"))),
+                season=_count(_text(fields.get("season"))),
+                episode_type=_text(fields.get("episodetype")).lower(),
             )
         )
     return items
+
+
+def _count(raw: str) -> int:
+    """A whole number a feed states, or 0 for anything else."""
+    head = raw.strip().split(".", 1)[0]
+    return int(head) if head.isdigit() and len(head) <= 5 else 0
+
+
+def show_type(xml: bytes) -> str:
+    """What a podcast says it is (`<itunes:type>` on the channel): `episodic`, whose
+    episodes are "intended to be consumed without any specific order", or `serial`; ""
+    where it does not say, or for anything that is not a feed."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return ""
+    holder = root
+    for element in root:
+        if _name(element.tag) == "channel":
+            holder = element
+            break
+    for element in holder:
+        if _name(element.tag) == "type":
+            return _text(element).lower()
+    return ""
 
 
 def title(xml: bytes) -> str:

@@ -15,6 +15,9 @@ a pasted link targum found", 2026-10-31.
 - `podcasts`: the nightly round over a reviewed list of Hebrew shows (#621): new
   episodes scored on their transcript or on two minutes from the middle, behind
   `TARGUM_FINDS_PODCASTS`.
+- `web`: the nightly round over the open web (#622): one Anthropic web search for each
+  of the forty topics, the pages read direct and scored, at most $1 a night, behind
+  `TARGUM_FINDS_WEB`.
 - `provider`: the pool scored for one reader, as candidates for Read next.
 - `button`, `interests` and `live`: "Find me something" (#615): one pick for one reader,
   steered by topics, and a capped look on the web when the pool has nothing that fits.

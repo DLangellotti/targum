@@ -15445,6 +15445,7 @@ class Handler(BaseHTTPRequestHandler):
                 built=built,
                 credits_left=chat_tools._credits_left(ctx),
                 known=known,
+                started=chat_tools.started_parts(ctx, mine),
             )
 
         def under_floor(body: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -15499,6 +15500,7 @@ class Handler(BaseHTTPRequestHandler):
                 credits_left=chat_tools._credits_left(ctx),
                 known=known,
                 harder=True,
+                started=chat_tools.started_parts(ctx, mine, done),
             )
             return button.nearest([*button.harder(shelf, near_ask, known), *found])
 

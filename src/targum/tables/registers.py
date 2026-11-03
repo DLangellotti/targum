@@ -28,6 +28,11 @@ VIDEO = "video"
 PODCASTS = "podcasts"
 EVERYDAY = "everyday"
 
+#: A web find whose host names none of the four above: a page the open web gave targum,
+#: from a live look or the nightly round (David, 2026-11-03; design.md §12, "The open web
+#: is searched each night"). Counted, never on the picker: only `tables.finds` writes it.
+WEB = "web"
+
 #: What readers bring that sorts into no register (David, 2026-11-01): "What learners
 #: bring". Never a catalogue register and never a fold's: only `tables.imports.pool`
 #: writes it, with no row below the floor of ten readers (`imports.FLOOR`).

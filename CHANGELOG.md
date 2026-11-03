@@ -6,6 +6,34 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Home's empty card offers "Read one at 78% known" again with Religion chosen
+  (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
+  only through its lexicon topic, and religion is not a shown topic (its tags failed
+  ling-he's gold set), so with Religion chosen no shelf text was about it, nothing was
+  under the floor on the topic and the card said "No new text is 90% known for you yet."
+  with no press, the Tanakh, the Mishnah and the siddur all on the shelf under the floor.
+  A chip may now match the shelf by register (`chips.on_shelf`): Religion takes the
+  biblical, rabbinic and medieval texts. The pool still matches by tag and shown topic.
+- What next on Your Progress is quick to take in (David, 2026-11-03; design.md §12). The
+  headline, its sentence and the two lists, words you keep meeting and texts at your
+  level, now come first. Under them "Grammar" shows one grid at a time behind Binyanim |
+  Mishkalim tabs, with the tab of the headline's gap open on every load. The block went
+  from 2,322 to 1,488px on a phone and from 1,468 to 1,071px at a desk. The two lists start
+  about 230px in, where they used to start 1,100 to 1,650px in. The Russian tab names are
+  drafts.
+- A suggestion never starts a series in the middle (David, 2026-11-03; design.md §12).
+  Home offered David part 2 of a YouTube video ("מצאתי את הפלאפלים הכי זולים בישראל חלק
+  2!!!", pooled by a live look for the Israel chip with no part 1 in the pool). A numbered
+  later part is now suggested only once the reader opened the part before it; otherwise
+  part 1 takes its place where the pool or the shelf has it and it fits, and the series is
+  left out where it does not. It holds on home's pick, "Read one at N% known", More that
+  fit you, Read next and the connector's `find_text` with no query. A part is read
+  deterministically, from part or episode wording in Hebrew, English and Russian, a
+  bracketed "(2/5)", and a podcast feed's `itunes:episode`/`itunes:season` (`parts.py`); a
+  year, a chapter, "Toy Story 2" or "חלק מ…" is not one, and an episodic feed's episode
+  numbers are a counter. Store schema 60 keeps a find's series key, part and season;
+  older finds are read off their titles. Read next's passage slot is no longer offered for
+  a recording, whose sections are its parts.
 - A YouTube build that our proxy refused now says so (2026-11-03; design.md §12, "A
   YouTube find is offered only when YouTube is in reach"). On 2026-11-03 the DataImpulse
   proxy ran out of traffic (`407 TRAFFIC_EXHAUSTED`), every YouTube fetch failed, and a
@@ -706,6 +734,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- The open web is searched each night on the forty topics (targum-internal#622; David,
+  2026-11-03; design.md §12). `targum finds web`, on its own timer at 00:10 UTC, runs one
+  Anthropic web search for each topic chip's fixed Hebrew phrase (Claude Haiku 4.5 and
+  the basic search tool, one search a call, the query and nothing else), reads each page
+  direct where robots.txt allows (never through the proxy, at most five from one host a
+  night), screens and scores it by the hourly round's rules and pools it as a `web` find
+  with its outlet, the day the page states and its chip, keeping counts and never text.
+  At most $1 a night, counted from the API's own usage and stopped before the next call
+  could cross it, and paced inside `TARGUM_FINDS_BUDGET_USD` with $10 of the month kept
+  for the other sources (about 65¢ a night at the default $30). A night starts where the
+  last stopped, skips a query a live look bought lately, and stops itself after 45
+  minutes. A web find whose host is not news, social, video or podcasts now counts under
+  a `web` register of its own instead of not at all. Off unless `TARGUM_FINDS_WEB` is set.
 - Podcast finds sample up to 30 episodes a night and 600 a month, up from 10 and 300
   (David, 2026-11-03; design.md §12). At about 1.2¢ a two-minute whisper sample that is
   at most 36¢ a night and $7.20 a month, still inside `TARGUM_FINDS_BUDGET_USD` with the

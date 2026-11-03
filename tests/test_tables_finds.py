@@ -20,7 +20,7 @@ from targum.accounts import Store as AccountStore
 from targum.cli import app
 from targum.finds import pool, score
 from targum.tables import finds, news
-from targum.tables.registers import NEWS, SOCIAL, VIDEO
+from targum.tables.registers import NEWS, SOCIAL, VIDEO, WEB
 from targum.tables.store import Contribution, Store
 from targum.tables.words import WORDS
 from targum.weekly.feeds import Item
@@ -104,11 +104,12 @@ def test_web_finds_are_sorted_by_host_as_imports_are(accounts: AccountStore, sto
     keep(accounts, "web", "https://www.paper.co.il/story", {"new": 1})
     keep(accounts, "web", "https://blog.example.org/post", {"none": 1})
     found = finds.fold_finds(store, finds.public_finds(accounts, news={"paper.co.il"}))
-    assert found.by_register == {VIDEO: 1, SOCIAL: 1, NEWS: 1}
+    assert found.by_register == {VIDEO: 1, SOCIAL: 1, NEWS: 1, WEB: 1}
     assert words(store, VIDEO) == {"vid": 1}
     assert words(store, SOCIAL) == {"soc": 1}
     assert words(store, NEWS) == {"new": 1}
-    assert "none" not in json.dumps(store.registers(WORDS)) and store.total(WORDS) == 3
+    # A host on none of the lists counts under `web` (David, 2026-11-03), never as news.
+    assert words(store, WEB) == {"none": 1} and store.total(WORDS) == 4
 
 
 def test_a_dropped_row_another_language_or_an_empty_bag_is_never_counted(

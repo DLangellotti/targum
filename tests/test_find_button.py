@@ -741,3 +741,70 @@ def test_a_look_that_finds_nothing_names_the_nearest_on_its_last_poll(
     )[1]
     assert polled["stage"] == "done" and polled["nearest"]["reason"]["share"] == 80
     assert polled["message"] == "No new text is 90% known for you yet."
+
+
+def test_religion_matches_the_shelf_by_register_where_its_lexicon_topic_is_not_shown() -> None:
+    """2026-11-03: the religion topic is not shown (its tags failed ling-he's gold set), so
+    no shelf text could match the Religion chip and the press vanished with the Tanakh,
+    the Mishnah and the siddur all under the floor. The chip matches the shelf by register;
+    the shown lexicon topics still match as before."""
+    shelf = [
+        {"id": "news", "fit": "under", "expected_share": 0.88, "register": "modern"},
+        {"id": "avot", "fit": "under", "expected_share": 0.86, "register": "rabbinic"},
+        {"id": "ruth", "fit": "under", "expected_share": 0.80, "register": "biblical"},
+        {"id": "kuzari", "fit": "under", "expected_share": 0.70, "register": "medieval"},
+        {"id": "mapu", "fit": "under", "expected_share": 0.87, "register": "revival"},
+    ]
+    assert "religion" not in lexicon().shown
+    got = button.nearest(button.harder(shelf, button.Ask("he", chosen=("religion",)), lexicon()))
+    assert [row["id"] for row in got] == ["avot", "ruth", "kuzari"]
+    assert all(row["on_topic"] for row in got)
+    assert button.harder(shelf, button.Ask("he", chosen=("football",)), lexicon()) == []
+
+
+def test_an_empty_answer_on_religion_names_the_nearest_religious_text(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David's card on 2026-11-03: Topic set to Religion, "No new text is 90% known for you
+    yet." and no press, with religious texts under the floor on the shelf. The empty
+    answer names the nearest of them, and the press opens it."""
+    from targum.chat import tools as chat_tools
+
+    monkeypatch.setenv(live.FLAG, "1")
+    real = chat_tools.suggest_next
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("under"):
+            return real(ctx, args)
+        rows = [
+            {"id": "news-story", "title": "חדשות", "language": "he", "kind": "story",
+             "register": "modern", "fit": "under", "expected_share": 0.89,
+             "running_share": 0.85, "reason": {"key": "suggest.known", "share": 85},
+             "origin": "shelf"},
+            {"id": "avot-1", "title": "פרקי אבות", "language": "he", "kind": "story",
+             "register": "rabbinic", "fit": "under", "expected_share": 0.84,
+             "running_share": 0.78, "reason": {"key": "suggest.known", "share": 78},
+             "origin": "shelf"},
+            {"id": "ruth-1", "title": "רות", "language": "he", "kind": "story",
+             "register": "biblical", "fit": "under", "expected_share": 0.75,
+             "running_share": 0.7, "reason": {"key": "suggest.known", "share": 70},
+             "origin": "shelf"},
+        ]  # fmt: skip
+        return {"suggestions": [row for row in rows if row["id"] not in args.get("skip", [])]}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    monkeypatch.setattr(live, "refused", lambda *args, **kwargs: "off")
+    cookie = sign_in(home.port, home.postbox)
+    near = {"topics": ["religion"], "skip": [], "done": []}
+    ask = {"language": "he", "topics": ["religion"], "skip": [], "near": near}
+    status, got, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    assert status == 200 and got["pick"] is None
+    assert got["message"] == "No new text is 90% known for you yet."
+    assert got["nearest"]["id"] == "avot-1", "the nearest on the topic, not the nearer news"
+    assert got["nearest"]["reason"]["share"] == 78
+    status, pressed, _ = call(
+        home.port, "POST", "/find", {"language": "he", "harder": True, **near}, cookie=cookie
+    )
+    assert pressed["pick"]["id"] == "avot-1" and pressed["more"] == 1
