@@ -726,6 +726,12 @@ OAUTH_METADATA = frozenset(
 #: four that can drift apart.
 OAUTH_POSTS = frozenset({"/oauth/register", "/oauth/token", "/oauth/revoke", "/oauth/authorize"})
 
+#: What a search for the Talmud is told (`search.asks_for_talmud`).
+_TALMUD_ABSENT = (
+    "The Talmud is not on targum: its only free Hebrew is ShareAlike, which a build cannot "
+    "carry onto what it makes. The Mishnah is here, all sixty-three tractates."
+)
+
 # The public shelves, and every text on them. Built, tested, and deliberately shut:
 # nothing is open to strangers until there is something worth arriving at and a
 # whitelist deciding who may come in.
@@ -8460,6 +8466,7 @@ class Handler(BaseHTTPRequestHandler):
                 entry.named.get(ui, ""),
                 entry.author,
                 entry.blurb,
+                entry.also_called,
             )
             if score:
                 library.append((score, entry))
@@ -8645,6 +8652,13 @@ class Handler(BaseHTTPRequestHandler):
                 ],
                 "groups": groups,
                 "elsewhere": elsewhere,
+                # Said whatever else was found: a search for the Talmud is told plainly
+                # that it is not here, and why (beta review AS-08, AS-20).
+                "absent": (
+                    self._say("search.talmud-absent", _TALMUD_ABSENT)
+                    if search_module.asks_for_talmud(line)
+                    else ""
+                ),
             }
         )
 

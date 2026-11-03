@@ -166,6 +166,25 @@ ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: A line that asks for the Talmud: its name, or a daf ("Bava Kamma 2a", "ברכות ב.",
+#: "דף ב"). The shelf carries no Gemara (its only free Hebrew is ShareAlike), and a search
+#: that answered "Nothing matches" left a Talmud student guessing why (beta review AS-08
+#: and AS-20, 2026-11-03).
+_TALMUD = re.compile(
+    r"\b(talmud|gemara|gemoro|bavli|yerushalmi|daf)\b"
+    r"|^[a-z' -]+ \d{1,3}[ab]$"
+    r"|(^|\s)(תלמוד|גמרא|גמ׳|בבלי|ירושלמי|דף)(\s|$)"
+    r"|^[א-ת\"״ ]+ [א-ת]{1,3}[.:]$"
+    r"|талмуд|гемар",
+    re.IGNORECASE,
+)
+
+
+def asks_for_talmud(line: str) -> bool:
+    """Whether a search line is looking for the Talmud, which the shelf does not carry."""
+    return bool(_TALMUD.search((line or "").strip()))
+
+
 def _alias_key(text: str) -> str:
     folded = fold(text)
     if _LATIN.search(folded):

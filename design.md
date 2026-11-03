@@ -508,6 +508,24 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
 
+### The classical shelf is found by its names, and its headings are labels — 2026-11-03
+
+The second half of the advanced-study review (AS-08, AS-10, AS-20, AS-23).
+
+- **A search knows what a classical shelf is called.** Each row on the Tanakh, Aramaic,
+  Mishnah and Halakhah shelves is also searched under its shelf's names
+  (`catalogue.SHELF_NAMES`): "Rambam", "Maimonides", "Mishneh Torah", משנה תורה and רמב״ם
+  find the thirteen sections. The same goes for the connector's `find_text`.
+- **A search for the Talmud is told it is not here.** The Talmud's name, or a daf ("Bava
+  Kamma 2a", "ברכות ב."), gets one quiet line above whatever else was found: the Talmud is
+  not carried because its only free Hebrew is ShareAlike, and the Mishnah is
+  (`search.asks_for_talmud`).
+- **A tractate's contents page says "Tractate".** A Mishneh Torah section says "Mishneh
+  Torah", an Aramaic translation says so, and nothing classical is called a "Book".
+- **A classical text's headings are labels.** In a `sefaria:` text, "משנה ברכות א׳", "רות
+  א׳" and "ראשון" are not tapped or counted as words. "משנה" at the top of every chapter
+  had opened a card saying "verb · to change".
+
 ### The classical shelf names its sources and stands each work under its own name — 2026-11-03
 
 The beta review's advanced-study pass (AS-01 to AS-06, approved by David on 2026-11-03)
