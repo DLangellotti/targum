@@ -478,7 +478,7 @@ def test_home_is_honest_when_there_is_nothing() -> None:
     assert "Nothing here yet. What you open or upload appears here." in home
     assert 'href="/add"' in home, "the upload"
     failed = home[home.index('id="nothing"') :]
-    assert "We couldn" in failed and "load your texts" in failed
+    assert "We couldn" in failed and "load your targums" in failed
 
 
 def test_an_empty_shelf_still_draws_the_page() -> None:

@@ -10,6 +10,13 @@
   :is(.site-nav a, .upload, .account > button, .avatar, .see-all, .fold, .go-quiet, .more, .langs button, .tab, .list-tabs [role="tab"], .list-head button, .list-close, .list-foot button, .player-rate-now, .player-video, .film-play, .film-rate, .film-loop, .film-transcript, .film-view, .film-panel-close, .film-rate-pick, .more-back, .more-on, .film-part-go, .player-first, .gloss-card .inferred, .gloss-card .card-facts .root-open, .gloss-card .card-all)::after { content: ""; position: absolute; inset-inline: 0px; inset-block-start: 50%; block-size: 44px; transform: translateY(-50%); }
   :is(.chip, .clear, .draw, .segment, .find, .go, .list-controls input[type="search"], .field input, .pick select) { min-block-size: 44px; }
 }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; inline-size: auto; min-block-size: 2.5rem; margin: 0px; padding: 0px 1.125rem; border: 0px; border-radius: 999px; background: var(--teal-wash); color: var(--teal); font-style: inherit; font-variant: inherit; font-stretch: inherit; font-optical-sizing: inherit; font-size-adjust: inherit; font-kerning: inherit; font-feature-settings: inherit; font-variation-settings: inherit; font-language-override: inherit; font-family: var(--chrome); font-size: 0.9375rem; font-weight: 600; line-height: 1.2; text-align: center; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: 0.5; cursor: default; }
+.btn.small { min-block-size: 2rem; padding-inline: 0.875rem; font-size: 0.875rem; }
+@media (hover: none) and (pointer: coarse) {
+  .btn, .btn.small, .seg > *, .sheet-grab { min-block-size: 44px; }
+}
 main { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 0px auto; padding: 3rem 1.25rem 6rem; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--gap); margin-block-end: 0.35rem; padding: 0.35rem 0.6rem; border-radius: 5px; outline: none; transition: background-color 200ms; scroll-margin-block-start: var(--ceiling, 4rem); }
 .pair:target { background: var(--paper-raised); }

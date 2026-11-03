@@ -2090,6 +2090,21 @@ window.targumReaderRest = function (R) {
     return String(text || "").normalize ? String(text || "").normalize("NFC") : String(text || "");
   }
 
+  // What each binyan usually does, said beside its name on the card, as a mishkal's
+  // meaning is (beta review ACC-29, 2026-11-03). A tendency, so "often".
+  function binyanMeaning(binyan) {
+    var said = {
+      "פעל": t("reader.card.binyan.paal", "the basic pattern"),
+      "נפעל": t("reader.card.binyan.nifal", "often passive, or it happens by itself"),
+      "פיעל": t("reader.card.binyan.piel", "often doing it actively or with force"),
+      "פועל": t("reader.card.binyan.pual", "pi'el's passive"),
+      "הפעיל": t("reader.card.binyan.hifil", "often making it happen"),
+      "הופעל": t("reader.card.binyan.hufal", "hif'il's passive"),
+      "התפעל": t("reader.card.binyan.hitpael", "often to yourself, or to each other"),
+    };
+    return Object.prototype.hasOwnProperty.call(said, binyan) ? said[binyan] : "";
+  }
+
   /* --- a noun's root and mishkal, a Russian word's root (design.md §12, 2026-11-02) --- */
   var drawnRoot = R.drawnRoot, rootLink = R.rootLink, tn = R.tn, uiLanguage = R.uiLanguage;
   function piece(tag, name, text, lang) {
@@ -2152,6 +2167,37 @@ window.targumReaderRest = function (R) {
     }
   }
 
+  /* What the account's answer changes on the page (beta review, 2026-11-03). Signed out
+     (RDR-01): public shelves let a stranger open a reader, and every word they marked
+     stayed in this browser with nothing to say so; one quiet line under the bar says how
+     to keep them, with the waitlist beside it while the front door takes an address.
+     Signed in (RDR-02): Tell us, at the end of the ⋯ menu, since the reader has no
+     account menu. Here rather than in `reader.js`, which a tap waits for. */
+  function accountSaid() {
+    var sync = window.TargumSync;
+    if (!sync) return;
+    var tell = document.getElementById("more-tell-us");
+    if (tell) tell.hidden = !(R.passKey || sync.who);
+    var line = document.getElementById("signed-out");
+    if (!line || !sync.signedOut) return;
+    line.textContent = "";
+    var keep = document.createElement("a");
+    keep.href = R.signInHere();
+    keep.textContent = t("reader.signed-out.keep", "Sign in to keep the words you mark");
+    line.appendChild(keep);
+    if (sync.join) {
+      line.appendChild(document.createTextNode(" \u00b7 " + t("reader.signed-out.new-here", "New here?") + " "));
+      var join = document.createElement("a");
+      join.href = sync.join;
+      join.textContent = t("reader.signed-out.join", "Join the waitlist");
+      line.appendChild(join);
+    }
+    line.hidden = false;
+  }
+  if (/^https?:$/.test(location.protocol) && window.TargumSync && window.TargumSync.settled) {
+    window.TargumSync.settled().then(accountSaid, function () {});
+  }
+
   // What `reader.js` passes on to (`passOn`).
   return {
     advancePractice: advancePractice,
@@ -2161,6 +2207,7 @@ window.targumReaderRest = function (R) {
     exportAnki: exportAnki,
     exportCsv: exportCsv,
     hideChip: hideChip,
+    binyanMeaning: binyanMeaning,
     lexiconRows: lexiconRows,
     mishkalMeaning: mishkalMeaning,
     rootValue: rootValue,

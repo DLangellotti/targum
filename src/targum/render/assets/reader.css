@@ -163,7 +163,9 @@ a.bar-brand:hover { color: var(--teal); }
    Never displayed: `display: none` would take it out of the accessibility tree with it. */
 /* The first-time line, under the bar and above the text. Quiet: secondary by §9, one
    sentence, no motion. */
-.first {
+/* And the signed-out line, in the same place and voice (beta review RDR-01, 2026-11-03),
+   its press in ink. */
+.first, .signed-out {
   max-width: calc(var(--measure) * 2 + var(--gap));
   margin: 0 auto;
   padding: 0.5rem 1.25rem 0;
@@ -172,19 +174,7 @@ a.bar-brand:hover { color: var(--teal); }
   color: var(--ink-soft);
   text-align: center;
 }
-.first[hidden] { display: none; }
-/* Signed out (beta review RDR-01, 2026-11-03): the first-time line's place and voice,
-   with its press in ink. */
-.signed-out {
-  max-width: calc(var(--measure) * 2 + var(--gap));
-  margin: 0 auto;
-  padding: 0.5rem 1.25rem 0;
-  font-family: var(--chrome);
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-  text-align: center;
-}
-.signed-out[hidden] { display: none; }
+.first[hidden], .signed-out[hidden] { display: none; }
 .signed-out a { color: var(--ink); text-decoration: underline; text-underline-offset: 0.15em; }
 
 .spoken {

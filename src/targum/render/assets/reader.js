@@ -319,27 +319,6 @@ var targumReader = function () {
     "הופעל": "הֻפְעַל",
     "התפעל": "הִתְפַּעֵל",
   };
-  // What each binyan usually does, said beside its name on the card (2026-11-03).
-  function binyanMeaning(binyan) {
-    switch (binyan) {
-      case "פעל":
-        return t("reader.card.binyan.paal", "the basic pattern");
-      case "נפעל":
-        return t("reader.card.binyan.nifal", "often passive, or it happens by itself");
-      case "פיעל":
-        return t("reader.card.binyan.piel", "often doing it actively or with force");
-      case "פועל":
-        return t("reader.card.binyan.pual", "pi'el's passive");
-      case "הפעיל":
-        return t("reader.card.binyan.hifil", "often making it happen");
-      case "הופעל":
-        return t("reader.card.binyan.hufal", "hif'il's passive");
-      case "התפעל":
-        return t("reader.card.binyan.hitpael", "often to yourself, or to each other");
-      default:
-        return "";
-    }
-  }
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
@@ -6222,14 +6201,10 @@ var targumReader = function () {
         // Signed out, the way to a meaning is to sign in (beta review RDR-01, 2026-11-03):
         // a disabled "nothing saved" read like a broken feature.
         if (!canAsk() && served && window.TargumSync && window.TargumSync.signedOut) {
-          var signIn = document.createElement("a");
+          var signIn = card.appendChild(document.createElement("a"));
           signIn.className = "look-up";
           signIn.href = signInHere();
           signIn.textContent = t("reader.card.sign-in-to-look-up", "Sign in to look this up");
-          signIn.addEventListener("click", function (event) {
-            event.stopPropagation();
-          });
-          card.appendChild(signIn);
         } else {
           var ask = document.createElement("button");
           ask.type = "button";
@@ -6485,18 +6460,15 @@ var targumReader = function () {
         // What the binyan usually does, as the mishkal's row says what a noun's pattern
         // usually means (beta review ACC-29, 2026-11-03): a bare Hebrew name told a
         // learner nothing. A tendency, so "often", never a rule.
-        var binyanSaid = binyanMeaning(binyan);
+        var binyanRow = document.createElement("span");
+        binyanRow.appendChild(pattern);
+        var binyanSaid = passOn("binyanMeaning", [binyan]);
         if (binyanSaid) {
-          var binyanRow = document.createElement("span");
-          binyanRow.appendChild(pattern);
-          var binyanSense = document.createElement("span");
+          var binyanSense = binyanRow.appendChild(document.createElement("span"));
           binyanSense.className = "card-root-sense";
           binyanSense.textContent = " \u00b7 " + binyanSaid;
-          binyanRow.appendChild(binyanSense);
-          facts.add(t("reader.card.binyan", "Binyan"), binyanRow);
-        } else {
-          facts.add(t("reader.card.binyan", "Binyan"), pattern);
         }
+        facts.add(t("reader.card.binyan", "Binyan"), binyanRow);
       }
       // All its forms, under the list: the table this page carries where it carries one
       // (targum-internal#300, about six verbs in ten), and Pealim for the rest, and for
@@ -9842,44 +9814,13 @@ var targumReader = function () {
       if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
-    if (window.TargumSync.settled) {
-      window.TargumSync.settled().then(notePart, notePart);
-      window.TargumSync.settled().then(accountSaid, function () {});
-    }
+    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
   }
 
-  /* What the account's answer changes on the page (beta review, 2026-11-03).
-
-     Signed out (RDR-01): public shelves let a stranger open a reader, and every word they
-     marked stayed in this browser with nothing to say so. One quiet line under the bar,
-     the press in it: Sign in to keep them, and the waitlist beside it while the front
-     door takes an address.
-
-     Signed in (RDR-02): Tell us, at the end of the ⋯ menu. The reader has no account menu,
-     so on the page the beta reads most it was reached only after a fault. */
+  // The way in from this page, for the card's "Sign in to look this up" and the
+  // signed-out line `reader-rest.js` draws (beta review RDR-01, 2026-11-03).
   function signInHere() {
     return keyed("/account/signin?next=" + encodeURIComponent(location.pathname));
-  }
-  function accountSaid() {
-    var sync = window.TargumSync;
-    if (!sync) return;
-    var tell = document.getElementById("more-tell-us");
-    if (tell) tell.hidden = !(passKey || sync.who);
-    var line = document.getElementById("signed-out");
-    if (!line || !sync.signedOut) return;
-    line.textContent = "";
-    var keep = document.createElement("a");
-    keep.href = signInHere();
-    keep.textContent = t("reader.signed-out.keep", "Sign in to keep the words you mark");
-    line.appendChild(keep);
-    if (sync.join) {
-      line.appendChild(document.createTextNode(" \u00b7 " + t("reader.signed-out.new-here", "New here?") + " "));
-      var join = document.createElement("a");
-      join.href = sync.join;
-      join.textContent = t("reader.signed-out.join", "Join the waitlist");
-      line.appendChild(join);
-    }
-    line.hidden = false;
   }
 
   /* --- what a test can reach ------------------------------------------------ */
@@ -10196,6 +10137,8 @@ var targumReader = function () {
   }
 
   var R = {
+    passKey: passKey,
+    signInHere: signInHere,
     CASE_LENS: CASE_LENS,
     IGNORED: IGNORED,
     KNOWN: KNOWN,

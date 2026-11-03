@@ -5728,7 +5728,10 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 #: went after the faces (2026-10-24), with a margin. A face (about 30 kB each) or the
 #: rest back in front of a tap breaks it; this page's Rashi is too small to, and it has
 #: no verb with a table, so the order tests guard the commentaries and the tables.
-A_WORD_WAITS_GZ = 117_000
+#: 116.8 kB on 2026-11-03 before the beta review's reader changes (the signed-out line,
+#: Tell us in the ⋯ menu, "Sign in to look this up" and the binyan's gloss), which added
+#: about 0.35 kB with the rest of them moved to `reader-rest.js`.
+A_WORD_WAITS_GZ = 117_500
 
 
 def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
