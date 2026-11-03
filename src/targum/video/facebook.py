@@ -159,7 +159,9 @@ def describe(url: str) -> dict[str, Any]:
         # The proxy's one miss on 2026-09-30 was not a refusal but a `null`: yt-dlp
         # finished and had nothing to say. The next route is asked, as it would be for a
         # refusal; where a refusal moved the ask along first, a route may be asked twice.
-    raise TargumError("Facebook wouldn't show us that video.", OTHER_DOOR)
+    raise TargumError(
+        "Facebook wouldn't show us that video.", OTHER_DOOR, key="video.facebook-refused"
+    )
 
 
 def fetch(url: str, into: Path) -> Path:

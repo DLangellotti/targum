@@ -385,8 +385,16 @@
     }
   }
 
+  /* The interface language, which a date and a number are said in: an Israeli phone set
+     to Hebrew showed Hebrew dates inside the Russian interface (beta review, 2026-11-03,
+     R7). The page's strings say it on a desk page, and the page's own `lang` in a reader. */
+  function uiLocale() {
+    var said = window.TargumStrings;
+    return (said && said.language) || document.documentElement.getAttribute("lang") || "en";
+  }
+
   function words(row) {
-    return tn("palette.words", row.words, "{n} word", "{n} words", { n: Number(row.words).toLocaleString() });
+    return tn("palette.words", row.words, "{n} word", "{n} words", { n: Number(row.words).toLocaleString(uiLocale()) });
   }
 
   // A row's facts, each isolated in its own direction: a Hebrew author between two
