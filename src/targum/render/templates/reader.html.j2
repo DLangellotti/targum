@@ -2,7 +2,9 @@
 {#- The page is English chrome around a text (2026-09-14): its bar, cards, keys and every
     announcement are English, and a root that said lang="he" had a screen reader read
     them all in a Hebrew voice. The direction still follows the text, every source cell
-    carries its own `lang`, and the text's language rides on `data-language`. -#}
+    carries its own `lang`, and the text's language rides on `data-language`. Since
+    2026-11-03 the chrome, and so `lang`, is the reader's interface language, put in as
+    the page is served (`chromed`; design.md §12). -#}
 <html lang="{{ page_language|default('en') }}" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
@@ -1125,7 +1127,7 @@
     {% if companions %}
     <div class="beside">
       {%- for c in companions %}
-      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="en" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
+      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="{{ page_language|default('en') }}" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
       {%- endfor %}
     </div>
     {% endif %}
@@ -1456,6 +1458,9 @@
   <iframe class="talk-frame" id="talk-frame" title="{{ t("reader.page.talk-to-targum", "Talk to targum") }}" allow="microphone"></iframe>
 </aside>
 <script type="application/json" id="targum-data">{{ data }}</script>
+{#- The reader's own sentences for its scripts, in the language of whoever opened it
+    (`chromed`; design.md §12, "A reader's chrome is the reader's language", 2026-11-03). -#}
+<script type="application/json" id="targum-strings">{{ strings_block }}</script>
 {#- `charts.js`, the ledger's arithmetic, left the reader on 2026-10-19: the finished box
     stopped reading it when it became three figures of this section (#429), and every
     reader still carried its 25 kB, on every page of every book (reader QA). -#}
@@ -1492,7 +1497,7 @@
 {% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
 {#- The chrome's face, upright only, for the reader's own menus (design.md §12,
     2026-10-09, "The reader's menus are the board's"). -#}
-{{ chrome_face(false) }}
+{{ chrome_face(false) }}{{ chrome_cyrillic }}
 {#- The rest of the reader (targum-internal#503): the lenses, export and the Anki deck,
     shnayim mikra, the bar's panels, full screen, the keyboard and keeping a phrase. All
     of `reader.js` stood in front of a word's first tap; what the tap needs stayed there

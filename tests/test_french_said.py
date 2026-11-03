@@ -424,6 +424,10 @@ def test_on_the_switch_adds_its_pieces_and_nothing_else(
     assert [3, 4, french_said.TIE, "z"] in marks["0000.000-aaaaaa"]
     assert [1, 2, french_said.ELIDED] in marks["0001.000-aaaaaa"]
 
+    # The comment after `</html>` carries offsets, which a piece more moves (`chromed`).
+    from targum.render.chromed import without_comment
+
+    on, off = without_comment(on), without_comment(off)
     stripped = DATA.sub(lambda m: m.group(1) + m.group(3), on)
     for piece in (
         r"<style>(?:(?!</style>).)*said-tie(?:(?!</style>).)*</style>",

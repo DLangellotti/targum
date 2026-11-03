@@ -6307,16 +6307,25 @@ def test_the_word_order_lens_is_one_lens_among_the_others() -> None:
     assert 'body[data-lens="order"] .w.late-subject' in style
 
 
+def _strings_block(html: str) -> dict[str, Any]:
+    """The reader's words for its scripts, as `reader.js` reads them (2026-11-03)."""
+    found = re.search(r'id="targum-strings"[^>]*>(.*?)</script>', html, re.S)
+    assert found is not None
+    return dict(json.loads(found.group(1).replace("<\\/", "</")))
+
+
 def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An English reader's page is what it was; a reader read in Russian carries the
-    catalogue's `reader.` words and its language, and nothing else of the catalogue
-    (targum-internal#184)."""
+    """An English reader's page carries no words of the catalogue; a reader read in
+    Russian carries the catalogue's `reader.` words and its language, and nothing else
+    of the catalogue (targum-internal#184). In a block of their own since 2026-11-03,
+    where the server can put another interface's in (`chromed`)."""
     from targum import strings
 
-    english = _payload(_genesis(tmp_path / "en", [_english()]))
-    assert "strings" not in english and "stringsLanguage" not in english
+    english = _genesis(tmp_path / "en", [_english()])
+    assert _strings_block(english) == {}
+    assert "strings" not in _payload(english)
 
     real = strings.catalogue
 
@@ -6327,9 +6336,134 @@ def test_a_reader_carries_its_own_words_only_in_a_language_other_than_english(
 
     monkeypatch.setattr(strings, "catalogue", catalogue)
     russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
-    shipped = _payload(_genesis(tmp_path / "ru", [russian]))
+    shipped = _strings_block(_genesis(tmp_path / "ru", [russian]))
     assert shipped["strings"] == {"reader.finish.done": "Готово"}
     assert shipped["stringsLanguage"] == "ru"
+
+
+def test_a_readers_chrome_is_the_readers_language_not_its_translations(
+    tmp_path: Path,
+) -> None:
+    """Beta review 2026-11-03, R1: a library text whose only translation is English
+    opened entirely in English for a Russian-interface reader — the bar, the word card's
+    labels, `<html lang>` — and the Russian catalogue's reader lines never reached it.
+
+    The page is still written in its first translation's language, so it opens as it
+    did from a disk; the server puts the reader's own words in where the page's comment
+    says they go (`chromed_in`). The meanings stay the text's."""
+    from targum.render.builder import carried_named, carried_sheet
+    from targum.render.chromed import OPEN, TRAILER, chromed_in
+    from targum.strings import catalogue
+
+    written = _genesis(tmp_path, [_english()])
+    assert OPEN not in written and "\ue000" not in written
+    assert written.count(TRAILER) == 1 and written.rstrip().endswith("-->")
+    body = written[: written.index(TRAILER)]
+    assert '<html lang="en"' in body
+
+    # English to an English reader: the page exactly as written.
+    assert chromed_in(written, "en", carried_named) == written
+
+    russian = chromed_in(written, "ru", carried_named)
+    assert TRAILER not in russian
+    assert '<html lang="ru"' in russian
+    said = catalogue("ru")
+    # The bar's own words, said by the template, in Russian.
+    assert said["reader.page.translation"] in russian
+    # The scripts' words, in Russian, for `reader.js`'s `t`.
+    block = _strings_block(russian)
+    assert block["stringsLanguage"] == "ru"
+    assert block["strings"]["reader.card.found-nothing"] == said["reader.card.found-nothing"]
+    # And the Cyrillic cut of the chrome's face, which the page as written does not carry.
+    assert carried_sheet("face-chrome-upright-cyrillic.css") in russian
+    assert carried_sheet("face-chrome-upright-cyrillic.css") not in body
+    # The meanings and the lines are the text's, in English, untouched.
+    assert "English 1" in russian
+    assert _payload(russian)["translations"] == _payload(body)["translations"]
+
+
+def test_a_reader_written_in_russian_is_served_in_english_to_an_english_reader(
+    tmp_path: Path,
+) -> None:
+    """The rule runs both ways: a text whose first translation is Russian has English
+    chrome for a reader whose interface is English."""
+    from targum.render.builder import carried_named
+    from targum.render.chromed import TRAILER, chromed_in
+
+    russian = _rendering("Russian", "ru", {s.id: f"Русский {s.index}" for s in GENESIS})
+    written = _genesis(tmp_path, [russian])
+    assert '<html lang="ru"' in written
+    english = chromed_in(written, "en", carried_named)
+    assert TRAILER not in english and '<html lang="en"' in english
+    assert _strings_block(english) == {}
+    assert "Русский 1" in english
+
+
+def test_a_russian_card_over_english_meanings_says_so() -> None:
+    """The meanings are the text's: a card in Russian over a text with only English
+    meanings shows the English and says so under it, quietly (2026-11-03)."""
+    script = _reader_script()
+    assert 'uiLanguage !== "en" && (targetLanguage || "en").split("-")[0] === "en"' in script
+    assert (
+        't("reader.card.meanings-in-english", "This text\'s meanings are in English for now.")'
+        in script
+    )
+    assert "card-elsewhere" in script
+    # And `reader.js` takes its words from the block the server fills, before the
+    # page's own `data` (`chromed`).
+    assert 'document.getElementById("targum-strings")' in script
+
+
+def test_a_page_without_the_comment_is_served_as_written() -> None:
+    """A reader drawn before 2026-11-03, or a comment that does not fit its page, is
+    served exactly as it is rather than spliced wrong."""
+    from targum.render.chromed import TRAILER, chromed_in
+
+    old = '<html lang="en"><body>Done</body></html>'
+    assert chromed_in(old, "ru", repr) == old
+    lying = old + TRAILER + '{"base":"en","spans":[[9999,4,{"ru":"x"}]]}-->'
+    assert chromed_in(lying, "ru", repr) == old
+    broken = old + TRAILER + "{not json-->"
+    assert chromed_in(broken, "ru", repr) == old
+
+
+def test_sealing_takes_every_mark_out_even_one_something_escaped() -> None:
+    """A piece a filter escaped (`tojson`) or cut cannot be put back in place: its marks
+    come out and the page keeps its own words there, and every other piece still lands
+    where it belongs."""
+    from markupsafe import Markup
+
+    from targum.render.chromed import OPEN, TRAILER, Chrome, chromed_in, seal
+
+    chrome = Chrome("en", ["en", "ru"])
+    done = chrome.varied({"en": Markup("Done"), "ru": Markup("Готово")})
+    same = chrome.varied({"en": Markup("targum"), "ru": Markup("targum")})
+    assert same == "targum" and OPEN not in same
+    cut = chrome.varied({"en": Markup("Close"), "ru": Markup("Закрыть")})
+    escaped = json.dumps(str(done))
+    html = f"<p>{str(cut)[:3]}</p><script>{escaped}</script><b>{done}</b>"
+    sealed = seal(html, chrome)
+    body = sealed[: sealed.index(TRAILER)]
+    assert OPEN not in sealed and "\\ue000" not in sealed
+    assert '<script>"Done"</script><b>Done</b>' in body
+    assert chromed_in(sealed, "ru", repr).endswith('<script>"Done"</script><b>Готово</b>')
+
+
+def test_a_piece_handed_to_t_as_a_blank_fills_each_language_with_its_own() -> None:
+    """`Play {what}` with the sound's name said per language: «Слушать чтение», not
+    «Слушать the reading»."""
+    from markupsafe import Markup
+
+    from targum.render.builder import page_words
+    from targum.render.chromed import TRAILER, Chrome, chromed_in, seal
+
+    chrome = Chrome("en", ["en", "ru"])
+    what = chrome.varied({"en": Markup("the reading"), "ru": Markup("чтение")})
+    t = chrome.words(page_words)
+    sealed = seal(f"<b>{t('reader.page.play-what', 'Play {what}', what=what)}</b>", chrome)
+    assert sealed.startswith("<b>Play the reading</b>" + TRAILER)
+    russian = chromed_in(sealed, "ru", repr)
+    assert "чтение" in russian and "the reading" not in russian
 
 
 def test_a_desk_page_and_its_bar_are_said_in_the_language_asked(
