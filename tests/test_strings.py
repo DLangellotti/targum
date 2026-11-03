@@ -816,3 +816,28 @@ def test_how_much_you_know_is_an_exact_percentage_in_russian_too() -> None:
             if key.startswith("progress.reading."):
                 continue
             assert not re.search(r"in 10\b|in ten or more|из 10\b|из десяти", said), key
+
+
+def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
+    """David, 2026-11-03 (design.md §12): «кредит» reads as a bank loan in Russian, so a
+    cost is said in minutes («Займёт 12 минут») and the month's balance in points
+    («Осталось 12 баллов»), each in the form its number takes."""
+    from targum.strings import catalogue, counted
+
+    ru = catalogue("ru")
+    loan = [key for key, said in ru.items() if re.search(r"[Кк]редит(?!н)", said)]
+    assert not loan, f"still says «кредит»: {loan[:5]}"
+
+    def say(key: str, n: int) -> str:
+        return counted(key, n, "ru", {"one": "", "other": ""}).format(n=n)
+
+    cost = [say("press.page.uses-credits", n) for n in (1, 2, 5, 21, 12)]
+    assert cost == [
+        "Займёт 1 минуту",
+        "Займёт 2 минуты",
+        "Займёт 5 минут",
+        "Займёт 21 минуту",
+        "Займёт 12 минут",
+    ]
+    left = [say("account.credits.left-short", n) for n in (1, 3, 11)]
+    assert left == ["Остался 1 балл", "Осталось 3 балла", "Осталось 11 баллов"]

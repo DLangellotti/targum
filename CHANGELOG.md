@@ -6,6 +6,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Spending presses say what they spend (beta review 2026-11-03; design.md §12, "A
+  spending press says what it spends"). The connector's confirm page counts credits as
+  the rail charges (`builder.credits_of`), so an 80-second clip reads "Uses 2 credits"
+  where it read 1 and was charged 2 (ACC-13). A recording refused with credits still left
+  says "It needs {need} credits and you have {left} left. They reset on {date}." in place
+  of "You've used this month's credits", on one press and on a set (ACC-14, new string
+  `job.out-of.credits-short`). The chat's build card presses "Confirm" where it said "Open
+  this" (ACC-17, `bring.read-this` is now `bring.confirm`). The daily mail's per-item
+  Unsubscribe page says it ends a channel, podcast or topic subscription and the mail about
+  it, under "Your subscriptions", rather than promising only to stop the emails under
+  "Series you follow" (MSG-01, new `subs.stop.*-one` strings). "Draw cover", a paid image
+  job with no confirm, is offered to the operator only and `/cover` refuses readers
+  (LIB-L04).
+- Russian no longer says «кредит», which reads as a loan (David, 2026-11-03; design.md
+  §12). A cost is said in minutes («Займёт 12 минут») and the balance in points
+  («Осталось 12 баллов»), every count in its plural form. 169 lines changed in `ru.json`;
+  all are drafts.
 - Home's empty card offers the nearest text on any topic when the topic chosen has
   nothing under the floor, and says so: "Read one at 82% known (any topic)" (David,
   2026-11-03; design.md §12, "Show me something harder"). Sport, Music, History and most
