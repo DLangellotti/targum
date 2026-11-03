@@ -19,6 +19,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "Series you follow" (MSG-01, new `subs.stop.*-one` strings). "Draw cover", a paid image
   job with no confirm, is offered to the operator only and `/cover` refuses readers
   (LIB-L04).
+- A modern reader is no longer offered Esther, Kings or Brenner as "at your level" (beta
+  review 2026-11-03, F-01/F-02; design.md §12, "An older Hebrew waits until it is asked
+  for"). The estimate rates older registers on the modern frequency list, so a B1 reader
+  was put at 90–94% of biblical narrative. An older register now ranks after everything
+  else on Home's card, Something else, More that fit you and Show me something harder,
+  and is left out of Your Progress's "Texts at your level now", until the reader opens it
+  ("Torah and Judaism" on arrival, or a text of theirs in it).
+- Upload's "You know N% of the words here" counts only the words the reader marked known
+  (S-03, F-07): it counted the commonest words as known for everybody, so a reader who had
+  marked nothing was told 34%. With nothing marked it says nothing.
+- A pasted link to a text or video the Library has built is opened, not priced (F-03): the
+  Khan video Home had suggested was quoted "Uses 14 credits". Upload now says "{title} is
+  in the Library, ready to open. It uses none of your credits." with Open, and "Translate
+  it anyway" still prices a copy of one's own. New string `add.instead.shelved`; the
+  Russian is a draft.
+- From gimel up, the arrival's first text is a real one, not a scene (F-04): "Everyday
+  conversation" opened "In the elevator" for a reader who reads the news with help.
 - Russian no longer says «кредит», which reads as a loan (David, 2026-11-03; design.md
   §12). A cost is said in minutes («Займёт 12 минут») and the balance in points
   («Осталось 12 баллов»), every count in its plural form. 169 lines changed in `ru.json`;

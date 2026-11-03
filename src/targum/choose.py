@@ -25,12 +25,21 @@ design.md §12, "What to read next teaches words that come back"). A medium's ba
 own (`BANDS`): text read with targum's glosses and video keep the 90% floor, audio with no
 text on screen needs 95%. Inside the band the order is fit, then learning value
 (`learning.py`), then interest, then freshness: `key` says how.
+
+**An older Hebrew waits until it is asked for** (design.md §12, "An older Hebrew waits
+until it is asked for", 2026-11-03). The estimate reads every word's difficulty off the
+modern frequency list, so it rates Esther, Kings and Brenner about as readable as a modern
+story for a reader who knows modern Hebrew (a B1 reader after the words check: Esther
+0.91, Genesis 0.90, on the box's index). The words are mostly common; what makes them
+hard is the register — the forms, the syntax, the senses — and the model has no feature
+for it. So a text in an older register (`OLDER`) is `held` for a reader who has not opened
+that register (`opened`), and `key` ranks it after everything else rather than in the band.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,6 +83,30 @@ FIT_STEP = 0.01
 #: Learning values this close count as equal, so interest decides between them: a
 #: quarter of a word worth learning per hundred running words.
 LEARN_STEP = 0.25
+
+
+#: The Hebrew registers the estimate cannot judge for a modern reader (`catalogue.
+#: Register`): everything but today's Hebrew.
+OLDER = frozenset({"biblical", "rabbinic", "medieval", "revival"})
+
+#: The registers the arrival's "Torah and Judaism" opens, as the Religion chip takes them
+#: (`finds.chips`).
+JUDAISM = frozenset({"biblical", "rabbinic", "medieval"})
+
+
+def opened(interests: Iterable[str] = (), read: Iterable[str] = ()) -> frozenset[str]:
+    """The older registers a reader has asked for: "Torah and Judaism" on arrival opens
+    the Tanakh, rabbinic and medieval Hebrew; a text of their own, or one they opened,
+    opens its own register; a register asked for by name (`read`) opens itself."""
+    out = set(JUDAISM) if "judaism" in set(interests) else set()
+    out.update(register for register in read if register in OLDER)
+    return frozenset(out)
+
+
+def held(register: str, registers: frozenset[str]) -> bool:
+    """Whether a text in this register waits for this reader: an older register they
+    have not opened (`opened`)."""
+    return register in OLDER and register not in registers
 
 
 def band(medium: str = TEXT) -> Band:
@@ -153,6 +186,7 @@ def key(
     learn: float = 0.0,
     interest: int = 0,
     fresh: int = 0,
+    waits: bool = False,
 ) -> tuple[Any, ...]:
     """The sort key every chooser uses, lowest first.
 
@@ -173,8 +207,14 @@ def key(
     ties inside a tier. `interest` is how far the text is on the reader's topics, or
     continues what they have read (a small whole number, more is nearer), and `fresh` a
     find's `freshness`.
+
+    5. `waits`: a text in an older register the reader has not opened (`held`), after
+       everything else whatever its share, gentlest first, so a reader is never offered
+       Esther as at their level and is still offered something where nothing else is.
     """
     tilt = -1 if liked else 0
+    if waits:
+        return (5, 0, gentle, 0, 0)
     where = fit(share, medium)
     if share is not None and where == BAND:
         return (

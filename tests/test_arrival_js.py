@@ -688,3 +688,28 @@ def test_the_slow_line_never_outlives_the_answer() -> None:
     quick = draw([], {}, shared=seeded(), reportAfter=3300)
     assert quick["arrival"], "a new reader is asked"
     assert "still loading" not in quick["waiting"]
+
+
+def test_a_reader_past_the_scenes_is_not_opened_on_one() -> None:
+    """Beta review, 2026-11-03 (F-04): "I read the news with help" and a strong words
+    check, then Continue opened "In the elevator" ("Good morning. Which floor?"), because
+    Everyday conversation is answered by the scenes and they were the only rows it had.
+    From gimel up a real text comes first; a beginner still opens a scene."""
+    shelf = [
+        reader(
+            "scene-10-in-the-lift",
+            "במעלית",
+            "scene-10-in-the-lift",
+            kind="dialogue",
+            level={"rung": "", "name": "aleph", "cefr": ""},
+            spoken=True,
+        ),
+        leveled("news", "חדשות", "gimel", tags=["journalism"]),
+    ]
+    stamps = {"targum:arrived": "everyday,news"}
+    b1 = draw([], {**stamps, "targum:declared": "gimel"}, shared=shelf)
+    assert b1["first"] == "חדשות"
+    starting = draw([], {**stamps, "targum:declared": "aleph"}, shared=shelf)
+    assert starting["first"] == "במעלית"
+    only_scenes = draw([], {**stamps, "targum:declared": "gimel"}, shared=shelf[:1])
+    assert only_scenes["first"] == "במעלית", "a scene where nothing real is here"

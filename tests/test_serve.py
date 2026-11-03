@@ -4334,3 +4334,77 @@ def test_head_answers_like_get_without_a_body(served: tuple[int, str, Path]) -> 
         head, head_length, nothing = ask("HEAD", path)
         assert head == got != 501, path
         assert head_length == length and nothing == b"", path
+
+
+def test_upload_says_only_what_the_reader_marked_known() -> None:
+    """Beta review, 2026-11-03 (S-03, F-07): Upload told a reader who had marked nothing
+    "You know 34% of the words here", because the commonest words were counted as known
+    for everybody. Known means marked (design.md §12, 2026-10-11): with nothing marked
+    nothing is said, and with one word marked the share is that word's."""
+    from types import SimpleNamespace
+
+    from targum import serve as serve_module
+    from targum.serve import Job
+
+    text = " ".join(["של", "את", "הוא", "גם", "זה", "ספר"] * 10)
+    document = SimpleNamespace(language="he", blocks=[SimpleNamespace(text=text)])
+    job = Job(id="j", source="x", owner=1)
+
+    class Store:
+        def __init__(self, forms: set[str]) -> None:
+            self.forms = forms
+
+        def known_forms(self, person_id: int, language: str) -> set[str]:
+            return set(self.forms)
+
+    nothing = SimpleNamespace(store=Store(set()))
+    assert serve_module.Library._known_share(nothing, job, document) is None  # type: ignore[arg-type]
+    one = SimpleNamespace(store=Store({"ספר"}))
+    share = serve_module.Library._known_share(one, job, document)  # type: ignore[arg-type]
+    assert share == pytest.approx(1 / 6), "של, את, הוא, גם and זה are not known for being common"
+
+
+def test_a_pasted_link_to_a_text_the_library_has_built_opens_it_free(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beta review, 2026-11-03 (F-03): the Khan video Home had just offered was quoted
+    "Uses 14 credits" when its YouTube link was pasted on Upload. A link to a text or
+    video built on the shared shelf answers with the Library's row, marked `shelved`,
+    and nothing is priced; one the shelf has not built is priced as before."""
+    from targum import catalogue as catalogue_module
+
+    port, token, out = served
+    video = catalogue_module._entry(
+        {
+            "id": "ka-absolute-value-inequalities",
+            "title": "משוואות אי-שוויון עם ערכים מוחלטים",
+            "language": "he",
+            "source": "video:zIFJ-zRtKKE",
+            "kind": "talk",
+            "register": "modern",
+            "words": 1500,
+        }
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: [video])
+    folder = out / "shared" / "ka-absolute-value-inequalities-he"
+    (folder / "reader").mkdir(parents=True)
+    (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
+    (folder / "document.json").write_text(
+        json.dumps({"source": "video:zIFJ-zRtKKE", "title": video.title, "language": "he"}),
+        encoding="utf-8",
+    )
+    cookie = sign_in(port, postbox)
+    for pasted in (
+        "https://www.youtube.com/watch?v=zIFJ-zRtKKE",
+        "https://youtu.be/zIFJ-zRtKKE",
+    ):
+        status, answer, _ = call(
+            port,
+            "POST",
+            f"/prepare?k={token}",
+            {"source": pasted, "to": "en", "from": "he"},
+            cookie=cookie,
+        )
+        assert status == 200, (pasted, answer)
+        assert answer["catalogue"]["id"] == video.id and answer["catalogue"]["shelved"] is True
+        assert "id" not in answer, "no job: nothing was priced"
