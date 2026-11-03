@@ -418,8 +418,35 @@ def test_recordings_spend_the_hours_and_then_are_refused(tmp_path: Path) -> None
     assert library.claim(recording(library, 1, 3 * HOUR, "b")) == ""
     refused = library.claim(recording(library, 1, 2 * HOUR, "c"))
     assert refused, "eleven hours does not fit in ten"
-    # Said in credits since 2026-09-23, and with no figure since 2026-10-09 (design.md §12).
-    assert "this month's credits" in refused
+    # An hour is still left, so it says what the press needs against what is left
+    # rather than "you've used this month's credits" (ACC-14, design.md §12, 2026-11-03).
+    assert "It needs 120 credits and you have 60 left" in refused
+    assert "used this month's credits" not in refused
+
+
+def test_a_refusal_with_credits_left_never_says_they_are_used(tmp_path: Path) -> None:
+    """ACC-14 (2026-11-03): the rail refuses whenever this recording would pass the
+    allowance, so a reader with 12 credits left who pressed a 45-credit video was told
+    "You've used this month's credits", straight after the card said "12 left". Where
+    any is left it says both numbers and the date; at none it says they are used."""
+    library = with_hours(tmp_path, hours=1)
+    assert library.claim(recording(library, 1, 48 * 60, "a")) == ""
+    refused = library.claim(recording(library, 1, 45 * 60, "b"))
+    assert refused.startswith("It needs 45 credits and you have 12 left. They reset on ")
+    assert refused.act == "top-up" and "Uploading text uses none" in refused.fact
+
+    assert library.claim(recording(library, 1, 12 * 60, "c")) == ""
+    spent = library.claim(recording(library, 1, 30, "d"))
+    assert spent.startswith("You've used this month's credits"), spent
+
+    # A set is held to the same sentence: the room it reports is what is left.
+    from_set = with_hours(tmp_path / "set", hours=1)
+    assert from_set.claim(recording(from_set, 2, 50 * 60, "e")) == ""
+    said, _, rail = from_set.claim_set(
+        [recording(from_set, 2, 6 * 60, "f"), recording(from_set, 2, 7 * 60, "g")]
+    )
+    assert rail == "hours"
+    assert said.startswith("It needs 13 credits and you have 10 left."), said
 
 
 def test_the_hours_are_counted_per_reader(tmp_path: Path) -> None:

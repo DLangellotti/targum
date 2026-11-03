@@ -3633,6 +3633,7 @@ def press_page(
             page_language=_page_language(language),
             job=job,
             credits=credits or {},
+            cost=credits_of(float(job.get("seconds") or 0)) if job.get("audio") else 0,
             clock=_clock(int(left or 0), language),
             # `press.js` narrates the build and says how much longer, so it says
             # sentences — and said them in English on a Russian page until this was

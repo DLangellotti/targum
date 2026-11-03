@@ -2342,12 +2342,44 @@ class Library:
             "plan",
         )
 
-    def _out_of(self, whose: str, ui: str = "en") -> str:
+    def _out_of(
+        self,
+        whose: str,
+        ui: str = "en",
+        *,
+        need: float | None = None,
+        left: float | None = None,
+    ) -> str:
         """Which ceiling stopped this, and when it lifts, in the language `ui` names.
 
         A refusal that does not say which limit was hit, or when it stops applying, is
         indistinguishable from the product being broken.
+
+        `need` and `left` are seconds, for the month's ceiling: what the press needed and
+        what the month had left. The rail refuses whenever this recording would pass the
+        allowance, so a reader with 12 credits left who pressed a 45-credit video was
+        told they had used this month's credits, straight after the card said "12 left"
+        (ACC-14, 2026-11-03). Where any is left it says both numbers instead.
         """
+        if whose == "hours" and need is not None and left is not None:
+            credits_left = max(0, int(left // SECONDS_A_CREDIT))
+            if credits_left > 0:
+                return Refusal(
+                    said_in(
+                        ui,
+                        "job.out-of.credits-short",
+                        "It needs {need} credits and you have {left} left. They reset on {date}.",
+                        need=max(credits_left + 1, credits_of(need)),
+                        left=credits_left,
+                        date=self._month_ends(ui),
+                    ),
+                    said_in(
+                        ui,
+                        "job.out-of.credits.fact",
+                        "Uploading text uses none, and the library still opens",
+                    ),
+                    "top-up",
+                )
         if whose == "hours":
             # The one refusal a reader was warned about on the pricing page, so it says
             # the same number that page did rather than translating into money — and it
@@ -4397,6 +4429,12 @@ class Library:
                 return ""
             if refused == "hours" and self._held_to_free(job):
                 return self._plan_refusal(job)
+            if refused == "hours" and job.owner is not None:
+                allowed = self.allowance() or 0.0
+                used = self.store.hours_used(job.owner, self._month_from())
+                return self._out_of(
+                    refused, job.ui, need=job.seconds, left=max(0.0, allowed - used)
+                )
             return self._out_of(refused, job.ui)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
@@ -4436,6 +4474,9 @@ class Library:
             if refused == "hours" and not admin and plans.on():
                 need = sum(job.seconds for job in jobs)
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
+            if refused == "hours":
+                need = sum(job.seconds for job in jobs if job.audio)
+                return self._out_of(refused, ui, need=need, left=room), room, refused
             return (self._out_of(refused, ui) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
@@ -7621,10 +7662,9 @@ class Handler(BaseHTTPRequestHandler):
             # the row rather than off the request (targum-internal#289).
             said = store.following_language(token)
             name = self._stop_named(token, said)
+            words = self._stop_words(token)
             page = weekly_note(
-                text("series.stop.ask-named", said, name=name)
-                if name
-                else text("series.stop.ask", said),
+                text(words["ask-named"], said, name=name) if name else text(words["ask"], said),
                 address=self.address,
                 done=False,
                 pending={
@@ -7632,11 +7672,11 @@ class Handler(BaseHTTPRequestHandler):
                     "token": token,
                     "button": text("series.stop.button", said),
                 },
-                heading=text("series.stop.heading", said),
+                heading=text(words["heading"], said),
                 home="/library",
                 language=said,
                 title=f"{name} — targum" if name else "targum",
-                description=text("series.stop.description", said),
+                description=text(words["description"], said),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         # A mail client's one-click POST (RFC 8058) carries only `List-Unsubscribe=
@@ -7646,19 +7686,43 @@ class Handler(BaseHTTPRequestHandler):
         # matches no row answers English, and this is the last moment one certainly does.
         said = store.following_language(token)
         name = self._stop_named(token, said)
+        words = self._stop_words(token)
         store.stop_following(token)
         page = weekly_note(
-            text("series.stop.done-named", said, name=name)
-            if name
-            else text("series.stop.done", said),
+            text(words["done-named"], said, name=name) if name else text(words["done"], said),
             address=self.address,
-            heading=text("series.stop.heading", said),
+            heading=text(words["heading"], said),
             home="/library",
             language=said,
             title=f"{name} — targum" if name else "targum",
-            description=text("series.stop.description", said),
+            description=text(words["description"], said),
         )
         return self._send(200, page.encode("utf-8"), HTML)
+
+    def _stop_words(self, token: str) -> dict[str, str]:
+        """Which words a stop link's page says: `series.stop` for a series or the weekly,
+        `subs.stop` for anything else. The press turns the subscription off, so a channel,
+        podcast or topic stops getting ready as well as being mailed about; the page said
+        only "Stop emails about {name}?" under "Series you follow", and called a channel a
+        series (MSG-01, design.md §12, 2026-11-03)."""
+        row = self.store.subscription_by_stop(token) if self.store is not None else None
+        if row is not None and row["kind"] != "series":
+            return {
+                "ask": "subs.stop.ask-one-unnamed",
+                "ask-named": "subs.stop.ask-one",
+                "done": "subs.stop.done-one-unnamed",
+                "done-named": "subs.stop.done-one",
+                "heading": "subs.stop.heading",
+                "description": "subs.stop.description-one",
+            }
+        return {
+            "ask": "series.stop.ask",
+            "ask-named": "series.stop.ask-named",
+            "done": "series.stop.done",
+            "done-named": "series.stop.done-named",
+            "heading": "series.stop.heading",
+            "description": "series.stop.description",
+        }
 
     def _stop_named(self, token: str, language: str) -> str:
         """What a stop link stops, named in `language`: a series by the catalogue's name,
@@ -8082,8 +8146,10 @@ class Handler(BaseHTTPRequestHandler):
                 # word `/chat/list` gives, decided the same way (`Library.talks`).
                 "talk": self.library.talks(home, person.id if person else None),
                 # Whether this deployment can draw a cover at all. A page with no
-                # image key offers nothing rather than offering and failing.
-                "covers": self.library.can_draw(),
+                # image key offers nothing rather than offering and failing. And only
+                # to the operator: one press runs a paid image job with no cost said
+                # and no confirm, so it is an operator's tool (LIB-L04, 2026-11-03).
+                "covers": self.library.can_draw() and self._may_draw(),
                 # Every catalogue text measured against this reader's words, built or
                 # not (targum-internal#293). Keyed by entry id; a built copy's own
                 # measurement above wins, because that is the text they actually have.
@@ -15676,6 +15742,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(job.state(), 402)
         self._json(job.state())
 
+    def _may_draw(self) -> bool:
+        """Whether this request may draw covers: the operator, or nobody signed in on a
+        machine somebody runs themselves, where whoever is at the keyboard is the
+        operator (`Library.home`). A reader is never offered it: it runs a paid image
+        job, up to one a chapter, with no cost and no confirm (LIB-L04, 2026-11-03)."""
+        person = self._person()
+        if person is None:
+            return not self.library.hosted
+        return bool(person.admin)
+
     def _cover(self, payload: dict[str, Any]) -> None:
         """Draw the covers for one text, from the key this deployment runs with.
 
@@ -15686,6 +15762,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import covers as covers_module
 
+        if not self._may_draw():
+            return self._json({"error": "not found"}, 404)
         home = self._home()
         folder = self.library.within(home, str(payload.get("name") or ""))
         if folder is None:

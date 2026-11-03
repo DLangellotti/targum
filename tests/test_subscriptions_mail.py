@@ -243,6 +243,32 @@ def test_one_click_on_a_single_subscription_reads_its_token_from_the_address(
     assert store.subscription(me, int(sub["id"]))["state"] == "off"  # type: ignore[index]
 
 
+def test_one_stop_link_says_it_ends_the_subscription_and_never_calls_a_channel_a_series(
+    box: tuple[int, Path],
+) -> None:
+    """MSG-01 (2026-11-03): the per-item Unsubscribe turns the subscription off, so a
+    channel stops getting ready as well as being mailed about. Its page promised only
+    "Stop emails about {name}?" under "Series you follow". For anything but a series it
+    says what the press does now, under "Your subscriptions"; a series keeps its words."""
+    port, store_path = box
+    store = Store(store_path)
+    me = reader(store, "honest@example.com")
+    kan = store.add_subscription(me, "channel", "UCkan", name="כאן ארכיון")
+    status, page = get(port, f"/series/stop?t={kan['stop']}")
+    assert status == 200
+    assert "Stop כאן ארכיון, and the mail about it?" in page
+    assert "Your subscriptions" in page
+    assert "Series you follow" not in page and "Stop emails about" not in page
+    status, page = post(port, f"/series/stop?t={kan['stop']}", b"")
+    assert status == 200
+    assert "You're unsubscribed from כאן ארכיון" in page.replace("&#39;", "'")
+    assert store.subscription(me, int(kan["id"]))["state"] == "off"  # type: ignore[index]
+
+    tehillim = store.add_subscription(me, "series", "tehillim")
+    status, page = get(port, f"/series/stop?t={tehillim['stop']}")
+    assert "Series you follow" in page and "Stop emails about" in page
+
+
 # --- the timer ------------------------------------------------------------------------
 
 

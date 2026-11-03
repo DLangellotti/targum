@@ -588,7 +588,7 @@ def test_check_job_says_it_in_the_language_the_card_is_drawn_in(world) -> None:
     assert said(one) == "Первая глава. Готово: 3 из 21 предложения."
     assert said(Job(id="j-ru-done", source="x", owner=person.id, stage="done")) == ("Можно читать.")
     failed = said(Job(id="j-ru-failed", source="x", owner=person.id, stage="failed"))
-    assert failed == "Не удалось подготовить текст. Попробуйте позже. Кредиты не списаны."
+    assert failed == "Не удалось подготовить текст. Попробуйте позже. Баллы не списаны."
     for count, form in ((1, "текст."), (3, "текста."), (5, "текстов."), (11, "текстов.")):
         assert tools._counted(
             "ru", "job.said.behind", count, "{n} other text.", "{n} other texts."
