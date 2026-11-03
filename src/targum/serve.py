@@ -15486,23 +15486,39 @@ class Handler(BaseHTTPRequestHandler):
                 or []
             )
             mine, _ = chat_tools._shelf(ctx)
-            found = button.ranked(
-                self.store,
-                near_ask,
-                chat_tools._marked(ctx, code, {}),
-                estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
-                rung=rung,
-                built={
-                    link_key(str(row.get("source") or ""))
-                    for row in mine
-                    if str(row.get("source") or "").startswith(("http://", "https://"))
-                },
-                credits_left=chat_tools._credits_left(ctx),
-                known=known,
-                harder=True,
-                started=chat_tools.started_parts(ctx, mine, done),
-            )
-            return button.nearest([*button.harder(shelf, near_ask, known), *found])
+            built = {
+                link_key(str(row.get("source") or ""))
+                for row in mine
+                if str(row.get("source") or "").startswith(("http://", "https://"))
+            }
+
+            started = chat_tools.started_parts(ctx, mine, done)
+
+            def nearest_for(asked: button.Ask) -> list[dict[str, Any]]:
+                found = button.ranked(
+                    self.store,
+                    asked,
+                    chat_tools._marked(ctx, code, {}),
+                    estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
+                    rung=rung,
+                    built=built,
+                    credits_left=chat_tools._credits_left(ctx),
+                    known=known,
+                    harder=True,
+                    started=started,
+                )
+                return button.nearest([*button.harder(shelf, asked, known), *found])
+
+            rows = nearest_for(near_ask)
+            if rows or not steer:
+                return rows
+            # Nothing under the floor on the topic chosen (no shown topic, no registers,
+            # nothing pooled for it): the nearest text on any topic, and the press says so,
+            # "Read one at 82% known (any topic)" (David, 2026-11-03; design.md §12).
+            rows = nearest_for(button.Ask(code, (), tuple(liked), passed_over))
+            for row in rows:
+                row["any_topic"] = True
+            return rows
 
         def nothing_fits(body: dict[str, Any]) -> dict[str, Any]:
             """The card's empty answer (David, 2026-11-02; design.md §12): where things
@@ -15521,7 +15537,7 @@ class Handler(BaseHTTPRequestHandler):
                 first = rows[0]
                 body["nearest"] = {
                     key: first[key]
-                    for key in ("id", "kind", "video", "find", "reason", "percent")
+                    for key in ("id", "kind", "video", "find", "reason", "percent", "any_topic")
                     if key in first
                 }
             return body
@@ -17581,6 +17597,8 @@ class Handler(BaseHTTPRequestHandler):
         wanted = unquote(relative)
         for root in roots:
             target = (root / wanted).resolve()
+            if root == roots[0] and _shelf_supersedes(root, roots[1], wanted):
+                continue
             if target.is_file() and root in target.parents:
                 # A Torah book is read as its portions (targum-internal#446): any page of
                 # its reader forwards to the same verse there.
@@ -17643,6 +17661,32 @@ class Handler(BaseHTTPRequestHandler):
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
         return self._not_found()
+
+
+def _shelf_supersedes(home: Path, shared: Path, wanted: str) -> bool:
+    """Whether the shelf's build of a text stands in for the person's own copy of it.
+
+    The person's own folder wins where a name is in both, because it may be theirs alone:
+    their edits, their languages. But a copy of the very same document that was built
+    without its words (before the annotator ran on the box, or on a night it was killed)
+    has nothing of theirs the shelf's lacks, and it hides the words the shelf's has: no
+    word could be tapped or marked, and no chapter said how much of it was known
+    (`הלכות-יסודי-התורה-he`, built on 2026-09-03 and shadowing the shared build ever
+    since; found 2026-11-03). So where both carry the same document by its hash, and only
+    the shelf's has an annotation, the shelf's is the one served.
+    """
+    name = wanted.split("/", 1)[0]
+    if not name or name.startswith("."):
+        return False
+    own, theirs = home / name, shared / name
+    if (own / "annotation.json").is_file() or not (theirs / "annotation.json").is_file():
+        return False
+    mine = _read_contents(own / "reader" / CONTENTS)
+    shelf = _read_contents(theirs / "reader" / CONTENTS)
+    if not mine or not shelf:
+        return False
+    document = mine.get("document")
+    return bool(document) and document == shelf.get("document")
 
 
 def _first_part_of(roots: tuple[Path, ...], wanted: str) -> tuple[str, int] | None:

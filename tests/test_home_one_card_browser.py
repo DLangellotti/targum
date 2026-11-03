@@ -381,7 +381,7 @@ def empty(picks: list[dict[str, Any]], body: dict[str, Any], said: bool = True) 
     if near:
         out["nearest"] = {
             key: near[0][key]
-            for key in ("id", "kind", "video", "find", "reason", "percent")
+            for key in ("id", "kind", "video", "find", "reason", "percent", "any_topic")
             if key in near[0]
         }
     return out
@@ -491,6 +491,35 @@ def test_the_press_says_watch_or_listen_and_is_gone_with_nothing_under_the_floor
     assert pick["presses"][0] == "Listen" and figure(none["presses"][1]) == figure(pick["known"])
     none, _ = seen["nothing"]
     assert none["says"] == NONE and none["presses"] == ["Topic"], none
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_with_nothing_on_the_topic_the_press_says_any_topic(browser, width: int) -> None:
+    """David, 2026-11-03 (design.md §12): where the topic chosen has nothing under the
+    floor, the press offers the nearest text on any topic and says so; the pick opens as
+    any pick does."""
+    anywhere = {**HARD_PICK, "reason": {"key": "suggest.known", "share": 82},
+                "any_topic": True}  # fmt: skip
+
+    def find(body: dict[str, Any]) -> Any:
+        if not body.get("harder"):
+            return empty([anywhere], body)
+        left = under([anywhere], body)
+        return {"pick": left[0], "harder": True, "more": len(left) - 1}
+
+    context, page, thrown, _, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.click("#try-next .rc-else")
+    page.wait_for_selector("#try-next .rc-harder")
+    none = page.evaluate(CARD)
+    shot(page, "harder-any-topic", width)
+    page.click("#try-next .rc-harder")
+    page.wait_for_selector("#try-next .rc-known")
+    pick = page.evaluate(CARD)
+    context.close()
+    assert not thrown, thrown
+    assert none["presses"] == ["Topic", "Read one at 82% known (any topic)"], none
+    assert pick["known"] == "82% known" and pick["presses"][0] == "Read", pick
 
 
 SOURCED_FIND = {

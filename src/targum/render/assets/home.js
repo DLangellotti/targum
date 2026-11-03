@@ -1544,12 +1544,21 @@
     var near = nearest ? percentOf(nearest) : 0;
     if (near) {
       var how = verbOf(nearest);
+      // Nothing under the floor on the topic chosen: the nearest on any topic, and the
+      // press says so (David, 2026-11-03; design.md §12).
+      var any = nearest.any_topic === true;
       var label =
         how === "watch"
-          ? t("home.card.harder.watch", "Watch one at {n}% known", { n: near })
+          ? any
+            ? t("home.card.harder.watch-any", "Watch one at {n}% known (any topic)", { n: near })
+            : t("home.card.harder.watch", "Watch one at {n}% known", { n: near })
           : how === "listen"
-            ? t("home.card.harder.listen", "Listen to one at {n}% known", { n: near })
-            : t("home.card.harder.read", "Read one at {n}% known", { n: near });
+            ? any
+              ? t("home.card.harder.listen-any", "Listen to one at {n}% known (any topic)", { n: near })
+              : t("home.card.harder.listen", "Listen to one at {n}% known", { n: near })
+            : any
+              ? t("home.card.harder.read-any", "Read one at {n}% known (any topic)", { n: near })
+              : t("home.card.harder.read", "Read one at {n}% known", { n: near });
       var up = el("button", "btn ghost rc-harder", label);
       up.type = "button";
       up.addEventListener("click", function () {

@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Home's empty card offers the nearest text on any topic when the topic chosen has
+  nothing under the floor, and says so: "Read one at 82% known (any topic)" (David,
+  2026-11-03; design.md §12, "Show me something harder"). Sport, Music, History and most
+  other chips have no shown lexicon topic and no registers, so with one chosen the card
+  had no press unless a web look had pooled a find for it. New strings
+  `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed
@@ -49,6 +55,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `provision.sh` installs `yt-dlp-ejs` beside yt-dlp, whose absence made every box run
   warn "n challenge solving failed". New strings `video.egress-down` and
   `building.failed-title`; the Russian are drafts.
+- A person's own copy of a shelf text that was built without its words no longer hides
+  the shelf's build (2026-11-03). David's Mishneh Torah, Foundations of the Torah showed
+  no word marks, could not be tapped, and its chapters said nothing of how much was known:
+  his own folder of that name, built on 2026-09-03 with no annotation, won the lookup over
+  the shared build with all of it. Where both carry the same document by hash and only
+  the shelf's has an annotation, the shelf's is served; a copy with its words, or an
+  edited one, still wins as before.
 - A chapter of a Sefaria text is titled "פרק א׳" ("Chapter 1" in English, «Глава 1» in
   Russian) under the work's name, instead of the work's whole name and a numeral on every
   part (David, 2026-11-03; design.md §12, "A chapter says "פרק א׳", and the work is named
