@@ -12,6 +12,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   for this one" («На это не хватает баллов»), with what is still free under it, rather
   than "We can't make this one" (ACC-18). Telegram's build button says "Confirm"
   («Подтвердить») where it said "Open this". The Russian are drafts.
+- A reader's chrome is the reader's interface language, not its text's first translation
+  (David, 2026-11-03; design.md §12, "A reader's chrome is the reader's language"; beta
+  review R1). A Russian-interface reader opened most of the library, whose only lines are
+  English, with English menus, card labels, notices and `<html lang>`. A reader is still
+  written once, in its first translation's language; the places that differ in another
+  interface language are recorded in a comment after `</html>` (`render/chromed.py`), and
+  the server puts the reader's words there as it sends the page, on the library, the
+  reader's own texts, the weekly, the portions and the daily pages. The meanings stay the
+  text's: a Russian card over English-only meanings says so under the meaning, «Значения
+  слов в этом тексте пока на английском.» (new string `reader.card.meanings-in-english`;
+  the Russian is a draft). Readers pick it up on the routine rebuild, which spends nothing;
+  a page written before it is served as it was.
 - The Russian interface says in Russian what it used to say in English (beta review,
   2026-11-03: MSG-04, FLG-02, LIB-R01/R02 and the Russian oleh's R2–R9; David approved).
   The front door and /connect no longer promise a Russian translation beside every line
@@ -53,6 +65,33 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   other chips have no shown lexicon topic and no registers, so with one chosen the card
   had no press unless a web look had pooled a find for it. New strings
   `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
+- The classical shelf names its sources (beta review AS-01 and AS-03, approved by David
+  2026-11-03; design.md §12). CC BY texts were shown with no credit: the Metsudah Rashi
+  beside every aliyah and the Metsudah siddur's own Hebrew. Every reader's foot now names
+  the text's edition and each published rendering it carries (English, Onkelos, Rashi,
+  Rashi in English), each with its licence and the deed linked; the Library page names
+  the edition above the translation and lists what is read beside the verse. A portion,
+  a haftarah and a daily page are credited from the book they were cut from. The portion
+  page names the Hebrew edition and Onkelos and Rashi. New strings `reader.credit.from`,
+  `text.page.source-he`, `text.page.source-arc`, `text.page.beside` and
+  `parasha.page.edition-and-beside`; the Russian are drafts.
+- A weekly portion is headed with its own range (AS-02). "Genesis 37:1-40:23; Numbers
+  7:1-17" on Vayeshev, and the same on Mishpatim, Ki Tisa, Tetzaveh, Kedoshim, Miketz,
+  Vayakhel, Vayakhel-Pekudei and Tazria-Metzora, was one year's special maftir that no
+  aliyah carries. The page and its title are right as soon as this deploys; the catalogue
+  rows and their blurbs are right once `targum parasha entries --write` runs.
+- Portion names are pointed as headings (AS-06): חַיֵּי שָׂרָה, פְּקוּדֵי, שְׁמִינִי,
+  תַּזְרִיעַ and נָשֹׂא replace Hebcal's in-verse forms.
+- An aliyah says "Aliyah 1 of 7", not "Chapter 1 of 7" (AS-05). New strings
+  `reader.listen.aliyah`, `reader.listen.aliyah-of` and `reader.foot.end-of-aliyah`; the
+  Russian are drafts.
+- The Library's "Tanakh" shelf holds the Tanakh (AS-04): the Mishnah and the Mishneh Torah
+  stand under their own names, the Aramaic targums under "Aramaic translations", and
+  Psalms, Isaiah and the other books filed as poetry come back to the Tanakh. Wherever a
+  text's kind is named (rows, cards, playlists, saved, search) a tractate no longer says
+  "Tanakh". New strings `library.kind.*`, `library.kind-one.*` and `home.kind.*` for
+  `tanakh`, `targum`, `mishnah` and `halakhah`, and `prose` now reads "Prose"; the Russian
+  are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed

@@ -384,6 +384,36 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A reader's chrome is the reader's language — 2026-11-03
+
+A reader's menus, its card's labels and its notices were said in the language of the
+text's first translation (targum-internal#184). Most of the library has only English
+lines, so a reader whose interface is Russian opened most of it entirely in English: the
+bar, the word card ("Root", "Binyan", "Dictionary"), the list, the player and `<html
+lang>`, with 860 Russian reader lines in the catalogue that never reached it (beta review,
+2026-11-03, R1). David approved the fix on 2026-11-03: the chrome follows the reader, the
+meanings follow the text.
+
+- **The chrome is the reader's interface language:** the one pressed for (`?lang=`), else
+  the account's, by the same rule as every desk page. Which translation the text carries
+  no longer decides it. A visitor who is not signed in and pressed nothing gets the page
+  as it was built, which for a portion, a day or an issue is the language its address
+  already chose (`-ru`).
+- **The meanings stay the text's.** A word means what the text's translation has it mean,
+  in that language. A Russian card over a text with only English meanings shows the
+  English meaning and says, quietly, under it: «Значения слов в этом тексте пока на
+  английском.» ("This text's meanings are in English for now."). Nothing is bought to
+  make it Russian.
+- **A reader is still written once, in its first translation's language,** so it opens
+  as it did from a disk, from a saved copy and from an older server. The places that
+  would read differently in another interface language are recorded in a comment after
+  `</html>`; the server puts the reader's words in those places as it sends the page
+  (`render/chromed.py`) and drops the comment. The Russian script lines and the Cyrillic
+  cut of the chrome's face are named in that comment rather than carried, so a page on
+  disk grows by about 4 kB. A page written in the reader's own language is sent exactly
+  as it is on disk. A saved copy keeps the chrome it was saved in.
+- **It reaches a reader on the routine rebuild,** which reads every text from the cache
+  and spends nothing. A page written before it has no comment and is served as before.
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
@@ -430,6 +460,38 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   with no cost said and no confirm, so a reader's Library row no longer offers it and
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
+
+### The classical shelf names its sources and stands each work under its own name — 2026-11-03
+
+The beta review's advanced-study pass (AS-01 to AS-06, approved by David on 2026-11-03)
+found the shelf a scholar would distrust: CC BY texts shown with no credit, a header
+that disagreed with the page under it, and a Tanakh row full of Mishnah.
+
+- **Every text names its edition and everything published beside it, with the licence
+  linked.** The reader's foot says which edition the text is ("Hebrew from Torat Emet 357,
+  via Sefaria · Public Domain") and whose each rendering is ("English from …", "Onkelos
+  from …", "Rashi from …", "Rashi · English from …"), from the catalogue's `credit`,
+  `licence` and each rendering's own. The Library page says the same under "Hebrew" (or
+  the text's language) above "Translation", and "Beside the verse" for Onkelos and Rashi,
+  linking the page each claim was read from. A Creative Commons licence links its deed;
+  Sefaria's unversioned "CC-BY" links the 3.0 deed, as Sefaria's own pages do. A reader
+  links only the deed, because it carries no address but the pinned few; the source page
+  is on the Library page. A portion, a haftarah and a daily page are credited from the
+  book they are cut from. The licence string is shown as the source wrote it.
+- **A weekly portion is headed with its own range.** Hebcal's line for one Shabbat carries
+  that Shabbat's special maftir ("Genesis 37:1-40:23; Numbers 7:1-17"), which no aliyah
+  includes; the page, the title, the catalogue row and its blurbs keep the portion's own
+  range. A festival's line is several readings that are all read, and keeps them.
+- **A portion's name is pointed as a heading.** Five names Hebcal gives in their in-verse
+  form are replaced from a hand-checked table (`calendar.POINTED_NAMES`): חַיֵּי שָׂרָה,
+  פְּקוּדֵי, שְׁמִינִי, תַּזְרִיעַ, נָשֹׂא. The other forty-nine stay Hebcal's.
+- **An aliyah is called an aliyah.** "Aliyah 1 of 7" and "End of aliyah 1 of 7" on a
+  portion, never "Chapter".
+- **The Library stands each classical work on its own shelf.** Tanakh (Psalms and Isaiah
+  with it, not under Poetry), Aramaic translations, Mishnah and Halakhah, each under its
+  own name, wherever a text's kind is named (`catalogue.shelf_of`). Every other text keeps
+  its kind, and `prose` is "Prose" for a reader's own text. `/library/k/he/prose` still
+  answers, with the Tanakh.
 
 ### A chapter says "פרק א׳", and the work is named once — 2026-11-03
 
@@ -8741,7 +8803,9 @@ the following the same day; they change or add rules, so they are recorded.
   the conversation and the public pages carry `<html lang>` of the language their words
   are in. A reader and its contents page do the same for their chrome: `<html lang>` is
   the language the chrome's words are in, which is the first rendering's where it has a
-  catalogue and English otherwise. The text keeps its own language on `data-language` and
+  catalogue and English otherwise. *Amended 2026-11-03:* the chrome is the reader's
+  interface language, not the first rendering's ("A reader's chrome is the reader's
+  language"). The text keeps its own language on `data-language` and
   on every source cell, as the entry below says.
 - **A visitor is spoken to in their browser's language.** Signed out, a public page
   takes the first `Accept-Language` that has a catalogue; signed in, the interface
@@ -8773,7 +8837,8 @@ These are the ones that change or add a rule, so they are recorded.
   the next line whole, wraps inside itself in its own direction, and carries
   `lang="he"` when it is Hebrew script. U+2068 … U+2069 is still the rule wherever the
   text really is plain: a mail subject, a tab title, a push.
-- **A reader page is English chrome around a text.** `<html lang="en">`, the direction
+- **A reader page is English chrome around a text.** (Since 2026-11-03 the chrome is the
+  reader's interface language: "A reader's chrome is the reader's language".) `<html lang="en">`, the direction
   still the text's, the text's language on `data-language`, and `lang` on every source
   cell as before. A speaker's name is 0.8125rem in the reading face and is heard by a
   screen reader.

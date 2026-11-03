@@ -2496,7 +2496,8 @@ def test_a_catalogue_text_is_described_by_the_catalogue(tmp_path: Path) -> None:
     row = Library(out).readers(out / "local")[0]
 
     assert row["entry"] == "psalms"
-    assert row["kind"] == "poetry" and row["register"] == "biblical"
+    # Its shelf, which for Psalms is the Tanakh (AS-04).
+    assert row["kind"] == "tanakh" and row["register"] == "biblical"
     assert row["difficulty"] == entry.difficulty
     assert row["minutes"] == entry.minutes, "the whole book, not the one line built here"
     assert row["english"] == "Psalms", "and the title a reader with no Hebrew can read"
