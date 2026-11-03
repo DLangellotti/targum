@@ -1312,7 +1312,7 @@
     cols.classList.toggle("split", halves.length === 2);
     halves.forEach(function (part) {
       var table = el("table", "mishkal");
-      table.setAttribute("aria-labelledby", "mishkal-title");
+      table.setAttribute("aria-labelledby", "grammar-tab-mishkal");
       table.setAttribute("aria-describedby", "mishkal-note mishkal-floor");
       // The square's width is the column's: the spoken-only headers take no room.
       var widths = el("colgroup");
@@ -1368,6 +1368,54 @@
     );
   }
 
+  // Under the headline: the gap's sentence, what the pattern does and two words of it the
+  // reader met (David, 2026-11-03: they stay with the headline they explain).
+  function saySaid(lead, code, sentence, does, examples) {
+    lead.appendChild(document.createTextNode(sentence + " " + does));
+    addExamples(lead, code, examples);
+  }
+
+  // Binyanim | Mishkalim: real tabs in the page's `.seg`. Changing tab shuts an open
+  // list of words, since one list is open at a time across the two.
+  function showTab(which, focus) {
+    var tabs = document.querySelectorAll("#grammar-tabs [role=tab]");
+    for (var n = 0; n < tabs.length; n++) {
+      var on = tabs[n].getAttribute("data-tab") === which;
+      tabs[n].setAttribute("aria-selected", on ? "true" : "false");
+      tabs[n].classList.toggle("on", on);
+      tabs[n].tabIndex = on ? 0 : -1;
+      if (on && focus) tabs[n].focus();
+    }
+    var grammarPanel = document.getElementById("gap-grammar");
+    var mishkalPanel = document.getElementById("gap-mishkal");
+    if (grammarPanel) grammarPanel.hidden = which !== "binyan";
+    if (mishkalPanel) mishkalPanel.hidden = which !== "mishkal";
+  }
+
+  (function wireTabs() {
+    var strip = document.getElementById("grammar-tabs");
+    if (!strip) return;
+    strip.addEventListener("click", function (event) {
+      var tab = event.target.closest("[role=tab]");
+      if (!tab || tab.getAttribute("aria-selected") === "true") return;
+      shutWords();
+      showTab(tab.getAttribute("data-tab"), false);
+    });
+    strip.addEventListener("keydown", function (event) {
+      var keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
+      if (!(event.key in keys)) return;
+      var tabs = Array.prototype.slice.call(strip.querySelectorAll("[role=tab]"));
+      var at = tabs.indexOf(document.activeElement);
+      var step = keys[event.key];
+      var rtl = getComputedStyle(strip).direction === "rtl";
+      var next =
+        step === "first" ? 0 : step === "last" ? tabs.length - 1 : (at + (rtl ? -step : step) + tabs.length) % tabs.length;
+      event.preventDefault();
+      shutWords();
+      showTab(tabs[next].getAttribute("data-tab"), true);
+    });
+  })();
+
   function drawGap(code) {
     var said = story[code];
     var grammar = (said && said.grammar) || null;
@@ -1377,7 +1425,6 @@
     var lead = document.getElementById("gap-said");
     var rows = document.getElementById("grammar-rows");
     var topics = document.getElementById("gap-topics");
-    var halves = document.getElementById("gap-halves");
     if (!box || !title) return;
     shutWords();
     rows.textContent = "";
@@ -1391,10 +1438,14 @@
     box.hidden = !grammar && !mishkal;
     document.getElementById("gap-grammar").hidden = !grammar;
     document.getElementById("gap-mishkal").hidden = !mishkal;
-    halves.classList.toggle("with-mishkal", !!grammar && !!mishkal);
     lead.hidden = !gap && !nouns;
     drawMishkal(code, mishkal);
     if (!grammar && !mishkal) return;
+    // One grid at a time, under "Grammar": the tab of the headline's gap open on every
+    // load, never a remembered one, and with one kind only, no tabs (David, 2026-11-03).
+    var both = !!grammar && !!mishkal;
+    document.getElementById("grammar-tabs").hidden = !both;
+    showTab(both ? (nouns ? "mishkal" : "binyan") : grammar ? "binyan" : "mishkal", false);
 
     if (gap) {
       var named = BINYANIM[gap.binyan];
@@ -1402,36 +1453,34 @@
       sentenceWith(title, t("progress.gap.title", "Your biggest gap: {pattern} verbs"), {
         "{pattern}": hebrew(named.he, "gap-pattern"),
       });
-      lead.appendChild(
-        document.createTextNode(
-          t(
-            "progress.gap.said",
-            "You know {n}% of the {pattern} forms you meet, against {m}% for the other common patterns.",
-            { n: gap.known, m: gap.others, pattern: named.name }
-          ) +
-            " " +
-            named.does
-        )
+      saySaid(
+        lead,
+        code,
+        t(
+          "progress.gap.said",
+          "You know {n}% of the {pattern} forms you meet, against {m}% for the other common patterns.",
+          { n: gap.known, m: gap.others, pattern: named.name }
+        ),
+        named.does,
+        gap.examples
       );
-      addExamples(lead, code, gap.examples);
     } else if (nouns) {
       var pattern = MISHKALIM[nouns.pattern];
       title.textContent = "";
       sentenceWith(title, t("progress.gap.title-mishkal", "Your biggest gap: {pattern} words"), {
         "{pattern}": hebrew(nouns.template, "gap-pattern"),
       });
-      lead.appendChild(
-        document.createTextNode(
-          t(
-            "progress.gap.said-mishkal",
-            "You know {n}% of the {pattern} words you meet, against {m}% for the other common patterns.",
-            { n: nouns.known, m: nouns.others, pattern: pattern.name }
-          ) +
-            " " +
-            pattern.does
-        )
+      saySaid(
+        lead,
+        code,
+        t(
+          "progress.gap.said-mishkal",
+          "You know {n}% of the {pattern} words you meet, against {m}% for the other common patterns.",
+          { n: nouns.known, m: nouns.others, pattern: pattern.name }
+        ),
+        pattern.does,
+        nouns.examples
       );
-      addExamples(lead, code, nouns.examples);
     }
 
     if (grammar) {

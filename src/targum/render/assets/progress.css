@@ -547,22 +547,29 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 /* What next's biggest grammar gap (design.md §12, "What next leads with your biggest
    grammar gap", 2026-10-30, board 4B): the sentence under the headline, the Grammar grid
    and, once topic tagging exists, Topics beside it; a hairline before the two lists. */
+/* After the two lists since 2026-11-03 (design.md §12, "What next is quick to take in"),
+   a hairline over it. */
 .progress .gap {
-  margin-block-end: 1.5rem;
-  padding-block-end: 1.5rem;
-  border-block-end: 1px solid var(--rule);
+  margin-block-start: 1.75rem;
+  padding-block-start: 1.5rem;
+  border-block-start: 1px solid var(--rule);
 }
 .progress .gap[hidden], .progress .gap-said[hidden], .progress .gap-topics[hidden],
 .progress .grammar-words[hidden], .progress .gap-grammar[hidden],
 .progress .gap-mishkal[hidden] { display: none; }
 .progress .gap-pattern { font-family: var(--reading-hebrew); }
-.progress .gap-said { margin: -0.5rem 0 1.25rem; max-inline-size: 64ch; color: var(--ink); line-height: 1.5; }
+.progress .gap-said { margin: -0.5rem 0 1.5rem; max-inline-size: 64ch; color: var(--ink); line-height: 1.5; }
 .progress .gap-said bdi[lang="he"] { font-family: var(--reading-hebrew); font-size: 1.0625rem; }
-.progress .gap-halves { display: grid; grid-template-columns: minmax(0, 36rem); gap: 1.5rem 3rem; align-items: start; }
-/* With the Mishkal list the block takes the column's whole width, and the grid keeps its
-   own 36rem (design.md §12, "The Mishkal list beside the Grammar grid", 2026-11-02). */
-.progress .gap-halves.with-mishkal { grid-template-columns: minmax(0, 1fr); }
-.progress .gap-halves.with-mishkal .gap-grammar { max-inline-size: 36rem; }
+/* "Grammar" and its tabs on one line; the grid keeps its own 36rem and the Mishkal list
+   the column's whole width (design.md §12, 2026-11-02). */
+.progress .gap-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-block-end: 0.75rem; }
+.progress .gap-head .gap-sub { margin: 0; }
+.progress .gap-tabs > button { min-inline-size: 6rem; }
+@media (min-width: 64rem) and (pointer: fine) {
+  .progress .gap-tabs > button { min-block-size: 2.5rem; }
+}
+.progress .gap-grammar { max-inline-size: 36rem; }
+.progress .gap-grammar[hidden], .progress .gap-mishkal[hidden] { display: none; }
 /* Topics, once it exists, is a row of its own under the two. */
 .progress .gap-topics { margin-block-start: 1.5rem; }
 .progress .gap-sub { margin: 0 0 0.5rem; font-family: var(--chrome); font-size: 1.0625rem; font-weight: 600; color: var(--ink); }
