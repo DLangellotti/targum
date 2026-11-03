@@ -5641,7 +5641,7 @@ def finds_podcasts(
 ) -> None:
     """One night's round of podcast finds (targum-internal#621): new episodes of the
     reviewed Hebrew shows, scored on their transcript or on two minutes from the middle
-    transcribed by whisper (at most 10 a day, 300 a month), screened and pooled. Does
+    transcribed by whisper (at most 30 a day, 600 a month), screened and pooled. Does
     nothing unless TARGUM_FINDS_PODCASTS is set: the box's timer runs it every night."""
     from .accounts import Store
     from .finds import podcasts

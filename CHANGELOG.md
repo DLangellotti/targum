@@ -681,6 +681,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- Podcast finds sample up to 30 episodes a night and 600 a month, up from 10 and 300
+  (David, 2026-11-03; design.md §12). At about 1.2¢ a two-minute whisper sample that is
+  at most 36¢ a night and $7.20 a month, still inside `TARGUM_FINDS_BUDGET_USD` with the
+  other sources. A transcript is still read first, for nothing.
 - Attribution-only free use joins the library too (David, 2026-11-02; design.md §12).
   "free use, attribution required", as `sources.json` records it for the Government of
   Israel and the Knesset, now clears `promote.clears` as CC BY does: a credit owed,

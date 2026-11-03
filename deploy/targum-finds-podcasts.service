@@ -5,7 +5,7 @@
 # (src/targum/finds/podcasts.json), each feed read direct after its robots.txt says yes.
 # An episode with an SRT or VTT transcript is scored on it for nothing; any other has two
 # minutes from its middle fetched by byte range and transcribed by whisper
-# (OPENAI_API_KEY, about 1.2 cents, at most 10 a day and 300 a month, counted inside
+# (OPENAI_API_KEY, about 1.2 cents, at most 30 a day and 600 a month, counted inside
 # TARGUM_FINDS_BUDGET_USD). The sound and the words are deleted once scored: the pool in
 # targum.db keeps the lemma counts and the words a minute. Each episode is written as it
 # is done, so a killed run keeps what it found.

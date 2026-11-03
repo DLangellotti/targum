@@ -523,7 +523,7 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # And the nightly YouTube finds (targum-internal#620): off until TARGUM_FINDS_YOUTUBE=1
   # is in targum.env, and then inside its own caps and the discovery budget.
   # And the nightly podcast finds (targum-internal#621): off until
-  # TARGUM_FINDS_PODCASTS=1, and then at most 10 whisper samples a day inside the budget.
+  # TARGUM_FINDS_PODCASTS=1, and then at most 30 whisper samples a day inside the budget.
   for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer targum-tables.service targum-tables.timer targum-finds-youtube.service targum-finds-youtube.timer targum-finds-podcasts.service targum-finds-podcasts.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done

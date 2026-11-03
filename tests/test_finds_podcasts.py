@@ -576,3 +576,12 @@ def test_a_transcript_in_another_language_gives_way_to_a_sample(store: Store) ->
     found = night(store, ears, read=lambda url: english)
     assert found.transcripts == 0
     assert ears.asked == ["https://audio.example/show/ep-transcript.mp3", SAMPLED]
+
+
+def test_the_caps_are_thirty_a_night_and_six_hundred_a_month() -> None:
+    """David, 2026-11-03: "30 a night, 600 a month", inside the discovery budget."""
+    assert podcasts.DAY_SAMPLES == 30
+    assert podcasts.MONTH_SAMPLES == 600
+    assert podcasts.MONTH_SAMPLES * podcasts.sample_cost() < pool.BUDGET_DEFAULT / 2, (
+        "a full month of samples leaves the other sources most of the default budget"
+    )
