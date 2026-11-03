@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian confirm page says its cost in points («Займёт 12 баллов»), because the wait
+  beside it is in minutes (David, 2026-11-03; design.md §12, "Russian says a cost in
+  minutes and a balance in points"). Out of credits there is headed "Not enough credits
+  for this one" («На это не хватает баллов»), with what is still free under it, rather
+  than "We can't make this one" (ACC-18). Telegram's build button says "Confirm"
+  («Подтвердить») where it said "Open this". The Russian are drafts.
 - Spending presses say what they spend (beta review 2026-11-03; design.md §12, "A
   spending press says what it spends"). The connector's confirm page counts credits as
   the rail charges (`builder.credits_of`), so an 80-second clip reads "Uses 2 credits"

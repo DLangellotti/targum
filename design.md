@@ -399,6 +399,10 @@ decided on 2026-11-03: the Russian interface keeps the credit as a unit and stop
   11 баллов. A sentence with two numbers puts the noun before each colon («Нужно минут: 45,
   а баллов у вас осталось: 12») so neither number can take the wrong form. English still
   says credits everywhere. The Russian lines are drafts until David reads them.
+- **Except on the confirm page, where the cost is points** (David, 2026-11-03, the same
+  day). The connector's confirm page says its wait in minutes («Будет готово примерно через
+  7 минут») right beside the cost, so a cost in minutes there read as a second wait. There
+  it says «Займёт 12 баллов» (1 балл, 2 балла, 5 баллов). Every other cost stays in minutes.
 
 ### A spending press says what it spends, and a stop link says what it stops — 2026-11-03
 
@@ -419,6 +423,9 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   being mailed about. Its page asks "Stop {name}, and the mail about it?" under "Your
   subscriptions"; only a series keeps "Stop emails about {name}?" under "Series you follow".
   A channel is never called a series.
+- **Out of credits is headed as such** on the connector's confirm page: "Not enough
+  credits for this one" with what is still free under it, not "We can't make this one",
+  which is kept for a text that failed. Telegram's build button says "Confirm" too.
 - **Draw cover is the operator's.** One press ran a paid image job, up to one a chapter,
   with no cost said and no confirm, so a reader's Library row no longer offers it and
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
