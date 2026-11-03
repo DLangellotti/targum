@@ -5663,6 +5663,32 @@ def finds_podcasts(
         )
 
 
+@finds_app.command("web")
+def finds_web(
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """One night's round of open-web finds (targum-internal#622): one Anthropic web search
+    for each of the forty topics' Hebrew phrases while the night's allowance lasts (at
+    most $1, inside TARGUM_FINDS_BUDGET_USD), every page read direct where robots.txt
+    allows, screened, scored and pooled. Does nothing unless TARGUM_FINDS_WEB is set: the
+    box's timer runs it every night."""
+    from .accounts import Store
+    from .finds import web
+    from .serve import default_store
+
+    if not web.on():
+        console.print(f"[dim]Open-web finds are off ({web.FLAG} is not set).[/dim]")
+        return
+    keeping = Store(store or default_store())
+    try:
+        found = web.refresh(keeping)
+    except TargumError as error:
+        fail(error)
+    console.print(f"[green]Web[/green]: {found}")
+    if found.stopped:
+        console.print(f"[yellow]Stopped[/yellow]: {found.stopped}.")
+
+
 @finds_app.command("pool")
 def finds_pool(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,

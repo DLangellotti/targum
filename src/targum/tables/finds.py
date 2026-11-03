@@ -8,9 +8,9 @@ register the find belongs to:
 
 - a YouTube video find (`youtube`) is `video`, and a podcast find `podcasts`;
 - a news find (`news`, read off the feeds the service follows) is `news`;
-- a web find (`web`, from a live search) is sorted by its host exactly as what readers
-  bring is (`tables.imports.sort`): news, social, video or podcasts, and where its host
-  says none of these it is not counted at all.
+- a web find (`web`, from a live search or the nightly round) is sorted by its host
+  exactly as what readers bring is (`tables.imports.sort`): news, social, video or
+  podcasts, and where its host says none of these, `web` (David, 2026-11-03).
 
 The rules:
 
@@ -45,7 +45,7 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .registers import IMPORTS, NEWS, PODCASTS, VIDEO
+from .registers import IMPORTS, NEWS, PODCASTS, VIDEO, WEB
 from .store import Contribution, Store
 from .words import LANGUAGES, WORDS
 
@@ -116,7 +116,7 @@ def register_for(kind: str, url: str, news: Collection[str] = ()) -> str | None:
     from .imports import sort
 
     register = sort(url, "", news)
-    return None if register == IMPORTS else register
+    return WEB if register == IMPORTS else register
 
 
 def public_finds(

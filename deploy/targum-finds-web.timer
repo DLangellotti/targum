@@ -1,0 +1,17 @@
+# /etc/systemd/system/targum-finds-web.timer — installed and enabled by deploy.sh.
+#
+# 00:10 UTC is 02:10 in Israel in winter: clear of the subscriptions' :05 and :35 by its
+# start, and the round stops itself after 45 minutes, so it is done before the YouTube
+# finds at 01:00, the feed count at 01:30, the podcast finds at 02:00 and the tables sweep
+# at 02:30, which counts what it pooled the same night, and the backup at 04:00.
+
+[Unit]
+Description=targum open-web finds, nightly
+
+[Timer]
+OnCalendar=*-*-* 00:10:00 UTC
+RandomizedDelaySec=2min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
