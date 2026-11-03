@@ -190,6 +190,13 @@ def seal(html: str, chrome: Chrome) -> str:
     return page + TRAILER + said.replace("-", "\\u002d") + _TRAILER_END + "\n"
 
 
+def without_comment(page: str) -> str:
+    """The page as written, less the comment that carries its other languages' words:
+    what two pages are compared as, since a piece more in one moves every offset after it."""
+    where = page.rfind(TRAILER)
+    return page if where < 0 else page[:where]
+
+
 def chromed_in(page: str, language: str, named: Callable[[dict[str, Any]], str]) -> str:
     """A written page in `language`'s words, where its comment has them, without the
     comment; in the language it is written in, the page exactly as it is. The page as
