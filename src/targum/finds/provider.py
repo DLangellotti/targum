@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from .. import level as level_module
+from .. import parts
 from . import pool
 from .score import Score
 
@@ -167,4 +168,6 @@ def row(scored: Scored) -> dict[str, Any]:
         "known_line": known_line,
         "because": known_line,
         "reason": {"key": "suggest.known", "share": level_module.known_percent(scored.share)},
+        # Which numbered part of a series it is, for `parts.gate` (design.md §12, 2026-11-03).
+        **({} if find.part is None else {parts.FIELD: find.part.row()}),
     }

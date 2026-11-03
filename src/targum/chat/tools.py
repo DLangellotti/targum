@@ -64,6 +64,7 @@ from .. import coverage as coverage_module
 from .. import estimate as estimate_module
 from .. import learning as learning_module
 from .. import level as level_module
+from .. import parts as parts_module
 from .. import remembered as remembered_module
 from .. import sentence_level
 from ..level import Level
@@ -1197,6 +1198,44 @@ def _finds(
     return out
 
 
+def started_parts(
+    ctx: Ctx,
+    mine: list[dict[str, Any]],
+    opened: Iterable[str] = (),
+    collections: dict[str, str] | None = None,
+) -> list[parts_module.Part]:
+    """The numbered parts this reader has opened (design.md §12, "A suggestion never
+    starts a series in the middle", 2026-11-03): every text on their own shelf, a
+    catalogue text there or among `opened` (the catalogue ids the page says are finished
+    or in Continue), and what the pool knows of the links they built, where it still
+    holds them."""
+    from ..finds import pool
+    from ..weekly.feeds import link_key
+
+    out: list[parts_module.Part] = []
+    titled = _collections() if collections is None else collections
+    ids = set(opened)
+    own = {catalogue_module._key(str(row.get("source") or "")) for row in mine}
+    for entry in catalogue_module.everything():
+        if entry.id in ids or catalogue_module._key(entry.source) in own:
+            part = parts_module.of_entry(entry.english, entry.title, titled.get(entry.id, ""))
+            if part is not None:
+                out.append(part)
+    for row in mine:
+        part = parts_module.of_title(str(row.get("title") or ""))
+        if part is not None:
+            out.append(part)
+    if ctx.store is not None:
+        links = [
+            link_key(str(row.get("source") or ""))
+            for row in mine
+            if str(row.get("source") or "").startswith(("http://", "https://"))
+        ]
+        if links:
+            out += pool.parts_at(ctx.store, links)
+    return out
+
+
 def _credits_left(ctx: Ctx) -> int | None:
     """The reader's credits left this month, or None where no allowance holds them."""
     from .. import plans
@@ -1336,6 +1375,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # skipping after the cut left nothing). Applied before the cut, so the next one
     # that fits is always in reach.
     skip = {str(one) for one in (args.get("skip") or []) if str(one)}
+    # What the page says is finished or in Continue, before "Something else" adds the
+    # text it set aside: the parts a reader has opened (`started_parts`).
+    opened_ids = set(skip)
     instead_of = str(args.get("instead_of") or "")
     if instead_of:
         skip.add(instead_of)
@@ -1370,6 +1412,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         ctx.store, ctx.person_id, language, index, statuses, chances, own, skip - {instead_of}
     )
     candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    opened_parts: list[parts_module.Part] = []
     collections = _collections()
     shown: tuple[str, str] | None = None
     shown_topic = ""
@@ -1382,6 +1425,13 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             shown_topic = learning_module.main_topic(
                 learning_module.text_topics(index, entry.id, taught.teach.lexicon)
             )
+        if key in own or entry.id in opened_ids:
+            # A part the reader has opened, which lets the part after it be offered.
+            done_part = parts_module.of_entry(
+                entry.english, entry.title, collections.get(entry.id, "")
+            )
+            if done_part is not None:
+                opened_parts.append(done_part)
         if key in own or entry.id in skip:
             continue
         if register and entry.register.value != register:
@@ -1392,6 +1442,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         # Where the candidate came from, which a recommendation's record will carry
         # (targum-internal#612, #619): the shelf today, a fresh find later.
         row["origin"] = origin
+        part = parts_module.of_entry(entry.english, entry.title, collections.get(entry.id, ""))
+        if part is not None and not catalogue_module.scene_number(entry.id):
+            row[parts_module.FIELD] = part.row()
         tilt = entry.register.value in liked
         running = index.running(entry.id, marked, statuses)
         # Running words where the index counted the text; otherwise the distinct-form share
@@ -1451,12 +1504,18 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         )
         if under and (row["fit"] != choose.UNDER or catalogue_module.scene_number(entry.id)):
             continue
-        if levels and rung is not None and key in built and row["on_shelf"]:
+        # A recording's sections are its parts, cut by targum ("One press gets the whole
+        # video, a part at a time", 2026-10-07): a passage there would open part N with
+        # part 1 unseen (design.md §12, 2026-11-03), so only a text offers one.
+        texted = medium == choose.TEXT
+        if levels and rung is not None and key in built and row["on_shelf"] and texted:
             _passage(ctx, row, built[key], rung, levels)
         candidates.append((rank, row))
+    started = [*opened_parts, *started_parts(ctx, mine, opened_ids, collections)]
     if under:
         candidates.sort(key=lambda pair: pair[0])
-        return {"suggestions": [row for _, row in candidates[:limit]]}
+        gated = parts_module.gate([row for _, row in candidates], started)
+        return {"suggestions": gated[:limit]}
     if args.get("finds"):
         from ..finds import provider
 
@@ -1478,6 +1537,12 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 )
                 candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
+    # Never the middle of a series (David, 2026-11-03; design.md §12): a later part only
+    # after the part before it, and part 1 in its place where part 1 is here to offer.
+    ranks = {id(row): rank for rank, row in candidates}
+    candidates = [
+        (ranks[id(row)], row) for row in parts_module.gate([row for _, row in candidates], started)
+    ]
     if instead_of and candidates:
         at = choose.alternative(candidates, shown, shown_topic)
         candidates.insert(0, candidates.pop(at))

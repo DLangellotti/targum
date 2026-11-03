@@ -48,6 +48,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .. import parts
 from . import chips, news, pool, screen
 from . import score as score_module
 from .robots import ROBOTS, Robots
@@ -208,6 +209,25 @@ class Episode:
     length: int = 0
     transcript: str = ""
     transcript_type: str = ""
+    #: What the feed says of its place in the show (`feeds.Item.episode`, `season`,
+    #: `episode_type`) and what the show says it is (`feeds.show_type`).
+    number: int = 0
+    season: int = 0
+    episode_type: str = ""
+    show_type: str = ""
+
+    @property
+    def part(self) -> parts.Part | None:
+        """Which numbered part of a series it is (design.md §12, "A suggestion never
+        starts a series in the middle", 2026-11-03): `parts.of_episode`."""
+        return parts.of_episode(
+            self.title,
+            self.show.name,
+            number=self.number,
+            season=self.season,
+            episode_type=self.episode_type,
+            show_type=self.show_type,
+        )
 
     @property
     def url(self) -> str:
@@ -531,6 +551,7 @@ def refresh(
             found.failed += 1
             continue
         found.feeds += 1
+        kind = feeds.show_type(body)
         mine: list[Episode] = []
         dated = [
             (int(item.published.timestamp() * 1000), item)
@@ -552,8 +573,15 @@ def refresh(
                 length=int(getattr(item, "length", 0) or 0),
                 transcript=item.transcript,
                 transcript_type=item.transcript_type,
+                number=item.episode,
+                season=item.season,
+                episode_type=item.episode_type,
+                show_type=kind,
             )
             if pool.known(store, episode.url):
+                # Kept before parts were worked out: the feed says now what the title
+                # alone could not (a no-op on every row that has its part).
+                pool.mark_part(store, episode.url, episode.part)
                 continue
             found.seen += 1
             why = gate(item, show, robots)
@@ -703,6 +731,7 @@ def _keep(
         licence=show.licence,
         licence_url=show.feed if show.licence else "",
         licence_from="publisher" if show.licence else "",
+        part=episode.part,
         at=when,
     )
     if added:

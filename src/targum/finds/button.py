@@ -41,8 +41,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .. import choose, learning
-from . import chips, provider
+from .. import choose, learning, parts
+from . import chips, pool, provider
 from . import interests as interests_module
 
 if TYPE_CHECKING:
@@ -107,10 +107,16 @@ def ranked(
     known: interests_module.Lexicon | None = None,
     at: int | None = None,
     harder: bool = False,
+    started: Iterable[parts.Part] = (),
 ) -> list[dict[str, Any]]:
     """Every pool find this reader could be offered for this press, best first, each as
     the card's row. Fetches nothing. With chips chosen, only finds about one of them.
-    With `harder`, the finds under the floor instead, the nearest miss first (`nearest`)."""
+    With `harder`, the finds under the floor instead, the nearest miss first (`nearest`).
+
+    Never the middle of a series (design.md §12, 2026-11-03): a later part only where the
+    reader opened the part before it (`started`, and what the pool knows of `built`),
+    and part 1 in its place where the pool holds it and it fits (`parts.gate`)."""
+    built = list(built)
     found = provider.offered(
         store,
         ask.language,
@@ -168,7 +174,8 @@ def ranked(
         key = (rank[0], 0 if on_topic else 1, *rank[1:], -find.published, find.id)
         out.append((key, row))
     out.sort(key=lambda pair: pair[0])
-    return [row for _, row in out]
+    opened = [*started, *pool.parts_at(store, built)]
+    return parts.gate([row for _, row in out], opened)
 
 
 def fits(rows: Sequence[dict[str, Any]]) -> bool:
