@@ -29,7 +29,17 @@
   }
   var marks = data.said;
   if (!marks) return;
+  // Its words in the language of whoever opened the page, where the page carries them
+  // in a block of their own (`reader.js`, 2026-11-03).
   var words = data.saidWords || {};
+  var wordsNode = document.getElementById("targum-strings");
+  if (wordsNode) {
+    try {
+      words = (JSON.parse(wordsNode.textContent) || {}).saidWords || {};
+    } catch (e) {
+      /* the page's own words stand */
+    }
+  }
   function t(key, english) {
     return typeof words[key] === "string" ? words[key] : english;
   }

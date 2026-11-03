@@ -384,6 +384,36 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A reader's chrome is the reader's language — 2026-11-03
+
+A reader's menus, its card's labels and its notices were said in the language of the
+text's first translation (targum-internal#184). Most of the library has only English
+lines, so a reader whose interface is Russian opened most of it entirely in English: the
+bar, the word card ("Root", "Binyan", "Dictionary"), the list, the player and `<html
+lang>`, with 860 Russian reader lines in the catalogue that never reached it (beta review,
+2026-11-03, R1). David approved the fix on 2026-11-03: the chrome follows the reader, the
+meanings follow the text.
+
+- **The chrome is the reader's interface language:** the one pressed for (`?lang=`), else
+  the account's, by the same rule as every desk page. Which translation the text carries
+  no longer decides it. A visitor who is not signed in and pressed nothing gets the page
+  as it was built, which for a portion, a day or an issue is the language its address
+  already chose (`-ru`).
+- **The meanings stay the text's.** A word means what the text's translation has it mean,
+  in that language. A Russian card over a text with only English meanings shows the
+  English meaning and says, quietly, under it: «Значения слов в этом тексте пока на
+  английском.» ("This text's meanings are in English for now."). Nothing is bought to
+  make it Russian.
+- **A reader is still written once, in its first translation's language,** so it opens
+  as it did from a disk, from a saved copy and from an older server. The places that
+  would read differently in another interface language are recorded in a comment after
+  `</html>`; the server puts the reader's words in those places as it sends the page
+  (`render/chromed.py`) and drops the comment. The Russian script lines and the Cyrillic
+  cut of the chrome's face are named in that comment rather than carried, so a page on
+  disk grows by about 4 kB. A page written in the reader's own language is sent exactly
+  as it is on disk. A saved copy keeps the chrome it was saved in.
+- **It reaches a reader on the routine rebuild,** which reads every text from the cache
+  and spends nothing. A page written before it has no comment and is served as before.
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
@@ -8734,7 +8764,9 @@ the following the same day; they change or add rules, so they are recorded.
   the conversation and the public pages carry `<html lang>` of the language their words
   are in. A reader and its contents page do the same for their chrome: `<html lang>` is
   the language the chrome's words are in, which is the first rendering's where it has a
-  catalogue and English otherwise. The text keeps its own language on `data-language` and
+  catalogue and English otherwise. *Amended 2026-11-03:* the chrome is the reader's
+  interface language, not the first rendering's ("A reader's chrome is the reader's
+  language"). The text keeps its own language on `data-language` and
   on every source cell, as the entry below says.
 - **A visitor is spoken to in their browser's language.** Signed out, a public page
   takes the first `Accept-Language` that has a catalogue; signed in, the interface
@@ -8766,7 +8798,8 @@ These are the ones that change or add a rule, so they are recorded.
   the next line whole, wraps inside itself in its own direction, and carries
   `lang="he"` when it is Hebrew script. U+2068 … U+2069 is still the rule wherever the
   text really is plain: a mail subject, a tab title, a push.
-- **A reader page is English chrome around a text.** `<html lang="en">`, the direction
+- **A reader page is English chrome around a text.** (Since 2026-11-03 the chrome is the
+  reader's interface language: "A reader's chrome is the reader's language".) `<html lang="en">`, the direction
   still the text's, the text's language on `data-language`, and `lang` on every source
   cell as before. A speaker's name is 0.8125rem in the reading face and is heard by a
   screen reader.

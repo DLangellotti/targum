@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A reader's chrome is the reader's interface language, not its text's first translation
+  (David, 2026-11-03; design.md §12, "A reader's chrome is the reader's language"; beta
+  review R1). A Russian-interface reader opened most of the library, whose only lines are
+  English, with English menus, card labels, notices and `<html lang>`. A reader is still
+  written once, in its first translation's language; the places that differ in another
+  interface language are recorded in a comment after `</html>` (`render/chromed.py`), and
+  the server puts the reader's words there as it sends the page, on the library, the
+  reader's own texts, the weekly, the portions and the daily pages. The meanings stay the
+  text's: a Russian card over English-only meanings says so under the meaning, «Значения
+  слов в этом тексте пока на английском.» (new string `reader.card.meanings-in-english`;
+  the Russian is a draft). Readers pick it up on the routine rebuild, which spends nothing;
+  a page written before it is served as it was.
 - Spending presses say what they spend (beta review 2026-11-03; design.md §12, "A
   spending press says what it spends"). The connector's confirm page counts credits as
   the rail charges (`builder.credits_of`), so an 80-second clip reads "Uses 2 credits"
