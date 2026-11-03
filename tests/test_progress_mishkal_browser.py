@@ -167,7 +167,10 @@ def test_the_list_is_a_table_under_the_grid_and_fits(chromium: Any, width: int) 
     context, page, thrown = open_page(chromium, BOTH, width)
     try:
         assert page.get_by_role("heading", name="Grammar").is_visible(), "the heading stays"
-        assert page.get_by_role("heading", name="Mishkal").is_visible()
+        # The headline's gap is a mishkal, so its tab is the one open (2026-11-03).
+        tab = page.get_by_role("tab", name="Mishkalim")
+        assert tab.get_attribute("aria-selected") == "true"
+        assert page.locator("#gap-grammar").is_hidden(), "one grid at a time"
         rows = page.locator(".mishkal tbody tr")
         assert rows.count() == len(MET), "only the patterns met, every one of them"
         heads = page.locator(".mishkal tbody th[scope=row] bdi[lang=he]")
@@ -190,7 +193,8 @@ def test_the_list_is_a_table_under_the_grid_and_fits(chromium: Any, width: int) 
               return {
                 scroll: document.documentElement.scrollWidth,
                 client: document.documentElement.clientWidth,
-                grammar: box('.gap-grammar'), mishkal: box('.gap-mishkal'),
+                lists: box('.next-halves'), tabs: box('#grammar-tabs'),
+                mishkal: box('.gap-mishkal'),
                 tables: tables.map((t) => ({left: t.left, top: t.top, height: t.height})),
                 rows: [...document.querySelectorAll('.mishkal tbody tr')]
                   .map((tr) => tr.getBoundingClientRect().height),
@@ -201,13 +205,10 @@ def test_the_list_is_a_table_under_the_grid_and_fits(chromium: Any, width: int) 
             }"""
         )
         assert measured["scroll"] <= measured["client"], measured
-        grammar_box, mishkal_box, tables = (
-            measured["grammar"],
-            measured["mishkal"],
-            measured["tables"],
-        )
-        # Under the grid at every width (David, 2026-11-02), and the grid keeps its 36rem.
-        assert mishkal_box["top"] >= grammar_box["bottom"], "under the grid"
+        mishkal_box, tables = measured["mishkal"], measured["tables"]
+        # The two lists first, then Grammar and its tabs, then the open tab (2026-11-03).
+        assert measured["tabs"]["top"] >= measured["lists"]["bottom"], "lists first"
+        assert mishkal_box["top"] >= measured["tabs"]["bottom"], "under the tabs"
         if width >= 600:
             # Two columns of rows side by side, so no band is left empty beside them.
             assert len(tables) == 2 and tables[0]["top"] == tables[1]["top"]
@@ -258,8 +259,9 @@ def test_a_square_opens_its_words_and_one_list_is_open_at_a_time(chromium: Any) 
         assert page.locator("#mishkal-words-title").inner_text() == "miktal: the words you met"
         assert page.locator("#mishkal-word-rows li").count() == 2
         shoot(page, "mishkal-1440-open")
-        page.locator("#grammar .grammar-cell").first.click()
+        page.get_by_role("tab", name="Binyanim").click()
         assert box.is_hidden() and square.get_attribute("aria-expanded") == "false"
+        page.locator("#grammar .grammar-cell").first.click()
         assert page.locator("#grammar-words").is_visible()
         assert not thrown, thrown
     finally:
@@ -290,6 +292,7 @@ def test_with_no_list_the_grid_stands_as_it_shipped(chromium: Any) -> None:
         page.goto(SITE + "/progress")
         page.locator("#grammar-rows tr").first.wait_for(state="attached", timeout=10_000)
         assert page.locator("#gap-mishkal").is_hidden()
+        assert page.locator("#grammar-tabs").is_hidden(), "one kind, no tabs"
         assert page.locator("#next-title").inner_text() == "Your biggest gap: הִתְפַּעֵל verbs"
         width = page.evaluate(
             "document.querySelector('.gap-grammar').getBoundingClientRect().width"
@@ -304,7 +307,7 @@ def test_with_no_list_the_grid_stands_as_it_shipped(chromium: Any) -> None:
 def test_the_russian_list_says_its_drafts(chromium: Any, width: int) -> None:
     context, page, thrown = open_page(chromium, BOTH, width, interface="ru")
     try:
-        assert page.get_by_role("heading", name="Мишкаль").is_visible()
+        assert page.get_by_role("tab", name="Мишкали").get_attribute("aria-selected") == "true"
         assert "миктал" in page.locator(".mishkal tr.weakest").inner_text()
         said = page.locator("#gap-said").inner_text()
         assert "Слова миктал часто называют место или то, что сделано." in said

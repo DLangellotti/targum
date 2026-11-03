@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- What next on Your Progress is quick to take in (David, 2026-11-03; design.md §12). The
+  headline, its sentence and the two lists, words you keep meeting and texts at your
+  level, now come first. Under them "Grammar" shows one grid at a time behind Binyanim |
+  Mishkalim tabs, with the tab of the headline's gap open on every load. The block went
+  from 2,322 to 1,488px on a phone and from 1,468 to 1,071px at a desk. The two lists start
+  about 230px in, where they used to start 1,100 to 1,650px in. The Russian tab names are
+  drafts.
 - A suggestion never starts a series in the middle (David, 2026-11-03; design.md §12).
   Home offered David part 2 of a YouTube video ("מצאתי את הפלאפלים הכי זולים בישראל חלק
   2!!!", pooled by a live look for the Israel chip with no part 1 in the pool). A numbered
