@@ -427,7 +427,9 @@ class Build:
             # The file's own name, never the path it was written to on this disk: an
             # upload's path is the server's, and a reader was being shown it.
             named = Path(self.source).name if Path(self.source).exists() else self.source
-            raise TargumError(f"We couldn't find any text to read in {named}.")
+            raise TargumError(
+                f"We couldn't find any text to read in {named}.", key="file.no-text", name=named
+            )
         refuse_refless(document, segmented)
         segmented.write(path)
         return segmented
@@ -1988,8 +1990,10 @@ class Build:
             # an honest sentence beats a reader with nothing on its pages.
             minutes = max(1, round(sum(by_number[n].end - by_number[n].start for n in owed) / 60))
             raise TargumError(
-                f"We didn't hear anyone speak in the first {minutes} minutes. "
-                "Check that it's the recording you meant."
+                f"We didn't hear anyone speak in the first {minutes} minutes.",
+                "Check that it's the recording you meant.",
+                key="recording.no-speech",
+                minutes=minutes,
             )
         return heard
 
@@ -2030,7 +2034,13 @@ class Build:
         readable = {tag for tag, _ in READING}
         if code and code not in readable:
             names = ", ".join(language_name(tag) for tag, _ in READING)
-            raise TargumError(f"This recording is in {language_name(code)}. We can read {names}.")
+            # The list of what is read is the log's; the reader's sentence names only the
+            # language heard, in the case their own language puts it in.
+            raise TargumError(
+                f"This recording is in {language_name(code)}. We can read {names}.",
+                key="recording.wrong-language",
+                language=language_name(code),
+            )
         if code and code != drafted.language:
             drafted.language = code
             parts_module.write(workspace, drafted)

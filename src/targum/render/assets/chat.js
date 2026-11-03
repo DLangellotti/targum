@@ -1038,7 +1038,15 @@
     if (hours < 24) return tn("shelf.ago.hours", hours, "an hour ago", "{n} hours ago");
     var days = Math.round(hours / 24);
     if (days < 30) return tn("shelf.ago.days", days, "yesterday", "{n} days ago");
-    return new Date(stamp).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    return new Date(stamp).toLocaleDateString(uiLocale(), { day: "numeric", month: "short" });
+  }
+
+  /* The interface language, which a date and a number are said in: an Israeli phone set
+     to Hebrew showed Hebrew dates inside the Russian interface (beta review, 2026-11-03,
+     R7). The page's strings say it on a desk page, and the page's own `lang` in a reader. */
+  function uiLocale() {
+    var said = window.TargumStrings;
+    return (said && said.language) || document.documentElement.getAttribute("lang") || "en";
   }
 
   //: A page of the list, and the size the server pages it at.
@@ -1480,7 +1488,7 @@
       current = got.chat;
       remember(current);
       if (chips) chips.show(false);
-      turn("user", got.said ? got.asked || "Find me something to read" : "");
+      turn("user", got.said ? got.asked || t("chat.chip.read", "Find me something to read") : "");
       var li = turn("assistant", got.said || "", "");
       if (got.quote) quoteCard(li, got.quote);
       offered = offered.concat(got.offered || []);
