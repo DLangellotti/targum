@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Home's empty card offers the nearest text on any topic when the topic chosen has
+  nothing under the floor, and says so: "Read one at 82% known (any topic)" (David,
+  2026-11-03; design.md §12, "Show me something harder"). Sport, Music, History and most
+  other chips have no shown lexicon topic and no registers, so with one chosen the card
+  had no press unless a web look had pooled a find for it. New strings
+  `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed

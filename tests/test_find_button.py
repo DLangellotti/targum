@@ -808,3 +808,65 @@ def test_an_empty_answer_on_religion_names_the_nearest_religious_text(
         home.port, "POST", "/find", {"language": "he", "harder": True, **near}, cookie=cookie
     )
     assert pressed["pick"]["id"] == "avot-1" and pressed["more"] == 1
+
+
+def test_a_topic_with_nothing_under_the_floor_falls_back_to_any_topic_and_says_so(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-03 (design.md §12): a chosen chip with nothing on it under the floor
+    (no shown topic, no registers, nothing pooled) names the nearest text on any topic,
+    marked `any_topic` so the press says so, and the press opens that text."""
+    from targum.chat import tools as chat_tools
+
+    monkeypatch.setenv(live.FLAG, "1")
+    real = chat_tools.suggest_next
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        if not args.get("under"):
+            return real(ctx, args)
+        rows = [
+            {"id": "far-story", "title": "רחוק", "language": "he", "kind": "story",
+             "register": "modern", "fit": "under", "expected_share": 0.70,
+             "running_share": 0.66, "reason": {"key": "suggest.known", "share": 66},
+             "origin": "shelf"},
+            {"id": "news-story", "title": "חדשות", "language": "he", "kind": "story",
+             "register": "modern", "fit": "under", "expected_share": 0.89,
+             "running_share": 0.82, "reason": {"key": "suggest.known", "share": 82},
+             "origin": "shelf"},
+        ]  # fmt: skip
+        return {"suggestions": [row for row in rows if row["id"] not in args.get("skip", [])]}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    monkeypatch.setattr(live, "refused", lambda *args, **kwargs: "off")
+    cookie = sign_in(home.port, home.postbox)
+    near = {"topics": ["football"], "skip": [], "done": []}
+    ask = {"language": "he", "topics": ["football"], "skip": [], "near": near}
+    status, got, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    assert status == 200 and got["pick"] is None
+    assert got["nearest"]["id"] == "news-story" and got["nearest"]["any_topic"] is True
+    assert got["nearest"]["reason"]["share"] == 82
+    status, pressed, _ = call(
+        home.port, "POST", "/find", {"language": "he", "harder": True, **near}, cookie=cookie
+    )
+    assert pressed["pick"]["id"] == "news-story" and pressed["more"] == 1
+    # Where the topic has a text under the floor, only that, and no any-topic mark.
+    on_topic = {**near, "topics": ["religion"]}
+    rows = [{"id": "avot-1", "title": "פרקי אבות", "language": "he", "kind": "story",
+             "register": "rabbinic", "fit": "under", "expected_share": 0.75,
+             "running_share": 0.7, "reason": {"key": "suggest.known", "share": 70},
+             "origin": "shelf"}]  # fmt: skip
+    monkeypatch.setattr(
+        chat_tools,
+        "suggest_next",
+        lambda ctx, args: {"suggestions": rows} if args.get("under") else real(ctx, args),
+    )
+    status, got, _ = call(
+        home.port,
+        "POST",
+        "/find",
+        {**ask, "topics": ["religion"], "near": on_topic},
+        cookie=cookie,
+    )
+    assert got["nearest"]["id"] == "avot-1" and "any_topic" not in got["nearest"]

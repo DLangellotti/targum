@@ -15486,23 +15486,39 @@ class Handler(BaseHTTPRequestHandler):
                 or []
             )
             mine, _ = chat_tools._shelf(ctx)
-            found = button.ranked(
-                self.store,
-                near_ask,
-                chat_tools._marked(ctx, code, {}),
-                estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
-                rung=rung,
-                built={
-                    link_key(str(row.get("source") or ""))
-                    for row in mine
-                    if str(row.get("source") or "").startswith(("http://", "https://"))
-                },
-                credits_left=chat_tools._credits_left(ctx),
-                known=known,
-                harder=True,
-                started=chat_tools.started_parts(ctx, mine, done),
-            )
-            return button.nearest([*button.harder(shelf, near_ask, known), *found])
+            built = {
+                link_key(str(row.get("source") or ""))
+                for row in mine
+                if str(row.get("source") or "").startswith(("http://", "https://"))
+            }
+
+            started = chat_tools.started_parts(ctx, mine, done)
+
+            def nearest_for(asked: button.Ask) -> list[dict[str, Any]]:
+                found = button.ranked(
+                    self.store,
+                    asked,
+                    chat_tools._marked(ctx, code, {}),
+                    estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
+                    rung=rung,
+                    built=built,
+                    credits_left=chat_tools._credits_left(ctx),
+                    known=known,
+                    harder=True,
+                    started=started,
+                )
+                return button.nearest([*button.harder(shelf, asked, known), *found])
+
+            rows = nearest_for(near_ask)
+            if rows or not steer:
+                return rows
+            # Nothing under the floor on the topic chosen (no shown topic, no registers,
+            # nothing pooled for it): the nearest text on any topic, and the press says so,
+            # "Read one at 82% known (any topic)" (David, 2026-11-03; design.md §12).
+            rows = nearest_for(button.Ask(code, (), tuple(liked), passed_over))
+            for row in rows:
+                row["any_topic"] = True
+            return rows
 
         def nothing_fits(body: dict[str, Any]) -> dict[str, Any]:
             """The card's empty answer (David, 2026-11-02; design.md §12): where things
@@ -15521,7 +15537,7 @@ class Handler(BaseHTTPRequestHandler):
                 first = rows[0]
                 body["nearest"] = {
                     key: first[key]
-                    for key in ("id", "kind", "video", "find", "reason", "percent")
+                    for key in ("id", "kind", "video", "find", "reason", "percent", "any_topic")
                     if key in first
                 }
             return body
