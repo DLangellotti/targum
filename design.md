@@ -914,6 +914,13 @@ religion is not, so with Religion chosen the press vanished with the whole relig
 shelf under the floor. Religion now takes the biblical, rabbinic and medieval texts by
 register (`finds.chips`, `Chip.registers`); no other chip has registers.
 
+Amended 2026-11-03 (David, the same day): **a topic with nothing under the floor falls
+back to any topic, and says so.** Where the topic chosen has no text under the floor (no
+shown topic, no registers, nothing pooled for it, or all of it walked), the press offers
+the nearest text on any topic, the reader's own topics first: "Read one at 82% known (any
+topic)", with the pick's own verb as above. The pick opens as any pick does. This
+replaces "With a topic chosen, only texts on it" where the topic has none.
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,
