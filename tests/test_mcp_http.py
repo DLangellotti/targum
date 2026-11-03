@@ -740,13 +740,27 @@ def test_the_press_card_counts_in_credits_and_agrees_with_itself() -> None:
     """
     from targum.render import builder
 
-    one = _prose(builder.press_page(_quoted(audio=True, seconds=62.0)))
+    one = _prose(builder.press_page(_quoted(audio=True, seconds=58.0)))
     assert "Uses 1 credit" in one and "1 credits" not in one
     many = _prose(builder.press_page(_quoted(audio=True, seconds=2805.0)))
     assert "Uses 47 credits" in many
     # And a cost is never said in hours, in money, or in a mix of the two.
     for gone in ("of your hours", "minutes of your", "$"):
         assert gone not in one, f"the card still says {gone!r}"
+
+
+def test_the_press_card_counts_credits_the_way_the_rail_charges() -> None:
+    """ACC-13 (2026-11-03): the connector's confirm page rounded the minutes, so an
+    80-second clip read "Uses 1 credit" and was charged 2, and a 20-second one read
+    "Uses 0 credits" and was charged 1. It counts with `builder.credits_of` now, as the
+    set page, the Add card and the rail do: any part of a minute is a whole one."""
+    from targum.render import builder
+
+    for seconds, said in ((80.0, "Uses 2 credits"), (20.0, "Uses 1 credit"), (62.0, "Uses 2")):
+        page = _prose(builder.press_page(_quoted(audio=True, seconds=seconds)))
+        assert said in page, (seconds, page)
+        assert builder.credits_of(seconds) == int(said.split()[1])
+    assert "Uses 0 credits" not in _prose(builder.press_page(_quoted(audio=True, seconds=20.0)))
 
 
 def test_the_press_card_says_one_press_gets_every_part() -> None:
@@ -831,7 +845,7 @@ def test_the_press_page_says_its_script_s_words_in_russian() -> None:
     page = builder.press_page(_quoted(audio=True, seconds=62.0, usually=420.0), "ru")
     assert "TARGUM_STRINGS" in page
     assert "press.page.open-now" in page, "the script's own words were never sent"
-    assert "Займёт 1 кредит" in page
+    assert "Займёт 2 минуты" in page, "62 seconds is two credits, said in minutes"
 
 
 # --- a reader's own prompts, beside ours (note 17) --------------------------------
