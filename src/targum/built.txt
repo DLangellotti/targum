@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-02
+Your Progress lists the Hebrew noun patterns under the Grammar grid, with the share of each you know.
+A Hebrew noun's card names its root and its pattern, and a borrowed word says it has no Hebrew root.
+Where no text fits your level, home offers the nearest harder one, such as Read one at 78% known.
+
 2026-11-01
 A new Hebrew reader can tick the words they know on arrival, and the first text is chosen from them.
 What to read next favours a text whose new words come back, in it and in the texts after it.
