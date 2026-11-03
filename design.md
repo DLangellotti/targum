@@ -454,6 +454,38 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
 
+### The classical shelf names its sources and stands each work under its own name — 2026-11-03
+
+The beta review's advanced-study pass (AS-01 to AS-06, approved by David on 2026-11-03)
+found the shelf a scholar would distrust: CC BY texts shown with no credit, a header
+that disagreed with the page under it, and a Tanakh row full of Mishnah.
+
+- **Every text names its edition and everything published beside it, with the licence
+  linked.** The reader's foot says which edition the text is ("Hebrew from Torat Emet 357,
+  via Sefaria · Public Domain") and whose each rendering is ("English from …", "Onkelos
+  from …", "Rashi from …", "Rashi · English from …"), from the catalogue's `credit`,
+  `licence` and each rendering's own. The Library page says the same under "Hebrew" (or
+  the text's language) above "Translation", and "Beside the verse" for Onkelos and Rashi,
+  linking the page each claim was read from. A Creative Commons licence links its deed;
+  Sefaria's unversioned "CC-BY" links the 3.0 deed, as Sefaria's own pages do. A reader
+  links only the deed, because it carries no address but the pinned few; the source page
+  is on the Library page. A portion, a haftarah and a daily page are credited from the
+  book they are cut from. The licence string is shown as the source wrote it.
+- **A weekly portion is headed with its own range.** Hebcal's line for one Shabbat carries
+  that Shabbat's special maftir ("Genesis 37:1-40:23; Numbers 7:1-17"), which no aliyah
+  includes; the page, the title, the catalogue row and its blurbs keep the portion's own
+  range. A festival's line is several readings that are all read, and keeps them.
+- **A portion's name is pointed as a heading.** Five names Hebcal gives in their in-verse
+  form are replaced from a hand-checked table (`calendar.POINTED_NAMES`): חַיֵּי שָׂרָה,
+  פְּקוּדֵי, שְׁמִינִי, תַּזְרִיעַ, נָשֹׂא. The other forty-nine stay Hebcal's.
+- **An aliyah is called an aliyah.** "Aliyah 1 of 7" and "End of aliyah 1 of 7" on a
+  portion, never "Chapter".
+- **The Library stands each classical work on its own shelf.** Tanakh (Psalms and Isaiah
+  with it, not under Poetry), Aramaic translations, Mishnah and Halakhah, each under its
+  own name, wherever a text's kind is named (`catalogue.shelf_of`). Every other text keeps
+  its kind, and `prose` is "Prose" for a reader's own text. `/library/k/he/prose` still
+  answers, with the Tanakh.
+
 ### A chapter says "פרק א׳", and the work is named once — 2026-11-03
 
 A numbered text from Sefaria heads every chapter with the whole work's name and the

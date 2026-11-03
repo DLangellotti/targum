@@ -31,7 +31,7 @@ from ..errors import TargumError
 from ..paths import write_atomic
 from ..render.builder import render
 from .calendar import Haftarah as Reference
-from .calendar import Reading, ReadingKind, Schedule, always, root
+from .calendar import Reading, ReadingKind, Schedule, always, own_range, root
 from .calendar import year as readings_for
 from .cut import (
     BOOKS,
@@ -636,6 +636,15 @@ ALIYOT = {7: "seven", 8: "eight"}
 #: The collection the portions sit in on the shelf. Its members are the corpus's to
 #: own and are rewritten on every merge; its words are a person's to edit and are kept.
 COLLECTION_ID = "torah-portions"
+
+
+def own_blurb(blurb: str) -> str:
+    """A portion row's blurb with its range put right — "Genesis 37:1-40:23; Numbers
+    7:1-17. 112 verses…" becomes "Genesis 37:1-40:23. 112 verses…" — in whichever
+    language it was written (beta review AS-02, 2026-11-03). The range is everything
+    before the first full stop, as `entries` writes it and the Russian drafts copied."""
+    head, sep, rest = blurb.partition(". ")
+    return f"{own_range(head)}{sep}{rest}" if sep else blurb
 
 
 def entries(index: Index | None = None) -> list[dict[str, object]]:

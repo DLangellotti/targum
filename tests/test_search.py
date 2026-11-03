@@ -221,7 +221,7 @@ def test_a_transliteration_finds_the_library(hosted: tuple[int, str, Path]) -> N
     library = _group(answer, "library")
     psalms = next(row for row in library["rows"] if row["entry"] == "psalms")
     assert psalms["href"] == "/open/psalms", "a Library row is its door, never a build"
-    assert psalms["what"] == "Poetry"
+    assert psalms["what"] == "Tanakh", "Psalms stands with the Tanakh (AS-04)"
     assert library["rows"][0]["entry"] == "psalms", "the best match first"
 
 
