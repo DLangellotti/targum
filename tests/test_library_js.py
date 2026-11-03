@@ -276,8 +276,10 @@ def test_a_row_carries_what_the_filters_sort_on(tmp_path: Path) -> None:
     or the filters and the rows are describing different things."""
     row = next(r for r in draw(tmp_path, unfolded=True)["rows"] if r["title"] == "תהילים")
 
-    assert row["meta"].startswith("Poetry")
-    assert row["kind"] == "Poetry", "said again beside the length on a phone"
+    # Psalms stands with the Tanakh, not apart from it under Poetry (beta review AS-04,
+    # 2026-11-03): the row says its shelf.
+    assert row["meta"].startswith("Tanakh")
+    assert row["kind"] == "Tanakh", "said again beside the length on a phone"
     assert row["length"].endswith("words"), "a text's length is its words (board SeeAllDesk)"
     assert row["known"] == "Not measured yet", "nothing measured is not 0%"
 
@@ -424,7 +426,7 @@ def test_only_the_kinds_that_are_actually_there_are_offered(tmp_path: Path) -> N
     from targum.catalogue import CATALOGUE
 
     kinds = draw(tmp_path)["kinds"]
-    there = {entry.kind.value for entry in CATALOGUE if entry.language.startswith("he")}
+    there = {entry.shelf for entry in CATALOGUE if entry.language.startswith("he")}
     assert len(kinds) == len(there) + 1, "All, and one a kind on the shelf"
     # Dialogues first — where a reader with no words starts — then the biggest ones.
     assert kinds[:4] == ["All", "Conversations", "Stories", "News"]
@@ -500,9 +502,9 @@ def test_being_sent_to_a_text_lifts_a_filter_that_would_hide_it(tmp_path: Path) 
 def test_a_filter_still_holds_when_nobody_was_sent(tmp_path: Path) -> None:
     """The lift is for an arrival with a hash and nothing else: a reader who set a filter
     themselves and came back to it should find it where they left it."""
-    drawn = draw(tmp_path, view={"kind": "poetry"})
-    assert drawn["rows"], "poetry should match something"
-    assert all(row["kind"] == "Poetry" for row in drawn["rows"])
+    drawn = draw(tmp_path, view={"kind": "tanakh"})
+    assert drawn["rows"], "the Tanakh should match something"
+    assert all(row["kind"] == "Tanakh" for row in drawn["rows"])
     assert drawn["pointed"] == []
 
 

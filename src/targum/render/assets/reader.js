@@ -195,6 +195,21 @@ var targumReader = function () {
   } catch (e) {
     data = {};
   }
+  // Its words for the scripts ride in a block of their own since 2026-11-03, which the
+  // server fills with the words of whoever opened the page: the chrome is the reader's
+  // language, the meanings the text's (design.md §12, "A reader's chrome is the reader's
+  // language"). A page written before it carries them in `data`, and that still reads.
+  var wordsNode = document.getElementById("targum-strings");
+  if (wordsNode) {
+    try {
+      var told = JSON.parse(wordsNode.textContent) || {};
+      data.strings = told.strings;
+      data.stringsLanguage = told.stringsLanguage;
+      data.saidWords = told.saidWords;
+    } catch (e) {
+      /* the page's own words stand */
+    }
+  }
 
   /* --- the reader's own words, in the language it was built for (targum-internal#184) --
    *
@@ -6159,6 +6174,16 @@ var targumReader = function () {
       meaning.appendChild(window.TargumVocab.copyButton(sense, { say: say }));
     }
     if (sense || !named) card.appendChild(meaning);
+    // The meanings are the text's and the card is the reader's (design.md §12, "A
+    // reader's chrome is the reader's language", 2026-11-03): a Russian card over a text
+    // that has only English meanings says so once, quietly, under the meaning, rather
+    // than leaving the reader to wonder why the one line they came for is not theirs.
+    if (sense && !own && uiLanguage !== "en" && (targetLanguage || "en").split("-")[0] === "en") {
+      var elsewhere = document.createElement("span");
+      elsewhere.className = "caveat card-elsewhere";
+      elsewhere.textContent = t("reader.card.meanings-in-english", "This text's meanings are in English for now.");
+      card.appendChild(elsewhere);
+    }
 
     // Nothing has been looked up for this word, so nothing is claimed about it. The
     // translation is beside the line; write down what you make of it, or ask.

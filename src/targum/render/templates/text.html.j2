@@ -45,6 +45,21 @@
   </section>
   {%- endif %}
 
+  {%- if edition %}
+  {#- Which edition the text is, first (beta review AS-03, 2026-11-03): for a reader of
+      the Tanakh or the Mishnah "which text is this?" comes before who translated it, and
+      a CC BY edition is owed its name and its licence wherever it is used. -#}
+  <section class="provenance edition" lang="{{ page_language }}">
+    <h2>{{ edition.label }}</h2>
+    <ul>
+      <li>
+        <b>{% if edition.href %}<a href="{{ edition.href }}" rel="noopener">{{ edition.name }}</a>{% else %}{{ edition.name }}{% endif %}</b>
+        {%- if edition.licence %}<span class="licence">{% if edition.deed %}<a href="{{ edition.deed }}" rel="noopener">{{ edition.licence }}</a>{% else %}{{ edition.licence }}{% endif %}</span>{% endif %}
+      </li>
+    </ul>
+  </section>
+  {%- endif %}
+
   {%- if credit.renderings or credit.ours %}
   {#- Who made the translation, and under what. A reader deciding whether to trust an
       English Tanakh decides on this, so it is body text rather than a footnote.
@@ -60,7 +75,7 @@
         <b>{{ rendering.name }}</b>
         {%- if rendering.publisher %}<span class="publisher">{{ rendering.publisher }}</span>{% endif %}
         {%- if rendering.note %}<span class="note">{{ rendering.note }}</span>{% endif %}
-        {%- if rendering.licence %}<span class="licence">{% if rendering.licence_url %}<a href="{{ rendering.licence_url }}" rel="noopener">{{ rendering.licence }}</a>{% else %}{{ rendering.licence }}{% endif %}</span>{% endif %}
+        {%- if rendering.licence %}{% set said = licence_said(rendering.licence, rendering.licence_url) %}<span class="licence">{% if said[1] %}<a href="{{ said[1] }}" rel="noopener">{{ said[0] }}</a>{% else %}{{ said[0] }}{% endif %}</span>{% endif %}
       </li>
       {%- endfor %}
       {%- if credit.ours == "lines" %}
@@ -68,6 +83,23 @@
       {%- elif credit.ours == "text" %}
       <li class="ours">{{ t("text.page.we-translated-this-text", "We translated this text.") }}</li>
       {%- endif %}
+    </ul>
+  </section>
+  {%- endif %}
+
+  {%- if beside %}
+  {#- What the readers set beside the verse — Onkelos, Rashi, Rashi in English — named
+      with their licences (beta review AS-01, 2026-11-03). -#}
+  <section class="provenance beside" lang="{{ page_language }}">
+    <h2>{{ t("text.page.beside", "Beside the verse") }}</h2>
+    <ul>
+      {%- for one in beside %}
+      <li>
+        <b>{{ one.label }}</b>
+        <span class="publisher">{% if one.href %}<a href="{{ one.href }}" rel="noopener">{{ one.name }}</a>{% else %}{{ one.name }}{% endif %}</span>
+        {%- if one.licence %}<span class="licence">{% if one.deed %}<a href="{{ one.deed }}" rel="noopener">{{ one.licence }}</a>{% else %}{{ one.licence }}{% endif %}</span>{% endif %}
+      </li>
+      {%- endfor %}
     </ul>
   </section>
   {%- endif %}

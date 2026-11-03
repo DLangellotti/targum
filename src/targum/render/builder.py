@@ -20,7 +20,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from functools import cache, lru_cache
+from functools import cache, lru_cache, partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlencode, urlparse
@@ -248,6 +248,13 @@ WORDS_A_MINUTE = 130
 
 
 def reader_strings(translations: list[Translation]) -> dict[str, Any]:
+    """`reader_strings_in` the language of the page's first rendering."""
+    if not translations:
+        return {}
+    return reader_strings_in(translations[0].target_language)
+
+
+def reader_strings_in(language: str) -> dict[str, Any]:
     """The reader's own sentences in the language its page is read in, for `reader.js`'s
     `t` and `tn` (targum-internal#184).
 
@@ -258,9 +265,7 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
     """
     from ..strings import SOURCE, catalogue
 
-    if not translations:
-        return {}
-    code = translations[0].target_language.split("-")[0].lower()
+    code = (language or SOURCE).split("-")[0].lower()
     if code == SOURCE:
         return {}
     # And the word card's own, which `vocab.js` says inside every reader.
@@ -273,14 +278,19 @@ def reader_strings(translations: list[Translation]) -> dict[str, Any]:
 
 
 def said_strings(translations: list[Translation]) -> dict[str, Any]:
-    """The "as said" switch's own words in the page's language, for `said.js` (targum-internal
+    """`said_strings_in` the language of the page's first rendering."""
+    if not translations:
+        return {}
+    return said_strings_in(translations[0].target_language)
+
+
+def said_strings_in(language: str) -> dict[str, Any]:
+    """The "as said" switch's own words in `language`, for `said.js` (targum-internal
     #266). Kept out of `reader_strings`, whose `reader.` keys every reader carries: a page
     written with the switch off must not carry a word more than it did."""
     from ..strings import SOURCE, catalogue
 
-    if not translations:
-        return {}
-    code = translations[0].target_language.split("-")[0].lower()
+    code = (language or SOURCE).split("-")[0].lower()
     if code == SOURCE:
         return {}
     said = {key: text for key, text in catalogue(code).items() if key.startswith("said.")}
@@ -994,7 +1004,32 @@ def _faces() -> dict[str, Markup]:
         "face-chrome-upright.css": _chrome_face(italic=False),
         "face-chrome-ru.css": _chrome_face(cyrillic=True),
         "face-chrome-upright-ru.css": _chrome_face(italic=False, cyrillic=True),
+        # The Cyrillic cut alone, which the server puts in a reader written in another
+        # language for a reader whose interface is Russian (`chromed`, 2026-11-03).
+        "face-chrome-upright-cyrillic.css": _chrome_face(italic=False, cyrillic=True, latin=False),
     }
+
+
+def carried_sheet(name: str) -> str:
+    """A face as a page carries it, by its file's name: what the server puts in a reader
+    for a reader whose interface needs a cut the page was written without (`chromed`).
+    Nothing for a name that is not one of the faces."""
+    return str(_faces().get(name, ""))
+
+
+def carried_named(value: Mapping[str, Any]) -> str:
+    """A piece a reader names rather than carries (`chromed.SHEET`, `chromed.WORDS`), as
+    the page would carry it: a face, or the reader's script lines in a language."""
+    from .chromed import SHEET, WORDS
+
+    if value.get(SHEET):
+        return carried_sheet(str(value[SHEET]))
+    code = str(value.get(WORDS) or "")
+    return str(
+        embed_json(
+            {**reader_strings_in(code), **(said_strings_in(code) if value.get("said") else {})}
+        )
+    )
 
 
 @cache
@@ -1176,8 +1211,11 @@ def _page_scripture_face(context: Context) -> Markup:
 
 @pass_context
 def _page_chrome_face(context: Context, italic: bool = True) -> Markup:
-    # A page rendered in Russian carries the Cyrillic subset beside the Latin one.
-    cyrillic = str(context.get("page_language") or "").split("-")[0] == "ru"
+    # A page rendered in Russian carries the Cyrillic subset beside the Latin one. A
+    # reader's `page_language` is a piece put in per reader (`chromed`); the language it
+    # is written in is `chrome_base`.
+    written = context.get("chrome_base") or context.get("page_language") or ""
+    cyrillic = str(written).split("-")[0] == "ru"
     name = ("face-chrome" if italic else "face-chrome-upright") + ("-ru" if cyrillic else "")
     return _sheet(context, f"{name}.css", _chrome_face(italic, cyrillic))
 
@@ -1405,7 +1443,12 @@ def reader_files() -> tuple[str, ...]:
         for call in re.findall(r"\{\{\s*(?:styles|script)\(([^)]*)\)", template)
         for name in re.findall(r"'([^']+\.(?:css|js))'", call)
     ]
-    names += ["face-hebrew.css", "face-hebrew-biblical.css", "face-chrome-upright.css"]
+    names += [
+        "face-hebrew.css",
+        "face-hebrew-biblical.css",
+        "face-chrome-upright.css",
+        "face-chrome-upright-cyrillic.css",
+    ]
     held = {name for _, _, name in asset_files().values()}
     return tuple(
         asset_address(name) for name in dict.fromkeys(names) if name in held and name not in CARRIED
@@ -1573,7 +1616,7 @@ CYRILLIC_RANGE = "U+0400-04FF,U+2011,U+2116"
 
 
 @cache
-def _chrome_face(italic: bool = True, cyrillic: bool = False) -> Markup:
+def _chrome_face(italic: bool = True, cyrillic: bool = False, latin: bool = True) -> Markup:
     """The chrome's face, in the page. `--chrome` in reader.css names it with its
     fallbacks; this is what makes the name true.
 
@@ -1585,8 +1628,10 @@ def _chrome_face(italic: bool = True, cyrillic: bool = False) -> Markup:
     faces = (
         f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:normal;'
         f'src:url({_data_uri(upright)}) format("woff2");font-display:block}}'
+        if latin
+        else ""
     )
-    if italic:
+    if italic and latin:
         faces += (
             f'@font-face{{font-family:"{family}";font-weight:200 900;font-style:italic;'
             f'src:url({_data_uri(slanted)}) format("woff2");font-display:block}}'
@@ -2330,11 +2375,14 @@ def next_after(document: Document, count: int = OFFERS) -> list[dict[str, str]]:
     return out
 
 
-def offers_in(offers: list[dict[str, str]], language: str) -> list[dict[str, str]]:
+def offers_in(
+    offers: list[dict[str, str]], language: str, said: Callable[..., Markup] | None = None
+) -> list[dict[str, str]]:
     """`next_after`'s offers with their reason said in `language`, the language the
     reader's own words are in (targum-internal#287), and their scene number left off.
-    `next_after` keeps its English and the number, which is what its tests read."""
-    said = page_words(language)
+    `next_after` keeps its English and the number, which is what its tests read. `said`
+    is the page's own `t` where it says each reason in every interface language."""
+    said = said or page_words(language)
     reasons = {
         "Next in the sequence.": said("reader.next.sequence", "Next in the sequence."),
         "A step up from this one.": said("reader.next.step-up", "A step up from this one."),
@@ -2896,7 +2944,11 @@ CARD_KINDS = (
     ("story", "Story"),
     ("novel", "Book"),
     ("essay", "Essay"),
-    ("prose", "Tanakh"),
+    ("tanakh", "Tanakh"),
+    ("targum", "Aramaic translation"),
+    ("mishnah", "Mishnah"),
+    ("halakhah", "Halakhah"),
+    ("prose", "Prose"),
     ("poetry", "Poetry"),
     ("play", "Play"),
     ("liturgy", "Prayer"),
@@ -4085,7 +4137,13 @@ _SHELF_KINDS: tuple[tuple[str, str], ...] = (
     ("novel", "Novels"),
     ("essay", "Essays"),
     ("talk", "Videos"),
-    ("prose", "Tanakh"),
+    # The classical shelves, each under its own name (beta review AS-04, 2026-11-03):
+    # `prose` stood for all of them and called a tractate Tanakh. See `shelf_of`.
+    ("tanakh", "Tanakh"),
+    ("targum", "Aramaic translations"),
+    ("mishnah", "Mishnah"),
+    ("halakhah", "Halakhah"),
+    ("prose", "Prose"),
     ("poetry", "Poetry"),
     ("document", "Documents"),
     ("play", "Plays"),
@@ -4156,7 +4214,7 @@ def _shelf_languages(
     for code in order:
         kinds = []
         for kind, english in _SHELF_KINDS:
-            these = [entry for entry in by_language[code] if entry.kind.value == kind]
+            these = [entry for entry in by_language[code] if entry.shelf == kind]
             if not these:
                 continue
             shown = these if every else _first_rows(these, held)
@@ -4236,6 +4294,11 @@ def kind_page(
     mine = [entry for entry in everything() if entry.language == code]
     shelves = _shelf_languages(mine, language, every=True)
     found = next((one for shelf in shelves for one in shelf.kinds if one.kind == kind), None)
+    if found is None and kind == "prose":
+        # `/library/k/he/prose` was the Tanakh's address until the classical texts stood
+        # on shelves of their own (AS-04), and an address once given keeps answering.
+        kind = "tanakh"
+        found = next((one for shelf in shelves for one in shelf.kinds if one.kind == kind), None)
     if found is None:
         return None
     shelf = shelves[0]
@@ -4415,6 +4478,225 @@ def text_schema(entry: Entry, address: str = "", language: str = "en") -> dict[s
     return about
 
 
+#: The deed each licence a source states is linked to, keyed by `licensing._flat`. CC BY's
+#: one condition is attribution — the work named and the licence indicated, "with a URI
+#: or hyperlink" — so a credit links the licence rather than only naming it (beta review
+#: AS-01, 2026-11-03). Sefaria writes "CC-BY" and "CC-BY-SA" with no version, and links
+#: them to the 3.0 deeds on its own pages; those are the deeds used here for them.
+LICENCE_DEEDS: dict[str, str] = {
+    "cc by": "https://creativecommons.org/licenses/by/3.0/",
+    "cc by 3 0": "https://creativecommons.org/licenses/by/3.0/",
+    "cc by 3 0 unported": "https://creativecommons.org/licenses/by/3.0/",
+    "cc by 4 0": "https://creativecommons.org/licenses/by/4.0/",
+    "cc by sa": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "cc by sa 3 0": "https://creativecommons.org/licenses/by-sa/3.0/",
+    "cc by sa 4 0": "https://creativecommons.org/licenses/by-sa/4.0/",
+    "cc0": "https://creativecommons.org/publicdomain/zero/1.0/",
+}
+
+
+class Credited(NamedTuple):
+    """One line of credit for a piece of a text: what it is (`label`), whose it is
+    (`name`, linked to `href` where the claim was read), and under what (`licence`, linked
+    to its deed at `deed`)."""
+
+    label: str
+    name: str
+    href: str
+    licence: str
+    deed: str
+
+
+def _web(address: object) -> str:
+    text = str(address or "").strip()
+    return text if text.startswith(("https://", "http://")) else ""
+
+
+def licence_said(licence: str, where: str = "") -> tuple[str, str]:
+    """A licence as its source names it, and the address that indicates it: the deed for a
+    Creative Commons licence, the page it was read from for anything else, or "" where
+    there is nothing to link (public domain, read off no page)."""
+    from ..licensing import _flat
+
+    # Named as the source names it: the string is kept verbatim so the claim can be
+    # checked against the page it was read from (`catalogue.Rendering`).
+    return (licence or "").strip(), LICENCE_DEEDS.get(_flat(licence), "") or _web(where)
+
+
+def _written_in(rendering: Rendering, entry: Entry) -> str:
+    """The language a rendering is written in. A commentary's source names none for the
+    commentary's own text — `sefaria:Rashi on Genesis` is Rashi's Hebrew — so it is
+    written in the language of the text it comments on."""
+    from ..renderings import commentary_ref
+
+    parts = rendering.source.split(":")
+    if commentary_ref(rendering.source) and len(parts) == 2:
+        return entry.language.split("-")[0]
+    return rendering.language.split("-")[0]
+
+
+def _book_of(source: str) -> str:
+    """The book a range of scripture or Mishnah is cut from: `sefaria:Genesis
+    37:1-40:23` is Genesis, `sefaria:Mishnah Berakhot 1:1-2` is Mishnah Berakhot. ""
+    for a source that names no range."""
+    scheme, _, ref = (source or "").partition(":")
+    if scheme != "sefaria":
+        return ""
+    found = re.match(r"^(.+?)\s+\d", ref.split(";")[0].strip())
+    return found.group(1) if found else ""
+
+
+def credited_entries(source: str) -> tuple[Entry | None, Entry | None]:
+    """The catalogue rows that credit a text: its own row, which names its edition, and
+    the row whose renderings it carries.
+
+    The same row for nearly everything. A weekly portion, a haftarah and a daily page are
+    ranges cut out of a book on the shelf: the portion's row names the Hebrew and carries
+    no renderings, and a haftarah has no row at all, so both are credited from the book
+    they were cut from — whose English, Onkelos and Rashi are the ones they carry.
+    """
+    from .. import catalogue as catalogue_module
+
+    # The text's own row only, never a row that carries it as a rendering: Onkelos is a
+    # row of its own and a rendering on the Hebrew Genesis, and is credited as itself.
+    key = catalogue_module._key(source)
+    own = next(
+        (
+            e
+            for e in catalogue_module.everything()
+            if key and catalogue_module._key(e.source) == key
+        ),
+        None,
+    )
+    if own is not None and own.translations:
+        return own, own
+    book = _book_of(source)
+    whole = catalogue_module.matching(f"sefaria:{book}") if book else None
+    if whole is not None and whole is own:
+        whole = None
+    return (own if own is not None and own.credit else whole), (whole or own)
+
+
+def edition_credit(
+    entry: Entry | None, language: str = "en", *, linked: bool = True
+) -> Credited | None:
+    """Which edition a text is (beta review AS-03, 2026-11-03): "Hebrew · Torat Emet 357,
+    via Sefaria · Public Domain". The catalogue has held it for every row since
+    targum#122, and no page drew it, so "which text is this?" — a scholar's first
+    question — had no answer anywhere, and a CC BY Hebrew (the Metsudah siddur) went
+    uncredited. None for a row that names no edition."""
+    if entry is None or not entry.credit:
+        return None
+    say = page_words(language)
+    code = entry.language.split("-")[0]
+    label = (
+        say("text.page.source-he", "Hebrew")
+        if code == "he"
+        else say("text.page.source-arc", "Aramaic")
+        if code == "arc"
+        else _language_said(code, language)
+    )
+    where = entry.licence_url if linked else ""
+    licence, deed = licence_said(entry.licence, where)
+    return Credited(str(label), entry.credit, _web(where), licence, deed)
+
+
+def layer_credits(
+    entry: Entry | None,
+    translations: Sequence[Translation],
+    source_language: str,
+    language: str = "en",
+    *,
+    linked: bool = True,
+) -> list[Credited]:
+    """A credit for each published rendering a reader carries (beta review AS-01,
+    2026-11-03): its English, and beside a verse its Onkelos, Rashi and Rashi in English,
+    each under its own name and licence. The Metsudah Rashi is CC BY and was shown on
+    every aliyah with no credit at all.
+
+    A reader's rendering is matched to the catalogue's by language, and by whether it is
+    a commentary; one the catalogue does not list (a translation targum made) is not
+    credited here, because nobody else made it.
+
+    `linked` off is a reader's: it names every source and links only a licence's deed,
+    because a reader carries no address but the pinned few (`test_render.py`), and the
+    page the claim was read from is on the text's Library page.
+    """
+    from ..renderings import commentary_ref, commentator
+
+    if entry is None:
+        return []
+    out: list[Credited] = []
+    seen: set[str] = set()
+    for translation in translations:
+        commentary = bool(commentator(translation.name))
+        rendering = next(
+            (
+                r
+                for r in entry.translations
+                if _written_in(r, entry) == translation.target_language.split("-")[0]
+                and bool(commentary_ref(r.source)) == commentary
+            ),
+            None,
+        )
+        if rendering is None or rendering.source in seen:
+            continue
+        seen.add(rendering.source)
+        name = rendering.name
+        if rendering.publisher and rendering.publisher.lower() not in name.lower():
+            name = f"{name}, {rendering.publisher}"
+        where = rendering.licence_url if linked else ""
+        licence, deed = licence_said(rendering.licence, where)
+        out.append(
+            Credited(
+                _companion_label(translation, source_language, language),
+                name,
+                _web(where),
+                licence,
+                deed,
+            )
+        )
+    return out
+
+
+def beside_credits(entry: Entry | None, language: str = "en") -> list[Credited]:
+    """What a text's page credits as read beside it: Onkelos and Rashi on a book of the
+    Torah, each with its licence (beta review AS-01, 2026-11-03). `translation_credit`
+    leaves them out, because they are not the translation the page shows; the readers
+    show them, so the page that is about the text names them too."""
+    from ..renderings import commentary_ref
+
+    if entry is None:
+        return []
+    say = page_words(language)
+    source = entry.language.split("-")[0]
+    out: list[Credited] = []
+    for rendering in entry.translations:
+        ref = commentary_ref(rendering.source)
+        written = _written_in(rendering, entry)
+        if ref:
+            who = ref.split(" on ")[0]
+            work = str(say(f"reader.companion.{who.lower()}", who))
+            tongue = _language_said(written, language)
+            # Inside a name a language is lower case in Russian: «Раши · английский».
+            tongue = tongue if _page_language(language) == "en" else tongue.lower()
+            label = work if written == source else f"{work} · {tongue}"
+        elif written in BESIDE:
+            label = (
+                str(say("reader.companion.onkelos", "Onkelos"))
+                if "onkelos" in rendering.name.lower()
+                else _language_said(written, language)
+            )
+        else:
+            continue
+        name = rendering.name
+        if rendering.publisher and rendering.publisher.lower() not in name.lower():
+            name = f"{name}, {rendering.publisher}"
+        licence, deed = licence_said(rendering.licence, rendering.licence_url)
+        out.append(Credited(label, name, _web(rendering.licence_url), licence, deed))
+    return out
+
+
 def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     """One text, for somebody who has not signed in.
 
@@ -4426,7 +4708,13 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     from ..strings import text
 
     name = text("nav.library", language)
-    credit = translation_credit(entry, language)
+    # A portion's row carries no renderings of its own: its English, Onkelos and Rashi
+    # are the book's, so the book is what credits them (`credited_entries`).
+    named: Entry | None = None
+    if not entry.translations and _book_of(entry.source):
+        named = credited_entries(entry.source)[1]
+    credited = named if named is not None and named.translations else entry
+    credit = translation_credit(credited, language)
     here, alternates = _addressed_in(f"{address}/library/{entry.id}" if address else "", language)
     return (
         _environment()
@@ -4454,6 +4742,11 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             byline=_place_in(entry.author, _page_language(language)),
             era=era_said(entry, language),
             credit=credit,
+            # Which edition the text is, and what is read beside it, each with its licence
+            # linked (beta review AS-01 and AS-03, 2026-11-03).
+            edition=edition_credit(entry if entry.credit else named, language),
+            beside=beside_credits(credited, language),
+            licence_said=licence_said,
             shelf_name=name,
             direction=direction_for(entry.language),
             # The opening, with its translation in the language this page speaks
@@ -5294,6 +5587,18 @@ def parasha_page(
         "https://commons.wikimedia.org/wiki/File:Closeup_of_Torah_Scroll.jpg",
         t("parasha.page.photographed-by-jacob-gucker", "photographed by Jacob Gucker"),
     )
+    # Which edition the Hebrew is, and whose Onkelos and Rashi are beside it, linked
+    # (beta review AS-01 and AS-03, 2026-11-03): the reader names them in its foot, and
+    # this is where a portion's credits are gathered for somebody who has not opened one.
+    from ..catalogue import matching
+
+    torah = edition_credit(matching("sefaria:Genesis"), language)
+    edition = (
+        link.format(torah.href, torah.name)
+        if torah is not None and torah.href
+        else (torah.name if torah is not None else "")
+    )
+    rashi_licence = link.format(LICENCE_DEEDS["cc by"], "CC BY")
     russian_beside = reading != portion.folder and code == "ru"
     translation = text(
         "parasha.page.russian-translation" if russian_beside else "parasha.page.metsudah-linear",
@@ -5354,6 +5659,18 @@ def parasha_page(
                 photograph=photograph,
                 recording=recording,
                 licence=licence,
+            ),
+            *(
+                [
+                    t(
+                        "parasha.page.edition-and-beside",
+                        _english()["parasha.page.edition-and-beside"],
+                        edition=edition,
+                        rashi_licence=rashi_licence,
+                    )
+                ]
+                if edition
+                else []
             ),
         ],
         signed_in=signed_in,
@@ -6168,6 +6485,15 @@ def render(
     # carries (`promote.join_find`). Its two addresses are the only ones of its own a
     # shared copy may link, and `test_render.py` holds that.
     text_credit = text_credit_in(folder)
+    # Which edition the text is and whose each rendering is, from the catalogue (beta
+    # review AS-01 and AS-03, 2026-11-03). A find that joined the library already says
+    # where it came from in `text_credit`, so it is not said twice.
+    credited_own, credited_carried = credited_entries(document.source)
+    said_in = translations[0].target_language if translations else "en"
+    edition = None if text_credit else edition_credit(credited_own, said_in, linked=False)
+    layers = layer_credits(
+        credited_carried, translations, segmented.language, said_in, linked=False
+    )
 
     def beside_order(t: Translation) -> tuple[int, int]:
         if not with_companions:
@@ -6390,7 +6716,20 @@ def render(
     # The language the page's own words are said in: its first rendering's
     # (targum-internal#184). The text keeps its own on `data-language`.
     chrome = translations[0].target_language if translations else "en"
-    offers = offers_in(next_after(document), chrome)
+    # And every other interface language, in the places the page would say differently
+    # in it, for the server to put in for a reader whose interface is another
+    # (`chromed`; design.md §12, "A reader's chrome is the reader's language",
+    # 2026-11-03). The page as written is the one above, as it always was.
+    from ..strings import languages as interface_languages
+    from .chromed import SHEET, WORDS, Chrome, seal
+
+    pieces = Chrome(_page_language(chrome), interface_languages())
+    if post is not None and post.get("day"):
+        post["day"] = pieces.each(
+            lambda code: (post_card(folder, segmented, code)[0] or {}).get("day", "")
+        )
+    offered = next_after(document)
+    offers = offers_in(offered, chrome, said=pieces.words(page_words))
     shared = {
         "has_audio": has_audio,
         "medium": medium,
@@ -6399,21 +6738,25 @@ def render(
         # first is the offer; the rest are what "something else" draws, written into the
         # page because the page fetches nothing (targum-internal#233).
         "suggested": offers[0] if offers else {},
-        "suggested_more": json.dumps(offers[1:], ensure_ascii=False) if offers[1:] else "",
+        "suggested_more": pieces.each(
+            lambda code: json.dumps(offers_in(offered, code)[1:], ensure_ascii=False)
+        )
+        if offers[1:]
+        else "",
         "parts": parts,
         "document": document,
         "siblings": siblings or [],
         "title": document.title or "targum",
-        "english": english_title(document, chrome),
+        "english": pieces.each(lambda code: english_title(document, code)),
         # Which older Hebrew, beside the title: the reader the arrival opens is where a
         # learner who asked for Hebrew to read first meets Brenner (David, 2026-10-25).
-        "era": _era_of_source(document.source, chrome),
-        "era_lang": chrome.split("-")[0].lower(),
+        "era": pieces.each(lambda code: _era_of_source(document.source, code)),
+        "era_lang": pieces.each(lambda code: code),
         # And the language it is in, for its `lang`: a reader built in Russian names the
         # text in Russian where the catalogue has the name, and in English where not.
-        "english_lang": chrome.split("-")[0].lower()
-        if english_title(document, chrome) != english_title(document)
-        else "en",
+        "english_lang": pieces.each(
+            lambda code: code if english_title(document, code) != english_title(document) else "en"
+        ),
         # The whole tile, once, on the page that lists the chapters.
         # An upload's is its own picture, kept beside it when it was added (#429).
         "cover": cover_uri(covers, drawn) or own_cover_uri(folder),
@@ -6468,9 +6811,9 @@ def render(
                 # the rendering's own name where two are in the same language, since
                 # "English | English" says nothing. The full name is the button's title.
                 "label": (
-                    _companion_label(translation, segmented.language, chrome)
+                    pieces.each(partial(_companion_label, translation, segmented.language))
                     if with_companions and is_companion(translation, BESIDE)
-                    else _language_said(translation.target_language, chrome)
+                    else pieces.each(partial(_language_said, translation.target_language))
                     if into.count(translation.target_language) == 1
                     else translation.name
                 ),
@@ -6497,6 +6840,10 @@ def render(
     from ..audio.manifest import MANIFEST as RECORDING
 
     by_part = folder is not None and (folder / RECORDING).is_file()
+    # A portion's sections are its aliyot, and the bar says so: "Aliyah 1 of 7", never
+    # "Chapter 1 of 7" over Genesis 23 (beta review AS-05, 2026-11-03). Known by the
+    # headings the cut writes; a haftarah has none of them.
+    by_aliyah = not by_part and any(block.id.startswith("aliyah-") for block in document.blocks)
     for section in sections:
         segments = [by_id[sid] for sid in section.segment_ids]
         # Only this section's translations ship with the page, so a long book stays
@@ -7054,14 +7401,41 @@ def render(
         chanted = {sid: accents[sid] for sid in section.segment_ids if sid in accents}
         html = env.get_template("reader.html.j2").render(
             **shared,
-            # The page's own words in the language it is read in (targum-internal#184).
-            t=page_words(chrome),
+            # The page's own words in the language it is read in (targum-internal#184),
+            # and in every other interface language where they differ (`chromed`).
+            t=pieces.words(page_words),
             # And its counted ones. The voice offer counted in raw English with a
             # hand-rolled `'' if n == 1 else 's'`, so the one line on this page telling
             # a reader what something costs was the one line not in their language
             # (2026-09-23).
-            tn=page_counts(chrome),
-            page_language=_page_language(chrome),
+            tn=pieces.counts(page_counts),
+            page_language=pieces.each(lambda code: code),
+            # Which language the page is written in, for what is decided once rather
+            # than put in per reader: the chrome's face.
+            chrome_base=pieces.base,
+            # The chrome's Cyrillic cut, named for a reader whose interface is Russian on
+            # a page written in another, and carried by nobody else.
+            chrome_cyrillic=pieces.varied(
+                {
+                    code: {SHEET: "face-chrome-upright-cyrillic.css"}
+                    if code == "ru"
+                    else Markup("")
+                    for code in pieces.languages
+                }
+            )
+            if pieces.base != "ru"
+            else Markup(""),
+            # The reader's own sentences for its scripts (`reader.js`'s `t`), in a block
+            # of their own so each interface language's can stand in for the page's.
+            # The page's own, carried; every other language's, named (`chromed.WORDS`).
+            strings_block=pieces.varied(
+                {
+                    code: carried_named({WORDS: code, "said": bool(said_marks)})
+                    if code == pieces.base
+                    else {WORDS: code, "said": bool(said_marks)}
+                    for code in pieces.languages
+                }
+            ),
             section=section,
             translated=translated,
             audio_waiting=audio_waiting,
@@ -7102,6 +7476,8 @@ def render(
             words_credit=bool(annotation and annotation.annotator.startswith("dicta/")),
             glosses_credit=glosses_credit,
             text_credit=text_credit,
+            edition_credit=edition,
+            layer_credits=layers,
             # Russian's words read here (annotate/russian.py), named the same way and on the
             # same key: the carve-out in LICENSING.md promised it, and OpenCorpora's
             # CC BY-SA asks it.
@@ -7148,7 +7524,7 @@ def render(
                 {
                     "key": taken.voice,
                     "credit": taken.credit,
-                    "credited": _sound_said(taken.credited, chrome),
+                    "credited": pieces.each(partial(_sound_said, taken.credited)),
                     "licence": taken.licence,
                     "licence_url": taken.licence_url,
                 }
@@ -7174,9 +7550,9 @@ def render(
             # time, which only YouTube's does — an Instagram reel opens at its start.
             spoken_home_named=video_hosts.named(spoken.home),
             spoken_home_timed=spoken.home.startswith(video_hosts.YOUTUBE.home),
-            spoken_label=_sound_said(spoken.label, chrome),
+            spoken_label=pieces.each(partial(_sound_said, spoken.label)),
             speech_credit=spoken.credit,
-            speech_credited=_sound_said(spoken.credited, chrome),
+            speech_credited=pieces.each(partial(_sound_said, spoken.credited)),
             speech_licence=spoken.licence,
             speech_licence_url=spoken.licence_url,
             target_language=drawing.target_language,
@@ -7199,7 +7575,9 @@ def render(
                 {
                     "id": f"t{index}",
                     "key": companion_key(translation, segmented.language, BESIDE),
-                    "label": _companion_label(translation, segmented.language, chrome),
+                    "label": pieces.each(
+                        partial(_companion_label, translation, segmented.language)
+                    ),
                     "language": translation.target_language,
                     "direction": direction_for(translation.target_language),
                     "commented": _commentary_named(translation.name),
@@ -7272,7 +7650,7 @@ def render(
                     **({"sounds": sounds} if len(sounds) > 1 else {}),
                     # The French "as said" switch's marks (targum-internal#266), left out
                     # wherever the switch is off, so a page without them is the page it was.
-                    **({"said": said_marks, **said_strings(translations)} if said_marks else {}),
+                    **({"said": said_marks} if said_marks else {}),
                     # Parallel to the sounds, and left out where nothing on the page was
                     # guessed — a pointed, accented Tanakh chapter says nothing more.
                     **({"guessed": guesses} if any(guesses) else {}),
@@ -7313,10 +7691,8 @@ def render(
                     # on scripture that carries them; left out everywhere else.
                     **({"accents": chanted} if chanted else {}),
                     "levelNames": BAND_NAMES,
-                    # The reader's own words in the language it is read in, where that
-                    # is not English and has a catalogue (targum-internal#184). An
-                    # English reader carries nothing, so its page is what it was.
-                    **reader_strings(translations),
+                    # The reader's own words ride in `strings_block` since 2026-11-03,
+                    # where each interface language's can stand in for the page's.
                     # Which text this is. Lists are kept per document, not per
                     # language, so reading two articles does not pool their words.
                     "document": segmented.document_hash,
@@ -7426,6 +7802,7 @@ def render(
             # video, a part at a time"): the page asks for it once, on opening, instead
             # of at 60% of the way through as a book's page does.
             by_part=by_part,
+            by_aliyah=by_aliyah,
             standalone=single,
             # How many parts the text is in, for the line under a video (#422).
             section_count=len(sections),
@@ -7437,7 +7814,7 @@ def render(
             beyond_after=(beyond or {}).get("after") if section.number == len(sections) else None,
         )
         name = "index.html" if single else section.filename
-        written.append(_write(out_dir / name, html))
+        written.append(_write(out_dir / name, seal(html, pieces)))
 
     if not single:
         # Which chapters each file holds, so the contents page can send `#2:1` on to the
@@ -7478,7 +7855,7 @@ def render(
             groups=groups,
             spans=spans,
         )
-        written.insert(0, _write(out_dir / "index.html", index))
+        written.insert(0, _write(out_dir / "index.html", seal(index, pieces)))
         # What the server's contents page is drawn from (design.md §12, "A contents page
         # is a page of its own", 2026-10-09): data about the text, never about a reader,
         # so a page built once on the shared shelf is the same for everybody.

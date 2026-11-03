@@ -2835,7 +2835,8 @@ class Library:
         entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
         if entry is not None:
             return {
-                "kind": entry.kind.value,
+                # Its shelf, which is its kind except for a classical text (`shelf_of`).
+                "kind": entry.shelf,
                 "register": entry.register.value,
                 # What the text is about, so the arrival's subject doors can be answered
                 # from the shelf rather than from a second request (2026-09-17).
@@ -2891,6 +2892,9 @@ class Library:
         if source.endswith(".chat"):
             # A conversation read back: shaped like a scene, filed like one.
             kind = "dialogue"
+        # A tractate or a book of the Bible somebody brought from Sefaria stands on the
+        # shelf the catalogue's own copy would, not under "prose" (beta review AS-04).
+        kind = catalogue_module.shelf_of(kind, source, language)
         annotation = folder / "annotation.json"
         difficulty = self.remembered.get(
             folder,
@@ -5812,28 +5816,44 @@ def _served(text: str) -> str:
 
 #: The last readers handed out named, by file and its state on disk: a book's pages are
 #: opened one after another, and each is worked out once while it stays as it is.
-_SERVED: OrderedDict[tuple[str, int, int], bytes] = OrderedDict()
+_SERVED: OrderedDict[tuple[str, int, int, str], bytes] = OrderedDict()
 _SERVED_MOST = 64
 _SERVED_LOCK = threading.Lock()
 
 
-def served_page(path: Path, body: bytes) -> bytes:
+def chromed_page(body: bytes, language: str) -> bytes:
+    """A reader's page with its chrome in `language` where the page carries that
+    language's words (`render.chromed`; design.md §12, "A reader's chrome is the reader's
+    language", 2026-11-03), and as written otherwise."""
+    from .render.builder import carried_named
+    from .render.chromed import TRAILER, chromed_in
+
+    if not language or TRAILER.encode("utf-8") not in body:
+        return body
+    try:
+        return chromed_in(body.decode("utf-8"), language, carried_named).encode("utf-8")
+    except UnicodeDecodeError:
+        return body
+
+
+def served_page(path: Path, body: bytes, language: str = "en") -> bytes:
     """A reader as a browser opening it is handed it (design.md §12, "A served reader
-    loads its files once", 2026-10-29): today's stylesheets, scripts and faces named by
-    address (`served_reader`) and its recordings as files of their own, so the browser
-    keeps them. The page on disk is untouched, whole, and is what a save keeps."""
+    loads its files once", 2026-10-29): its chrome in the language of whoever opened it
+    (`chromed_page`), today's stylesheets, scripts and faces named by address
+    (`served_reader`) and its recordings as files of their own, so the browser keeps
+    them. The page on disk is untouched, whole, and is what a save keeps."""
     try:
         state = path.stat()
     except OSError:
         return body
-    key = (str(path), state.st_mtime_ns, state.st_size)
+    key = (str(path), state.st_mtime_ns, state.st_size, language)
     with _SERVED_LOCK:
         found = _SERVED.get(key)
         if found is not None:
             _SERVED.move_to_end(key)
             return found
     try:
-        named = _served(body.decode("utf-8")).encode("utf-8")
+        named = _served(chromed_page(body, language).decode("utf-8")).encode("utf-8")
     except UnicodeDecodeError:
         return body
     with _SERVED_LOCK:
@@ -6259,6 +6279,26 @@ class Handler(BaseHTTPRequestHandler):
             stranger=self._person() is None and not self._key_if_given(),
         )
         self._send(404, page.encode("utf-8"), HTML)
+
+    def _chromed(self, target: Path, body: bytes) -> bytes:
+        """A reader's page in the chrome of whoever asked for it (`chromed_page`);
+        anything that is not a page, as it is."""
+        if target.suffix != ".html":
+            return body
+        return chromed_page(body, self._reader_language())
+
+    def _reader_language(self) -> str:
+        """The interface language a reader's chrome is put in (design.md §12, "A reader's
+        chrome is the reader's language", 2026-11-03): one pressed for (`?lang=`), else a
+        signed-in reader's interface, else "" — a visitor nobody knows anything of gets
+        the page as it was built, which for a portion, a day or an issue is the
+        language its address already chose."""
+        asked = self._asked()
+        if asked:
+            return asked
+        if self._person() is not None:
+            return self._ui_language()
+        return ""
 
     def _navigating(self) -> bool:
         """Whether a person's browser asked for this address as a page, rather than a
@@ -7108,7 +7148,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, target.read_bytes(), kind, frames="out")
+        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
 
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
@@ -7137,7 +7177,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, target.read_bytes(), kind, frames="out")
+        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
 
     def _parasha_next(self, folder: str) -> None:
         """What a reading leads on to, for the end of its reader (#416, #446).
@@ -7886,7 +7926,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
         # Framed by the issue's own page and by nothing else on the web.
-        return self._send(200, target.read_bytes(), kind, frames="out")
+        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
 
     def _robots(self) -> str:
         """What a crawler may have.
@@ -8275,13 +8315,17 @@ class Handler(BaseHTTPRequestHandler):
         if door in doors:
             return self._say(f"library.door.{door}", doors[door])
         words = {
+            "tanakh": "Tanakh",
+            "targum": "Aramaic translation",
+            "mishnah": "Mishnah",
+            "halakhah": "Halakhah",
             "dialogue": "Conversation",
             "story": "Story",
             "article": "News",
             "novel": "Novel",
             "essay": "Essay",
             "talk": "Video",
-            "prose": "Tanakh",
+            "prose": "Prose",
             "poetry": "Poetry",
             "document": "Document",
             "play": "Play",
@@ -8472,7 +8516,7 @@ class Handler(BaseHTTPRequestHandler):
                 "type": entry.kind.value,
                 "register": entry.register.value,
                 "what": self._kind_word(
-                    entry.kind.value,
+                    entry.shelf,
                     door=doors.get(entry.id, "") if entry.register.value == "rabbinic" else "",
                 ),
                 "words": entry.words,
@@ -12543,7 +12587,7 @@ class Handler(BaseHTTPRequestHandler):
                     "video": bool(entry is not None and spoken.is_video(entry.source)),
                     # What it is and its picture, for the card's rows and its cover (board
                     # PlaylistEnd): the catalogue's kind, and its id for `/thumb/`.
-                    "kind": entry.kind.value if entry is not None else "",
+                    "kind": entry.shelf if entry is not None else "",
                     "entry": entry.id if entry is not None else "",
                     # Built already, its own folder names its picture as well.
                     "reader": str(item.get("reader") or ""),
@@ -17806,7 +17850,9 @@ class Handler(BaseHTTPRequestHandler):
                 # Anything else, a save for offline above all, gets the page whole, as it
                 # stands on disk.
                 if target.suffix == ".html" and self._navigating():
-                    body = served_page(target, body)
+                    body = served_page(target, body, self._reader_language())
+                else:
+                    body = self._chromed(target, body)
                 # Framed by the front page as a picture of itself (design.md §13,
                 # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
                 return self._send(200, body, kind, frames="out")

@@ -529,6 +529,9 @@ def _entry_row(
         "english": entry.english,
         "author": entry.author,
         "kind": entry.kind.value,
+        # The Library shelf it stands on — Tanakh, Mishnah, Halakhah, the targums — which
+        # is its kind for everything else (`catalogue.shelf_of`). The card names a row by it.
+        "shelf": entry.shelf,
         "register": entry.register.value,
         # Named for what it measures on the library page — how much of it a learner
         # looks up — rather than "difficulty", which promises more than it counts.

@@ -87,6 +87,54 @@ NEVIIM_BOOKS = (
 )
 
 
+#: The portion names Hebcal points wrongly, by number, checked by hand (beta review AS-06,
+#: 2026-11-03). Hebcal hands over the name as it stands inside its verse, so a heading
+#: read on its own carried a holam where the sin dot belongs (שָֹרָה), a dagesh from the
+#: article it lost (שְּׁמִינִי), no dagesh lene where a heading starts a word (פְקוּדֵי,
+#: תַזְרִיעַ), and נָשׂא with no holam at all. Every other name Hebcal gives is right as it
+#: is, and stays Hebcal's. Written in Hebcal's own mark order: vowel, then dagesh or dot.
+POINTED_NAMES: dict[int, str] = {
+    5: "חַיֵּי שָׂרָה",  # חַיֵּי שָׂרָה
+    23: "פְּקוּדֵי",  # פְּקוּדֵי
+    26: "שְׁמִינִי",  # שְׁמִינִי
+    27: "תַּזְרִיעַ",  # תַּזְרִיעַ
+    35: "נָשֹׂא",  # נָשֹׂא
+}
+
+#: The maqaf a doubled week's two names are joined with: וַיַּקְהֵל־פְּקוּדֵי.
+MAQAF = "־"
+
+
+def pointed_name(numbers: tuple[int, ...] | list[int], hebrew: str) -> str:
+    """A portion's name as a heading, pointed correctly: `POINTED_NAMES` where Hebcal has
+    it wrong, Hebcal's own otherwise. A doubled week's name is its two halves joined by a
+    maqaf, and each half is put right on its own."""
+    if len(numbers) == 1:
+        return POINTED_NAMES.get(numbers[0], hebrew)
+    halves = hebrew.split(MAQAF)
+    if len(numbers) == 2 and len(halves) == 2:
+        return MAQAF.join(
+            POINTED_NAMES.get(number, half) for number, half in zip(numbers, halves, strict=True)
+        )
+    return hebrew
+
+
+def own_range(summary: str) -> str:
+    """A weekly portion's own range, without the reading one year adds to it (beta review
+    AS-02, 2026-11-03).
+
+    Hebcal's line for a Shabbat carries that Shabbat's special maftir: "Genesis
+    37:1-40:23; Numbers 7:1-17" is Vayeshev on a Chanukah Shabbat, "Exodus 21:1-24:18,
+    30:11-16" Mishpatim on Shabbat Shekalim. The aliyot never include it and the
+    haftarah shown is the ordinary one, so a header that kept it disagreed with the page
+    under it. Every portion of the annual cycle, and every doubled week, is one unbroken
+    range in one book, so its own range is everything before the first `;` or `,`.
+
+    For a portion only. A festival's line is several readings that are all read.
+    """
+    return summary.split(";")[0].split(",")[0].strip()
+
+
 class Schedule(StrEnum):
     """Which of the two calendars. Values are identifiers — URLs, folders, cache keys."""
 
@@ -396,14 +444,19 @@ def _reading(item: dict[str, Any], schedule: Schedule) -> Reading | None:
         numbers = (raw,)
     else:
         numbers = tuple(int(n) for n in raw)
+    weekly = kind == "shabbat"
+    hebrew = str(name.get("he", ""))
+    summary = str(item.get("summary", ""))
     return Reading(
         day=day,
         schedule=schedule,
-        kind=ReadingKind.parasha if kind == "shabbat" else ReadingKind.festival,
+        kind=ReadingKind.parasha if weekly else ReadingKind.festival,
         name=str(name.get("en", "")),
-        hebrew=str(name.get("he", "")),
+        # A portion is named and ranged as itself, never as one year's Shabbat of it:
+        # see `pointed_name` and `own_range`.
+        hebrew=pointed_name(numbers, hebrew) if weekly else hebrew,
         hdate=str(item.get("hdate", "")),
-        summary=str(item.get("summary", "")),
+        summary=own_range(summary) if weekly and numbers else summary,
         numbers=numbers,
         aliyot=aliyot,
         haftarah=_haftarah(item, "haft", "haftara"),

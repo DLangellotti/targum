@@ -375,6 +375,41 @@ DOORS: tuple[str, ...] = (
 )
 
 
+#: The shelves a classical text stands on in the Library, in place of its kind (beta
+#: review AS-04, 2026-11-03; design.md §12). `prose` was drawn as "Tanakh" everywhere,
+#: so the Tanakh row held the sixty-three tractates and the Mishneh Torah while Psalms and
+#: Isaiah, filed as poetry, stood apart from it. A shelf is named for the collection, and
+#: every other text keeps its kind.
+CLASSICAL_SHELVES: tuple[str, ...] = ("tanakh", "targum", "mishnah", "halakhah")
+
+
+def shelf_of(kind: str, source: str, language: str, *, tanakh: bool = False) -> str:
+    """Which shelf a text stands on: `tanakh`, `targum`, `mishnah`, `halakhah`, or its
+    own kind for everything else.
+
+    `tanakh` is the row's tag. A text with no row (a reader's own) has only its source to
+    go on, which says scripture the way `is_biblical` reads it.
+    """
+    from .ingest.fetch.sefaria import is_mishnah
+    from .models import is_biblical
+
+    scheme, _, ref = (source or "").partition(":")
+    head, sep, tail = ref.partition(":")
+    if sep and len(head) <= 3 and head.isalpha():
+        ref = tail
+    ref = ref.strip()
+    if scheme == "sefaria":
+        if is_mishnah(ref):
+            return "mishnah"
+        if ref.startswith("Mishneh Torah"):
+            return "halakhah"
+        if kind in ("prose", "poetry") and is_biblical(source):
+            tanakh = True
+    if tanakh:
+        return "targum" if (language or "").split("-")[0] == "arc" else "tanakh"
+    return kind
+
+
 def _door(raw: object) -> str:
     """A door read back from the file, dropping one this targum does not know — forgiving
     on the way out, as `interests_of` is, so a newer file does not break an older page."""
@@ -585,6 +620,11 @@ class Entry:
         return sample_for(self.id)
 
     @property
+    def shelf(self) -> str:
+        """The Library shelf this text stands on: see `shelf_of`."""
+        return shelf_of(self.kind.value, self.source, self.language, tanakh=Tag.tanakh in self.tags)
+
+    @property
     def languages(self) -> list[str]:
         """Every language this text is written in (2026-09-14).
 
@@ -634,6 +674,9 @@ class Entry:
             "words": self.words,
             "minutes": self.minutes,
             "kind": self.kind.value,
+            # The shelf it stands on, which is its kind except for a classical text
+            # (`shelf_of`): what the Library groups and names it by.
+            "shelf": self.shelf,
             "register": self.register.value,
             # The older Hebrew it is in and the decade it was written, for the label every
             # surface draws (`ERAS`, David, 2026-10-25). "" and 0 where none is due.

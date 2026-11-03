@@ -2,7 +2,9 @@
 {#- The page is English chrome around a text (2026-09-14): its bar, cards, keys and every
     announcement are English, and a root that said lang="he" had a screen reader read
     them all in a Hebrew voice. The direction still follows the text, every source cell
-    carries its own `lang`, and the text's language rides on `data-language`. -#}
+    carries its own `lang`, and the text's language rides on `data-language`. Since
+    2026-11-03 the chrome, and so `lang`, is the reader's interface language, put in as
+    the page is served (`chromed`; design.md §12). -#}
 <html lang="{{ page_language|default('en') }}" dir="{{ page_direction }}" data-language="{{ source_language }}">
 <head>
 <meta charset="utf-8">
@@ -952,9 +954,9 @@
     ListenPhone and ListenWordPhone). Drawn over the reader and driving its one player:
     nothing here plays or keeps a place of its own. `listen.js` fills the line, the clock
     and Up next, and opens it only when it is pressed for. -#}
-{% set part_word = t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) if by_part else t("reader.listen.chapter-of", "Chapter {n} of {count}", n=section.number, count=section_count) %}
+{% set part_word = t("reader.film.part", "Part {n} of {count}", n=section.number, count=section_count) if by_part else t("reader.listen.aliyah-of", "Aliyah {n} of {count}", n=section.number, count=section_count) if by_aliyah|default(false) else t("reader.listen.chapter-of", "Chapter {n} of {count}", n=section.number, count=section_count) %}
 <section class="listen-view" id="listen-view" role="dialog" aria-label="{{ t("reader.listen.label", "Listening") }}" hidden
-         data-section="{{ section.number }}" data-sections="{{ section_count }}"{% if by_part %} data-by-part{% endif %}{% if not standalone %} data-part="{{ part_word }}"{% endif %}>
+         data-section="{{ section.number }}" data-sections="{{ section_count }}"{% if by_part %} data-by-part{% elif by_aliyah|default(false) %} data-by-aliyah{% endif %}{% if not standalone %} data-part="{{ part_word }}"{% endif %}>
   <div class="lv-col">
     <header class="lv-head" dir="ltr">
       <button type="button" class="lv-icon lv-down" aria-label="{{ t("reader.listen.back-to-the-text", "Back to the text") }}" title="{{ t("reader.listen.back-to-the-text", "Back to the text") }}">
@@ -1136,7 +1138,7 @@
     {% if companions %}
     <div class="beside">
       {%- for c in companions %}
-      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="en" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
+      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="{{ page_language|default('en') }}" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
       {%- endfor %}
     </div>
     {% endif %}
@@ -1187,7 +1189,7 @@
       the desk's", 2026-10-09): the foot is a card that says which end this is. -#}
   {#- Not for a text on its own (David, 2026-10-10: "I don't think we need it to say
       'the end'"): only a part or a chapter, where which one is worth saying. -#}
-  {% if not standalone %}<h2 class="foot-title">{% if by_part %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.foot.end-of-chapter", "End of chapter {n} of {count}", n=section.number, count=section_count) }}{% endif %}</h2>{% endif %}
+  {% if not standalone %}<h2 class="foot-title">{% if by_part %}{{ t("reader.film.end-of-part", "End of part {n} of {count}", n=section.number, count=section_count) }}{% elif by_aliyah|default(false) %}{{ t("reader.foot.end-of-aliyah", "End of aliyah {n} of {count}", n=section.number, count=section_count) }}{% else %}{{ t("reader.foot.end-of-chapter", "End of chapter {n} of {count}", n=section.number, count=section_count) }}{% endif %}</h2>{% endif %}
   <div class="finished" id="finished" hidden>
     <span id="done-said" hidden></span>
     <button type="button" class="undo" id="done-undo">{{ t("reader.finish.undo", "Undo") }}</button>
@@ -1289,12 +1291,12 @@
     last page where the pager is. Left to right whatever the text: they are the chrome's
     sentences, and an English paragraph laid out right to left put its full stop at the
     start of its last line (known issues 2026-10-12, 1.7). -#}
-{% if text_credit or speech_credit or words_credit or glosses_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
+{% if text_credit or edition_credit or layer_credits or speech_credit or words_credit or glosses_credit or russian_words_credit or pointing_credit or lexicon_credit or said or biblical %}
 <aside class="credits" id="credits" dir="ltr" aria-label="{{ t("reader.page.credits", "Credits") }}">
   {#- Who read it. A recording the library serves is somebody else's work under a licence
       that asks for them to be named, and naming them in a file nobody opens is not
-      naming them. The text's own credit is on the library page; this one travels with
-      the audio, because the audio is what can be saved and carried off. -#}
+      naming them. The text's own credit travels with it too, below; this one travels
+      with the audio, because the audio is what can be saved and carried off. -#}
   {#- Both, where an aliyah carries two readings: each is somebody's, under its own
       licence, and the one not playing can be switched to and saved all the same. -#}
   {% if voices %}
@@ -1315,6 +1317,19 @@
       file nobody opens is the same non-naming the reading credit above refuses. -#}
   {#- Where a find that joined the library came from: the outlet, linking the original, and
       the licence, linking its terms (design.md §12, 2026-11-02). Only on a shared copy. -#}
+  {#- The text itself and everything published beside it, each under its own name and
+      licence (beta review AS-01 and AS-03, 2026-11-03): which edition the Hebrew is, and
+      whose the English, the Onkelos, Rashi and Rashi in English are. The Metsudah Rashi
+      and the Metsudah siddur are CC BY, whose one condition is that they are named where
+      they are used, and the reader is where they are used. The deed is linked; the page
+      each claim was read from is on the text's Library page, since a reader carries no
+      address but the pinned few. -#}
+  {% if edition_credit %}
+  <p class="credit">{{ t("reader.credit.from", "{what} from", what=edition_credit.label) }} {{ edition_credit.name }}{% if edition_credit.licence %} · {% if edition_credit.deed %}<a href="{{ edition_credit.deed }}" rel="noopener">{{ edition_credit.licence }}</a>{% else %}{{ edition_credit.licence }}{% endif %}{% endif %}</p>
+  {% endif %}
+  {% for one in layer_credits or [] %}
+  <p class="credit">{{ t("reader.credit.from", "{what} from", what=one.label) }} {{ one.name }}{% if one.licence %} · {% if one.deed %}<a href="{{ one.deed }}" rel="noopener">{{ one.licence }}</a>{% else %}{{ one.licence }}{% endif %}{% endif %}</p>
+  {% endfor %}
   {% if text_credit %}
   <p class="credit">{{ t("reader.page.from", "From") }} <a href="{{ text_credit.source }}" rel="noopener noreferrer">{{ text_credit.outlet }}</a>{% if text_credit.licence %} · {% if text_credit.licence_url %}<a href="{{ text_credit.licence_url }}" rel="noopener noreferrer">{{ text_credit.licence }}</a>{% else %}{{ text_credit.licence }}{% endif %}{% endif %}</p>
   {% endif %}
@@ -1467,6 +1482,9 @@
   <iframe class="talk-frame" id="talk-frame" title="{{ t("reader.page.talk-to-targum", "Talk to targum") }}" allow="microphone"></iframe>
 </aside>
 <script type="application/json" id="targum-data">{{ data }}</script>
+{#- The reader's own sentences for its scripts, in the language of whoever opened it
+    (`chromed`; design.md §12, "A reader's chrome is the reader's language", 2026-11-03). -#}
+<script type="application/json" id="targum-strings">{{ strings_block }}</script>
 {#- `charts.js`, the ledger's arithmetic, left the reader on 2026-10-19: the finished box
     stopped reading it when it became three figures of this section (#429), and every
     reader still carried its 25 kB, on every page of every book (reader QA). -#}
@@ -1503,7 +1521,7 @@
 {% if (source_language or 'he').split('-')[0] in ['he', 'iw', 'yi', 'ji', 'arc'] %}{{ hebrew_face(biblical) }}{% endif %}
 {#- The chrome's face, upright only, for the reader's own menus (design.md §12,
     2026-10-09, "The reader's menus are the board's"). -#}
-{{ chrome_face(false) }}
+{{ chrome_face(false) }}{{ chrome_cyrillic }}
 {#- The rest of the reader (targum-internal#503): the lenses, export and the Anki deck,
     shnayim mikra, the bar's panels, full screen, the keyboard and keeping a phrase. All
     of `reader.js` stood in front of a word's first tap; what the tap needs stayed there
