@@ -8262,12 +8262,13 @@ def contents_page(
         from ..catalogue import shelf_of
 
         shelf = shelf_of("prose", source, source_language)
-        kind = {
+        shelved: Markup | None = {
             "tanakh": t("parts.page.kind-tanakh", "Tanakh"),
             "mishnah": t("parts.page.kind-tractate", "Tractate"),
             "halakhah": t("parts.page.kind-mishneh-torah", "Mishneh Torah"),
             "targum": t("parts.page.kind-targum", "Aramaic translation"),
         }.get(shelf)
+        kind = shelved or Markup("")
         # Else what the catalogue files it as, as the Library says it: a news article is
         # not a «Книга» (beta review 2026-11-03, R29). Not "prose", which the Library
         # calls Tanakh and which the shelves above have already said.
