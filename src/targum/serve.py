@@ -17597,6 +17597,8 @@ class Handler(BaseHTTPRequestHandler):
         wanted = unquote(relative)
         for root in roots:
             target = (root / wanted).resolve()
+            if root == roots[0] and _shelf_supersedes(root, roots[1], wanted):
+                continue
             if target.is_file() and root in target.parents:
                 # A Torah book is read as its portions (targum-internal#446): any page of
                 # its reader forwards to the same verse there.
@@ -17659,6 +17661,32 @@ class Handler(BaseHTTPRequestHandler):
                     where = f"/reader/{quote(real)}/{quote(rest)}" + (f"?{query}" if query else "")
                     return self._sent_on(where)
         return self._not_found()
+
+
+def _shelf_supersedes(home: Path, shared: Path, wanted: str) -> bool:
+    """Whether the shelf's build of a text stands in for the person's own copy of it.
+
+    The person's own folder wins where a name is in both, because it may be theirs alone:
+    their edits, their languages. But a copy of the very same document that was built
+    without its words (before the annotator ran on the box, or on a night it was killed)
+    has nothing of theirs the shelf's lacks, and it hides the words the shelf's has: no
+    word could be tapped or marked, and no chapter said how much of it was known
+    (`הלכות-יסודי-התורה-he`, built on 2026-09-03 and shadowing the shared build ever
+    since; found 2026-11-03). So where both carry the same document by its hash, and only
+    the shelf's has an annotation, the shelf's is the one served.
+    """
+    name = wanted.split("/", 1)[0]
+    if not name or name.startswith("."):
+        return False
+    own, theirs = home / name, shared / name
+    if (own / "annotation.json").is_file() or not (theirs / "annotation.json").is_file():
+        return False
+    mine = _read_contents(own / "reader" / CONTENTS)
+    shelf = _read_contents(theirs / "reader" / CONTENTS)
+    if not mine or not shelf:
+        return False
+    document = mine.get("document")
+    return bool(document) and document == shelf.get("document")
 
 
 def _first_part_of(roots: tuple[Path, ...], wanted: str) -> tuple[str, int] | None:
