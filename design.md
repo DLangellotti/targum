@@ -407,6 +407,42 @@ file instead.") twice, once after a stray ": ".
   ready." and, opened, the reason and "Nothing was used." under it; with no reason of its
   own, "We couldn't get it ready." is said once, not twice.
 
+### What next is quick to take in: the gap and the two lists first, the grammar in tabs — 2026-11-03
+
+David, 2026-11-03, answering the What next tabs mock ("way too huge and hard to get
+through"). It amends "What next leads with your biggest grammar gap" (2026-10-30) and
+"The Mishkal list beside the Grammar grid" (2026-11-02), which stood the grid, the list
+and their notes between the headline and the two lists, so a reader scrolled 1,100 to
+1,650px of grammar to reach the words and texts they could act on.
+
+- **Before any tap, the gap and the two lists.** The headline ("Your biggest gap:
+  הִתְפַּעֵל verbs"), its sentence with the pattern's gloss and the two words met, then
+  "Words you keep meeting and don't know yet" and "Texts at your level now". The gloss and
+  the examples stay with the headline they explain; moving them into the tab to shorten
+  the top was mocked and not taken.
+- **The grammar sits below, one grid at a time.** A hairline, then "Grammar", which stays
+  the heading, with **Binyanim | Mishkalim** as its `.seg`, as Week | Month is. They are
+  real tabs (`role="tablist"`, arrows, Home and End), so a screen reader says the tab and
+  its panel. The Binyanim tab is the Grammar grid and the Mishkalim tab the Mishkal list,
+  each as it was: exact percentages, the floors and their notes, the weakest row outlined,
+  a square opening its words under its own table. The Mishkal list keeps its two columns
+  of rows.
+- **The tab of the headline's gap is open, on every load.** A binyan gap opens Binyanim, a
+  mishkal gap Mishkalim, and with no gap named, Binyanim. The reader's choice is never
+  remembered (David): the page always opens on what the headline says. Changing tab shuts
+  an open list of words, so one is open at a time across the two, as before.
+- **With one kind only there are no tabs.** A machine without `roots-he.json` sends no
+  Mishkal list, and "Grammar" stands over the grid alone. With neither, the two lists
+  stand alone under the old title, as before.
+- **The block keeps its place** in the page, third, after "How you got here". Nothing here
+  feeds a headline number, as before.
+- Measured on the built page with one reader's made-up record: What next went from 2,322
+  to 1,488px at 390, 1,353 to 986 at 1024 and 1,468 to 1,071 at 1440, and the two lists
+  now start about 210 to 240px into the block instead of 1,040 to 1,660.
+- The panel headings "Mishkal" and the inner "Grammar" gave way to the tab names;
+  `progress.gap.mishkal` left the catalogue. The Russian «Биньяны» and «Мишкали» are
+  drafts and wait for David's read.
+
 ### A suggested text says where it comes from, and a find with an open licence joins the library — 2026-11-02
 
 David, 2026-11-02, approving the mock: every suggested text says plainly where it comes

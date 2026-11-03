@@ -173,68 +173,18 @@
     </div>
   </section>
 
-  {#- 3 · What next: the biggest grammar gap and the Grammar grid (design.md §12, "What
-      next leads with your biggest grammar gap", 2026-10-30, board 4B), then the words
-      still being learned that keep coming round, and texts at the reader's level now.
-      The title is the gap's headline where there is a gap, and the old title where there
-      is none. -#}
+  {#- 3 · What next: the biggest grammar gap and the two lists first, then the grammar one
+      tab at a time (design.md §12, "What next leads with your biggest grammar gap",
+      2026-10-30, board 4B; David, 2026-11-03, "What next is quick to take in").
+      Before any tap the reader sees the headline, its sentence, the words still being
+      learned that keep coming round and the texts at their level now. Under them,
+      "Grammar" with Binyanim | Mishkalim as its `.seg`, one grid at a time, the tab of the
+      headline's gap open. The title is the gap's headline where there is a gap, and the
+      old title where there is none. -#}
   <section class="panel story" id="next" aria-labelledby="next-title">
     <p class="story-step">{{ t("progress.story.next", "What next") }}</p>
     <h2 id="next-title" class="section-title story-head">{{ t("progress.next.title", "The words and texts that would help most") }}</h2>
-    <div class="gap" id="gap" hidden>
-      <p class="gap-said" id="gap-said" hidden></p>
-      <div class="gap-halves" id="gap-halves">
-        <div class="gap-grammar" id="gap-grammar">
-          <h3 class="gap-sub" id="grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
-          {#- A real table, its headers scoped, so a screen reader says "hitpa'el, Past,
-              38%". A square with a figure is a button that opens its words below. On a
-              phone the columns say their short names, and the long ones stay spoken. -#}
-          <table class="grammar" id="grammar" aria-labelledby="grammar-title" aria-describedby="grammar-note grammar-floor">
-            <thead>
-              <tr>
-                <td></td>
-                <th scope="col"><span class="tense-long">{{ t("progress.gap.past", "Past") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.past-short", "Past") }}</span></th>
-                <th scope="col"><span class="tense-long">{{ t("progress.gap.present", "Present") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.present-short", "Pres.") }}</span></th>
-                <th scope="col"><span class="tense-long">{{ t("progress.gap.future", "Future") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.future-short", "Fut.") }}</span></th>
-                <th scope="col"><span class="tense-long">{{ t("progress.gap.imperative", "Imperative") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.imperative-short", "Imp.") }}</span></th>
-                <th scope="col"><span class="tense-long">{{ t("progress.gap.infinitive", "Infinitive") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.infinitive-short", "Inf.") }}</span></th>
-              </tr>
-            </thead>
-            <tbody id="grammar-rows"></tbody>
-          </table>
-          <p class="gap-note" id="grammar-note">{{ t("progress.gap.note", "Share of the verb forms you met that you know. Tap a square to see its words.") }}</p>
-          <p class="gap-note" id="grammar-floor"></p>
-          <div class="grammar-words" id="grammar-words" hidden>
-            <h4 class="grammar-words-title" id="grammar-words-title"></h4>
-            <ul class="next-rows" id="grammar-word-rows" aria-labelledby="grammar-words-title"></ul>
-          </div>
-        </div>
-        {#- The Mishkal list (design.md §12, "The Mishkal list beside the Grammar grid",
-            2026-11-02): a row a noun pattern on ling-he's reviewed list, met at least
-            once, one square a row. Under the grid at every width (David, 2026-11-02), in
-            two columns of rows wherever it has the room (the tables are split in half by
-            the script), so the block is not one long column. Each
-            table is real, its headers scoped and spoken only: "miktal, Known, 34%".
-            Hidden on a machine with no root lexicon. -#}
-        <div class="gap-mishkal" id="gap-mishkal" hidden>
-          <h3 class="gap-sub" id="mishkal-title">{{ t("progress.gap.mishkal", "Mishkal") }}</h3>
-          <div class="mishkal-cols" id="mishkal-cols"></div>
-          <p class="gap-note" id="mishkal-note">{{ t("progress.gap.mishkal-note", "Share of the nouns and adjectives you met in each pattern that you know. Tap a square to see its words.") }}</p>
-          <p class="gap-note" id="mishkal-floor"></p>
-          <div class="grammar-words" id="mishkal-words" hidden>
-            <h4 class="grammar-words-title" id="mishkal-words-title"></h4>
-            <ul class="next-rows" id="mishkal-word-rows" aria-labelledby="mishkal-words-title"></ul>
-          </div>
-        </div>
-      </div>
-      {#- Topics: hidden until topic tagging exists (a card of its own), and then a row of
-          its own under Grammar and Mishkal (2026-11-02). Nothing is drawn here from
-          anything else in the meantime. -#}
-      <div class="gap-topics" id="gap-topics" hidden>
-        <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
-        <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
-      </div>
-    </div>
+    <p class="gap-said" id="gap-said" hidden></p>
     <div class="next-halves">
       <div class="next-half" id="next-words">
         <h3 class="story-sub" id="next-words-title">{{ t("progress.next.words", "Words you keep meeting and don't know yet") }}</h3>
@@ -247,6 +197,63 @@
         <ul class="next-rows" id="level-rows"></ul>
         <p class="note" id="level-empty" hidden></p>
         <a class="next-more" id="more-texts" href="/library">{{ t("progress.next.library", "More in the Library") }} →</a>
+      </div>
+    </div>
+    <div class="gap" id="gap" hidden>
+      {#- "Grammar" stays the heading; the two kinds of pattern are its tabs, in the
+          page's own `.seg`, as Week | Month is. Real tabs: arrows move between them. With
+          one kind only (no root lexicon on the machine) there are no tabs. -#}
+      <div class="gap-head">
+        <h3 class="gap-sub" id="grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
+        <div class="seg gap-tabs" id="grammar-tabs" role="tablist" aria-labelledby="grammar-title" hidden>
+          <button type="button" role="tab" id="grammar-tab-binyan" data-tab="binyan" aria-controls="gap-grammar" aria-selected="true">{{ t("progress.gap.tab-binyanim", "Binyanim") }}</button>
+          <button type="button" role="tab" id="grammar-tab-mishkal" data-tab="mishkal" aria-controls="gap-mishkal" aria-selected="false" tabindex="-1">{{ t("progress.gap.tab-mishkalim", "Mishkalim") }}</button>
+        </div>
+      </div>
+      <div class="gap-grammar" id="gap-grammar" role="tabpanel" aria-labelledby="grammar-tab-binyan">
+        {#- A real table, its headers scoped, so a screen reader says "hitpa'el, Past,
+            38%". A square with a figure is a button that opens its words below. On a
+            phone the columns say their short names, and the long ones stay spoken. -#}
+        <table class="grammar" id="grammar" aria-labelledby="grammar-title" aria-describedby="grammar-note grammar-floor">
+          <thead>
+            <tr>
+              <td></td>
+              <th scope="col"><span class="tense-long">{{ t("progress.gap.past", "Past") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.past-short", "Past") }}</span></th>
+              <th scope="col"><span class="tense-long">{{ t("progress.gap.present", "Present") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.present-short", "Pres.") }}</span></th>
+              <th scope="col"><span class="tense-long">{{ t("progress.gap.future", "Future") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.future-short", "Fut.") }}</span></th>
+              <th scope="col"><span class="tense-long">{{ t("progress.gap.imperative", "Imperative") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.imperative-short", "Imp.") }}</span></th>
+              <th scope="col"><span class="tense-long">{{ t("progress.gap.infinitive", "Infinitive") }}</span><span class="tense-short" aria-hidden="true">{{ t("progress.gap.infinitive-short", "Inf.") }}</span></th>
+            </tr>
+          </thead>
+          <tbody id="grammar-rows"></tbody>
+        </table>
+        <p class="gap-note" id="grammar-note">{{ t("progress.gap.note", "Share of the verb forms you met that you know. Tap a square to see its words.") }}</p>
+        <p class="gap-note" id="grammar-floor"></p>
+        <div class="grammar-words" id="grammar-words" hidden>
+          <h4 class="grammar-words-title" id="grammar-words-title"></h4>
+          <ul class="next-rows" id="grammar-word-rows" aria-labelledby="grammar-words-title"></ul>
+        </div>
+      </div>
+      {#- The Mishkal list (design.md §12, "The Mishkal list beside the Grammar grid",
+          2026-11-02): a row a noun pattern on ling-he's reviewed list, met at least once,
+          one square a row, in two columns of rows wherever it has the room. The
+          Mishkalim tab (2026-11-03). Each table is real, its headers scoped and spoken only: "miktal,
+          Known, 34%". Hidden on a machine with no root lexicon. -#}
+      <div class="gap-mishkal" id="gap-mishkal" role="tabpanel" aria-labelledby="grammar-tab-mishkal" hidden>
+        <div class="mishkal-cols" id="mishkal-cols"></div>
+        <p class="gap-note" id="mishkal-note">{{ t("progress.gap.mishkal-note", "Share of the nouns and adjectives you met in each pattern that you know. Tap a square to see its words.") }}</p>
+        <p class="gap-note" id="mishkal-floor"></p>
+        <div class="grammar-words" id="mishkal-words" hidden>
+          <h4 class="grammar-words-title" id="mishkal-words-title"></h4>
+          <ul class="next-rows" id="mishkal-word-rows" aria-labelledby="mishkal-words-title"></ul>
+        </div>
+      </div>
+      {#- Topics: hidden until topic tagging exists (a card of its own), and then a row of
+          its own under Grammar. Nothing is drawn here from anything else in the
+          meantime. -#}
+      <div class="gap-topics" id="gap-topics" hidden>
+        <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
+        <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
       </div>
     </div>
   </section>

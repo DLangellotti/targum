@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- What next on Your Progress is quick to take in (David, 2026-11-03; design.md §12). The
+  headline, its sentence and the two lists, words you keep meeting and texts at your
+  level, now come first. Under them "Grammar" shows one grid at a time behind Binyanim |
+  Mishkalim tabs, with the tab of the headline's gap open on every load. The block went
+  from 2,322 to 1,488px on a phone and from 1,468 to 1,071px at a desk. The two lists start
+  about 230px in, where they used to start 1,100 to 1,650px in. The Russian tab names are
+  drafts.
 - A YouTube build that our proxy refused now says so (2026-11-03; design.md §12, "A
   YouTube find is offered only when YouTube is in reach"). On 2026-11-03 the DataImpulse
   proxy ran out of traffic (`407 TRAFFIC_EXHAUSTED`), every YouTube fetch failed, and a
