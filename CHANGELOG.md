@@ -6,6 +6,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian interface says in Russian what it used to say in English (beta review,
+  2026-11-03: MSG-04, FLG-02, LIB-R01/R02 and the Russian oleh's R2–R9; David approved).
+  The front door and /connect no longer promise a Russian translation beside every line
+  of the library: Russian beside every line of what a reader brings, the library in
+  English and in Russian where it has it. The 21 keys `en.json` had and `ru.json` did not
+  (the home card's topic line, its daily cap and failed or lost look, "Lines you
+  rewrote") are said, and the home card's own keyed lines win over the server's. Upload
+  and import refusals go through `told` with keys (a PDF too long, a file kind not read,
+  too many pictures, an upload gone, no text at an address, no speech, a recording in a
+  language not read, an EPUB that will not open, Facebook, the voice), and a refusal
+  names a language in its case. The build's stages on Your targums are keyed, and an
+  unkeyed one says "getting it ready" rather than English. The chat's chips post the
+  reader's own language as their turn, and "We restarted while we were answering" is
+  said in it. Dates on Progress, the chat list and series, and the palette's counts,
+  follow the interface language rather than the phone's. Your targums rows, job cards
+  and the Add page's "already in the library" card show the Russian subtitle where the
+  catalogue has one, as the Library does. A new test holds every key the server sends
+  through `_say`/`said_in` to `ru.json`. The Russian is drafts for David.
 - Spending presses say what they spend (beta review 2026-11-03; design.md §12, "A
   spending press says what it spends"). The connector's confirm page counts credits as
   the rail charges (`builder.credits_of`), so an 80-second clip reads "Uses 2 credits"

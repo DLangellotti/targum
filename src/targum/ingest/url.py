@@ -321,7 +321,12 @@ def _open(
             location = response.headers.get("location")
             response.close()
             if not location:
-                raise TargumError(f"We couldn't open {url}.", "Redirect with nowhere to go")
+                # The hint is the machine's, as it is on every `fetch.would-not-open`
+                # (`serve.RAW_HINTS`): the log's, and never a reader's sentence.
+                nowhere = "Redirect with nowhere to go"
+                raise TargumError(
+                    f"We couldn't open {url}.", nowhere, key="fetch.would-not-open", url=url
+                )
             # Relative locations are legal, and the query belongs to the address it
             # was written for, not to wherever it points.
             target, params = urljoin(target, location), None
@@ -1046,6 +1051,8 @@ class UrlIngester:
             raise TargumError(
                 f"We couldn't find any text at {source}.",
                 "The address answered with an empty file.",
+                key="fetch.empty-file",
+                url=source,
             )
         return build_document(
             source,
@@ -1067,6 +1074,8 @@ class UrlIngester:
             raise TargumError(
                 f"We couldn't find any text at {source}.",
                 "Save the page as .txt or .md and drop the file in.",
+                key="fetch.no-text-at",
+                url=source,
             )
         return build_document(
             source,
@@ -1096,6 +1105,8 @@ class UrlIngester:
             raise TargumError(
                 f"We couldn't find any text at {source}.",
                 "Save the page as .txt or .md and drop the file in.",
+                key="fetch.no-text-at",
+                url=source,
             )
         paragraphs = [(kind, level, normalize(text)) for kind, level, text in paragraphs]
         if _translated_edition(source):

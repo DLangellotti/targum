@@ -157,7 +157,9 @@ def say(text: str, voice: str = VOICE, key: str | None = None, language: str = "
             payload = json.loads(answer.read())
         raw = payload["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]
     except Exception as error:  # noqa: BLE001 - one sentence for the reader, whatever the API said
-        raise TargumError("The voice didn't answer.", "Try again in a moment.") from error
+        raise TargumError(
+            "The voice did not answer.", "Try again in a moment.", key="speech.no-answer"
+        ) from error
     return wav(base64.b64decode(raw))
 
 
