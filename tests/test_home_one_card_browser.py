@@ -141,7 +141,11 @@ def home(browser, width: int, find: Answer, suggest: Answer | None = None):
             said = find(body)
         else:
             said = {}
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
+        # An answer may be (status, body): a look the server has lost, a failed ask.
+        status = 200
+        if isinstance(said, tuple):
+            status, said = said
+        route.fulfill(status=status, content_type="application/json", body=json.dumps(said))
 
     phone = width < 640
     context = browser.new_context(
@@ -337,6 +341,79 @@ def test_nothing_fits_and_the_day_s_limit_each_leave_one_press(browser, width: i
     assert not thrown, thrown
     assert got["says"] == "That's today's 3 web searches. More tomorrow."
     assert got["presses"] == ["Topic"], got
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_look_the_server_lost_says_so_and_offers_try_again(browser, width: int) -> None:
+    """Beta review LIB-R03, 2026-11-03: a restart in the middle of a look answers 404, and
+    the card polled on for three minutes and froze on "Looking on the web." with no line
+    and no press."""
+
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("search"):
+            return (404, {"error": "We lost that search. Try again."})
+        return {"search": "s3", "stage": "searching", "pages": 0, "left": 2}
+
+    context, page, thrown, posted, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.click("#try-next .rc-else")
+    page.wait_for_selector("#try-next .rc-steps")
+    page.wait_for_selector("#try-next .rc-says:has-text('We lost that search')", timeout=6000)
+    got = page.evaluate(CARD)
+    shot(page, "look-gone", width)
+    asks = len(posted)
+    page.click("#try-next .rc-again")
+    page.wait_for_timeout(300)
+    again = len(posted)
+    context.close()
+    assert not thrown, thrown
+    assert got["says"] == "We lost that search. Try again." and got["presses"] == ["Try again"]
+    assert not got["steps"] and not got["sideways"], got
+    assert again == asks + 1 and not posted[-1].get("search"), "Try again asks afresh"
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_failed_first_ask_says_so_and_try_again_asks_it_again(browser, width: int) -> None:
+    """Beta review LIB-H03, 2026-11-03: when /suggest failed, the card was a bare heading
+    with no line and no press."""
+    asked: list[dict[str, Any]] = []
+
+    def suggest(body: dict[str, Any]) -> Any:
+        asked.append(body)
+        if len(asked) == 1:
+            return (500, {})
+        return {"suggestion": SHELF_PICK, "library": True, "more": MORE}
+
+    context, page, thrown, posted, _ = home(browser, width, lambda body: {"pick": None}, suggest)
+    page.wait_for_selector("#try-next .rc-says:has-text('just now')")
+    got = page.evaluate(CARD)
+    shot(page, "suggest-failed", width)
+    page.click("#try-next .rc-again")
+    page.wait_for_selector("#try-next .rc-pick")
+    after = page.evaluate(CARD)
+    context.close()
+    assert not thrown, thrown
+    assert got["label"] == "One to try next", got
+    assert got["says"] == "We couldn't find one for you just now." and got["presses"] == [
+        "Try again"
+    ]
+    assert len(asked) == 2 and not posted, "Try again asks /suggest again, never the web"
+    assert after["title"] == "חנה סנש: יומן", after
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_no_suggestion_says_nothing_fits_with_a_press(browser, width: int) -> None:
+    """Beta review LIB-H03, 2026-11-03: no suggestion hid the card's body, and Read,
+    Something else and Topic went with it."""
+    context, page, thrown, _, _ = home(
+        browser, width, lambda body: {"pick": None}, lambda body: {"suggestion": None}
+    )
+    page.wait_for_selector("#try-next .rc-says")
+    got = page.evaluate(CARD)
+    shot(page, "no-suggestion", width)
+    context.close()
+    assert not thrown, thrown
+    assert got["says"] == "No new text is 90% known for you yet." and got["presses"] == ["Topic"]
 
 
 def test_the_card_is_the_old_one_while_the_switch_is_off(

@@ -77,11 +77,13 @@
                   {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
                   {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
                   {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
-                  {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.
-                  {%- if tried.wait %} {{ tried.wait }}{% endif %}</p>
+                  {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.</p>
+                {#- No wait here (beta review PUB-02, 2026-11-03): the address joins a waitlist,
+                    and the build comes when the operator lets them in, which may be weeks.
+                    "Ready in about 4 minutes" promised what the door cannot keep (§6). -#}
               </div>
             </div>
-            <p class="tried-keep">{{ t("landing.try.turned-into-a-lesson", "Leave your email and we’ll turn this into a lesson for you.") }}</p>
+            <p class="tried-keep">{{ t("landing.try.turned-into-a-lesson", "Join the waitlist and we’ll have this ready for you when your turn comes.") }}</p>
             {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
             {%- endif %}
           </div>
@@ -110,7 +112,7 @@
         <div class="reader-head">
           <div>
             <p class="reader-title">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</p>
-            <p class="reader-meta">{{ t("landing.page.a-cooking-video-10-minutes-you-know-80", "A cooking video · 10 minutes · you know 80% of the words here") }}</p>
+            <p class="reader-meta">{{ t("landing.page.a-cooking-video-10-minutes-you-know-80", "A cooking video · 10 minutes · this learner knows 80% of the words") }}</p>
           </div>
           <div class="keys">
             <button class="btn tonal small" id="vowels" type="button" aria-pressed="true">{{ t("landing.page.vowels", "Vowels") }}</button>
@@ -166,7 +168,7 @@
           <div class="example-body">
             <p class="example-what">{{ t("landing.page.that-s-a-youtube-video-9-minutes", "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person.") }}</p>
             <p class="example-title">{{ t("landing.page.sabich-step-by-step", "Sabich, step by step") }}</p>
-            <p class="example-known"><b class="tnum">80%</b> {{ t("landing.page.of-it-you-already-know", "of it you already know") }}</p>
+            <p class="example-known"><b class="tnum">80%</b> {{ t("landing.page.of-it-you-already-know", "of its words you’ve marked as known") }}</p>
             <span class="meter"><i class="p80"></i></span>
             <p class="example-wait">{{ t("landing.page.ready-in-about-4-minutes", "Ready in about 4 minutes.") }}</p>
           </div>
@@ -297,11 +299,15 @@
         <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh. Many come with a published translation, sentence by sentence.") }}</p>
       </div>
       <div class="shelf">
-        <div class="book"><span class="reg">{{ t("landing.page.video", "Video") }}</span><span class="t">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k tnum">{{ t("landing.page.80-of-words-known", "80% of words known") }}</span><span class="meter"><i class="p80"></i></span></div>
-        <div class="book"><span class="reg">{{ t("landing.page.modern", "Modern") }}</span><span class="t">{{ t("landing.page.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="k tnum">{{ t("landing.page.90-of-words-known", "90% of words known") }}</span><span class="meter"><i class="p90"></i></span></div>
-        <div class="book"><span class="reg">{{ t("landing.page.revival", "Revival") }}</span><span class="t">{{ t("landing.page.bialik", "Bialik ·") }} <span class="he" lang="he" dir="rtl">הַכְנִיסִינִי</span></span><span class="k tnum">{{ t("landing.page.60-of-words-known", "60% of words known") }}</span><span class="meter"><i class="p60"></i></span></div>
-        <div class="book"><span class="reg">{{ t("landing.page.biblical", "Biblical") }}</span><span class="t">{{ t("landing.page.genesis-1-with-onkelos", "Genesis 1, with Onkelos") }}</span><span class="k tnum">{{ t("landing.page.70-of-words-known", "70% of words known") }}</span><span class="meter"><i class="p70"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.video", "Video") }}</span><span class="t">{{ t("landing.page.shakshuka-in-ten-minutes", "Shakshuka in ten minutes") }}</span><span class="k tnum">{{ t("landing.page.80-of-words-known", "80% known") }}</span><span class="meter"><i class="p80"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.modern", "Modern") }}</span><span class="t">{{ t("landing.page.this-week-s-news-easy", "This week’s news · easy") }}</span><span class="k tnum">{{ t("landing.page.90-of-words-known", "90% known") }}</span><span class="meter"><i class="p90"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.revival", "Revival") }}</span><span class="t">{{ t("landing.page.bialik", "Bialik ·") }} <span class="he" lang="he" dir="rtl">הַכְנִיסִינִי</span></span><span class="k tnum">{{ t("landing.page.60-of-words-known", "60% known") }}</span><span class="meter"><i class="p60"></i></span></div>
+        <div class="book"><span class="reg">{{ t("landing.page.biblical", "Biblical") }}</span><span class="t">{{ t("landing.page.genesis-1-with-onkelos", "Genesis 1, with Onkelos") }}</span><span class="k tnum">{{ t("landing.page.70-of-words-known", "70% known") }}</span><span class="meter"><i class="p70"></i></span></div>
       </div>
+      {#- Whose figures these are (beta review, beginner B-03, 2026-11-03): a stranger has
+          told us nothing, and "80% of words known" read as a claim about them, false for a
+          beginner and a sign the page was for people who already speak Hebrew. -#}
+      <p class="shelf-note">{{ t("landing.page.shelf-known-note", "Shown for a learner who knows 2,000 words. Once you’re in, each text is measured against the words you mark.") }}</p>
     </div>
     {#- The Torah is in the library, so it is drawn there (2026-10-01): the shelf, then
         Genesis as its centrepiece, rather than a part of its own. -#}

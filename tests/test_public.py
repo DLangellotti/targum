@@ -698,7 +698,9 @@ def test_a_page_with_no_address_declares_no_alternates() -> None:
     """A page rendered without an address has no URLs to point at, and half an hreflang
     set is worse than none."""
     html = text_page(a_russian_row(), "", language="ru")
-    assert "hreflang" not in html
+    # The front door's bar names its EN/RU links' languages (beta review PUB-06,
+    # 2026-11-03); those are links, not an alternate set.
+    assert 'rel="alternate"' not in html
 
 
 def _head(html: str) -> list[str]:
@@ -1050,10 +1052,39 @@ def test_read_it_signs_in_and_lands_on_the_text() -> None:
 
     entry = next(iter(everything()))
     page = text_page(entry, "https://targum.page")
-    doors = re.findall(r'<a class="(?:go|enter)" href="([^"]+)"', page)
+    # The masthead's Sign in is the front door's bar's since the beta review (PUB-06,
+    # 2026-11-03), and it still carries the text.
+    doors = re.findall(r'<a class="(?:go|signin)" href="([^"]+)"', page)
     assert doors == [f"/account/signin?next=%2Fopen%2F{entry.id}"] * 2
     russian = text_page(entry, "https://targum.page", language="ru")
     assert f'href="/account/signin?next=%2Fopen%2F{entry.id}&amp;lang=ru"' in russian
+
+
+def test_while_the_front_door_is_open_a_text_page_offers_the_waitlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Beta review PUB-06, 2026-11-03: every shelf row and search result lands on a text's
+    page, and its one press went to a sign-in that refuses anybody not invited. While the
+    front door takes an address the press is the waitlist, under the front door's bar,
+    and somebody invited still has a way in that carries the text."""
+    import re
+
+    from targum.catalogue import everything
+    from targum.render.builder import text_page
+
+    entry = next(iter(everything()))
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    page = text_page(entry, "https://targum.page")
+    assert '<header class="front-bar">' in page
+    assert re.findall(r'<a class="go" href="([^"]+)"', page) == ["/#join"]
+    assert "Free to read once you’re in." in page
+    assert f'Already invited? <a href="/account/signin?next=%2Fopen%2F{entry.id}">' in page
+    assert "Read it" not in page and "Someone has already translated" not in page
+    russian = text_page(entry, "https://targum.page", language="ru")
+    assert '<a class="go" href="/?lang=ru#join">' in russian
+    assert 'href="/library/' + entry.id + '?lang=en" hreflang="en"' in russian
+    monkeypatch.delenv("TARGUM_FRONT_DOOR")
+    assert "Read it" in text_page(entry, "https://targum.page")
 
 
 # -- what a shared link shows -------------------------------------------------

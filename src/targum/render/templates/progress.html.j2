@@ -70,7 +70,11 @@
             it and the glyph itself is hidden from a screen reader (design P0-6). The bar
             is not spoken (§12, "See all keeps one level, and the bar is not spoken"):
             the words line under it is, once, as text. -#}
-        <p class="level-mark" id="level-mark" hidden><span class="visually-hidden" id="level-spoken"></span><bdi class="level-big" id="level-big"></bdi><span class="level-cefr" id="level-cefr"></span></p>
+        {#- "Ulpan level" is said where it can be seen, beside the letter, and the scale is
+            said under the card (David, 2026-11-03; design.md §12, "The ulpan letter says
+            what it is"): a letter alone could not be read by a learner who has never
+            been to an ulpan. The hidden name stays what a screen reader hears. -#}
+        <p class="level-mark" id="level-mark" hidden><span class="visually-hidden" id="level-spoken"></span><span class="level-scale" id="level-scale" aria-hidden="true" hidden></span><bdi class="level-big" id="level-big"></bdi><span class="level-cefr" id="level-cefr"></span></p>
         <p class="level-head" id="where-title"></p>
         <p class="level-step" id="where-step" hidden></p>
         <p class="level-known" id="where-known" hidden></p>
@@ -80,6 +84,7 @@
         </div>
         <a class="btn filled level-go" id="where-go" href="/library" hidden></a>
         <p class="note level-note" id="where-note" hidden></p>
+        <p class="note level-basis" id="level-basis" hidden></p>
       </div>
       <div class="card level-ladder" id="ladder" hidden>
         <p class="level-ladder-head" id="ladder-head">{{ t("progress.ladder.head", "Texts by level") }}</p>

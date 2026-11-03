@@ -113,6 +113,12 @@
 
   {% else %}
   <h1>{% if connecting %}{{ connecting }}{% else %}{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}{% endif %}</h1>
+  {#- Somebody who has never been here learns that targum is by invitation before they
+      type an address, not from the refusal after it (beta review PUB-05, 2026-11-03).
+      Only while the front door takes an address. -#}
+  {%- if join and not connecting %}
+  <p class="said new-here">{{ t("signin.page.new-here", "New here?") }} <a href="{{ join }}">{{ t("signin.page.join-the-waitlist", "Join the waitlist") }}</a></p>
+  {%- endif %}
   {#- One door was the rule here, and the reason was good: "Nobody has to work out which
       of two buttons they are." Google is a second door and not a second answer to that
       question — it proves the same address faster, and the account it reaches is the same
@@ -126,7 +132,7 @@
   <a class="btn ghost outline wide go with-google" href="/account/google{% if back %}?next={{ back|urlencode }}{% endif %}">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
   <p class="or">{{ t("signin.page.or", "or") }}</p>
   {%- endif %}
-  <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "No password. We'll email you a link.") }}</p>
+  <p class="said">{{ t("signin.page.no-password-we-ll-email-you-a", "We'll email you a link, so there's no password. If you've been invited, the same link sets up your account.") }}</p>
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"

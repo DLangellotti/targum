@@ -576,6 +576,13 @@
         <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><rect x="1.5" y="4" width="13" height="8" rx="1.5"></rect><path d="M4.25 6.75h0M6.75 6.75h0M9.25 6.75h0M11.75 6.75h0M5 9.5h6"></path></svg></span>
         <span class="m-label">{{ t("reader.page.keys", "Keys") }}</span><kbd class="m-key">?</kbd>
       </button>
+      {#- Tell us, last (beta review RDR-02, 2026-11-03): the reader has no account menu,
+          so on the page the beta reads most it was reached only after a fault. Shown by
+          `reader.js` to a reader with an account; `fault.js` opens it. -#}
+      <button type="button" class="m-row" id="more-tell-us" data-what="{{ t("fault.tell-us", "Tell us") }}" data-tell-us hidden>
+        <span class="m-icon" aria-hidden="true"><svg viewBox="0 0 16 16" focusable="false"><path d="M2.5 3.5h11v7.5h-6.5l-3 2.5v-2.5h-1.5z"/><path d="M5.5 6.5h5M5.5 8.75h3"/></svg></span>
+        <span class="m-label">{{ t("fault.tell-us", "Tell us") }}</span>
+      </button>
     </div>
   </div>
   {#- Under a sheet on a phone, the page dims: a press on it puts the sheet away. -#}
@@ -608,6 +615,10 @@
 {#- `dir="ltr"`: the line is English chrome inside a page that takes the text's
     direction, and on an RTL page the bidi algorithm carried its full stop to the
     other end — ".Tap a word to say how well you know it". -#}
+{#- Signed out (beta review RDR-01, 2026-11-03): one quiet line whose press is Sign in to
+    keep the marks, with the waitlist beside it while the front door takes an address.
+    Drawn by `reader.js` once the account has said nobody is signed in. -#}
+<p class="signed-out" id="signed-out" dir="ltr" hidden></p>
 {% if words %}<p class="first" id="first" dir="ltr" hidden>{{ t("reader.page.tap-a-word-to-say-how-well", "Tap a word to say how well you know it.") }}</p>{% endif %}
 {#- Where a press at the foot of the item before landed the reader (design.md §12, "The foot
     is one block", 2026-09-25): once and briefly, what that press did, with the one Undo

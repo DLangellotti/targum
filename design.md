@@ -423,6 +423,96 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   with no cost said and no confirm, so a reader's Library row no longer offers it and
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
+### A stranger is told the door is by invitation before they knock — 2026-11-03
+
+The beta review of 2026-11-03 (surface audit PUB-02, PUB-03, PUB-05, PUB-06, RDR-01, RDR-02,
+LIB-R03, LIB-H03; the beginner's B-02 and B-03) walked in as somebody with no account and
+found the front door promising what it could not keep. David decided the same day that
+the beta stays invitation-only for now: the waitlist and his Let in, no open sign-up
+(#485 waits). So every door a stranger reaches says that, and says it first.
+
+- **The try box promises no wait.** "Ready in about 4 minutes" went with a link a stranger
+  pasted, beside a form that only joins a waitlist; the build comes when they are let in,
+  which may be weeks. The box says what the link is, and then "Join the waitlist and
+  we'll have this ready for you when your turn comes." The link is still kept with the
+  address and built when the operator lets them in (2026-10-01).
+- **Just joined, the heading is "Check your email".** "You're on the list" was said before
+  the address was confirmed, and an unconfirmed address is never let in. The page says the
+  same sentence whatever state the address is in, as it did, so it still cannot be used to
+  ask who is waiting.
+- **Sign in says it is by invitation before an address is typed.** "New here? Join the
+  waitlist" stands under the heading while the front door takes an address, and the line
+  under it says the same link sets up the account of somebody invited. The refusal's
+  "Join the waitlist" is a link to the front door's form.
+- **A text's public page wears the front door's bar, and its press is the waitlist.**
+  Every shelf row and search result lands there, and "Read it" went to a sign-in that
+  refuses anyone not invited. While the front door takes an address the press is "Join the
+  waitlist", "Free to read once you're in." beside it, and under it "Already invited? Sign
+  in to read it". With the front door shut it is "Read it", as before.
+- **A signed-out reader says so once, with its press.** Public shelves let a stranger open
+  a reader, and the marks they made stayed in this browser with nothing to say so. One
+  quiet line under the bar: "Sign in to keep the words you mark", and "New here? Join the
+  waitlist" beside it while the front door takes an address. A word with no meaning
+  offers "Sign in to look this up" where it showed a disabled "nothing saved".
+- **The front page's "% known" is somebody's, and says whose.** "You know 80% of the words
+  here" was said to a stranger who has told us nothing. The demo says "this learner knows
+  80% of the words", the drawn Add answer "of its words you've marked as known", and the
+  library's four cards "80% known" over one quiet line: "Shown for a learner who knows
+  2,000 words. Once you're in, each text is measured against the words you mark."
+- **Tell us is the last row of the reader's ⋯ menu**, for a reader with an account. It
+  adds a fourth place to "Tell us is a row in the menu and a press on every fault"
+  (2026-10-18): the reader has no account menu, so on the page the beta reads most it was
+  reached only after a fault.
+- **Home's one card always has a line and a press.** A look that the server has lost (a
+  restart or a deploy in the middle of it, answered 404) says "We lost that search. Try
+  again." with Try again, where it polled on for three minutes and froze on "Looking on
+  the web.". A first ask that fails says "We couldn't find one for you just now." with Try
+  again, which asks the same again. No suggestion says "No new text is 90% known for you
+  yet." with Topic; a suggestion already under Continue says so with Topic. While the
+  first ask is out the card says "Looking…".
+
+### A targum is said once, on the first home and in the invitation — 2026-11-03
+
+The beta review (LIB-H01, ACC-12, ACC-41, PUB-21) found that nothing anywhere says what a
+targum is, though the first page after sign-in and the nav's second entry are "Your
+targums". This reverses one line each of "Your targums has tabs, says what a targum is,
+and folds a series" (2026-09-26, amended 2026-10-08) and "Home is Your targums, and
+Continue leads it" (2026-10-08), which took the drawn definition off the page because
+"the arrival's welcome already says what targum is". It does not: every line of the welcome asks about a
+language, topics or a level. David approved the fix on 2026-11-03.
+
+- **Home, with nothing in it yet,** says under "Nothing here yet. What you open or upload
+  appears here." one line more: "Each text, video or podcast you open becomes a targum:
+  the original, its translation and a card for every word." It goes with the first thing
+  opened, as the line above it does.
+- **The invitation says it too:** "Each one you open becomes a targum, with its
+  translation and a card for every word, and waits for you in Your targums."
+- **One name on home.** Its waiting, slow, failed and offline lines said "your texts"
+  under a page called Your targums, though many of them are videos and podcasts. They say
+  "your targums" now. Russian calls the page «Ваши тексты» and its lines «тексты», and
+  keeps both: the Russian never coined the noun.
+
+### The ulpan letter says what it is, and a binyan what it does — 2026-11-03
+
+David, 2026-11-03, on the beta review's ACC-29: a reader's level showed "ד׳ · About B2",
+with "Ulpan level" only in a visually hidden span. Many learners are outside Israel and
+have never been to an ulpan, and nothing said what the letter's scale is. This reverses
+one line of "Your level, v3" (2026-10-29), "No ulpan explainer", and only that line.
+
+- **"Ulpan level ד׳ · About B2".** "Ulpan level" stands before the letter on its baseline,
+  in the cefr's size and `--ink-soft`, hidden from a screen reader, which still hears
+  "Ulpan level dalet" from the hidden name. The letter keeps its step and its face.
+- **Under the card, the scale in one quiet line**, the copy audit's own (2026-09-28): "Ulpan
+  classes in Israel run from aleph, for beginners, to vav. A guide, not a placement." A
+  language on the European scale says "The European scale runs from A1, for beginners, to
+  C2. A guide, not a placement."
+- **A binyan on a word card says what it usually does**, as a noun's mishkal has since
+  2026-11-02 ("A noun's card names its root and mishkal"): "פִּעֵל · often doing it actively
+  or with force", in the same soft ink after a middle dot. Seven lines, one a binyan, each a
+  tendency and so "often" where it is one; pa'al is "the basic pattern", and pu'al and
+  huf'al are named as the passives of pi'el and hif'il.
+- **The Grammar tabs keep "Binyanim | Mishkalim"** (2026-11-03, "What next is quick to take
+  in"). "Verb patterns · Binyanim" was proposed and waits on David.
 
 ### A chapter says "פרק א׳", and the work is named once — 2026-11-03
 
@@ -1830,7 +1920,8 @@ what you read, month by month", 2026-09-27) to days and weeks.
   band above the one most of their known words sit in), rounded up to a whole word and
   otherwise unrounded. The European scale counts its commonest words one by one, so its
   gap is the number. **No "Roughly", no "more", no rounding to fifties.** Then the one
-  press, "Show texts you can read now". No ulpan explainer. At the top rung there is no
+  press, "Show texts you can read now". No ulpan explainer *(reversed 2026-11-03, "The
+  ulpan letter says what it is")*. At the top rung there is no
   bar and no number; the press stays. The bar stays `aria-hidden` ("See all keeps one
   level, and the bar is not spoken", below): the words line is what a screen reader hears.
 - **Week one** keeps the bar and "{n} words to א׳" on the "Start with beginner texts."
@@ -5836,7 +5927,8 @@ beside the sheet (2026-09-18): there is no sheet, no rail and no row of doors an
 - **A reader with nothing yet** is told so in a line ("Nothing here yet. What you open or
   upload appears here."), with one to start with and the upload under it. The drawn
   definition of a targum leaves home: the FirstRun boards draw none, and the arrival's
-  welcome already says what targum is.
+  welcome already says what targum is. *(Reversed 2026-11-03, "A targum is said once":
+  the welcome never said it.)*
 - **The arrival is a page of its own, `/welcome`.** The same questions, one a screen, as
   the FirstRun boards draw them. Home sends a Hebrew reader who has opened nothing and
   answered nothing there; it sends anybody with nothing to ask straight back, and the
@@ -7538,7 +7630,7 @@ subscriptions, and unsubscribing is its switch there. Nothing about what can be
 subscribed to changes here: channels, podcasts and news topics with a monthly cap are the
 subscriptions slice, after playlists. The drawn
 definition of a targum left this page the same day (the FirstRun boards draw none); the
-arrival's welcome says what targum is.
+arrival's welcome says what targum is. *(Reversed 2026-11-03, "A targum is said once".)*
 
 
 ### The finished box is three figures — 2026-09-25

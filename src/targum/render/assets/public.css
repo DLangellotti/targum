@@ -194,6 +194,14 @@ body.public {
   color: var(--ink-soft);
   font-size: 0.8125rem;
 }
+/* The way in for somebody already invited, under the waitlist's press while the front
+   door takes an address (beta review PUB-06, 2026-11-03). Quiet: the press is the door. */
+.public .door-in {
+  margin: 0.75rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.8125rem;
+}
+.public .door-in a { color: var(--ink); }
 
 /* The shelf index. */
 .public .texts {

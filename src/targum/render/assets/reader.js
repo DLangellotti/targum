@@ -319,6 +319,27 @@ var targumReader = function () {
     "הופעל": "הֻפְעַל",
     "התפעל": "הִתְפַּעֵל",
   };
+  // What each binyan usually does, said beside its name on the card (2026-11-03).
+  function binyanMeaning(binyan) {
+    switch (binyan) {
+      case "פעל":
+        return t("reader.card.binyan.paal", "the basic pattern");
+      case "נפעל":
+        return t("reader.card.binyan.nifal", "often passive, or it happens by itself");
+      case "פיעל":
+        return t("reader.card.binyan.piel", "often doing it actively or with force");
+      case "פועל":
+        return t("reader.card.binyan.pual", "pi'el's passive");
+      case "הפעיל":
+        return t("reader.card.binyan.hifil", "often making it happen");
+      case "הופעל":
+        return t("reader.card.binyan.hufal", "hif'il's passive");
+      case "התפעל":
+        return t("reader.card.binyan.hitpael", "often to yourself, or to each other");
+      default:
+        return "";
+    }
+  }
   // A Russian verb's aspect partner, and a word whose stress moves, stressed, from
   // OpenRussian's tables where the build had them (targum-internal#259).
   var partners = extensions.partners || [];
@@ -6198,49 +6219,62 @@ var targumReader = function () {
             if (found && lookedUp === word) showCard(word);
           });
         }
-        var ask = document.createElement("button");
-        ask.type = "button";
-        ask.className = "look-up";
-        ask.textContent = canAsk()
-          ? t("reader.card.look-up", "look it up")
-          : t("reader.card.nothing-saved", "nothing saved");
-        ask.disabled = !canAsk();
-        ask.onclick = function (event) {
-          event.stopPropagation();
-          ask.disabled = true;
-          ask.classList.add("looking");
-          ask.textContent = t("reader.card.looking", "looking…");
-          // Past three seconds it says it is still at it (design.md §14, slow), so a
-          // look-up the model is slow over does not read as one that died.
-          setTimeout(function () {
-            if (ask.isConnected && ask.classList.contains("looking")) {
-              ask.textContent = t("reader.card.still-looking", "still looking…");
-            }
-          }, 3000);
-          lookUp(index, sentenceOf(word), function () {
-            if (lookedUp === word) showCard(word);
+        // Signed out, the way to a meaning is to sign in (beta review RDR-01, 2026-11-03):
+        // a disabled "nothing saved" read like a broken feature.
+        if (!canAsk() && served && window.TargumSync && window.TargumSync.signedOut) {
+          var signIn = document.createElement("a");
+          signIn.className = "look-up";
+          signIn.href = signInHere();
+          signIn.textContent = t("reader.card.sign-in-to-look-up", "Sign in to look this up");
+          signIn.addEventListener("click", function (event) {
+            event.stopPropagation();
           });
-        };
-        card.appendChild(ask);
-        if (outcome && window.TargumFault) {
-          // A line where the meaning would be, and Try again asks once more (design.md
-          // §12, 2026-10-09). The answer that refused is forgotten first, or the ask
-          // would stop at the one already made.
-          ask.hidden = true;
-          card.appendChild(
-            window.TargumFault.line(outcome, function () {
-              var asking = glossedAs(index);
-              asked[asking] = false;
-              delete lookup[asking];
-              ask.hidden = false;
-              ask.click();
-            })
-          );
-        } else if (outcome) {
-          var trouble = document.createElement("span");
-          trouble.className = "caveat";
-          trouble.textContent = outcome;
-          card.appendChild(trouble);
+          card.appendChild(signIn);
+        } else {
+          var ask = document.createElement("button");
+          ask.type = "button";
+          ask.className = "look-up";
+          ask.textContent = canAsk()
+            ? t("reader.card.look-up", "look it up")
+            : t("reader.card.nothing-saved", "nothing saved");
+          ask.disabled = !canAsk();
+          ask.onclick = function (event) {
+            event.stopPropagation();
+            ask.disabled = true;
+            ask.classList.add("looking");
+            ask.textContent = t("reader.card.looking", "looking…");
+            // Past three seconds it says it is still at it (design.md §14, slow), so a
+            // look-up the model is slow over does not read as one that died.
+            setTimeout(function () {
+              if (ask.isConnected && ask.classList.contains("looking")) {
+                ask.textContent = t("reader.card.still-looking", "still looking…");
+              }
+            }, 3000);
+            lookUp(index, sentenceOf(word), function () {
+              if (lookedUp === word) showCard(word);
+            });
+          };
+          card.appendChild(ask);
+          if (outcome && window.TargumFault) {
+            // A line where the meaning would be, and Try again asks once more (design.md
+            // §12, 2026-10-09). The answer that refused is forgotten first, or the ask
+            // would stop at the one already made.
+            ask.hidden = true;
+            card.appendChild(
+              window.TargumFault.line(outcome, function () {
+                var asking = glossedAs(index);
+                asked[asking] = false;
+                delete lookup[asking];
+                ask.hidden = false;
+                ask.click();
+              })
+            );
+          } else if (outcome) {
+            var trouble = document.createElement("span");
+            trouble.className = "caveat";
+            trouble.textContent = outcome;
+            card.appendChild(trouble);
+          }
         }
       }
     } else if (!own) {
@@ -6448,7 +6482,21 @@ var targumReader = function () {
         // a worker, or for "verb" (2026-09-14). The stored name stays as the analyser
         // wrote it, so nothing already built needs building again.
         pattern.textContent = POINTED_BINYANIM[binyan] || binyan;
-        facts.add(t("reader.card.binyan", "Binyan"), pattern);
+        // What the binyan usually does, as the mishkal's row says what a noun's pattern
+        // usually means (beta review ACC-29, 2026-11-03): a bare Hebrew name told a
+        // learner nothing. A tendency, so "often", never a rule.
+        var binyanSaid = binyanMeaning(binyan);
+        if (binyanSaid) {
+          var binyanRow = document.createElement("span");
+          binyanRow.appendChild(pattern);
+          var binyanSense = document.createElement("span");
+          binyanSense.className = "card-root-sense";
+          binyanSense.textContent = " \u00b7 " + binyanSaid;
+          binyanRow.appendChild(binyanSense);
+          facts.add(t("reader.card.binyan", "Binyan"), binyanRow);
+        } else {
+          facts.add(t("reader.card.binyan", "Binyan"), pattern);
+        }
       }
       // All its forms, under the list: the table this page carries where it carries one
       // (targum-internal#300, about six verbs in ten), and Pealim for the rest, and for
@@ -9794,7 +9842,44 @@ var targumReader = function () {
       if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
-    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
+    if (window.TargumSync.settled) {
+      window.TargumSync.settled().then(notePart, notePart);
+      window.TargumSync.settled().then(accountSaid, function () {});
+    }
+  }
+
+  /* What the account's answer changes on the page (beta review, 2026-11-03).
+
+     Signed out (RDR-01): public shelves let a stranger open a reader, and every word they
+     marked stayed in this browser with nothing to say so. One quiet line under the bar,
+     the press in it: Sign in to keep them, and the waitlist beside it while the front
+     door takes an address.
+
+     Signed in (RDR-02): Tell us, at the end of the ⋯ menu. The reader has no account menu,
+     so on the page the beta reads most it was reached only after a fault. */
+  function signInHere() {
+    return keyed("/account/signin?next=" + encodeURIComponent(location.pathname));
+  }
+  function accountSaid() {
+    var sync = window.TargumSync;
+    if (!sync) return;
+    var tell = document.getElementById("more-tell-us");
+    if (tell) tell.hidden = !(passKey || sync.who);
+    var line = document.getElementById("signed-out");
+    if (!line || !sync.signedOut) return;
+    line.textContent = "";
+    var keep = document.createElement("a");
+    keep.href = signInHere();
+    keep.textContent = t("reader.signed-out.keep", "Sign in to keep the words you mark");
+    line.appendChild(keep);
+    if (sync.join) {
+      line.appendChild(document.createTextNode(" \u00b7 " + t("reader.signed-out.new-here", "New here?") + " "));
+      var join = document.createElement("a");
+      join.href = sync.join;
+      join.textContent = t("reader.signed-out.join", "Join the waitlist");
+      line.appendChild(join);
+    }
+    line.hidden = false;
   }
 
   /* --- what a test can reach ------------------------------------------------ */

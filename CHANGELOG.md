@@ -47,6 +47,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   other chips have no shown lexicon topic and no registers, so with one chosen the card
   had no press unless a web look had pooled a find for it. New strings
   `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
+- The beta review's stranger, signed-out and home findings (David approved 2026-11-03;
+  design.md §12, "A stranger is told the door is by invitation before they knock", "A
+  targum is said once" and "The ulpan letter says what it is"). The beta stays
+  invitation-only. The front door's try box no longer promises "Ready in about 4 minutes"
+  to somebody only joining a waitlist, and says "we'll have this ready for you when your
+  turn comes". Just joined, the heading is "Check your email". Sign in says "New here?
+  Join the waitlist" under its heading, says the link sets up an invited reader's account,
+  and its refusal's "Join the waitlist" is a link. A text's public page wears the front
+  door's bar and, while the front door is open, its press is "Join the waitlist" with
+  "Already invited? Sign in to read it" under it. A signed-out reader has one quiet line,
+  "Sign in to keep the words you mark · New here? Join the waitlist", and a word with no
+  meaning offers "Sign in to look this up" where it said a disabled "nothing saved". The
+  front page's "% known" figures say whose they are. The reader's ⋯ menu ends in Tell us.
+  Home's one card says "We lost that search. Try again." when the server lost a look (it
+  froze on "Looking on the web." for three minutes), and always has a line and a press when
+  /suggest fails or brings nothing. Home says once what a targum is, and so does the
+  invitation; its state lines say "targums". Your Progress shows "Ulpan level ד׳ · About
+  B2" with the scale under the card, and a binyan on a word card says what it usually does.
+  The Russian strings are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed

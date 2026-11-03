@@ -385,9 +385,23 @@
     var spoken = document.getElementById("level-spoken");
     var big = document.getElementById("level-big");
     var cefr = document.getElementById("level-cefr");
+    var scale = document.getElementById("level-scale");
+    var basis = document.getElementById("level-basis");
     mark.hidden = !level;
+    if (basis) basis.hidden = !level;
     if (!level) return;
     var ulpan = level.scale === "ulpan";
+    // Which scale the letter is on, where it can be seen, and under the card how that
+    // scale runs (David, 2026-11-03; design.md §12, "The ulpan letter says what it is").
+    if (scale) {
+      scale.textContent = ulpan ? t("progress.level.ulpan", "Ulpan level") : "";
+      scale.hidden = !ulpan;
+    }
+    if (basis) {
+      basis.textContent = ulpan
+        ? t("progress.basis.ulpan", "Ulpan classes in Israel run from aleph, for beginners, to vav. A guide, not a placement.")
+        : t("progress.basis.cefr", "The European scale runs from A1, for beginners, to C2. A guide, not a placement.");
+    }
     // The letter alone with its geresh, in its own right-to-left run and hidden from a
     // screen reader, which hears its name instead; a European level is itself.
     big.textContent = ulpan ? letterRun(level.letter).textContent : level.name;

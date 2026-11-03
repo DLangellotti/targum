@@ -223,7 +223,7 @@ def test_joining_takes_the_address_and_mails_a_link(
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
     assert status == 200
-    assert "We’ve sent you an email to confirm" in body
+    assert "We’ve sent you a link. Open it to confirm your place" in body
     assert store.waiting_state("dina@example.com") == "pending"
     sent = posted.getvalue()
     assert "dina@example.com" in sent
@@ -393,8 +393,8 @@ def test_the_front_door_answers_in_the_language_it_was_read_in(
 
     status, body = post(port, "/waitlist?lang=ru", {"email": "dina@example.com"})
     assert status == 200
-    assert "Мы отправили вам письмо для подтверждения" in body
-    assert "We’ve sent you an email to confirm" not in body
+    assert "Мы отправили вам ссылку. Откройте её, чтобы подтвердить место" in body
+    assert "We’ve sent you a link. Open it to confirm your place" not in body
     assert 'lang="ru"' in body, "the page says which language it is in"
 
     # The mail too, which is the first thing targum ever sends anybody.
@@ -456,7 +456,7 @@ def test_the_form_posts_in_the_language_that_was_pressed(
         body = connection.getresponse().read().decode("utf-8")
     finally:
         connection.close()
-    assert "Мы отправили вам письмо для подтверждения" in body
+    assert "Мы отправили вам ссылку. Откройте её, чтобы подтвердить место" in body
     assert "Подтвердите место в списке ожидания targum" in posted.getvalue()
     token = re.search(r"/waitlist/confirm\?t=(\S+)", posted.getvalue()).group(1)
     assert store.waiting_language(token) == "ru", "so the invitation is Russian too"
@@ -535,7 +535,7 @@ def test_an_english_visitor_is_answered_as_they_always_were(
     port, _store, posted = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
     status, body = post(port, "/waitlist", {"email": "dina@example.com"})
-    assert status == 200 and "We’ve sent you an email to confirm" in body
+    assert status == 200 and "We’ve sent you a link. Open it to confirm your place" in body
     assert "Confirm your place on the targum waitlist" in posted.getvalue()
 
 

@@ -298,8 +298,10 @@ function report() {
             dir: at("level-big").getAttribute("dir") || "",
             hidden: at("level-big").getAttribute("aria-hidden") || "",
             cefr: at("level-cefr").textContent,
+            scale: at("level-scale").hidden === false ? at("level-scale").textContent : "",
           }
         : null,
+      basis: at("level-basis").hidden === false ? at("level-basis").textContent : "",
       toward: at("level-toward").hidden === false
         ? {
             line: at("level-togo").textContent,

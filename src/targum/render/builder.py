@@ -3489,6 +3489,7 @@ def signin_page(
     closing: bool = False,
     lost: bool = False,
     back: str = "",
+    join: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -3508,6 +3509,10 @@ def signin_page(
     `back` is the room a signed-out reader was turned away from (design.md §12,
     2026-10-11), already checked as one of ours by `serve.safe_next`: the form posts it
     with the address, and the mailed link's page posts it with the press.
+
+    `join` is where the waitlist is, for "New here? Join the waitlist" under the heading
+    (beta review PUB-05, 2026-11-03): only where an address must have been invited and
+    the front door takes one, so a stranger learns that before typing, not after.
     """
     from .. import google as google_module
 
@@ -3527,6 +3532,7 @@ def signin_page(
             lost=lost,
             connecting=connecting,
             back=back,
+            join=join,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),
@@ -4465,6 +4471,10 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             ],
             sample_language=credit.shown,
             minutes=max(1, round(entry.words / 130)),
+            # For the front door's bar (beta review PUB-06, 2026-11-03): this page's path
+            # for its language links, and the language carried on its other links.
+            here=f"/library/{entry.id}",
+            asked=language if language != "en" else "",
             # The door carries the text (known issues 2.13): "Read it" signed in and then
             # landed home, and the learner had to find the text again. `/open/` is the
             # one door onto a catalogue text, so the sign-in lands in its reader.

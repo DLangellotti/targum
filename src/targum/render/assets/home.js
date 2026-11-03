@@ -1066,7 +1066,7 @@
   var ONE_CARD = !!document.body && document.body.getAttribute("data-find") === "1";
   var FIND_STEP_MS = 1500;
   var FIND_STEPS_MOST = 120;
-  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [] };
+  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [], retry: null };
 
   function chevron() {
     var ns = "http://www.w3.org/2000/svg";
@@ -1297,13 +1297,15 @@
           var to = String(row.reader || "");
           return to.indexOf("/reader/" + encodeURIComponent(folder) + "/") >= 0 || to.indexOf("/reader/" + folder + "/") >= 0;
         }));
-    var body = cardBody();
-    if (!body) return;
     if (!row || !row.id || already) {
       oneCard.row = null;
-      body.hidden = true;
-      return;
+      // A line and a press, never a bare heading (beta review LIB-H03, 2026-11-03): the
+      // body held Read, Something else and Topic, and hiding it left none of them.
+      if (already) return drawSaid(t("home.card.already", "Our pick is one you're already reading, under Continue."), "topic");
+      return drawNone(null);
     }
+    var body = cardBody();
+    if (!body) return;
     oneCard.row = row;
     if (row.find && oneCard.shown.indexOf(String(row.id)) < 0) oneCard.shown.push(String(row.id));
     if (row.harder && oneCard.harder.indexOf(String(row.id)) < 0) oneCard.harder.push(String(row.id));
@@ -1480,8 +1482,18 @@
           drawWeb(got);
           if (asked + 1 < FIND_STEPS_MOST) follow(id, asked + 1);
         })
-        .catch(function () {
-          if (asked + 1 < FIND_STEPS_MOST) follow(id, asked + 1);
+        .catch(function (error) {
+          if (oneCard.look !== id) return;
+          // The look is gone (a restart or a deploy in the middle of it): the server says
+          // 404, and polling on for three minutes froze the card on "Looking on the web."
+          // with no line and no press (beta review LIB-R03, 2026-11-03).
+          if (error && error.message === "404") {
+            oneCard.look = "";
+            return drawSaid(t("home.card.look-gone", "We lost that search. Try again."), "again");
+          }
+          if (asked + 1 < FIND_STEPS_MOST) return follow(id, asked + 1);
+          oneCard.look = "";
+          drawSaid(t("home.card.failed", "We couldn't search the web just now."), "again");
         });
     }, FIND_STEP_MS);
   }
@@ -1544,7 +1556,10 @@
     if (press === "again") {
       var again = el("button", "btn tonal rc-again", t("home.card.again", "Try again"));
       again.type = "button";
+      var retry = oneCard.retry;
+      oneCard.retry = null;
       again.addEventListener("click", function () {
+        if (retry) return retry();
         askFind(oneCard.lastAsk || {});
       });
       presses.appendChild(again);
@@ -1789,6 +1804,15 @@
       oneCard.look = "";
       drawHow(code);
     }
+    if (ONE_CARD) {
+      // While the first ask is out, the card says so (beta review LIB-H03, 2026-11-03).
+      var host = cardBody();
+      if (host) {
+        var looking = el("p", "rc-says", t("home.card.looking", "Looking…"));
+        looking.setAttribute("role", "status");
+        host.appendChild(looking);
+      }
+    }
     var asked = ONE_CARD
       ? askWith("/suggest", { language: code, skip: skip, more: true })
       : askWith("/suggest", { language: code, skip: skip });
@@ -1800,8 +1824,15 @@
         if (ONE_CARD) drawMore(got && got.more);
       })
       .catch(function () {
-        drawTry(null, first);
+        if (code !== suggesting) return;
         drawNote(code, undefined);
+        if (!ONE_CARD) return drawTry(null, first);
+        // The ask failed: a line and Try again, which asks the same again (LIB-H03).
+        cardLabel(null, first);
+        oneCard.retry = function () {
+          suggest(code, readers, first, cards);
+        };
+        drawSaid(t("home.card.suggest-failed", "We couldn't find one for you just now."), "again");
       });
   }
 

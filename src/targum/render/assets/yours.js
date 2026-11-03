@@ -919,7 +919,7 @@
      page that had stopped. The lists say theirs the same way (Your Words QA, 2026-10-20). */
   // Each said through a literal t(), which is how a page's strings are found for it.
   function stillOpening() {
-    if (which === "texts") return t("home.still-opening", "We're still opening your texts.");
+    if (which === "texts") return t("home.still-opening", "We're still opening your targums.");
     if (which === "phrases") return t("lists.still-opening.phrases", "We're still opening your phrases.");
     if (which === "grammar") return t("practice.page.still-opening", "We're still opening your practice.");
     if (which === "sentences") return t("sentences.page.still-opening", "We're still opening your sentences.");
@@ -948,7 +948,7 @@
           which === "texts"
             ? t(
                 "home.offline.says",
-                "Your texts will open when you're back online. Everything you've read is still here."
+                "Your targums will open when you're back online. Everything you've read is still here."
               )
             : which === "grammar" || which === "sentences"
               ? t("practice.page.offline", "Your practice opens when you're back online.")

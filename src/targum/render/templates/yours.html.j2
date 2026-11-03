@@ -78,7 +78,11 @@
 
   {#- A reader with nothing yet (the FirstRun boards): what will appear here, and under it
       the one to start with and the upload. -#}
-  <p class="first-home" id="first-home" hidden>{{ t("home.empty", "Nothing here yet. What you open or upload appears here.") }}</p>
+  {#- Under it, once, what the page's name means (beta review LIB-H01, 2026-11-03;
+      design.md §12, "A targum is said once"): the arrival never said it, though §12 had
+      taken the line off this page on the grounds that it did. -#}
+  <p class="first-home" id="first-home" hidden>{{ t("home.empty", "Nothing here yet. What you open or upload appears here.") }}
+    <span class="first-home-what">{{ t("home.targum-is", "Each text, video or podcast you open becomes a targum: the original, its translation and a card for every word.") }}</span></p>
 
   <div class="home-grid">
   <div class="home-shelf">
@@ -385,14 +389,14 @@
 {#- While the shelf is asked for, and when it could not be (2026-09-14): a page that stood
     blank until `/readers` answered, or said "Nothing here yet" to a reader with a shelf
     whose connection dropped, was saying the wrong thing. -#}
-<p class="learn-waiting" id="home-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your texts…") }}</p>
+<p class="learn-waiting" id="home-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your targums…") }}</p>
 {#- Home QA (2026-10-18; design.md §14, line 1): the wait is said again past three
     seconds, and a page that could not load offers the press that asks again rather than
     telling the reader to reload. Offline says so in its own words; `yours.js` picks. -#}
 {#- A panel in place, drawn as `fault.js` draws one (errors QA, targum-internal#468): the
     sentence, Try again, the quiet line of what is still here, and Tell us. -#}
 <section class="fault-panel page-fault" id="nothing" role="alert" hidden>
-  <p class="fault-panel-said" id="nothing-lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your texts.") }}</p>
+  <p class="fault-panel-said" id="nothing-lede">{{ t("learn.page.we-couldn-t-load-your-texts", "We couldn't load your targums.") }}</p>
   <div class="fault-panel-row">
     <button type="button" class="fault-go" id="nothing-again">{{ t("fault.try-again", "Try again") }}</button>
     <span class="fault-fact" id="nothing-says">{{ t("home.failed.says", "Everything you've read is still here.") }}</span>
