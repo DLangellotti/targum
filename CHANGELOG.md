@@ -18,6 +18,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   слов в этом тексте пока на английском.» (new string `reader.card.meanings-in-english`;
   the Russian is a draft). Readers pick it up on the routine rebuild, which spends nothing;
   a page written before it is served as it was.
+- Searching "Rambam", "Maimonides", "Mishneh Torah", משנה תורה or רמב״ם finds the
+  Mishneh Torah's thirteen sections, and each classical shelf is searched under its own
+  names (beta review AS-20, 2026-11-03; design.md §12). A search for the Talmud or for a
+  daf ("Bava Kamma 2a") now says the Talmud is not carried and why, instead of only
+  "Nothing on targum matches". New string `search.talmud-absent`; the Russian is a draft.
+- A tractate's contents page says "Tractate", and a Mishneh Torah section's says "Mishneh
+  Torah", instead of "Book" (AS-10). New strings `parts.page.kind-tractate`,
+  `parts.page.kind-mishneh-torah` and `parts.page.kind-targum`; the Russian are drafts.
+- A classical text's headings are no longer words to tap (AS-23): "משנה" at the top of
+  every Mishnah chapter opened a card saying "verb · to change".
 - The Russian interface says in Russian what it used to say in English (beta review,
   2026-11-03: MSG-04, FLG-02, LIB-R01/R02 and the Russian oleh's R2–R9; David approved).
   The front door and /connect no longer promise a Russian translation beside every line

@@ -567,6 +567,7 @@ def _matches(entry: catalogue_module.Entry, query: str) -> bool:
             entry.blurb,
             entry.kind.value,
             entry.register.value,
+            entry.also_called,
         )
     ).lower()
     return all(word in haystack for word in query.lower().split())

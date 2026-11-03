@@ -890,6 +890,10 @@
       body.appendChild(el("p", "palette-quiet", t("palette.failed", "We couldn't search just now. Try again in a moment.")));
       return;
     }
+    /* A search for the Talmud is told it is not carried, and why, above whatever else
+       it found (beta review AS-08, AS-20, 2026-11-03). Said by the server, in the
+       interface's language. */
+    if (answer.absent) body.appendChild(el("p", "palette-quiet palette-absent", answer.absent));
     var drew = drawResults(answer);
     var other = elsewhere(answer);
     if (!drew && !other && !state.level) {

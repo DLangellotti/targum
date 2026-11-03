@@ -6660,8 +6660,9 @@ def render(
     # them is tapped or counted on the page (David, 2026-09-27). At render, not in the
     # annotator, so no text is annotated again for it.
     unwordly: dict[str, list[tuple[int, int]]] = {}
+    from ..ingest.post import inside
+
     if post is not None:
-        from ..ingest.post import inside
         from ..ingest.post import unwordly as unwordly_in
 
         unwordly = {
@@ -6669,6 +6670,14 @@ def render(
             for segment in segmented.segments
             if (found := unwordly_in(segment.text))
         }
+    # A classical text's headings are labels — "משנה ברכות א׳", "רות א׳", "ראשון" — not
+    # words to learn: "משנה" at the top of every tractate's chapter opened a card saying
+    # "verb · to change", and the chapter's letter one saying "number" (beta review
+    # AS-23, 2026-11-03). Nothing in them is tapped or counted, as a post's hashtags.
+    if document.source.startswith("sefaria:"):
+        for segment in segmented.segments:
+            if segment.kind is BlockKind.heading and segment.text:
+                unwordly.setdefault(segment.id, []).append((0, len(segment.text)))
     # Which languages the renderings are in, for naming them on the switch.
     into = [
         translation.target_language
@@ -8229,7 +8238,17 @@ def contents_page(
     elif layout == "tanakh":
         kind = t("parts.page.kind-tanakh", "Tanakh")
     else:
-        kind = t("parts.page.kind-book", "Book")
+        # A tractate is not a "Book" (beta review AS-10, 2026-11-03): a classical text
+        # says what it is, by the shelf it stands on (`catalogue.shelf_of`).
+        from ..catalogue import shelf_of
+
+        shelf = shelf_of("prose", str(manifest.get("source") or ""), source_language)
+        kind = {
+            "tanakh": t("parts.page.kind-tanakh", "Tanakh"),
+            "mishnah": t("parts.page.kind-tractate", "Tractate"),
+            "halakhah": t("parts.page.kind-mishneh-torah", "Mishneh Torah"),
+            "targum": t("parts.page.kind-targum", "Aramaic translation"),
+        }.get(shelf) or t("parts.page.kind-book", "Book")
 
     by_number = {row["number"]: row for row in rows}
     groups = []

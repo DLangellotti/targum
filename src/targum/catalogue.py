@@ -383,6 +383,26 @@ DOORS: tuple[str, ...] = (
 CLASSICAL_SHELVES: tuple[str, ...] = ("tanakh", "targum", "mishnah", "halakhah")
 
 
+#: What each classical shelf is also called, for a search (`Entry.also_called`).
+SHELF_NAMES: dict[str, tuple[str, ...]] = {
+    "tanakh": ("Tanakh", "Bible", "תנ״ך", "Танах"),
+    "targum": ("Targum", "Targumim", "תרגום", "Таргум"),
+    "mishnah": ("Mishnah", "Mishna", "משנה", "Мишна"),
+    "halakhah": (
+        "Mishneh Torah",
+        "Rambam",
+        "Maimonides",
+        "Yad HaHazakah",
+        "משנה תורה",
+        "רמב״ם",
+        "רמבם",
+        "Мишне Тора",
+        "Рамбам",
+        "Маймонид",
+    ),
+}
+
+
 def shelf_of(kind: str, source: str, language: str, *, tanakh: bool = False) -> str:
     """Which shelf a text stands on: `tanakh`, `targum`, `mishnah`, `halakhah`, or its
     own kind for everything else.
@@ -623,6 +643,16 @@ class Entry:
     def shelf(self) -> str:
         """The Library shelf this text stands on: see `shelf_of`."""
         return shelf_of(self.kind.value, self.source, self.language, tanakh=Tag.tanakh in self.tags)
+
+    @property
+    def also_called(self) -> str:
+        """The other names a search may know this text by, by its shelf (beta review
+        AS-20, 2026-11-03): "Rambam" and "Maimonides" found none of the thirteen sections
+        of the Mishneh Torah, whose rows say only משה בן מימון and the section's name."""
+        names = SHELF_NAMES.get(self.shelf, ())
+        if self.shelf == "targum" and "onkelos" in self.id:
+            names = (*names, "Onkelos", "אונקלוס")
+        return " ".join(names)
 
     @property
     def languages(self) -> list[str]:
