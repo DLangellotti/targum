@@ -434,6 +434,49 @@ def test_only_a_measured_find_clear_of_the_floor_is_offered(store: Store) -> Non
     assert row["credits"] == 0 and row["minutes"] == 1
 
 
+def test_a_youtube_find_is_not_offered_while_youtube_is_out_of_reach(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The proxy ran out on 2026-11-03 and home still offered a YouTube find, whose press
+    failed at once. Out of reach, it is held back, and offered again once in reach."""
+    from targum.video import youtube
+
+    marked = {"בית": KNOWN}
+    keep(store, "https://n.example/95", {"בית": 95, "ספר": 5})
+    keep(
+        store,
+        "https://www.youtube.com/watch?v=lTIVoa-PMNc",
+        {"בית": 96, "ספר": 4},
+        medium="video",
+    )
+    monkeypatch.setattr(youtube, "reachable", lambda: False)
+    got = provider.offered(store, "he", marked, credits_left=2)
+    assert [one.find.url for one in got] == ["https://n.example/95"]
+    monkeypatch.setattr(youtube, "reachable", lambda: True)
+    got = provider.offered(store, "he", marked, credits_left=2)
+    assert len(got) == 2
+
+
+def test_a_find_whose_video_was_refused_is_retired_for_everyone(store: Store) -> None:
+    """A find a reader pressed and YouTube then refused is never offered to the next
+    reader; one our proxy failed is kept, because that was ours."""
+    from targum.serve import Library
+    from targum.video import youtube
+
+    marked = {"בית": KNOWN}
+    url = "https://www.youtube.com/watch?v=lTIVoa-PMNc"
+    found = keep(store, url, {"בית": 96, "ספר": 4}, medium="video")
+    library = SimpleNamespace(store=store)
+    job = SimpleNamespace(options={"via": "find", "find": found})
+    Library._unpool(library, job, youtube.EgressDown("We can't reach YouTube right now."))  # type: ignore[arg-type]
+    assert pool.get(store, found) is not None
+    Library._unpool(library, job, youtube.Refused("Private video."))  # type: ignore[arg-type]
+    assert pool.get(store, found) is None
+    assert provider.offered(store, "he", marked, credits_left=2) == []
+    row = store.db.execute("SELECT screen FROM find WHERE id = ?", (found,)).fetchone()
+    assert row[0] == "refused", "kept as a row, so the next round does not pool it again"
+
+
 class Marks:
     def __init__(self, store: Store, marked: dict[str, int]) -> None:
         self.inner = store

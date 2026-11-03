@@ -274,6 +274,7 @@ def test_a_build_that_fails_while_open_says_why_and_stops(browser) -> None:
         error="That page has no Hebrew on it. Try another link.",
         said="We couldn't get it ready. That page has no Hebrew on it. Try another link. "
         "Nothing was used.",
+        why="That page has no Hebrew on it. Try another link. Nothing was used.",
     )
     box.jobs["run"].pop("seconds_left")
     page.wait_for_function("() => !document.querySelector('#notices-status-run .notices-bar')")
@@ -286,9 +287,11 @@ def test_a_build_that_fails_while_open_says_why_and_stops(browser) -> None:
           };
         }"""
     )
-    assert got["said"].startswith("We couldn't get it ready. That page has no Hebrew"), got
-    assert got["said"].endswith("Nothing was used."), got
-    assert got["line"] == f"{TITLE}: That page has no Hebrew on it. Try another link.", got
+    # The reason once, under a row that says what failed (2026-11-03): the row said
+    # "{title}: <reason>" and the opened row said "We couldn't get it ready. <reason>"
+    # under it, one message twice.
+    assert got["said"] == "That page has no Hebrew on it. Try another link. Nothing was used.", got
+    assert got["line"] == f"We couldn't get {TITLE} ready.", got
     page.wait_for_timeout(300)
     assert asked_in(page, box, 2.5) == 0, "failed: not followed"
     page.context.close()

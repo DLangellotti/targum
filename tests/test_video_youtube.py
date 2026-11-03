@@ -510,3 +510,132 @@ def test_the_download_does_not_skip_the_manifests(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
     youtube.fetch("https://youtu.be/abc123", tmp_path)
     assert not any("skip=" in arg for arg in seen[-1])
+
+
+# --- the proxy out of traffic (2026-11-03) ---------------------------------------------
+
+#: What the box's yt-dlp said on 2026-11-03 for every video, word for word but shortened.
+EXHAUSTED = (
+    b"WARNING: [youtube] <urlopen error Tunnel connection failed: 407 TRAFFIC_EXHAUSTED>."
+    b" Retrying (1/3)...\n"
+    b"ERROR: [youtube] lTIVoa-PMNc: Unable to download API page: <urlopen error Tunnel "
+    b"connection failed: 407 TRAFFIC_EXHAUSTED> (caused by ProxyError('<urlopen error "
+    b"Tunnel connection failed: 407 TRAFFIC_EXHAUSTED>')); please report this issue on "
+    b" https://github.com/yt-dlp/yt-dlp/issues?q= , filling out the appropriate issue\n"
+)
+
+
+@pytest.fixture
+def reach(monkeypatch):
+    """A fresh idea of whether YouTube is in reach, so no test leaves it marked down."""
+    fresh = youtube._Reach()
+    monkeypatch.setattr(youtube, "_REACH", fresh)
+    monkeypatch.setattr(youtube, "ytdlp_available", lambda: (True, "yt-dlp"))
+    return fresh
+
+
+def test_a_proxy_out_of_traffic_is_said_as_ours_once(monkeypatch, tmp_path: Path, reach) -> None:
+    """A reader was told "YouTube wouldn't give us that video. You can upload the video
+    file instead." when our proxy had run out: not their video, not their door. The
+    same proxy is not asked four times either, since every route meets the same wall."""
+    seen: list[list[str]] = []
+    told: list[tuple[str, str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        raise subprocess.CalledProcessError(1, args, stderr=EXHAUSTED)
+
+    from targum import alerts
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(alerts, "credit_ran_out", lambda who, detail: told.append((who, detail)))
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "http://user:secret@gw.example.net:823")
+    monkeypatch.delenv(youtube.YTDLP_PROXY_BACKUP_ENV, raising=False)
+    with pytest.raises(youtube.EgressDown) as raised:
+        youtube.fetch("https://www.youtube.com/watch?v=lTIVoa-PMNc", tmp_path)
+    assert len(seen) == 1
+    assert raised.value.message == "We can't reach YouTube right now. Try again later."
+    assert raised.value.key == "video.egress-down"
+    assert not raised.value.hint, "the upload door answers a question nobody asked"
+    assert not youtube.reachable()
+    assert told and "residential proxy" in told[0][0]
+    assert "secret" not in told[0][1]
+
+
+def test_a_backup_egress_is_still_asked_when_the_first_proxy_refuses(
+    monkeypatch, tmp_path: Path, reach
+) -> None:
+    seen: list[list[str]] = []
+
+    def run(args, **kwargs):
+        seen.append(list(args))
+        if "http://first:1" in args:
+            raise subprocess.CalledProcessError(1, args, stderr=EXHAUSTED)
+        (tmp_path / "source.mp4").write_bytes(b"x")
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    from targum import alerts
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+    monkeypatch.setattr(alerts, "credit_ran_out", lambda who, detail: None)
+    monkeypatch.setenv(youtube.YTDLP_PROXY_ENV, "http://first:1")
+    monkeypatch.setenv(youtube.YTDLP_PROXY_BACKUP_ENV, "http://second:2")
+    youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert len(seen) == 2
+    assert "http://second:2" in seen[-1]
+    assert youtube.reachable(), "an answer through any egress is YouTube in reach"
+
+
+def test_a_refusal_about_the_video_is_refused_not_egress(
+    monkeypatch, tmp_path: Path, reach
+) -> None:
+    """`Refused` is what takes a find out of the pool; a proxy refusal never is."""
+    monkeypatch.setattr(
+        youtube.subprocess, "run", _refusing(b"ERROR: [youtube] abc123: Private video\n")
+    )
+    with pytest.raises(youtube.Refused):
+        youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert youtube.reachable()
+
+
+def test_an_empty_error_line_logs_what_ytdlp_did_say(
+    monkeypatch, caplog, tmp_path: Path, reach
+) -> None:
+    """The journal said "ERROR:  / ERROR:" on 2026-11-03, which told nobody anything."""
+    stderr = b"WARNING: [youtube] something about the exit\nERROR: \nERROR:\n"
+    monkeypatch.setattr(youtube.subprocess, "run", _refusing(stderr))
+    caplog.set_level("WARNING", logger=youtube.__name__)
+    with pytest.raises(youtube.Refused) as raised:
+        youtube.fetch("https://youtu.be/abc123", tmp_path)
+    assert "something about the exit" in caplog.text
+    assert raised.value.message == "YouTube wouldn't give us that video."
+
+
+def test_out_of_reach_waits_then_looks_once_in_the_background(monkeypatch, reach) -> None:
+    clock = [1000.0]
+    monkeypatch.setattr(youtube, "_clock", lambda: clock[0])
+    looked: list[list[str]] = []
+
+    def run(args, **kwargs):
+        looked.append(list(args))
+        return subprocess.CompletedProcess(args, 0, b"", b"")
+
+    monkeypatch.setattr(youtube.subprocess, "run", run)
+
+    class Now:
+        def __init__(self, target, **kwargs):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(youtube.threading, "Thread", Now)
+    youtube.mark_down()
+    assert not youtube.reachable()
+    with pytest.raises(youtube.EgressDown):
+        youtube.ensure_reachable()
+    assert not looked, "nothing is asked inside the cool-down"
+    clock[0] += youtube.DOWN_S + 1
+    assert not youtube.reachable(), "the look runs beside the request, never in front of it"
+    assert looked and looked[0][-1] == youtube.CONTROL and "--simulate" in looked[0]
+    assert youtube.reachable()

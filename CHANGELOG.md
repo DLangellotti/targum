@@ -6,6 +6,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A YouTube build that our proxy refused now says so (2026-11-03; design.md §12, "A
+  YouTube find is offered only when YouTube is in reach"). On 2026-11-03 the DataImpulse
+  proxy ran out of traffic (`407 TRAFFIC_EXHAUSTED`), every YouTube fetch failed, and a
+  find pressed on home said "YouTube wouldn't give us that video. You can upload the video
+  file instead." twice, once after a stray ": ". Now a proxy refusal reads "We can't reach
+  YouTube right now. Try again later.", mails the operator when the account is out, stops
+  after the first route unless a backup egress is set, and holds back YouTube finds and
+  quotes for ten minutes before one cheap look at a control video. A find whose video was
+  refused after every route leaves the pool for everyone (`screen = refused`). The bell's
+  failed row reads "We couldn't get {title} ready." with the reason once under it, a
+  failure with no reason no longer says "We couldn't get it ready." twice, and the journal
+  logs yt-dlp's last lines when its ERROR lines are empty (it said "ERROR:  / ERROR:").
+  `provision.sh` installs `yt-dlp-ejs` beside yt-dlp, whose absence made every box run
+  warn "n challenge solving failed". New strings `video.egress-down` and
+  `building.failed-title`; the Russian are drafts.
 - A podcast find's sample that whisper refuses no longer drops the episode or uses up the
   day's cap (targum-internal#621, 2026-11-02). The first run on the box had all ten
   samples refused by OpenAI, 429 `credit_balance_exhausted`, and dropped ten good episodes

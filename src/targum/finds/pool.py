@@ -13,7 +13,8 @@ night, as counts and nothing more (`tables.finds`, David, 2026-11-01).
 A row's `screen` is `kept`, or the reason it was dropped (`host`, `words`, `robots`,
 `closed`, `unreadable`, `short`, `same`; and for a video, `age`, `gate` and `subs`, no
 Hebrew track anybody wrote; for a podcast episode, `age` for one its feed marks explicit
-and `gate` for one too short or too long). A dropped row keeps only its address, so the
+and `gate` for one too short or too long; and `refused`, a kept find a reader pressed
+that the source then would not give us, `retire`). A dropped row keeps only its address, so the
 next round does not fetch it again, and goes when it expires like any other; the back
 office counts the reasons.
 
@@ -334,6 +335,20 @@ def drop(
             " VALUES (?, ?, ?, ?, ?, ?, ?)",
             (language, source, url, host, when, expires_at(source, when), reason),
         )
+
+
+def retire(store: Store, find_id: int, reason: str) -> bool:
+    """Take a kept find out of what is offered, for every reader, keeping its row with
+    `reason` as its screen so the next round does not find it again before it expires.
+
+    For a find a reader pressed and the source then refused — a video YouTube would not
+    give us, after every route (`video.youtube.Refused`): offered once, it must not be
+    offered to the next reader (2026-11-03). True where a kept find was retired."""
+    with store.write() as db:
+        changed = db.execute(
+            "UPDATE find SET screen = ? WHERE id = ? AND screen = ?", (reason, find_id, KEPT)
+        ).rowcount
+    return bool(changed)
 
 
 def expire(store: Store, at: int | None = None) -> int:
