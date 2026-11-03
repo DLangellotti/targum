@@ -4361,6 +4361,10 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 .bar-title .up:hover { color: var(--teal); }
 .bar-title .bar-english { color: var(--ink-soft); font-family: var(--reading); font-size: 0.9375rem; }
 .bar-title .bar-english::before { content: "\00b7"; margin-inline-end: 0.6rem; color: var(--rule); }
+/* Which chapter, beside the work (design.md §12, 2026-11-03). Like the English: a quiet
+   second name that waits for the room, and the document title keeps it meanwhile. */
+.bar-title .bar-part { color: var(--ink-soft); font-family: var(--reading); font-size: 0.9375rem; white-space: nowrap; }
+.bar-title .bar-part::before { content: "\00b7"; margin-inline-end: 0.6rem; color: var(--rule); }
 /* The count, behind a hairline: a figure, not a title. */
 .bar-title .known {
   display: inline-block;
@@ -5196,7 +5200,8 @@ body.practice-section .beside-add { display: none; }
    phone; the title says where you are. */
 .bar-title .bar-english { display: inline; }
 @media (max-width: 60rem) {
-  .bar-title .bar-english { display: none; }
+  .bar-title .bar-english,
+  .bar-title .bar-part { display: none; }
 }
 @media (max-width: 40rem) {
   .bar-title .known { display: none; }
@@ -5212,6 +5217,7 @@ body.practice-section .beside-add { display: none; }
    under the play button (David, 2026-10-11). */
 @media (min-width: 60.01rem) and (max-width: 75rem) {
   .bar-title .bar-english,
+  .bar-title .bar-part,
   .bar-title .known { display: none; }
 }
 

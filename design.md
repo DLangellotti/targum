@@ -384,6 +384,31 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A chapter says "פרק א׳", and the work is named once — 2026-11-03
+
+A numbered text from Sefaria heads every chapter with the whole work's name and the
+chapter's numeral: "משנה תורה, הלכות יסודי התורה א׳", "משנה ברכות א׳", "רות א׳". Those were
+the parts' titles, so the contents page said the work again on every row, under the same
+name at the top, and the English ("Mishneh Torah, Foundations of the Torah 1") read like a
+volume number. David decided on 2026-11-03: the work is named once at the top, and each
+part says which chapter it is.
+
+- **"פרק א׳" on a Hebrew or Aramaic text, "Chapter 1" on an English one, «Глава 1» on a
+  Russian one.** Said in the text's language, like the heading it stands for, not in the
+  interface's. It reaches every place a part's title is drawn: the contents page (where a
+  label stands as the row's kicker over its first line, 2026-10-08), the tab's title, Next
+  and the previous part, the print page and "About:" in the chat. The reader's bar says
+  it beside the work, where there is room for the English title too.
+- **A part is a chapter only where its verses say so.** The heading must end in the
+  chapter's numeral and the part's first verse must be that chapter (`render.chapter_label`),
+  so a daf, an aliyah, a part cut for length and any heading that happens to end in a
+  letter keep their own titles.
+- **Only the label.** The heading inside the text still reads as Sefaria wrote it, with its
+  words and its translation, because it is text: changing it would change the document's
+  hash and buy its translation again. Nothing stored moves, no id changes and nothing is
+  annotated again. A reader shows the new label once it is written again, which
+  `targum rebuild` in every deploy does without spending anything.
+
 ### A suggestion never starts a series in the middle — 2026-11-03
 
 David, 2026-11-03, offered part 2 of a YouTube video on home's "One to try next": a

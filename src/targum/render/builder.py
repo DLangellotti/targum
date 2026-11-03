@@ -95,6 +95,9 @@ class Section:
     number: int
     title: str
     segment_ids: list[str] = field(default_factory=list)
+    #: Whether `title` is a chapter's label ("פרק א׳") standing for a heading that named
+    #: the whole work again (`chapter_label`), so the bar says it beside the work.
+    chapter: bool = False
 
     @property
     def filename(self) -> str:
@@ -193,10 +196,49 @@ def split_sections(segmented: SegmentedDocument) -> list[Section]:
             current.title = segment.text
         current.segment_ids.append(segment.id)
 
+    by_id = {segment.id: segment for segment in segmented.segments}
     for section in sections:
         if not section.title:
             section.title = f"Part {section.number}"
+        elif label := chapter_label(section, by_id, segmented.language):
+            section.title, section.chapter = label, True
     return sections
+
+
+def chapter_label(section: Section, by_id: Mapping[str, Segment], language: str) -> str:
+    """ "פרק א׳" for a part whose heading is "<work> א׳" and whose verses are chapter 1.
+
+    A numbered text from Sefaria heads each chapter with the whole work's name and the
+    chapter's numeral ("משנה תורה, הלכות יסודי התורה א׳"), which said the work again on
+    every row of the contents page and read in English like a volume number. The work is
+    named once at the top; a part says which chapter it is (David, 2026-11-03, design.md
+    §12). Only the label moves: the heading in the text, its words, its translation and
+    every id are as they were, so nothing is annotated or bought again.
+
+    The verses are the proof, not the heading's shape: a part is a chapter only where its
+    first verse's ref is that chapter, so a daf ("ברכות ב."), an aliyah or a heading that
+    happens to end in a letter keeps its own title. Said in the text's language, like the
+    heading it stands for. Empty where it is not a chapter.
+    """
+    from ..ingest.fetch.sefaria import hebrew_numeral
+
+    first = next(
+        (by_id[sid].ref for sid in section.segment_ids if sid in by_id and by_id[sid].ref), ""
+    )
+    found = _VERSE_ADDRESS.search(first.strip())
+    if not found:
+        return ""
+    number = int(found[1])
+    numeral = hebrew_numeral(number)
+    head, _, last = section.title.strip().rpartition(" ")
+    if not head:
+        return ""
+    # With its marks or without them: "א׳" and "א" are the same chapter.
+    if last.replace("׳", "").replace("״", "") == numeral.replace("׳", "").replace("״", ""):
+        return f"פרק {numeral}"
+    if last == str(number):
+        return f"Глава {number}" if language.split("-")[0] == "ru" else f"Chapter {number}"
+    return ""
 
 
 #: What a learner reads in a minute. The library's own figure (`catalogue.Entry.minutes`),

@@ -60,6 +60,9 @@
         a string; gone on a phone, where the row has no room, while the document title
         keeps both. -#}
     {% if english %}<span class="bar-english" lang="{{ english_lang|default('en') }}" dir="ltr">{{ english }}</span>{% endif %}
+    {#- Which chapter, beside the work it is a chapter of (design.md §12, 2026-11-03): the
+        heading in the text names the whole work again, so the bar says only "פרק א׳". -#}
+    {% if not standalone and section.chapter %}<span class="bar-part" lang="{{ source_language }}" dir="{{ source_direction }}">{{ section.title }}</span>{% endif %}
     {#- How much of this text you can already read. Filled in by the reader from the
         words it has, and hidden outright on a text that carries none. It stays when the
         bar steps back: it is the one figure a reader glances up for. -#}

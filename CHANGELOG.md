@@ -62,6 +62,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the shared build with all of it. Where both carry the same document by hash and only
   the shelf's has an annotation, the shelf's is served; a copy with its words, or an
   edited one, still wins as before.
+- A chapter of a Sefaria text is titled "פרק א׳" ("Chapter 1" in English, «Глава 1» in
+  Russian) under the work's name, instead of the work's whole name and a numeral on every
+  part (David, 2026-11-03; design.md §12, "A chapter says "פרק א׳", and the work is named
+  once"). "משנה תורה, הלכות יסודי התורה א׳" read like a volume number in English and
+  repeated the work on every row of the contents page. The label reaches the contents
+  page, the tab title, Next and the previous part, print and the chat's "About:", and the
+  reader's bar shows it beside the work on a wide window. Display only: the heading in the
+  text, the translation and every id are unchanged, so nothing is bought or annotated
+  again; readers pick it up from the free `targum rebuild` in the next deploy. No new
+  interface strings: the label is in the text's language.
 - A podcast find's sample that whisper refuses no longer drops the episode or uses up the
   day's cap (targum-internal#621, 2026-11-02). The first run on the box had all ten
   samples refused by OpenAI, 429 `credit_balance_exhausted`, and dropped ten good episodes
