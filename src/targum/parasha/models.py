@@ -8,9 +8,9 @@ the first time the pipeline's schema moved, the whole shelf would quietly empty.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from .calendar import ReadingKind, Schedule
+from .calendar import ReadingKind, Schedule, own_range, pointed_name
 
 
 class Portion(BaseModel):
@@ -60,6 +60,18 @@ class Portion(BaseModel):
     #: (targum-internal#227). "" on a corpus cut before this was written down, which
     #: `annotate.versions.survey_corpus` counts as unknown rather than as current.
     annotator: str = ""
+
+    @model_validator(mode="after")
+    def _as_itself(self) -> Portion:
+        """A weekly portion named and ranged as itself (beta review AS-02 and AS-06,
+        2026-11-03), however old the index it was read from. A corpus cut before the fix
+        carries one year's special maftir in `summary` and Hebcal's in-verse pointing in
+        `hebrew`; putting both right as it is read is what lets the pages say the right
+        thing without a re-cut, and the next write stores them right."""
+        if self.kind is ReadingKind.parasha and self.numbers:
+            self.summary = own_range(self.summary)
+            self.hebrew = pointed_name(self.numbers, self.hebrew)
+        return self
 
     @property
     def doubled(self) -> bool:

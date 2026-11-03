@@ -28,6 +28,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   слов в этом тексте пока на английском.» (new string `reader.card.meanings-in-english`;
   the Russian is a draft). Readers pick it up on the routine rebuild, which spends nothing;
   a page written before it is served as it was.
+- Searching "Rambam", "Maimonides", "Mishneh Torah", משנה תורה or רמב״ם finds the
+  Mishneh Torah's thirteen sections, and each classical shelf is searched under its own
+  names (beta review AS-20, 2026-11-03; design.md §12). A search for the Talmud or for a
+  daf ("Bava Kamma 2a") now says the Talmud is not carried and why, instead of only
+  "Nothing on targum matches". New string `search.talmud-absent`; the Russian is a draft.
+- A tractate's contents page says "Tractate", and a Mishneh Torah section's says "Mishneh
+  Torah", instead of "Book" (AS-10). New strings `parts.page.kind-tractate`,
+  `parts.page.kind-mishneh-torah` and `parts.page.kind-targum`; the Russian are drafts.
+- A classical text's headings are no longer words to tap (AS-23): "משנה" at the top of
+  every Mishnah chapter opened a card saying "verb · to change".
 - The Russian interface says in Russian what it used to say in English (beta review,
   2026-11-03: MSG-04, FLG-02, LIB-R01/R02 and the Russian oleh's R2–R9; David approved).
   The front door and /connect no longer promise a Russian translation beside every line
@@ -59,6 +69,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "Series you follow" (MSG-01, new `subs.stop.*-one` strings). "Draw cover", a paid image
   job with no confirm, is offered to the operator only and `/cover` refuses readers
   (LIB-L04).
+- A modern reader is no longer offered Esther, Kings or Brenner as "at your level" (beta
+  review 2026-11-03, F-01/F-02; design.md §12, "An older Hebrew waits until it is asked
+  for"). The estimate rates older registers on the modern frequency list, so a B1 reader
+  was put at 90–94% of biblical narrative. An older register now ranks after everything
+  else on Home's card, Something else, More that fit you and Show me something harder,
+  and is left out of Your Progress's "Texts at your level now", until the reader opens it
+  ("Torah and Judaism" on arrival, or a text of theirs in it).
+- Upload's "You know N% of the words here" counts only the words the reader marked known
+  (S-03, F-07): it counted the commonest words as known for everybody, so a reader who had
+  marked nothing was told 34%. With nothing marked it says nothing.
+- A pasted link to a text or video the Library has built is opened, not priced (F-03): the
+  Khan video Home had suggested was quoted "Uses 14 credits". Upload now says "{title} is
+  in the Library, ready to open. It uses none of your credits." with Open, and "Translate
+  it anyway" still prices a copy of one's own. New string `add.instead.shelved`; the
+  Russian is a draft.
+- From gimel up, the arrival's first text is a real one, not a scene (F-04): "Everyday
+  conversation" opened "In the elevator" for a reader who reads the news with help.
 - Russian no longer says «кредит», which reads as a loan (David, 2026-11-03; design.md
   §12). A cost is said in minutes («Займёт 12 минут») and the balance in points
   («Осталось 12 баллов»), every count in its plural form. 169 lines changed in `ru.json`;
@@ -69,6 +96,33 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   other chips have no shown lexicon topic and no registers, so with one chosen the card
   had no press unless a web look had pooled a find for it. New strings
   `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
+- The classical shelf names its sources (beta review AS-01 and AS-03, approved by David
+  2026-11-03; design.md §12). CC BY texts were shown with no credit: the Metsudah Rashi
+  beside every aliyah and the Metsudah siddur's own Hebrew. Every reader's foot now names
+  the text's edition and each published rendering it carries (English, Onkelos, Rashi,
+  Rashi in English), each with its licence and the deed linked; the Library page names
+  the edition above the translation and lists what is read beside the verse. A portion,
+  a haftarah and a daily page are credited from the book they were cut from. The portion
+  page names the Hebrew edition and Onkelos and Rashi. New strings `reader.credit.from`,
+  `text.page.source-he`, `text.page.source-arc`, `text.page.beside` and
+  `parasha.page.edition-and-beside`; the Russian are drafts.
+- A weekly portion is headed with its own range (AS-02). "Genesis 37:1-40:23; Numbers
+  7:1-17" on Vayeshev, and the same on Mishpatim, Ki Tisa, Tetzaveh, Kedoshim, Miketz,
+  Vayakhel, Vayakhel-Pekudei and Tazria-Metzora, was one year's special maftir that no
+  aliyah carries. The page and its title are right as soon as this deploys; the catalogue
+  rows and their blurbs are right once `targum parasha entries --write` runs.
+- Portion names are pointed as headings (AS-06): חַיֵּי שָׂרָה, פְּקוּדֵי, שְׁמִינִי,
+  תַּזְרִיעַ and נָשֹׂא replace Hebcal's in-verse forms.
+- An aliyah says "Aliyah 1 of 7", not "Chapter 1 of 7" (AS-05). New strings
+  `reader.listen.aliyah`, `reader.listen.aliyah-of` and `reader.foot.end-of-aliyah`; the
+  Russian are drafts.
+- The Library's "Tanakh" shelf holds the Tanakh (AS-04): the Mishnah and the Mishneh Torah
+  stand under their own names, the Aramaic targums under "Aramaic translations", and
+  Psalms, Isaiah and the other books filed as poetry come back to the Tanakh. Wherever a
+  text's kind is named (rows, cards, playlists, saved, search) a tractate no longer says
+  "Tanakh". New strings `library.kind.*`, `library.kind-one.*` and `home.kind.*` for
+  `tanakh`, `targum`, `mishnah` and `halakhah`, and `prose` now reads "Prose"; the Russian
+  are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed

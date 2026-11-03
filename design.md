@@ -384,6 +384,59 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Upload opens what the Library has, and says only what was marked — 2026-11-03
+
+From the same beta review (F-03, F-04, F-07, S-03).
+
+- **A pasted link to a text the Library has built is opened, never priced.** Where the
+  link is a catalogue text (a YouTube link is its `video:` id in any spelling) built on
+  the shared shelf or the reader's own, Upload says "{title} is in the Library, ready to
+  open. It uses none of your credits." with Open (`/open/<id>`) and "Translate it anyway",
+  which still prices a copy of one's own. The Khan video Home had suggested was quoted
+  "Uses 14 credits".
+- **Upload's share is marks only**, as every other share is ("Known means marked",
+  2026-10-11; "No word is assumed known", 2026-10-12). It counted the commonest words as
+  known for everybody, a leftover of targum-internal#244, so a reader who had marked
+  nothing read "You know 34% of the words here". With no word marked it says nothing,
+  as home's card does. *(The chat's and the connector's measures of a feed item or a page,
+  `chat/tools.py` `_known_forms`, still count the commonest words; they rank items for a
+  model and are left for David.)*
+- **From gimel up, the arrival's first text is a real one.** "Everyday conversation" is
+  answered by the scenes, and for a reader who said they read the news with help and
+  passed the words check it opened "In the elevator". Past the scenes (`PAST_THE_SCENES`,
+  home's own line) a scene is the first text only where nothing real answers.
+
+### An older Hebrew waits until it is asked for — 2026-11-03
+
+The public-beta review of 2026-11-03 walked a B1 reader abroad who chose Everyday
+conversation, News, Science and Food. Home's card offered Esther under "where you already
+know 90% of the words", and Something else walked on to Haggai, Ecclesiastes, Brenner, II
+Kings and Genesis; Your Progress listed Esther and II Kings under "Texts at your level
+now". It amends "The chooser estimates the words you have not marked" (2026-11-01) and
+"What to read next is chosen on running words" (2026-10-31).
+
+- **Why it happened.** `estimate.py` reads every word's difficulty off the modern
+  frequency list, and an older text's words are mostly common ones: on the box's index a
+  reader at the words check's B1 is estimated at 91% of Esther and 90% of Genesis, in the
+  band. What makes them hard is the register (forms, syntax, senses), and the model has no
+  feature for it. Something else then chose "another kind or collection" in the same
+  tier, which was the Tanakh.
+- **The rule.** A text in an older register (biblical, rabbinic, medieval, revival) waits
+  for a reader who has not opened that register: it ranks after every other text, under
+  the floor and unmeasured included, so it is never offered as at their level and is still
+  offered where nothing else is. It is never in More that fit you, never in Your
+  Progress's "Texts at your level now", and never in Show me something harder unless a
+  chip the reader chose takes its register (Religion).
+- **What opens a register.** "Torah and Judaism" on arrival opens the Tanakh, rabbinic and
+  medieval Hebrew (the Religion chip's three). A text of the reader's own in that
+  register, or a catalogue text the page says they opened or finished, opens its own
+  register. A register asked for by name (the connector's `register`) opens itself.
+  Revival-era Hebrew is opened only by reading it.
+- **What does not change.** The Library still shelves every register, labelled ("An older
+  Hebrew says which it is", 2026-10-25), and the arrival still opens a Torah and Judaism
+  reader on scripture. The estimate itself is unchanged; a register feature in it would
+  be the better fix, and needs measured readers of older Hebrew first.
+
 ### A reader's chrome is the reader's language — 2026-11-03
 
 A reader's menus, its card's labels and its notices were said in the language of the
@@ -414,6 +467,7 @@ meanings follow the text.
   as it is on disk. A saved copy keeps the chrome it was saved in.
 - **It reaches a reader on the routine rebuild,** which reads every text from the cache
   and spends nothing. A page written before it has no comment and is served as before.
+
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
@@ -453,6 +507,56 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   with no cost said and no confirm, so a reader's Library row no longer offers it and
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
+
+### The classical shelf is found by its names, and its headings are labels — 2026-11-03
+
+The second half of the advanced-study review (AS-08, AS-10, AS-20, AS-23).
+
+- **A search knows what a classical shelf is called.** Each row on the Tanakh, Aramaic,
+  Mishnah and Halakhah shelves is also searched under its shelf's names
+  (`catalogue.SHELF_NAMES`): "Rambam", "Maimonides", "Mishneh Torah", משנה תורה and רמב״ם
+  find the thirteen sections. The same goes for the connector's `find_text`.
+- **A search for the Talmud is told it is not here.** The Talmud's name, or a daf ("Bava
+  Kamma 2a", "ברכות ב."), gets one quiet line above whatever else was found: the Talmud is
+  not carried because its only free Hebrew is ShareAlike, and the Mishnah is
+  (`search.asks_for_talmud`).
+- **A tractate's contents page says "Tractate".** A Mishneh Torah section says "Mishneh
+  Torah", an Aramaic translation says so, and nothing classical is called a "Book".
+- **A classical text's headings are labels.** In a `sefaria:` text, "משנה ברכות א׳", "רות
+  א׳" and "ראשון" are not tapped or counted as words. "משנה" at the top of every chapter
+  had opened a card saying "verb · to change".
+
+### The classical shelf names its sources and stands each work under its own name — 2026-11-03
+
+The beta review's advanced-study pass (AS-01 to AS-06, approved by David on 2026-11-03)
+found the shelf a scholar would distrust: CC BY texts shown with no credit, a header
+that disagreed with the page under it, and a Tanakh row full of Mishnah.
+
+- **Every text names its edition and everything published beside it, with the licence
+  linked.** The reader's foot says which edition the text is ("Hebrew from Torat Emet 357,
+  via Sefaria · Public Domain") and whose each rendering is ("English from …", "Onkelos
+  from …", "Rashi from …", "Rashi · English from …"), from the catalogue's `credit`,
+  `licence` and each rendering's own. The Library page says the same under "Hebrew" (or
+  the text's language) above "Translation", and "Beside the verse" for Onkelos and Rashi,
+  linking the page each claim was read from. A Creative Commons licence links its deed;
+  Sefaria's unversioned "CC-BY" links the 3.0 deed, as Sefaria's own pages do. A reader
+  links only the deed, because it carries no address but the pinned few; the source page
+  is on the Library page. A portion, a haftarah and a daily page are credited from the
+  book they are cut from. The licence string is shown as the source wrote it.
+- **A weekly portion is headed with its own range.** Hebcal's line for one Shabbat carries
+  that Shabbat's special maftir ("Genesis 37:1-40:23; Numbers 7:1-17"), which no aliyah
+  includes; the page, the title, the catalogue row and its blurbs keep the portion's own
+  range. A festival's line is several readings that are all read, and keeps them.
+- **A portion's name is pointed as a heading.** Five names Hebcal gives in their in-verse
+  form are replaced from a hand-checked table (`calendar.POINTED_NAMES`): חַיֵּי שָׂרָה,
+  פְּקוּדֵי, שְׁמִינִי, תַּזְרִיעַ, נָשֹׂא. The other forty-nine stay Hebcal's.
+- **An aliyah is called an aliyah.** "Aliyah 1 of 7" and "End of aliyah 1 of 7" on a
+  portion, never "Chapter".
+- **The Library stands each classical work on its own shelf.** Tanakh (Psalms and Isaiah
+  with it, not under Poetry), Aramaic translations, Mishnah and Halakhah, each under its
+  own name, wherever a text's kind is named (`catalogue.shelf_of`). Every other text keeps
+  its kind, and `prose` is "Prose" for a reader's own text. `/library/k/he/prose` still
+  answers, with the Tanakh.
 
 ### A chapter says "פרק א׳", and the work is named once — 2026-11-03
 

@@ -208,6 +208,10 @@ def harder(
         if share is None:
             continue
         about = set(row.get("about") or ())
+        # An older Hebrew the reader has not asked for waits (design.md §12, 2026-11-03),
+        # unless a chip they chose takes its register (Religion).
+        if row.get("held") and not ask.steered:
+            continue
         if ask.steered:
             register = str(row.get("register") or "")
             if not any(chips.on_shelf(code, shown, about, register) for code in ask.chosen):

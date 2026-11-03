@@ -303,3 +303,125 @@ def test_under_answers_only_the_real_texts_under_the_floor(library: Any) -> None
     got = tools.suggest_next(ctx, {"under": True, "limit": 200})["suggestions"]
     assert [row["id"] for row in got] == ["hard-story"]
     assert got[0]["fit"] == choose.UNDER
+
+
+# -- an older Hebrew waits until it is asked for (design.md §12, 2026-11-03) --------------
+
+
+def older(id_: str, register: str, kind: str = "prose") -> catalogue_module.Entry:
+    return catalogue_module._entry(
+        {
+            "id": id_,
+            "title": id_,
+            "language": "he",
+            "source": f"test:{id_}",
+            "kind": kind,
+            "register": register,
+            "words": 100,
+            "difficulty": 10,
+        }
+    )
+
+
+@pytest.fixture
+def registers(library: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
+    """The beta review's B1 reader abroad (2026-11-03): modern texts in the band and
+    under it, and Esther, Kings and Brenner rated in the band by an estimate that reads
+    every word off the modern frequency list."""
+    ctx, _, _ = library
+    entries = [
+        entry("news-story"),  # 95%, in the aim
+        entry("hard-story", difficulty=40),  # 50%, under the floor
+        older("esther", "biblical"),  # 96%: the estimate's figure, not a reader's
+        older("ii-kings", "biblical"),  # 93%
+        older("brenner-asonot", "revival", kind="story"),  # 94%
+    ]
+    lemmas = tmp_path / "registers.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                "news-story": {"ים": 19, "ספר": 1},
+                "hard-story": {"ים": 1, "ספר": 1},
+                "esther": {"ים": 24, "ספר": 1},
+                "ii-kings": {"ים": 13, "ספר": 1},
+                "brenner-asonot": {"ים": 47, "ספר": 3},
+            }
+        ),
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: list(entries))
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+    said: list[str] = []
+
+    class Store:
+        def marked(self, person: Any, language: str) -> dict[str, int]:
+            return {"ים": KNOWN, "בית": KNOWN}
+
+        def interest(self, person_id: Any) -> tuple[str, ...]:
+            return tuple(said)
+
+    ctx.store = Store()
+    return ctx, entries, lemmas, said
+
+
+def test_a_modern_reader_is_never_offered_the_tanakh_as_at_their_level(registers: Any) -> None:
+    """F-01: the card offered Esther and II Kings "where you already know 90%", and
+    Something else walked on to Haggai, Ecclesiastes, Brenner and Genesis. A modern text
+    under the floor now comes before them."""
+    ctx, _, _, _ = registers
+    got = tools.suggest_next(ctx, {"limit": 5})["suggestions"]
+    ids = [row["id"] for row in got]
+    assert ids[:2] == ["news-story", "hard-story"], ids
+    assert {row["id"] for row in got if row.get("held")} == {"esther", "ii-kings", "brenner-asonot"}
+    walked = []
+    shown = "news-story"
+    for _ in range(3):
+        pick = tools.suggest_next(ctx, {"limit": 1, "instead_of": shown, "skip": walked})
+        shown = pick["suggestions"][0]["id"]
+        walked.append(shown)
+    assert walked[0] == "hard-story", "Something else stays in modern Hebrew while it can"
+
+
+def test_torah_and_judaism_opens_the_tanakh_and_not_the_revival(registers: Any) -> None:
+    ctx, _, _, said = registers
+    said.append("judaism")
+    got = tools.suggest_next(ctx, {"limit": 5})["suggestions"]
+    fits = [row["id"] for row in got if row["fit"] == "band" and not row.get("held")]
+    assert set(fits) == {"news-story", "esther", "ii-kings"}
+    assert [row["id"] for row in got if row.get("held")] == ["brenner-asonot"]
+
+
+def test_a_register_asked_for_by_name_or_opened_before_is_open(registers: Any) -> None:
+    ctx, _, _, _ = registers
+    named = tools.suggest_next(ctx, {"limit": 5, "register": "revival"})["suggestions"]
+    assert [row["id"] for row in named] == ["brenner-asonot"] and not named[0].get("held")
+    opened = tools.suggest_next(ctx, {"limit": 5, "skip": ["ii-kings"]})["suggestions"]
+    assert not any(row.get("held") for row in opened if row["id"] == "esther"), (
+        "a reader who opened II Kings has asked for the Tanakh"
+    )
+
+
+def test_progress_never_lists_an_older_hebrew_the_reader_has_not_asked_for(
+    registers: Any,
+) -> None:
+    """F-02: "Texts at your level now" listed Esther and II Kings."""
+    from targum import touchstones
+    from targum.coverage import read_index
+
+    ctx, entries, lemmas, _ = registers
+    marked = ctx.store.marked(None, "he")
+    index = read_index(lemmas)
+    modern = choose.opened((), ())
+    listed = touchstones.at_level(entries, index, marked, "he", limit=10, registers=modern)
+    assert [row["id"] for row in listed] == ["news-story"]
+    scripture = choose.opened(("judaism",), ())
+    listed = touchstones.at_level(entries, index, marked, "he", limit=10, registers=scripture)
+    assert {row["id"] for row in listed} == {"news-story", "esther", "ii-kings"}
+
+
+def test_a_waiting_text_comes_after_every_other_tier() -> None:
+    assert choose.key(None) < choose.key(0.95, waits=True)
+    assert choose.key(0.2) < choose.key(0.95, waits=True)
+    assert choose.held("biblical", frozenset()) and not choose.held("modern", frozenset())
+    assert not choose.held("biblical", choose.opened(("judaism",)))
+    assert choose.held("revival", choose.opened(("judaism", "stories")))

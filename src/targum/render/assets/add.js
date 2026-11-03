@@ -1769,13 +1769,19 @@
     var box = document.createDocumentFragment();
     var head = document.createElement("p");
     head.className = "instead";
+    // Built in the Library already, so it opens for nothing (beta review, 2026-11-03):
+    // a pasted link to a shelf text is never priced. A published translation says that
+    // instead, as before.
+    var shelved = entry.shelved === true && !(entry.translations || []).length;
     // The title in bold wherever the sentence puts it: `{title}` marks the place.
-    var sentence = tn(
-      "add.instead",
-      entry.translations.length,
-      "{title} is already in the library, with a translation a person published. It'll read better than ours.",
-      "{title} is already in the library, with {n} translations a person published. It'll read better than ours."
-    );
+    var sentence = shelved
+      ? t("add.instead.shelved", "{title} is in the Library, ready to open. It uses none of your credits.")
+      : tn(
+          "add.instead",
+          entry.translations.length,
+          "{title} is already in the library, with a translation a person published. It'll read better than ours.",
+          "{title} is already in the library, with {n} translations a person published. It'll read better than ours."
+        );
     var at = sentence.indexOf("{title}");
     if (at < 0) at = 0;
     head.appendChild(document.createTextNode(sentence.slice(0, at)));
@@ -1791,8 +1797,9 @@
     go.textContent = t("add.open-it", "Open");
     go.onclick = function () {
       // The text it just named, not the index it happens to sit on. Every catalogue text
-      // has its own page now, so the button can go where it says it goes.
-      window.location.href = keyed("/library/" + entry.id);
+      // has its own page now, so the button can go where it says it goes. A built one
+      // opens straight into its reader (`/open/<id>`).
+      window.location.href = shelved ? keyed("/open/" + entry.id) : keyed("/library/" + entry.id);
     };
     row.appendChild(go);
     var anyway = document.createElement("button");

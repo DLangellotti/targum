@@ -264,6 +264,7 @@ def at_level(
     limit: int = TEXTS,
     chances: Sequence[float] | None = None,
     taught: Any = None,
+    registers: frozenset[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
@@ -280,6 +281,10 @@ def at_level(
 
     An entry the index holds no running counts for is measured by its distinct forms, as
     before, rather than left out.
+
+    `registers`, where given, is the older registers the reader has asked for (`choose.
+    opened`); a text in any other older register is never listed (design.md §12, "An
+    older Hebrew waits until it is asked for", 2026-11-03).
     """
     from . import catalogue as catalogue_module
     from . import choose
@@ -291,6 +296,10 @@ def at_level(
         if str(getattr(entry, "language", "")) != language:
             continue
         entry_id = str(entry.id)
+        register = getattr(entry, "register", "")
+        register = str(getattr(register, "value", register) or "")
+        if registers is not None and choose.held(register, registers):
+            continue
         measured = index.running(entry_id, held, statuses) or index.against(entry_id, held)
         if measured is None:
             continue
