@@ -5962,7 +5962,7 @@ def english_title(document: Document, language: str = "en") -> str:
     return english_of_source(document.source, language)
 
 
-def _entry_of_source(source: str) -> Any:
+def _entry_of_source(source: str) -> Entry | None:
     """The catalogue entry a build was made from, or None."""
     from .. import catalogue as catalogue_module
 
