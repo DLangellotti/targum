@@ -622,6 +622,10 @@ changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
   box's first run, OpenAI out of credits) stops the sampling and leaves the episodes
   waiting, and a sample whose audio would not come or cut is dropped with its reason
   written on the run (2026-11-02).
+- **30 a night and 600 a month** (David, 2026-11-03), up from 10 and 300: at about 1.2¢
+  a sample, at most 36¢ a night and $7.20 a month, still inside the same
+  `TARGUM_FINDS_BUDGET_USD`, which stops the sampling first if the other sources have
+  spent it.
 - **The pool keeps counts and a speech rate.** The sound and the words are deleted once
   scored. The row keeps the lemma counts and the words a minute heard (`find.rate`,
   schema 57), for the audio band. Under 30 words a minute is music, and is not offered.

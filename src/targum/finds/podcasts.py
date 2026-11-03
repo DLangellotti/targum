@@ -78,9 +78,11 @@ MAX_SECONDS = 2 * 60 * 60
 #: How much is transcribed of an episode with no transcript, from its middle.
 SAMPLE_SECONDS = 120
 
-#: The most samples a day and a month (plan §1.3 and §4: ≤ 10 a day, ≤ 300 a month).
-DAY_SAMPLES = 10
-MONTH_SAMPLES = 300
+#: The most samples a day and a month: 30 a night and 600 a month (David, 2026-11-03;
+#: plan §1.3 and §4 began at 10 and 300). At 1.2¢ a sample that is at most 36¢ a night and
+#: $7.20 a month, inside `TARGUM_FINDS_BUDGET_USD` with the other sources.
+DAY_SAMPLES = 30
+MONTH_SAMPLES = 600
 
 #: The transcriber the samples go to: whisper, the box's own (memory "Box transcribes with
 #: OpenAI whisper"), the cheaper of the two priced ones.
