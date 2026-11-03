@@ -763,6 +763,29 @@ def test_the_press_card_counts_credits_the_way_the_rail_charges() -> None:
     assert "Uses 0 credits" not in _prose(builder.press_page(_quoted(audio=True, seconds=20.0)))
 
 
+def test_out_of_credits_on_the_press_page_is_not_a_text_we_cannot_make() -> None:
+    """ACC-18 (2026-11-03): out of credits fell to the generic "We can't make this one",
+    which frames it as the text being impossible, and dropped what is still free."""
+    from targum.render import builder
+
+    out = _prose(
+        builder.press_page(
+            _quoted(
+                stage="blocked",
+                blocked="You've used this month's credits. Top up, or they reset on 1 Dec.",
+                act="top-up",
+                fact="Uploading text uses none, and the library still opens",
+            )
+        )
+    )
+    assert "Not enough credits for this one" in out and "We can't make this one" not in out
+    assert "Uploading text uses none" in out
+    ru = _prose(builder.press_page(_quoted(stage="blocked", blocked="x", act="top-up"), "ru"))
+    assert "На это не хватает баллов" in ru
+    failed = _prose(builder.press_page(_quoted(stage="failed", error="It broke.")))
+    assert "We can't make this one" in failed, "a real failure keeps its heading"
+
+
 def test_the_press_card_says_one_press_gets_every_part() -> None:
     """design.md §12, "One press gets the whole video, a part at a time" (2026-10-07):
     the credits on the card are the whole recording's, and the card says how it comes —
@@ -845,7 +868,7 @@ def test_the_press_page_says_its_script_s_words_in_russian() -> None:
     page = builder.press_page(_quoted(audio=True, seconds=62.0, usually=420.0), "ru")
     assert "TARGUM_STRINGS" in page
     assert "press.page.open-now" in page, "the script's own words were never sent"
-    assert "Займёт 2 минуты" in page, "62 seconds is two credits, said in minutes"
+    assert "Займёт 2 балла" in page, "62 seconds is two credits, said in points beside the wait"
 
 
 # --- a reader's own prompts, beside ours (note 17) --------------------------------
