@@ -423,6 +423,7 @@ From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
   with no cost said and no confirm, so a reader's Library row no longer offers it and
   `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
   themselves).
+
 ### A stranger is told the door is by invitation before they knock — 2026-11-03
 
 The beta review of 2026-11-03 (surface audit PUB-02, PUB-03, PUB-05, PUB-06, RDR-01, RDR-02,
