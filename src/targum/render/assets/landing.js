@@ -129,12 +129,28 @@
     return value.slice(0, cut) + "<span class=\"here-gloss\">" + value.slice(cut + 3) + "</span>";
   }
 
+  // A binyan's name in the page's language: the names Progress and the card already say
+  // in Russian («паал», «хифъиль»), not the Latin (beta review 2026-11-03, R30).
+  var BINYAN_KEYS = {
+    "pa’al": "paal",
+    "nif’al": "nifal",
+    "pi’el": "piel",
+    "pu’al": "pual",
+    "hif’il": "hifil",
+    "huf’al": "hufal",
+    "hitpa’el": "hitpael",
+  };
+  function binyanName(latin) {
+    var key = BINYAN_KEYS[latin];
+    return key ? t("landing.binyan." + key, latin) : latin;
+  }
+
   var drawnOnce = false;
   function drawCard(quiet) {
     var w = W[openId];
     var html = "<div class=\"card-head\"><span class=\"label\">" + t("landing.demo.word-card", "Word card") + "</span><p class=\"card-word\" lang=\"he\" dir=\"rtl\">" + w.head + "</p>" +
       "<p class=\"card-sense\">" + (w.inf ? "<span class=\"he inf\" lang=\"he\" dir=\"rtl\">" + w.inf + "</span> " : "") + w.sense + " <span class=\"pos\">· " + w.pos + "</span></p></div>";
-    if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + b[0] + " <span class=\"he\" lang=\"he\" dir=\"rtl\">" + b[1] + "</span></span>"; }).join("") + "</div>";
+    if (w.binyan) html += "<div class=\"binyanim\">" + w.binyan.map(function (b) { return "<span class=\"" + (b[2] ? "here" : "") + "\">" + binyanName(b[0]) + " <span class=\"he\" lang=\"he\" dir=\"rtl\">" + b[1] + "</span></span>"; }).join("") + "</div>";
     html += "<dl class=\"facts-list\">" + w.facts.map(function (f, n) { return "<dt>" + f[0] + "</dt><dd>" + (n === 0 ? hereGloss(f[1]) : f[1]) + "</dd>"; }).join("") + "</dl>";
     html += "<div class=\"card-actions\"><button class=\"btn tonal small\" type=\"button\" data-set=\"learning\" aria-pressed=\"" + (w.state === "learning") + "\">" + t("landing.demo.learning", "Learning") + "</button>" +
       "<button class=\"btn tonal small\" type=\"button\" data-set=\"known\" aria-pressed=\"" + (w.state === "known") + "\">" + t("landing.demo.known", "Known") + "</button>" +

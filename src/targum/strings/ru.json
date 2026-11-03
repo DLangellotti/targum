@@ -1639,7 +1639,7 @@
   "landing.head.title": "targum — учите современный и библейский иврит",
   "landing.head.description": "Учите современный и библейский иврит по видео, подкастам и книгам или приносите своё. Огласовки над каждым словом, русский перевод рядом с каждой строкой того, что вы приносите, и объяснение любого слова по касанию.",
   "landing.card.here": "Здесь",
-  "landing.card.pa-al-present": "пааль, настоящее",
+  "landing.card.pa-al-present": "паал, настоящее",
   "landing.card.put": "кладут",
   "landing.card.root": "Корень",
   "landing.card.which-hebrew": "Какой иврит",
@@ -1656,7 +1656,7 @@
   "landing.card.and-wait": "и ждут",
   "landing.card.hitpa-el-future-it": "хитпаэль, будущее, оно",
   "landing.card.for-it-to-heat-up": "чтобы нагрелось",
-  "landing.card.hif-il-present": "хифиль, настоящее",
+  "landing.card.hif-il-present": "хифъиль, настоящее",
   "landing.card.add": "добавляют",
   "landing.card.numbers-11-5": "Бемидбар 11:5",
   "landing.card.and-the-onions": "«и лук»",
@@ -4935,5 +4935,12 @@
   "find.topic.law": "Закон и суд",
   "find.topic.security": "Безопасность и армия",
   "find.topic.science": "Наука и технологии",
-  "find.topic.religion": "Религия и традиции"
+  "find.topic.religion": "Религия и традиции",
+  "landing.binyan.paal": "паал",
+  "landing.binyan.nifal": "нифъаль",
+  "landing.binyan.piel": "пиэль",
+  "landing.binyan.pual": "пуаль",
+  "landing.binyan.hifil": "хифъиль",
+  "landing.binyan.hufal": "хуфъаль",
+  "landing.binyan.hitpael": "хитпаэль"
 }

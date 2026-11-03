@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian interface's smaller leaks from the beta review's browser pass (2026-11-03,
+  R25–R30). A news article's contents page is filed as the catalogue files it («Статья»,
+  "Article"), not «Книга» (R29), and the line under its title is drawn in the reader's
+  language from the catalogue rather than kept from the build (R26, also on search
+  results). The nav says «Ваш прогресс», and «Прогресс» where «Ваш» gives way (R28).
+  Progress's "counted from" line ends on one full stop after a short month, «с 3 нояб.»
+  (R27). A weekly row in the Russian Library says its level once, in Russian (R25). The
+  front door's word card names binyanim as Progress does, «паал», «хифъиль», not in Latin
+  (R30; new strings `landing.binyan.*`, and the card's «пааль»/«хифиль» respelled). The
+  Russian lines are drafts.
 - The Russian confirm page says its cost in points («Займёт 12 баллов»), because the wait
   beside it is in minutes (David, 2026-11-03; design.md §12, "Russian says a cost in
   minutes and a balance in points"). Out of credits there is headed "Not enough credits

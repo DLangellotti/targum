@@ -6276,13 +6276,27 @@ def english_title(document: Document, language: str = "en") -> str:
     name in it, or a portion's from the catalogue's `portion.name.*` — «Берейшит» beside
     בְּרֵאשִׁית on the reader built in Russian, not "Bereshit".
     """
+    return english_of_source(document.source, language)
+
+
+def _entry_of_source(source: str) -> Entry | None:
+    """The catalogue entry a build was made from, or None."""
     from .. import catalogue as catalogue_module
 
+    if not source:
+        return None
     # `matching` knows the public source shapes; a source it does not recognise is still
     # a catalogue text if an entry names it exactly, which is how `/readers` decides too.
-    entry = catalogue_module.matching(document.source) or next(
-        (e for e in catalogue_module.CATALOGUE if e.source == document.source), None
+    return catalogue_module.matching(source) or next(
+        (e for e in catalogue_module.CATALOGUE if e.source == source), None
     )
+
+
+def english_of_source(source: str, language: str = "en") -> str:
+    """`english_title`, by the build's source: what a contents page drawn from its
+    `contents.json` says under the title, in the reader's language (beta review
+    2026-11-03, R26)."""
+    entry = _entry_of_source(source)
     if entry is None:
         return ""
     code = (language or "en").split("-")[0].lower()
@@ -8129,6 +8143,8 @@ def contents_page(
     or None), `finished` (section numbers as strings) and `known` (by section number,
     running words and known ones, and the forms not yet met)."""
     from ..coverage import MAP_STEPS
+    from ..strings import SOURCE
+    from ..strings import catalogue as catalogue_of
 
     t = page_words(language)
     tn = page_counts(language)
@@ -8231,6 +8247,9 @@ def contents_page(
         )
         go_href = rows[0]["file"] if rows else ""
 
+    source = str(manifest.get("source") or "")
+    entry = _entry_of_source(source)
+    filed = f"home.kind.{entry.kind.value}" if entry is not None else ""
     if layout == "film":
         kind = t("parts.page.kind-video", "Video")
     elif medium == "listen":
@@ -8242,13 +8261,25 @@ def contents_page(
         # says what it is, by the shelf it stands on (`catalogue.shelf_of`).
         from ..catalogue import shelf_of
 
-        shelf = shelf_of("prose", str(manifest.get("source") or ""), source_language)
-        kind = {
+        shelf = shelf_of("prose", source, source_language)
+        shelved: Markup | None = {
             "tanakh": t("parts.page.kind-tanakh", "Tanakh"),
             "mishnah": t("parts.page.kind-tractate", "Tractate"),
             "halakhah": t("parts.page.kind-mishneh-torah", "Mishneh Torah"),
             "targum": t("parts.page.kind-targum", "Aramaic translation"),
-        }.get(shelf) or t("parts.page.kind-book", "Book")
+        }.get(shelf)
+        kind = shelved or Markup("")
+        # Else what the catalogue files it as, as the Library says it: a news article is
+        # not a «Книга» (beta review 2026-11-03, R29). Not "prose", which the Library
+        # calls Tanakh and which the shelves above have already said.
+        if not kind and filed and filed != "home.kind.prose" and filed in catalogue_of(SOURCE):
+            kind = t(filed, catalogue_of(SOURCE)[filed])
+        kind = kind or t("parts.page.kind-book", "Book")
+    # The title under the Hebrew in the reader's language where the catalogue names the
+    # text in it; the build wrote its own language's (beta review 2026-11-03, R26).
+    english = (english_of_source(source, language) if entry is not None else "") or str(
+        manifest.get("english") or ""
+    )
 
     by_number = {row["number"]: row for row in rows}
     groups = []
@@ -8293,6 +8324,7 @@ def contents_page(
             go=go,
             go_href=go_href,
             kind=kind,
+            english=english,
             era=_era_of_source(str(manifest.get("source") or ""), language),
             mine=mine,
             picture=picture,

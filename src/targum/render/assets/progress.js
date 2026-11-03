@@ -912,9 +912,11 @@
     var beganDay = began ? localDay(new Date(began)) : "";
     note.hidden = !beganDay || Boolean(from && from >= beganDay);
     if (!note.hidden) {
+      // One full stop where a short month brings its own: «с 3 нояб.», never «нояб..»
+      // (beta review 2026-11-03, R27).
       note.textContent = t("progress.words.since", "Words met and known are counted from {date}.", {
         date: shortDay(dayOf(beganDay)),
-      });
+      }).replace(/\.\.$/, ".");
     }
     return true;
   }

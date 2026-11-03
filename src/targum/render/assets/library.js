@@ -993,7 +993,10 @@
     var bdi = el("bdi", "row-name", parts.title);
     bdi.setAttribute("dir", "auto");
     title.appendChild(bdi);
-    if (parts.level) {
+    // The level in English beside the title, unless the line under it already says it in
+    // the reader's own language: «Лёгкий · 1 000 слов» under, "Easy · 1,000 words" beside
+    // was the same thing twice (beta review 2026-11-03, R25).
+    if (parts.level && !(uiLanguage !== "en" && row.englishLang === uiLanguage)) {
       var level = el("span", "row-level", parts.level);
       level.setAttribute("lang", "en");
       title.appendChild(level);

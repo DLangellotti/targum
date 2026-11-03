@@ -119,6 +119,22 @@ def test_the_page_speaks_russian_where_the_reader_does(tmp_path: Path) -> None:
     assert "Продолжить: глава 3" in page and "Содержание" in page
 
 
+def test_a_catalogue_text_is_called_what_the_catalogue_files_it_as(tmp_path: Path) -> None:
+    """A news article's contents page said «Библиотека › Книга» (beta review 2026-11-03,
+    R29): the kind is the catalogue's, as the Library says it, and "Book" only where
+    nothing says otherwise. The title under it is the catalogue's too, drawn now rather
+    than kept from the build (R26)."""
+    manifest = manifest_of(built(tmp_path / "book-he"))
+    assert re.search(r'class="parts-tag">Book<', contents_page(manifest, {}))
+    manifest["source"] = "test:news-a"
+    manifest["english"] = "Kept from the build"
+    english = contents_page(manifest, {})
+    assert re.search(r'class="parts-tag">Article<', english)
+    assert ">News A<" in english and "Kept from the build" not in english
+    russian = contents_page(manifest, {}, language="ru")
+    assert re.search(r'class="parts-tag">Статья<', russian) and "Книга" not in russian
+
+
 def test_a_film_is_a_filmstrip_at_its_own_times(tmp_path: Path) -> None:
     manifest = {
         "version": 1,
