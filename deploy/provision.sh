@@ -89,13 +89,17 @@ has_plugin() {
 }
 # The plugin is pinned to the version of the minter installed below: the two speak
 # one protocol, and the daily upgrade at the end of this script moves yt-dlp alone.
+# `yt-dlp-ejs` is the challenge solver deno runs: a pip install of yt-dlp does not carry
+# it, and without it every YouTube run warned "n challenge solving failed: Some formats
+# may be missing" on the box (2026-11-03). Unpinned, and upgraded nightly with yt-dlp,
+# because it tracks YouTube's player as yt-dlp does.
 BGUTIL_VERSION="${BGUTIL_VERSION:-1.3.2}"
 if ! has_plugin; then
   # --force because the tool is usually already installed without the plugin, and `uv
   # tool install` is otherwise a no-op that would leave it that way.
   runuser -u targum -- env HOME=/srv/targum UV_TOOL_BIN_DIR=/srv/targum/.local/bin \
     /usr/local/bin/uv tool install --quiet --force yt-dlp \
-    --with "bgutil-ytdlp-pot-provider==$BGUTIL_VERSION"
+    --with "bgutil-ytdlp-pot-provider==$BGUTIL_VERSION" --with yt-dlp-ejs
   ln -sfn /srv/targum/.local/bin/yt-dlp /usr/local/bin/yt-dlp
   has_plugin || { echo "   the yt-dlp plugin did not install" >&2; exit 1; }
 fi
@@ -201,7 +205,7 @@ rm -f /etc/cron.d/targum-backup
 # already deleted bin/yt-dlp (2026-10-22, targum-internal#513).
 cat > /etc/cron.d/targum-ytdlp <<CRON
 MAILTO=root
-30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION || systemd-run --quiet --wait --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum ytdlp-stopped
+30 3 * * * root systemd-run --quiet --wait --collect --unit=targum-ytdlp --uid=targum --gid=targum --setenv=HOME=/srv/targum --setenv=UV_TOOL_BIN_DIR=/srv/targum/.local/bin /usr/local/bin/uv tool install --quiet --upgrade yt-dlp --with bgutil-ytdlp-pot-provider==$BGUTIL_VERSION --with yt-dlp-ejs || systemd-run --quiet --wait --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum ytdlp-stopped
 CRON
 chmod 0644 /etc/cron.d/targum-ytdlp
 

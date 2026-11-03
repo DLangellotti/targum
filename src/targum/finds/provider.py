@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any
 
 from .. import level as level_module
 from .. import parts
+from ..video import youtube as youtube_module
 from . import pool
 from .score import Score
 
@@ -120,9 +121,19 @@ def offered(
     if rung is not None and len(near) < NEAR_LEAST:
         held = {find.id for find in near}
         near += [find for find in pool.pick(store, code, None, at=at) if find.id not in held]
+    # A YouTube find is not offered while YouTube is out of reach from here — the proxy
+    # refused within the last few minutes — because the press would fail on the first
+    # thing it does (2026-11-03). It stays in the pool and comes back once a look at
+    # YouTube answers again (`video.youtube.reachable`).
+    youtube_ok: bool | None = None
     for find in near:
         if find.url in own or f"{PREFIX}{find.id}" in passed:
             continue
+        if find.medium == "video" and youtube_module.video_id(find.url):
+            if youtube_ok is None:
+                youtube_ok = youtube_module.reachable()
+            if not youtube_ok:
+                continue
         if credits_left is not None and find.credits > credits_left:
             continue
         share = share_of(find, marked)

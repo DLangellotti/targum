@@ -431,6 +431,29 @@ connector's `find_text` with no query too), over the shelf and the pool alike.
 - **No copy change.** The card offers part 1 by its own title, which already says "Part 1"
   where the video does.
 
+### A YouTube find is offered only when YouTube is in reach — 2026-11-03
+
+David pressed a YouTube find on home on 2026-11-03 and the build failed at once: the
+residential proxy had run out of traffic, so every YouTube fetch on the box failed, and
+the card blamed the video ("YouTube wouldn't give us that video. You can upload the video
+file instead.") twice, once after a stray ": ".
+
+- **A proxy refusal is ours.** Where the way out refused (a `ProxyError`, `Tunnel
+  connection failed`, `407 TRAFFIC_EXHAUSTED`) the reader is told "We can't reach YouTube
+  right now. Try again later." (`video.egress-down`), with no upload door: nothing about
+  the video was learned. Only the backup egress is tried after it; the same proxy is not
+  asked four times. Out of traffic, the operator is mailed (`alerts.credit_ran_out`).
+- **Out of reach, YouTube is not offered.** For ten minutes after a proxy refusal, home
+  holds back YouTube finds and a YouTube link's quote says the same sentence; then one
+  metadata-only look at "Me at the zoo", beside the request and never in front of it,
+  decides (`video.youtube.reachable`). The finds stay in the pool.
+- **A find whose video was refused leaves the pool for everyone** (`screen = refused`,
+  `finds.pool.retire`), after every route was tried: the next reader is not offered the
+  same refusal. A proxy refusal never retires a find.
+- **A failed build says what failed once.** The bell's row reads "We couldn't get {title}
+  ready." and, opened, the reason and "Nothing was used." under it; with no reason of its
+  own, "We couldn't get it ready." is said once, not twice.
+
 ### A suggested text says where it comes from, and a find with an open licence joins the library — 2026-11-02
 
 David, 2026-11-02, approving the mock: every suggested text says plainly where it comes

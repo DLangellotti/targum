@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from ..errors import OffHere, TargumError
+from ..errors import OffHere, TargumError, Unreachable
 from . import MAX_VIDEO_BYTES, VIDEO_EDGE, ytdlp_available
 from .remembered import DESCRIBED
 
@@ -135,6 +135,49 @@ POT_PROVIDER_ENV = "TARGUM_POT_PROVIDER"
 #: cannot pass `--cookies` to anything and design.md §6 does not answer questions nobody
 #: asked. The tell is cheap and does not need a list of YouTube's refusals kept current.
 _TO_THE_OPERATOR = (" --", "http://", "https://")
+
+#: What yt-dlp says when the refusal came from our own way out — the residential proxy —
+#: rather than from YouTube. Measured on the box on 2026-11-03, when the DataImpulse
+#: account ran out of traffic: every video, "Me at the zoo" included, stopped on
+#: `Tunnel connection failed: 407 TRAFFIC_EXHAUSTED (caused by ProxyError(...))`, and a
+#: reader was told to upload the file instead, which was about as useful as telling them
+#: the video was private. Nothing about the video can be learned from these, a second
+#: route through the same proxy meets the same wall, and the reader's sentence is ours
+#: (`EgressDown`).
+PROXY_SIGNS = (
+    "ProxyError",
+    "Tunnel connection failed",
+    "TRAFFIC_EXHAUSTED",
+    "407 Proxy Authentication",
+)
+
+#: The proxy account itself is out, which nothing but a top-up fixes: the operator is
+#: mailed (`alerts.credit_ran_out`), at most once per `alerts.CREDIT_REMIND`.
+EXHAUSTED_SIGNS = ("TRAFFIC_EXHAUSTED",)
+
+#: How long YouTube is taken to be out of reach after a proxy refusal, before one cheap
+#: look (`reachable`) asks again. Ten minutes: long enough that the finds pool does not
+#: offer a reader something the next press would refuse, short enough that a top-up is
+#: noticed before anybody has to restart anything.
+DOWN_S = 600.0
+
+#: What the cheap look asks for: "Me at the zoo", 2005, no restriction of any kind, so a
+#: refusal of it is about the way out and never about the video. Metadata only.
+CONTROL = "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+
+
+class EgressDown(Unreachable):
+    """Our way out to a video host refused — the proxy, out of traffic or down — so
+    nothing was learned about the video. Said to a reader as ours, never as theirs."""
+
+
+class Refused(TargumError):
+    """The host would not give us this one video, after every route was tried.
+
+    Distinct from `EgressDown`: this is about the video (private, gated, gone, or a bot
+    check every route met), so a find that met it is taken out of the pool for everyone
+    (`finds.pool.retire`) rather than offered to the next reader."""
+
 
 #: What still works when YouTube will not answer, in the reader's terms. A video file
 #: uploads through the same door a recording does, hosted included — so "YouTube links
@@ -362,8 +405,17 @@ def _logged(error: subprocess.CalledProcessError) -> str:
     logged, or the last line where there is none — never the command, which carries the
     proxy, and with any username and password in an address taken out.
     """
-    said = (error.stderr or b"").decode("utf-8", "replace").strip().splitlines()
-    lines = [line for line in said if line.startswith("ERROR:")] or said[-1:]
+    said = [
+        line.strip()
+        for line in (error.stderr or b"").decode("utf-8", "replace").splitlines()
+        if line.strip()
+    ]
+    # An ERROR line with nothing after it is not a reason: on 2026-11-03 the journal said
+    # "ERROR:  / ERROR:" for a fetch that the proxy had refused, and the operator learned
+    # nothing. Then the last lines yt-dlp said at all, warnings included, are the reason.
+    lines = [
+        line for line in said if line.startswith("ERROR:") and line.removeprefix("ERROR:").strip()
+    ] or said[-3:]
     reason = " / ".join(lines) or f"exit {error.returncode} and nothing on stderr"
     where = proxy()
     if where:
@@ -394,7 +446,100 @@ def _refusal(
     """
     _logged(error)
     sentence = _said(error) if carry else ""
-    return TargumError(sentence) if sentence else TargumError(fallback, door)
+    return Refused(sentence) if sentence else Refused(fallback, door)
+
+
+def _egress_down(error: subprocess.CalledProcessError, host: str) -> EgressDown:
+    """What the reader is told when the proxy refused, after the journal, the pool and,
+    where the account ran out, the operator have been told."""
+    reason = _logged(error)
+    mark_down()
+    if any(sign in reason for sign in EXHAUSTED_SIGNS):
+        from .. import alerts
+
+        alerts.credit_ran_out("The residential proxy (TARGUM_YTDLP_PROXY)", reason)
+    return _unreached(host)
+
+
+def _unreached(host: str) -> EgressDown:
+    return EgressDown(
+        f"We can't reach {host} right now. Try again later.",
+        key="video.egress-down",
+        service=host,
+        via="proxy",
+    )
+
+
+def _proxied(said: str) -> bool:
+    return any(sign in said for sign in PROXY_SIGNS)
+
+
+# --- whether YouTube is in reach (2026-11-03) ------------------------------------------
+#
+# Shared by every thread of the process. Set by a proxy refusal (`_egress_down`), cleared
+# by any yt-dlp run that answers, and after `DOWN_S` by one cheap look at `CONTROL`, run
+# in the background so no request waits on it. Kept in memory: a restart forgets it, and
+# the first refusal after the restart learns it again.
+
+
+class _Reach:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.until = 0.0
+        self.looking = False
+
+
+_REACH = _Reach()
+
+
+def mark_down() -> None:
+    with _REACH.lock:
+        _REACH.until = _clock() + DOWN_S
+
+
+def mark_up() -> None:
+    with _REACH.lock:
+        _REACH.until = 0.0
+
+
+def reachable() -> bool:
+    """Whether YouTube may be offered: False for `DOWN_S` after a proxy refusal, then
+    False until one look at `CONTROL` has answered. Never waits on the network."""
+    with _REACH.lock:
+        if not _REACH.until:
+            return True
+        if _clock() < _REACH.until or _REACH.looking:
+            return False
+        _REACH.looking = True
+    threading.Thread(target=_look_again, name="youtube-reach", daemon=True).start()
+    return False
+
+
+def ensure_reachable(host: str = "YouTube") -> None:
+    """`EgressDown` while YouTube is out of reach (`reachable`), and nothing otherwise."""
+    if not reachable():
+        raise _unreached(host)
+
+
+def _look_again() -> None:
+    """One metadata-only run at the control video through the same egress a build uses.
+    It answers: in reach. The proxy refuses again: another `DOWN_S`. Anything else is
+    YouTube talking, which means the way out works."""
+    try:
+        argv = ["yt-dlp", "--simulate", "--no-playlist", *_extra_args(), CONTROL]
+        try:
+            subprocess.run(argv, capture_output=True, check=True, timeout=60)
+        except subprocess.CalledProcessError as error:
+            if _proxied((error.stderr or b"").decode("utf-8", "replace")):
+                mark_down()
+                return
+        except (OSError, subprocess.TimeoutExpired):
+            mark_down()
+            return
+        mark_up()
+    finally:
+        with _REACH.lock:
+            _REACH.looking = False
 
 
 def _run(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[bytes]:
@@ -442,7 +587,11 @@ def run_ytdlp(
     if routes is None:
         routes = [_extra_args(minter=minter)] * (2 if again else 1)
     tells = (*TRANSIENT, *again)
-    for attempt, route in enumerate(routes, start=1):
+    routes = list(routes)
+    attempt = 0
+    while attempt < len(routes):
+        route = routes[attempt]
+        attempt += 1
         # Ahead of the address, which the caller read off the end and which yt-dlp wants
         # last of all.
         asked = [*argv[:-1], *route, argv[-1]]
@@ -454,7 +603,9 @@ def run_ytdlp(
                 raise _slow(host)
             allowed = min(float(timeout), left)
         try:
-            return subprocess.run(asked, capture_output=True, check=True, timeout=allowed)
+            done = subprocess.run(asked, capture_output=True, check=True, timeout=allowed)
+            mark_up()
+            return done
         except OSError as error:
             raise OffHere("yt-dlp is not installed.", hint) from error
         except subprocess.TimeoutExpired as error:
@@ -464,12 +615,33 @@ def run_ytdlp(
             raise TargumError(late) from error
         except subprocess.CalledProcessError as error:
             said = (error.stderr or b"").decode("utf-8", "replace")
+            if _proxied(said):
+                # The same proxy on the next route meets the same wall; only a route
+                # through another egress (`backup_proxy`) is worth asking.
+                proxy_now = _proxy_of(route)
+                later = [
+                    at for at in range(attempt, len(routes)) if _proxy_of(routes[at]) != proxy_now
+                ]
+                if not later:
+                    raise _egress_down(error, host) from error
+                _logged(error)
+                log.info("the proxy refused on %s; trying route %d", argv[-1], later[0] + 1)
+                routes = [*routes[:attempt], *routes[later[0] :]]
+                continue
             if attempt < len(routes) and any(tell in said for tell in tells):
                 _logged(error)
                 log.info("yt-dlp was refused on %s; trying route %d", argv[-1], attempt + 1)
                 continue
             raise _refusal(error, refused, door, carry=carry) from error
     raise AssertionError("unreachable")  # pragma: no cover - the loop returns or raises
+
+
+def _proxy_of(route: list[str]) -> str:
+    """The egress a route leaves through, or "" for from here."""
+    for at, arg in enumerate(route[:-1]):
+        if arg == "--proxy":
+            return route[at + 1]
+    return ""
 
 
 def info_language(media: Path) -> str:

@@ -3482,6 +3482,7 @@ class Library:
                 job.blocked = self.why_blocked(job.estimate, job.ui)
             job.stage = "blocked" if job.blocked else "ready"
         except TargumError as error:
+            self._unpool(job, error)
             job.error = told(job.ui, error, hosted=self.hosted)
             job.stage = "failed"
         except Exception as error:  # a bad file should not take the server down
@@ -3766,6 +3767,9 @@ class Library:
         """A YouTube address, priced through `_prepare_video`."""
         from .video import youtube as youtube_module
 
+        # The Data API prices a video without the proxy, so a quote would read "ready"
+        # while the fetch behind the press could not leave (2026-11-03): said now instead.
+        youtube_module.ensure_reachable()
         self._prepare_video(
             job,
             vetted=youtube_module.is_youtube,
@@ -4663,6 +4667,7 @@ class Library:
             self.remember(job)
             self.propose(job)
         except TargumError as error:
+            self._unpool(job, error)
             self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
             # Whatever a library chose to say about itself is not a sentence for someone
@@ -5513,6 +5518,26 @@ class Library:
         written = rewrite_module.named(str(asked.get("level") or ""))
         if original is not None and written is not None:
             rewrite_module.link(folder, original, written)
+
+    def _unpool(self, job: Job, error: TargumError) -> None:
+        """Take a web find out of the pool for everyone once its source refused it.
+
+        Only a refusal about the video itself (`video.youtube.Refused`): a proxy that ran
+        out (`EgressDown`) is ours, and the find comes back when YouTube answers again. A
+        find is offered to many readers, and the next one should not press the same
+        refusal (2026-11-03). Never a reason for anything else to fail."""
+        from .video.youtube import Refused
+
+        found = job.options.get("find")
+        if not found or self.store is None or not isinstance(error, Refused):
+            return
+        try:
+            from .finds import pool as finds_pool
+
+            if finds_pool.retire(self.store, int(found), "refused"):
+                log.info("find %s retired: %s", found, error.message)
+        except Exception:  # noqa: BLE001 - the reader's sentence matters more
+            log.exception("could not retire find %s", found)
 
     def _blame(self, job: Job, message: str) -> None:
         """Record a failure, unless there is already a reader to show for the work.

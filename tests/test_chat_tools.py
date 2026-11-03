@@ -436,8 +436,14 @@ def test_the_bell_and_check_job_say_one_line(world) -> None:
     failed = Job(
         id="j-fail", source="x", owner=person.id, stage="failed", error="That page is empty."
     )
-    assert tools.progress_of(failed, 0, "en")["said"] == (
-        "We couldn't get it ready. That page is empty. Nothing was used."
+    assert tools.progress_of(failed, 0, "en") == {
+        "said": "We couldn't get it ready. That page is empty. Nothing was used.",
+        "why": "That page is empty. Nothing was used.",
+    }
+    # With no sentence of its own, "We couldn't get it ready." is said once, not twice.
+    silent = Job(id="j-silent", source="x", owner=person.id, stage="failed")
+    assert tools.progress_of(silent, 0, "en")["said"] == (
+        "We couldn't get it ready. Try again later. Nothing was used."
     )
 
 
@@ -582,7 +588,7 @@ def test_check_job_says_it_in_the_language_the_card_is_drawn_in(world) -> None:
     assert said(one) == "Первая глава. Готово: 3 из 21 предложения."
     assert said(Job(id="j-ru-done", source="x", owner=person.id, stage="done")) == ("Можно читать.")
     failed = said(Job(id="j-ru-failed", source="x", owner=person.id, stage="failed"))
-    assert failed.startswith("Не получилось") and failed.endswith("Кредиты не списаны.")
+    assert failed == "Не удалось подготовить текст. Попробуйте позже. Кредиты не списаны."
     for count, form in ((1, "текст."), (3, "текста."), (5, "текстов."), (11, "текстов.")):
         assert tools._counted(
             "ru", "job.said.behind", count, "{n} other text.", "{n} other texts."
