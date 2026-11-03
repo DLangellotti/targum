@@ -383,10 +383,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    naming no reader. On a table every box has, so the columns are in MIGRATIONS; `joined`
 #    is a new table, which needs none.
 #
+# 59→60: find.series, find.part, find.season — which numbered part of a series a find is
+#    (design.md §12, "A suggestion never starts a series in the middle", David, 2026-11-03;
+#    `parts.py`), so a suggestion offers part 1, or part N only after part N−1. `part` is
+#    -1 on every row written before, which is read off its title instead; 0 where a find
+#    is no part of anything. On a table every box has, so they are in MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 59
+SCHEMA_VERSION = 60
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -856,6 +862,11 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE find ADD COLUMN licence TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN licence_url TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN licence_from TEXT NOT NULL DEFAULT ''",
+    # Which numbered part of a series a find is (schema 60, design.md §12, 2026-11-03):
+    # -1 on every find before it, which is read off its title.
+    "ALTER TABLE find ADD COLUMN series TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE find ADD COLUMN part INTEGER NOT NULL DEFAULT -1",
+    "ALTER TABLE find ADD COLUMN season INTEGER NOT NULL DEFAULT 0",
 )
 
 SCHEMA = """

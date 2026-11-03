@@ -35,7 +35,9 @@ import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
+
+from .. import parts
 
 if TYPE_CHECKING:
     from ..accounts import Store
@@ -53,6 +55,10 @@ SCHEMA = """
 -- read, and `licence_from` which statement it is: `youtube` for a video's own licence
 -- field, `publisher` for the licence an outlet states for its whole site (`sources.json`,
 -- design.md §12, 2026-11-02). Empty where nothing was stated, which is most of the web.
+-- `series`, `part` and `season` say which numbered part of a series a find is (design.md
+-- §12, "A suggestion never starts a series in the middle", 2026-11-03; `parts.py`): `part`
+-- 0 where it is none, and -1 on a row kept before it was worked out, which is then read
+-- off the title.
 CREATE TABLE IF NOT EXISTS find (
   id         INTEGER PRIMARY KEY,
   language   TEXT    NOT NULL,
@@ -76,7 +82,10 @@ CREATE TABLE IF NOT EXISTS find (
   rate       REAL    NOT NULL DEFAULT 0,
   licence    TEXT    NOT NULL DEFAULT '',
   licence_url TEXT   NOT NULL DEFAULT '',
-  licence_from TEXT  NOT NULL DEFAULT ''
+  licence_from TEXT  NOT NULL DEFAULT '',
+  series     TEXT    NOT NULL DEFAULT '',
+  part       INTEGER NOT NULL DEFAULT -1,
+  season     INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS find_pick ON find (language, screen, rung, expires);
 CREATE INDEX IF NOT EXISTS find_digest ON find (digest);
@@ -184,6 +193,9 @@ class Find:
     licence: str = ""
     licence_url: str = ""
     licence_from: str = ""
+    #: Which numbered part of a series it is, or None (`parts.py`, design.md §12,
+    #: 2026-11-03).
+    part: parts.Part | None = None
     bag: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     @property
@@ -197,7 +209,8 @@ class Find:
 
 _COLUMNS = (
     "id, language, source, url, title, host, publisher, published, medium, seconds, tokens,"
-    " unresolved, credits, topics, rung, found, expires, rate, licence, licence_url, licence_from"
+    " unresolved, credits, topics, rung, found, expires, rate, licence, licence_url, licence_from,"
+    " series, part, season"
 )
 
 
@@ -224,8 +237,61 @@ def _find(row: sqlite3.Row, bag: Mapping[str, int] | None = None) -> Find:
         licence=str(row["licence"] or ""),
         licence_url=str(row["licence_url"] or ""),
         licence_from=str(row["licence_from"] or ""),
+        part=_part(row),
         bag=bag or {},
     )
+
+
+def _part(row: sqlite3.Row) -> parts.Part | None:
+    """A row's part as stored; one kept before parts were worked out, off its title."""
+    number = int(row["part"])
+    if number < 0:
+        return parts.of_title(str(row["title"]), str(row["publisher"]))
+    if number == 0:
+        return None
+    return parts.Part(
+        key=str(row["series"]),
+        number=number,
+        season=int(row["season"]),
+        kind=parts.EPISODE if row["season"] else parts.PART,
+        publisher=parts.fold(str(row["publisher"])),
+    )
+
+
+def _stored(part: parts.Part | None) -> tuple[str, int, int]:
+    """A part as its three columns: none is `("", 0, 0)`."""
+    if part is None:
+        return "", 0, 0
+    return part.key, part.number, part.season
+
+
+def parts_at(store: Store, urls: Iterable[str]) -> list[parts.Part]:
+    """The parts the pool knows at these addresses, kept or not, expired or not: what a
+    reader who built them has opened (`parts.allowed`)."""
+    wanted = sorted({url for url in urls if url})
+    out: list[parts.Part] = []
+    for at in range(0, len(wanted), 500):
+        chunk = wanted[at : at + 500]
+        marks = ",".join("?" * len(chunk))
+        for row in store.db.execute(
+            f"SELECT title, publisher, series, part, season FROM find WHERE url IN ({marks})",  # noqa: S608 - placeholders
+            chunk,
+        ):
+            part = _part(row)
+            if part is not None:
+                out.append(part)
+    return out
+
+
+def mark_part(store: Store, url: str, part: parts.Part | None) -> None:
+    """Write down a find's part where it was kept before parts were worked out: a feed
+    read again says what the title alone could not (`itunes:type`, `itunes:episode`)."""
+    series, number, season = _stored(part)
+    with store.write() as db:
+        db.execute(
+            "UPDATE find SET series = ?, part = ?, season = ? WHERE url = ? AND part < 0",
+            (series, number, season, url),
+        )
 
 
 def expires_at(source: str, at: int) -> int:
@@ -269,18 +335,26 @@ def add(
     licence: str = "",
     licence_url: str = "",
     licence_from: str = "",
+    part: parts.Part | None | Literal["title"] = "title",
     at: int | None = None,
 ) -> int:
     """Keep one find and its lemma counts, in one transaction. Its id; or 0 where the
-    address is already held, which is a round that raced another."""
+    address is already held, which is a round that raced another.
+
+    `part` is which numbered part of a series it is, where the caller worked it out from
+    more than the title (a feed's `itunes:episode`); None for none; left as it is, it is
+    read off the title (`parts.of_title`)."""
     when = now_ms() if at is None else at
+    if isinstance(part, str):
+        part = parts.of_title(title, publisher)
+    series, number, season = _stored(part)
     with store.write() as db:
         try:
             cursor = db.execute(
                 "INSERT INTO find (language, source, url, digest, title, host, publisher,"
                 " published, medium, seconds, tokens, unresolved, credits, topics, rung, found,"
-                " expires, screen, rate, licence, licence_url, licence_from)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires, screen, rate, licence, licence_url, licence_from, series, part, season)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     language,
                     source,
@@ -304,6 +378,9 @@ def add(
                     licence[:200],
                     licence_url[:500],
                     licence_from,
+                    series,
+                    number,
+                    season,
                 ),
             )
         except sqlite3.IntegrityError:

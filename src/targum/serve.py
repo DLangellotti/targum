@@ -15445,6 +15445,7 @@ class Handler(BaseHTTPRequestHandler):
                 built=built,
                 credits_left=chat_tools._credits_left(ctx),
                 known=known,
+                started=chat_tools.started_parts(ctx, mine),
             )
 
         def under_floor(body: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -15491,6 +15492,8 @@ class Handler(BaseHTTPRequestHandler):
                 if str(row.get("source") or "").startswith(("http://", "https://"))
             }
 
+            started = chat_tools.started_parts(ctx, mine, done)
+
             def nearest_for(asked: button.Ask) -> list[dict[str, Any]]:
                 found = button.ranked(
                     self.store,
@@ -15502,6 +15505,7 @@ class Handler(BaseHTTPRequestHandler):
                     credits_left=chat_tools._credits_left(ctx),
                     known=known,
                     harder=True,
+                    started=started,
                 )
                 return button.nearest([*button.harder(shelf, asked, known), *found])
 

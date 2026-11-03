@@ -384,6 +384,53 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A suggestion never starts a series in the middle — 2026-11-03
+
+David, 2026-11-03, offered part 2 of a YouTube video on home's "One to try next": a
+suggestion never drops a reader into the middle of a series. The video was "מצאתי את
+הפלאפלים הכי זולים בישראל חלק 2!!! (דרום הארץ)", pooled the night before by a live look
+for the Israel chip, with no part 1 anywhere in the pool; nothing in the chooser knew a
+part from a whole. This holds on every suggestion path: home's pick ("One to try next" and
+"Read one at N% known"), More that fit you, Read next (`suggest_next`, so the chat and the
+connector's `find_text` with no query too), over the shelf and the pool alike.
+
+- **Part N only after part N−1.** A numbered later part is suggested only where the reader
+  has opened the part before it: built it (a find, or a text on their own shelf), or the
+  page says it is finished or in Continue (a shelf text). Then it is the natural next.
+- **Otherwise part 1, in its place.** Where part 1 of the same series, from the same
+  publisher, is in the list being chosen from (so it already cleared the floor, the
+  credits and everything else), it takes the later part's place, if it fits as well.
+  Where it is not there, or does not qualify, the series is left out; a later part is
+  never suggested on its own. Part 1 is looked for in the pool and on the shelf only:
+  finding it on the channel or the feed would be a fetch, and a suggestion fetches nothing.
+- **A part is said, never guessed** (`parts.py`). Part or episode wording with a number in
+  Hebrew, English or Russian ("חלק 2", "חלק א'", "החלק השני", "פרק 3", "עונה 3 פרק 14",
+  "Part 2", "Part Two", "Part II", "Ep. 3", "S2E3", «Часть 2», «вторая часть», «Серия
+  3»), a bracketed "(2/5)" (never "(n/10)", which reads as a score), or a podcast feed's
+  `itunes:episode` and `itunes:season`. A year, a date, "Toy Story 2", "Psalm 20", "2
+  Samuel 9", a book's chapter ("Глава I", "מאמר שני") and the word with no number of its
+  own ("חלק מהציפורים", "part-time", "ופרק ג" mid-sentence) are no part. "The last part"
+  ("החלק האחרון") is a later part whose number is unknown, so it is only ever replaced by
+  part 1. The parts of one thing share a key: the title's words before the marker, or the
+  show's name where the marker leads the title. Every doubt leaves a part out, never in.
+- **An episodic podcast's numbers are a counter.** A feed that says
+  `<itunes:type>episodic</itunes:type>`, whose episodes Apple defines as "intended to be
+  consumed without any specific order" (most of Kan's), is not held to "פרק 189" or
+  `itunes:episode` 189; only part wording counts there. A serial feed, or one that says
+  neither, is held to its numbers. A trailer or a bonus episode is never a part. This is
+  the one reading of David's rule that keeps the talk shows; reversing it is one line in
+  `parts.of_episode`.
+- **targum's own parts too.** A recording cut into parts ("One press gets the whole video,
+  a part at a time", 2026-10-07) is one text whose sections are its parts, so Read next's
+  passage slot ("Try chapter 3 first") is offered only for a text, never for a recording.
+  The dialogues keep their own order (`next_scene`) and are not a series here.
+- **What it keeps.** A find's series key, part and season (`find.series`, `part`,
+  `season`; schema 60). A find pooled before has part −1 and is read off its title; the
+  podcast round writes what its feed says the next time it reads the feed. Nothing about
+  the reader is kept: what they opened is read from their shelf at the moment of asking.
+- **No copy change.** The card offers part 1 by its own title, which already says "Part 1"
+  where the video does.
+
 ### A YouTube find is offered only when YouTube is in reach — 2026-11-03
 
 David pressed a YouTube find on home on 2026-11-03 and the build failed at once: the

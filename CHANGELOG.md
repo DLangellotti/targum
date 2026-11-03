@@ -27,6 +27,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from 2,322 to 1,488px on a phone and from 1,468 to 1,071px at a desk. The two lists start
   about 230px in, where they used to start 1,100 to 1,650px in. The Russian tab names are
   drafts.
+- A suggestion never starts a series in the middle (David, 2026-11-03; design.md §12).
+  Home offered David part 2 of a YouTube video ("מצאתי את הפלאפלים הכי זולים בישראל חלק
+  2!!!", pooled by a live look for the Israel chip with no part 1 in the pool). A numbered
+  later part is now suggested only once the reader opened the part before it; otherwise
+  part 1 takes its place where the pool or the shelf has it and it fits, and the series is
+  left out where it does not. It holds on home's pick, "Read one at N% known", More that
+  fit you, Read next and the connector's `find_text` with no query. A part is read
+  deterministically, from part or episode wording in Hebrew, English and Russian, a
+  bracketed "(2/5)", and a podcast feed's `itunes:episode`/`itunes:season` (`parts.py`); a
+  year, a chapter, "Toy Story 2" or "חלק מ…" is not one, and an episodic feed's episode
+  numbers are a counter. Store schema 60 keeps a find's series key, part and season;
+  older finds are read off their titles. Read next's passage slot is no longer offered for
+  a recording, whose sections are its parts.
 - A YouTube build that our proxy refused now says so (2026-11-03; design.md §12, "A
   YouTube find is offered only when YouTube is in reach"). On 2026-11-03 the DataImpulse
   proxy ran out of traffic (`407 TRAFFIC_EXHAUSTED`), every YouTube fetch failed, and a
