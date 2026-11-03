@@ -30,6 +30,12 @@
     return t(key, count === 1 ? one : other, values);
   }
 
+  // The page's language, which says a subtitle and a date in it (beta review, 2026-11-03).
+  function pageLanguage() {
+    var said = window.TargumStrings;
+    return (said && said.language) || "en";
+  }
+
   var key = window.TARGUM_KEY;
 
   function keyed(path) {
@@ -161,16 +167,73 @@
     });
   }
 
-  /* The pipeline narrates itself in its own words; these three are the reader's, the
-     same keys the Library's row uses for its own build. Anything else it says — "Fetching
-     the recording…" — is already a sentence and is said as it came. */
+  /* The pipeline narrates itself in its own words, in English; these are the reader's.
+     Three are the same keys the Library's row uses for its own build. The rest are the
+     pipeline's own sentences keyed, their numbers and names read back out of them, which
+     a Russian reader met in English on the waiting row right after a first upload (beta
+     review, 2026-11-03, R5). A sentence nobody keyed yet is said as it came on an English
+     page, and as "getting it ready" on any other: a line in the wrong language is worse
+     than a plain one in the right one. */
+  var STAGES = [
+    [/^Matching (.+) to the source…$/, function (m) {
+      return t("shelf.stage.matching", "Matching {name} to the source…", { name: m[1] });
+    }],
+    [/^Finding the words of (.+)…$/, function (m) {
+      return t("shelf.stage.words-of", "Finding the words of {name}…", { name: m[1] });
+    }],
+    [/^Adding stress marks…$/, function () {
+      return t("shelf.stage.stress", "Adding stress marks…");
+    }],
+    [/^Looking up (\d+) word meanings…$/, function (m) {
+      return t("shelf.stage.meanings", "Looking up {n} word meanings…", { n: m[1] });
+    }],
+    [/^Looking up word meanings… (\d+) of (\d+)$/, function (m) {
+      return t("shelf.stage.meanings-done", "Looking up word meanings… {done} of {total}", { done: m[1], total: m[2] });
+    }],
+    [/^(\d+) word meanings looked up$/, function (m) {
+      return t("shelf.stage.looked-up", "{n} word meanings looked up", { n: m[1] });
+    }],
+    [/^(\d+) of (\d+) sentences were already translated\.$/, function (m) {
+      return t("shelf.stage.translated", "{n} of {total} sentences were already translated.", { n: m[1], total: m[2] });
+    }],
+    [/^Reading the pictures…$/, function () {
+      return t("shelf.stage.pictures", "Reading the pictures…");
+    }],
+    [/^Fetching the video…$/, function () {
+      return t("shelf.stage.video", "Fetching the video…");
+    }],
+    [/^Fetching the recording…$/, function () {
+      return t("shelf.stage.recording", "Fetching the recording…");
+    }],
+    [/^Transcribing part (\d+) of (\d+)…$/, function (m) {
+      return t("shelf.stage.transcribing", "Transcribing part {n} of {total}…", { n: m[1], total: m[2] });
+    }],
+    [/^Lining the text up with the recording…$/, function () {
+      return t("shelf.stage.lining-up", "Lining the text up with the recording…");
+    }],
+    [/^Cutting the video for part (\d+)…$/, function (m) {
+      return t("shelf.stage.cutting", "Cutting the video for part {n}…", { n: m[1] });
+    }],
+    [/^We're drawing…$/, function () {
+      return t("shelf.stage.drawing", "We're drawing…");
+    }],
+    [/^We're reading it aloud…$/, function () {
+      return t("shelf.stage.voicing", "We're reading it aloud…");
+    }],
+  ];
   function plain(message) {
     var words = {
       "Finding each word's dictionary form…": t("library.build.words", "We're reading the words…"),
       "Adding vowel points…": t("library.build.points", "We're adding vowel points…"),
       "Building the reader…": t("library.build.page", "We're setting the page…"),
     };
-    return words[message] || message;
+    if (words[message]) return words[message];
+    for (var i = 0; i < STAGES.length; i++) {
+      var found = STAGES[i][0].exec(message);
+      if (found) return STAGES[i][1](found);
+    }
+    if (pageLanguage() === "en") return message;
+    return t("shelf.stage.working", "We're getting it ready…");
   }
 
   function buildingRow(job) {
@@ -213,7 +276,8 @@
       bit.textContent = fact;
       line.appendChild(bit);
     });
-    if (job.english) line.appendChild(englishFact(job.english));
+    var jobSubtitle = subtitle(job);
+    if (jobSubtitle.text) line.appendChild(englishFact(jobSubtitle.text, jobSubtitle.language));
     // The status again, for a phone, where the tag beside the row folds away.
     var folded = document.createElement("span");
     folded.className = "fact fact-status is-building";
@@ -316,10 +380,20 @@
     return end;
   }
 
-  function englishFact(english) {
+  /* The subtitle, in the reader's own language where the catalogue names the text in it
+     (`named` on a shelf row, `englishLanguage` on a job), as the Library says it, and in
+     English where it does not (beta review, 2026-11-03, R8). */
+  function subtitle(row) {
+    var code = pageLanguage();
+    var own = row.named && row.named[code];
+    if (own) return { text: own, language: code };
+    return { text: row.english || "", language: row.englishLanguage || "en" };
+  }
+
+  function englishFact(english, language) {
     var bit = document.createElement("span");
     bit.className = "fact book-english";
-    bit.setAttribute("lang", "en");
+    bit.setAttribute("lang", language || "en");
     bit.setAttribute("dir", "ltr");
     bit.textContent = english;
     return bit;
@@ -518,7 +592,8 @@
       bit.textContent = fact;
       line.appendChild(bit);
     });
-    if (reader.english) line.appendChild(englishFact(reader.english));
+    var readerSubtitle = subtitle(reader);
+    if (readerSubtitle.text) line.appendChild(englishFact(readerSubtitle.text, readerSubtitle.language));
     // The playlists it is in: a name can be a sentence, so this one fact is the one cut
     // short, and never pushes the row wider than the card (P4, 2026-10-09).
     if (reader.playlists && reader.playlists.length) {

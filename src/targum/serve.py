@@ -130,6 +130,11 @@ EDGES_SAID = " \t\n\u05be\u05c0\u05c3.,;:!?\"'()[]\u2013\u2014"
 #: Caddy's 48 MB body ceiling with room to spare — and are assembled on disk.
 CHUNK_BYTES = 8 * 1024 * 1024
 MAX_AUDIO_BYTES = 1024 * 1024 * 1024
+
+#: What an upload that is no longer on disk is told (`upload.gone`): the reader sent it,
+#: waited too long or sent it from another tab, and the one way on is to send it again.
+UPLOAD_GONE = "We can't find that upload any more. Send it again."
+
 #: A picture or a PDF comes through the same door as a recording (2026-09-07), because
 #: a phone photo is ten megabytes and the JSON door reads its body into memory as
 #: base64. Twenty-five is a photo at any phone's full size, and no handout.
@@ -347,7 +352,7 @@ def refused_in(ui: str, error: TargumError) -> str:
     A refusal with no key is said as it always was. That is most of them, and all of the
     ones only an operator meets.
     """
-    from .strings import SOURCE, catalogue
+    from .strings import SOURCE, cased, catalogue
 
     if not error.key:
         return f"{error.message} {error.hint or ''}".strip()
@@ -363,7 +368,9 @@ def refused_in(ui: str, error: TargumError) -> str:
         if found is None:
             return english
         try:
-            return found.format(**error.fill)
+            # A language's name in the case the sentence asks for (`{language:in}`).
+            shaped, filled = cased(found, code, error.fill)
+            return shaped.format(**filled)
         except (KeyError, IndexError, ValueError):
             # A translation whose blanks do not match what the refusal carries. The
             # English still says the true thing, which is what matters here.
@@ -1382,6 +1389,8 @@ class Job:
         # Worked out when asked rather than stored on the job: the catalogue is the one
         # place a title's English lives, and a column here would be a second.
         entry = catalogue_module.matching(self.source) if self.source else None
+        code = (self.ui or "en").split("-")[0]
+        named = entry.named.get(code, "") if entry else ""
         return {
             "blocked": self.blocked,
             # What a refusal's panel draws beside its sentence (`Refusal`, design.md §12,
@@ -1391,7 +1400,10 @@ class Job:
             "id": self.id,
             "made": self.made,
             "title": self.title,
-            "english": entry.english if entry else "",
+            # The subtitle in the reader's own language where the catalogue has one,
+            # as the Library says it (beta review, 2026-11-03, R8).
+            "english": (named or entry.english) if entry else "",
+            "englishLanguage": code if named else "en",
             # The language it was pressed in until the build has read its own: an
             # upload is transcribed before it says, and a French video still building
             # stood on the Hebrew home (David, 2026-10-10).
@@ -2330,12 +2342,44 @@ class Library:
             "plan",
         )
 
-    def _out_of(self, whose: str, ui: str = "en") -> str:
+    def _out_of(
+        self,
+        whose: str,
+        ui: str = "en",
+        *,
+        need: float | None = None,
+        left: float | None = None,
+    ) -> str:
         """Which ceiling stopped this, and when it lifts, in the language `ui` names.
 
         A refusal that does not say which limit was hit, or when it stops applying, is
         indistinguishable from the product being broken.
+
+        `need` and `left` are seconds, for the month's ceiling: what the press needed and
+        what the month had left. The rail refuses whenever this recording would pass the
+        allowance, so a reader with 12 credits left who pressed a 45-credit video was
+        told they had used this month's credits, straight after the card said "12 left"
+        (ACC-14, 2026-11-03). Where any is left it says both numbers instead.
         """
+        if whose == "hours" and need is not None and left is not None:
+            credits_left = max(0, int(left // SECONDS_A_CREDIT))
+            if credits_left > 0:
+                return Refusal(
+                    said_in(
+                        ui,
+                        "job.out-of.credits-short",
+                        "It needs {need} credits and you have {left} left. They reset on {date}.",
+                        need=max(credits_left + 1, credits_of(need)),
+                        left=credits_left,
+                        date=self._month_ends(ui),
+                    ),
+                    said_in(
+                        ui,
+                        "job.out-of.credits.fact",
+                        "Uploading text uses none, and the library still opens",
+                    ),
+                    "top-up",
+                )
         if whose == "hours":
             # The one refusal a reader was warned about on the pricing page, so it says
             # the same number that page did rather than translating into money — and it
@@ -2809,6 +2853,10 @@ class Library:
                 "heard": entry.kind is catalogue_module.Kind.talk,
                 "entry": entry.id,
                 "english": entry.english,
+                # And the subtitle in each language the catalogue names it in, for the
+                # row to say in the reader's own (beta review, 2026-11-03, R8): this row is
+                # the shelf's, shared by every reader, so the choice is the page's.
+                "named": dict(entry.named),
                 # When it joined the catalogue, so the shelf can say what is new
                 # (targum-internal#315). An upload has no such date and needs none: the
                 # reader's own row already carries `built`, which is when it arrived for
@@ -3729,7 +3777,10 @@ class Library:
         paths = picture_module.pages_of(source)
         if len(paths) > MAX_PAGES:
             raise TargumError(
-                f"That's {len(paths)} pictures. We can read up to {MAX_PAGES} at a time."
+                f"That's {len(paths)} pictures. We can read up to {MAX_PAGES} at a time.",
+                key="upload.too-many-pictures",
+                n=len(paths),
+                most=MAX_PAGES,
             )
         job.pages = len(paths)
         usable, _ = vision.can_read()
@@ -4382,6 +4433,12 @@ class Library:
                 return ""
             if refused == "hours" and self._held_to_free(job):
                 return self._plan_refusal(job)
+            if refused == "hours" and job.owner is not None:
+                allowed = self.allowance() or 0.0
+                used = self.store.hours_used(job.owner, self._month_from())
+                return self._out_of(
+                    refused, job.ui, need=job.seconds, left=max(0.0, allowed - used)
+                )
             return self._out_of(refused, job.ui)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
@@ -4421,6 +4478,9 @@ class Library:
             if refused == "hours" and not admin and plans.on():
                 need = sum(job.seconds for job in jobs)
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
+            if refused == "hours":
+                need = sum(job.seconds for job in jobs if job.audio)
+                return self._out_of(refused, ui, need=need, left=room), room, refused
             return (self._out_of(refused, ui) if refused else ""), room, refused
         total = sum(job.estimate for job in jobs)
         with self.lock:
@@ -5003,11 +5063,11 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
         document = read(Document, folder / "document.json")
         segmented = read(SegmentedDocument, folder / "segments.json")
         if document is None or segmented is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
 
         builder = self._builder(job)
         builder._resolved_out = folder
@@ -5018,7 +5078,9 @@ class Library:
             for segment in builder.chapter_segments(segmented, int(number))
         ]
         if not wanted:
-            return self._blame(job, "We can't find that chapter.")
+            return self._blame(
+                job, said_in(job.ui, "job.gone.chapter", "We can't find that chapter.")
+            )
 
         job.stage = "working"
         job.total = len(wanted)
@@ -5083,16 +5145,18 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
         document = read(Document, folder / "document.json")
         segmented = read(SegmentedDocument, folder / "segments.json")
         if document is None or segmented is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
         number = int(job.options.get("section") or 0)
         sections = split_sections(segmented)
         section = next((one for one in sections if one.number == number), None)
         if section is None:
-            return self._blame(job, "We can't find that section.")
+            return self._blame(
+                job, said_in(job.ui, "job.gone.section", "We can't find that section.")
+            )
         wanted = set(section.segment_ids)
         segments = [segment for segment in segmented.segments if segment.id in wanted]
         lines = [segment.text for segment in segments]
@@ -5202,7 +5266,9 @@ class Library:
             # joined bare, "../" in it would write a reader into someone else's home.
             folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
             if folder is None:
-                return self._blame(job, "We can't find that one any more.")
+                return self._blame(
+                    job, said_in(job.ui, "job.gone", "We can't find that one any more.")
+                )
             builder = self._builder(job)
             builder._resolved_out = folder
             builder.notify = lambda message: setattr(job, "message", message)
@@ -5250,7 +5316,7 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
         job.stage = "working"
         job.message = said_in(job.ui, "job.reading-the-words", "We're reading the words again…")
         self.remember(job)
@@ -5303,7 +5369,7 @@ class Library:
 
         folder = self.within(job.home or self.out, str(job.options.get("folder") or ""))
         if folder is None:
-            return self._blame(job, "We can't find that one any more.")
+            return self._blame(job, said_in(job.ui, "job.gone", "We can't find that one any more."))
         segmented = read(SegmentedDocument, folder / "segments.json")
         lines = [str(one) for one in job.options.get("again") or []]
         wanted = (
@@ -5312,7 +5378,9 @@ class Library:
             else []
         )
         if segmented is None or not wanted:
-            return self._blame(job, "We can't find those lines any more.")
+            return self._blame(
+                job, said_in(job.ui, "job.gone.lines", "We can't find those lines any more.")
+            )
         builder = self._builder(job)
         builder._resolved_out = folder
         target = str(job.options.get("to") or "en")
@@ -5332,7 +5400,14 @@ class Library:
             with correct_module.lock(folder):
                 translation = read(Translation, path)
                 if translation is None:
-                    return self._blame(job, "We can't find that translation any more.")
+                    return self._blame(
+                        job,
+                        said_in(
+                            job.ui,
+                            "job.gone.translation",
+                            "We can't find that translation any more.",
+                        ),
+                    )
                 still = {segment.id for segment in segmented.segments}
                 if (now_segments := read(SegmentedDocument, folder / "segments.json")) is not None:
                     still = {segment.id for segment in now_segments.segments}
@@ -7591,10 +7666,9 @@ class Handler(BaseHTTPRequestHandler):
             # the row rather than off the request (targum-internal#289).
             said = store.following_language(token)
             name = self._stop_named(token, said)
+            words = self._stop_words(token)
             page = weekly_note(
-                text("series.stop.ask-named", said, name=name)
-                if name
-                else text("series.stop.ask", said),
+                text(words["ask-named"], said, name=name) if name else text(words["ask"], said),
                 address=self.address,
                 done=False,
                 pending={
@@ -7602,11 +7676,11 @@ class Handler(BaseHTTPRequestHandler):
                     "token": token,
                     "button": text("series.stop.button", said),
                 },
-                heading=text("series.stop.heading", said),
+                heading=text(words["heading"], said),
                 home="/library",
                 language=said,
                 title=f"{name} — targum" if name else "targum",
-                description=text("series.stop.description", said),
+                description=text(words["description"], said),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         # A mail client's one-click POST (RFC 8058) carries only `List-Unsubscribe=
@@ -7616,19 +7690,43 @@ class Handler(BaseHTTPRequestHandler):
         # matches no row answers English, and this is the last moment one certainly does.
         said = store.following_language(token)
         name = self._stop_named(token, said)
+        words = self._stop_words(token)
         store.stop_following(token)
         page = weekly_note(
-            text("series.stop.done-named", said, name=name)
-            if name
-            else text("series.stop.done", said),
+            text(words["done-named"], said, name=name) if name else text(words["done"], said),
             address=self.address,
-            heading=text("series.stop.heading", said),
+            heading=text(words["heading"], said),
             home="/library",
             language=said,
             title=f"{name} — targum" if name else "targum",
-            description=text("series.stop.description", said),
+            description=text(words["description"], said),
         )
         return self._send(200, page.encode("utf-8"), HTML)
+
+    def _stop_words(self, token: str) -> dict[str, str]:
+        """Which words a stop link's page says: `series.stop` for a series or the weekly,
+        `subs.stop` for anything else. The press turns the subscription off, so a channel,
+        podcast or topic stops getting ready as well as being mailed about; the page said
+        only "Stop emails about {name}?" under "Series you follow", and called a channel a
+        series (MSG-01, design.md §12, 2026-11-03)."""
+        row = self.store.subscription_by_stop(token) if self.store is not None else None
+        if row is not None and row["kind"] != "series":
+            return {
+                "ask": "subs.stop.ask-one-unnamed",
+                "ask-named": "subs.stop.ask-one",
+                "done": "subs.stop.done-one-unnamed",
+                "done-named": "subs.stop.done-one",
+                "heading": "subs.stop.heading",
+                "description": "subs.stop.description-one",
+            }
+        return {
+            "ask": "series.stop.ask",
+            "ask-named": "series.stop.ask-named",
+            "done": "series.stop.done",
+            "done-named": "series.stop.done-named",
+            "heading": "series.stop.heading",
+            "description": "series.stop.description",
+        }
 
     def _stop_named(self, token: str, language: str) -> str:
         """What a stop link stops, named in `language`: a series by the catalogue's name,
@@ -8052,8 +8150,10 @@ class Handler(BaseHTTPRequestHandler):
                 # word `/chat/list` gives, decided the same way (`Library.talks`).
                 "talk": self.library.talks(home, person.id if person else None),
                 # Whether this deployment can draw a cover at all. A page with no
-                # image key offers nothing rather than offering and failing.
-                "covers": self.library.can_draw(),
+                # image key offers nothing rather than offering and failing. And only
+                # to the operator: one press runs a paid image job with no cost said
+                # and no confirm, so it is an operator's tool (LIB-L04, 2026-11-03).
+                "covers": self.library.can_draw() and self._may_draw(),
                 # Every catalogue text measured against this reader's words, built or
                 # not (targum-internal#293). Keyed by entry id; a built copy's own
                 # measurement above wins, because that is the text they actually have.
@@ -10016,7 +10116,11 @@ class Handler(BaseHTTPRequestHandler):
                     "role": turn["role"],
                     "said": turn["said"],
                     "stage": turn["stage"],
-                    "error": turn["error"],
+                    "error": (
+                        self._say("chat.restarted", CHAT_RESTARTED)
+                        if turn["error"] == CHAT_RESTARTED
+                        else turn["error"]
+                    ),
                     "made": turn["made"],
                     # The words of the answer to a reader's turn, read as a text is
                     # read (`chat/record.py`); None where none were.
@@ -10118,6 +10222,8 @@ class Handler(BaseHTTPRequestHandler):
             # over, rather than `done: false` to a page that would wait for good
             # (targum-internal#269).
             error = error or CHAT_RESTARTED
+        if error == CHAT_RESTARTED:
+            error = self._say("chat.restarted", CHAT_RESTARTED)
         return {
             "text": answered,
             "done": True,
@@ -10329,7 +10435,11 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(error, TargumError):
                 traceback.print_exc()
                 incidents_module.record(self.library.incidents, "speak", error, job=job.id)
-            said = error.message if isinstance(error, TargumError) else "The voice did not answer."
+            said = (
+                self._told(error)
+                if isinstance(error, TargumError)
+                else self._say("speech.no-answer", "The voice did not answer.")
+            )
             return self._json({"error": said}, 502)
         job.stage = "done"
         self._settle_speech(job, clip.seconds, chat_id)
@@ -10466,7 +10576,9 @@ class Handler(BaseHTTPRequestHandler):
                     traceback.print_exc()
                     incidents_module.record(self.library.incidents, "say", error, job=job.id)
                 said = (
-                    error.message if isinstance(error, TargumError) else "The voice did not answer."
+                    self._told(error)
+                    if isinstance(error, TargumError)
+                    else self._say("speech.no-answer", "The voice did not answer.")
                 )
                 return self._json({"error": said}, 502)
             job.stage = "done"
@@ -10898,7 +11010,7 @@ class Handler(BaseHTTPRequestHandler):
             heard = probe_module.examine(clip).duration
         except TargumError as error:
             clip.unlink(missing_ok=True)
-            return self._json({"error": error.message}, 400)
+            return self._json({"error": self._told(error)}, 400)
         transcriber = transcribe_module.build(transcribe_module.default_name())
         usable, why = transcriber.available()
         if not usable:
@@ -10948,7 +11060,7 @@ class Handler(BaseHTTPRequestHandler):
             job.stage = "failed"
             self.library.release(job)
             self.library.remember(job)
-            return self._json({"error": error.message}, 502)
+            return self._json({"error": self._told(error)}, 502)
         job.spent = transcriber.spent.cost()
         job.stage = "done"
         self.library.settle(job)
@@ -13117,6 +13229,13 @@ class Handler(BaseHTTPRequestHandler):
         log.warning("unavailable here: %s", why)
         return True
 
+    def _told(self, error: TargumError) -> str:
+        """A refusal as whoever asked should meet it (`told`): in their language where it
+        has a key, and the reader's own sentence on a hosted box where it carries the
+        machine's detail. Every answer that carried `error.message` raw said a keyed
+        refusal in English to a Russian reader (beta review, 2026-11-03, R4)."""
+        return told(self._page_language(), error, hosted=self.require_account)
+
     def _say(self, key: str, english: str, **fill: object) -> str:
         """A sentence the server sends back, in the language of whoever asked
         (targum-internal#184): `english` where their catalogue has not said it."""
@@ -15039,7 +15158,8 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "id": entry.id,
                 "title": entry.title,
-                "english": entry.english,
+                "english": entry.named.get(self._page_language().split("-")[0], "")
+                or entry.english,
                 "author": entry.author,
                 "minutes": entry.minutes,
                 # How many people have published a translation of it: the sentence the
@@ -15197,7 +15317,7 @@ class Handler(BaseHTTPRequestHandler):
             # down here so the price — and then the build — is worked out with it in hand.
             mine = self._translation_from(payload)
         except TargumError as error:
-            return self._json({"error": error.message}, 400)
+            return self._json({"error": self._told(error)}, 400)
         if mine:
             payload = dict(payload, translations=mine)
         elif payload.get("translations"):
@@ -15224,7 +15344,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             spoken_text = self._transcript_from(payload)
         except TargumError as error:
-            return self._json({"error": error.message}, 400)
+            return self._json({"error": self._told(error)}, 400)
         if spoken_text:
             payload = dict(payload, transcript=spoken_text)
 
@@ -15630,6 +15750,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(job.state(), 402)
         self._json(job.state())
 
+    def _may_draw(self) -> bool:
+        """Whether this request may draw covers: the operator, or nobody signed in on a
+        machine somebody runs themselves, where whoever is at the keyboard is the
+        operator (`Library.home`). A reader is never offered it: it runs a paid image
+        job, up to one a chapter, with no cost and no confirm (LIB-L04, 2026-11-03)."""
+        person = self._person()
+        if person is None:
+            return not self.library.hosted
+        return bool(person.admin)
+
     def _cover(self, payload: dict[str, Any]) -> None:
         """Draw the covers for one text, from the key this deployment runs with.
 
@@ -15640,6 +15770,8 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import covers as covers_module
 
+        if not self._may_draw():
+            return self._json({"error": "not found"}, 404)
         home = self._home()
         folder = self.library.within(home, str(payload.get("name") or ""))
         if folder is None:
@@ -16299,7 +16431,7 @@ class Handler(BaseHTTPRequestHandler):
                 ),
             )
         except TargumError as error:
-            return self._json({"error": error.message}, 502)
+            return self._json({"error": self._told(error)}, 502)
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/gloss", error)
@@ -16370,7 +16502,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:
-            return self._json({"error": error.message}, 502)
+            return self._json({"error": self._told(error)}, 502)
         except Exception as error:
             traceback.print_exc()
             incidents_module.record(self.library.incidents, "/phrase", error)
@@ -16421,7 +16553,9 @@ class Handler(BaseHTTPRequestHandler):
             )
         if suffix not in self.READABLE:
             raise TargumError(
-                f"We can't read {suffix} files. Save it as plain text and drop that in instead."
+                f"We can't read {suffix} files. Save it as plain text and drop that in instead.",
+                key="upload.unreadable-kind",
+                kind=suffix,
             )
         uploads = self._home() / "uploads" / secrets.token_hex(8)
         uploads.mkdir(parents=True, exist_ok=True)
@@ -16439,11 +16573,11 @@ class Handler(BaseHTTPRequestHandler):
         if upload:
             held = self._upload_folder(upload)
             if held is None:
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             folder, meta = held
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             if target.suffix.lower() in PICTURE_SUFFIXES or target.suffix.lower() == ".pdf":
                 return str(self._gathered([upload]))
             return str(target)
@@ -16558,11 +16692,11 @@ class Handler(BaseHTTPRequestHandler):
         elif upload:
             held = self._upload_folder(upload)
             if held is None:
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             folder, meta = held
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             if target.suffix.lower() in PICTURE_SUFFIXES:
                 kept = str(self._gathered([upload]))
             elif target.suffix.lower() in VIDEO_SUFFIXES:
@@ -16619,22 +16753,26 @@ class Handler(BaseHTTPRequestHandler):
 
         if len(uploads) > MAX_PAGES:
             raise TargumError(
-                f"That's {len(uploads)} pictures. We can read up to {MAX_PAGES} at a time."
+                f"That's {len(uploads)} pictures. We can read up to {MAX_PAGES} at a time.",
+                key="upload.too-many-pictures",
+                n=len(uploads),
+                most=MAX_PAGES,
             )
         found: list[tuple[Path, Path]] = []
         for upload in uploads:
             held = self._upload_folder(upload)
             if held is None:
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             folder, meta = held
             target = folder / Path(str(meta.get("name") or "")).name
             if not target.is_file():
-                raise TargumError("We can't find that upload any more. Send it again.")
+                raise TargumError(UPLOAD_GONE, key="upload.gone")
             found.append((folder, target))
         pictures = all(vision.is_picture(target) for _, target in found)
         if not pictures and (len(found) > 1 or found[0][1].suffix.lower() != ".pdf"):
             raise TargumError(
-                "When you send several files, they all need to be pictures of one text."
+                "When you send several files, they all need to be pictures of one text.",
+                key="upload.mixed",
             )
         home, _ = found[0]
         kept: list[Path] = []
@@ -16877,7 +17015,7 @@ class Handler(BaseHTTPRequestHandler):
                 vision.probe(target)
             except TargumError as error:
                 shutil.rmtree(folder, ignore_errors=True)
-                return self._json({"error": error.message}, 400)
+                return self._json({"error": self._told(error)}, 400)
             return self._json({"upload": upload, "picture": True})
         if target.suffix.lower() == ".pdf":
             # Counted at the door so a book is refused before a page of it is read.
@@ -16887,10 +17025,15 @@ class Handler(BaseHTTPRequestHandler):
                 pages = pdf_module.page_count(target)
             except TargumError as error:
                 shutil.rmtree(folder, ignore_errors=True)
-                return self._json({"error": error.message}, 400)
+                return self._json({"error": self._told(error)}, 400)
             if pages > MAX_PAGES:
                 shutil.rmtree(folder, ignore_errors=True)
-                too_many = f"That PDF has {pages} pages. We can read up to {MAX_PAGES} at a time."
+                too_many = self._say(
+                    "upload.pdf-too-long",
+                    "That PDF has {pages} pages. We can read up to {most} at a time.",
+                    pages=pages,
+                    most=MAX_PAGES,
+                )
                 return self._json({"error": too_many}, 413)
             return self._json({"upload": upload, "pages": pages})
         from .video import VIDEO_SUFFIXES
@@ -16900,7 +17043,7 @@ class Handler(BaseHTTPRequestHandler):
             found = probe_module.examine(target, allow_video=moving)
         except TargumError as error:
             shutil.rmtree(folder, ignore_errors=True)
-            return self._json({"error": error.message}, 400)
+            return self._json({"error": self._told(error)}, 400)
         if not found.has_video and target.stat().st_size > MAX_AUDIO_BYTES:
             # The ceiling was chosen at the door by the suffix's word; the probe has
             # now heard the file. Sound alone in a video container is a recording,

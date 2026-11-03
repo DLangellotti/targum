@@ -11,12 +11,21 @@
 
   var host = document.getElementById("chat-chips");
 
-  //: The lines a press says, by chip. Fixed, so a press is the same line every time.
-  var LINES = {
-    words: "Use my new words in a short conversation.",
-    know: "Show me what I know.",
-    news: "Read me today's news.",
-  };
+  /* Words said through the page's `TargumStrings`, looked up when a thing is said. */
+  function t(key, english, fill) {
+    var said = window.TargumStrings;
+    return said ? said.t(key, english, fill) : english;
+  }
+
+  //: The lines a press says, by chip. Fixed, so a press is the same line every time, and
+  //: in the reader's language: the line is posted as the reader's own turn, and a Russian
+  //: reader's press said English for them (beta review, 2026-11-03, R9).
+  function line(id) {
+    if (id === "words") return t("chat.chip-line.words", "Use my new words in a short conversation.");
+    if (id === "know") return t("chat.chip-line.know", "Show me what I know.");
+    if (id === "news") return t("chat.chip-line.news", "Read me today's news.");
+    return "";
+  }
 
   // Draw `chips` — `[{id, line, reader?}]` — and wire each press through `on`:
   // `on.suggest()` for the first, `on.say(line)` for a line, `on.open(path)` for a
@@ -49,7 +58,7 @@
         if (chip.id === "read") return on.suggest();
         if (chip.id === "continue" && chip.reader) return on.open(chip.reader);
         if (chip.id === "stuck") return on.stuck();
-        if (LINES[chip.id]) return on.say(LINES[chip.id]);
+        if (line(chip.id)) return on.say(line(chip.id));
       };
       li.appendChild(button);
       host.appendChild(li);
@@ -61,5 +70,5 @@
     if (host) host.hidden = !showing || !host.children.length;
   }
 
-  window.TargumChips = { draw: draw, show: show, LINES: LINES };
+  window.TargumChips = { draw: draw, show: show, line: line };
 })();

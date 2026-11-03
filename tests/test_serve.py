@@ -2891,6 +2891,34 @@ def test_nothing_is_drawn_without_a_key(served: tuple[int, str, Path]) -> None:
     assert "OPENAI_API_KEY" in str(body.get("error", ""))
 
 
+def test_drawing_a_cover_is_the_operators_alone(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LIB-L04 (2026-11-03): "Draw cover" sat on a reader's Library row and one press ran
+    a paid image job, up to one a chapter, with no cost said and no confirm. A reader is
+    neither offered it nor let through by posting it; the operator still is, and so is
+    nobody-signed-in on a machine somebody runs themselves."""
+    from targum import covers
+
+    monkeypatch.setattr(covers, "ready", lambda: True)
+    port, key, out = served
+    built_catalogue_text(out, "judenstaat", ["פתח דבר"])
+    reader_cookie = sign_in(port, postbox, "reader@example.com")
+    _, shelf, _ = call(port, "GET", f"/readers?k={key}", cookie=reader_cookie)
+    assert shelf["covers"] is False, "a reader is not offered it"
+    status, _, _ = call(
+        port, "POST", f"/cover?k={key}", {"name": "judenstaat-he"}, cookie=reader_cookie
+    )
+    assert status == 404, "nor let through by posting it"
+
+    Store(out.parent / "words.db").make_admin("operator@example.com")
+    operator = sign_in(port, postbox, "operator@example.com")
+    _, shelf, _ = call(port, "GET", f"/readers?k={key}", cookie=operator)
+    assert shelf["covers"] is True
+    # Signed out on a laptop is the operator: `test_nothing_is_drawn_without_a_key`
+    # posts with no session and reaches the key check.
+
+
 # -- who you are, over the wire --------------------------------------------------
 
 

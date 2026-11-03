@@ -384,6 +384,46 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian says a cost in minutes and a balance in points — 2026-11-03
+
+«Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
+decided on 2026-11-03: the Russian interface keeps the credit as a unit and stops naming it.
+
+- **A cost is minutes.** What a press takes, a set's total, a subscription's estimate and
+  its monthly cap: «Займёт 12 минут», «Всего займёт 3 минуты», «около 8 минут на новое»,
+  «Лимит — 60 мин в месяц». A credit is a minute, so the number does not change.
+- **A balance is points.** What the month has left, a plan's allowance and a top-up:
+  «Осталось 12 баллов», «480 баллов в месяц», «60 баллов». The rate line joins the two:
+  «Один балл — это минута аудио или видео».
+- **Every count takes its form.** 1 минуту, 2 минуты, 5 минут, 21 минуту; 1 балл, 3 балла,
+  11 баллов. A sentence with two numbers puts the noun before each colon («Нужно минут: 45,
+  а баллов у вас осталось: 12») so neither number can take the wrong form. English still
+  says credits everywhere. The Russian lines are drafts until David reads them.
+
+### A spending press says what it spends, and a stop link says what it stops — 2026-11-03
+
+From the beta review of 2026-11-03 (David approved the P0s and the top P1s):
+
+- **The connector's confirm page counts as the rail charges** (`builder.credits_of`): any
+  part of a minute is a whole credit, as on the Add card and the set page. It rounded, so an
+  80-second clip read "Uses 1 credit" and was charged 2.
+- **A refusal with credits left says so.** The rail refuses whenever a recording would pass
+  the month's allowance. Where any is left the refusal says "It needs 45 credits and you
+  have 12 left. They reset on {date}." and not "You've used this month's credits", which
+  is said only at none. This is the one refusal that quotes figures (2026-10-09 asked for
+  none), because a refusal that contradicts the card above it reads as a fault.
+- **The chat's build card presses "Confirm"**, as the connector's page and the Add card do.
+  It said "Open this" on a press that spends.
+- **A per-item Unsubscribe in the daily mail says it ends the subscription.** The press
+  turns the subscription off, so a channel, podcast or topic stops getting ready as well as
+  being mailed about. Its page asks "Stop {name}, and the mail about it?" under "Your
+  subscriptions"; only a series keeps "Stop emails about {name}?" under "Series you follow".
+  A channel is never called a series.
+- **Draw cover is the operator's.** One press ran a paid image job, up to one a chapter,
+  with no cost said and no confirm, so a reader's Library row no longer offers it and
+  `/cover` refuses anyone but an admin (or nobody signed in on a machine somebody runs
+  themselves).
+
 ### The classical shelf names its sources and stands each work under its own name — 2026-11-03
 
 The beta review's advanced-study pass (AS-01 to AS-06, approved by David on 2026-11-03)

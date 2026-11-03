@@ -238,6 +238,11 @@ def test_every_sentence_the_server_says_is_in_the_english_catalogue() -> None:
     # Said through a constant, which the walk above cannot read.
     assert english["job.no-key"] == NO_KEY
     assert english["chat.too-long"] == TURN_TOO_LONG
+    from targum.accounts import CHAT_RESTARTED
+    from targum.serve import UPLOAD_GONE
+
+    assert english["chat.restarted"] == CHAT_RESTARTED
+    assert english["upload.gone"] == UPLOAD_GONE
 
 
 def test_a_suggestions_reason_is_said_in_the_readers_language(
@@ -424,6 +429,62 @@ def test_a_translation_whose_blanks_do_not_match_falls_back(
         assert refused_in("ru", refusal) == "We couldn't find x.com."
     finally:
         strings.catalogue.cache_clear()
+
+
+def test_every_sentence_the_server_says_is_said_in_russian() -> None:
+    """The scripts' and templates' keys are held to `ru.json` by the test that counts what
+    a page draws; the server's were not. `Handler._say("find.cap-reader", …)` reached the
+    home card in English with the page around it in Russian, because the key was in
+    `en.json` and nobody's scan looked at what the server sends in JSON (MSG-04, beta
+    review 2026-11-03: 21 keys). Counted from the calls, as the English test does, so a
+    key added tomorrow is covered tomorrow; a key built at the call (`f"find.topic.{x}"`)
+    is covered by the prefix it is built on.
+    """
+    import ast
+
+    english = strings.catalogue("en")
+    keys: set[str] = set()
+    prefixes: set[str] = set()
+    for name in ("serve.py", "chat/session.py", "chat/tools.py", "telegram.py"):
+        source = Path(strings.__file__).parents[1] / name
+        for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call):
+                continue
+            called = getattr(node.func, "attr", None) or getattr(node.func, "id", None)
+            args = {"_say": node.args[:1], "said_in": node.args[1:2]}.get(str(called))
+            if not args:
+                continue
+            arg = args[0]
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                keys.add(arg.value)
+            elif isinstance(arg, ast.JoinedStr) and arg.values:
+                head = arg.values[0]
+                if isinstance(head, ast.Constant) and isinstance(head.value, str):
+                    prefixes.add(head.value)
+    assert len(keys) > 100, f"only {len(keys)} keys found; the scan is broken"
+    wanted = {key for key in keys if key in english}
+    wanted |= {key for key in english for prefix in prefixes if key.startswith(prefix)}
+    for code in strings.desk_languages():
+        said = strings.catalogue(code)
+        missing = sorted(key for key in wanted if key not in said)
+        assert not missing, f"{code}: the server says {len(missing)} in English: {missing[:8]}"
+
+
+def test_a_keyed_refusal_names_a_language_in_its_case() -> None:
+    """A refusal that names a language says it the way the sentence wants it, «на
+    французском», not the menu's «Французский» (targum-internal#524, here for refusals:
+    beta review 2026-11-03, R4)."""
+    from targum.errors import TargumError
+    from targum.serve import refused_in
+
+    error = TargumError(
+        "This recording is in French. We can read Hebrew.",
+        key="recording.wrong-language",
+        language="French",
+    )
+    said = refused_in("ru", error)
+    assert "French" not in said and "{" not in said, said
+    assert refused_in("en", error) == "This recording is in French. We can read Hebrew."
 
 
 def test_every_refusal_that_names_a_key_has_one_in_the_catalogue() -> None:
@@ -816,3 +877,28 @@ def test_how_much_you_know_is_an_exact_percentage_in_russian_too() -> None:
             if key.startswith("progress.reading."):
                 continue
             assert not re.search(r"in 10\b|in ten or more|из 10\b|из десяти", said), key
+
+
+def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
+    """David, 2026-11-03 (design.md §12): «кредит» reads as a bank loan in Russian, so a
+    cost is said in minutes («Займёт 12 минут») and the month's balance in points
+    («Осталось 12 баллов»), each in the form its number takes."""
+    from targum.strings import catalogue, counted
+
+    ru = catalogue("ru")
+    loan = [key for key, said in ru.items() if re.search(r"[Кк]редит(?!н)", said)]
+    assert not loan, f"still says «кредит»: {loan[:5]}"
+
+    def say(key: str, n: int) -> str:
+        return counted(key, n, "ru", {"one": "", "other": ""}).format(n=n)
+
+    cost = [say("press.page.uses-credits", n) for n in (1, 2, 5, 21, 12)]
+    assert cost == [
+        "Займёт 1 минуту",
+        "Займёт 2 минуты",
+        "Займёт 5 минут",
+        "Займёт 21 минуту",
+        "Займёт 12 минут",
+    ]
+    left = [say("account.credits.left-short", n) for n in (1, 3, 11)]
+    assert left == ["Остался 1 балл", "Осталось 3 балла", "Осталось 11 баллов"]

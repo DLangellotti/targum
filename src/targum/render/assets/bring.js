@@ -664,7 +664,10 @@
       var go = document.createElement("button");
       go.type = "button";
       go.className = "quote-go";
-      go.textContent = t("bring.read-this", "Open this");
+      // "Confirm", as the connector's page and the Add card say it: this press posts
+      // /build and spends, and "Open this" named it as if it only opened (ACC-17,
+      // 2026-11-03).
+      go.textContent = t("bring.confirm", "Confirm");
       go.onclick = function () {
         go.disabled = true;
         start(job).then(function (state) {

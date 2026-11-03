@@ -1434,6 +1434,17 @@
     drawSaid(said, "topic", (got && got.nearest) || null);
   }
 
+  /* The page's own line for a key, where its catalogue has one, and "" where it has not
+     (an English page carries none). A sentence the server sends is in the server's
+     catalogue, which can lag the page's: the find card's cap and failed look reached a
+     Russian reader in English while the page held both in Russian (MSG-04, 2026-11-03).
+     So the page's own keyed line wins, and the server's stands in where it has none. */
+  function ownLine(key) {
+    var probe = "\u0000";
+    var said = t(key, probe);
+    return said === probe ? "" : said;
+  }
+
   function answered(got) {
     if (!got) return drawSaid(t("home.card.failed", "We couldn't search the web just now."), "again");
     if (typeof got.left === "number") oneCard.left = got.left;
@@ -1444,7 +1455,7 @@
       drawWeb(got);
       return follow(got.search, 0);
     }
-    if (got.why === "reader") return drawSaid(got.message || t("home.card.cap", "That's today's 3 web searches. More tomorrow."), "topic");
+    if (got.why === "reader") return drawSaid(ownLine("home.card.cap") || got.message || t("home.card.cap", "That's today's 3 web searches. More tomorrow."), "topic");
     if (got.why === "harder") return drawSaid(got.message || t("home.card.harder-none", "No other new text is close yet."), "topic");
     return drawNone(got);
   }
@@ -1463,7 +1474,7 @@
           }
           if (got.stage === "failed") {
             oneCard.look = "";
-            return drawSaid(got.error || t("home.card.failed", "We couldn't search the web just now."), "again");
+            return drawSaid(ownLine("home.card.failed") || got.error || t("home.card.failed", "We couldn't search the web just now."), "again");
           }
           if (got.stage === "stopped") return;
           drawWeb(got);
