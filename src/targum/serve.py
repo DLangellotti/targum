@@ -3704,16 +3704,24 @@ class Library:
 
     def _known_share(self, job: Job, document: Any) -> float | None:
         """How much of a text the reader already has, at quote time (targum-internal#244):
-        the ledger's known forms and the commonest words against the text's tokens. The
-        card says it in words; the model is given the number. Nothing for a signed-out
-        build, a text that is not Hebrew, or one too short to measure."""
+        the words they marked known against the text's tokens. The card says it in words;
+        the model is given the number. Nothing for a signed-out build, a text that is not
+        Hebrew, one too short to measure, or a reader who has marked no word known yet.
+
+        Marks only (design.md §12, "Known means marked, everywhere a share is shown",
+        2026-10-11, and "No word is assumed known", 2026-10-12). The commonest words were
+        counted as known for everybody here, so a reader who had said "I'm just starting"
+        and marked nothing was told "You know 34% of the words here" of a Wikipedia
+        article, and a B1 reader saw 41% on Upload against 6% for the same reader on
+        Progress (beta review, 2026-11-03). With nothing marked the share is 0 for every
+        text, which says nothing, so nothing is said, as home's card says nothing then."""
         if self.store is None or job.owner is None:
             return None
         if str(getattr(document, "language", "") or "").split("-")[0] not in ("he",):
             return None
-        from .chat import hebrew as hebrew_module
-
-        forms = self.store.known_forms(job.owner, "he") | set(hebrew_module.common_words())
+        forms = set(self.store.known_forms(job.owner, "he"))
+        if not forms:
+            return None
         text = "\n".join(str(getattr(block, "text", "") or "") for block in document.blocks)
         if isinstance(job.options.get("post"), dict):
             # A post's hashtags, mentions and addresses are names, not words to know.
@@ -11452,7 +11460,11 @@ class Handler(BaseHTTPRequestHandler):
         out: list[dict[str, Any]] = []
         for row in rows:
             # A web find has the card; this row is the library's.
-            fits = row.get("fit") == choose.BAND and row.get("origin") in (None, "shelf")
+            fits = (
+                row.get("fit") == choose.BAND
+                and row.get("origin") in (None, "shelf")
+                and not row.get("held")
+            )
             reason = row.get("reason") or {}
             measured = reason.get("key") == "suggest.known" and reason.get("share")
             if not fits or not measured:
@@ -14897,6 +14909,7 @@ class Handler(BaseHTTPRequestHandler):
         measure, and the page draws its totals from the browser alone.
         """
         from . import catalogue as catalogue_module
+        from . import choose as choose_module
         from . import coverage as coverage_module
         from . import gaps as gaps_module
         from . import occurrences as occurrences_module
@@ -14969,6 +14982,10 @@ class Handler(BaseHTTPRequestHandler):
             own,
             set(),
         )
+        # An older Hebrew the reader has not asked for is not "at your level" however the
+        # estimate reads it (design.md §12, "An older Hebrew waits until it is asked for",
+        # 2026-11-03).
+        mine_registers = {str(row.get("register") or "") for row in mine}
         answer["texts"] = touchstones.at_level(
             entries,
             index,
@@ -14977,6 +14994,7 @@ class Handler(BaseHTTPRequestHandler):
             ui_language=self._ui_language(),
             chances=chances,
             taught=taught,
+            registers=choose_module.opened(self.store.interest(person.id), mine_registers),
         )
 
         # The words still being learned that they keep meeting, met the way the card
@@ -15397,6 +15415,14 @@ class Handler(BaseHTTPRequestHandler):
             already = catalogue_module.matching(source)
             if already is not None and already.translations:
                 return self._json({"catalogue": already.state()})
+        # Already read in the Library, for nothing: a pasted link to a text or video the
+        # shared shelf (or this reader's own) has built is opened, never priced (beta
+        # review, 2026-11-03, F-03: the Khan video Home had just offered was quoted "Uses
+        # 14 credits" when pasted). "Translate it anyway" still prices a copy of their own.
+        if not payload.get("force_machine"):
+            shelved = self._shelved(source)
+            if shelved is not None:
+                return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
         job = Job(
@@ -15413,6 +15439,28 @@ class Handler(BaseHTTPRequestHandler):
         self.library.prepare(job)
         self.library.remember(job)
         self._json(job.state())
+
+    def _shelved(self, source: str) -> Any:
+        """The catalogue entry a pasted source is, where this reader's shelf or the
+        shared one has it built and it opens for nothing; None otherwise. A YouTube link
+        is the catalogue's `video:<id>` in any of its spellings."""
+        from . import catalogue as catalogue_module
+        from .video import youtube
+
+        asked = [source]
+        if isinstance(source, str) and "youtu" in source:
+            found = youtube.video_id(source if "://" in source else "https://" + source)
+            if found:
+                asked.append("video:" + found)
+        for one in asked:
+            entry = catalogue_module.matching(str(one))
+            if entry is None:
+                continue
+            if self.library.built_from(self._home(), entry.source) or self.library.built_from(
+                self.library.shared, entry.source
+            ):
+                return entry
+        return None
 
     def _open_find(self, which: str) -> None:
         """Open a web find: a pasted link's press on a link targum found (targum-internal

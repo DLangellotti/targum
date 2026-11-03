@@ -384,6 +384,59 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Upload opens what the Library has, and says only what was marked — 2026-11-03
+
+From the same beta review (F-03, F-04, F-07, S-03).
+
+- **A pasted link to a text the Library has built is opened, never priced.** Where the
+  link is a catalogue text (a YouTube link is its `video:` id in any spelling) built on
+  the shared shelf or the reader's own, Upload says "{title} is in the Library, ready to
+  open. It uses none of your credits." with Open (`/open/<id>`) and "Translate it anyway",
+  which still prices a copy of one's own. The Khan video Home had suggested was quoted
+  "Uses 14 credits".
+- **Upload's share is marks only**, as every other share is ("Known means marked",
+  2026-10-11; "No word is assumed known", 2026-10-12). It counted the commonest words as
+  known for everybody, a leftover of targum-internal#244, so a reader who had marked
+  nothing read "You know 34% of the words here". With no word marked it says nothing,
+  as home's card does. *(The chat's and the connector's measures of a feed item or a page,
+  `chat/tools.py` `_known_forms`, still count the commonest words; they rank items for a
+  model and are left for David.)*
+- **From gimel up, the arrival's first text is a real one.** "Everyday conversation" is
+  answered by the scenes, and for a reader who said they read the news with help and
+  passed the words check it opened "In the elevator". Past the scenes (`PAST_THE_SCENES`,
+  home's own line) a scene is the first text only where nothing real answers.
+
+### An older Hebrew waits until it is asked for — 2026-11-03
+
+The public-beta review of 2026-11-03 walked a B1 reader abroad who chose Everyday
+conversation, News, Science and Food. Home's card offered Esther under "where you already
+know 90% of the words", and Something else walked on to Haggai, Ecclesiastes, Brenner, II
+Kings and Genesis; Your Progress listed Esther and II Kings under "Texts at your level
+now". It amends "The chooser estimates the words you have not marked" (2026-11-01) and
+"What to read next is chosen on running words" (2026-10-31).
+
+- **Why it happened.** `estimate.py` reads every word's difficulty off the modern
+  frequency list, and an older text's words are mostly common ones: on the box's index a
+  reader at the words check's B1 is estimated at 91% of Esther and 90% of Genesis, in the
+  band. What makes them hard is the register (forms, syntax, senses), and the model has no
+  feature for it. Something else then chose "another kind or collection" in the same
+  tier, which was the Tanakh.
+- **The rule.** A text in an older register (biblical, rabbinic, medieval, revival) waits
+  for a reader who has not opened that register: it ranks after every other text, under
+  the floor and unmeasured included, so it is never offered as at their level and is still
+  offered where nothing else is. It is never in More that fit you, never in Your
+  Progress's "Texts at your level now", and never in Show me something harder unless a
+  chip the reader chose takes its register (Religion).
+- **What opens a register.** "Torah and Judaism" on arrival opens the Tanakh, rabbinic and
+  medieval Hebrew (the Religion chip's three). A text of the reader's own in that
+  register, or a catalogue text the page says they opened or finished, opens its own
+  register. A register asked for by name (the connector's `register`) opens itself.
+  Revival-era Hebrew is opened only by reading it.
+- **What does not change.** The Library still shelves every register, labelled ("An older
+  Hebrew says which it is", 2026-10-25), and the arrival still opens a Torah and Judaism
+  reader on scripture. The estimate itself is unchanged; a register feature in it would
+  be the better fix, and needs measured readers of older Hebrew first.
+
 ### A reader's chrome is the reader's language — 2026-11-03
 
 A reader's menus, its card's labels and its notices were said in the language of the
@@ -414,6 +467,7 @@ meanings follow the text.
   as it is on disk. A saved copy keeps the chrome it was saved in.
 - **It reaches a reader on the routine rebuild,** which reads every text from the cache
   and spends nothing. A page written before it has no comment and is served as before.
+
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David

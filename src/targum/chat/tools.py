@@ -1342,6 +1342,27 @@ def teaching(
     return Taught(teach, who, learning_module.useful_table(index, useful), narrow)
 
 
+def opened_registers(
+    ctx: Ctx, read: Iterable[str] = (), opened: Iterable[str] = ()
+) -> frozenset[str]:
+    """The older Hebrew registers this reader has asked for (`choose.opened`): "Torah and
+    Judaism" on arrival, the registers in `read` (their own texts', or one asked for by
+    name), and those of the catalogue texts in `opened` (what the page says they opened or
+    finished)."""
+    store = getattr(ctx, "store", None)
+    person_id = getattr(ctx, "person_id", None)
+    asked = getattr(store, "interest", None)
+    interests: tuple[str, ...] = ()
+    if asked is not None and person_id is not None:
+        try:
+            interests = tuple(asked(person_id))
+        except Exception:  # noqa: BLE001 - a store without the column asks nothing
+            interests = ()
+    ids = set(opened)
+    seen = {entry.register.value for entry in catalogue_module.everything() if entry.id in ids}
+    return choose_module.opened(interests, {*read, *seen})
+
+
 #: The most texts under the floor `suggest_next` answers when asked for them (`under`).
 UNDER_MOST = 200
 
@@ -1392,6 +1413,10 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # of an equal text in another (2026-09-11: "a text that fits your level and
     # interests, without needing to chat").
     liked = {str(row.get("register") or "") for row in mine if row.get("register")}
+    # The older registers this reader has asked for (design.md §12, "An older Hebrew waits
+    # until it is asked for", 2026-11-03): the rest wait behind every modern text, because
+    # the estimate reads Esther as if it were a modern story.
+    registers = opened_registers(ctx, liked | {register}, opened_ids)
     # Where one is kept, how hard each sentence is (targum-internal#320), so a text too
     # hard as a whole can still be offered by the one section that reads at the reader's
     # rung. Hebrew only: the answers are on the ulpan ladder.
@@ -1496,6 +1521,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         else:
             row["because"] = "Not measured yet."
             row["reason"] = {"key": "suggest.unmeasured"}
+        waits = choose.held(entry.register.value, registers)
+        if waits:
+            row["held"] = True
         rank = choose.key(
             chosen_on,
             scene=bool(catalogue_module.scene_number(entry.id)),
@@ -1504,6 +1532,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             medium=medium,
             learn=learn or 0.0,
             interest=interest,
+            waits=waits,
         )
         if under and (row["fit"] != choose.UNDER or catalogue_module.scene_number(entry.id)):
             continue

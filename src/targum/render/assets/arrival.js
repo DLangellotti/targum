@@ -93,6 +93,10 @@
 
   var scenes = window.TargumScenes || null;
 
+  //: The rung from which the scenes are behind a reader: `chat/tools.py`'s
+  //: `PAST_THE_SCENES`, which home's card goes by.
+  var PAST_THE_SCENES = "gimel";
+
   function sceneOf(reader) {
     return scenes && reader ? scenes.numberOf(reader.entry) : 0;
   }
@@ -461,6 +465,17 @@
     // The rung the words check put the estimate nearest, where they took it; else what
     // their marks or their answer say.
     var rung = measured || charts.seed(store && store.words, code);
+    /* Past the scenes, a real text first (beta review, 2026-11-03): from gimel up the
+       scenes are behind the reader (`PAST_THE_SCENES` in `chat/tools.py`), and "Everyday
+       conversation" answered by the scenes alone opened "In the elevator" for a reader
+       who had said they read the news with help and passed the words check. Real before
+       scenes (design.md §12, 2026-10-31): a scene only where nothing real is here. */
+    if (charts.DECLARED_RUNGS.indexOf(rung) >= charts.DECLARED_RUNGS.indexOf(PAST_THE_SCENES)) {
+      var real = handed.filter(function (reader) {
+        return !sceneOf(reader);
+      });
+      if (real.length) handed = real;
+    }
     for (var r = 0; r < arrived.length; r++) {
       var asked = interestOf(arrived[r]);
       if (!asked) continue;

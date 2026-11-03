@@ -713,6 +713,7 @@
   "add.job.sentences.other": "{n} sentences",
   "add.instead.one": "{title} is already in the library, with a translation a person published. It'll read better than ours.",
   "add.instead.other": "{title} is already in the library, with {n} translations a person published. It'll read better than ours.",
+  "add.instead.shelved": "{title} is in the Library, ready to open. It uses none of your credits.",
   "add.job.voice-later": "You can add audio later, in the reader.",
   "serve.give-a-link": "Paste a link.",
   "reader.card.same-root": "From the same root",
