@@ -1799,7 +1799,7 @@
       // The text it just named, not the index it happens to sit on. Every catalogue text
       // has its own page now, so the button can go where it says it goes. A built one
       // opens straight into its reader (`/open/<id>`).
-      window.location.href = keyed((shelved ? "/open/" : "/library/") + entry.id);
+      window.location.href = shelved ? keyed("/open/" + entry.id) : keyed("/library/" + entry.id);
     };
     row.appendChild(go);
     var anyway = document.createElement("button");

@@ -543,6 +543,8 @@ def test_open_it_opens_the_text() -> None:
     than the text it had just named. Every catalogue text has its own page now."""
     source = (ASSETS / "add.js").read_text(encoding="utf-8")
     assert 'keyed("/library/" + entry.id)' in source
+    # One the Library has built opens straight into its reader (beta review, 2026-11-03).
+    assert 'keyed("/open/" + entry.id)' in source
 
 
 def test_translate_it_anyway_works_for_a_dropped_file() -> None:
