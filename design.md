@@ -443,6 +443,51 @@ and their notes between the headline and the two lists, so a reader scrolled 1,1
   `progress.gap.mishkal` left the catalogue. The Russian «Биньяны» and «Мишкали» are
   drafts and wait for David's read.
 
+### The open web is searched each night, on the forty topics — 2026-11-03
+
+David, 2026-11-03 (targum-internal#622, slice D of the web-discovery plan): each night
+Anthropic's web search looks for real Hebrew pages on the forty topics of "Find me
+something", and what it finds is scored and pooled like every other find. It replaces the
+card's Brave Search and MediaWiki plan (David, 2026-11-01: Anthropic over Brave), adds a
+source to "A web find is a pasted link targum found" (2026-10-31) and changes no rail.
+Behind `TARGUM_FINDS_WEB` until it is switched on.
+
+- **The queries are the chips' own phrases.** One search for each topic's fixed Hebrew
+  phrase (`chips.CHIPS`, ling-he's), nothing else: no reader, no level, no word anybody
+  typed. The model only runs the search, one to a call, and is shown nothing but the
+  query. What is kept is the search's own result list (address and title), never a word
+  the model wrote. A night starts where the last one stopped, so every topic comes round
+  even when the cap stops a night short, and a query a live look bought in the last
+  twenty hours is not bought again.
+- **A dollar a night at most, inside the month's budget.** Each call's cost is counted
+  from what the API reports it used, the searches at $0.01 each and the tokens at the
+  model's price, and written on the run as it is spent. A search does not start unless
+  the night has room for the dearest call yet seen (at least 6¢), so the night stops
+  before $1, never after it. The night's dollar is also paced against the month: never
+  more than what is left of `TARGUM_FINDS_BUDGET_USD`, less $10 kept for the other
+  sources, shared over the days left in the month. At the default $30 that is about 65¢
+  a night; raising the budget lets it reach the dollar. The model is Claude Haiku 4.5,
+  the cheapest that takes the search tool, at about 2.5¢ a search.
+- **The pages are read direct and let go.** Each page is fetched once, straight from its
+  site and never through the paid proxy, only where its robots.txt allows, never from a
+  host that refused us, at most five from one host a night. The host and word screens,
+  "too short" and "one article pooled once" are the hourly round's. The pool keeps the
+  address, the title, the outlet, the day it was published where the page says, and the
+  lemma counts: no text.
+- **The card names the outlet and the day** (2026-11-02, "A suggested text says where
+  it comes from"): the publisher's name where `sources.json` lists the site, else the
+  site, and the day the page itself states. A page that states none shows no day rather
+  than the night it was found. A find whose licence clears the bar joins the library
+  when a reader opens it, by the same path as any find; nothing is added for it.
+- **Counted into the tables, under a register of its own.** A web find, from a live look
+  or a night, still counts as news, social, video or podcasts where its host says so.
+  Every other web find now counts under `web` instead of not at all, which amends "Public
+  finds count into the yardsticks, as counts" (2026-11-01). A blog or a shop still never
+  counts as news. `web` is not on the card's picker; it is counted, not offered.
+- **On a timer of its own**, at 00:10 UTC, stopping itself after 45 minutes: clear of
+  the YouTube round at 01:00, the feed count at 01:30, the podcasts at 02:00, and done
+  well before the tables sweep at 02:30 counts what it found.
+
 ### A suggested text says where it comes from, and a find with an open licence joins the library — 2026-11-02
 
 David, 2026-11-02, approving the mock: every suggested text says plainly where it comes
