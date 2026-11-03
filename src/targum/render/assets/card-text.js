@@ -205,7 +205,7 @@
     var from = found ? String(row.publisher || "") : "";
     var length = minutes(row);
     var share = known(row.known_share);
-    var kindWord = found ? "" : String(KINDS[row.kind] || "");
+    var kindWord = found ? "" : String(KINDS[row.shelf || row.kind] || "");
     var era = found ? "" : eraOf(row);
     [
       [".card-kind-word", kindWord],

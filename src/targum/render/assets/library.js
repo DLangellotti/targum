@@ -81,12 +81,20 @@
     ["novel", t("library.kind.novel", "Novels")],
     ["essay", t("library.kind.essay", "Essays")],
     ["talk", t("library.kind.talk", "Videos")],
-    ["prose", t("library.kind.prose", "Tanakh")],
+    ["tanakh", t("library.kind.tanakh", "Tanakh")],
+    ["targum", t("library.kind.targum", "Aramaic translations")],
+    ["mishnah", t("library.kind.mishnah", "Mishnah")],
+    ["halakhah", t("library.kind.halakhah", "Halakhah")],
+    ["prose", t("library.kind.prose", "Prose")],
     ["poetry", t("library.kind.poetry", "Poetry")],
     ["document", t("library.kind.document", "Documents")],
     ["play", t("library.kind.play", "Plays")],
     ["liturgy", t("library.kind.liturgy", "Prayer")],
   ];
+
+  /* The shelves a classical text stands on in place of its kind (`catalogue.shelf_of`,
+     beta review AS-04, 2026-11-03). */
+  var CLASSICAL = { tanakh: true, targum: true, mishnah: true, halakhah: true };
 
   /* One text's kind, on its own row or tile: "Dialogue · 3 min", "Video · 9 min". The
      names above are shelves and chips, plural, and on a row they read as the catalogue's
@@ -98,7 +106,11 @@
     ["novel", t("library.kind-one.novel", "Novel")],
     ["essay", t("library.kind-one.essay", "Essay")],
     ["talk", t("library.kind-one.talk", "Video")],
-    ["prose", t("library.kind-one.prose", "Tanakh")],
+    ["tanakh", t("library.kind-one.tanakh", "Tanakh")],
+    ["targum", t("library.kind-one.targum", "Aramaic translation")],
+    ["mishnah", t("library.kind-one.mishnah", "Mishnah")],
+    ["halakhah", t("library.kind-one.halakhah", "Halakhah")],
+    ["prose", t("library.kind-one.prose", "Prose")],
     ["poetry", t("library.kind-one.poetry", "Poetry")],
     ["document", t("library.kind-one.document", "Document")],
     ["play", t("library.kind-one.play", "Play")],
@@ -504,7 +516,10 @@
         // Every language it can be read in: Daniel's Hebrew and Aramaic, a Torah book's
         // Hebrew and the Onkelos beside it (2026-09-14).
         languages: entry.languages || [entry.language],
-        kind: entry.kind,
+        // Its shelf, which is its kind except for a classical text: the Tanakh, the
+        // targums, the Mishnah and the Mishneh Torah each stand under their own name
+        // (beta review AS-04, 2026-11-03).
+        kind: entry.shelf || entry.kind,
         // The text's own level, A1 to Past C2, or "" where it has none measured: what Your
         // Progress's Level rows open the shelf at (`#see/level/<level>`, 2026-10-28).
         cefr: entry.cefr || "",
@@ -1107,7 +1122,9 @@
       what.appendChild(english);
     }
     var count = tn("library.group-texts", row.rows.length, "{n} text", "{n} texts");
-    var kind = named(KIND_ONE, row.kind);
+    // A collection on a classical shelf is that shelf's own work — the Torah, the
+    // Mishnah — and its name says so; "Mishnah · 63 texts" under משנה says it twice.
+    var kind = CLASSICAL[row.kind] ? "" : named(KIND_ONE, row.kind);
     var era = eraSaid(row);
     var meta = el("span", "row-meta", [kind, era, count].filter(Boolean).join(" · "));
     if (saidIn !== "en") meta.setAttribute("lang", saidIn);

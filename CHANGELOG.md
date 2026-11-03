@@ -12,6 +12,33 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   other chips have no shown lexicon topic and no registers, so with one chosen the card
   had no press unless a web look had pooled a find for it. New strings
   `home.card.harder.read-any`, `watch-any` and `listen-any`; the Russian are drafts.
+- The classical shelf names its sources (beta review AS-01 and AS-03, approved by David
+  2026-11-03; design.md §12). CC BY texts were shown with no credit: the Metsudah Rashi
+  beside every aliyah and the Metsudah siddur's own Hebrew. Every reader's foot now names
+  the text's edition and each published rendering it carries (English, Onkelos, Rashi,
+  Rashi in English), each with its licence and the deed linked; the Library page names
+  the edition above the translation and lists what is read beside the verse. A portion,
+  a haftarah and a daily page are credited from the book they were cut from. The portion
+  page names the Hebrew edition and Onkelos and Rashi. New strings `reader.credit.from`,
+  `text.page.source-he`, `text.page.source-arc`, `text.page.beside` and
+  `parasha.page.edition-and-beside`; the Russian are drafts.
+- A weekly portion is headed with its own range (AS-02). "Genesis 37:1-40:23; Numbers
+  7:1-17" on Vayeshev, and the same on Mishpatim, Ki Tisa, Tetzaveh, Kedoshim, Miketz,
+  Vayakhel, Vayakhel-Pekudei and Tazria-Metzora, was one year's special maftir that no
+  aliyah carries. The page and its title are right as soon as this deploys; the catalogue
+  rows and their blurbs are right once `targum parasha entries --write` runs.
+- Portion names are pointed as headings (AS-06): חַיֵּי שָׂרָה, פְּקוּדֵי, שְׁמִינִי,
+  תַּזְרִיעַ and נָשֹׂא replace Hebcal's in-verse forms.
+- An aliyah says "Aliyah 1 of 7", not "Chapter 1 of 7" (AS-05). New strings
+  `reader.listen.aliyah`, `reader.listen.aliyah-of` and `reader.foot.end-of-aliyah`; the
+  Russian are drafts.
+- The Library's "Tanakh" shelf holds the Tanakh (AS-04): the Mishnah and the Mishneh Torah
+  stand under their own names, the Aramaic targums under "Aramaic translations", and
+  Psalms, Isaiah and the other books filed as poetry come back to the Tanakh. Wherever a
+  text's kind is named (rows, cards, playlists, saved, search) a tractate no longer says
+  "Tanakh". New strings `library.kind.*`, `library.kind-one.*` and `home.kind.*` for
+  `tanakh`, `targum`, `mishnah` and `halakhah`, and `prose` now reads "Prose"; the Russian
+  are drafts.
 - Home's empty card offers "Read one at 78% known" again with Religion chosen
   (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
   only through its lexicon topic, and religion is not a shown topic (its tags failed

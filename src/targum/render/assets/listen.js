@@ -130,6 +130,8 @@
     var section = Number(view.getAttribute("data-section")) || 1;
     var sections = Number(view.getAttribute("data-sections")) || 1;
     var byPart = view.hasAttribute("data-by-part");
+    /* A portion's sections are aliyot (beta review AS-05, 2026-11-03). */
+    var byAliyah = view.hasAttribute("data-by-aliyah");
     var reduced = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
 
     function el() {
@@ -578,14 +580,14 @@
     });
 
     function partWord(n) {
-      return byPart
-        ? t("reader.listen.part", "Part {n}", { n: n })
-        : t("reader.listen.chapter", "Chapter {n}", { n: n });
+      if (byPart) return t("reader.listen.part", "Part {n}", { n: n });
+      if (byAliyah) return t("reader.listen.aliyah", "Aliyah {n}", { n: n });
+      return t("reader.listen.chapter", "Chapter {n}", { n: n });
     }
     function partOfWord(n) {
-      return byPart
-        ? t("reader.film.part", "Part {n} of {count}", { n: n, count: sections })
-        : t("reader.listen.chapter-of", "Chapter {n} of {count}", { n: n, count: sections });
+      if (byPart) return t("reader.film.part", "Part {n} of {count}", { n: n, count: sections });
+      if (byAliyah) return t("reader.listen.aliyah-of", "Aliyah {n} of {count}", { n: n, count: sections });
+      return t("reader.listen.chapter-of", "Chapter {n} of {count}", { n: n, count: sections });
     }
 
     /* Where a part is opened from here: listening, with the serve key carried along. */

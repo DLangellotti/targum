@@ -2791,7 +2791,8 @@ class Library:
         entry = next((e for e in catalogue_module.CATALOGUE if e.source == source), None)
         if entry is not None:
             return {
-                "kind": entry.kind.value,
+                # Its shelf, which is its kind except for a classical text (`shelf_of`).
+                "kind": entry.shelf,
                 "register": entry.register.value,
                 # What the text is about, so the arrival's subject doors can be answered
                 # from the shelf rather than from a second request (2026-09-17).
@@ -2843,6 +2844,9 @@ class Library:
         if source.endswith(".chat"):
             # A conversation read back: shaped like a scene, filed like one.
             kind = "dialogue"
+        # A tractate or a book of the Bible somebody brought from Sefaria stands on the
+        # shelf the catalogue's own copy would, not under "prose" (beta review AS-04).
+        kind = catalogue_module.shelf_of(kind, source, language)
         annotation = folder / "annotation.json"
         difficulty = self.remembered.get(
             folder,
@@ -8175,13 +8179,17 @@ class Handler(BaseHTTPRequestHandler):
         if door in doors:
             return self._say(f"library.door.{door}", doors[door])
         words = {
+            "tanakh": "Tanakh",
+            "targum": "Aramaic translation",
+            "mishnah": "Mishnah",
+            "halakhah": "Halakhah",
             "dialogue": "Conversation",
             "story": "Story",
             "article": "News",
             "novel": "Novel",
             "essay": "Essay",
             "talk": "Video",
-            "prose": "Tanakh",
+            "prose": "Prose",
             "poetry": "Poetry",
             "document": "Document",
             "play": "Play",
@@ -8372,7 +8380,7 @@ class Handler(BaseHTTPRequestHandler):
                 "type": entry.kind.value,
                 "register": entry.register.value,
                 "what": self._kind_word(
-                    entry.kind.value,
+                    entry.shelf,
                     door=doors.get(entry.id, "") if entry.register.value == "rabbinic" else "",
                 ),
                 "words": entry.words,
@@ -12421,7 +12429,7 @@ class Handler(BaseHTTPRequestHandler):
                     "video": bool(entry is not None and spoken.is_video(entry.source)),
                     # What it is and its picture, for the card's rows and its cover (board
                     # PlaylistEnd): the catalogue's kind, and its id for `/thumb/`.
-                    "kind": entry.kind.value if entry is not None else "",
+                    "kind": entry.shelf if entry is not None else "",
                     "entry": entry.id if entry is not None else "",
                     # Built already, its own folder names its picture as well.
                     "reader": str(item.get("reader") or ""),
