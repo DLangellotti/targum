@@ -4548,5 +4548,12 @@
   "chat.chip-line.words": "Use my new words in a short conversation.",
   "chat.chip-line.know": "Show me what I know.",
   "chat.chip-line.news": "Read me today's news.",
-  "chat.restarted": "We restarted while we were answering. Ask again."
+  "chat.restarted": "We restarted while we were answering. Ask again.",
+  "landing.binyan.paal": "pa’al",
+  "landing.binyan.nifal": "nif’al",
+  "landing.binyan.piel": "pi’el",
+  "landing.binyan.pual": "pu’al",
+  "landing.binyan.hifil": "hif’il",
+  "landing.binyan.hufal": "huf’al",
+  "landing.binyan.hitpael": "hitpa’el"
 }

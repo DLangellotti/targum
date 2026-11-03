@@ -162,9 +162,14 @@ body {
    Progress drops it. It said "Texts" there from 2026-09-24, because "targums" alone read
    as a typo; a place with two names read worse, and design.md §12 ("Yours and
    everyone's", 2026-09-25) gave it one. */
+/* «Ваш прогресс» beside «Ваш», «Прогресс» alone (beta review 2026-11-03, R28): Russian
+   writes the second word of a name in lower case, and the place's own word is capital
+   only where it stands by itself. English keeps "Your Progress". */
+html:lang(ru) .site-nav .nav-place { text-transform: lowercase; }
 @media (max-width: 60rem) {
   .site-nav { flex-wrap: nowrap; }
   .site-nav .nav-your { display: none; }
+  html:lang(ru) .site-nav .nav-place { text-transform: none; }
   /* Russian names the place «Ваши тексты», and «Тексты» alone: «targum» alone was the
      wordmark's own word beside it (targum-internal#373, David, 2026-09-27). The
      capital is Russian's; English keeps its lowercase targums, which the brand needs. */

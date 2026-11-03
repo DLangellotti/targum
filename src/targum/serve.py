@@ -8338,7 +8338,9 @@ class Handler(BaseHTTPRequestHandler):
                 "name": row.get("name"),
                 "entry": row.get("entry") or "",
                 "title": row.get("title") or row.get("name"),
-                "english": row.get("english") or "",
+                # In the reader's language where the catalogue names it in it (beta
+                # review 2026-11-03, R26), as the Library and the shelf say it.
+                "english": (row.get("named") or {}).get(ui) or row.get("english") or "",
                 "author": row.get("author") or "",
                 "language": row.get("language") or "",
                 "type": row.get("kind") or "",
