@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The Russian confirm page says its cost in points («Займёт 12 баллов»), because the wait
+  beside it is in minutes (David, 2026-11-03; design.md §12, "Russian says a cost in
+  minutes and a balance in points"). Out of credits there is headed "Not enough credits
+  for this one" («На это не хватает баллов»), with what is still free under it, rather
+  than "We can't make this one" (ACC-18). Telegram's build button says "Confirm"
+  («Подтвердить») where it said "Open this". The Russian are drafts.
 - A reader's chrome is the reader's interface language, not its text's first translation
   (David, 2026-11-03; design.md §12, "A reader's chrome is the reader's language"; beta
   review R1). A Russian-interface reader opened most of the library, whose only lines are

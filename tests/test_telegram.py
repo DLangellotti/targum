@@ -399,7 +399,7 @@ def test_a_recording_over_ten_minutes_asks_before_it_builds(world: World) -> Non
     # The same button a link gets, and its press is what starts it.
     assert world.said() == []
     [(chat, text, button, data)] = world.telegram.offered
-    assert (chat, text, button) == (CHAT, "Voice note. It uses 12 credits.", "Open this")
+    assert (chat, text, button) == (CHAT, "Voice note. It uses 12 credits.", "Confirm")
     world.door.handle(pressed(2, data))
     assert job.stage == "queued"
     assert world.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()[
@@ -498,7 +498,7 @@ def test_a_link_is_quoted_with_a_build_button_and_nothing_is_spent(world: World)
     row = world.store.db.execute("SELECT claimed, length FROM job WHERE id = ?", (job.id,))
     assert tuple(row.fetchone()) in {(None, None), (0, 0), (0.0, 0.0)}
     [(chat, text, button, data)] = world.telegram.offered
-    assert chat == CHAT and button == "Open this"
+    assert chat == CHAT and button == "Confirm"
     assert text == "מה קרה השבוע בכנסת. It's a text, so it uses none of your credits."
     # Telegram's limit, and nothing in it a stranger could make for themselves.
     assert data.startswith("b:") and len(data.encode()) <= 64
@@ -696,7 +696,7 @@ def test_a_link_is_quoted_in_the_accounts_language(world: World) -> None:
     world.seconds = 5 * 60
     world.door.handle(link(1, ARTICLE))
     [(_, text, button, _)] = world.telegram.offered
-    assert text.endswith("Займёт 5 минут.") and button == "Подготовить"
+    assert text.endswith("Займёт 5 минут.") and button == "Подтвердить"
 
 
 def test_the_bot_api_sends_the_button_as_telegram_reads_one(

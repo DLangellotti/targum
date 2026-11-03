@@ -892,7 +892,7 @@ def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
     def say(key: str, n: int) -> str:
         return counted(key, n, "ru", {"one": "", "other": ""}).format(n=n)
 
-    cost = [say("press.page.uses-credits", n) for n in (1, 2, 5, 21, 12)]
+    cost = [say("bring.uses-credits", n) for n in (1, 2, 5, 21, 12)]
     assert cost == [
         "Займёт 1 минуту",
         "Займёт 2 минуты",
@@ -902,3 +902,13 @@ def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
     ]
     left = [say("account.credits.left-short", n) for n in (1, 3, 11)]
     assert left == ["Остался 1 балл", "Осталось 3 балла", "Осталось 11 баллов"]
+    # The confirm page says its wait in minutes beside the cost, so there the cost is
+    # points (David, 2026-11-03).
+    confirm = [say("press.page.uses-credits", n) for n in (1, 2, 5, 21, 12)]
+    assert confirm == [
+        "Займёт 1 балл",
+        "Займёт 2 балла",
+        "Займёт 5 баллов",
+        "Займёт 21 балл",
+        "Займёт 12 баллов",
+    ]

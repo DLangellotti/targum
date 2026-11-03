@@ -705,7 +705,7 @@ class Door:
             lambda: self.client.offer(
                 chat_id,
                 self._quote(ui, job),
-                said_in(ui, "telegram.build", "Open this"),
+                said_in(ui, "telegram.build", "Confirm"),
                 PRESS + self._token(chat_id, person.id, job.id),
             )
         )
