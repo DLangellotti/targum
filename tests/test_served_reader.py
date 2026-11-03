@@ -136,6 +136,61 @@ def test_opened_it_is_named_saved_it_is_whole(served: tuple[int, Path]) -> None:
     assert head[LINKED_HEADER.lower()] == "1", "and the worker keeps that one neither"
 
 
+def test_a_reader_is_served_in_the_chrome_of_whoever_opened_it(
+    served: tuple[int, Path],  # noqa: F811
+) -> None:
+    """Beta review 2026-11-03, R1: a text whose only translation is English is opened by
+    a reader whose interface is Russian. Opened or saved, its chrome is Russian; the page
+    on disk, and an English reader's copy of it, are as they were (design.md §12, "A
+    reader's chrome is the reader's language")."""
+    from targum.render.chromed import TRAILER
+    from targum.strings import catalogue
+
+    port, out = served
+    reader = book(out / "local" / "book-he")
+    on_disk = (reader / "sec-0001.html").read_bytes()
+    assert TRAILER.encode() in on_disk and b'<html lang="en"' in on_disk
+    address = f"/reader/book-he/reader/sec-0001.html?k={TOKEN}"
+
+    status, _, body = _get(port, address + "&lang=en", navigate=False)
+    assert status == 200 and body == on_disk
+
+    said = catalogue("ru")["reader.page.translation"].encode()
+    status, _, body = _get(port, address + "&lang=ru", navigate=False)
+    assert status == 200 and b'<html lang="ru"' in body and said in body
+    assert TRAILER.encode() not in body
+    status, _, body = _get(port, address + "&lang=ru", navigate=True)
+    assert status == 200 and b'<html lang="ru"' in body and said in body
+    assert names_files(body), "and its files are named as before"
+    assert any("face-chrome-upright-cyrillic" in name for name in named_files(body.decode()))
+
+
+def test_a_signed_in_readers_interface_decides_without_asking(
+    served: tuple[int, Path],  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The account's interface language is the chrome's, with nothing in the address."""
+    from targum.accounts import Store
+    from targum.serve import SESSION_COOKIE, Library
+
+    port, out = served
+    book(Library(out).shared / "book-he")
+    signed = Store(out.parent / "words.db").sign_in_verified("reader@example.com")
+    assert signed is not None
+    address = "/reader/book-he/reader/sec-0001.html"
+    monkeypatch.setattr(Handler, "_ui_language", lambda self: "ru")
+    connection = HTTPConnection("127.0.0.1", port, timeout=10)
+    connection.request(
+        "GET",
+        address,
+        headers={"Accept": "*/*", "Cookie": f"{SESSION_COOKIE}={signed[1]}"},
+    )
+    answer = connection.getresponse()
+    body = answer.read()
+    connection.close()
+    assert answer.status == 200 and b'<html lang="ru"' in body
+
+
 def test_a_recording_rides_as_a_file_of_its_own(
     served: tuple[int, Path],  # noqa: F811
     tmp_path: Path,

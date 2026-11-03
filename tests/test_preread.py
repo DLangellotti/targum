@@ -169,6 +169,8 @@ def test_the_switch_adds_the_list_its_style_and_its_script_and_nothing_else(
 ) -> None:
     """Off is the page as it was: take the three pieces out of a page written with the
     switch on, and what is left is the page written with it off, byte for byte."""
+    from targum.render.chromed import without_comment
+
     off = _reader(tmp_path, monkeypatch, on=False)
     on = _reader(tmp_path, monkeypatch, on=True)
     assert off.keys() == on.keys()
@@ -178,7 +180,8 @@ def test_the_switch_adds_the_list_its_style_and_its_script_and_nothing_else(
         for piece in ADDED:
             rest, n = piece.subn("", rest, count=1)
             changed += n
-        assert rest == off[name], name
+        # The comment after `</html>` carries offsets, which a piece more moves (`chromed`).
+        assert without_comment(rest) == without_comment(off[name]), name
     # The first chapter's page carries all three; the second has no annotated words and
     # the contents page no words at all, so neither carries anything.
     assert changed == 3
