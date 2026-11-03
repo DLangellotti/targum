@@ -65,7 +65,10 @@ class EpubIngester:
                 return self._read(archive, path)
         except (zipfile.BadZipFile, OSError, KeyError) as exc:
             raise TargumError(
-                f"We couldn't open {path.name}.", "It may be damaged, or not an EPUB."
+                f"We couldn't open {path.name}.",
+                "It may be damaged, or not an EPUB.",
+                key="file.epub-damaged",
+                name=path.name,
             ) from exc
 
     def _read(self, archive: zipfile.ZipFile, path: Path) -> Document:
@@ -131,7 +134,9 @@ class EpubIngester:
         container = _soup(archive.read("META-INF/container.xml").decode("utf-8", "replace"))
         full_path = _attr(container.find("rootfile"), "full-path")
         if not full_path:
-            raise TargumError("We couldn't open this book. Upload another copy of it.")
+            raise TargumError(
+                "We couldn't open this book. Upload another copy of it.", key="file.epub-no-book"
+            )
         return full_path
 
     @staticmethod
