@@ -3651,10 +3651,11 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
             )
         return said_in(language, "job.said.ready", "It's ready to read.")
     if job.stage == "failed":
-        what = job.error or said_in(
-            language, "job.said.went-wrong", "We couldn't get it ready. Try again later."
+        if not job.error:
+            return _why_failed(job, language)
+        said = said_in(
+            language, "job.said.failed", "We couldn't get it ready. {why}", why=job.error
         )
-        said = said_in(language, "job.said.failed", "We couldn't get it ready. {why}", why=what)
         if job.spent <= 0:
             said += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
         return said
@@ -3768,6 +3769,19 @@ def check_job(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return state
 
 
+def _why_failed(job: Any, language: str) -> str:
+    """Why a build failed and whether anything was used, without "We couldn't get it
+    ready" in front: the build's own sentence, or the plain one where it wrote none."""
+    from ..serve import said_in
+
+    why = job.error or said_in(
+        language, "job.said.went-wrong", "We couldn't get it ready. Try again later."
+    )
+    if job.spent <= 0:
+        why += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
+    return why
+
+
 def progress_of(job: Any, behind: int, language: str = "en") -> dict[str, Any]:
     """Where a job has got to, as `said` and, where it was counted, `seconds_left`.
 
@@ -3777,6 +3791,11 @@ def progress_of(job: Any, behind: int, language: str = "en") -> dict[str, Any]:
     """
     left = _seconds_left(job) if job.stage == "working" else None
     out: dict[str, Any] = {"said": _said(job, left, behind, language)}
+    if job.stage == "failed":
+        # The reason alone, for the bell's opened row, whose own line already says it
+        # could not be got ready: `said` there read "We couldn't get it ready." twice
+        # over (2026-11-03).
+        out["why"] = _why_failed(job, language)
     if left is not None:
         out["seconds_left"] = left
     return out

@@ -60,3 +60,12 @@ def test_without_a_recipient_nobody_is_mailed(monkeypatch: pytest.MonkeyPatch) -
     result = CliRunner().invoke(app, ["ytdlp-stopped"])
     assert result.exit_code == 0
     assert "not configured" in result.output
+
+
+def test_the_challenge_solver_rides_with_ytdlp() -> None:
+    """A pip install of yt-dlp carries no challenge solver for deno to run, and every
+    YouTube run on the box warned "n challenge solving failed" (2026-11-03)."""
+    install, _, _ = _cron_line().partition(" || ")
+    assert "--with yt-dlp-ejs" in install
+    text = (DEPLOY / "provision.sh").read_text(encoding="utf-8")
+    assert text.count("--with yt-dlp-ejs") == 2, "the first install and the nightly upgrade"
