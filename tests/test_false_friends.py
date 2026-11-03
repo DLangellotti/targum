@@ -19,6 +19,7 @@ from targum.models import (
     Translation,
 )
 from targum.render import render
+from targum.render.chromed import without_comment
 
 
 def test_every_entry_says_all_three_things_once() -> None:
@@ -115,4 +116,6 @@ def test_the_switch_off_leaves_the_reader_as_it_was(
     friends = [false_friends.friend_of("actuellement")]
     table = '"extensions": ' + json.dumps({"friends": friends}, ensure_ascii=False) + ", "
     assert table in on, "the table rides in the extensions"
+    # The comment after `</html>` carries offsets, which a piece more moves (`chromed`).
+    on, off = without_comment(on), without_comment(off)
     assert on.replace(script + "\n", "").replace(table, "") == off

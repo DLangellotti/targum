@@ -6185,6 +6185,14 @@ def parasha_entries(
             # Merged rather than replaced: a reader may have given the row a blurb or a
             # difficulty of their own, and a rebuild should not take it back off them.
             rows[at] = {**rows[at], **entry}
+            # The blurbs in other languages are a person's, and copied the range in when
+            # it still carried one year's special maftir (AS-02): the range is put right
+            # and the rest of what they wrote stays.
+            blurbs = rows[at].get("blurbs")
+            if isinstance(blurbs, dict):
+                rows[at]["blurbs"] = {
+                    code: corpus.own_blurb(str(said)) for code, said in blurbs.items()
+                }
     existing["entries"] = rows
     groups = existing.get("collections") or []
     held = next((at for at, row in enumerate(groups) if row.get("id") == group["id"]), None)

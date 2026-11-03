@@ -187,9 +187,9 @@
      are not a reader folder: a folder's text is on the shelf or was taken off it, and a
      text taken off stays off. */
   var KINDS_BY_PATH = [
-    [/^\/parasha\//, "prose"],
-    [/^\/(tanakh-yomi|nach-yomi)\//, "prose"],
-    [/^\/tehillim\//, "poetry"],
+    [/^\/parasha\//, "tanakh"],
+    [/^\/(tanakh-yomi|nach-yomi)\//, "tanakh"],
+    [/^\/tehillim\//, "tanakh"],
   ];
 
   function away(theirs, readers) {
