@@ -15,7 +15,12 @@ reader asks for football, and the lexicon knows only Free time & culture. Each c
   words targum wrote. The phrases are ling-he's (2026-11-01,
   `~/targum-team/ling-he/keep/find-chips-hebrew-2026-11-01.md`): fourteen changed for a
   word that pulls a second meaning (יחסים, ביטחון, משפט), a phrase that finds writing
-  *about* a topic rather than the thing (הומור), or wording dated or awkward.
+  *about* a topic rather than the thing (הומור), or wording dated or awkward;
+- the catalogue registers whose shelf texts are about it whatever the lexicon shows
+  (`registers`), for "Show me something harder", which ranks the shelf as well as the
+  pool. Religion alone has them (2026-11-03): its lexicon topic is not shown, so no shelf
+  text could match the chip, and the press vanished for a reader who chose it with the
+  Tanakh, the Mishnah and the siddur all on the shelf under the floor.
 
 There is no free-text box (David, 2026-11-01): a reader steers by these chips or not at
 all, which is also what keeps a reader's own words off a search provider.
@@ -35,10 +40,13 @@ class Chip:
     lexicon: str
     #: What the live look searches for, per language.
     phrases: dict[str, str]
+    #: Catalogue registers (`catalogue.Register` values) whose shelf texts are about
+    #: this chip, matched by the register alone; empty for most chips.
+    registers: frozenset[str] = frozenset()
 
 
-def _chip(code: str, label: str, lexicon: str, he: str) -> Chip:
-    return Chip(code, label, lexicon, {"he": he})
+def _chip(code: str, label: str, lexicon: str, he: str, registers: Iterable[str] = ()) -> Chip:
+    return Chip(code, label, lexicon, {"he": he}, frozenset(registers))
 
 
 #: In the order a page lists them after the reader's likely ones.
@@ -62,7 +70,8 @@ CHIPS: tuple[Chip, ...] = (
     _chip("politics", "Politics", "politics", "פוליטיקה"),
     _chip("israel", "Israel", "", "החיים בישראל"),
     _chip("world", "The world", "", "חדשות בעולם"),
-    _chip("religion", "Religion", "religion", "דת ומסורת"),
+    # The Tanakh; the Mishnah, Talmud, midrash, codes and liturgy; Andalusian philosophy.
+    _chip("religion", "Religion", "religion", "דת ומסורת", ("biblical", "rabbinic", "medieval")),
     _chip("nature", "Nature", "nature", "טבע"),
     _chip("animals", "Animals", "nature", "בעלי חיים"),
     _chip("cars", "Cars", "travel", "מכוניות ורכב"),
@@ -102,6 +111,18 @@ def matcher(code: str, shown: Iterable[str]) -> str:
     if chip is None or not chip.lexicon:
         return ""
     return chip.lexicon if chip.lexicon in set(shown) else ""
+
+
+def on_shelf(code: str, shown: Iterable[str], about: Iterable[str], register: str) -> bool:
+    """Whether a shelf text is about a chip: its words are the chip's lexicon topic where
+    that is shown, or its register is one of the chip's (`Chip.registers`)."""
+    chip = BY_CODE.get(code)
+    if chip is None:
+        return False
+    if register and register in chip.registers:
+        return True
+    topic = matcher(code, shown)
+    return bool(topic) and topic in set(about)
 
 
 def ordered(liked: Sequence[str]) -> list[tuple[Chip, bool]]:

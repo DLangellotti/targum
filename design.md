@@ -863,6 +863,12 @@ will get: the closest text and how much of it you know. No "today".
 - **After the last miss.** "No other new text is close yet.", with Topic alone, in place
   of "We found nothing harder today."
 
+Amended 2026-11-03: **a topic matches the shelf by register where its words cannot.** A
+chip matches a shelf text through its lexicon topic only where that topic is shown, and
+religion is not, so with Religion chosen the press vanished with the whole religious
+shelf under the floor. Religion now takes the biblical, rabbinic and medieval texts by
+register (`finds.chips`, `Chip.registers`); no other chip has registers.
+
 ### Home's one card finds what fits you — 2026-11-01
 
 David, 2026-11-01 (targum-internal#615, approving the integrated mock "One to try next,

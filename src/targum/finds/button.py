@@ -190,7 +190,8 @@ def harder(
     shelf: Iterable[dict[str, Any]], ask: Ask, known: interests_module.Lexicon | None = None
 ) -> list[dict[str, Any]]:
     """The shelf's texts under the floor (`suggest_next` with `under`) as harder picks:
-    with chips chosen, only those about one of them; else the reader's topics first."""
+    with chips chosen, only those about one of them (`chips.on_shelf`: the chip's shown
+    lexicon topic, or its registers); else the reader's topics first."""
     shown = known.shown if known else ()
     out: list[dict[str, Any]] = []
     for row in shelf:
@@ -201,8 +202,8 @@ def harder(
             continue
         about = set(row.get("about") or ())
         if ask.steered:
-            topics = {chips.matcher(code, shown) for code in ask.chosen} - {""}
-            if not about & topics:
+            register = str(row.get("register") or "")
+            if not any(chips.on_shelf(code, shown, about, register) for code in ask.chosen):
                 continue
             on_topic = True
         else:

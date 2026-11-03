@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Home's empty card offers "Read one at 78% known" again with Religion chosen
+  (2026-11-03; design.md §12, "Show me something harder"). The chip matched the shelf
+  only through its lexicon topic, and religion is not a shown topic (its tags failed
+  ling-he's gold set), so with Religion chosen no shelf text was about it, nothing was
+  under the floor on the topic and the card said "No new text is 90% known for you yet."
+  with no press, the Tanakh, the Mishnah and the siddur all on the shelf under the floor.
+  A chip may now match the shelf by register (`chips.on_shelf`): Religion takes the
+  biblical, rabbinic and medieval texts. The pool still matches by tag and shown topic.
 - What next on Your Progress is quick to take in (David, 2026-11-03; design.md §12). The
   headline, its sentence and the two lists, words you keep meeting and texts at your
   level, now come first. Under them "Grammar" shows one grid at a time behind Binyanim |
