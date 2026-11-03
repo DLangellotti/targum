@@ -21,6 +21,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `provision.sh` installs `yt-dlp-ejs` beside yt-dlp, whose absence made every box run
   warn "n challenge solving failed". New strings `video.egress-down` and
   `building.failed-title`; the Russian are drafts.
+- A person's own copy of a shelf text that was built without its words no longer hides
+  the shelf's build (2026-11-03). David's Mishneh Torah, Foundations of the Torah showed
+  no word marks, could not be tapped, and its chapters said nothing of how much was known:
+  his own folder of that name, built on 2026-09-03 with no annotation, won the lookup over
+  the shared build with all of it. Where both carry the same document by hash and only
+  the shelf's has an annotation, the shelf's is served; a copy with its words, or an
+  edited one, still wins as before.
 - A podcast find's sample that whisper refuses no longer drops the episode or uses up the
   day's cap (targum-internal#621, 2026-11-02). The first run on the box had all ten
   samples refused by OpenAI, 429 `credit_balance_exhausted`, and dropped ten good episodes
