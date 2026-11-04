@@ -1312,7 +1312,7 @@
   var NEEDS = [
     {
       // The pill, the conversation's Send, and Ask on a word's card, which asks it.
-      find: "#talk-open, .talk-cta, .chat-send, .gloss-card .ask-go",
+      find: "#talk-open, #talk-head, .talk-cta, .chat-send, .gloss-card .ask-go",
       why: function () {
         return t("offline.talk-needs", "Chat needs a connection.");
       },

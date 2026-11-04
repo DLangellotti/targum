@@ -269,6 +269,8 @@ def test_talk_to_targum_is_a_pill_on_every_page_that_opens_the_conversation() ->
         if 'class="site-head"' not in page:
             continue
         assert 'id="talk-open"' in page and 'id="talk-drawer"' in page, name
+        # And on a phone its door is an icon in the bar, named "AI Assistant" (2026-11-04).
+        assert 'id="talk-head"' in page and 'aria-label="AI Assistant"' in page, name
         assert 'id="talk-frame"' in page and "TargumTalk" in page, name
         assert 'data-src="/chat?embed=1&amp;k=k"' in page and ' src="/chat?embed=1' not in page, (
             f"{name}: loaded when opened, not before"

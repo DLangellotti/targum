@@ -21,6 +21,9 @@ pytest.importorskip("playwright.sync_api")
 from test_chat_pill_browser import SITE, TOKEN, answer_with, browser  # noqa: E402, F401
 
 PHONE = {"width": 390, "height": 844}
+#: The door that opens the conversation at this width: the pill at a desk, the bar's icon
+#: on a phone (design.md §12, "On a phone the AI Assistant is in the bar", 2026-11-04).
+DOOR = "#talk-open:visible, #talk-head:visible"
 DESK = {"width": 1440, "height": 900}
 
 #: Where the tab stands: its address, its history's length, whether the sheet is out, and
@@ -61,12 +64,12 @@ def on_the_library(browser, viewport):  # noqa: F811
     page.route(f"{SITE}/**", answer)
     page.goto(f"{SITE}/before")
     page.goto(f"{SITE}/library?k={TOKEN}")
-    page.wait_for_selector("#talk-open:not([hidden])")
+    page.wait_for_selector(DOOR)
     return context, page
 
 
 def pressed_open(page) -> dict:
-    page.click("#talk-open")
+    page.click(DOOR)
     page.wait_for_function("() => !document.getElementById('talk-drawer').hidden")
     return page.evaluate(WHERE)
 

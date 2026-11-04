@@ -389,12 +389,15 @@ def test_at_a_desk_the_talk_pill_covers_nothing(browser, which: str, width: int)
         assert got["bar"][1] - got["bar"][0] >= 1248, got
 
 
+@pytest.mark.parametrize("width", [390, 360])
 @pytest.mark.parametrize("which", ["series", "texts", "library", "progress", "add"])
-def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str) -> None:
-    """Known issues §3 (2026-10-12): on a phone the AI Assistant's pill floated over every
-    page — a series page's aliyot, Home's tabs, the Library's headings, Your Words'
-    filters. It stands in the glass band at the foot now, with the four places, so no
-    row is drawn under it at any scroll position but the band's own."""
+def test_on_a_phone_the_assistant_is_in_the_bar(browser, which: str, width: int) -> None:
+    """David, 2026-11-04 (design.md §12, "On a phone the AI Assistant is in the bar"): the
+    pill that stood in a band over the four places took a whole row of a 390px phone and
+    covered the page. On a phone nothing floats over the page: the pill and its band are
+    not drawn, the foot is the four places' bar alone, and the AI Assistant is an icon in
+    the top bar beside the bell, named by its label, clear of the language, the bell and
+    the account down to 360px."""
     from targum.parasha import calendar as cal
     from targum.parasha.models import Portion
     from targum.render.builder import add_page, library_page, parasha_page, progress_page
@@ -415,7 +418,7 @@ def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str)
         route.fulfill(status=200, content_type="application/json", body="{}")
 
     context = browser.new_context(
-        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+        viewport={"width": width, "height": 844}, is_mobile=True, has_touch=True
     )
     page = context.new_page()
     page.add_init_script("sessionStorage.setItem('targum:arrival-over', '1');")
@@ -424,14 +427,56 @@ def test_on_a_phone_the_pill_stands_in_the_band_at_the_foot(browser, which: str)
     page.wait_for_timeout(400)
     got = page.evaluate(
         """() => {
+      const box = (el) => {
+        const r = el.getBoundingClientRect();
+        return [r.left, r.right, r.top, r.bottom];
+      };
       const pill = document.getElementById('talk-open').getBoundingClientRect();
+      const head = document.getElementById('talk-head');
       const band = document.querySelector('.site-head-row .site-nav').getBoundingClientRect();
-      return {pill: [pill.top, pill.bottom], band: [band.top, band.bottom], shown: pill.height > 0};
+      const row = document.querySelector('.site-head-row');
+      const parts = [
+        '.site-head .brand', '.site-head-row > .lang-menu', '#talk-head', '#notices-open',
+        '#account-open',
+      ]
+        .map((s) => document.querySelector(s))
+        .filter((el) => el && el.getBoundingClientRect().width > 0)
+        .map(box);
+      let overlaps = 0;
+      for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+        const [a, b] = [parts[i], parts[j]];
+        if (a[0] < b[1] - 0.5 && b[0] < a[1] - 0.5 && a[2] < b[3] && b[2] < a[3]) overlaps++;
+      }
+      // Its reach is the `::after` laid round it (§8): 44px across and up.
+      const hb = head.getBoundingClientRect();
+      const after = getComputedStyle(head, '::after');
+      const px = (v) => parseFloat(v) || 0;
+      const reach = [
+        hb.width - px(after.left) - px(after.right),
+        hb.height - px(after.top) - px(after.bottom),
+      ].map(Math.round);
+      return {
+        reach,
+        pill: pill.width * pill.height,
+        head: box(head),
+        inBar: head.parentElement === row,
+        label: head.getAttribute('aria-label'),
+        band: band.height,
+        parts: parts.length,
+        overlaps,
+        edge: Math.max(...parts.map((p) => p[1])),
+        sideways: document.documentElement.scrollWidth > window.innerWidth,
+      };
     }"""
     )
     context.close()
-    assert got["shown"], got
-    assert got["band"][0] <= got["pill"][0] and got["pill"][1] <= got["band"][1], got
+    assert got["pill"] == 0, got
+    assert got["inBar"] and got["label"] == "AI Assistant", got
+    assert got["head"][1] > got["head"][0] and got["head"][3] <= 64, got
+    assert got["band"] < 72, got
+    assert min(got["reach"]) >= 44, f"a thumb's 44px reaches it across and up: {got}"
+    assert got["overlaps"] == 0 and got["parts"] >= 4, got
+    assert got["edge"] <= width and not got["sideways"], got
 
 
 def test_at_a_desk_the_bell_s_panel_opens_over_the_assistant_s_drawer(browser) -> None:

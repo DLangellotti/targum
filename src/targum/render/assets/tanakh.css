@@ -217,14 +217,9 @@
     margin-inline-end: 4.25rem;
   }
 }
-/* And above the band when the AI Assistant's pill has joined it (chrome.css, 2026-10-12),
-   which grew the band 4rem taller: the card still stood 4.75rem up, so the band covered
-   Read and a tap on it landed on the places (Library QA, 2026-10-20). */
-@media (max-width: 40rem) {
-  body.tanakh:has(> .talk-cta) .tanakh-card {
-    inset-block-end: calc(8.5rem + env(safe-area-inset-bottom));
-  }
-}
+/* The band grew 4rem taller when the AI Assistant's pill joined it (2026-10-12), and the
+   card stood 8.5rem up to clear it; the pill left the phone's foot for the bar on
+   2026-11-04 (chrome.css), so the card stands over the four places again. */
 
 /* --- the year of portions (#144) ------------------------------------------------- */
 
