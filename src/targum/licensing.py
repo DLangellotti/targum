@@ -193,6 +193,29 @@ def exportable(licence: str) -> bool:
     return verdict(licence).exportable
 
 
+def changes_owed(licence: str) -> bool:
+    """Whether a text under this licence must say that targum changed it (David,
+    2026-11-03; design.md §12).
+
+    Every Creative Commons licence with the Attribution element: CC BY 4.0, CC BY-SA 4.0
+    and CC BY-NC(-SA) 4.0 ask for an indication of changes, and the 3.0 deeds ask a
+    derivative to say what it adapted. Sefaria's unversioned "CC-BY" is read as 3.0, as
+    its own pages link it. Public domain, CC0, targum's own writing and the State's
+    attribution-only free use owe no such line. NoDerivatives is never adapted, so it is
+    never said to be.
+    """
+    flat = _flat(licence)
+    words = flat.split()
+    if not flat or "pd" in words or "cc0" in words:
+        return False
+    if any(word in flat for word in ("public domain", "publicdomain", "no known copyright")):
+        return False
+    if re.search(r"\bnd\b|noderiv|no derivatives", flat):
+        return False
+    creative = "cc" in words or "creative commons" in flat
+    return creative and ("by" in words or "attribution" in flat)
+
+
 @dataclass(frozen=True)
 class ExportTerms:
     """Which corpus export a text's rows may enter (David, 2026-10-08, targum-internal#162).

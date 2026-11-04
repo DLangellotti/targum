@@ -447,6 +447,23 @@ page prints it" in "The arrival asks which words you know" (2026-11-01).
   than the check's.
 - **Never the rung only said.** A reader who skipped the check, or took it against lists
   this targum no longer has, or stands under aleph by it, sees the page as before.
+### A text whose licence asks says we changed it — 2026-11-03
+
+CC BY 4.0, CC BY-SA 4.0 and CC BY-NC(-SA) 4.0 ask anyone who shares an adapted work to
+indicate the changes, and the 3.0 deeds ask an adaptation to say what it adapted. Every
+text targum serves is adapted: we point it and annotate it. David decided on 2026-11-03
+that such a text says so.
+
+- **The line is "Vowel points and notes added by targum"** («Огласовки и пояснения
+  добавлены targum», a draft). It follows the edition's licence in the reader's foot
+  ("Hebrew from … · CC BY 4.0 · Vowel points and notes added by targum") and in the
+  Library page's source section, and follows a find's licence where a find joined the
+  library.
+- **The licence string decides** (`licensing.changes_owed`): any Creative Commons licence
+  with the Attribution element, Sefaria's unversioned "CC-BY" included. Public domain,
+  CC0, targum's own writing and the State's attribution-only free use say nothing.
+- **A translation of ours needs no such line**: it is already credited as targum's.
+  Readers pick the line up on the routine rebuild, which spends nothing.
 
 ### Upload opens what the Library has, and says only what was marked — 2026-11-03
 
