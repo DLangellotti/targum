@@ -1131,7 +1131,11 @@
       once, in the label's size and ink, so the switch is seen rather than inferred from
       words that have stopped answering to a tap. -#}
   {% set tongue = languages.get(segment.id, source_language) %}
-  <div class="pair{% if at %} verse{% endif %}{% if segment.id in ends %} ends-{{ ends[segment.id] }}{% endif %}{% if segment.id in continues %} cont{% endif %}{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}{% if segment.id in languages %} unread{% endif %}"{% if at %} id="{{ at }}" data-ref="{{ segment.ref }}"{% endif %} data-id="{{ segment.id }}"{% if segment.id in languages %} data-lang="{{ tongue }}"{% endif %} tabindex="-1">
+  <div class="pair{% if at %} verse{% endif %}{% if segment.id in ends %} ends-{{ ends[segment.id] }}{% endif %}{% if segment.id in continues %} cont{% endif %}{% if segment.id in captions %} caption{% endif %}{% if segment.kind.value == 'blockquote' %} quote{% endif %}{% if segment.id in spoken %} voiced{% endif %}{% if segment.id in pointed %} points{% endif %}{% if segment.id in unaccented %} accented{% endif %}{% if segment.id in primary_coarse %} coarse{% endif %}{% if segment.id in machine %} machine{% endif %}{% if segment.id in languages %} unread{% endif %}"{% if at %} id="{{ at }}" data-ref="{{ segment.ref }}"{% endif %} data-id="{{ segment.id }}"{% if segment.id in languages %} data-lang="{{ tongue }}"{% endif %} tabindex="-1">
+    {#- An article's picture, over its caption and inside its row, so a page that shows
+        the caption shows the picture and a page that hides it hides both. Carried in the
+        page; never fetched (design.md §12, 2026-11-04). -#}
+    {% if segment.id in pictures %}{% set picture = pictures[segment.id] %}<figure class="figure"><img src="{{ picture.src }}" width="{{ picture.width }}" height="{{ picture.height }}" alt="{{ picture.alt }}"></figure>{% endif %}
     {% if segment.id in switches %}<span class="language" lang="en">{{ switches[segment.id] }}</span>{% endif %}
     {% if at %}<a class="verse-number{% if letters %} letter{% endif %}" href="#{{ at }}" aria-label="{{ segment.ref }}" title="{{ segment.ref }}">{{ numbers.get(segment.id, at.split(':')[1]) }}</a>{% endif %}
     {% if segment.id in spoken %}{{ hear(segment.id) }}{% endif %}

@@ -404,6 +404,12 @@ class Build:
         if correct_module.replay_document(path.parent, fresh):
             fresh.content_hash = fresh.recompute_hash()
         fresh.write(path)
+        # An article's pictures, kept beside the reader now, so no page ever fetches one
+        # (design.md §12, "A text keeps the shape its edition gives it", 2026-11-04).
+        if any(block.picture for block in fresh.blocks):
+            from . import figures
+
+            figures.keep(fresh, path.parent)
         return fresh
 
     def segment(self, document: Document) -> SegmentedDocument:

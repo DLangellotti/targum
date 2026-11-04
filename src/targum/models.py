@@ -231,6 +231,17 @@ class Note(BaseModel):
     text: str
 
 
+class Picture(BaseModel):
+    """A picture an article set beside a paragraph, on the block of its caption: where it
+    was, its size, and what it said in place of itself. Kept as a file beside the reader
+    when the text is built (`figures.keep`), and never fetched by a page."""
+
+    src: str
+    width: int = 0
+    height: int = 0
+    alt: str = ""
+
+
 class Block(Artifact):
     """One structural unit of the source: a paragraph, a heading, a line of verse."""
 
@@ -262,6 +273,10 @@ class Block(Artifact):
     #: block written before 2026-11-04 and every block of every source but Sefaria.
     marks: list[Mark] | None = None
     notes: list[Note] | None = None
+    #: The picture this block is the caption of, where an article set one beside its
+    #: text (2026-11-04). The caption's words are the block's text, read and translated
+    #: like any other; the picture is beside them, outside `body()`.
+    picture: Picture | None = None
 
 
 class Document(Artifact):

@@ -390,8 +390,10 @@ JOIN_BAR = (
 
 #: Files a reader's build keeps that are never copied: the page itself, which is rendered
 #: again for the shelf; the shelf row's remembered answer, worked out again; a deck of the
-#: reader's own words; and anything a door marks a folder with.
-NOT_COPIED = frozenset({"reader", "shelf.json", "deck.apkg"})
+#: reader's own words; and anything a door marks a folder with. And an article's pictures
+#: (2026-11-04): the text's licence is what cleared the bar, and a picture on the page has
+#: one of its own, so the shelf's copy keeps the caption and leaves the picture behind.
+NOT_COPIED = frozenset({"reader", "shelf.json", "deck.apkg", "figures"})
 
 
 def _flat(licence: str) -> str:
