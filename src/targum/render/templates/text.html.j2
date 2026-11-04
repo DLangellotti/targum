@@ -2,7 +2,7 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-{{ styles('tokens.css', 'public-page.css', 'public.css') }}
+{{ styles('tokens.css', 'public-page.css', 'public.css', 'front-bar.css') }}
 {{ hebrew_face() }}
 {#- The chrome's face, as the front door carries it, so the public pages speak in one
     face (#477, polish 5). Upright only: nothing here is set in italic. -#}
@@ -12,23 +12,12 @@
 <body class="public">
 {#- A page about a text, not a page about targum. Somebody arriving here searched for
     the book, not for a reading tool, and the first thing they should meet is the book. -#}
+{#- The front door's bar (beta review PUB-06, 2026-11-03): every shelf row and search
+    result lands here, and the page had only a masthead whose Sign in refused anyone not
+    invited. The bar names targum's places, the page's language, Sign in and the waitlist. -#}
+{%- set q = '?lang=' ~ asked if asked|default('') else '' %}
+{% with bar_class = 'front-bar', home = '/' ~ q, here = here, join = '/' ~ q ~ '#join', signin = door %}{% include '_front_bar.html.j2' %}{% endwith %}
 <main class="sheet">
-  {#- One row on the sheet's own grid: the name at one corner, the door and the light
-      switch at the other. The corner used to be pinned to the window's edge, which on a
-      wide screen is nowhere near the page. -#}
-  <div class="masthead">
-    <a class="brand" href="/" aria-label="targum">
-      <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-        <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-        <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-      </svg>
-      <span>targum</span>
-    </a>
-    <div class="corner">
-      <a class="enter" href="{{ door }}">{{ t("text.page.sign-in", "Sign in") }}</a>
-    </div>
-  </div>
-
   <p class="where"><a href="/library">{{ shelf_name }}</a></p>
   <h1 lang="{{ entry.language }}" dir="{{ direction }}"><bdi>{{ entry.title }}</bdi></h1>
   {#- The name and the blurb in whatever language this page speaks, with `lang` saying so:
@@ -117,10 +106,21 @@
 
   <p class="facts">{{ t("text.page.facts", "{words} words, about {minutes} minutes of reading.", words=entry.words | int, minutes=minutes) }}</p>
 
+  {%- if front_door_is_open() %}
+  {#- While the front door takes an address, its press is the waitlist, keeping the text
+      (beta review PUB-06, 2026-11-03): "Read it" went to a sign-in that refuses anybody
+      not invited. Somebody invited still has the way in, quietly, under it. -#}
+  <p class="door">
+    <a class="go" href="/{{ q }}#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+    <span class="free">{{ t("shelf.page.free-to-read-once-you-re-in", "Free to read once you’re in.") }}</span>
+  </p>
+  <p class="door-in">{{ t("text.page.invited-already", "Already invited?") }} <a href="{{ door }}">{{ t("text.page.sign-in-to-read-it", "Sign in to read it") }}</a></p>
+  {%- else %}
   <p class="door">
     <a class="go" href="{{ door }}">{{ t("text.page.read-it", "Read it") }}</a>
     <span class="free">{{ t("text.page.someone-has-already-translated-this-one", "Someone has already translated this one.") }}</span>
   </p>
+  {%- endif %}
 </main>
 
 {% set back = shelf_name %}

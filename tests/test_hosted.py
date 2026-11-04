@@ -653,6 +653,69 @@ def test_an_uninvited_address_is_pointed_at_the_waitlist_while_there_is_one(
     assert sent == []
 
 
+def test_the_refusals_join_the_waitlist_is_a_link_in_its_own_language(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beta review PUB-05, 2026-11-03: the refusal's "Join the waitlist" was plain text
+    under the field. The answer names the words to link, as they stand in the sentence in
+    its language, and the front door's form; with the front door shut, neither."""
+    from targum.strings import catalogue
+
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert status == 403 and "join" not in body and "join_link" not in body
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert body["join"] == "/#join" and body["join_link"] in body["error"]
+    russian = catalogue("ru")
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com", "into": "ru"})
+    assert body["error"] == russian["serve.not-open.waitlist"]
+    assert body["join"] == "/?lang=ru#join" and body["join_link"] in body["error"]
+    assert sent == []
+
+
+def test_sign_in_says_new_here_join_the_waitlist_before_an_address_is_typed(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beta review PUB-05 and the beginner's B-02, 2026-11-03: a stranger learned that
+    targum is by invitation only from the refusal after typing. The page says it under the
+    heading while the front door takes an address, and says the link sets up the account
+    of somebody invited."""
+    from html import unescape
+
+    def page_of(path: str) -> str:
+        return unescape(ask(port, path, "targum.page")[1].decode("utf-8"))
+
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    page = page_of("/account/signin")
+    assert "New here?" not in page
+    assert "If you've been invited, the same link sets up your account." in page
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    page = page_of("/account/signin")
+    assert 'New here? <a href="/#join">Join the waitlist</a>' in page
+    page = page_of("/account/signin?lang=ru")
+    assert 'href="/?lang=ru#join"' in page and "Впервые здесь?" in page
+
+
+def test_a_signed_out_page_is_told_where_the_waitlist_is(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beta review RDR-01, 2026-11-03: a signed-out reader offers the waitlist beside Sign
+    in, and only `/account/me` knows whether the front door takes an address."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.delenv("TARGUM_FRONT_DOOR", raising=False)
+    me = json.loads(ask(port, "/account/me", "targum.page")[1])
+    assert me["signedOut"] is True and "join" not in me
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    me = json.loads(ask(port, "/account/me", "targum.page")[1])
+    assert me["signedOut"] is True and me["join"] == "/#join"
+
+
 def test_a_refusal_is_said_in_the_language_of_the_page_it_was_asked_from(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:

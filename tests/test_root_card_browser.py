@@ -273,6 +273,9 @@ def test_a_verb_gains_its_roots_meaning(
     try:
         facts = _facts(page)
         assert "כ־ת־ב · write" in facts and "Binyan" in facts and "Mishkal" not in facts
+        # The binyan says what it usually does, as the mishkal does (beta review ACC-29,
+        # 2026-11-03).
+        assert facts[facts.index("Binyan") + 1] == "פָּעַל · the basic pattern", facts
         _shot(page, f"verb-{width}")
     finally:
         context.close()

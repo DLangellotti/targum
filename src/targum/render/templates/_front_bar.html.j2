@@ -14,6 +14,8 @@
     - `here` — this page's path, for the language links; the landing's is "/".
     - `asked` — a language the visitor chose, carried to sign-in as the landing does.
     - `signed_in` — a reader with an account, who is not asked to join (§6).
+    - `signin` — where Sign in goes, where it is not the plain door: a text's public page
+      carries the text through it (known issues 2.13).
     - `join` — where the waitlist is, `#join` where the page has the form and `/#join`
       where it does not (the public Library, targum-internal#519). -#}
 {%- set home = home|default('') %}
@@ -44,7 +46,7 @@
         {%- if page_language == 'ru' %}<a href="{{ here }}?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
         {%- else %}<b>EN</b><span>/</span><a href="{{ here }}?lang=ru" hreflang="ru">RU</a>{% endif %}
       </p>
-      <a class="signin" href="/account/signin{% if asked %}?lang={{ asked }}{% endif %}">{{ t("landing.page.sign-in", "Sign in") }}</a>
+      <a class="signin" href="{{ signin|default('/account/signin' ~ ('?lang=' ~ asked if asked else '')) }}">{{ t("landing.page.sign-in", "Sign in") }}</a>
       {#- Not to somebody who has already chosen targum (§6; copy audit, 2026-09-28). -#}
       {%- if not signed_in|default(false) %}
       <a class="btn cta small" href="{{ join|default('#join') }}">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>

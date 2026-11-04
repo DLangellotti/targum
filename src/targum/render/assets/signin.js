@@ -108,6 +108,28 @@
     next.hidden = false;
   }
 
+  /* The refusal's "Join the waitlist", as a link (beta review PUB-05, 2026-11-03). The
+     server names the words to wrap, in the sentence's own language, and where the
+     waitlist is; where the words are not found in the line, the link follows it. */
+  function joinLink(line, body) {
+    if (!line || !body || !body.join || !body.join_link) return;
+    var link = document.createElement("a");
+    link.href = body.join;
+    link.className = "join-link";
+    link.textContent = body.join_link;
+    var walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, null);
+    for (var node = walker.nextNode(); node; node = walker.nextNode()) {
+      var at = node.nodeValue.indexOf(body.join_link);
+      if (at < 0) continue;
+      var rest = node.splitText(at);
+      rest.nodeValue = rest.nodeValue.slice(body.join_link.length);
+      rest.parentNode.insertBefore(link, rest);
+      return;
+    }
+    line.appendChild(document.createTextNode(" "));
+    line.appendChild(link);
+  }
+
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var field = form.querySelector('input[type="email"]');
@@ -154,11 +176,12 @@
         // (design.md §12, 2026-10-09).
         if (fault) {
           said.hidden = true;
-          fault.field(field, why);
+          joinLink(fault.field(field, why), answer.body);
           return;
         }
         said.classList.add("bad");
         said.textContent = why;
+        joinLink(said, answer.body);
       })
       .catch(function () {
         window.clearTimeout(slow);

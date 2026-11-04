@@ -146,9 +146,9 @@ def test_a_slow_shelf_is_said_again_after_three_seconds(browser) -> None:
     page.clock.install()
     page.goto(SITE + "/")
     page.clock.run_for(1000)
-    assert page.inner_text("#home-waiting") == "Opening your texts…"
+    assert page.inner_text("#home-waiting") == "Opening your targums…"
     page.clock.run_for(2500)
-    assert page.inner_text("#home-waiting") == "We're still opening your texts."
+    assert page.inner_text("#home-waiting") == "We're still opening your targums."
     context.close()
     assert not thrown, thrown
 
@@ -158,7 +158,7 @@ def test_a_refusal_is_not_an_empty_shelf(browser) -> None:
     context, page, thrown, _, documents = home(browser, {"/readers": 500})
     page.goto(SITE + "/")
     page.wait_for_selector("#nothing:not([hidden])")
-    assert page.inner_text("#nothing-lede") == "We couldn't load your texts."
+    assert page.inner_text("#nothing-lede") == "We couldn't load your targums."
     assert "Everything you've read is still here." in page.inner_text("#nothing-says")
     assert page.is_hidden("#first-home") and page.is_hidden("#page")
     assert page.is_visible("#nothing-again")
@@ -279,8 +279,11 @@ def test_nothing_yet_says_what_will_appear(browser) -> None:
     context, page, thrown, _, _ = home(browser, answers, phone=True)
     page.goto(SITE + "/")
     page.wait_for_selector("#first-home:not([hidden])")
+    # And, once, what a targum is (beta review LIB-H01, 2026-11-03).
     assert page.inner_text("#first-home") == (
-        "Nothing here yet. What you open or upload appears here."
+        "Nothing here yet. What you open or upload appears here.\n"
+        "Each text, video or podcast you open becomes a targum: the original, its "
+        "translation and a card for every word."
     )
     assert page.is_hidden("#shelf-panel") and page.is_visible(".upload-card")
     context.close()

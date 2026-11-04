@@ -301,6 +301,7 @@ body.is-subscribing #welcome-back { display: none; }
   color: var(--ink-soft);
 }
 .first-home[hidden] { display: none; }
+.first-home-what { display: block; margin-block-start: 0.25rem; font-size: 0.9375rem; }
 
 /* --- the shelf, and beside it the next one and the upload ------------------------------- */
 

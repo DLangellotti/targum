@@ -1,0 +1,91 @@
+/* The front door's bar on a page that does not load `landing.css` (beta review PUB-06,
+   2026-11-03): a text's public page, where every shelf row and search result lands. Its
+   one press went to a sign-in that refuses anyone not invited, and it had no way to the
+   front door or the waitlist.
+
+   `_front_bar.html.j2` draws it with `bar_class = 'front-bar'`. The rules are the
+   landing's `.bar`, scoped under `.front-bar` so that nothing here touches the page's
+   own masthead names (`.brand`, `.corner`) and nothing of the landing's comes with it.
+   Sizes are written out because this page has no `--space-*` steps. */
+
+.front-bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 20;
+  /* The public page pads its body; the bar runs to the window's edges. */
+  margin-inline: -1.5rem;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-block-end: 1px solid var(--hairline);
+  font-family: var(--chrome);
+}
+.front-bar .col {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-block-size: 3.5rem;
+  max-inline-size: 64rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+  flex-wrap: nowrap;
+}
+.front-bar a { text-decoration: none; }
+.front-bar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ink);
+  font: 600 1.25rem/1 var(--reading);
+  letter-spacing: -0.01em;
+}
+.front-bar .brand svg { inline-size: 1rem; block-size: auto; }
+.front-bar .places { display: flex; gap: 0.25rem; margin-inline-start: 0.75rem; min-inline-size: 0; }
+.front-bar .places a {
+  color: var(--ink-soft);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.front-bar .places a:hover { background: var(--teal-wash); color: var(--teal); }
+.front-bar .end { margin-inline-start: auto; display: flex; align-items: center; gap: 0.5rem; }
+.front-bar .tongue {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.front-bar .tongue b { font-weight: 600; color: var(--ink); }
+.front-bar .tongue span { color: var(--ink-soft); opacity: 0.5; }
+.front-bar .tongue a { color: var(--ink-soft); }
+.front-bar .tongue a:hover { color: var(--ink); }
+.front-bar .signin { color: var(--ink); font-size: 0.875rem; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.front-bar .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 2rem;
+  padding: 0.25rem 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  font: 600 0.875rem/1 var(--chrome);
+  white-space: nowrap;
+}
+.front-bar .btn.cta { background: var(--ink); color: var(--paper); }
+.front-bar .btn.cta:hover { opacity: 0.9; }
+@media (max-width: 56rem) { .front-bar .places { display: none; } }
+@media (max-width: 30rem) {
+  .front-bar .col { gap: 0.5rem; }
+  .front-bar .end { gap: 0.25rem; }
+  .front-bar .signin { padding-inline: 0.25rem; }
+  .front-bar .tongue b, .front-bar .tongue span { display: none; }
+}
+@media (max-width: 23.25rem) { .front-bar .tongue { display: none; } }
+@media (hover: none) and (pointer: coarse) {
+  .front-bar .btn, .front-bar .signin, .front-bar .tongue a, .front-bar .brand { min-block-size: 44px; }
+  .front-bar .signin, .front-bar .tongue a { min-inline-size: 44px; display: inline-grid; place-items: center; }
+}

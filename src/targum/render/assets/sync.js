@@ -1047,6 +1047,9 @@
     // needed: hosted, or a machine with an account on it. A fresh install with nobody to
     // sign into is never signed out, and works as it did.
     signedOut: false,
+    // Where the waitlist is, for a signed-out page to offer beside Sign in: "" where the
+    // front door takes no address (beta review RDR-01, 2026-11-03).
+    join: "",
 
     /* Which room they read in. On the account rather than in this browser, and for a
        blunt reason: `clearLocal()` below deletes every `targum:*` key on
@@ -1061,6 +1064,8 @@
         .then(function (me) {
           api.who = me && me.signedIn ? me : null;
           api.signedOut = !api.who && !!(me && me.signedOut);
+          // Where the waitlist is, while the front door takes an address (RDR-01).
+          api.join = (api.signedOut && me && typeof me.join === "string" && me.join) || "";
           if (!api.who) return false;
           var was = state();
           // Another person signed in on this browser. Nothing of theirs is mixed in

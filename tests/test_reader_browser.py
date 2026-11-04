@@ -8532,7 +8532,9 @@ def test_the_card_says_the_binyan_its_own_occurrence_is_in(browser, tmp_path: Pa
                     """() => {
                       const terms = [...document.querySelectorAll('#gloss-card .card-facts dt')];
                       const binyan = terms.find((dt) => dt.textContent === 'Binyan');
-                      return binyan ? binyan.nextElementSibling.textContent : null;
+                      // The name alone, without the gloss after it (2026-11-03).
+                      const value = binyan && binyan.nextElementSibling;
+                      return value ? value.querySelector('bdi').textContent : null;
                     }"""
                 )
             )

@@ -141,7 +141,10 @@ def test_a_video_is_said_in_one_sentence_and_nothing_is_spent(
     assert sentence.startswith(
         "That’s a YouTube video, 9 minutes, Hebrew subtitles written by a person."
     ), sentence
-    assert "Ready in" in sentence
+    # No wait is promised (beta review PUB-02, 2026-11-03): the address only joins a
+    # waitlist, and the build comes when the operator lets them in.
+    assert "Ready in" not in sentence
+    assert "we’ll have this ready for you when your turn comes" in html.unescape(page)
     assert "%" not in sentence
     assert "סביח, צעד אחר צעד" in page
     # The waitlist sits right there and carries the link.

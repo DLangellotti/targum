@@ -9502,6 +9502,12 @@ class Handler(BaseHTTPRequestHandler):
                     language=self._public_language(),
                     asked=self._asked(),
                     back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
+                    # "New here? Join the waitlist" up front (beta review PUB-05,
+                    # 2026-11-03), where an address has to have been invited and the
+                    # front door takes one.
+                    join=self._join_address()
+                    if self.require_account and front_door_is_open()
+                    else "",
                 ).encode("utf-8"),
                 HTML,
             )
@@ -9560,7 +9566,7 @@ class Handler(BaseHTTPRequestHandler):
         # it signed out (QA 2026-10-11).
         if route == "/account/me" and self._host_is_ours() and self._person() is None:
             if not self._authorised():
-                return self._json({"signedIn": False, "signedOut": True})
+                return self._json({"signedIn": False, "signedOut": True, **self._join_said()})
         # The address the sign-in form posts to reads like the door, and typed into the bar
         # it met the stale-key page: English only, a brown button and the Terminal of a
         # machine somebody runs themselves (errors QA, targum-internal#468). Where there
@@ -11640,7 +11646,11 @@ class Handler(BaseHTTPRequestHandler):
             # `signedOut` where the account's own routes would refuse this browser, so a
             # page asks none of them on its own (`TargumSync.mayAsk`).
             return self._json(
-                {"signedIn": False, "signedOut": self.require_account or self.store.anyone()}
+                {
+                    "signedIn": False,
+                    "signedOut": self.require_account or self.store.anyone(),
+                    **self._join_said(),
+                }
             )
         answer = {
             "signedIn": True,
@@ -13255,6 +13265,18 @@ class Handler(BaseHTTPRequestHandler):
             )
         return self._say("serve.not-open", "Thanks for asking. targum isn't open yet.")
 
+    def _join_said(self) -> dict[str, str]:
+        """Where the waitlist is, for a signed-out reader's page to offer beside Sign in
+        (beta review RDR-01, 2026-11-03), while the front door takes an address."""
+        return {"join": self._join_address()} if front_door_is_open() else {}
+
+    def _join_address(self, language: str = "") -> str:
+        """The front door's waitlist form, in the language this visitor pressed (or
+        `language`, where the answer is in one), the way the public Library links it
+        (`/?lang=ru#join`)."""
+        asked = language if language and language != "en" else self._asked()
+        return f"/?lang={asked}#join" if asked else "/#join"
+
     @staticmethod
     def _refusal(refused: str) -> dict[str, str]:
         """A rail's refusal as an answer, with what its panel draws beside it where the
@@ -13394,7 +13416,15 @@ class Handler(BaseHTTPRequestHandler):
             # be mailed a link that then refuses it (copy audit, 2026-09-28).
             return self._json({"error": self._closing()}, 403)
         if self.require_account and not self.store.may_join(email):
-            return self._json({"error": self._not_open()}, 403)
+            refused: dict[str, str] = {"error": self._not_open()}
+            if front_door_is_open():
+                # The refusal's "Join the waitlist" is a link (beta review PUB-05,
+                # 2026-11-03): the words it wraps, in the sentence's language, and where
+                # the waitlist is. It was plain text under the field, and a stranger had to
+                # find their own way back to the front door.
+                refused["join"] = self._join_address(self._answering_in)
+                refused["join_link"] = self._say("serve.not-open.join-link", "Join the waitlist")
+            return self._json(refused, 403)
         if self.store.asking_too_often(email):
             return self._json(
                 {
