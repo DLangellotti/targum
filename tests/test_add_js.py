@@ -243,14 +243,15 @@ def test_the_chat_card_says_an_exact_percentage() -> None:
     rounds into a lie."""
     bring = HARNESS.parents[2] / "src/targum/render/assets/bring.js"
     source = bring.read_text(encoding="utf-8")
-    start = source.index("  function knownLine(share) {")
+    start = source.index("  function knownLine(share, estimated) {")
     end = source.index("\n  }\n", start) + 4
     stubs = "var t = function (k, e, fill) { return e.replace('{n}', fill ? fill.n : '{n}'); };"
     shares = [0.72, 0.123, 1, 0, 0.996, 0.004, None]
     script = (
         stubs
         + source[start:end]
-        + f"console.log(JSON.stringify({json.dumps(shares)}.map(knownLine)));"
+        + f"console.log(JSON.stringify({json.dumps(shares)}.map((s) => knownLine(s))"
+        + ".concat([knownLine(0.934, true)])));"
     )
     done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
     assert done.returncode == 0, done.stderr
@@ -262,6 +263,8 @@ def test_the_chat_card_says_an_exact_percentage() -> None:
         "You know 99% of the words here.",
         "You know 1% of the words here.",
         "",
+        # Our estimate says so (design.md §12, 2026-11-04).
+        "You know about 93% of the words here (our estimate).",
     ]
 
 

@@ -434,6 +434,7 @@
     ladderCard.hidden = true;
     step.hidden = true;
     step.textContent = "";
+    step.className = "level-step";
     knownLine.hidden = true;
     knownLine.textContent = "";
     go.hidden = true;
@@ -466,6 +467,14 @@
       // The card is the level and nothing else (design.md §12, "Your level, v3").
       drawMark(level);
       if (level.next) drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name);
+      // A level the words check gave, until the reader's marks reach a rung, says where
+      // it came from (design.md §12, "Your level comes from your words check until your
+      // marks reach one", 2026-11-04).
+      if (level.from === "check") {
+        step.textContent = t("progress.level.from-check", "From your words check");
+        step.className = "level-step level-from";
+        step.hidden = false;
+      }
       go.textContent = t("progress.level.go-now", "Show texts you can read now");
       go.href = keyed("/library#see/now");
       go.hidden = false;
@@ -1650,16 +1659,28 @@
       return;
     }
     // The title alone and how much of it is known, as the board has it.
+    // Our estimate where it is the text's figure, said as home's card says it, the label
+    // quiet beside the number (design.md §12, "A text's figure is our estimate until your
+    // marks settle it", 2026-11-04).
     texts.forEach(function (one) {
-      row(
+      var item = row(
         level,
         one.title,
         code,
         "",
-        t("progress.next.known", "{n}% known", { n: one.known }),
+        one.estimated
+          ? t("known.estimate.about", "About {n}%", { n: one.known }) + " "
+          : t("progress.next.known", "{n}% known", { n: one.known }),
         keyed("/library#" + encodeURIComponent(one.id)),
         true
       );
+      if (one.estimated) {
+        var end = item.querySelector(".next-end");
+        if (end) {
+          end.className += " is-estimate";
+          end.appendChild(el("span", "estimate-ours", t("known.estimate.ours", "(our estimate)")));
+        }
+      }
     });
     if (!texts.length && answered) {
       levelEmpty.textContent =

@@ -928,7 +928,11 @@
       var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
       if (share < 1 && percent >= 100) percent = 99;
       if (share > 0 && percent <= 0) percent = 1;
-      facts.push(t("add.found.share", "You know {n}% of the words", { n: percent }));
+      facts.push(
+        row.known_estimated
+          ? t("add.found.estimate", "You know about {n}% of the words (our estimate)", { n: percent })
+          : t("add.found.share", "You know {n}% of the words", { n: percent })
+      );
     }
     if (facts.length) {
       var said = document.createElement("p");
@@ -1735,7 +1739,7 @@
 
     // How much of it this reader already has, as an exact percentage and never a level:
     // the same sentence the quote card says (targum-internal#244, #560).
-    var known = bringing && bringing.knownLine ? bringing.knownLine(said.known_share) : "";
+    var known = bringing && bringing.knownLine ? bringing.knownLine(said.known_share, said.known_estimated) : "";
     if (known) {
       var mine = document.createElement("p");
       mine.className = "found-known";
@@ -1878,7 +1882,7 @@
     if (job.language) title.setAttribute("lang", job.language);
     title.textContent = job.title || "";
     head.appendChild(title);
-    var known = !knownSaid && bringing && bringing.knownLine ? bringing.knownLine(job.known_share) : "";
+    var known = !knownSaid && bringing && bringing.knownLine ? bringing.knownLine(job.known_share, job.known_estimated) : "";
     if (known) {
       var mine = document.createElement("p");
       mine.className = "quote-known";

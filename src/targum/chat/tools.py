@@ -423,6 +423,7 @@ def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
     from ..ingest import post as post_module
 
     cache: dict[str, dict[str, int]] = {}
+    estimates: dict[str, Any] = {}
     whose = _whose(ctx.store, ctx.person_id)
     for row in rows:
         language = str(row.get("language") or "")
@@ -430,11 +431,15 @@ def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
         if not language or not name:
             continue
         folder = home / name
+        if language not in estimates:
+            estimates[language] = _estimate(ctx, language)
+        known = estimates[language]
 
-        def count(folder: Path = folder, language: str = language) -> Any:
+        def count(folder: Path = folder, language: str = language, known: Any = known) -> Any:
             # Running words, as the Library and Home count them (design.md §12, "The
-            # Library's bands count running words", 2026-11-01).
-            return coverage_module.running_against(folder, _marked(ctx, language, cache))
+            # Library's bands count running words", 2026-11-01), and our estimate beside
+            # them, as `Handler._measure` sends it (2026-11-04).
+            return coverage_module.running_against(folder, _marked(ctx, language, cache), known)
 
         if whose is None:
             measured = count()
@@ -449,9 +454,25 @@ def _measure(ctx: Ctx, home: Path, rows: list[dict[str, Any]]) -> None:
                     ]
                 )
             )
-            measured = KEPT.get(("measure-running", *whose, language, str(folder), files), count)
+            theta = None if known is None else round(known.theta, 4)
+            measured = KEPT.get(
+                ("measure-running", *whose, language, theta, str(folder), files), count
+            )
         if measured is not None:
             row.update(measured.state())
+
+
+def _estimate(ctx: Ctx, language: str) -> Any:
+    """This reader's `estimate.Estimate` in a language, as the chooser fits it: None for
+    nobody, or a store that keeps none of it."""
+    if ctx.store is None or ctx.person_id is None:
+        return None
+    code = (language or "he").split("-")[0].lower()
+    level = ctx.level if (ctx.level.language or "he").split("-")[0].lower() == code else None
+    try:
+        return estimate_module.for_reader(ctx.store, ctx.person_id, code, level)
+    except AttributeError:
+        return None
 
 
 def _sourced(home: Path, rows: list[dict[str, Any]]) -> None:
@@ -546,6 +567,8 @@ def _entry_row(
     if built is not None and "known" in built:
         row["known_share"] = built["known"]
         row["words_not_met"] = built["fresh"]
+        if "estimated" in built:
+            row["estimated"] = built["estimated"]
     # Which older Hebrew, said, for a text in one (David, 2026-10-25; design.md §12, "An
     # older Hebrew says which it is"): a host passes the label on, and the card draws it in
     # the page's language from `era_of`. Left off every other row, which reads as before.
@@ -1489,6 +1512,13 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if expected is not None:
             row["expected_share"] = round(expected, 4)
         chosen_on = share if expected is None else expected
+        # The one figure every page prints for this text (design.md §12, "A text's figure
+        # is our estimate until your marks settle it", 2026-11-04): what the reader marked
+        # where that settles it, else our estimate, labelled. A built copy measured
+        # without the index carries its own (`_measure`).
+        figure, estimated = estimate_module.shown(share, expected)
+        if expected is None and isinstance(row.get("estimated"), (int, float)):
+            figure, estimated = float(row["estimated"]), True
         medium = choose.medium_of(entry.kind.value, source=entry.source)
         row["fit"] = choose.fit(chosen_on, medium)
         learn, interest = taught.of(index, entry.id, running is not None and row["fit"])
@@ -1497,14 +1527,21 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         about = learning_module.text_topics(index, entry.id, taught.teach.lexicon)
         if about:
             row["about"] = sorted(about, key=lambda code: (-about[code], code))
-        if share is not None and (share > 0 or not entry.difficulty):
-            row["known_line"] = level_module.known_line(share)
+        row.pop("estimated", None)
+        if figure is not None and estimated and figure > 0:
+            percent = level_module.known_percent(figure) or 0
+            row["estimated"] = True
+            row["known_line"] = level_module.estimated_line(figure)
+            row["because"] = row["known_line"]
+            row["reason"] = {"key": "suggest.estimated", "share": percent}
+        elif figure is not None and (figure > 0 or not entry.difficulty):
+            row["known_line"] = level_module.known_line(figure)
             # Said the way the card says it, because a host repeats `because` (prompts.py).
             # `reason` keeps the number for the page's own line, which `because_in` draws.
-            row["because"] = row["known_line"] or f"You know {round(share * 100)}% of its words."
+            row["because"] = row["known_line"] or f"You know {round(figure * 100)}% of its words."
             row["reason"] = {
                 "key": "suggest.known",
-                "share": level_module.known_percent(share) or 0,
+                "share": level_module.known_percent(figure) or 0,
             }
         elif entry.difficulty:
             # Which Hebrew only for Hebrew: every other language's catalogue rows carry
@@ -1813,6 +1850,13 @@ def because_in(row: dict[str, Any], language: str) -> str:
     if key == "suggest.known":
         return said_in(
             language, "suggest.known", "You know {share}% of its words.", share=reason["share"]
+        )
+    if key == "suggest.estimated":
+        return said_in(
+            language,
+            "suggest.estimated",
+            "You know about {share}% of its words (our estimate).",
+            share=reason["share"],
         )
     if key == "suggest.looked-up":
         said = said_in(
@@ -2776,15 +2820,20 @@ SEARCH_UNAVAILABLE_FROM = {"city": "Tel Aviv", "country": "IL", "timezone": "Asi
 
 
 def _known_forms(ctx: Ctx, language: str = "he") -> frozenset[str]:
-    """This reader's known forms in `language` and its commonest words, kept until the
-    record changes (2026-10-06). Hebrew unless a Russian publisher's item asks for
-    Russian: each item is measured against the words of the language it is written in.
+    """This reader's known forms in `language`, kept until the record changes
+    (2026-10-06). Hebrew unless a Russian publisher's item asks for Russian: each item is
+    measured against the words of the language it is written in.
 
     `search_sources` measured every one of its ~250 feed items with `_known_share`, and
     each measurement read the whole ledger again and took the points off every form in
     it: 3.2 s of a search on the box, 94% of it here, for a set that is the same on every
     item and every call until the reader marks a word. Kept under `Store.ledger_stamp`
     like the rest of `KEPT`, so a word marked known is in the next call's set.
+
+    The commonest words are no longer in it (David, 2026-11-03; design.md §12, "A text's
+    figure is our estimate until your marks settle it", 2026-11-04): a word the reader
+    has not marked is counted as the chance they know it, the chooser's own estimate
+    (`_known_figure`), rather than as known for everybody.
     """
     assert ctx.store is not None and ctx.person is not None
     store, person_id = ctx.store, ctx.person.id
@@ -2792,9 +2841,7 @@ def _known_forms(ctx: Ctx, language: str = "he") -> frozenset[str]:
     code = (language or "he").split("-")[0].lower()
 
     def work() -> frozenset[str]:
-        return frozenset(store.known_forms(person_id, code)) | frozenset(
-            hebrew_module.common_words(language=code)
-        )
+        return frozenset(store.known_forms(person_id, code))
 
     whose = _whose(store, person_id)
     if whose is None:
@@ -2803,17 +2850,41 @@ def _known_forms(ctx: Ctx, language: str = "he") -> frozenset[str]:
     return forms
 
 
+def _known_figure(
+    ctx: Ctx | None,
+    text: str,
+    forms: frozenset[str] | None = None,
+    language: str = "he",
+    known: Any = None,
+) -> tuple[float | None, bool]:
+    """How much of a text nobody has built this reader knows, as every page prints it
+    (`estimate.shown`): the share of its tokens they marked known where that settles it,
+    else our estimate, which counts each other token as the chance they know it, the
+    chooser's own (`level.expected_share`; design.md §12, "A text's figure is our
+    estimate until your marks settle it", 2026-11-04). The second value says which.
+    `(None, False)` where there is nobody to measure for, or the text is too short.
+    `forms` is `_known_forms(ctx, language)` and `known` the reader's `estimate.Estimate`
+    in that language, passed by a caller that measures many texts in one call."""
+    if ctx is None or ctx.store is None or ctx.person is None:
+        return None, False
+    if forms is None:
+        forms = _known_forms(ctx, language)
+    if known is None:
+        known = _estimate(ctx, language)
+    marked = level_module.known_share(text, forms, language)
+    expected = (
+        level_module.expected_share(text, forms, known.chance, language)
+        if known is not None and known.ranked
+        else None
+    )
+    return estimate_module.shown(marked, expected)
+
+
 def _known_share(
     ctx: Ctx | None, text: str, forms: frozenset[str] | None = None, language: str = "he"
 ) -> float | None:
-    """`level.known_share` against this reader's known forms and the commonest words;
-    None where there is nobody to measure for. `forms` is `_known_forms(ctx, language)`,
-    passed by a caller that measures many texts in one call."""
-    if ctx is None or ctx.store is None or ctx.person is None:
-        return None
-    if forms is None:
-        forms = _known_forms(ctx, language)
-    return level_module.known_share(text, forms, language)
+    """`_known_figure`'s share alone."""
+    return _known_figure(ctx, text, forms, language)[0]
 
 
 def _russian_share(text: str) -> float:
@@ -3214,7 +3285,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         advice.append("Very little text was found on the page.")
     # How much of it this reader already has, cheaply, before it is quoted
     # (targum-internal#244): the number for the model, the words for the reader.
-    known = _known_share(ctx, body, language=written) if share >= 0.5 else None
+    known, estimated = _known_figure(ctx, body, language=written) if share >= 0.5 else (None, False)
     shares: dict[str, Any] = (
         {"language": "ru", "russian_share": round(share, 2)}
         if written == "ru"
@@ -3227,7 +3298,11 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "minutes": max(1, round(words / 130)),
         **shares,
         "known_share": level_module.page_share(known),
-        "known_line": level_module.known_line(known),
+        # Whether known_share is our estimate: say it as one (design.md §12, 2026-11-04).
+        "known_estimated": estimated,
+        "known_line": (
+            level_module.estimated_line(known) if estimated else level_module.known_line(known)
+        ),
         "advice": advice,
         "quote_with": url,
         **_licence_row(""),
@@ -3529,11 +3604,15 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # Read once a language for every item rather than once an item (2026-10-06): see
     # `_known_forms`.
     forms_by_language: dict[str, frozenset[str]] = {}
+    estimates: dict[str, Any] = {}
     for publisher in publishers:
         written = publisher.language.split("-")[0].lower() or "he"
         if measuring and written not in forms_by_language:
             forms_by_language[written] = _known_forms(ctx, written)
+            estimates[written] = _estimate(ctx, written)
         forms = forms_by_language.get(written)
+        estimate_here = estimates.get(written)
+        theta = None if estimate_here is None else round(estimate_here.theta, 4)
         if publisher.feed not in pulled_by_feed:
             late.append(publisher.key)
             continue
@@ -3559,11 +3638,12 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             # hook itself, so the same day's items are not measured again on every search.
             hook = f"{item.title}\n{item.summary}"
             if whose is None:
-                known = _known_share(ctx, hook, forms, written)
+                known, estimated = _known_figure(ctx, hook, forms, written, estimate_here)
             else:
                 digest = hashlib.sha256(hook.encode("utf-8")).hexdigest()
-                known = FEED_KNOWN.get(
-                    (*whose, written, digest), partial(_known_share, ctx, hook, forms, written)
+                known, estimated = FEED_KNOWN.get(
+                    (*whose, written, theta, digest),
+                    partial(_known_figure, ctx, hook, forms, written, estimate_here),
                 )
             row: dict[str, Any] = {
                 "title": item.title,
@@ -3576,6 +3656,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "has_transcript": bool(item.transcript),
                 "licence": publisher.licence,
                 "known_share": level_module.page_share(known),
+                "known_estimated": estimated,
             }
             if topics:
                 row["topics"] = list(topics)

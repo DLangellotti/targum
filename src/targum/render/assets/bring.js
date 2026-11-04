@@ -32,12 +32,16 @@
   // How much of a text the reader already has, said in their language the way
   // `level.known_line` says it in English: an exact percentage, never a count in ten
   // (David, 2026-10-29, targum-internal#560). "" where the share was not measured.
-  function knownLine(share) {
+  // `estimated` where the figure is our estimate rather than what the reader marked, as
+  // `level.estimated_line` says it (design.md §12, "A text's figure is our estimate until
+  // your marks settle it", 2026-11-04).
+  function knownLine(share, estimated) {
     if (share === null || share === undefined) return "";
     var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
     // Never rounded into a lie, as `level.known_percent` keeps it.
     if (share < 1 && percent >= 100) percent = 99;
     if (share > 0 && percent <= 0) percent = 1;
+    if (estimated) return t("bring.known.estimate", "You know about {n}% of the words here (our estimate).", { n: percent });
     return t("bring.known.share", "You know {n}% of the words here.", { n: percent });
   }
 
@@ -503,7 +507,7 @@
       known.className = "quote-known";
       var strings = window.TargumStrings;
       var foreign = strings && strings.language && strings.language !== "en";
-      known.textContent = (foreign && knownLine(job.known_share)) || job.known_line;
+      known.textContent = (foreign && knownLine(job.known_share, job.known_estimated)) || job.known_line;
       card.appendChild(known);
     }
     // A silent text can be read aloud once it is built (targum-internal#246). One line

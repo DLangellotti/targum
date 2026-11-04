@@ -625,6 +625,8 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 .rc-what { display: flex; flex-direction: column; gap: 0.3rem; min-inline-size: 0; flex: 1 1 auto; }
 .rc-what .home-card-title { margin: 0 0 0.15rem; overflow-wrap: anywhere; }
 .rc-known { margin: 0; font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+/* Our estimate's label, quiet beside the number it qualifies (§12, 2026-11-04). */
+.rc-known .estimate-ours { font-size: 0.8125rem; font-weight: 400; color: var(--ink-soft); }
 .rc-what .home-card-facts { margin: 0; }
 .rc-credits { margin: 0; font-size: 0.875rem; color: var(--ink); }
 /* Where it comes from (§12, 2026-11-02): the outlet is the link, the day beside it. */

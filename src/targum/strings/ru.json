@@ -4964,5 +4964,13 @@
   "landing.binyan.pual": "пуаль",
   "landing.binyan.hifil": "хифъиль",
   "landing.binyan.hufal": "хуфъаль",
-  "landing.binyan.hitpael": "хитпаэль"
+  "landing.binyan.hitpael": "хитпаэль",
+  "known.estimate.about": "Около {n}%",
+  "known.estimate.ours": "(наша оценка)",
+  "home.card.known-estimate": "Вы знаете около {share}% всего текста (наша оценка)",
+  "library.you-know-estimate": "вы знаете около {share}% его слов, по нашей оценке",
+  "bring.known.estimate": "Вы знаете здесь около {n}% слов (наша оценка).",
+  "add.found.estimate": "Вы знаете около {n}% слов (наша оценка)",
+  "suggest.estimated": "Вы знаете около {share}% его слов (наша оценка).",
+  "progress.level.from-check": "По проверке слов"
 }

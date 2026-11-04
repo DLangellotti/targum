@@ -209,27 +209,46 @@ def shelf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     return ctx, entries, lemmas
 
 
-def test_the_chooser_goes_by_the_estimate_and_the_card_by_the_marks(shelf: Any) -> None:
+def test_the_chooser_goes_by_the_estimate_and_the_card_says_it_labelled(shelf: Any) -> None:
+    """The card says the figure the text was chosen on, as ours (design.md §12, "A text's
+    figure is our estimate until your marks settle it", 2026-11-04): it said "You know 80%"
+    under a pick chosen at 95%."""
     ctx, _, _ = shelf
     got = tools.suggest_next(ctx, {"limit": 2})["suggestions"]
     assert [row["id"] for row in got] == ["common-rest", "rare-rest"], (
         "the same marks, but its unmarked words are ones a reader very likely knows"
     )
     top = got[0]
-    assert top["running_share"] == 0.8, "the page still says what was marked"
-    assert top["because"] == "You know 80% of the words here."
+    assert top["running_share"] == 0.8, "the marked share is still carried"
     assert top["expected_share"] > 0.9 and top["fit"] == "band"
+    percent = round(top["expected_share"] * 100)
+    assert top["because"] == f"You know about {percent}% of the words here (our estimate)."
+    assert top["reason"] == {"key": "suggest.estimated", "share": percent}
+    assert top["estimated"] is True
     assert got[1]["expected_share"] < 0.9 and got[1]["fit"] == "under"
 
 
-def test_progress_chooses_on_the_estimate_and_says_the_marked_share(shelf: Any) -> None:
+def test_progress_chooses_on_the_estimate_and_says_it_labelled(shelf: Any) -> None:
     ctx, entries, lemmas = shelf
     index = coverage.read_index(lemmas)
     marked = ctx.store.marked(ctx.person, "he")
     chances = est.for_reader(ctx.store, ctx.person_id, "he").chances(index)
     assert touchstones.at_level(entries, index, marked, "he") == [], "marks alone: none fits"
     listed = touchstones.at_level(entries, index, marked, "he", chances=chances)
-    assert [(row["id"], row["known"]) for row in listed] == [("common-rest", 80)]
+    assert [row["id"] for row in listed] == ["common-rest"]
+    assert listed[0]["known"] >= 90 and listed[0]["estimated"] is True
+
+
+# -- the one figure a page prints (design.md §12, 2026-11-04) -----------------------------
+
+
+def test_the_marked_share_is_shown_where_the_marks_settle_the_text() -> None:
+    assert est.shown(None, None) == (None, False)
+    assert est.shown(0.4, None) == (0.4, False), "nothing estimated: what was marked"
+    assert est.shown(0.07, 0.93) == (0.93, True), "the beta review's card"
+    assert est.shown(0.931, 0.934) == (0.931, False), "the same printed point: the marks"
+    assert est.shown(0.5, 0.45) == (0.5, False), "an estimate is never under the marks"
+    assert est.shown(None, 0.91) == (0.91, True), "nothing marked: ours"
 
 
 # -- a built text in running words -------------------------------------------------------

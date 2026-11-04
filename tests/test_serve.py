@@ -829,6 +829,50 @@ def test_the_words_check_keeps_the_ticks_and_never_the_list(
     assert everything["words"] == [], "a tick never puts a word on the list"
 
 
+def test_progress_shows_the_words_check_s_level_until_the_marks_reach_one(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """Beta review F-05 (2026-11-03): after "I read the news with help" and a strong
+    words check, Your Progress said "Start with beginner texts. 312 words to א׳". The
+    level is the check's now, labelled, with no bar and no Start card beside it, until the
+    reader's marks reach a rung (design.md §12, "Your level comes from your words check
+    until your marks reach one", 2026-11-04)."""
+    pytest.importorskip("wordfreq")
+    from targum import check
+    from targum import estimate as estimate_module
+    from targum.annotate import frequency
+
+    if not frequency.ranks("he"):
+        pytest.skip("wordfreq has no Hebrew list here")
+    estimate_module.forget()
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    status, before, _ = call(port, "GET", f"/account/story?k={token}&language=he", cookie=cookie)
+    assert status == 200 and before["level"] is None, "no check, no marks: no level"
+    # "I read the news with help" on the level screen: said, and never printed alone.
+    call(port, "POST", f"/account/level?k={token}", {"level": "gimel"}, cookie=cookie)
+    status, said, _ = call(port, "GET", f"/account/story?k={token}&language=he", cookie=cookie)
+    assert said["level"] is None, "the rung only said is never the page's level"
+
+    # As the review's reader answered: 17 of round one's 18 real words, most of round
+    # two's, and no made-up word.
+    first, _ = check.first_round()
+    ticked = first[:-1]
+    second, _ = check.second_round(ticked)
+    ticked += second[:-3]
+    body = {"version": check.VERSION, "ticked": ticked}
+    status, answer, _ = call(port, "POST", f"/account/check?k={token}", body, cookie=cookie)
+    assert status == 200
+    status, story, _ = call(port, "GET", f"/account/story?k={token}&language=he", cookie=cookie)
+    assert status == 200
+    level = story["level"]
+    assert level is not None and level["from"] == "check", level
+    assert level["name"].replace(" ", "-") == answer["rung"], "the rung the arrival was told"
+    assert level["name"] not in ("aleph", "aleph plus"), "a strong check is past the start"
+    assert level["toGo"] is None and level["toward"] is None, "no bar: marks reach no rung"
+    assert story["first"] is None, "no Start card beside it"
+
+
 def test_forgetting_somebody_takes_every_row_that_names_them(tmp_path: Path) -> None:
     """Asked of the schema rather than of a list: every table with a `person` column is
     empty of them once the grace period is over.
@@ -4358,11 +4402,43 @@ def test_upload_says_only_what_the_reader_marked_known() -> None:
         def known_forms(self, person_id: int, language: str) -> set[str]:
             return set(self.forms)
 
+    # A store that keeps no estimate: marks only, as before.
     nothing = SimpleNamespace(store=Store(set()))
-    assert serve_module.Library._known_share(nothing, job, document) is None  # type: ignore[arg-type]
+    assert serve_module.Library._known_share(nothing, job, document) == (None, False)  # type: ignore[arg-type]
     one = SimpleNamespace(store=Store({"ספר"}))
-    share = serve_module.Library._known_share(one, job, document)  # type: ignore[arg-type]
+    share, estimated = serve_module.Library._known_share(one, job, document)  # type: ignore[arg-type]
     assert share == pytest.approx(1 / 6), "של, את, הוא, גם and זה are not known for being common"
+    assert estimated is False
+
+
+def test_upload_says_our_estimate_labelled_where_the_marks_do_not_settle_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """design.md §12, "A text's figure is our estimate until your marks settle it"
+    (2026-11-04): Upload says the chooser's estimate, labelled, so the same text says one
+    figure on Upload and on home's card."""
+    from types import SimpleNamespace
+
+    from targum import serve as serve_module
+    from targum.serve import Job
+
+    text = " ".join(["של", "את", "הוא", "גם", "זה", "ספר"] * 10)
+    document = SimpleNamespace(language="he", blocks=[SimpleNamespace(text=text)])
+    job = Job(id="j", source="x", owner=1)
+    sure = SimpleNamespace(ranked=True, chance=lambda form: 0.9)
+    monkeypatch.setattr(serve_module, "reader_estimate", lambda store, who, language: sure)
+
+    class Store:
+        def known_forms(self, person_id: int, language: str) -> set[str]:
+            return {"ספר"}
+
+    lib = SimpleNamespace(store=Store())
+    share, estimated = serve_module.Library._known_share(lib, job, document)  # type: ignore[arg-type]
+    assert estimated is True and share == pytest.approx(1 / 6 + 5 / 6 * 0.9)
+    job.known_share, job.known_estimated = share, estimated
+    said = job.state()
+    assert said["known_estimated"] is True
+    assert said["known_line"] == "You know about 92% of the words here (our estimate)."
 
 
 def test_a_pasted_link_to_a_text_the_library_has_built_opens_it_free(
