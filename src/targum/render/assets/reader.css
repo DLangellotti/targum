@@ -486,6 +486,13 @@ body.marking .src .cite .w[data-status] { background: none; box-shadow: none; }
 }
 .tr .tr-note { display: block; }
 .tr .tr-note sup { font-size: 0.6875rem; line-height: 0; color: var(--teal); }
+/* An article's picture over its caption, the caption's line a size down and soft, its
+   English beside it as ever. */
+.pair > .figure { grid-column: 1 / -1; margin: 0.2rem 0 0.45rem; max-width: var(--measure); }
+.pair > .figure img { display: block; width: 100%; height: auto; border-radius: 4px; }
+#reader .pair.caption > .src { font-size: 1em; color: var(--ink-soft); }
+#reader .pair.caption { margin-block-end: 0; }
+#reader .pair.caption + .pair:not(.caption) { margin-block-start: 0.9rem; }
 /* A commentary's catchword, bold, as every printing sets it. */
 .cmp-text .catch, .tr.commented .catch { font-weight: 700; color: var(--ink); }
 .pair:target { background: var(--paper-raised); }

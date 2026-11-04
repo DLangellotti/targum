@@ -19,7 +19,8 @@ from typing import Any
 from urllib.parse import urljoin, urlparse
 
 from ..errors import TargumError, Unreachable
-from ..models import BlockKind, Document
+from ..ids import block_id
+from ..models import BlockKind, Document, Picture
 from .base import (
     Paragraph,
     blocks_from_paragraphs,
@@ -1013,6 +1014,134 @@ def article_paragraphs(html: str) -> list[Paragraph]:
     return paragraphs
 
 
+#: A dateline as a newspaper prints it under its headline: "30 במאי 2008", "4 November
+#: 2026", "November 4, 2026", "4 ноября 2026". The whole paragraph and nothing more.
+_DATELINE = re.compile(
+    r"^(?:(?:יום )?[\u05d0-\u05ea׳']+,? )?\d{1,2} ב?[\u05d0-\u05ea]+ \d{4}$"
+    r"|^(?:[A-Z][a-z]+,? )?\d{1,2} [A-Z][a-z]+ \d{4}$"
+    r"|^(?:[A-Z][a-z]+,? )?[A-Z][a-z]+ \d{1,2}, \d{4}$"
+    r"|^\d{1,2} [а-яё]+ \d{4}(?: г\.?)?$"
+)
+#: The most pictures one article keeps, and the narrowest it keeps: an icon or a site's
+#: own mark is not a picture of the story.
+MOST_FIGURES = 8
+NARROWEST_FIGURE = 160
+
+
+_DASHES = (" – ", " — ", " | ", " - ", " · ")
+
+
+def without_site(title: str | None, site: str | None, headline: str | None = None) -> str | None:
+    """A page's title without the site's name after it: "… – ויקיחדשות" is the tab's
+    label for the article, not part of its headline (2026-11-04). The site is the one
+    the page names, or, where it names none, whatever follows its own headline."""
+    if not title:
+        return title
+    for dash in _DASHES:
+        if site and title.endswith(dash + site) and len(title) > len(dash + site):
+            return title[: -len(dash + site)].strip()
+        if headline and title.startswith(headline + dash) and len(title) - len(headline) <= 40:
+            return headline
+    return title
+
+
+def with_dateline(paragraphs: list[Paragraph]) -> list[Paragraph]:
+    """The date under the headline read as the dateline it is, not as a paragraph."""
+    out = list(paragraphs)
+    for index, (kind, _level, text) in enumerate(out[:4]):
+        if kind is BlockKind.heading or kind is BlockKind.byline:
+            continue
+        if kind is BlockKind.paragraph and _DATELINE.match(text.strip()):
+            out[index] = (BlockKind.byline, None, text)
+        break
+    return out
+
+
+@dataclass(frozen=True)
+class Figure:
+    caption: str
+    picture: Picture
+    #: The first letters of the paragraph after it on the page, which is where it goes.
+    before: str
+
+
+def figures_on(html: str, source: str) -> list[Figure]:
+    """The pictures an article sets with a caption, in its order (2026-11-04).
+
+    Only a `<figure>` that holds an image and a caption, outside the page's own chrome,
+    and wide enough to be a picture rather than an icon. Each is placed before the
+    paragraph that follows it on the page, which is where a printed article sets it.
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html, "html.parser")
+    found: list[Figure] = []
+    for figure in soup.find_all("figure"):
+        if figure.find_parent(["nav", "header", "footer", "aside"]):
+            continue
+        image = figure.find("img")
+        caption = figure.find("figcaption")
+        if image is None or caption is None:
+            continue
+        said = normalize(_flat(caption.get_text(" ")))
+        address = str(image.get("src") or "").strip()
+        if not said or not address or address.startswith("data:"):
+            continue
+        try:
+            width = int(str(image.get("width") or 0))
+            height = int(str(image.get("height") or 0))
+        except ValueError:
+            width = height = 0
+        if width and width < NARROWEST_FIGURE:
+            continue
+        following = figure.find_next("p")
+        before = _letters(following.get_text(" "))[:_KEY] if following is not None else ""
+        found.append(
+            Figure(
+                caption=said,
+                picture=Picture(
+                    src=urljoin(source, address),
+                    width=width,
+                    height=height,
+                    alt=str(image.get("alt") or ""),
+                ),
+                before=before,
+            )
+        )
+        if len(found) >= MOST_FIGURES:
+            break
+    return found
+
+
+def with_figures(
+    paragraphs: list[Paragraph], figures: list[Figure]
+) -> tuple[list[Paragraph], dict[int, Picture]]:
+    """Each caption as a paragraph of its own before the paragraph it was set before,
+    and the picture it captions by the caption's place. A figure whose paragraph the
+    article's text does not hold is left out rather than set somewhere it was not."""
+    out = list(paragraphs)
+    pictures: dict[int, Picture] = {}
+    for figure in figures:
+        if not figure.before:
+            continue
+        at = next(
+            (
+                index
+                for index, (kind, _, text) in enumerate(out)
+                if kind is BlockKind.paragraph
+                and index not in pictures
+                and _letters(text)[:_KEY] == figure.before
+            ),
+            None,
+        )
+        if at is None:
+            continue
+        out.insert(at, (BlockKind.paragraph, None, figure.caption))
+        pictures = {(i + 1 if i >= at else i): one for i, one in pictures.items()}
+        pictures[at] = figure.picture
+    return out, pictures
+
+
 class UrlIngester:
     # 5: a line break reads as a space (`htmltext`), which moved one catalogue text of 54
     # measured — a he.wikinews reference line, "2022מסכי" — and a Global Voices edition
@@ -1117,13 +1246,31 @@ class UrlIngester:
             ]
 
         metadata = trafilatura.extract_metadata(html)
-        title = getattr(metadata, "title", None)
+        headline = next(
+            (text for kind, level, text in paragraphs if kind is BlockKind.heading and level == 1),
+            None,
+        )
+        title = without_site(
+            getattr(metadata, "title", None), getattr(metadata, "sitename", None), headline
+        )
         author = getattr(metadata, "author", None)
 
-        return build_document(
+        # An article in the shape its page gives it (design.md §12, "A text keeps the
+        # shape its edition gives it", 2026-11-04): its dateline, and its pictures with
+        # their captions. Not a new ingester name, on purpose: a caption is text, so an
+        # article already on a shelf read again would come back with more words to buy.
+        # Under the same name, a fresh read that differs is taken for an edit and the
+        # stored text wins, so only an article imported from now on has them (David).
+        shaped = with_dateline(with_front_matter(paragraphs, title, author))
+        shaped, pictures = with_figures(shaped, figures_on(html, source))
+        document = build_document(
             source,
-            blocks_from_paragraphs(with_front_matter(paragraphs, title, author)),
+            blocks_from_paragraphs(shaped),
             ingester=self.name,
             title=title or source,
             author=author,
         )
+        by_id = {block_id(index): picture for index, picture in pictures.items()}
+        for block in document.blocks:
+            block.picture = by_id.get(block.id)
+        return document

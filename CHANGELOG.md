@@ -926,6 +926,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- An article imported from now on keeps its pictures, their captions and its dateline
+  (David, 2026-11-04; design.md §12, "A text keeps the shape its edition gives it"). A
+  `<figure>` with an image and a caption, outside the page's chrome and wider than an
+  icon, becomes a caption line before the paragraph that follows it on the page, read
+  and translated like any other line; its picture is fetched once when the text is built
+  and kept beside the reader as webp (`figures/`), and the page carries it inside itself
+  over its caption, never fetching it. A date alone under the headline is a dateline. The
+  site's name after a dash is no longer part of the title. The ingester keeps its name
+  on purpose, so an article already on a shelf read again keeps its stored text and buys
+  nothing: only new imports have captions. A shelf copy of a find leaves the pictures
+  behind, since a picture's licence is its own.
 - What an edition sets apart is kept beside its words (David, 2026-11-04; design.md §12,
   "A text keeps the shape its edition gives it"). `sefaria/6` reads Torat Emet's
   small-printed citations, a commentary's bold catchwords and a translator's footnotes

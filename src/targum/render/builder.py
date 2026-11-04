@@ -6170,6 +6170,18 @@ def own_cover_uri(folder: Path | None) -> str:
     return _kept_uri(folder, THUMB) if folder is not None else ""
 
 
+def _picture_size(path: Path) -> tuple[int, int] | None:
+    """A kept picture's width and height, so the page knows its shape before it draws it
+    and a page is laid out once, not again when the picture arrives."""
+    try:
+        from PIL import Image
+
+        with Image.open(path) as image:
+            return image.width, image.height
+    except Exception:  # noqa: BLE001 - a picture that will not open is not drawn
+        return None
+
+
 def _kept_uri(folder: Path, relative: str) -> str:
     """A picture a post keeps beside its reader, as a `data:` URI, or "".
 
@@ -6717,6 +6729,34 @@ def render(
     cites_its_own = any(
         mark.kind == "cite" for one in marked_blocks.values() for mark in one.marks or ()
     )
+    # An article's pictures, each over the first line of its caption, carried in the page
+    # from the file the build kept beside it (`figures.keep`); and every line of a caption
+    # set as one. A picture not kept is not drawn, and its caption is still its line.
+    captions: set[str] = set()
+    pictures: dict[str, dict[str, Any]] = {}
+    pictured = {one.id: one.picture for one in document.blocks if one.picture is not None}
+    if pictured:
+        from .. import figures as figures_module
+
+        drawn_for: set[str] = set()
+        for segment in segmented.segments:
+            picture = pictured.get(segment.block_id)
+            if picture is None:
+                continue
+            captions.add(segment.id)
+            if segment.block_id in drawn_for or folder is None:
+                continue
+            drawn_for.add(segment.block_id)
+            relative = figures_module.kept_path(segment.block_id)
+            uri = _kept_uri(folder, relative)
+            size = _picture_size(folder / relative) if uri else None
+            if uri and size:
+                pictures[segment.id] = {
+                    "src": uri,
+                    "width": size[0],
+                    "height": size[1],
+                    "alt": picture.alt,
+                }
     continues: set[str] = set()
     for earlier, later in zip(segmented.segments, segmented.segments[1:], strict=False):
         if (
@@ -7633,6 +7673,8 @@ def render(
             first_plate=next((sid for sid in section.segment_ids if sid in plates), ""),
             ends=ends,
             continues=continues,
+            captions=captions,
+            pictures=pictures,
             dressing=dressing,
             languages=languages,
             switches=switches,
