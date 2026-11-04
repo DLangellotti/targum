@@ -139,6 +139,27 @@ STATES: dict[str, dict[str, Any]] = {
         "mark": None,
         "togo": "148 words to א׳",
     },
+    # The words check's level, until the marks reach a rung (design.md §12, "Your level
+    # comes from your words check until your marks reach one", 2026-11-04): labelled,
+    # with no bar, and no Start card beside it. Its texts say our estimate, labelled.
+    "words-check": {
+        "story": story(
+            known=3,
+            ladder=ladder(0, to_go=(247, 1811, 3787, 4973, 6629, 8145)),
+            next=0,
+            level=dict(ULPAN_DALET, toward=None, toGo=None, **{"from": "check"}),
+            texts=[
+                {"id": "news-1", "title": "חדשות היום", "known": 93, "estimated": True},
+                {"id": "story-1", "title": "סיפור קצר", "known": 91, "estimated": True},
+                {"id": "scene-1", "title": "במעלית", "known": 96, "estimated": False},
+            ],
+        ),
+        "says": "From your words check",
+        "press": "Show texts you can read now",
+        "rows": 7,
+        "mark": ("ד׳", "About B2"),
+        "togo": None,
+    },
     "few-weeks": {
         "story": story(
             known=1240,

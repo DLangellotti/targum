@@ -6,6 +6,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A text's figure is our estimate until the reader's marks settle it, and it is the same
+  figure on every page (David, 2026-11-03; design.md §12, "A text's figure is our estimate
+  until your marks settle it"; beta review F-01, F-02, F-07). Home's card, More that fit
+  you, Your Progress's "Texts at your level now", the Library's rows and cards, the
+  Continue cards and Upload's quote say "About 93% (our estimate)" (or "You know about 93%
+  of the words here (our estimate).") where the chooser's estimate prints a different
+  whole percentage from the marked share, and the marked share, "93% known", where it
+  does not. The Library shelves by the same figure. The chat's and the connector's
+  `search_sources` and `describe_source` use the chooser's estimate instead of counting
+  the commonest words as known, and say `known_estimated`. New strings
+  `known.estimate.about`, `known.estimate.ours`, `home.card.known-estimate`,
+  `library.you-know-estimate`, `bring.known.estimate`, `add.found.estimate`,
+  `suggest.estimated`; the Russian lines are drafts.
+- Your Progress's Reading level is the words check's, labelled "From your words check",
+  until the reader's marks reach a rung, and the week-one "Start with beginner texts" card
+  is not drawn beside it (David, 2026-11-03; design.md §12, "Your level comes from your
+  words check until your marks reach one"; beta review F-05). New string
+  `progress.level.from-check`; the Russian is a draft.
 - The Russian interface's smaller leaks from the beta review's browser pass (2026-11-03,
   R25–R30). A news article's contents page is filed as the catalogue files it («Статья»,
   "Article"), not «Книга» (R29), and the line under its title is drawn in the reader's

@@ -640,6 +640,48 @@ def known_line(share: float | None) -> str:
     return f"You know {percent}% of the words here."
 
 
+def estimated_line(share: float | None) -> str:
+    """Our estimate said the way a page says it: "You know about 93% of the words here
+    (our estimate)." An exact percentage, always labelled as ours (design.md §12, "A
+    text's figure is our estimate until your marks settle it", 2026-11-04). Empty where
+    nothing was estimated."""
+    percent = known_percent(share)
+    if percent is None:
+        return ""
+    return f"You know about {percent}% of the words here (our estimate)."
+
+
+def expected_share(text: str, forms: Set[str], chance: Any, language: str = "he") -> float | None:
+    """`known_share`'s estimate: a token the reader has marked known counts 1, as there,
+    and any other counts as the chance they know it (`estimate.Estimate.chance`), read
+    off the token and the token less a prefix or two, whichever is likelier. So a text
+    nobody has built is estimated as the chooser estimates a built one (design.md §12,
+    "A text's figure is our estimate until your marks settle it", 2026-11-04). None
+    below `MEASURABLE` tokens, as there. `chance` takes a bare form."""
+    if (language or "he").split("-")[0].lower() not in _HEBREW_SCRIPT:
+        words = [token.lower().replace("ё", "е") for token in _ANY_WORD.findall(text)]
+        if len(words) < MEASURABLE:
+            return None
+        folded = {form.lower().replace("ё", "е") for form in forms}
+        return sum(1.0 if word in folded else chance(word) for word in words) / len(words)
+    tokens = [_bare(t) for t in _WORD.findall(text)]
+    tokens = [t for t in tokens if t]
+    if len(tokens) < MEASURABLE:
+        return None
+    total = 0.0
+    seen: dict[str, float] = {}
+    for token in tokens:
+        if token not in seen:
+            candidates = _forms_of(token)
+            seen[token] = (
+                1.0
+                if any(form in forms for form in candidates)
+                else max(chance(form) for form in candidates)
+            )
+        total += seen[token]
+    return total / len(tokens)
+
+
 def coverage_on(register: str, known: Iterable[str], where: Any = None) -> float | None:
     """How much of one register's yardstick the reader's known words cover: the share of
     the fixed list's running words, weighted by frequency (targum-internal#579, design.md

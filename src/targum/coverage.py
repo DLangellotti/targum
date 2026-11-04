@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from datetime import tzinfo
 from functools import cached_property, lru_cache
 from pathlib import Path
+from typing import Any
 
 from .paths import write_atomic
 
@@ -51,9 +52,36 @@ class Coverage:
     known: float
     fresh: int
     total: int
+    #: The share of running words the reader is estimated to know (`estimate.py`), where
+    #: it was asked for: a mark wins, and an unmarked word counts as its chance.
+    expected: float | None = None
 
     def state(self) -> dict[str, float | int]:
-        return {"known": round(self.known, 4), "fresh": self.fresh, "words": self.total}
+        """What a page is sent: `known` is always the marked share ("Known means
+        marked"), and `estimated` is there only where the one figure the page prints is
+        our estimate (`estimate.shown`), as the page shows it (`level.page_share`)."""
+        out: dict[str, float | int] = {
+            "known": round(self.known, 4),
+            "fresh": self.fresh,
+            "words": self.total,
+        }
+        out.update(estimated_field(self.known, self.expected))
+        return out
+
+
+def estimated_field(marked: float | None, expected: float | None) -> dict[str, float]:
+    """`{"estimated": share}` where the one figure a page prints for a text is our
+    estimate rather than the marked share (`estimate.shown`; design.md §12, "A text's
+    figure is our estimate until your marks settle it", 2026-11-04), else nothing. The
+    share is `level.page_share`'s, so every page prints the same whole percentage."""
+    from .estimate import shown
+    from .level import page_share
+
+    share, estimated = shown(marked, expected)
+    if not estimated or share is None:
+        return {}
+    said = page_share(share)
+    return {} if said is None else {"estimated": said}
 
 
 def lemmas(folder: Path) -> list[str]:
@@ -169,24 +197,34 @@ def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
     return measure(words, marked)
 
 
-def running_against(folder: Path, marked: Mapping[str, int]) -> Coverage | None:
+def running_against(
+    folder: Path, marked: Mapping[str, int], estimate: Any = None
+) -> Coverage | None:
     """A built text's running words measured against one person's marks, as
     `Index.running` measures a catalogue entry (design.md §12, "The Library's bands count
     running words", 2026-11-01): each word weighs as often as it comes round, one-letter
     clitics and the words the reader ignored are out of the total. None where the text
-    carries no word-level annotation."""
+    carries no word-level annotation.
+
+    With `estimate` (`estimate.Estimate`), `expected` is the estimated share too, so the
+    page can be sent the one figure it prints (`Coverage.state`)."""
     counts = tally(folder)
     if not counts:
         return None
-    return measure_running(counts, marked)
+    return measure_running(counts, marked, estimate)
 
 
-def measure_running(counts: Mapping[str, int], marked: Mapping[str, int]) -> Coverage:
+def measure_running(
+    counts: Mapping[str, int], marked: Mapping[str, int], estimate: Any = None
+) -> Coverage:
     """Running counts measured against marks: `known` the share of running words marked
-    known, `fresh` the distinct forms not on the list, `total` running words."""
+    known, `fresh` the distinct forms not on the list, `total` running words. With
+    `estimate`, `expected` counts each unmarked word as its chance (`Estimate.chance`),
+    as `Index.expected` counts a catalogue entry's."""
     from .touchstones import a_word
 
     known = scored = fresh = 0
+    guessed = 0.0
     for lemma, n in counts.items():
         if not a_word(lemma):
             continue
@@ -198,7 +236,14 @@ def measure_running(counts: Mapping[str, int], marked: Mapping[str, int]) -> Cov
             known += n
         elif status is None:
             fresh += 1
-    return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
+            if estimate is not None:
+                guessed += n * estimate.chance(lemma)
+    expected = (known + guessed) / scored if scored and estimate is not None else None
+    if estimate is not None and not scored:
+        expected = 0.0
+    return Coverage(
+        known=known / scored if scored else 0.0, fresh=fresh, total=scored, expected=expected
+    )
 
 
 def measure(words: list[str], marked: dict[str, int]) -> Coverage:

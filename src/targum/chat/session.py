@@ -382,6 +382,7 @@ FOUND_FIELDS = (
     "seconds",
     "licence",
     "known_share",
+    "known_estimated",
 )
 
 #: How many results a description draws. The card asks for "two or three": more than a

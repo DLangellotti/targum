@@ -703,3 +703,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
    card on the desk rather than text on the desk ground. */
 section.panel.nothing { max-inline-size: 40rem; margin: 3rem auto; padding: 1.5rem 1.75rem; text-align: start; }
 section.panel.nothing p { margin: 0 0 0.75rem; color: var(--ink); }
+/* Our estimate, where it is a text's figure: the label quiet beside the number, and the
+   level the words check gave says so under the letter (§12, 2026-11-04). */
+.progress .next-end.is-estimate { flex: 0 1 auto; text-align: end; }
+.progress .next-end .estimate-ours { font-weight: 400; color: var(--ink-soft); }
+.progress .level-step.level-from { font-size: 0.875rem; color: var(--ink-soft); }

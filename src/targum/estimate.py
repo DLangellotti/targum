@@ -274,11 +274,20 @@ class Estimate:
         default_factory=dict, compare=False, repr=False
     )
 
+    _memo: dict[str, float] = field(default_factory=dict, compare=False, repr=False)
+
     def chance(self, lemma: str) -> float:
-        """The chance this reader knows a word they have not marked, between 0 and 1."""
+        """The chance this reader knows a word they have not marked, between 0 and 1.
+        Kept per word for the estimate's life: a shelf of built texts asks about the
+        same common words hundreds of times (`coverage.running_against`)."""
         if not self.ranked:
             return 0.0
-        return sigmoid(self.slope * (self.theta - difficulty(lemma, self.language)))
+        held = self._memo.get(lemma)
+        if held is None:
+            held = sigmoid(self.slope * (self.theta - difficulty(lemma, self.language)))
+            if len(self._memo) < 200_000:
+                self._memo[lemma] = held
+        return held
 
     def p_known(self, lemma: str) -> float | None:
         """The chance this reader knows a word: a mark wins (known 1, learning 0, ignored
@@ -364,6 +373,34 @@ def _script(language: str) -> Any:
             any(c.isascii() and c.isalpha() for c in word) or any("À" <= c <= "ɏ" for c in word)
         )
     return None
+
+
+# -- the one figure a page prints for a text -------------------------------------------
+
+
+def shown(marked: float | None, expected: float | None) -> tuple[float | None, bool]:
+    """The one figure every page prints for a text, and whether it is our estimate
+    (design.md §12, "A text's figure is our estimate until your marks settle it",
+    2026-11-04; David, 2026-11-03).
+
+    The share the reader marked (`marked`) where their marks settle the text: where the
+    estimate (`expected`, which a mark always wins inside) would print the same whole
+    percentage (`level.known_percent`), so the estimate adds nothing a page could show.
+    Otherwise the estimate, which a page always labels "our estimate". The estimate is
+    never under the marked share, so "settled" is the moment the words a reader has not
+    marked stop being worth a printed point. A text the reader has read and marked
+    through says what they marked; a text they have never opened says what we estimate.
+
+    `(None, False)` where neither was measured."""
+    from .level import known_percent
+
+    if expected is None:
+        return marked, False
+    if marked is not None and (
+        expected <= marked or known_percent(marked) == known_percent(expected)
+    ):
+        return marked, False
+    return expected, True
 
 
 # -- one reader's estimate, kept until what it was fitted on changes --------------------

@@ -273,8 +273,11 @@ def at_level(
 
     `chances`, the reader's estimate by position in the index (`estimate.Estimate.
     chances`), makes "known" the estimated share of running words, as Home's card
-    chooses since 2026-11-01 ("The chooser estimates the words you have not marked");
-    `known` on each row is still the marked share, because a page says what was marked.
+    chooses since 2026-11-01 ("The chooser estimates the words you have not marked").
+    `known` on each row is the one figure every page prints for the text (`estimate.
+    shown`): the marked share where the reader's marks settle it, else our estimate, with
+    `estimated` true (design.md §12, "A text's figure is our estimate until your marks
+    settle it", 2026-11-04).
 
     `taught` (`chat.tools.teaching`) weighs what each text would teach the reader, as
     Home's card does since 2026-11-01 ("What to read next teaches words that come back").
@@ -287,11 +290,12 @@ def at_level(
     older Hebrew waits until it is asked for", 2026-11-03).
     """
     from . import catalogue as catalogue_module
-    from . import choose
+    from . import choose, estimate
+    from .level import known_percent
 
     held = dict(marked)
     statuses = index.statuses(held)
-    found: list[tuple[tuple[Any, ...], float, Any]] = []
+    found: list[tuple[tuple[Any, ...], tuple[float | None, bool], Any]] = []
     for entry in entries:
         if str(getattr(entry, "language", "")) != language:
             continue
@@ -323,10 +327,10 @@ def at_level(
             learn=learn or 0.0,
             interest=interest,
         )
-        found.append((rank, measured.known, entry))
+        found.append((rank, estimate.shown(measured.known, expected), entry))
     found.sort(key=lambda one: one[0])
     out = []
-    for _, share, entry in found[:limit]:
+    for _, (share, estimated), entry in found[:limit]:
         named = getattr(entry, "named", {}) or {}
         out.append(
             {
@@ -335,7 +339,10 @@ def at_level(
                 "english": str(named.get(ui_language) or getattr(entry, "english", "") or ""),
                 "author": str(getattr(entry, "author", "") or ""),
                 "kind": str(getattr(entry, "kind", "")),
-                "known": percent(share),
+                "known": known_percent(share) or 0,
+                # Whether `known` is our estimate, which the page labels so (design.md
+                # §12, "A text's figure is our estimate until your marks settle it").
+                "estimated": estimated,
             }
         )
     return out

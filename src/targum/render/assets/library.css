@@ -1952,3 +1952,8 @@ body.is-seeing .page-head { display: none; }
 .no-shelf[hidden], .lib-find[hidden], .elsewhere[hidden] { display: none; }
 .no-shelf-said { margin: 0; font-size: 1.0625rem; }
 .no-shelf-works { margin: 0; }
+/* Our estimate's label, quiet beside the number it qualifies, in a row and on a card
+   (§12, "A text's figure is our estimate until your marks settle it", 2026-11-04). */
+.band-known .estimate-ours,
+.see-known-say .estimate-ours { font-weight: 400; color: var(--ink-soft); }
+.see-known-say.is-estimate { white-space: normal; }

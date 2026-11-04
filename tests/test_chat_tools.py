@@ -384,8 +384,13 @@ def test_suggest_next_leaves_out_what_is_already_mine(world) -> None:
     # Said the way the card says it, because a host repeats `because`: an exact
     # percentage since 2026-10-29 (targum-internal#560).
     assert got["suggestions"][0]["because"] == got["suggestions"][0]["known_line"]
-    assert got["suggestions"][0]["because"] == "You know 50% of the words here."
-    assert got["suggestions"][0]["reason"]["share"] == 50, "the page's own line keeps it"
+    # Our estimate where the marks do not settle the text, labelled (design.md §12, "A
+    # text's figure is our estimate until your marks settle it", 2026-11-04).
+    share = got["suggestions"][0]["reason"]["share"]
+    assert share > 50, "the marked half, and a chance for each word not marked"
+    assert got["suggestions"][0]["because"] == (
+        f"You know about {share}% of the words here (our estimate)."
+    )
 
 
 def test_check_job_answers_only_for_the_owner(world) -> None:
@@ -1847,7 +1852,9 @@ def test_a_measured_suggestion_says_the_share_as_a_percentage(world) -> None:
     ctx = context(library, store, person, home)
     got = tools.suggest_next(ctx, {"limit": 3})
     top = got["suggestions"][0]
-    assert top["id"] == "esther" and top["known_line"] == "You know 50% of the words here."
+    assert top["id"] == "esther"
+    share = top["reason"]["share"]
+    assert top["known_line"] == f"You know about {share}% of the words here (our estimate)."
 
 
 def test_a_bigger_ledger_is_offered_a_text_it_knows_more_of(world) -> None:
@@ -2498,9 +2505,9 @@ def test_my_shelf_answers_ten_and_counts_them_all(world, monkeypatch) -> None:
     measured: list[str] = []
     real = tools.coverage_module.running_against
 
-    def counting(folder, marked):  # type: ignore[no-untyped-def]
+    def counting(folder, marked, estimate=None):  # type: ignore[no-untyped-def]
         measured.append(folder.name)
-        return real(folder, marked)
+        return real(folder, marked, estimate)
 
     monkeypatch.setattr(tools.coverage_module, "running_against", counting)
     got = tools.search_my_shelf(ctx, {})
@@ -2628,9 +2635,9 @@ def test_a_text_is_measured_once_until_the_ledger_or_the_text_changes(world, mon
     measured: list[str] = []
     real = tools.coverage_module.running_against
 
-    def counting(folder, marked):  # type: ignore[no-untyped-def]
+    def counting(folder, marked, estimate=None):  # type: ignore[no-untyped-def]
         measured.append(folder.name)
-        return real(folder, marked)
+        return real(folder, marked, estimate)
 
     monkeypatch.setattr(tools.coverage_module, "running_against", counting)
     one = tools.search_my_shelf(ctx, {"query": "רות"})["texts"][0]

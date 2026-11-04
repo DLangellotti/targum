@@ -384,6 +384,70 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A text's figure is our estimate until your marks settle it — 2026-11-04
+
+David, 2026-11-03, after the public-beta review of the same day (intermediate-abroad
+F-01, F-02, F-07): home's card promised "Hebrew written for native speakers where you
+already know 90% of the words" over a pick that said "7% known", and Your Progress listed
+texts at 6–8% under "Texts at your level now". The chooser had picked each one on our
+estimate (91–94%) and the page printed the marked share beside it, as "What is shown does
+not change" (2026-11-01, in "The chooser estimates the words you have not marked") said it
+should. **This reverses that line.** It amends "Known means marked, everywhere a share is
+shown" (2026-10-11) and "Upload opens what the Library has, and says only what was
+marked" (2026-11-03, below), and it holds the marked figure itself to marks only.
+
+- **One figure per text per moment, on every page.** Home's card and More that fit you,
+  Your Progress's "Texts at your level now", the Library's rows and cards (and so its
+  shelves, and the "N you can read" each Texts by level row counts off them), the
+  Continue cards, and Upload's quote all print the same figure for the same text and
+  reader (`estimate.shown`).
+- **Which figure.** The share the reader marked, where their marks settle the text:
+  where our estimate, inside which a mark always wins, would print the same whole
+  percentage. Otherwise our estimate. So a text the reader has read and marked through
+  says what they marked, and a text they have never opened says what we estimate. The
+  threshold is per text rather than a count of marks per reader: a reader with 3,000
+  marked words still knows more of an unread article than they have marked, and a count
+  would bring the 7% back for every reader past it. It is the printed point itself, the
+  finest step any page shows (`level.known_percent`), so nothing needs tuning.
+- **An estimate always says it is one.** Short: "About 93% (our estimate)", the label
+  quiet beside the number. In a sentence: "You know about 93% of the words here (our
+  estimate)." Exact percentages, never a count in ten. The marked figure keeps its words,
+  "93% known" and "You know 93% of the words here.", and still counts marks only
+  ("Known means marked" stands for it).
+- **The first pick says it too.** Home's card left the share off a reader's first pick so
+  it never said "0% known"; our estimate is what the line above the card promises, so it
+  is drawn on the first pick as well.
+- **Upload estimates as the chooser does.** A pasted text nobody has built is estimated
+  token by token, each token the reader has not marked counted as the chance they know it
+  (`level.expected_share`), so a reader with no marks yet is told our estimate rather than
+  nothing.
+- **The chat and the connector use the same estimate** (`chat/tools.py` `_known_figure`,
+  for `search_sources` and `describe_source`): the commonest words are no longer counted
+  as known for everybody. A tool's row says `known_estimated` beside `known_share`, and
+  the model is told to say an estimate as the card says it.
+- **What does not change.** The reader's own bar ("N of M known"), the finish box and
+  every figure about the reader rather than a text count marks only. Pages that still
+  print the marked share for a text of the reader's own (a playlist's rows, Your targums'
+  meters, a contents page) are the next to follow.
+
+### Your level comes from your words check until your marks reach one — 2026-11-04
+
+David, 2026-11-03, from the same review (F-05): a reader who said "I read the news with
+help" and passed the words check was told "Start with beginner texts. 312 words to א׳".
+**This reverses** "the measured rung and never the declared one" for the foot line ("Your
+level leads with what you can read", 2026-10-28) as far as the words check goes, and "No
+page prints it" in "The arrival asks which words you know" (2026-11-01).
+
+- **What shows.** Until the reader's marks reach a rung, Your Progress's Reading level is
+  the rung our estimate stands at after the words check (`Handler._check_rung`, the one
+  `/account/check` answers the arrival with), labelled "From your words check" under the
+  letter. It has no bar and no words to go, since those are counted off marks; the week-one
+  Start card ("Start with beginner texts", the words to aleph) is not drawn beside it.
+- **Then the measured rung, as before**, once the marks reach one, even where it is lower
+  than the check's.
+- **Never the rung only said.** A reader who skipped the check, or took it against lists
+  this targum no longer has, or stands under aleph by it, sees the page as before.
+
 ### Upload opens what the Library has, and says only what was marked — 2026-11-03
 
 From the same beta review (F-03, F-04, F-07, S-03).
@@ -400,7 +464,9 @@ From the same beta review (F-03, F-04, F-07, S-03).
   nothing read "You know 34% of the words here". With no word marked it says nothing,
   as home's card does. *(The chat's and the connector's measures of a feed item or a page,
   `chat/tools.py` `_known_forms`, still count the commonest words; they rank items for a
-  model and are left for David.)*
+  model and are left for David.)* *(Since 2026-11-04 Upload prints our estimate where the
+  marks do not settle the text, and the chat's measures use the same estimate: "A text's
+  figure is our estimate until your marks settle it", above.)*
 - **From gimel up, the arrival's first text is a real one.** "Everyday conversation" is
   answered by the scenes, and for a reader who said they read the news with help and
   passed the words check it opened "In the elevator". Past the scenes (`PAST_THE_SCENES`,
@@ -1331,7 +1397,9 @@ of steps, and Skip.
   of made-up words ticked, pulled towards 15% by two words' worth, is this reader's guess
   rate. It is read into every tick, their claim-grid ticks included. The first text is
   picked by the rung the estimate stands nearest after the check, which `/account/check`
-  answers, rather than by the rung said. No page prints it.
+  answers, rather than by the rung said. No page prints it. *(Since 2026-11-04 Your
+  Progress does, labelled, until the marks reach a rung: "Your level comes from your words
+  check until your marks reach one", above.)*
 - **What is kept** is the ticked words and when, one row a reader (`checked`, schema 55),
   with the lists' version. They are words marked by the reader, which privacy notice
   clause 3.2 already covers. The words left are never kept. Round one is fixed and round
@@ -1384,7 +1452,8 @@ on running words" (2026-10-31), whose share was marks only.
   level now", and whether a web find is offered all rank on the estimated share of a
   text's running words. `choose`'s floor, aim and ceiling are unchanged. A Hebrew
   beginner's card yields to a real text whose estimated share is in the band.
-- **What is shown does not change.** The card's line, the list's figure and a find's
+- **What is shown does not change.** *(Reversed on 2026-11-04: "A text's figure is our
+  estimate until your marks settle it", above.)* The card's line, the list's figure and a find's
   figure still say the share the reader marked ("Known means marked"). A reader who marks
   little can be offered a text as at their level that says "You know 40% of the words
   here". The suggestion record (clause 3.6, "the share of its words the Service estimated
@@ -2316,7 +2385,9 @@ comes back as one line at the foot.
 - **No percentages anywhere in Level.** The chips, the shares and the "you know N% of its
   words" titles are gone; the server no longer sends a share.
 - **The foot line is the only level**, and only the measured rung (`level.py`, from the
-  first rung reached), never the declared one (2026-09-19 stands). Hebrew says both scales
+  first rung reached), never the declared one (2026-09-19 stands). *(Since 2026-11-04 the
+  words check's rung, labelled, until the marks reach one: "Your level comes from your
+  words check until your marks reach one".)* Hebrew says both scales
   in one line, and says what an ulpan is for a reader outside Israel: "In ulpan terms
   you're at aleph plus (א׳+), about A1 on the European scale. Ulpan is Israel's Hebrew
   course for new immigrants, and its classes run from aleph to vav." French, Russian and Italian: "On the
@@ -3583,7 +3654,10 @@ page. The QA pass recommended counting the assumed words everywhere; David chose
 other way, because the figure is what the reader has said, and the word list it is
 measured against is kept as only what the reader said.
 
-- **Every figure for how much of a text you know counts marks only.** The bar's "N of M
+- **Every figure for how much of a text you know counts marks only.** *(Since 2026-11-04
+  a text's figure is our estimate, always labelled so, where the marks do not settle it:
+  "A text's figure is our estimate until your marks settle it". The marked figure itself
+  still counts marks only.)* The bar's "N of M
   known", the list's "N% known here" and the finish box's "N% known here" (which takes
   the bar's figure) count a word as known only when it is marked known. With a rung named
   and nothing marked, the bar reads "0 of M known".

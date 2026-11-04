@@ -4603,5 +4603,13 @@
   "landing.binyan.pual": "pu’al",
   "landing.binyan.hifil": "hif’il",
   "landing.binyan.hufal": "huf’al",
-  "landing.binyan.hitpael": "hitpa’el"
+  "landing.binyan.hitpael": "hitpa’el",
+  "known.estimate.about": "About {n}%",
+  "known.estimate.ours": "(our estimate)",
+  "home.card.known-estimate": "You know about {share}% of the whole text (our estimate)",
+  "library.you-know-estimate": "you know about {share}% of its words, our estimate",
+  "bring.known.estimate": "You know about {n}% of the words here (our estimate).",
+  "add.found.estimate": "You know about {n}% of the words (our estimate)",
+  "suggest.estimated": "You know about {share}% of its words (our estimate).",
+  "progress.level.from-check": "From your words check"
 }

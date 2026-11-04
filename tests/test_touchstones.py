@@ -300,7 +300,12 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     assert said["level"] is None
     # By running words, as Home's card chooses (design.md §12, 2026-10-31): d1 is 9 of
     # its 10 words, in the band and first; d2 is all known, after it; a1 is 1 in 10.
-    assert [(text["id"], text["known"]) for text in said["texts"]] == [("d1", 90), ("d2", 100)]
+    # d1's one unmarked word is a common one, so its figure is our estimate, labelled
+    # (design.md §12, "A text's figure is our estimate until your marks settle it",
+    # 2026-11-04); d2's marks settle it.
+    texts = [(text["id"], text["estimated"]) for text in said["texts"]]
+    assert texts == [("d1", True), ("d2", False)]
+    assert said["texts"][0]["known"] > 90 and said["texts"][1]["known"] == 100
     assert said["words"] == [{"lemma": "ספר", "texts": 2}]
 
     status, said, _ = call(port, "GET", f"/account/story?language=arc&k={token}", cookie=cookie)

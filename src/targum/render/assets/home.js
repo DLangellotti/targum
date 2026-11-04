@@ -420,9 +420,7 @@
 
     var facts = [];
     if (upload) facts.push(t("home.card.uploaded", "Uploaded by you"));
-    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
-      facts.push(t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) }));
-    }
+    if (wholeSaid(reader)) facts.push(wholeSaid(reader));
     if (!place && card.reader && !(stored("targum:opened")[reader.document] || 0)) {
       facts.push(t("home.card.not-opened", "Not opened yet"));
     }
@@ -431,9 +429,7 @@
     // of 379 known" over a bar 72% full). It drew the parts finished, so an opened text
     // showed an empty track under "You know 20%"; where you are in it is the tag's
     // "part 3 of 150" (2026-10-09). No figure, no bar.
-    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
-      item.appendChild(bar(reader.known));
-    }
+    if (wholeShare(reader)) item.appendChild(bar(wholeShare(reader)));
 
     var go;
     var medium = mediumOf(reader);
@@ -712,12 +708,12 @@
     if (place.seconds > 0 && medium !== "read") {
       facts.appendChild(document.createTextNode(t("home.back.stopped-at", "Stopped at {time}", { time: clock(place.seconds) })));
     }
-    if (typeof reader.known === "number" && reader.words && reader.known > 0) {
+    if (wholeSaid(reader)) {
       if (facts.childNodes.length) facts.appendChild(document.createTextNode(" · "));
-      facts.appendChild(el("strong", "", t("home.card.known", "You know {share}% of the whole text", { share: Math.round(reader.known * 100) })));
+      facts.appendChild(el("strong", "", wholeSaid(reader)));
     }
     if (facts.childNodes.length) what.appendChild(facts);
-    if (typeof reader.known === "number" && reader.words && reader.known > 0) what.appendChild(bar(reader.known));
+    if (wholeShare(reader)) what.appendChild(bar(wholeShare(reader)));
     var go = el("a", "welcome-go");
     go.href = keyed(href);
     if (medium !== "read") go.appendChild(playGlyph());
@@ -1122,9 +1118,44 @@
   // the reader's words, and never on the first pick of a reader with none.
   function percentOf(row) {
     var reason = (row && row.reason) || {};
-    if (reason.key === "suggest.known" && reason.share) return reason.share;
+    if ((reason.key === "suggest.known" || reason.key === "suggest.estimated") && reason.share) return reason.share;
     if (row && typeof row.percent === "number" && row.percent > 0) return row.percent;
     return 0;
+  }
+
+  // Whether a row's figure is our estimate rather than what the reader marked (design.md
+  // §12, "A text's figure is our estimate until your marks settle it", 2026-11-04).
+  function estimatedOf(row) {
+    var reason = (row && row.reason) || {};
+    return reason.key === "suggest.estimated" || (!!row && row.estimated === true);
+  }
+
+  // A pick's figure, short: "93% known", or ours, "About 93% (our estimate)", the label
+  // quiet beside the number. One figure per text on every page.
+  function shareLine(className, share, estimated) {
+    if (!estimated) return el(className.tag || "p", className.name, t("home.card.known-short", "{n}% known", { n: share }));
+    var line = el(className.tag || "p", className.name + " is-estimate", t("known.estimate.about", "About {n}%", { n: share }) + " ");
+    line.appendChild(el("span", "estimate-ours", t("known.estimate.ours", "(our estimate)")));
+    return line;
+  }
+
+  // A text's whole figure, as the Continue cards say it: the marked share, or our
+  // estimate where that is the figure (`estimated` from `/readers`).
+  function wholeShare(reader) {
+    if (!reader || !reader.words) return 0;
+    if (typeof reader.estimated === "number" && reader.estimated > 0) return reader.estimated;
+    return typeof reader.known === "number" && reader.known > 0 ? reader.known : 0;
+  }
+
+  function wholeSaid(reader) {
+    var share = wholeShare(reader);
+    if (!share) return "";
+    var percent = Math.max(1, Math.min(99, Math.round(share * 100)));
+    if (share >= 1) percent = 100;
+    if (typeof reader.estimated === "number" && reader.estimated > 0) {
+      return t("home.card.known-estimate", "You know about {share}% of the whole text (our estimate)", { share: percent });
+    }
+    return t("home.card.known", "You know {share}% of the whole text", { share: Math.round(share * 100) });
   }
 
   function siteOf(host) {
@@ -1311,7 +1342,10 @@
     if (row.harder && oneCard.harder.indexOf(String(row.id)) < 0) oneCard.harder.push(String(row.id));
     var parts = pickBlock(row);
     var share = percentOf(row);
-    if (share && (row.harder || (!first && !row.scene))) parts.what.appendChild(el("p", "rc-known", t("home.card.known-short", "{n}% known", { n: share })));
+    // Our estimate shows on the first pick too: it is what the line above the card
+    // promises, and a reader with no marks has it (David, 2026-11-03).
+    var estimated = estimatedOf(row);
+    if (share && (row.harder || estimated || (!first && !row.scene))) parts.what.appendChild(shareLine({ name: "rc-known" }, share, estimated));
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
     var from = sourceLine(row, "rc-source");
@@ -1674,11 +1708,14 @@
       title.setAttribute("lang", row.language || "he");
       title.setAttribute("dir", "auto");
       what.appendChild(title);
-      var facts = [];
       var share = percentOf(row);
-      if (share) facts.push(t("home.card.known-short", "{n}% known", { n: share }));
-      facts.push(kindWord({ kind: row.kind, video: row.video }));
-      what.appendChild(el("span", "more-facts", facts.join(" · ")));
+      var facts = el("span", "more-facts");
+      if (share) {
+        facts.appendChild(shareLine({ tag: "span", name: "more-share" }, share, estimatedOf(row)));
+        facts.appendChild(document.createTextNode(" · "));
+      }
+      facts.appendChild(document.createTextNode(kindWord({ kind: row.kind, video: row.video })));
+      what.appendChild(facts);
       link.appendChild(what);
       item.appendChild(link);
       // Beside the row's link, never inside it: a link in a link is no link at all.

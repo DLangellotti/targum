@@ -454,9 +454,44 @@
         });
       return shares.length ? shares[Math.floor(shares.length / 2)] : null;
     }
-    if (row.built && typeof row.built.known === "number") return row.built.known;
+    if (row.built && typeof row.built.known === "number") {
+      return typeof row.built.estimated === "number" ? row.built.estimated : row.built.known;
+    }
     var measured = row.entry && catalogueKnown[row.entry.id];
+    if (measured && typeof measured.estimated === "number") return measured.estimated;
     return measured && typeof measured.known === "number" ? measured.known : null;
+  }
+
+  /* Whether the figure `knownOf` answers is our estimate rather than what the reader
+     marked (design.md §12, "A text's figure is our estimate until your marks settle it",
+     2026-11-04): every page prints one figure for a text, and an estimate always says it
+     is one. A collection's is its middle text's. */
+  function estimatedOf(row) {
+    if (row.rows) {
+      var measured = row.rows
+        .filter(function (one) {
+          return typeof knownOf(one) === "number";
+        })
+        .sort(function (a, b) {
+          return knownOf(a) - knownOf(b);
+        });
+      return measured.length ? estimatedOf(measured[Math.floor(measured.length / 2)]) : false;
+    }
+    if (row.built && typeof row.built.known === "number") return typeof row.built.estimated === "number";
+    var one = row.entry && catalogueKnown[row.entry.id];
+    return !!one && typeof one.estimated === "number";
+  }
+
+  /* The figure as the row prints it: "95% known", or ours, "About 95% (our estimate)",
+     the label quiet beside the number. An estimate is rounded as every page rounds it
+     (`level.known_percent`), so the Library, home and Progress say the same number. */
+  function knownSaid(row, share, className) {
+    if (!estimatedOf(row)) {
+      return el("span", className, t("library.known-share", "{share}% known", { share: Math.floor(share * 100) }));
+    }
+    var line = el("span", className + " is-estimate", t("known.estimate.about", "About {n}%", { n: Math.round(share * 100) }) + " ");
+    line.appendChild(el("span", "estimate-ours", t("known.estimate.ours", "(our estimate)")));
+    return line;
   }
 
   //: The language this page is being read in. `TargumStrings` carries it already; the
@@ -846,10 +881,16 @@
       cell.appendChild(el("span", "see-known-say", t("library.known.unmeasured", "Not measured yet")));
       return cell;
     }
-    var shown = Math.floor(share * 100);
+    var estimated = estimatedOf(row);
+    var shown = estimated ? Math.round(share * 100) : Math.floor(share * 100);
     if (fitOf(row) === "now") cell.className = "see-known near";
-    cell.appendChild(el("span", "see-known-say", t("library.known-share", "{share}% known", { share: shown })));
-    cell.setAttribute("aria-label", t("library.you-know", "you know {share}% of its words", { share: shown }));
+    cell.appendChild(knownSaid(row, share, "see-known-say"));
+    cell.setAttribute(
+      "aria-label",
+      estimated
+        ? t("library.you-know-estimate", "you know about {share}% of its words, our estimate", { share: shown })
+        : t("library.you-know", "you know {share}% of its words", { share: shown })
+    );
     var meter = el("span", "meter");
     meter.setAttribute("aria-hidden", "true");
     var fill = el("span");
@@ -1599,12 +1640,9 @@
     if (!anyKnown && share === 0) share = null;
     open.appendChild(
       typeof share === "number"
-        ? el(
-            "span",
-            "band-known" + (band === "now" ? " near" : ""),
-            // Rounded down, as the Tanakh map rounds: a card on A stretch never says 90%.
-            t("library.known-share", "{share}% known", { share: Math.floor(share * 100) })
-          )
+        ? // Rounded down, as the Tanakh map rounds: a card on A stretch never says 90%.
+          // Our estimate is rounded as every page rounds it, and labelled.
+          knownSaid(row, share, "band-known" + (band === "now" ? " near" : ""))
         : el("span", "band-known unmeasured", t("library.known.unmeasured", "Not measured yet"))
     );
     open.appendChild(stateCell(row.id));
@@ -2812,7 +2850,7 @@
      `LAST` keeps only what drawing a row reads, a few dozen bytes a text, and it is a
      `targum:` key, so a sign-out sweeps it with the rest (`sync.js`). */
   var LAST = "targum:library-last";
-  var READER_FIELDS = ["entry", "document", "name", "language", "languages", "known", "drawn", "built", "shared"];
+  var READER_FIELDS = ["entry", "document", "name", "language", "languages", "known", "estimated", "drawn", "built", "shared"];
 
   function slimReader(reader) {
     var out = {};
@@ -2826,7 +2864,10 @@
     var known = {};
     Object.keys(data.catalogue || {}).forEach(function (id) {
       var one = data.catalogue[id];
-      if (one && typeof one.known === "number") known[id] = { known: one.known };
+      if (one && typeof one.known === "number") {
+        known[id] = { known: one.known };
+        if (typeof one.estimated === "number") known[id].estimated = one.estimated;
+      }
     });
     return {
       readers: (data.readers || []).map(slimReader),
@@ -2881,12 +2922,14 @@
       });
       Object.keys(catalogueKnown).forEach(function (id) {
         var one = catalogueKnown[id];
-        if (one && typeof one.known === "number" && one.known > 0 && languageOf[id]) {
+        // Our estimate measures the reader too (2026-11-04): a reader with no marks yet
+        // who took the words check is shelved by it, as home's card chooses by it.
+        if (one && ((typeof one.known === "number" && one.known > 0) || typeof one.estimated === "number") && languageOf[id]) {
           knownIn[languageOf[id]] = true;
         }
       });
       (readers || []).concat(shared || []).forEach(function (reader) {
-        if (typeof reader.known === "number" && reader.known > 0) {
+        if ((typeof reader.known === "number" && reader.known > 0) || typeof reader.estimated === "number") {
           knownIn[base(reader.language || (reader.entry && languageOf[reader.entry]) || "")] = true;
         }
       });

@@ -1309,6 +1309,28 @@ def grounding_note(
     return note
 
 
+def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
+    """A reader's `estimate.Estimate` in a language, the chooser's own: their marks,
+    look-ups, met words and words check, with the rung they named or reached as the prior
+    (design.md §12, "A text's figure is our estimate until your marks settle it",
+    2026-11-04). None for nobody, or a store that keeps none of it."""
+    from . import estimate as estimate_module
+    from . import level as level_module
+
+    if person_id is None or store is None:
+        return None
+    code = (language or "he").split("-")[0].lower()
+    try:
+        found = (
+            level_module.snapshot(store, person_id, code)
+            if level_module.ladder_for(code) is not None
+            else None
+        )
+        return estimate_module.for_reader(store, person_id, code, found)
+    except AttributeError:
+        return None
+
+
 @dataclass
 class Job:
     id: str
@@ -1388,6 +1410,9 @@ class Job:
     #: ledger (`level.known_share`, targum-internal#244); None where nobody is signed
     #: in or the text is too short to say.
     known_share: float | None = None
+    #: Whether `known_share` is our estimate rather than the marked share (design.md
+    #: §12, "A text's figure is our estimate until your marks settle it", 2026-11-04).
+    known_estimated: bool = False
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -1444,7 +1469,12 @@ class Job:
             # finished builds to say", and the card shows nothing rather than a guess.
             "usually": round(self.usually, 1),
             "known_share": level_module.page_share(self.known_share),
-            "known_line": level_module.known_line(self.known_share),
+            "known_line": (
+                level_module.estimated_line(self.known_share)
+                if self.known_estimated
+                else level_module.known_line(self.known_share)
+            ),
+            "known_estimated": self.known_estimated,
             # Where the text is from, so the card can link to it (2026-09-11: "don't
             # see the link to the article"). A link for a page on the web; a fetcher
             # id or a filename otherwise, which the page shows no link for.
@@ -3481,7 +3511,7 @@ class Library:
                 job.stage = "failed"
                 return
             job.segments = len(plan.segmented.segments) if plan.segmented else 0
-            job.known_share = self._known_share(job, plan.document)
+            job.known_share, job.known_estimated = self._known_share(job, plan.document)
             job.chapters = plan.chapters
             usable, _ = builder.provider.available()
             # The words are looked up while the translation is still being counted, where
@@ -3708,7 +3738,7 @@ class Library:
 
         return stanza_code(language or "") in {code for code, _ in READING}
 
-    def _known_share(self, job: Job, document: Any) -> float | None:
+    def _known_share(self, job: Job, document: Any) -> tuple[float | None, bool]:
         """How much of a text the reader already has, at quote time (targum-internal#244):
         the words they marked known against the text's tokens. The card says it in words;
         the model is given the number. Nothing for a signed-out build, a text that is not
@@ -3720,21 +3750,37 @@ class Library:
         and marked nothing was told "You know 34% of the words here" of a Wikipedia
         article, and a B1 reader saw 41% on Upload against 6% for the same reader on
         Progress (beta review, 2026-11-03). With nothing marked the share is 0 for every
-        text, which says nothing, so nothing is said, as home's card says nothing then."""
+        text, which says nothing, so nothing is said, as home's card says nothing then.
+
+        Since 2026-11-04 it is the one figure every page prints for a text (design.md
+        §12, "A text's figure is our estimate until your marks settle it"): the marked
+        share where the reader's marks settle it, else our estimate, the chooser's own
+        (`level.expected_share`), and the second value says which. A reader with no mark
+        has the estimate alone."""
+        from . import estimate as estimate_module
+
         if self.store is None or job.owner is None:
-            return None
+            return None, False
         if str(getattr(document, "language", "") or "").split("-")[0] not in ("he",):
-            return None
+            return None, False
         forms = set(self.store.known_forms(job.owner, "he"))
-        if not forms:
-            return None
         text = "\n".join(str(getattr(block, "text", "") or "") for block in document.blocks)
         if isinstance(job.options.get("post"), dict):
             # A post's hashtags, mentions and addresses are names, not words to know.
             from .ingest.post import without_unwordly
 
             text = without_unwordly(text)
-        return level_module.known_share(text, forms)
+        marked = level_module.known_share(text, forms) if forms else None
+        known = reader_estimate(self.store, job.owner, "he")
+        expected = (
+            level_module.expected_share(text, forms, known.chance)
+            if known is not None and known.ranked
+            else None
+        )
+        share, estimated = estimate_module.shown(marked, expected)
+        if not estimated and not forms:
+            return None, False
+        return share, estimated
 
     def _read_pages(self, job: Job) -> str:
         """Read a source that arrived as pages, or say why it may not be read.
@@ -8257,6 +8303,7 @@ class Handler(BaseHTTPRequestHandler):
         from . import coverage as coverage_module
 
         vocabulary: dict[str, dict[str, int]] = {}
+        estimates: dict[str, Any] = {}
         for reader in readers:
             language = str(reader.get("language") or "")
             name = str(reader.get("name") or "")
@@ -8266,11 +8313,30 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             if language not in vocabulary:
                 vocabulary[language] = self.store.marked(person, language)
+            if language not in estimates:
+                estimates[language] = self._estimate(person, language)
             # Running words since 2026-11-01 (design.md §12, "The Library's bands count
-            # running words"), so a text says one number on Home, the Library and Progress.
-            measured = coverage_module.running_against(home / name, vocabulary[language])
+            # running words"), so a text says one number on Home, the Library and Progress;
+            # and our estimate beside the marked share where it is the figure a page prints
+            # (design.md §12, "A text's figure is our estimate until your marks settle it",
+            # 2026-11-04).
+            measured = coverage_module.running_against(
+                home / name, vocabulary[language], estimates[language]
+            )
             if measured is not None:
                 reader.update(measured.state())
+
+    def _estimate(self, person: Any, language: str) -> Any:
+        """This reader's `estimate.Estimate` in a language, the chooser's own: their
+        marks, look-ups, met words and words check, with the rung they named or reached
+        as the prior. None for nobody, or a store that keeps none of it."""
+        if person is None:
+            return None
+        return self._estimate_for(person.id, language)
+
+    def _estimate_for(self, person_id: int | None, language: str) -> Any:
+        """`_estimate` by account id."""
+        return reader_estimate(self.store, person_id, language)
 
     def _measure_catalogue(self) -> dict[str, dict[str, float | int]]:
         """How much of each *unbuilt* catalogue text the reader knows
@@ -8297,6 +8363,7 @@ class Handler(BaseHTTPRequestHandler):
             return {}
         vocabulary: dict[str, dict[str, int]] = {}
         statuses: dict[str, dict[int, int]] = {}
+        chances: dict[str, Any] = {}
         out: dict[str, dict[str, float | int]] = {}
         for entry in catalogue_module.everything():
             if entry.id not in index.texts:
@@ -8306,11 +8373,26 @@ class Handler(BaseHTTPRequestHandler):
                 vocabulary[language] = self.store.marked(person, language)
             if language not in statuses:
                 statuses[language] = index.statuses(vocabulary[language])
+            if language not in chances:
+                known = self._estimate(person, language)
+                chances[language] = (
+                    known.chances(index) if known is not None and index.counts else None
+                )
             measured = index.running(
                 entry.id, vocabulary[language], statuses[language]
             ) or index.against(entry.id, vocabulary[language])
             if measured is not None:
-                out[entry.id] = measured.state()
+                state = measured.state()
+                # Our estimate, where it is the figure the Library prints (design.md §12,
+                # "A text's figure is our estimate until your marks settle it", 2026-11-04).
+                if chances[language] is not None:
+                    state.update(
+                        coverage_module.estimated_field(
+                            measured.known,
+                            index.expected(entry.id, statuses[language], chances[language]),
+                        )
+                    )
+                out[entry.id] = state
         return out
 
     #: How many rows one group of a search answers with, and how many a word's sentences
@@ -11488,9 +11570,13 @@ class Handler(BaseHTTPRequestHandler):
                 and not row.get("held")
             )
             reason = row.get("reason") or {}
-            measured = reason.get("key") == "suggest.known" and reason.get("share")
+            measured = reason.get("key") in ("suggest.known", "suggest.estimated") and reason.get(
+                "share"
+            )
             if not fits or not measured:
                 continue
+            # `estimated` rides on the row where the figure is ours (design.md §12, "A
+            # text's figure is our estimate until your marks settle it", 2026-11-04).
             out.append({**row, "percent": int(reason["share"])})
             if len(out) >= self.MORE_MOST:
                 break
@@ -13048,11 +13134,12 @@ class Handler(BaseHTTPRequestHandler):
         Kept as evidence for the estimate and nowhere else: no word goes on the reader's
         list, and only the ticked words are kept, because what was shown follows from them
         (`check.shown`). A word the rounds could not have shown is dropped. The answer is
-        the rung the estimate now stands nearest, for the arrival's first text alone; no
-        page prints it.
+        the rung the estimate now stands nearest, for the arrival's first text; Your
+        Progress prints it, labelled, until the reader's marks reach a rung (design.md
+        §12, "Your level comes from your words check until your marks reach one",
+        2026-11-04).
         """
         from . import check as check_module
-        from . import estimate as estimate_module
         from . import level as level_module
 
         person = self._person()
@@ -13066,10 +13153,32 @@ class Handler(BaseHTTPRequestHandler):
         ticked = check_module.kept(str(word) for word in said if isinstance(word, str))
         self.store.set_checked(person, check_module.LANGUAGE, check_module.VERSION, ticked)
         found = self._snapshot(person, check_module.LANGUAGE)
-        known = estimate_module.for_reader(self.store, person.id, check_module.LANGUAGE, found)
-        reached = [rung for rung in level_module.ULPAN if rung.at <= known.words()]
-        rung = (reached[-1] if reached else level_module.ULPAN[0]).name.replace(" ", "-")
+        reached = self._check_rung(person, check_module.LANGUAGE, found)
+        rung = (reached or level_module.ULPAN[0]).name.replace(" ", "-")
         self._json({"signedIn": True, "rung": rung})
+
+    def _check_rung(self, person: Any, language: str, found: Any = None) -> Any:
+        """The ulpan rung the estimate stands at after the arrival's words check: the
+        highest whose words it reaches (`estimate.Estimate.words`). None where the reader
+        took no check in this language, took one against lists this targum no longer has,
+        or stands under aleph. The arrival's first text and Your Progress's level until
+        the reader's marks reach a rung both read it (design.md §12, "Your level comes
+        from your words check until your marks reach one", 2026-11-04)."""
+        from . import check as check_module
+        from . import estimate as estimate_module
+        from . import level as level_module
+
+        code = (language or "").split("-")[0].lower()
+        if self.store is None or person is None or code != check_module.LANGUAGE:
+            return None
+        taken = self.store.checked(person.id, code)
+        if taken is None or taken[0] != check_module.VERSION:
+            return None
+        if found is None:
+            found = self._snapshot(person, code)
+        known = estimate_module.for_reader(self.store, person.id, code, found)
+        reached = [rung for rung in level_module.ULPAN if rung.at <= known.words()]
+        return reached[-1] if reached else None
 
     def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
         """ "I know this" on a line that came back changed (2026-09-18).
@@ -14983,7 +15092,10 @@ class Handler(BaseHTTPRequestHandler):
             "known": self.store.known_count(person, language),
         }
         answer.update(
-            touchstones.standing(rungs, self._known_of(rungs, index, marked))
+            touchstones.standing(
+                rungs,
+                self._known_of(rungs, index, marked, self._estimate(person, language)),
+            )
             if rungs and index.texts
             else {"ladder": [], "here": None, "next": None}
         )
@@ -14998,11 +15110,18 @@ class Handler(BaseHTTPRequestHandler):
             for entry in everything
         )
         # The one level on the page, its foot line (design.md §12, "Your level leads with
-        # what you can read", 2026-10-28): the measured rung and never the declared one.
-        answer["level"] = self._foot_level(person, language, found)
+        # what you can read", 2026-10-28): the measured rung, and until the reader's marks
+        # reach one, the rung their words check put them at, labelled so (design.md §12,
+        # "Your level comes from your words check until your marks reach one",
+        # 2026-11-04). Never the rung they only said.
+        answer["level"] = self._foot_level(person, language, found) or self._checked_level(
+            person, language, found
+        )
         # Week one: no rung yet, and the words left to the first (design.md §12, "Your
-        # level, v3"): the bar and "{n} words to א׳" on the Start card.
-        answer["first"] = self._first_rung(found)
+        # level, v3"): the bar and "{n} words to א׳" on the Start card. Not for a reader
+        # whose words check gave them a level: "Start with beginner texts" contradicted
+        # "I read the news with help" (beta review F-05, 2026-11-03).
+        answer["first"] = None if answer["level"] else self._first_rung(found)
         # Chosen as Home's card chooses, on the estimate of the words not marked
         # (design.md §12, "The chooser estimates the words you have not marked",
         # 2026-11-01); each row's figure is still the marked share.
@@ -15119,12 +15238,18 @@ class Handler(BaseHTTPRequestHandler):
         self._json(answer)
 
     def _known_of(
-        self, rungs: list[Any], index: Any, marked: dict[str, int]
+        self, rungs: list[Any], index: Any, marked: dict[str, int], known: Any = None
     ) -> Callable[[str], float | None]:
         """A text's share of words known, read as the Library reads a row (`/readers`): a
         copy the reader has built, or the shared shelf has, measured on its own words, and
         otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
-        Your Progress opens a shelf holding exactly the texts it counted."""
+        Your Progress opens a shelf holding exactly the texts it counted.
+
+        The figure the Library prints, so our estimate where that is it (`known`, the
+        reader's `estimate.Estimate`; design.md §12, "A text's figure is our estimate
+        until your marks settle it", 2026-11-04)."""
+        from . import coverage as coverage_module
+
         wanted = {entry_id for rung in rungs for entry_id in rung.texts}
         built: dict[str, float] = {}
         # The shared shelf first and the reader's own over it, as `rows()` in library.js.
@@ -15136,13 +15261,14 @@ class Handler(BaseHTTPRequestHandler):
             ]
             self._measure(home, readers)
             for reader in readers:
-                known = reader.get("known")
-                if isinstance(known, (int, float)) and not isinstance(known, bool):
-                    built[str(reader["entry"])] = float(known)
+                share = reader.get("estimated", reader.get("known"))
+                if isinstance(share, (int, float)) and not isinstance(share, bool):
+                    built[str(reader["entry"])] = float(share)
                 else:
                     built.pop(str(reader["entry"]), None)
 
         statuses = index.statuses(marked) if index.counts else {}
+        chances = known.chances(index) if known is not None and index.counts else None
 
         def known_of(entry_id: str) -> float | None:
             if entry_id in built:
@@ -15150,8 +15276,17 @@ class Handler(BaseHTTPRequestHandler):
             # Running words where counted, as `_measure_catalogue` reads it (design.md §12,
             # "The Library's bands count running words", 2026-11-01).
             measured = index.running(entry_id, marked, statuses) or index.against(entry_id, marked)
+            if measured is None:
+                return None
+            state = measured.state()
+            if chances is not None:
+                state.update(
+                    coverage_module.estimated_field(
+                        measured.known, index.expected(entry_id, statuses, chances)
+                    )
+                )
             # A text at 89.996% is on the shelf on both pages or neither.
-            return float(measured.state()["known"]) if measured is not None else None
+            return float(state.get("estimated", state["known"]))
 
         return known_of
 
@@ -15195,6 +15330,34 @@ class Handler(BaseHTTPRequestHandler):
             "toGo": (
                 level_module.words_to(found, found.next.at) if found.next is not None else None
             ),
+        }
+
+    def _checked_level(
+        self, person: Any, language: str, found: Any = None
+    ) -> dict[str, Any] | None:
+        """The level the arrival's words check gave, as `_foot_level` draws a measured
+        one, with `from: "check"` so the page labels it "From your words check"
+        (design.md §12, "Your level comes from your words check until your marks reach
+        one", 2026-11-04). No bar and no words to go: those are counted off marks, and
+        the marks reach no rung yet. None where `_check_rung` is."""
+        from . import level as level_module
+
+        if found is not None and found.here is not None:
+            return None
+        rung = self._check_rung(person, language, found)
+        if rung is None:
+            return None
+        rungs = list(level_module.ULPAN)
+        after = rungs[rungs.index(rung) + 1] if rung in rungs[:-1] else None
+        return {
+            "scale": "ulpan",
+            "letter": rung.letter,
+            "name": rung.name,
+            "cefr": rung.cefr,
+            "next": {"letter": after.letter, "name": after.name} if after is not None else None,
+            "toward": None,
+            "toGo": None,
+            "from": "check",
         }
 
     @staticmethod
