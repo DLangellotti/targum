@@ -20,6 +20,7 @@ import pytest
 
 from targum import marks as marks_module
 from targum.align import to_translation
+from targum.errors import TargumError
 from targum.ingest.fetch import sefaria
 from targum.models import (
     Alignment,
@@ -305,6 +306,33 @@ def test_a_text_whose_words_came_back_different_is_left_exactly_as_it_was(
     what, why = marks_module.give(folder, lambda source: fresh)
     assert what == "refused" and "different" in why
     assert (folder / "document.json").read_bytes() == before
+
+
+def test_a_text_sefaria_no_longer_offers_is_left_alone_and_the_run_goes_on(
+    tmp_path: Path,
+) -> None:
+    fresh = read("mishneh-torah-foundations-2.he.json", MT, "he")
+    held = fresh.model_copy(
+        update={
+            "ingester": "sefaria/5",
+            "blocks": [b.model_copy(update={"marks": None, "notes": None}) for b in fresh.blocks],
+        }
+    )
+    gone = _built(tmp_path / "shared" / "gone", held)
+    kept = _built(tmp_path / "shared" / "kept", held)
+    before = (gone / "document.json").read_bytes()
+    asked: list[str] = []
+
+    def load(source: str) -> Document:
+        asked.append(source)
+        if len(asked) == 1:
+            raise TargumError("Sefaria has no 'Vocalized Edition' of it.")
+        return fresh
+
+    done = marks_module.give_all([gone, kept], load)
+    assert done.written == ["shared/kept"]
+    assert done.refused[0][0] == "shared/gone" and "Vocalized Edition" in done.refused[0][1]
+    assert (gone / "document.json").read_bytes() == before
 
 
 def test_a_text_from_anywhere_else_is_not_read_again(tmp_path: Path) -> None:

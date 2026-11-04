@@ -16,6 +16,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   never had it, is unchanged. No new strings.
 
 ### Fixed
+- `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
+  from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
+  Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
+  anything was marked; it is now listed as left alone, with Sefaria's reason.
 - A row too tall for a page is cut between lines in each of its columns (2026-11-04). A
   halakha whose English ran longer than its Hebrew was cut once for both columns, and
   their lines interleave, so there was no gap to cut in and the cut fell through a line:
