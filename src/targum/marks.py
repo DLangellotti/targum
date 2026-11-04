@@ -69,7 +69,10 @@ def give(folder: Path, load: Callable[[str], Document]) -> tuple[str, str]:
     held = read_artifact(Document, path)
     if held is None or not held.source.startswith(SEFARIA):
         return "unchanged", "not a Sefaria text"
-    fresh = load(held.source)
+    try:
+        fresh = load(held.source)
+    except Exception as error:  # noqa: BLE001 - one text, not the whole run
+        return "refused", f"could not be read again ({error})"
     if not _same_words(held, fresh):
         return "refused", "its words came back different, so nothing was touched"
     wrote = False
