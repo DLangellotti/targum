@@ -465,6 +465,29 @@ body.marking .src .pmark .w { background: none; box-shadow: none; }
 .src:has(> br.stich) { padding-inline-start: 1.2em; text-indent: -1.2em; }
 /* The sentences of one paragraph closer together than the paragraphs are. */
 #reader .pair.cont { margin-block-start: -0.25rem; }
+/* An edition's citation, set as it sets it: smaller and in soft ink, and never the
+   page's wash. Its words are still words — tappable, carded and counted (David). */
+.src .cite { font-size: 0.8em; color: var(--ink-soft); }
+body.marking .src .cite .w,
+body.marking .src .cite .w[data-status] { background: none; box-shadow: none; }
+.tr .cite { font-size: 0.85em; color: var(--ink-soft); }
+/* A translator's footnote: a small raised numeral in the line, the note under it in the
+   chrome's face. */
+.tr .note-mark { font-size: 0.6875rem; line-height: 0; color: var(--teal); padding-inline: 0.1em; }
+.tr .tr-notes {
+  display: block;
+  margin-block-start: 0.4rem;
+  padding-block-start: 0.3rem;
+  border-block-start: 1px solid var(--hairline);
+  font-family: var(--chrome);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.tr .tr-note { display: block; }
+.tr .tr-note sup { font-size: 0.6875rem; line-height: 0; color: var(--teal); }
+/* A commentary's catchword, bold, as every printing sets it. */
+.cmp-text .catch, .tr.commented .catch { font-weight: 700; color: var(--ink); }
 .pair:target { background: var(--paper-raised); }
 /* Under 60rem the page has no margin to hang a number in, so the row makes room for it
    inside its own padding: every verse on the page moves over by the same amount, which

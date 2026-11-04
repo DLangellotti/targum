@@ -1142,7 +1142,7 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ tongue }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|dress(source_direction, dressing.unaccented.get(segment.id)) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|dress(target_direction, tr_dressing.get(segment.id)) }}{% if segment.id in tr_notes %}<span class="tr-notes">{% for note in tr_notes[segment.id] %}<span class="tr-note"><sup>{{ note.mark }}</sup> {{ note.text|isolate(target_direction) }}</span>{% endfor %}</span>{% endif %}</p>{% endif %}
     {#- The companions, under the verse and its translation, a column each (#414). A
         cell for every companion on every verse, empty where it says nothing, so the
         columns stay columns; a companion that is off is hidden, not left out, so turning
@@ -1150,7 +1150,7 @@
     {% if companions %}
     <div class="beside">
       {%- for c in companions %}
-      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="{{ page_language|default('en') }}" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|isolate(c.direction) }}</span></p>
+      <p class="cmp{% if c.commented %} commented{% endif %}{% if segment.id not in c.text %} empty{% endif %}" data-t="{{ c.id }}" data-companion="{{ c.key }}" lang="{{ c.language }}" dir="{{ c.direction }}"{% if not c.on %} hidden{% endif %}><span class="cmp-name" lang="{{ page_language|default('en') }}" dir="ltr">{{ c.label }}</span><span class="cmp-text">{{ c.text.get(segment.id, '')|dress(c.direction, c.cuts.get(segment.id)) }}</span></p>
       {%- endfor %}
     </div>
     {% endif %}

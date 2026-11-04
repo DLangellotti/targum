@@ -926,6 +926,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- What an edition sets apart is kept beside its words (David, 2026-11-04; design.md §12,
+  "A text keeps the shape its edition gives it"). `sefaria/6` reads Torat Emet's
+  small-printed citations, a commentary's bold catchwords and a translator's footnotes
+  into new fields of the block (`marks`, `notes`), outside the text every stage is keyed
+  to; the text and its hash are byte-identical with and without them, pinned against the
+  hashes `sefaria/5` gave every fixture. A published translation carries its marks and
+  notes to the line they render (`Translation.marks`, `.notes`). On the page a citation
+  is smaller, in soft ink and without the page's wash, and its words are still tappable
+  and counted; the translation's own "(Deut. 6,5)" is set the same way beside such a
+  text; Glazer's footnotes are a raised numeral in the line and a quiet note under it;
+  Rashi's catchword is bold beside the verse. `targum marks` gives texts already built
+  their marks: it reads each Sefaria text again, copies the marks only where every word
+  came back the same and leaves any other text exactly as it was, then renders the
+  readers it touched again. Nothing is bought.
 - A text keeps the shape its edition gives it (David, 2026-11-04; design.md §12). A
   chapter whose heading is the work's name and a numeral is drawn as the work once and
   "פרק ב׳" under it, with "Chapter 2" ("Глава 2") beside it; the heading's own words are

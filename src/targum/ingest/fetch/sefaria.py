@@ -61,7 +61,7 @@ from urllib.parse import quote
 
 from ...errors import TargumError
 from ...ids import block_id
-from ...models import BlockKind, Document
+from ...models import BlockKind, Document, Mark, Note
 from ..base import Paragraph, blocks_from_paragraphs, build_document, normalize
 from ..url import get
 
@@ -70,6 +70,10 @@ API = "https://www.sefaria.org/api/v3/texts/{ref}?version={version}"
 #: `Rashi on Genesis` and its cousins, for the one thing this file does with them: say
 #: plainly that it cannot read one, rather than refuse it for a missing edition.
 _COMMENTARY_REF = re.compile(r"^(?P<who>[A-Z][A-Za-z]+) on (?P<book>[A-Z][A-Za-z ]+?)\s*$")
+
+#: Any commentary's name, "Rashi on Genesis" or "Rashi on Genesis 1": whose bold is its
+#: catchword (`marked`).
+_A_COMMENTARY = re.compile(r"^[A-Z][A-Za-z]+ on \S")
 
 DEFAULT_LANGUAGE = "he"
 
@@ -526,6 +530,100 @@ def plain(text: str) -> str:
     return soup.get_text()
 
 
+@dataclass(frozen=True, slots=True)
+class Marked:
+    """What one verse's markup sets apart, as text to find in the verse once it is
+    read: citations, catchwords, and footnotes with the words before them."""
+
+    cites: tuple[str, ...] = ()
+    catches: tuple[str, ...] = ()
+    notes: tuple[tuple[str, str, str], ...] = ()  # (the words before, its numeral, the note)
+
+
+_SMALL = re.compile(r"<small>(.*?)</small>", re.S)
+_BOLD = re.compile(r"<b>(.*?)</b>", re.S)
+_FOOTNOTE = re.compile(
+    r'<sup class="footnote-marker">(.*?)</sup>\s*<i class="footnote">(.*?)</i>', re.S
+)
+
+
+def marked(html: str, commentary: bool) -> Marked:
+    """What a verse's markup sets apart (design.md §12, "A text keeps the shape its
+    edition gives it", 2026-11-04).
+
+    Read off the markup `plain` strips, and only ever as text to look for afterwards:
+    the verse itself is read exactly as it always was, so nothing here can change a
+    character of it. A citation is what the edition prints small and in brackets — Torat
+    Emet's `<small>(דברים ו ה)</small>` — and nothing else it prints small, which in the
+    Tanakh is a single small letter inside a word. A catchword is what a commentary
+    prints bold; nothing else is bold that means it. A footnote keeps the words before
+    it, which is how its place is found in the verse once its own text is gone.
+    """
+    if not html or "<" not in html:
+        return Marked()
+    cites = tuple(
+        found
+        for found in (normalize(plain(piece)).strip() for piece in _SMALL.findall(html))
+        if found.startswith("(") and found.endswith(")") and " " in found
+    )
+    catches = (
+        tuple(
+            found
+            for found in (normalize(plain(piece)).strip() for piece in _BOLD.findall(html))
+            if found
+        )
+        if commentary
+        else ()
+    )
+    notes: list[tuple[str, str, str]] = []
+    for match in _FOOTNOTE.finditer(html):
+        before = normalize(plain(html[: match.start()])).strip()
+        note = normalize(plain(match.group(2))).strip()
+        numeral = normalize(plain(match.group(1))).strip()
+        if note:
+            notes.append((before, numeral, note))
+    return Marked(cites=cites, catches=catches, notes=tuple(notes))
+
+
+def place(text: str, found: Marked) -> tuple[list[Mark], list[Note]]:
+    """Where in the verse as read each thing the markup set apart stands.
+
+    Looked for in order, each after the last, so a citation printed twice in one verse
+    is marked twice and in the right places. What cannot be found is left unmarked
+    rather than marked somewhere it is not.
+    """
+    marks: list[Mark] = []
+    for kind, pieces in (("cite", found.cites), ("catch", found.catches)):
+        cursor = 0
+        for piece in pieces:
+            at = text.find(piece, cursor)
+            if at < 0:
+                continue
+            marks.append(Mark(start=at, end=at + len(piece), kind=kind))
+            cursor = at + len(piece)
+    notes: list[Note] = []
+    cursor = 0
+    for before, numeral, note in found.notes:
+        at = -1
+        # The words just before the note, longest first: what `normalize` and the
+        # spacing repair do at the edge of a cut can differ by a space.
+        for width in (32, 20, 12, 6):
+            tail = before[-width:].strip()
+            if not tail:
+                at = 0
+                break
+            spot = text.find(tail, cursor)
+            if spot >= 0:
+                at = spot + len(tail)
+                break
+        if at < 0:
+            at = len(text)
+        notes.append(Note(at=at, mark=numeral, text=note))
+        cursor = at
+    marks.sort(key=lambda mark: (mark.start, mark.end))
+    return marks, notes
+
+
 # Hebrew numerals for chapter headings. A Latin digit inside a Hebrew heading is the
 # bidi mess `isolate()` exists to paper over, and there is no reason to create it here.
 _ONES = " אבגדהוזחטי"
@@ -797,6 +895,11 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     named_in_english = book_of(str(body.get("ref") or ref))
 
     paragraphs: list[Paragraph] = []
+    # A commentary by its name, with or without a chapter after the book.
+    commentary = bool(_A_COMMENTARY.match(ref.strip()))
+    # What each verse's markup set apart, by its place in the list, found in the verse
+    # once the document is built (`place`).
+    sets_apart: dict[int, Marked] = {}
     # Which verse each paragraph is, by its place in the list. Kept beside the paragraphs
     # rather than inside them: `Paragraph` is the shape every ingester builds, and only a
     # numbered text has anything to put here.
@@ -811,7 +914,11 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
         for count, verse in enumerate(verses, start=1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
-            clean = normalize(plain(said_in(verse))).strip()
+            raw = said_in(verse)
+            clean = normalize(plain(raw)).strip()
+            apart_here = marked(raw, commentary)
+            if apart_here != Marked():
+                sets_apart[len(paragraphs)] = apart_here
             refs[len(paragraphs)] = f"{named_in_english} {number}:{count}".strip()
             if language == DEFAULT_LANGUAGE:
                 found = language_of(named_in_english, number, count)
@@ -829,23 +936,36 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
         block.ref = by_id.get(block.id, "")
         block.language = spoken_in.get(block.id)
 
-    return build_document(
+    document = build_document(
         f"sefaria:{ref}" if language == DEFAULT_LANGUAGE else f"sefaria:{language}:{ref}",
         blocks,
         ingester=SefariaFetcher.name,
         language=language,
         title=title,
     )
+    # Found in each verse as it was finally read, after every repair `build_document`
+    # makes, so a mark stands on the characters a reader's page carries.
+    apart = {block_id(index): one for index, one in sets_apart.items()}
+    for block in document.blocks:
+        set_apart = apart.get(block.id)
+        if set_apart is None:
+            continue
+        marks, notes = place(block.text, set_apart)
+        block.marks = marks or None
+        block.notes = notes or None
+    return document
 
 
 class SefariaFetcher:
     # A version, so a change to any rule above re-ingests rather than looking like
     # somebody hand-edited the document on disk. 2: the accented Hebrew edition. 3: every
     # verse carries its ref. 4: works beyond the Tanakh, and footnotes dropped rather than
-    # inlined. 5: the Aramaic of Daniel and Ezra says so. Free to bump — the hash a
+    # inlined. 5: the Aramaic of Daniel and Ezra says so. 6: what the edition sets apart
+    # is kept beside the text — its small-printed citations, a commentary's bold
+    # catchwords, a translator's footnotes (2026-11-04). Free to bump — the hash a
     # document is keyed by is its text, and the text has not changed, so nothing
-    # downstream is bought again.
-    name = "sefaria/5"
+    # downstream is bought again; `test_sefaria_marks` pins that.
+    name = "sefaria/6"
 
     def load(self, identifier: str) -> Document:
         language, ref = split_ref(identifier)
