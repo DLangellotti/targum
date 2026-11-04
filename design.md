@@ -384,6 +384,59 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A text keeps the shape its edition gives it — 2026-11-04
+
+David, 2026-11-04, approving the formatting mock ("I'd like targum to be better at
+presenting texts in their original formatting"): each text looks like itself, its
+structure and conventions as the source sets them, inside the one reader, while the word
+cards, the line-by-line translation and the level figures work as before. Option A of the
+mock; a second "as printed" view and a Mikraot Gedolot page wait.
+
+- **A chapter is named as a chapter.** Where a chapter's heading is the work's name and
+  the chapter's numeral ("משנה תורה, הלכות יסודי התורה ב׳", "בראשית א׳"), the plate reads
+  the work once, in the reading face, and under it "פרק ב׳"; its translation reads
+  "Chapter 2" ("Глава 2"). The heading's own words are not drawn, so they cannot be
+  tapped; they still count, because nothing that counts reads the page.
+- **Halakha and verse numbers are Hebrew letters** (א׳ ב׳ … ט״ו ט״ז) on a text in Hebrew
+  letters that numbers itself: scripture, Mishnah, the Mishneh Torah, the siddur. In the
+  reading face, in soft ink, in the margin where the digit stood. The row still answers to
+  `#2:1`, and the number's label still says the full ref.
+- **פ and ס are breaks.** An open parasha ends its verse with space and a hairline under
+  it; a closed one with less space and a short hairline. The (פ) and (ס) themselves stay
+  where the scribe left them, small and soft. They have always been in the text.
+- **Poetry stands in its half-lines.** In Psalms, Proverbs and Job a verse breaks after
+  the word that carries the etnachta, and the second line is set in. The te'amim already
+  in the text say where; nothing is stored.
+- **A paragraph is its sentences.** Sentences of one source paragraph sit closer together
+  than the paragraphs do. Each is still a row with its own translation.
+- **An edition's citations are its small type.** Where the edition marks a reference as
+  a citation — Torat Emet's `<small>(דברים ו ה)</small>` — it is set smaller and in soft
+  ink, and never takes the page's wash. Its words are still words: tappable, carded and
+  counted (David). A translation's own references, "(Deut. 6,5)", are set the same way
+  where the text is one of these editions.
+- **A translator's footnotes come back as quiet notes**: a small raised numeral in the
+  line, the note under the paragraph in the chrome's face, in soft ink. Glazer's
+  Mishneh Torah first. They were dropped since 2026-09-08.
+- **Rashi's catchword is bold**, as every printing sets it and as Sefaria marks it
+  (decided 2026-09-22, built now).
+- **What an edition marks is kept beside its words, never in them.** Citations, notes
+  and catchwords are fields of the block, outside the text every stage is keyed to, so
+  reading them costs a fetch from Sefaria and nothing else. A test pins that the text and
+  its hash are byte-identical with and without them.
+- **An article keeps its pictures and their captions, and its dateline** (new imports
+  only, David: nothing already on the shelf is read again, because a caption is new text
+  and new text is bought). A picture is copied beside the reader and never fetched from
+  the publisher (§12, "A reader fetches nothing from any other site"). A caption is a
+  line of its own, tapped and translated like any other, under its picture in soft ink
+  and a size below the lines around it. The site's name after a dash ("… – ויקיחדשות") is not part
+  of the title.
+- **Two faults fixed on the way.** A row too tall for a page is cut between lines in each
+  column, so a long halakha's English no longer runs under the foot of the page cut
+  through a line. And a number with a dash, "72-73", is never broken across lines,
+  where its halves were laid out backwards.
+- **A scene's speakers are named** beside each line, as they already were where the
+  scene's cast is on the machine: the name sits beside the line, never inside it.
+
 ### A text's figure is our estimate until your marks settle it — 2026-11-04
 
 David, 2026-11-03, after the public-beta review of the same day (intermediate-abroad

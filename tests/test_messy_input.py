@@ -75,4 +75,4 @@ def test_a_clock_range_in_hebrew_stays_one_run_rather_than_flipping() -> None:
     from targum.render.builder import isolate
 
     html = str(isolate("חלק 1 · 0:00–10:58", "rtl"))
-    assert "<bdi>0:00–10:58</bdi>" in html
+    assert '<bdi class="unbroken">0:00–10:58</bdi>' in html

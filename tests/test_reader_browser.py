@@ -5611,7 +5611,7 @@ def test_a_link_to_a_verse_turns_to_its_page(browser, book: Path, hash: str) -> 
     page.wait_for_function("() => document.body.classList.contains('paged')")
     page.wait_for_function(VERSE_SHOWN, arg="2:55")
     seen = page.evaluate(VERSE, "2:55")
-    assert seen["number"] == "55", "the number in the margin is the verse's"
+    assert seen["number"] == "נ״ה", "the number in the margin is the verse's, in its letters"
     assert seen["ceiling"] <= seen["top"] and seen["bottom"] <= seen["window"]
     context.close()
 
@@ -5650,7 +5650,7 @@ def test_the_contents_page_sends_a_verse_link_on_to_its_chapter(browser, book: P
     page.goto(address(book / "index.html") + "#3:7")
     page.wait_for_url(lambda url: url.endswith("sec-0002.html#3:7"))
     page.wait_for_function(VERSE_SHOWN, arg="3:7")
-    assert page.evaluate(VERSE, "3:7")["number"] == "7"
+    assert page.evaluate(VERSE, "3:7")["number"] == "ז׳"
     context.close()
 
 
@@ -5990,7 +5990,7 @@ def test_a_verse_link_into_a_portion_lands_on_the_aliyah_that_holds_it(
     page.wait_for_url(lambda url: url.endswith("sec-0002.html#2:55"))
     page.wait_for_function(VERSE_SHOWN, arg="2:55")
     seen = page.evaluate(VERSE, "2:55")
-    assert seen["number"] == "55" and seen["target"]
+    assert seen["number"] == "נ״ה" and seen["target"]
     context.close()
 
 

@@ -64,6 +64,7 @@ from ..models import (
 )
 from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
+from . import shape
 
 # A section beyond this many segments is split again. Sized so a section stays under a
 # megabyte once M4 adds per-token annotation.
@@ -88,6 +89,11 @@ _LATIN_RUN = re.compile(r"@?[A-Za-z0-9][A-Za-z0-9 .,:/'’&–_=?%#-]*[A-Za-z0-9
 # out left to right, so the phrase read in the wrong order. Only what cannot end a
 # Hebrew phrase — a trailing full stop belongs to the English sentence around it — stays
 # outside.
+#: A number with its separators and nothing else — a score's 72-73, a clock's 0:00–10:58,
+#: a year's 1897–1948. One isolate already keeps its halves in order; this keeps them on
+#: one line, where a break after the dash laid "72-" at the end of one line of Hebrew and
+#: "73" at the start of the next, read as ".73" (2026-11-04).
+_ONE_NUMBER = re.compile(r"[0-9]+(?:[ .,:/–-][0-9]+)+")
 _RTL_RUN = re.compile(r"[֐-׿؀-ۿ][֐-ۿ\s.,:;?!()'\"״׳־–0-9-]*[֐-׿؀-ۿ]|[֐-׿]")
 
 
@@ -139,10 +145,16 @@ def isolate(text: str, direction: str, lang: str = "") -> Markup:
     position = 0
     for match in pattern.finditer(text):
         parts.append(str(escape(text[position : match.start()])))
-        parts.append(f"<bdi{named}>{escape(match.group())}</bdi>")
+        whole = ' class="unbroken"' if _ONE_NUMBER.fullmatch(match.group()) else ""
+        parts.append(f"<bdi{named}{whole}>{escape(match.group())}</bdi>")
         position = match.end()
     parts.append(str(escape(text[position:])))
     return Markup("".join(parts))
+
+
+def _dress(text: str, direction: str, cuts: list[shape.Cut] | None = None) -> Markup:
+    """A line isolated as `isolate` does it, with the shape its edition gives it."""
+    return shape.dress(text, direction, cuts, isolate)
 
 
 # The version of the shape `embed_json` writes into `targum-data`, so a payload can say
@@ -594,6 +606,7 @@ def _environment() -> Environment:
     )
     env.template_class = _Page
     env.filters["isolate"] = isolate
+    env.filters["dress"] = _dress
     env.globals["asset"] = _asset
     # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
     env.globals["script"] = _script
@@ -6639,6 +6652,48 @@ def render(
         for segment in segmented.segments
         if segment.kind is BlockKind.verse and verse_address(segment.ref)
     }
+    # The shape the edition gives the text (design.md §12, "A text keeps the shape its
+    # edition gives it", 2026-11-04): its numbers in its own letters, a chapter named as
+    # a chapter, the parashot a scribe closed, the half-lines of the poetic books, and the
+    # sentences that are one paragraph. All markup around the text; not one character of
+    # it changes, so no word moves and nothing counts differently.
+    letters = shape.in_letters(segmented.language)
+    numbers = {sid: shape.verse_label(at, letters) for sid, at in verses.items()}
+    plates = shape.plates(document.title, segmented.language, segmented.segments)
+    ends: dict[str, str] = {}
+    dressing: dict[str, dict[str, list[shape.Cut]]] = {"plain": {}, "pointed": {}, "unaccented": {}}
+    for segment in segmented.segments:
+        if segment.kind is not BlockKind.verse:
+            continue
+        if parasha_end := shape.parasha(segment.text):
+            ends[segment.id] = parasha_end
+        with_taamim = next(
+            (text for text in (pointed.get(segment.id), segment.text) if text and has_taamim(text)),
+            "",
+        )
+        stich = shape.half_line(segment.ref, with_taamim) if with_taamim else None
+        stich_words = shape.word_count(with_taamim) if stich is not None else 0
+        shaped_forms = {
+            "plain": bare[segment.id],
+            "pointed": pointed.get(segment.id, ""),
+            "unaccented": unaccented.get(segment.id, ""),
+        }
+        for form, form_text in shaped_forms.items():
+            if not form_text:
+                continue
+            shaped = shape.parasha_cut(form_text)
+            if stich is not None:
+                shaped += shape.break_after(form_text, stich, stich_words)
+            if shaped:
+                dressing[form][segment.id] = shaped
+    continues: set[str] = set()
+    for earlier, later in zip(segmented.segments, segmented.segments[1:], strict=False):
+        if (
+            later.block_id == earlier.block_id
+            and later.kind is not BlockKind.heading
+            and earlier.kind is not BlockKind.heading
+        ):
+            continues.add(later.id)
     source_direction = direction_for(segmented.language)
     # OpenRussian's tables, where the text is Russian and this machine fetched them. A
     # reader built without them is the reader every earlier build made.
@@ -7541,6 +7596,13 @@ def render(
             # And where a film's caption starts, on whichever page it falls.
             post_caption=post["caption_from"] if post else "",
             verses=verses,
+            numbers=numbers,
+            letters=letters,
+            plates=plates,
+            first_plate=next((sid for sid in section.segment_ids if sid in plates), ""),
+            ends=ends,
+            continues=continues,
+            dressing=dressing,
             languages=languages,
             switches=switches,
             bare=bare,

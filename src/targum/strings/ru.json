@@ -333,6 +333,7 @@
   "reader.page.next-page-pageup-back-on-the-last": "следующая страница; PageUp назад. На последней странице — следующая глава",
   "reader.page.no-recording": "Записи нет",
   "reader.page.of": "{page} из {pages}",
+  "reader.page.chapter": "Глава {n}",
   "reader.page.one-case-at-a-time": "по одному падежу",
   "reader.page.open-on-youtube-at-this-line": "Открыть на YouTube с этой строки",
   "reader.page.our-dictionary-forms-are-less-reliable-on": "Для библейского иврита наши словарные формы менее надёжны, чем для современного. Анализатор учился на современном тексте без огласовок, поэтому иногда неверно читает на карточке вав-последовательный, паузальные и архаичные формы.",

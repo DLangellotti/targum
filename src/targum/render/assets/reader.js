@@ -8168,29 +8168,80 @@ var targumReader = function () {
    * Print takes the clipping off with the rest of the paging.
    */
   // The heights down a pair where a cut would go through a line, merged into bands.
-  function linesOf(pair) {
+  function linesOf(pair, within) {
     var top = pair.getBoundingClientRect().top;
     var lines = [];
     var range = document.createRange();
-    var walker = document.createTreeWalker(pair, NodeFilter.SHOW_TEXT);
+    var walker = document.createTreeWalker(within || pair, NodeFilter.SHOW_TEXT);
     for (var node = walker.nextNode(); node; node = walker.nextNode()) {
       if (!node.data.trim()) continue;
       range.selectNodeContents(node);
       var rects = range.getClientRects();
       for (var i = 0; i < rects.length; i++) {
-        if (rects[i].height) lines.push([rects[i].top - top - 2, rects[i].bottom - top + 2]);
+        if (rects[i].height) lines.push([rects[i].top - top, rects[i].bottom - top]);
       }
     }
     lines.sort(function (a, b) {
       return a[0] - b[0];
     });
+    // Lines that overlap are one band; lines that only stand close are not. Each band then
+    // takes up to 2px of margin for the marks above and below its letters, but never more
+    // than half the gap to its neighbour: padded first and merged after, a paragraph set
+    // tight had no gap left anywhere and was cut through a line (2026-11-04).
     var bands = [];
     lines.forEach(function (line) {
       var last = bands[bands.length - 1];
-      if (last && line[0] <= last[1]) last[1] = Math.max(last[1], line[1]);
+      if (last && line[0] < last[1]) last[1] = Math.max(last[1], line[1]);
       else bands.push([line[0], line[1]]);
     });
-    return bands;
+    return bands.map(function (band, n) {
+      var above = n ? (band[0] - bands[n - 1][1]) / 2 : 2;
+      var below = n + 1 < bands.length ? (bands[n + 1][0] - band[1]) / 2 : 2;
+      return [band[0] - Math.min(2, above), band[1] + Math.min(2, below)];
+    });
+  }
+
+  // The columns a pair stands in side by side — the line read and its translation at a
+  // desk — each with its own lines, or none where it is one column. A pair's lines from
+  // two columns interleave, so merged into one set of bands they leave no gap anywhere,
+  // and the cut fell through a line: a long halakha's English ran under the foot of the
+  // page with its last line cut in half (2026-11-04). Cut column by column, each column
+  // breaks between its own lines. Only where everything with text in the pair is one of
+  // the columns or stands above the first cut: a companion under both columns keeps the
+  // single cut, which a stacked pair never needed to change.
+  function columnsOf(pair, first) {
+    var top = pair.getBoundingClientRect().top;
+    var boxes = [];
+    Array.prototype.forEach.call(pair.children, function (child) {
+      if (!child.textContent.trim()) return;
+      var box = child.getBoundingClientRect();
+      if (!box.width || !box.height) return;
+      boxes.push({ el: child, box: box, top: box.top - top, height: box.height });
+    });
+    var columns = boxes.filter(function (one) {
+      return boxes.some(function (other) {
+        return (
+          other !== one &&
+          other.box.top < one.box.bottom &&
+          one.box.top < other.box.bottom &&
+          (other.box.left >= one.box.right || one.box.left >= other.box.right) &&
+          other.height > 40 &&
+          one.height > 40
+        );
+      });
+    });
+    if (columns.length < 2) return [];
+    var rest = boxes.filter(function (one) {
+      return columns.indexOf(one) < 0;
+    });
+    var clear = rest.every(function (one) {
+      return one.top + one.height <= first;
+    });
+    if (!clear) return [];
+    return columns.map(function (one) {
+      one.bands = linesOf(pair, one.el);
+      return one;
+    });
   }
 
   // Where to cut a pair of `height`, the first piece in `first` pixels and every other in
@@ -8227,6 +8278,45 @@ var targumReader = function () {
       var above = tops[last] - tops[range[0]];
       if (above + heights[last] <= room + 1 || room - above < 80) {
         out.push(range);
+        return;
+      }
+      var columns = columnsOf(pairs[last], room - above);
+      if (columns.length) {
+        var plans = columns.map(function (column) {
+          return cutsFrom(column.bands, heights[last], room - above, room);
+        });
+        var pieces = Math.max.apply(
+          null,
+          plans.map(function (plan) {
+            return plan.length;
+          })
+        );
+        for (var p = 0; p + 1 < pieces; p++) {
+          var piece = p === 0 ? [range[0], last] : [last, last];
+          piece.pair = last;
+          piece.height = heights[last];
+          piece.cols = columns.map(function (column, c) {
+            var plan = plans[c];
+            var from = p < plan.length - 1 ? plan[p] : heights[last];
+            var to = p + 1 < plan.length ? plan[p + 1] : heights[last];
+            return { el: column.el, top: column.top, height: column.height, from: from, to: to };
+          });
+          piece.from = Math.min.apply(
+            null,
+            piece.cols.map(function (col) {
+              return col.from;
+            })
+          );
+          piece.to =
+            piece.from +
+            Math.max.apply(
+              null,
+              piece.cols.map(function (col) {
+                return col.to - col.from;
+              })
+            );
+          out.push(piece);
+        }
         return;
       }
       var cuts = cutsFrom(linesOf(pairs[last]), heights[last], room - above, room);
@@ -8279,6 +8369,16 @@ var targumReader = function () {
     var tail = tailHeight();
     if (!tail || used + tail <= room) return list;
     var before = list.slice(0, -1);
+    // A piece cut column by column keeps its cuts, and the foot takes a page of its own:
+    // cut again here as one column, it would draw lines the columns' cuts had kept apart.
+    if (end.cols) {
+      var alone = [last, last];
+      alone.pair = last;
+      alone.from = height;
+      alone.to = height;
+      alone.height = height;
+      return list.concat([alone]);
+    }
     if (!cut && first < last && height + tail <= room) {
       return before.concat([[first, last - 1], [last, last]]);
     }
@@ -8313,7 +8413,13 @@ var targumReader = function () {
   }
 
   var cutPair = null;
+  var cutColumns = [];
   function unslice() {
+    cutColumns.forEach(function (el) {
+      el.style.removeProperty("--cut-top");
+      el.style.removeProperty("--cut-clip");
+    });
+    cutColumns = [];
     if (!cutPair) return;
     cutPair.classList.remove("sliced");
     cutPair.style.removeProperty("--cut-top");
@@ -8330,6 +8436,18 @@ var targumReader = function () {
     if (!range.from && range.to >= range.height) return;
     pair.style.setProperty("--cut-top", range.from + "px");
     pair.style.setProperty("--cut-size", range.to - range.from + "px");
+    // Column by column where the pair was cut that way: each drawn up by its own cut and
+    // clipped at its own, so neither shows a line the other's cut went through.
+    (range.cols || []).forEach(function (col) {
+      var above = Math.max(0, col.from - col.top);
+      var below = Math.max(0, col.top + col.height - col.to);
+      col.el.style.setProperty("--cut-top", col.from + "px");
+      col.el.style.setProperty(
+        "--cut-clip",
+        col.to > col.from ? "inset(" + above + "px 0 " + below + "px 0)" : "inset(100% 0 0 0)"
+      );
+      cutColumns.push(col.el);
+    });
     pair.classList.add("sliced");
     cutPair = pair;
   }
