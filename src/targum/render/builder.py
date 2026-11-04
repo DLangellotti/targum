@@ -6686,6 +6686,37 @@ def render(
                 shaped += shape.break_after(form_text, stich, stich_words)
             if shaped:
                 dressing[form][segment.id] = shaped
+    # And what the edition itself set apart, kept beside the text since sefaria/6: the
+    # citations Torat Emet prints small. Found again in each form by their words.
+    marked_blocks = {one.id: one for one in document.blocks if one.marks}
+    for segment in segmented.segments:
+        marked_block = marked_blocks.get(segment.block_id)
+        marked_at = marked_block.text.find(segment.text) if marked_block is not None else -1
+        if marked_block is None or marked_at < 0:
+            continue
+        cited = [
+            segment.text[mark.start - marked_at : mark.end - marked_at]
+            for mark in marked_block.marks or ()
+            if mark.kind == "cite"
+            and marked_at <= mark.start
+            and mark.end <= marked_at + len(segment.text)
+        ]
+        if not cited:
+            continue
+        for form, form_text in (
+            ("plain", bare[segment.id]),
+            ("pointed", pointed.get(segment.id, "")),
+            ("unaccented", unaccented.get(segment.id, "")),
+        ):
+            if not form_text:
+                continue
+            cite_pieces = [strip_nikkud(one)[0] for one in cited] if form == "plain" else cited
+            if cite_found := shape.found_in(form_text, cite_pieces, "cite"):
+                dressing[form].setdefault(segment.id, []).extend(cite_found)
+    # An edition with citations of its own has them in its translation too: "(Deut. 6,5)".
+    cites_its_own = any(
+        mark.kind == "cite" for one in marked_blocks.values() for mark in one.marks or ()
+    )
     continues: set[str] = set()
     for earlier, later in zip(segmented.segments, segmented.segments[1:], strict=False):
         if (
@@ -7654,6 +7685,29 @@ def render(
             drawn_id=f"t{drawn_at}",
             covered=covered,
             primary=drawing.segments,
+            # The drawn rendering's own shape: its references set as citations where the
+            # text's edition sets its own, and its translator's footnotes (sefaria/6).
+            tr_dressing={
+                sid: cuts
+                for sid in section.segment_ids
+                if (
+                    cuts := [
+                        *(
+                            shape.english_citations(drawing.segments.get(sid, ""))
+                            if cites_its_own
+                            else []
+                        ),
+                        *(
+                            (note.at, note.at, f"note:{note.mark}")
+                            for note in drawing.notes.get(sid, ())
+                        ),
+                        *((mark.start, mark.end, mark.kind) for mark in drawing.marks.get(sid, ())),
+                    ]
+                )
+            },
+            tr_notes={
+                sid: drawing.notes[sid] for sid in section.segment_ids if drawing.notes.get(sid)
+            },
             primary_coarse=set(drawing.coarse),
             # Whether the rendering beside the text is a commentary rather than a
             # translation (targum-internal#200). A verse of Rashi is several comments
@@ -7681,6 +7735,12 @@ def render(
                         sid: line
                         for sid in section.segment_ids
                         if (line := translation.segments.get(sid, "")) and line.strip() != EMPTY
+                    },
+                    # A commentary's catchwords, bold as printed (sefaria/6).
+                    "cuts": {
+                        sid: [(mark.start, mark.end, mark.kind) for mark in marks]
+                        for sid in section.segment_ids
+                        if (marks := translation.marks.get(sid))
                     },
                 }
                 for index, translation in enumerate(translations)

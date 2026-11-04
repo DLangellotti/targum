@@ -6,7 +6,10 @@ from collections.abc import Sequence
 
 from ..models import (
     Alignment,
+    Document,
     Link,
+    Mark,
+    Note,
     Segment,
     SegmentedDocument,
     Translation,
@@ -175,8 +178,48 @@ def align(
     return (aligner or Aligner()).align(source, target, name)
 
 
+def _shape_of(
+    document: Document, target: SegmentedDocument, targets: list[str]
+) -> tuple[list[Mark], list[Note]]:
+    """The marks and notes of the target segments one source segment is rendered by, in
+    characters of the rendered line: the segments joined by a space, as `to_translation`
+    joins them. What a segment's block marks outside that segment is not carried."""
+    blocks = {block.id: block for block in document.blocks if block.marks or block.notes}
+    if not blocks:
+        return [], []
+    by_id = {segment.id: segment for segment in target.segments}
+    marks: list[Mark] = []
+    notes: list[Note] = []
+    offset = 0
+    for index, target_id in enumerate(targets):
+        segment = by_id.get(target_id)
+        text = segment.text if segment is not None else ""
+        if index:
+            offset += 1
+        block = blocks.get(segment.block_id) if segment is not None else None
+        base = block.text.find(text) if block is not None and text else -1
+        if block is not None and base >= 0:
+            end = base + len(text)
+            marks.extend(
+                Mark(start=mark.start - base + offset, end=mark.end - base + offset, kind=mark.kind)
+                for mark in block.marks or ()
+                if base <= mark.start and mark.end <= end
+            )
+            notes.extend(
+                Note(at=note.at - base + offset, mark=note.mark, text=note.text)
+                for note in block.notes or ()
+                if base <= note.at <= end
+            )
+        offset += len(text)
+    return marks, notes
+
+
 def to_translation(
-    alignment: Alignment, target: SegmentedDocument, *, style_note: str = "aligned"
+    alignment: Alignment,
+    target: SegmentedDocument,
+    *,
+    style_note: str = "aligned",
+    document: Document | None = None,
 ) -> Translation:
     """Project an alignment into what the reader renders.
 
@@ -189,12 +232,37 @@ def to_translation(
     coarse: list[str] = []
     confidence: dict[str, float] = {}
 
+    marks: dict[str, list[Mark]] = {}
+    notes: dict[str, list[Note]] = {}
+
     for link in alignment.links:
         if not link.source:
             continue
-        rendered = " ".join(text_by_id.get(target_id, "") for target_id in link.target).strip()
+        joined = " ".join(text_by_id.get(target_id, "") for target_id in link.target)
+        rendered = joined.strip()
+        # A published edition's marks and notes, carried to the line they now stand in
+        # (design.md §12, "A text keeps the shape its edition gives it", 2026-11-04).
+        held_marks: list[Mark] = []
+        held_notes: list[Note] = []
+        if document is not None:
+            lead = len(joined) - len(joined.lstrip())
+            found_marks, found_notes = _shape_of(document, target, list(link.target))
+            held_marks = [
+                Mark(start=m.start - lead, end=m.end - lead, kind=m.kind)
+                for m in found_marks
+                if m.start >= lead and m.end - lead <= len(rendered)
+            ]
+            held_notes = [
+                Note(at=n.at - lead, mark=n.mark, text=n.text)
+                for n in found_notes
+                if lead <= n.at <= lead + len(rendered)
+            ]
         for source_id in link.source:
             segments[source_id] = rendered
+            if held_marks:
+                marks[source_id] = held_marks
+            if held_notes:
+                notes[source_id] = held_notes
             confidence[source_id] = link.confidence
             if link.coarse:
                 coarse.append(source_id)
@@ -210,4 +278,6 @@ def to_translation(
         segments=segments,
         coarse=coarse,
         confidence=confidence,
+        marks=marks,
+        notes=notes,
     )

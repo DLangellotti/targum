@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 
-from markupsafe import Markup
+from markupsafe import Markup, escape
 
 from ..models import BlockKind, Segment
 
@@ -148,6 +148,38 @@ def break_after(text: str, word: int, words: int) -> list[Cut]:
     return [(at, at, "stich")]
 
 
+def found_in(text: str, pieces: Iterable[str], kind: str) -> list[Cut]:
+    """Each piece where it stands in this form of the line, each after the last.
+
+    An edition's marks are kept against its own text (`models.Mark`), and a page draws
+    the line in up to three forms. A citation is printed without vowels in every one of
+    them, so it is found by its words rather than carried by offset; a piece this form
+    does not hold is left unmarked.
+    """
+    cuts: list[Cut] = []
+    cursor = 0
+    for piece in pieces:
+        if not piece:
+            continue
+        at = text.find(piece, cursor)
+        if at < 0:
+            continue
+        cuts.append((at, at + len(piece), kind))
+        cursor = at + len(piece)
+    return cuts
+
+
+#: A translation's own reference in brackets: "(Deut. 6,5)", "(Ibid. 6, 13)", "(Ps. 42,2)".
+#: Drawn as an edition's citation only beside a text whose edition marks its own.
+_ENGLISH_CITATION = re.compile(
+    r"\((?:Ibid\.?|[A-Z][a-z]+\.?(?: [A-Z][a-z]+\.?)?)\s*\d+[\d,:\s\u2013-]*\)"
+)
+
+
+def english_citations(text: str) -> list[Cut]:
+    return [(m.start(), m.end(), "cite") for m in _ENGLISH_CITATION.finditer(text)]
+
+
 def word_count(text: str) -> int:
     return len(_WORD.findall(text))
 
@@ -172,7 +204,10 @@ def dress(
         if start < position or end > len(text) or start > end:
             continue
         parts.append(str(isolate(text[position:start], direction)))
-        if start == end:
+        if start == end and kind.startswith("note:"):
+            numeral = escape(kind.split(":", 1)[1])
+            parts.append(f'<sup class="note-mark">{numeral}</sup>')
+        elif start == end:
             parts.append(f'<br class="{kind}">')
         else:
             parts.append(f'<span class="{kind}">{isolate(text[start:end], direction)}</span>')

@@ -207,6 +207,30 @@ def read_artifact(cls: type[A], path: Path) -> A | None:
         return None
 
 
+class Mark(BaseModel):
+    """A stretch of a block its edition sets apart: a citation it prints small, the
+    catchword a commentary prints bold. In characters of the block's own text.
+
+    Beside the text and never in it (design.md §12, "A text keeps the shape its edition
+    gives it", 2026-11-04): every stage is keyed to the text, so a mark written into it
+    would re-buy the whole of it, and a mark kept here costs nothing.
+    """
+
+    start: int
+    end: int
+    #: "cite" or "catch".
+    kind: str
+
+
+class Note(BaseModel):
+    """A translator's footnote: its numeral, what it says, and where in the line it
+    stands, in characters of the block's own text. Shown quietly, never read as text."""
+
+    at: int
+    mark: str
+    text: str
+
+
 class Block(Artifact):
     """One structural unit of the source: a paragraph, a heading, a line of verse."""
 
@@ -232,6 +256,12 @@ class Block(Artifact):
     #: `body()` like `ref`, so giving a text its languages costs a re-ingest and not a
     #: re-translation.
     language: str | None = None
+    #: What the edition sets apart inside the text, and the translator's notes on it.
+    #: Left out of `body()` like `ref`, so an edition read again for its marks costs a
+    #: fetch and nothing else. None where the source marks nothing, which is every
+    #: block written before 2026-11-04 and every block of every source but Sefaria.
+    marks: list[Mark] | None = None
+    notes: list[Note] | None = None
 
 
 class Document(Artifact):
@@ -583,6 +613,11 @@ class Translation(Artifact):
     style: Style = Style.natural
     kind: str = "machine"
     segments: dict[str, str] = Field(default_factory=dict)
+    #: A published translation's marks and notes, by the source segment they render, in
+    #: characters of that segment's text here: Rashi's catchwords, Glazer's footnotes.
+    #: Not part of `renderings.rendering_hash`, which reads the text alone.
+    marks: dict[str, list[Mark]] = Field(default_factory=dict)
+    notes: dict[str, list[Note]] = Field(default_factory=dict)
     # Segments whose pairing is paragraph-level rather than sentence-level. The reader
     # marks these, because a visibly coarser pairing beats a confidently wrong one.
     coarse: list[str] = Field(default_factory=list)

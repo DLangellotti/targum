@@ -1617,6 +1617,54 @@ def _targums(where: Path) -> list[Path]:
 
 
 @app.command()
+def marks(
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Where your targums are. Default: ./targum-out"),
+    ] = None,
+    only: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--only", help="Only this targum: its folder name, or home/name. Again for more."
+        ),
+    ] = None,
+) -> None:
+    """Give Sefaria texts already built what their edition sets apart: its small-printed
+    citations, a commentary's bold catchwords, a translator's footnotes.
+
+    Each text is read again from Sefaria, and a text whose words come back different by a
+    single character is left exactly as it was. Only marks are copied, beside the words
+    and never into them, so nothing downstream is bought: the readers it touched are then
+    rendered again from what is on disk. Nothing is spent. Safe to run again.
+    """
+    from . import ingest
+    from . import marks as marks_module
+
+    root = out or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"No targums at {root}."))
+    folders = _only(_targums(root), only) if only else _targums(root)
+    sefaria = [
+        folder
+        for folder in folders
+        if (folder / "document.json").is_file()
+        and '"source": "sefaria:' in (folder / "document.json").read_text(encoding="utf-8")
+    ]
+    console.print(f"[dim]{len(sefaria)} Sefaria texts of {len(folders)}.[/dim]")
+    done = marks_module.give_all(sefaria, ingest.load)
+    for name in done.written:
+        console.print(f"[green]{name}[/green] [dim]marked[/dim]")
+    for name, why in done.refused:
+        console.print(f"[yellow]{name}[/yellow] [dim]left alone: {why}[/dim]")
+    console.print(
+        f"[dim]{len(done.written)} marked, {len(done.unchanged)} had nothing to add, "
+        f"{len(done.refused)} left alone. Nothing was spent.[/dim]"
+    )
+    if done.written:
+        rebuild(out=root, words=False, gloss=False, reread=None, dry_run=False, only=done.written)
+
+
+@app.command()
 def repair(
     out: Annotated[
         Path | None,

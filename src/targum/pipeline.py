@@ -804,7 +804,7 @@ class Build:
             alignment.write(
                 self.resolved_out / "alignments" / f"{slug(name)}.{target.language}.json"
             )
-            projected = align_module.to_translation(alignment, target)
+            projected = align_module.to_translation(alignment, target, document=document)
             # The projection goes to disk beside a machine translation, not only into
             # this run's memory. The alignment alone cannot be re-rendered later: it
             # holds links, not text, and the published translation's segments are not

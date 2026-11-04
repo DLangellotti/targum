@@ -8883,6 +8883,7 @@ var targumReader = function () {
     // read into, or a test.
     if (!entry || !entry.text || !covers(id)) return;
     var was = targetLanguage;
+    var shown = showing;
     useTarget(id);
     foldMeanings();
     var coarse = {};
@@ -8893,7 +8894,11 @@ var targumReader = function () {
       var segmentId = pair.getAttribute("data-id");
       var cell = pair.querySelector(".tr");
       if (!cell) return;
-      cell.textContent = entry.text[segmentId] || "";
+      // The drawn rendering's line came with its shape — its citations set small, its
+      // translator's notes (sefaria/6) — so going back to it puts the line back whole.
+      if (shown === drawn && cell.__drawnHTML === undefined) cell.__drawnHTML = cell.innerHTML;
+      if (id === drawn && cell.__drawnHTML !== undefined) cell.innerHTML = cell.__drawnHTML;
+      else cell.textContent = entry.text[segmentId] || "";
       // The cell's text is new, so what was cached about the old one goes; Onkelos's
       // words are drawn into it (targum-internal#202).
       if (Object.keys(besideTables).length) {

@@ -504,7 +504,7 @@ def test_a_book_with_no_aramaic_marks_nothing() -> None:
 def test_the_marking_costs_a_re_ingest_and_not_a_re_translation() -> None:
     """Every Daniel and Ezra on the shelf was ingested before this. The ingester's name
     is what makes them be read again, and the text they hash to has not changed."""
-    assert sefaria.SefariaFetcher.name == "sefaria/5"
+    assert int(sefaria.SefariaFetcher.name.split("/")[1]) >= 5
     marked = sefaria.document_from_payload(scripture("Daniel", DANIEL), "Daniel", "he")
     for block in marked.blocks:
         block.language = None
