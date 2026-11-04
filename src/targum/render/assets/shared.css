@@ -9,6 +9,10 @@
    The faces here are `--ui`, never a face by name: the chrome's own face (§13), on the
    desk and, since 2026-10-09, on the reader, which carries it in the page. */
 
+/* A number and its separators is one thing to read: a score's 72-73 broken after its
+   dash was laid out backwards across two lines of Hebrew (`isolate`, 2026-11-04). */
+bdi.unbroken { white-space: nowrap; }
+
 /* --- the word's card ------------------------------------------------------ */
 
 /* Beside the word, not pinned to the foot of the window — see `placeNear()`. Absolute

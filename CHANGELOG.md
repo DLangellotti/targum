@@ -6,6 +6,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A row too tall for a page is cut between lines in each of its columns (2026-11-04). A
+  halakha whose English ran longer than its Hebrew was cut once for both columns, and
+  their lines interleave, so there was no gap to cut in and the cut fell through a line:
+  the English ran under the foot of the page with its last line cut in half. Each column
+  is now cut at its own lines and clipped there, and the page after it carries on from
+  the next whole line. A companion under both columns keeps the single cut.
+- A number with a dash stays on one line (2026-11-04). In a Hebrew article "72-73" broke
+  after its dash, and the halves were laid out backwards across two lines, reading "72-"
+  and then ".73". A run that is a number and its separators is now kept whole.
 - A text's figure is our estimate until the reader's marks settle it, and it is the same
   figure on every page (David, 2026-11-03; design.md §12, "A text's figure is our estimate
   until your marks settle it"; beta review F-01, F-02, F-07). Home's card, More that fit
@@ -907,6 +916,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
 
 ### Added
+- A text keeps the shape its edition gives it (David, 2026-11-04; design.md §12). A
+  chapter whose heading is the work's name and a numeral is drawn as the work once and
+  "פרק ב׳" under it, with "Chapter 2" ("Глава 2") beside it; the heading's own words are
+  not drawn and still count. Halakha and verse numbers are Hebrew letters (א׳ … ט״ו ט״ז)
+  on a text in Hebrew letters, in the reading face, still answering to `#2:1`. A verse
+  that ends an open parasha (פ) leaves a paragraph's space and a hairline after it, a
+  closed one (ס) less, and the (פ)/(ס) are set small and soft. Psalms, Proverbs and Job
+  break each verse after the word that carries the etnachta, the second line set in.
+  Sentences of one paragraph sit closer than the paragraphs. All of it is markup around
+  the text: no character of any line changes, so no word, card or count moves, and
+  nothing is fetched or bought. A reader rebuild brings it to texts already built.
 - The open web is searched each night on the forty topics (targum-internal#622; David,
   2026-11-03; design.md §12). `targum finds web`, on its own timer at 00:10 UTC, runs one
   Anthropic web search for each topic chip's fixed Hebrew phrase (Claude Haiku 4.5 and

@@ -2809,9 +2809,9 @@ def test_a_verse_answers_to_its_address(tmp_path: Path) -> None:
     assert row, "the row is the address"
     assert 'data-ref="Ruth 2:1"' in row.group(0)
     assert re.search(
-        r'<a class="verse-number" href="#2:1" aria-label="Ruth 2:1" title="Ruth 2:1">1</a>',
+        r'<a class="verse-number letter" href="#2:1" aria-label="Ruth 2:1" title="Ruth 2:1">א׳</a>',
         second,
-    ), "the number stands in the margin and is a link to the verse"
+    ), "the number stands in the margin, in the text's letters, and is a link to the verse"
     # The chapter's heading is the chapter's address, not a verse's.
     head = re.search(r'<div class="pair head[^"]*"[^>]*>', second)
     assert head and " id=" not in head.group(0)
@@ -5731,7 +5731,9 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 #: 116.8 kB on 2026-11-03 before the beta review's reader changes (the signed-out line,
 #: Tell us in the ⋯ menu, "Sign in to look this up" and the binyan's gloss), which added
 #: about 0.35 kB with the rest of them moved to `reader-rest.js`.
-A_WORD_WAITS_GZ = 117_500
+#: 118.4 kB on 2026-11-04 with the edition's shape (design.md §12, "A text keeps the shape
+#: its edition gives it"): the plate, the parashot and half-lines, and the column cut.
+A_WORD_WAITS_GZ = 118_900
 
 
 def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:

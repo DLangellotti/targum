@@ -344,6 +344,7 @@
   "reader.page.next-page-pageup-back-on-the-last": "next page; PageUp back. On the last page, the next chapter",
   "reader.page.no-recording": "No recording",
   "reader.page.of": "{page} of {pages}",
+  "reader.page.chapter": "Chapter {n}",
   "reader.page.one-case-at-a-time": "one case at a time",
   "reader.page.open-on-youtube-at-this-line": "Open on YouTube at this line",
   "reader.page.our-dictionary-forms-are-less-reliable-on": "Our dictionary forms are less reliable on biblical Hebrew than\n    on modern. The analyser learned from modern unpointed text, so it sometimes misreads\n    waw-consecutive, pausal and archaic forms on a card.",
