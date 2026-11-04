@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-11-03
-A reader's menus and card labels are in your interface language, such as Russian, whatever the text.
+Menus and card labels in the reader follow your interface language, such as Russian, whatever the text.
 Biblical and rabbinic Hebrew is suggested only once you ask for it, so a news reader is not offered Genesis.
 A suggestion never starts a series in the middle.
 
