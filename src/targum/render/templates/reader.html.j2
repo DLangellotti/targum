@@ -1324,14 +1324,17 @@
       they are used, and the reader is where they are used. The deed is linked; the page
       each claim was read from is on the text's Library page, since a reader carries no
       address but the pinned few. -#}
+  {#- A licence that asks for changes to be indicated (CC BY 4.0, and the 3.0 deeds for
+      an adaptation) is told what we changed (David, 2026-11-03). A translation of ours
+      is credited as ours on its own line. -#}
   {% if edition_credit %}
-  <p class="credit">{{ t("reader.credit.from", "{what} from", what=edition_credit.label) }} {{ edition_credit.name }}{% if edition_credit.licence %} · {% if edition_credit.deed %}<a href="{{ edition_credit.deed }}" rel="noopener">{{ edition_credit.licence }}</a>{% else %}{{ edition_credit.licence }}{% endif %}{% endif %}</p>
+  <p class="credit">{{ t("reader.credit.from", "{what} from", what=edition_credit.label) }} {{ edition_credit.name }}{% if edition_credit.licence %} · {% if edition_credit.deed %}<a href="{{ edition_credit.deed }}" rel="noopener">{{ edition_credit.licence }}</a>{% else %}{{ edition_credit.licence }}{% endif %}{% endif %}{% if edition_credit.changed %} · {{ t("reader.credit.changed", "Vowel points and notes added by targum") }}{% endif %}</p>
   {% endif %}
   {% for one in layer_credits or [] %}
   <p class="credit">{{ t("reader.credit.from", "{what} from", what=one.label) }} {{ one.name }}{% if one.licence %} · {% if one.deed %}<a href="{{ one.deed }}" rel="noopener">{{ one.licence }}</a>{% else %}{{ one.licence }}{% endif %}{% endif %}</p>
   {% endfor %}
   {% if text_credit %}
-  <p class="credit">{{ t("reader.page.from", "From") }} <a href="{{ text_credit.source }}" rel="noopener noreferrer">{{ text_credit.outlet }}</a>{% if text_credit.licence %} · {% if text_credit.licence_url %}<a href="{{ text_credit.licence_url }}" rel="noopener noreferrer">{{ text_credit.licence }}</a>{% else %}{{ text_credit.licence }}{% endif %}{% endif %}</p>
+  <p class="credit">{{ t("reader.page.from", "From") }} <a href="{{ text_credit.source }}" rel="noopener noreferrer">{{ text_credit.outlet }}</a>{% if text_credit.licence %} · {% if text_credit.licence_url %}<a href="{{ text_credit.licence_url }}" rel="noopener noreferrer">{{ text_credit.licence }}</a>{% else %}{{ text_credit.licence }}{% endif %}{% endif %}{% if text_credit.changed %} · {{ t("reader.credit.changed", "Vowel points and notes added by targum") }}{% endif %}</p>
   {% endif %}
   {% if words_credit %}
   <p class="credit">{{ t("reader.page.dictionary-forms-by", "Dictionary forms by") }} <a href="https://huggingface.co/dicta-il/dictabert-joint" rel="noopener">DICTA</a> · <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a></p>

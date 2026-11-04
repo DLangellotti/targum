@@ -48,6 +48,7 @@ from ..annotate.gloss import from_step_bible
 from ..annotate.model_lemma import antecedents_shown, tenses_apart
 from ..annotate.pronounce import guessed, qatan
 from ..correct import own_source
+from ..licensing import changes_owed
 from ..models import (
     Annotation,
     BlockKind,
@@ -4505,6 +4506,9 @@ class Credited(NamedTuple):
     href: str
     licence: str
     deed: str
+    #: Whether the licence asks us to say we changed it, and so the line says that targum
+    #: added the vowel points and notes (David, 2026-11-03; `licensing.changes_owed`).
+    changed: bool = False
 
 
 def _web(address: object) -> str:
@@ -4598,7 +4602,9 @@ def edition_credit(
     )
     where = entry.licence_url if linked else ""
     licence, deed = licence_said(entry.licence, where)
-    return Credited(str(label), entry.credit, _web(where), licence, deed)
+    return Credited(
+        str(label), entry.credit, _web(where), licence, deed, changes_owed(entry.licence)
+    )
 
 
 def layer_credits(
@@ -6351,11 +6357,14 @@ def text_credit_in(folder: Path | None) -> dict[str, str] | None:
     source = web(said.get("source"))
     if not outlet or not source:
         return None
+    licence = str(said.get("licence") or "").strip()
     return {
         "outlet": outlet,
         "source": source,
-        "licence": str(said.get("licence") or "").strip(),
+        "licence": licence,
         "licence_url": web(said.get("licence_url")),
+        # A CC BY find says we changed it (David, 2026-11-03; `licensing.changes_owed`).
+        "changed": "yes" if changes_owed(licence) else "",
     }
 
 

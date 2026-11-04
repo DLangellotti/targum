@@ -55,6 +55,7 @@
       <li>
         <b>{% if edition.href %}<a href="{{ edition.href }}" rel="noopener">{{ edition.name }}</a>{% else %}{{ edition.name }}{% endif %}</b>
         {%- if edition.licence %}<span class="licence">{% if edition.deed %}<a href="{{ edition.deed }}" rel="noopener">{{ edition.licence }}</a>{% else %}{{ edition.licence }}{% endif %}</span>{% endif %}
+        {%- if edition.changed %}<span class="note">{{ t("reader.credit.changed", "Vowel points and notes added by targum") }}</span>{% endif %}
       </li>
     </ul>
   </section>

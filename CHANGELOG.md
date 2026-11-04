@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- A text under a licence that asks for changes to be indicated says what we changed
+  (David, 2026-11-03; design.md §12, "A text whose licence asks says we changed it"). CC
+  BY, CC BY-SA and CC BY-NC(-SA) texts, 3.0 and 4.0 alike, carry "Vowel points and notes
+  added by targum" («Огласовки и пояснения добавлены targum», a draft) after their
+  licence in the reader's foot and on the Library page, from `licensing.changes_owed`.
+  Public domain and CC0 texts say nothing. New string `reader.credit.changed`.
 - The Russian interface's smaller leaks from the beta review's browser pass (2026-11-03,
   R25–R30). A news article's contents page is filed as the catalogue files it («Статья»,
   "Article"), not «Книга» (R29), and the line under its title is drawn in the reader's
