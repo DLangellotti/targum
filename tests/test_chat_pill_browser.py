@@ -25,6 +25,10 @@ SITE = "http://pill.test"
 
 DOOR = "/reader/ha-yam-he/reader/index.html"
 
+#: What opens the drawer at this width: the pill at a desk, the bar's icon on a phone
+#: (design.md §12, "On a phone the AI Assistant is in the bar", 2026-11-04).
+TALK_DOOR = "#talk-open:visible, #talk-head:visible"
+
 #: A conversation with a corrected recast and its why, a door to a text, and a ready
 #: quote with its source: the turn design's `thread-*` shots drew.
 THREAD = {
@@ -445,8 +449,8 @@ def in_the_drawer(browser, width: int, language: str = "en", reading: str = "he"
 
     page.route(f"{SITE}/**", route)
     page.goto(f"{SITE}/library?k={TOKEN}")
-    page.wait_for_selector("#talk-open")
-    page.click("#talk-open")
+    page.wait_for_selector(TALK_DOOR)
+    page.click(TALK_DOOR)
     frame = page.frame_locator("#talk-frame")
     frame.locator("#say").wait_for()
     page.wait_for_timeout(300)

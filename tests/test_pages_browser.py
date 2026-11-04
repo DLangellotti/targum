@@ -1280,7 +1280,8 @@ def test_a_deleted_text_says_where_it_went_and_can_be_undone_in_place(
 def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     """A long inbox on a phone ran off the top of the screen with Clear all above it, a
     failure's address ran past the edge, a line with nothing to open put its × in the
-    Open column, and the round pill stood over the sheet (2026-09-14)."""
+    Open column, and the round pill stood over the sheet (2026-09-14). The pill has left a
+    phone's foot for the bar since 2026-11-04, so nothing at the foot stands over it."""
     html = list_page(TOKEN, "texts")
     address = "https://www.example.test/" + "a-long-path-segment-" * 8 + "?utm_source=copy_link"
     jobs = [
@@ -1322,15 +1323,13 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
           const xs = [...panel.querySelectorAll('.notices-x')]
             .map((x) => Math.round(x.getBoundingClientRect().right));
           const pill = document.getElementById('talk-open').getBoundingClientRect();
-          const under = document.elementFromPoint(
-            pill.left + pill.width / 2, pill.top + pill.height / 2);
           return {
             top: box.top, bottom: box.bottom, height: innerHeight, width: innerWidth,
             scrollWidth: document.documentElement.scrollWidth,
             panelScrolls: panel.scrollHeight > panel.clientHeight,
             clearTop: clear.top, clearBottom: clear.bottom,
             xs: [...new Set(xs)],
-            pillCovers: !panel.contains(under),
+            pillDrawn: pill.width * pill.height > 0,
             wide: [...panel.querySelectorAll('li')]
               .filter((li) => li.scrollWidth > li.clientWidth + 1).length,
           };
@@ -1342,7 +1341,7 @@ def test_the_bell_is_a_sheet_that_fits_a_phone(browser) -> None:
     assert got["top"] <= got["clearTop"] and got["clearBottom"] <= got["bottom"], got
     assert len(got["xs"]) == 1, f"every × in one column: {got['xs']}"
     assert got["wide"] == 0 and got["scrollWidth"] <= got["width"], f"an address runs past: {got}"
-    assert not got["pillCovers"], "the pill does not stand over the sheet"
+    assert not got["pillDrawn"], "no pill at a phone's foot to stand over the sheet"
 
 
 @pytest.mark.parametrize(
@@ -2038,8 +2037,12 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     pressed, the drawer then stands on screen with the conversation in it, Escape closes
     it, and at a desk it is open again on the next page since the conversation is not
     over; on a phone the next page has it closed (QA 2026-10-11, D7). A text
-    the conversation offers on a page without a sheet opens the reader itself."""
+    the conversation offers on a page without a sheet opens the reader itself. On a
+    phone the door is the bar's icon beside the bell, and it stays in the bar while the
+    sheet is open (design.md §12, "On a phone the AI Assistant is in the bar",
+    2026-11-04)."""
     html = library_page(TOKEN)
+    door = "#talk-head" if width < 641 else "#talk-open"
 
     def answer(route, request):
         u = request.url
@@ -2077,14 +2080,16 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     page = context.new_page()
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/library?k={TOKEN}")
-    page.wait_for_selector("#talk-open")
-    measure = """() => {
-      const pill = document.getElementById('talk-open').getBoundingClientRect();
+    page.wait_for_selector(door)
+    measure = """(door) => {
+      const pill = document.querySelector(door).getBoundingClientRect();
       const drawer = document.getElementById('talk-drawer');
       const box = drawer.getBoundingClientRect();
       return {
         pill: { left: pill.left, right: pill.right, top: pill.top, bottom: pill.bottom },
-        pillShown: getComputedStyle(document.getElementById('talk-open')).display !== 'none',
+        pillShown: getComputedStyle(document.querySelector(door)).display !== 'none',
+        iconShown: getComputedStyle(document.getElementById('talk-head')).display !== 'none',
+        floating: getComputedStyle(document.getElementById('talk-open')).display !== 'none',
         open: !drawer.hidden,
         drawer: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
         loaded: !!document.getElementById('talk-frame').getAttribute('src'),
@@ -2094,24 +2099,24 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
         head: document.querySelector('.site-head').getBoundingClientRect().bottom,
       };
     }"""
-    before = page.evaluate(measure)
-    page.click("#talk-open")
+    before = page.evaluate(measure, door)
+    page.click(door)
     page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
     # Past the drawer's own settling, which is the one motion it has.
     page.wait_for_timeout(300)
-    opened = page.evaluate(measure)
+    opened = page.evaluate(measure, door)
     page.keyboard.press("Escape")
     page.wait_for_timeout(300)
-    closed = page.evaluate(measure)
-    page.click("#talk-open")
+    closed = page.evaluate(measure, door)
+    page.click(door)
     page.goto(f"http://learn.test/library?k={TOKEN}")
-    page.wait_for_selector("#talk-open", state="attached")
+    page.wait_for_selector(door, state="attached")
     page.wait_for_timeout(200)
-    again = page.evaluate(measure)
+    again = page.evaluate(measure, door)
     if width < 1024:
         # On a phone the next page does not bring it back (QA 2026-10-11, D7), so the
         # pill is pressed again, and the conversation is there behind it.
-        page.click("#talk-open")
+        page.click(door)
     # A text offered where there is no sheet: the reader itself.
     page.frame_locator("#talk-frame").locator(".chat-ask").first.wait_for()
     frame = [f for f in page.frames if "embed=1" in f.url][0]
@@ -2124,7 +2129,11 @@ def test_the_pill_opens_the_conversation_as_a_drawer_on_any_page(browser, width:
     assert before["pillShown"] and not before["open"] and not before["loaded"], before
     assert 0 <= before["pill"]["left"] and before["pill"]["right"] <= width, "the pill on screen"
     assert 0 <= before["pill"]["top"] and before["pill"]["bottom"] <= 800
-    assert opened["open"] and opened["loaded"] and not opened["pillShown"], opened
+    # A desk keeps its pill and draws no icon; a phone has no pill floating over the page.
+    assert before["iconShown"] == (width < 641) and before["floating"] == (width >= 641), before
+    assert opened["open"] and opened["loaded"], opened
+    # The pill is put away while its drawer is open; the bar's icon stays in the bar.
+    assert opened["pillShown"] == (door == "#talk-head"), opened
     assert 0 <= opened["drawer"]["left"] and opened["drawer"]["right"] <= width + 1, opened
     assert 0 <= opened["drawer"]["top"] and opened["drawer"]["bottom"] <= 800 + 1, opened
     assert not closed["open"] and closed["pillShown"] and closed["remembered"] is None
@@ -2327,7 +2336,8 @@ def test_the_drawer_speaks_the_language_of_the_page_holding_it(browser) -> None:
     page.route("http://learn.test/**", answer)
     page.goto(f"http://learn.test/learn?k={TOKEN}")
     page.wait_for_timeout(300)
-    page.click("#talk-open")
+    # On a phone the door is the bar's icon (2026-11-04).
+    page.click("#talk-head")
     talk = page.frame_locator("#talk-frame")
     field = talk.locator("#say")
     field.wait_for()

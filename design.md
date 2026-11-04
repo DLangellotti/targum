@@ -447,6 +447,29 @@ page prints it" in "The arrival asks which words you know" (2026-11-01).
   than the check's.
 - **Never the rung only said.** A reader who skipped the check, or took it against lists
   this targum no longer has, or stands under aleph by it, sees the page as before.
+### On a phone the AI Assistant is in the bar — 2026-11-04
+
+David, on a 390px phone (2026-11-04): the floating "AI Assistant" pill above the four
+places took a whole row and covered the page. It amends "The AI Assistant's pill joins the
+band at the foot" (2026-10-12) and §13's pill "above the bar".
+
+- **On a phone nothing floats over the page.** Under 40rem the pill and the band it stood
+  in are not drawn; the glass at the foot is the four places again, and a page keeps the
+  bar's 4rem at its foot rather than 8rem.
+- **The AI Assistant is an icon in the top bar, beside the bell**, where a desk keeps find
+  (find is a row in the account's sheet on a phone). It is the pill's own speech-bubble
+  glyph (§7), drawn as the bell is: soft ink, the teal wash on hover and while the sheet
+  is open, the teal focus ring, and a 44px reach under a thumb, set far enough from the
+  bell that the two reaches do not overlap. It opens the same sheet, and focus comes back
+  to it when the sheet closes.
+- **Its name is still "AI Assistant"** (`nav.talk`), as its label and its tooltip. No
+  word is written beside it: "AI" squeezed the language's badge to "B…" at 390, and "AI
+  Assistant" ran over the badge at 390 and the chevron at 360. The bar's other icons
+  carry no word either.
+- **A desk is unchanged**: the icon is not drawn above 40rem, and the pill stays at the
+  window's foot with its room (2026-10-09, 2026-10-23). The reader is unchanged too: it
+  never had the pill, and Talk to targum about it is a row of its ⋯ menu.
+
 ### A text whose licence asks says we changed it — 2026-11-03
 
 CC BY 4.0, CC BY-SA 4.0 and CC BY-NC(-SA) 4.0 ask anyone who shares an adapted work to
@@ -10195,7 +10218,7 @@ glyph, a `+` before the word; the top bar keeps the mark, the language (its name
 bell and the account, with find as a row in the account's sheet, and EN · RU too
 (2026-10-18, §12, "On a phone, EN · RU is a row of the account's sheet"); the pill
 that opens the conversation stands above the bar and says Talk (board HomePhone; it was a
-round glyph until 2026-10-09), and every panel comes up
+round glyph until 2026-10-09) *(since 2026-11-04 it is an icon in the top bar beside the bell, and nothing floats over a phone's page — §12, "On a phone the AI Assistant is in the bar")*, and every panel comes up
 as a sheet from the foot — the bell's, the language's, the account's and the doors' menus
 alike — no taller than the screen less a strip of the page, over the page dimmed. Learn (until 2026-10-08, when home became Your targums — §12) on
 a phone was quiet (2026-09-14, "the whole page is just way too busy"): the greeting and the

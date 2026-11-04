@@ -5,6 +5,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Changed
+- On a phone the AI Assistant is an icon in the top bar, beside the bell, and nothing
+  floats over the page (David, 2026-11-04; design.md §12, "On a phone the AI Assistant is
+  in the bar"). The pill above the four places, and the 4rem band it stood in, took a
+  whole row of a 390px screen and covered the page. Under 40rem the pill is not drawn and
+  the foot is the four places' bar alone; the icon is the pill's speech-bubble glyph,
+  drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
+  and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
+  never had it, is unchanged. No new strings.
+
 ### Fixed
 - A text's figure is our estimate until the reader's marks settle it, and it is the same
   figure on every page (David, 2026-11-03; design.md §12, "A text's figure is our estimate

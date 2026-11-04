@@ -23,6 +23,17 @@
   var close = document.getElementById("talk-close");
   var scrim = document.getElementById("talk-scrim");
   if (!pill || !drawer || !frame) return;
+  // The doors that open it: the pill, and on a phone the bar's own icon beside the bell
+  // (design.md §12, 2026-11-04), which stands in for the pill there.
+  var head = document.getElementById("talk-head");
+  var doors = head ? [pill, head] : [pill];
+  // The one a thumb or a keyboard can reach at this width, for focus to come back to.
+  function door() {
+    for (var i = 0; i < doors.length; i++) {
+      if (doors[i].getClientRects().length) return doors[i];
+    }
+    return pill;
+  }
 
   // How far in from the window's end edge the pill reaches, in `--talk-room`, so a page
   // can keep its controls out from under it (targum-internal#379: at 1024–1280px the
@@ -53,7 +64,9 @@
     }
   }
   if (!/^https?:$/.test(window.location.protocol)) return;
-  pill.hidden = false;
+  doors.forEach(function (one) {
+    one.hidden = false;
+  });
   function keyed(path) {
     if (!key) return path;
     return path + (path.indexOf("?") < 0 ? "?" : "&") + "k=" + encodeURIComponent(key);
@@ -247,7 +260,9 @@
       var foot = head ? Math.max(0, Math.round(head.getBoundingClientRect().bottom)) : 0;
       drawer.style.setProperty("--talk-top", foot + "px");
     }
-    pill.setAttribute("aria-expanded", on ? "true" : "false");
+    doors.forEach(function (one) {
+      one.setAttribute("aria-expanded", on ? "true" : "false");
+    });
     document.body.classList.toggle("talking", on);
     // Focus goes in with a press and comes back to the pill with a close, so a keyboard
     // is never left on the page's body (QA 2026-10-11). A drawer a page brought back by
@@ -255,7 +270,7 @@
     if (on && !restored) focusBox();
     if (!on && (drawer.contains(document.activeElement) || document.activeElement === frame ||
         document.activeElement === document.body || !document.activeElement)) {
-      pill.focus();
+      door().focus();
     }
     try {
       if (on) localStorage.setItem(OPEN, "open");
@@ -265,8 +280,10 @@
     }
   }
 
-  pill.addEventListener("click", function () {
-    show(drawer.hidden);
+  doors.forEach(function (one) {
+    one.addEventListener("click", function () {
+      show(drawer.hidden);
+    });
   });
   if (close) {
     close.addEventListener("click", function () {
