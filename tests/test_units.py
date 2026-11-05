@@ -733,6 +733,40 @@ def test_as_if_holds_before_a_gerund_a_preposition_or_a_verb() -> None:
     ) == ["как бы"]
 
 
+def test_as_if_holds_before_a_participle_an_adjective_or_a_noun() -> None:
+    """Вешние воды, Лошадиная фамилия, Смерть Ивана Ильича: the three shelf sentences
+    that pin the participle, ADJ and NOUN entries of the after-list, tagged as built."""
+    planted = _as_if(
+        ("насаженную", "насадить", "VERB",
+         "UPOS=VERB|Case=Acc|Gender=Fem|Number=Sing|Aspect=Perf|Tense=Past|VerbForm=Part"),
+        ("прямо", "прямо", "ADV", "UPOS=ADV"), ("на", "на", "ADP", "UPOS=ADP"),
+        ("плечи", "плечо", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Neut|Number=Plur|Animacy=Inan"),
+        before=(("эту", "этот", "DET", "UPOS=DET|Case=Acc|Gender=Fem|Number=Sing"),
+                ("голову", "голова", "NOUN",
+                 "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing|Animacy=Inan")),
+    )  # fmt: skip
+    assert planted == ["как бы"], "Вешние воды: эту голову, как бы насаженную прямо на плечи"
+    horsey = _as_if(
+        ("лошадиная", "лошадиный", "ADJ", "UPOS=ADJ|Case=Nom|Gender=Fem|Number=Sing"),
+        before=(("простая", "простой", "ADJ", "UPOS=ADJ|Case=Nom|Gender=Fem|Number=Sing"),
+                ("фамилия", "фамилия", "NOUN",
+                 "UPOS=NOUN|Case=Nom|Gender=Fem|Number=Sing|Animacy=Inan"),
+                ("словно", "словно", "ADV", "UPOS=ADV")),
+    )  # fmt: skip
+    assert horsey == ["как бы"], "Лошадиная фамилия: простая фамилия… словно как бы лошадиная"
+    memory = _as_if(
+        ("воспоминание", "воспоминание", "NOUN",
+         "UPOS=NOUN|Case=Nom|Gender=Neut|Number=Sing|Animacy=Inan"),
+        ("о", "о", "ADP", "UPOS=ADP"),
+        ("каком-то", "какой-то", "DET", "UPOS=DET|Case=Loc|Gender=Neut|Number=Sing"),
+        ("другом", "другой", "ADJ", "UPOS=ADJ|Case=Loc|Gender=Neut|Number=Sing"),
+        before=(("это", "это", "PRON", "UPOS=PRON|Case=Nom|Gender=Neut|Number=Sing"),
+                ("было", "быть", "VERB",
+                 "UPOS=VERB|Gender=Neut|Number=Sing|Aspect=Imp|Tense=Past|VerbForm=Fin|Mood=Ind")),
+    )  # fmt: skip
+    assert memory == ["как бы"], "Смерть Ивана Ильича: это было как бы воспоминание о каком-то"
+
+
 def test_as_if_is_not_lest_or_how_would() -> None:
     """The wrong kinds on the shelf: "lest" after бояться, "how to" after о том, the
     conditional before a pronoun, an adverb or хотеться."""
