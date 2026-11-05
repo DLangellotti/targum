@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-04
+An article you import keeps its pictures, their captions and its dateline.
+A text keeps the shape its edition gives it: chapters, letter numerals, half-lines and footnotes you can tap.
+On a phone, the AI Assistant sits in the top bar beside the bell, and no longer covers the page.
+
 2026-11-03
 Menus and card labels in the reader follow your interface language, such as Russian, whatever the text.
 Biblical and rabbinic Hebrew is suggested only once you ask for it, so a news reader is not offered Genesis.
