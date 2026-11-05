@@ -71,6 +71,13 @@ REFLEXIVE = frozenset({"se", "me", "te", "nous", "vous"})
 #: parts, whatever its `needs` says: a segment is a sentence, so it never crosses one.
 MOST_BETWEEN = 8
 
+#: French negation particles. A gap after `ne` stops at any of them that is not the
+#: part it looks for: in ne… pas que, ne… pas plus, the ne is pas's, and the que, the
+#: plus are other words.
+NEGATIONS = frozenset(
+    {"pas", "point", "plus", "jamais", "rien", "personne", "guère", "aucun", "nul", "que"}
+)
+
 #: The most characters between two words of one unit: a space or a maqaf.
 GAP = 1
 
@@ -98,6 +105,9 @@ class Unit:
     #: French and Russian: the written forms each part must have, empty where any will
     #: do (the est-ce of est-ce que, the может of может быть). Empty in Hebrew.
     forms: tuple[frozenset[str], ...] = ()
+    #: French and Russian: whether punctuation may stand in the gap before each part,
+    #: as the comma before the но и of не только… но и does. Elsewhere it ends a gap.
+    commas: tuple[bool, ...] = ()
 
 
 def plain(text: str) -> str:
@@ -169,26 +179,33 @@ def _spelled(
     return out
 
 
-def _needed(cell: str, count: int) -> tuple[tuple[int, ...], tuple[frozenset[str], ...]]:
+def _needed(
+    cell: str, count: int
+) -> tuple[tuple[int, ...], tuple[frozenset[str], ...], tuple[bool, ...]]:
     """A French or Russian `needs` cell, one entry per word, `|` between: `~N` lets up
-    to N words stand before that word (ne|~6 is ne… que), `=form` holds it to that
-    written form, alternatives split on "/" (=может), both space-separated."""
+    to N words stand before that word (ne|~6 is ne… que), and `~N,` lets punctuation
+    stand among them too (ни|~6, is ни X, ни Y); `=form` holds it to that written
+    form, alternatives split on "/" (=может); both space-separated."""
     cells = cell.split("|") if cell.strip() else []
     gaps: list[int] = []
     forms: list[frozenset[str]] = []
+    commas: list[bool] = []
     for at in range(count):
         gap = 0
+        comma = False
         held: set[str] = set()
         for one in (cells[at] if at < len(cells) else "").split():
-            if one.startswith("~") and one[1:].isdigit():
-                gap = min(int(one[1:]), MOST_BETWEEN) if at else 0
+            if one.startswith("~") and one[1:].rstrip(",").isdigit():
+                gap = min(int(one[1:].rstrip(",")), MOST_BETWEEN) if at else 0
+                comma = bool(at) and one.endswith(",")
             elif one.startswith("=") and one[1:]:
                 held.update(fold(form) for form in one[1:].split("/") if form)
             else:
                 raise ValueError(f"units: cannot read {one!r} in needs {cell!r}")
         gaps.append(gap)
         forms.append(frozenset(held))
-    return tuple(gaps), tuple(forms)
+        commas.append(comma)
+    return tuple(gaps), tuple(forms), tuple(commas)
 
 
 def _written_words(surface: str) -> tuple[tuple[str, ...], ...]:
@@ -246,7 +263,7 @@ def _load_words(path: Path) -> tuple[Unit, ...]:
         if len(parts) < 2:
             continue
         written = _written_words(str(cells.get("surface") or ""))
-        gaps, forms = _needed(str(cells.get("needs") or ""), len(parts))
+        gaps, forms, commas = _needed(str(cells.get("needs") or ""), len(parts))
         for spelled, at in _spelled(parts):
             out.append(
                 Unit(
@@ -257,6 +274,7 @@ def _load_words(path: Path) -> tuple[Unit, ...]:
                     # A hyphenated word cut into pieces keeps its needs on its first.
                     gaps=tuple(gaps[n] if first else 0 for n, first in at),
                     forms=tuple(forms[n] if first else frozenset() for n, first in at),
+                    commas=tuple(commas[n] if first else False for n, first in at),
                 )
             )
     return tuple(out)
@@ -301,9 +319,10 @@ def stamp(path: Path = PATH) -> str:
 
 
 def stamps() -> str:
-    """`stamp` of every list there is: Hebrew's alone reads as it did before French and
-    Russian had lists, so no Hebrew count is read again for them; a French or Russian
-    list, once it is there, is added."""
+    """`stamp` of every list there is: Hebrew's, and each French or Russian list that is
+    there. The stamp is one for every text, so a change to any list counts every text
+    again once, Hebrew's too, from its stored lemmas (no spend); with no French or
+    Russian list it reads as Hebrew's alone did."""
     out = stamp(PATH)
     for code in sorted(LANGUAGES - {"he"}):
         path = path_for(code)
@@ -436,7 +455,9 @@ def _place(
 ) -> tuple[int, ...] | None:
     """Where a French or Russian unit's parts fall, its first at `at`: each next part
     the nearest token within its gap, held to its written form; a part with no gap
-    one space or hyphen after the last, as in Hebrew."""
+    one space or hyphen after the last, as in Hebrew. A gap ends at punctuation (a
+    clause's comma) unless its part is a correlative's, which has one (`~N,`), and in
+    French a gap after ne ends at another negation (ne… pas que is not ne… que)."""
     placed = [at]
     for n in range(len(unit.parts)):
         part = unit.parts[n]
@@ -448,11 +469,17 @@ def _place(
             last = placed[-1]
             here = list(range(last + 1, min(len(tokens), last + 2 + gap)))
         hit = None
+        comma = unit.commas[n] if n < len(unit.commas) else False
+        negated = code == "fr" and n > 0 and unit.parts[0] == "ne"
         for where in here:
             if where in taken:
                 break
             token = tokens[where]
+            if gap and not comma and _punctuated(tokens[where - 1], token):
+                break
             if not _is(part, token, code):
+                if negated and NEGATIONS & set(_read_as(token, code)):
+                    break
                 continue
             if form and fold(str(token.get("surface") or "")) not in form:
                 continue
@@ -467,6 +494,12 @@ def _place(
         if n:
             placed.append(hit)
     return tuple(placed)
+
+
+def _punctuated(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
+    """Whether more than a space, a hyphen or an apostrophe stands between two tokens:
+    punctuation, which the annotator does not keep as a token."""
+    return int(after.get("start") or 0) - int(before.get("end") or 0) > GAP
 
 
 def _found_words(

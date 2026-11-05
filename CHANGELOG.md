@@ -22,7 +22,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   me, te, nous or vous too, and a hyphenated word matches as one token or as its pieces.
   ё reads as е. For French and Russian `needs` says what Hebrew's prefixes say for
   Hebrew: `~6` lets up to six words stand before a word, inside the sentence, for the 14
-  discontinuous units (ne… que, не только… но и, у… есть), and `=form` holds a word to
+  discontinuous units (ne… que, не только… но и, у… есть). The gap stops at punctuation
+  except in a correlative marked `~6,` (ни X, ни Y), and after ne at another negation, so
+  ne… pas que is not ne… que. `=form` holds a word to
   its written form for the four whose lemmas meet something else (est-ce que, то есть,
   может быть, на днях). A kept phrase is matched against its own language's list only.
   The Russian list awaits David's read. Hebrew is unchanged; the counts' cache stamp now

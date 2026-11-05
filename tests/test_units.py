@@ -198,6 +198,8 @@ FR = (
     "de coup\tdu coup\tso\tmodern\t\t\n"
     "ne que\tne… que\tonly\tstandard\tdiscontinuous\t|~6\n"
     "ne plus\tne… plus\tno longer\tstandard\tdiscontinuous\t|~6\n"
+    "ni ni\tni… ni\tneither… nor\tstandard\tdiscontinuous\t|~6,\n"
+    "le un le autre\tl'un l'autre\teach other\tstandard\t\t\n"
     "être que\test-ce que\t(question)\tstandard\t\t=est-ce|\n"
     "se rendre compte\tse rendre compte\tto realise\tstandard\t\t\n"
 )
@@ -206,7 +208,8 @@ RU = (
     "иметь в вид\tиметь в виду\tto mean\tmodern\t\t\n"
     "в конец конец\tв конце концов\tin the end\tmodern\t\t\n"
     "всё равно\tвсё равно\tall the same\tmodern\t\t\n"
-    "не только но и\tне только… но и\tnot only… but also\tstandard\tdiscontinuous\t||~6|\n"
+    "не только но и\tне только… но и\tnot only… but also\tstandard\tdiscontinuous\t||~6,|\n"
+    "у быть\tу меня есть\t(I) have\tstandard\tdiscontinuous\t|~6\n"
     "мочь быть\tможет быть\tmaybe\tstandard\t\t=может|\n"
 )
 
@@ -373,3 +376,76 @@ def test_the_shipped_list_reads_whole(language: str) -> None:
         if "discontinuous" in cells[4]:
             key = " ".join(units.words(cells[0]))
             assert any(sum(unit.gaps) for unit in found if unit.key == key), key
+
+
+def spaced(*words: tuple[str, str], comma_after: int = -1) -> list[dict[str, Any]]:
+    """`sentence`, with a comma after the word at `comma_after`."""
+    out = []
+    at = 0
+    for n, (surface, lemma) in enumerate(words):
+        out.append(token(surface, lemma, at))
+        at += len(surface) + (2 if n == comma_after else 1)
+    return out
+
+
+def test_a_gap_after_ne_stops_at_another_negation(lists: Path) -> None:
+    """qa-claude on targum#1114: ne… pas que and ne… pas plus are not ne… que, ne… plus."""
+    think = spaced(
+        ("Je", "je"),
+        ("ne", "ne"),
+        ("crois", "croire"),
+        ("pas", "pas"),
+        ("que", "que"),
+        ("tu", "tu"),
+        ("viennes", "venir"),
+    )
+    assert units.found(think, "fr") == []
+    more = spaced(
+        ("Il", "il"),
+        ("ne", "ne"),
+        ("mange", "manger"),
+        ("pas", "pas"),
+        ("plus", "plus"),
+        ("que", "que"),
+        ("moi", "moi"),
+    )
+    assert units.found(more, "fr") == []
+    only = spaced(("Il", "il"), ("ne", "ne"), ("mange", "manger"), ("que", "que"), ("ça", "ça"))
+    assert [unit.key for _, unit in units.found(only, "fr")] == ["ne que"]
+
+
+def test_a_gap_stops_at_punctuation_unless_the_unit_is_a_correlative(lists: Path) -> None:
+    because = spaced(("Il", "il"), ("ne", "ne"), ("vient", "venir"), ("que", "que"), comma_after=2)
+    assert units.found(because, "fr") == [], "il ne vient, que…"
+    near = spaced(("у", "у"), ("дома", "дом"), ("где", "где"), ("было", "быть"), comma_after=1)
+    assert units.found(near, "ru") == [], "у дома, где было: not у… есть"
+    has = spaced(("у", "у"), ("меня", "я"), ("было", "быть"))
+    assert [unit.key for _, unit in units.found(has, "ru")] == ["у быть"]
+    neither = spaced(("ni", "ni"), ("lui", "lui"), ("ni", "ni"), ("moi", "moi"), comma_after=1)
+    assert [unit.key for _, unit in units.found(neither, "fr")] == ["ni ni"]
+
+
+def test_a_discontinuous_unit_counts_the_words_it_is_made_of(lists: Path, tmp_path: Path) -> None:
+    """A numeral between ne and que is not counted, and the que after it is."""
+    said = sentence(("ne", "ne"), ("2", "2", "NUM"), ("que", "que"))
+    folder = built(tmp_path / "t", said, language="fr")
+    assert units_in(folder) == {"ne que": 1}
+    said = sentence(("ne", "ne"), ("vu", "voir"), ("2", "2", "NUM"))
+    said[1]["lemma"], said[2]["lemma"], said[2]["surface"] = "voir", "que", "que"
+    folder = built(tmp_path / "u", said, language="fr")
+    assert units_in(folder) == {"ne que|ne": 1}, "the que tagged a numeral stays out"
+
+
+def test_a_token_in_one_unit_is_never_in_another(lists: Path) -> None:
+    said = sentence(("ne", "ne"), ("vient", "venir"), ("parce", "parce"), ("que", "que"))
+    assert [(at, unit.key) for at, unit in units.found(said, "fr")] == [((0, 3), "ne que")]
+
+
+def test_an_elided_lemma_is_folded_to_its_full_form(lists: Path) -> None:
+    said = [
+        token("l'", "l'", 0),
+        token("un", "un", 2),
+        token("l'", "l'", 5),
+        token("autre", "autre", 7),
+    ]
+    assert [unit.key for _, unit in units.match(said, "fr")] == ["le un le autre"]
