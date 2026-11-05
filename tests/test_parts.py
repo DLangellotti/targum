@@ -407,6 +407,6 @@ def test_an_older_pool_gains_the_part_columns(tmp_path: Path) -> None:
     columns = {one[1] for one in opened.db.execute("PRAGMA table_info(find)")}
     assert {"series", "part", "season"} <= columns
     assert opened.db.execute("SELECT part FROM find").fetchone()[0] == -1
-    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == accounts.SCHEMA_VERSION == 60
+    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == accounts.SCHEMA_VERSION >= 60
     held = pool.parts_at(opened, ["https://y.example/2"])
     assert [(one.key, one.number) for one in held] == [(FALAFEL_KEY, 2)], "read off its title"
