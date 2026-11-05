@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- An idiom is one word to know in French and Russian too (targum-internal#636, under
+  #628). ling-fr's list of 179 and ling-ru's of 205, `units-fr.tsv` and `units-ru.tsv`
+  beside Hebrew's and in its columns, are matched on the annotator's lemmas, so a Russian
+  unit counts however it is inflected (имею, имели в виду). A French elided or contracted
+  word is folded to its full form on both sides (d'abord, qu', du), a list's `se` is said
+  me, te, nous or vous too, and a hyphenated word matches as one token or as its pieces.
+  ё reads as е. For French and Russian `needs` says what Hebrew's prefixes say for
+  Hebrew: `~6` lets up to six words stand before a word, inside the sentence, for the 14
+  discontinuous units (ne… que, не только… но и, у… есть), and `=form` holds a word to
+  its written form for the four whose lemmas meet something else (est-ce que, то есть,
+  может быть, на днях). A kept phrase is matched against its own language's list only.
+  The Russian list awaits David's read. Hebrew is unchanged; the counts' cache stamp now
+  names the French and Russian lists, so each built text's counts are read again once,
+  locally, with no spend and no re-annotation. No new strings.
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).
   The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
   dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a

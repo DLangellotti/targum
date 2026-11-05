@@ -1,0 +1,180 @@
+lemmas	surface	gloss_en	register	note	needs
+il y avoir	il y a	there is, there are; (before a time) ago	standard	shelf 31	
+y avoir	(il) y a / y avait	there is, there was	standard	tail of il y a, for when il is dropped or inverted (y a-t-il, y avait); shelf 43	
+avoir besoin de	avoir besoin de	to need	standard	shelf 8	
+avoir envie de	avoir envie de	to feel like, to want	standard	shelf 3	
+avoir peur	avoir peur (de)	to be afraid (of)	standard	shelf 6	
+avoir raison	avoir raison	to be right	standard	shelf 0	
+avoir tort	avoir tort	to be wrong	standard	shelf 1	
+avoir lieu	avoir lieu	to take place	standard	shelf 1	
+avoir mal	avoir mal (à)	to hurt, to have a pain (in)	standard	shelf 2	
+avoir faim	avoir faim	to be hungry	standard	shelf 4	
+avoir soif	avoir soif	to be thirsty	standard	shelf 1	
+avoir froid	avoir froid	to be cold	standard	shelf 0	
+avoir chaud	avoir chaud	to be hot	standard	shelf 0	
+avoir honte	avoir honte (de)	to be ashamed (of)	standard	shelf 1	
+avoir hâte	avoir hâte (de)	to look forward (to), can't wait	standard	shelf 1	
+avoir le air	avoir l'air	to look, to seem	standard	l' folds to le; shelf 9	
+avoir le habitude de	avoir l'habitude de	to be used to	standard	shelf 0	
+avoir de le chance	avoir de la chance	to be lucky	standard	la folds to le; shelf 1	
+avoir de mal à	avoir du mal à	to struggle to, to find it hard to	standard	du is lemmatized de, so the key has no article; shelf 0	
+avoir beau	avoir beau (+ infinitive)	however much one (tries)	standard	j'ai beau chercher = however hard I look; shelf 3	
+faire attention	faire attention (à)	to be careful, to pay attention (to)	standard	shelf 1	
+faire semblant	faire semblant (de)	to pretend (to)	standard	shelf 0	
+faire peur	faire peur (à)	to frighten	standard	shelf 1	
+faire partie de	faire partie de	to be part of, to belong to	standard	shelf 1	
+faire exprès	faire exprès	to do on purpose	standard	usually ne… pas exprès, "not on purpose"; shelf 0	
+faire le queue	faire la queue	to queue, to stand in line	standard	shelf 1	
+faire le course	faire les courses	to do the shopping	standard	shelf 0	
+faire le ménage	faire le ménage	to do the housework	standard	shelf 1	
+faire le fête	faire la fête	to party	spoken	shelf 0	
+faire le connaissance de	faire la connaissance de	to meet, to get to know	standard	shelf 0	
+faire confiance	faire confiance (à)	to trust	standard	shelf 0	
+faire signe	faire signe (à)	to wave, to signal (to)	standard	shelf 1	
+faire face à	faire face à	to face, to cope with	standard	shelf 0	
+faire un tour	faire un tour	to go for a walk, a ride	standard	shelf 2	
+faire mal	faire mal (à)	to hurt	standard	borderline: also "do badly"; shelf 2	
+prendre soin de	prendre soin de	to take care of	standard	shelf 3	
+passer un examen	passer un examen	to take (not pass) an exam	standard	false friend: réussir un examen is to pass; shelf 0	
+vouloir dire	vouloir dire	to mean	standard	shelf 1	
+se rendre compte	se rendre compte (de)	to realize	standard	reflexive: me, te, nous, vous stand where se is, and être may come between (s'est rendu compte); shelf 2, an upper bound (any compte within six words)	
+se mettre à	se mettre à	to start to, to begin	standard	reflexive as above; borderline before a noun (se mettre à table, to sit down to eat); shelf 25, an upper bound (any à within six words)	
+se passer	se passer	to happen	standard	reflexive as above; se passer de is "to do without"; shelf 7	
+se passer de	se passer de	to do without	standard	longer key wins over se passer; shelf 0	
+se trouver	se trouver	to be (located); to find oneself	standard	reflexive as above; shelf 11	
+se en aller	s'en aller	to go away, to leave	standard	reflexive as above; shelf 9	
+il se agir de	il s'agit de	it is about, it is a matter of	standard	only with impersonal il; shelf 0	
+se moquer de	se moquer de	to make fun of; not to care about	standard	reflexive as above; shelf 0	
+se tromper	se tromper	to be wrong, to make a mistake	standard	reflexive as above; tromper alone is "to deceive"; shelf 1	
+se servir de	se servir de	to use	standard	reflexive as above; shelf 2	
+se attendre à	s'attendre à	to expect	standard	reflexive as above; shelf 1	
+se occuper de	s'occuper de	to take care of, to look after	standard	reflexive as above; shelf 2	
+se douter	se douter (de)	to suspect	standard	reflexive as above; douter alone is "to doubt"; shelf 0	
+se débrouiller	se débrouiller	to manage, to get by	spoken	reflexive as above; shelf 0	
+il valoir mieux	il vaut mieux	it is better to	standard	shelf 1	
+il paraître que	il paraît que	apparently, it seems	standard	shelf 2	
+ça valoir le coup	ça vaut le coup	it is worth it	spoken	shelf 0	
+ça aller	ça va	how are things; fine	spoken	shelf 3	
+ce être ça	c'est ça	that's right, that's it	spoken	shelf 0	
+ce être pourquoi	c'est pourquoi	that's why	standard	shelf 1	
+être en train de	être en train de	to be in the middle of (doing)	standard	shelf 6	
+en train de	en train de	in the middle of (doing)	standard	tail of être en train de, when être is not right before it; shelf 8	
+sur le point de	(être) sur le point de	about to	standard	shelf 0	
+venir de	venir de (+ infinitive)	to have just (done)	standard	borderline: before a noun it is literal "come from"; the matcher needs the infinitive after it; shelf 4	
+être de accord	être d'accord	to agree	standard	shelf 0	
+de accord	d'accord	OK, agreed	standard	shelf 0	
+ne que	ne… que	only	standard	discontinuous: ne, then the verb, then que (je n'ai que dix euros); shelf 70, an upper bound (any que within six words)	|~6
+ne plus	ne… plus	no longer, not any more	standard	discontinuous: ne + verb + plus; shelf 55, an upper bound (any plus within six words)	|~6
+ne jamais	ne… jamais	never	standard	discontinuous: ne + verb + jamais; shelf 29, an upper bound (any jamais within six words)	|~6
+ne rien	ne… rien	nothing	standard	discontinuous: ne + verb + rien; also rien ne before the verb; shelf 41, an upper bound (any rien within six words)	|~6
+ne personne	ne… personne	nobody	standard	discontinuous: ne + verb + personne; shelf 4, an upper bound (any personne within six words)	|~6
+ne guère	ne… guère	hardly, scarcely	literary	discontinuous: ne + verb + guère; shelf 3, an upper bound (any guère within six words)	|~6
+ne aucun	ne… aucun	no, not a single	standard	discontinuous: ne + verb + aucun; shelf 4, an upper bound (any aucun within six words)	|~6
+ni ni	ni… ni	neither… nor	standard	discontinuous: ni X ni Y; shelf 7, an upper bound (any ni within six words)	|~6
+non plus	non plus	either, neither (after a negative)	standard	shelf 6	
+pas de tout	pas du tout	not at all	standard	du is lemmatized de; shelf 0	
+pas mal	pas mal	not bad; quite a lot	spoken	shelf 0	
+ne importer quoi	n'importe quoi	anything (at all); nonsense	standard	n' folds to ne; shelf 0	
+ne importer qui	n'importe qui	anyone (at all)	standard	shelf 0	
+ne importer où	n'importe où	anywhere (at all)	standard	shelf 0	
+ne importer comment	n'importe comment	any old how, carelessly	standard	shelf 0	
+quelque chose	quelque chose	something	standard	shelf 12	
+quelque part	quelque part	somewhere	standard	shelf 0	
+tout le monde	tout le monde	everyone, everybody	standard	borderline: rarely literal "the whole world"; shelf 14	
+tout à fait	tout à fait	quite, completely; exactly	standard	shelf 3	
+tout de suite	tout de suite	right away, at once	standard	shelf 4	
+tout à coup	tout à coup	suddenly	standard	shelf 11	
+tout de un coup	tout d'un coup	all of a sudden	standard	shelf 1	
+tout de même	tout de même	all the same, still	standard	shelf 2	
+tout à le heure	tout à l'heure	a moment ago; in a little while	standard	shelf 2	
+tout le temps	tout le temps	all the time	standard	shelf 3	
+tout seul	tout seul	all alone; by oneself	standard	shelf 9	
+tout à long de	tout au long de	throughout	standard	au is lemmatized à; shelf 0	
+tout de abord	tout d'abord	first of all	standard	shelf 0	
+de abord	d'abord	first, at first	standard	shelf 5	
+quand même	quand même	all the same, anyway	spoken	shelf 0	
+bien sûr	bien sûr	of course	standard	shelf 1	
+bien entendu	bien entendu	of course	standard	shelf 0	
+bien que	bien que	although	standard	shelf 12	
+parce que	parce que	because	standard	shelf 10	
+alors que	alors que	while, whereas	standard	shelf 5	
+tandis que	tandis que	while, whereas	literary	shelf 9	
+dès que	dès que	as soon as	standard	shelf 5	
+pour que	pour que	so that	standard	shelf 9	
+même si	même si	even if	standard	shelf 2	
+ainsi que	ainsi que	as well as; just as	formal	shelf 2	
+à moins que	à moins que	unless	standard	shelf 0	
+tant que	tant que	as long as	standard	shelf 4	
+jusque à	jusqu'à	until; up to, as far as	standard	the shelf's lemma for jusqu' is often jusqu' itself: see the next row; shelf 3	
+jusqu' à	jusqu'à	until; up to, as far as	standard	second lemma of the same, unfolded; shelf 26	
+jusque à ce que	jusqu'à ce que	until	standard	shelf 1	
+jusqu' à ce que	jusqu'à ce que	until	standard	second lemma of the same; shelf 4	
+sans doute	sans doute	probably	standard	false friend: not "without doubt", which is sans aucun doute; shelf 4	
+sans aucun doute	sans aucun doute	without a doubt	standard	shelf 0	
+en effet	en effet	indeed; that's right	standard	shelf 2	
+en fait	en fait	in fact, actually	standard	shelf 0	
+en tout cas	en tout cas	in any case, anyway	standard	shelf 1	
+de tout façon	de toute façon	anyway, in any case	standard	shelf 0	
+de ailleurs	d'ailleurs	besides, by the way	standard	shelf 5	
+de habitude	d'habitude	usually	standard	shelf 0	
+à propos	à propos	by the way	standard	shelf 2	
+à propos de	à propos de	about	standard	shelf 2	
+par contre	par contre	on the other hand	standard	shelf 0	
+par hasard	par hasard	by chance	standard	shelf 4	
+par terre	par terre	on the ground, on the floor	standard	shelf 6	
+par cœur	par cœur	by heart	standard	shelf 0	
+en plus	en plus	what's more, on top of that	standard	shelf 2	
+en retard	en retard	late	standard	shelf 2	
+en ce moment	en ce moment	right now, at the moment	standard	shelf 2	
+en même temps	en même temps	at the same time	standard	shelf 2	
+en face de	en face de	opposite, across from	standard	shelf 2	
+en fin de compte	en fin de compte	in the end, when all's said and done	standard	shelf 0	
+de temps en temps	de temps en temps	from time to time	standard	shelf 8	
+de plus en plus	de plus en plus	more and more	standard	shelf 2	
+de moins en moins	de moins en moins	less and less	standard	shelf 0	
+de nouveau	de nouveau	again	standard	shelf 10	
+à nouveau	à nouveau	again	standard	shelf 1	
+à le fois	à la fois	at the same time; both	standard	shelf 2	
+il être un fois	il était une fois	once upon a time	literary	shelf 5	
+à peu près	à peu près	about, roughly	standard	shelf 1	
+à peine	à peine	barely, hardly	standard	shelf 3	
+à part	à part	apart from; separate	standard	shelf 0	
+à cause de	à cause de	because of	standard	shelf 8	
+grâce à	grâce à	thanks to	standard	shelf 0	
+à côté de	à côté de	next to, beside	standard	shelf 9	
+à lieu de	au lieu de	instead of	standard	au is lemmatized à; shelf 3	
+à le place de	à la place de	instead of	standard	shelf 0	
+à bout de	au bout de	after; at the end of	standard	au bout de deux heures = after two hours; shelf 9	
+à moins	au moins	at least	standard	borderline: shares its first two lemmas with à moins que, which is longer and wins; shelf 4	
+à fond	au fond / à fond	deep down, basically; (à fond) fully, flat out	standard	one key for both: au is lemmatized à; shelf 8	
+à contraire	au contraire	on the contrary	standard	shelf 0	
+à moment où	au moment où	just when, at the moment when	standard	shelf 2	
+à cas où	au cas où	in case	standard	shelf 0	
+à fur et à mesure	au fur et à mesure	as you go, little by little	standard	shelf 0	
+à revoir	au revoir	goodbye	standard	shelf 0	
+à secours	au secours	help	standard	shelf 0	
+à vrai dire	à vrai dire	to tell the truth	standard	shelf 0	
+à travers	à travers	through, across	standard	shelf 17	
+lors de	lors de	during, at the time of	formal	shelf 0	
+quant à	quant à	as for	standard	shelf 4	
+le long de	le long de	along	standard	shelf 6	
+tant pis	tant pis	too bad, never mind	spoken	shelf 0	
+tant mieux	tant mieux	so much the better, good	spoken	shelf 0	
+de coup	du coup	so, as a result	spoken	borderline: beaucoup de coups is literal; du is lemmatized de; shelf 7	
+ou bien	ou bien	or else	standard	shelf 2	
+ce être à dire	c'est-à-dire	that is (to say)	standard	if the tokenizer keeps c'est-à-dire whole it is one word and this row drops; shelf 0	
+si il vous plaire	s'il vous plaît	please	standard	s' folds to si; shelf 2	
+si il te plaire	s'il te plaît	please (to one person you know)	standard	shelf 4	
+que être que	qu'est-ce que	what	standard	the shelf's key, est-ce lemmatized être; needs the est-ce surface like est-ce que; shelf 8	|=est-ce|
+être que	est-ce que	(marks a yes-no question)	standard	the tokenizer keeps est-ce whole and lemmatizes it être, so the shelf's key is être que, which also meets c'est que and n'est que: match only where the surface is est-ce; shelf 13	=est-ce|
+ça me être égal	ça m'est égal	I don't mind, it's all the same to me	spoken	the pronoun changes with the person; shelf 0	
+en avoir marre	en avoir marre	to be fed up	spoken	shelf 0	
+coup de œil	coup d'œil	glance	standard	jeter un coup d'œil = to take a look; shelf 4	
+coup de main	coup de main	a hand, help	spoken	shelf 0	
+coup de fil	coup de fil	phone call	spoken	shelf 0	
+coup de foudre	coup de foudre	love at first sight	standard	shelf 0	
+coup de soleil	coup de soleil	sunburn	standard	shelf 1	
+pomme de terre	pomme de terre	potato	standard	shelf 0	
+petit déjeuner	petit déjeuner	breakfast	standard	often hyphenated, petit-déjeuner, which is one token; shelf 1	
+salle de bain	salle de bain(s)	bathroom	standard	shelf 0	
+chemin de fer	chemin de fer	railway	standard	shelf 1	

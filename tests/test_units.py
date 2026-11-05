@@ -185,3 +185,191 @@ def test_a_text_with_no_units_is_measured_as_before() -> None:
     plain = measure_running(counts, {"בית": KNOWN})
     assert measure_running(counts, {"בית": KNOWN}, units={}) == plain
     assert math.isclose(plain.known, 0.75)
+
+
+# French and Russian (targum-internal#636): the same matcher, on lists of their own.
+
+FR = (
+    "lemmas\tsurface\tgloss_en\tregister\tnote\tneeds\n"
+    "de abord\td'abord\tfirst\tmodern\t\t\n"
+    "tout à coup\ttout à coup\tsuddenly\tmodern\t\t\n"
+    "parce que\tparce que/parce qu'\tbecause\tmodern\t\t\n"
+    "ce est-à-dire\tc'est-à-dire\tthat is\tmodern\t\t\n"
+    "de coup\tdu coup\tso\tmodern\t\t\n"
+    "ne que\tne… que\tonly\tstandard\tdiscontinuous\t|~6\n"
+    "ne plus\tne… plus\tno longer\tstandard\tdiscontinuous\t|~6\n"
+    "être que\test-ce que\t(question)\tstandard\t\t=est-ce|\n"
+    "se rendre compte\tse rendre compte\tto realise\tstandard\t\t\n"
+)
+RU = (
+    "lemmas\tsurface\tgloss_en\tregister\tnote\tneeds\n"
+    "иметь в вид\tиметь в виду\tto mean\tmodern\t\t\n"
+    "в конец конец\tв конце концов\tin the end\tmodern\t\t\n"
+    "всё равно\tвсё равно\tall the same\tmodern\t\t\n"
+    "не только но и\tне только… но и\tnot only… but also\tstandard\tdiscontinuous\t||~6|\n"
+    "мочь быть\tможет быть\tmaybe\tstandard\t\t=может|\n"
+)
+
+
+@pytest.fixture
+def lists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    folder = tmp_path / "lists"
+    folder.mkdir()
+    (folder / "units-fr.tsv").write_text(FR, encoding="utf-8")
+    (folder / "units-ru.tsv").write_text(RU, encoding="utf-8")
+    monkeypatch.setattr(units, "FOLDER", folder)
+    units.clear()
+    yield folder
+    units.clear()
+
+
+def keyed(tokens: list[dict[str, Any]], language: str) -> list[str]:
+    return [unit.key for _, unit in units.match(tokens, language)]
+
+
+def test_hebrew_reads_its_own_list_whatever_the_others_are(lists: Path) -> None:
+    assert len(units.load()) == 174 and units.load() == units.load(language="he")
+    assert keyed(AFTERWARDS, "he") == ["אחר כך"]
+    assert units.stamps() == units.stamp() + (
+        f"+fr:{units.stamp(lists / 'units-fr.tsv')}+ru:{units.stamp(lists / 'units-ru.tsv')}"
+    )
+
+
+def test_hebrew_stamp_is_as_it_was_without_other_lists(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(units, "FOLDER", tmp_path)
+    units.clear()
+    try:
+        assert units.stamps() == units.stamp()
+    finally:
+        units.clear()
+
+
+def test_a_french_elided_word_is_matched_on_its_full_form(lists: Path) -> None:
+    # l'annotateur keeps the apostrophe on the first part: d' then abord, no gap.
+    first = [token("D'", "de", 0), token("abord", "abord", 2)]
+    assert keyed(first, "fr") == ["de abord"]
+    curly = [token("d’", "d’", 0), token("abord", "abord", 2)]
+    assert keyed(curly, "fr") == ["de abord"], "a lemma left elided is folded too"
+    because = [token("parce", "parce", 0), token("qu'", "que", 6), token("il", "il", 9)]
+    assert keyed(because, "fr") == ["parce que"]
+    so = sentence(("du", "de", "ADP"), ("coup", "coup", "NOUN"))
+    assert keyed(so, "fr") == ["de coup"]
+
+
+def test_a_french_hyphenated_unit_matches_as_one_token_or_its_pieces(lists: Path) -> None:
+    whole = [token("c'", "ce", 0), token("est-à-dire", "est-à-dire", 2)]
+    assert keyed(whole, "fr") == ["ce est-à-dire"]
+    cut = [
+        token("c'", "ce", 0),
+        token("est", "être", 2, "AUX"),
+        token("à", "à", 6, "ADP"),
+        token("dire", "dire", 8, "VERB"),
+    ]
+    assert keyed(cut, "fr") == ["ce est-à-dire"], "the pieces, one hyphen apart"
+    apart = [token("tout", "tout", 0), token("à", "à", 6), token("coup", "coup", 8)]
+    assert keyed(apart, "fr") == [], "never across punctuation"
+
+
+def test_a_russian_unit_is_matched_however_it_is_inflected(lists: Path) -> None:
+    mean = sentence(("имею", "иметь", "VERB"), ("в", "в", "ADP"), ("виду", "вид", "NOUN"))
+    assert keyed(mean, "ru") == ["иметь в вид"]
+    meant = sentence(("Имели", "иметь", "VERB"), ("в", "в", "ADP"), ("виду", "вид", "NOUN"))
+    assert keyed(meant, "ru") == ["иметь в вид"]
+    end = sentence(("в", "в"), ("конце", "конец"), ("концов", "конец"))
+    assert keyed(end, "ru") == ["в конец конец"]
+    yo = sentence(("все", "все"), ("равно", "равно"))
+    assert keyed(yo, "ru") == ["все равно"], "ё is read as е on both sides"
+    view = sentence(("в", "в", "ADP"), ("виде", "вид", "NOUN"))
+    assert keyed(view, "ru") == []
+
+
+def test_a_french_text_counts_its_unit_as_one_word(lists: Path, tmp_path: Path) -> None:
+    said = sentence(("Il", "il", "PRON"), ("part", "partir", "VERB"))
+    said += [token("d'", "de", 8, "ADP"), token("abord", "abord", 10)]
+    folder = built(tmp_path / "t", said, language="fr")
+    counts = coverage.tally(folder)
+    assert units_in(folder) == {"de abord": 1}
+    kept = units.with_phrases(dict.fromkeys(counts, KNOWN), ["D’abord"], "fr")
+    assert kept["de abord"] == KNOWN
+    assert measure_running(counts, kept, units=units_in(folder)).total == 3
+
+
+def test_a_kept_phrase_is_matched_in_its_own_language_only(lists: Path) -> None:
+    assert units.from_phrases(["Parce qu'"], "fr") == {"parce que"}
+    assert units.from_phrases(["c'est-à-dire"], "fr") == {"ce est-à-dire"}
+    assert units.from_phrases(["В конце концов!"], "ru") == {"в конец конец"}
+    assert units.from_phrases(["в конце концов"], "fr") == frozenset()
+    assert units.from_phrases(["в конце концов"]) == frozenset(), "Hebrew is the default"
+
+
+def test_a_language_without_a_list_has_no_units(lists: Path, tmp_path: Path) -> None:
+    (lists / "units-ru.tsv").unlink()
+    units.clear()
+    folder = built(
+        tmp_path / "t", sentence(("в", "в"), ("конце", "конец"), ("концов", "конец")), language="ru"
+    )
+    assert units_in(folder) == {}
+    assert units.from_phrases(["в конце концов"], "ru") == frozenset()
+
+
+def test_a_discontinuous_unit_takes_its_parts_and_leaves_the_words_between(
+    lists: Path, tmp_path: Path
+) -> None:
+    only = sentence(("je", "je"), ("n'", "ne"), ("ai", "avoir"), ("que", "que"), ("dix", "dix"))
+    hits = units.found(only, "fr")
+    assert [(at, unit.key) for at, unit in hits] == [((1, 3), "ne que")]
+    folder = built(tmp_path / "t", only, language="fr")
+    assert units_in(folder) == {"ne que": 1}
+    closest = sentence(("ne", "ne"), ("mange", "manger"), ("plus", "plus"), ("que", "que"))
+    assert [unit.key for _, unit in units.found(closest, "fr")] == ["ne plus"]
+    far = sentence(("ne", "ne"), *[("mot", "mot")] * 7, ("que", "que"))
+    assert units.found(far, "fr") == [], "six words between at most"
+    both = [
+        token("не", "не", 0),
+        token("только", "только", 3),
+        token("дома", "дом", 10),
+        token("но", "но", 16),
+        token("и", "и", 19),
+        token("здесь", "здесь", 21),
+    ]
+    assert [(at, unit.key) for at, unit in units.found(both, "ru")] == [
+        ((0, 1, 3, 4), "не только но и")
+    ], "a comma may stand inside the gap"
+
+
+def test_a_french_reflexive_se_is_said_by_any_person(lists: Path) -> None:
+    for pronoun in ("me", "te", "se", "nous", "vous"):
+        said = sentence((pronoun, pronoun), ("rends", "rendre"), ("compte", "compte"))
+        assert [unit.key for _, unit in units.match(said, "fr")] == ["se rendre compte"]
+    elided = [token("m'", "me", 0), token("en", "en", 2)]
+    assert units.match(elided, "fr") == []
+    said = sentence(("nous", "nous"), ("nous", "nous"), ("rendons", "rendre"), ("compte", "compte"))
+    assert [at for at, _ in units.match(said, "fr")] == [1]
+    other = sentence(("le", "le"), ("rends", "rendre"), ("compte", "compte"))
+    assert units.match(other, "fr") == []
+
+
+def test_a_word_held_to_its_written_form_matches_only_in_it(lists: Path) -> None:
+    question = sentence(("Est-ce", "être"), ("que", "que"))
+    assert [unit.key for _, unit in units.match(question, "fr")] == ["être que"]
+    assert units.match(sentence(("est", "être"), ("que", "que")), "fr") == []
+    maybe = sentence(("может", "мочь"), ("быть", "быть"))
+    assert [unit.key for _, unit in units.match(maybe, "ru")] == ["мочь быть"]
+    assert units.match(sentence(("могут", "мочь"), ("быть", "быть")), "ru") == []
+
+
+@pytest.mark.parametrize("language", ["fr", "ru"])
+def test_the_shipped_list_reads_whole(language: str) -> None:
+    units.clear()
+    path = units.path_for(language)
+    rows = path.read_text(encoding="utf-8").splitlines()
+    assert rows[0].split("\t")[0] == "lemmas", "no line above the header"
+    found = units.load(language=language)
+    assert {unit.key for unit in found} >= {
+        " ".join(units.words(r.split("\t")[0])) for r in rows[1:]
+    }
+    for line in rows[1:]:
+        cells = line.split("\t")
+        if "discontinuous" in cells[4]:
+            key = " ".join(units.words(cells[0]))
+            assert any(sum(unit.gaps) for unit in found if unit.key == key), key
