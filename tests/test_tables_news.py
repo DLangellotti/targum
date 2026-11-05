@@ -94,12 +94,18 @@ def _kept() -> dict[str, list[Item]]:
     }
 
 
-def test_only_the_followed_hebrew_news_feeds_are_read() -> None:
+def test_only_the_followed_hebrew_and_russian_news_feeds_are_read() -> None:
     items = news.feed_items(_kept(), PUBLISHERS)
-    assert [(one.outlet, one.full) for one in items] == [
-        ("paper", False),
-        ("paper", True),
-        ("paper-sport", False),
+    assert [(one.outlet, one.full, one.language) for one in items] == [
+        ("paper", False, "he"),
+        ("paper", True, "he"),
+        ("paper-sport", False, "he"),
+        ("gazeta", False, "ru"),
+    ]
+    assert [one.outlet for one in news.feed_items(_kept(), PUBLISHERS, ("he",))] == [
+        "paper",
+        "paper",
+        "paper-sport",
     ]
     assert all(one.sealed and one.unit.startswith(news.PREFIX) for one in items)
     # The feed's full text where it carries one, else the title and the summary.
@@ -125,24 +131,27 @@ def test_items_are_counted_once_with_the_outlet_and_its_licence(tmp_path: Path) 
     store = Store(tmp_path / "corpus.db")
     items = news.feed_items(_kept(), PUBLISHERS)
     first = news.count_news(store, items, annotator=Stand())
-    assert (first.counted, first.held, first.full) == (3, 0, 1)
-    assert first.tokens == 7 + 5 + 7 == store.total(WORDS, NEWS)
-    assert dict(first.outlets) == {"paper": 2, "paper-sport": 1}
+    assert (first.counted, first.held, first.full) == (4, 0, 1)
+    assert 7 + 5 + 7 == store.total(WORDS, NEWS)
+    assert first.tokens == 7 + 5 + 7 + 7
+    assert dict(first.outlets) == {"paper": 2, "paper-sport": 1, "gazeta": 1}
+    assert dict(first.languages) == {"he": 3, "ru": 1}
     with sqlite3.connect(store.file) as db:
         rows = set(db.execute("SELECT tbl, register, source, licence, tool FROM contribution"))
     assert {row[0] for row in rows} == {"words", "phrases", "roots"}
     assert {row[1:] for row in rows} == {
         (NEWS, "feed:paper", f"{news.RESERVED}; {news.COUNTS_ONLY}", "stand-in/1"),
         (NEWS, "feed:paper-sport", f"CC BY 4.0; {news.COUNTS_ONLY}", "stand-in/1"),
+        ("ru:news", "feed:gazeta", f"{news.RESERVED}; {news.COUNTS_ONLY}", "stand-in/1"),
     }
     # One article is one unit, so its phrases are kept whole rather than floored away.
     assert store.top("phrases", NEWS, limit=100)
     again = Stand()
     second = news.count_news(store, items, annotator=again)
-    assert (second.counted, second.held, again.read) == (0, 3, 0)
+    assert (second.counted, second.held, again.read) == (0, 4, 0)
     # Under another annotator too: the text is gone, and an item is never counted twice.
     third = news.count_news(store, items, annotator=SimpleNamespace(name="other/2"))
-    assert (third.counted, third.held) == (0, 3)
+    assert (third.counted, third.held) == (0, 4)
     assert news.last_round(store)
 
 
@@ -221,7 +230,7 @@ def test_a_news_build_in_a_readers_home_is_never_counted_here(
     store = Store(tmp_path / "corpus.db")
     assert tables.public_text(private, library) is None
     result = news.count_news(store, news.feed_items(_kept(), PUBLISHERS), annotator=Stand())
-    assert result.counted == 3
+    assert result.counted == 4
     with sqlite3.connect(store.file) as db:
         units = {row[0] for row in db.execute("SELECT unit FROM contribution")}
         keys = {row[0] for row in db.execute("SELECT key FROM tally")}
@@ -262,5 +271,58 @@ def test_the_round_reads_the_servers_feeds_and_pulls_nothing(
 
     monkeypatch.setattr(tools_module.FEEDS, "pull", refuse)
     result = news.run_round(Store(tmp_path / "corpus.db"), annotator=Stand())
-    assert result.counted == 3
+    assert result.counted == 4
     assert result.memory.get("after", 0) >= 0
+
+
+def _russian_item(n: int) -> Item:
+    return Item(
+        title=f"r{n}a r{n}b",
+        link=f"https://gazeta.test/a/{n}",
+        summary=f"r{n}c r{n}d r{n}e",
+        published=WHEN.replace(minute=n % 60),
+    )
+
+
+def test_russian_news_has_its_own_register_reader_and_night(tmp_path: Path) -> None:
+    """targum-internal#637: Russian items are read by Russian's reader, filed under
+    `ru:news`, which no Hebrew yardstick reads, and capped on a night of their own."""
+    kept = {
+        PAPER.feed: [_item(n) for n in range(1, 4)],
+        RUSSIAN.feed: [_russian_item(n) for n in range(1, 4)],
+    }
+    items = news.feed_items(kept, PUBLISHERS)
+    hebrew, russian = Stand(), Stand()
+    russian.name = "ru-stand-in/1"
+    store = Store(tmp_path / "corpus.db")
+    result = news.count_news(store, items, annotator={"he": hebrew, "ru": russian}, most=2)
+    # Two a language, each under its own cap: Russian's night is not Hebrew's leftovers.
+    assert dict(result.languages) == {"he": 2, "ru": 2}
+    assert (hebrew.read, russian.read, result.left) == (2, 2, 2)
+    assert result.stopped == "he: the night's 2 items; ru: the night's 2 items"
+    hebrew_keys = {key for key, _ in store.top(WORDS, NEWS, limit=100)}
+    russian_keys = {key for key, _ in store.top(WORDS, "ru:news", limit=100)}
+    assert hebrew_keys and russian_keys and not hebrew_keys & russian_keys
+    assert all(key.startswith("R") for key in russian_keys)
+    with sqlite3.connect(store.file) as db:
+        tools = set(db.execute("SELECT register, tool FROM contribution"))
+    assert tools == {(NEWS, "stand-in/1"), ("ru:news", "ru-stand-in/1")}
+    # The night's mark sees Russian too, so a Russian-only night is not run twice.
+    assert news.last_round(store)
+
+
+def test_russian_is_never_read_by_the_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without the local reader, Russian waits for a night that has it: a count never
+    spends, so it never falls back to the model a Russian build would buy from."""
+    from targum.annotate import russian
+
+    monkeypatch.setattr(russian, "available", lambda: False)
+    assert news.default_annotator("ru") is None
+    kept = {RUSSIAN.feed: [_russian_item(1), _russian_item(2)]}
+    store = Store(tmp_path / "corpus.db")
+    result = news.count_news(store, news.feed_items(kept, PUBLISHERS), annotator={"he": Stand()})
+    assert (result.counted, result.left) == (0, 2)
+    assert result.stopped == "no free ru reader here"
+    assert store.total(WORDS) == 0
