@@ -539,3 +539,21 @@ def test_targum_stages_prints_each_spot_and_where_it_is_claimed() -> None:
     # Registers are Hebrew's; Russian's spots say none.
     (aspect,) = [one for one in result.output.splitlines() if "│ aspect " in one]
     assert "Biblical" not in aspect
+
+
+def test_french_pins_its_two_newly_measured_spots() -> None:
+    """The passé composé against the imparfait and the false friends are measured on
+    ling-fr's own gold (targum-internal#644): each keeps its floor, and the floor is one
+    `evals/floors.json` holds, so setting either back to None fails here."""
+    spots = {spot.name: spot for spot in HARD_SPOTS["fr"]}
+    assert spots["passé composé against imparfait"].floor == (
+        "model-lemma",
+        "pd-fr-pc-imp",
+        "pc_imp_accuracy",
+    )
+    assert spots["false friends"].floor == ("false-friends", "pd-fr-friends", "friend_precision")
+    floors = json.loads((ROOT / "evals" / "floors.json").read_text(encoding="utf-8"))
+    held = {(row["system"], row["corpus"], row["metric"]) for row in floors}
+    assert spots["passé composé against imparfait"].floor in held
+    assert spots["false friends"].floor in held
+    assert ("model-lemma", "pd-fr-pc-imp", "trap_false_alarm") in held
