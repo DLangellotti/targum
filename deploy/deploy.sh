@@ -737,11 +737,16 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
           rm -f /etc/targum/.forms.json.part
           echo "   the finds map could not be put in place; finds keep the one they had" >&2
         fi
-        systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
-          --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
-          /usr/local/bin/targum finds calibrate --library /var/lib/targum/targums \
-            --store /var/lib/targum/targum.db \
-          || echo "   the finds calibration did not run; the back office shows the last one" >&2
+        # One calibration per pooled language, each against its own annotator: DICTA
+        # for Hebrew, ru-local for Russian (targum-internal#629). The back office shows
+        # the last of each.
+        for finds_language in he ru; do
+          systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+            --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+            /usr/local/bin/targum finds calibrate --library /var/lib/targum/targums \
+              --language "$finds_language" --store /var/lib/targum/targum.db \
+            || echo "   the $finds_language finds calibration did not run; the back office shows the last one" >&2
+        done
       else
         echo "   the finds map was not written or failed its check; finds keep the one they had" >&2
       fi

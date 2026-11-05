@@ -241,6 +241,11 @@ readers it read name all three at the foot, with OpenCorpora's licence linked, k
 the annotator that ran, as DICTA's credit is. The SynTagRus dev set it was scored against
 stayed on the laptop, as below.
 
+pymorphy3 also reads the Russian web finds (`finds/score.py`, targum-internal#629): the
+dictionary form of a word on a news page the shelf's map never saw. It is looked up at
+scoring time and nothing of the dictionary is written into the map, which holds only the
+forms the shelf's own annotations gave. A find keeps lemma counts and no text.
+
 ### DICTA's annotator — CC BY 4.0 weights, trained on the treebank Stanza was dropped for (asked, awaiting answer — 2026-09-27)
 
 **The section on Stanza's Hebrew models says the NonCommercial model "was replaced

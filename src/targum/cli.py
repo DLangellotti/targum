@@ -5512,7 +5512,10 @@ def finds_forms(
         typer.Option("--write", help="Where to write the map. Default: ~/.targum/forms.json."),
     ] = None,
     language: Annotated[
-        list[str] | None, typer.Option("--language", help="A language to map; repeat. Default: he.")
+        list[str] | None,
+        typer.Option(
+            "--language", help="A language to map; repeat. Default: every pooled one (he, ru)."
+        ),
     ] = None,
     check: Annotated[
         Path | None,
@@ -5539,7 +5542,7 @@ def finds_forms(
     for root in roots:
         if not root.is_dir():
             fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
-    languages = language or ["he"]
+    languages = language or sorted(score.POOLED)
     merged: dict[str, list[score.Annotated]] = {score.code(one): [] for one in languages}
     for root in roots:
         for text in score.annotated(root, languages):
@@ -5589,12 +5592,17 @@ def finds_calibrate(
         list[str] | None,
         typer.Option("--also", help="A register a fixture may draw from beyond the tested."),
     ] = None,
+    ledger: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="Also append the figures to this eval ledger."),
+    ] = None,
 ) -> None:
-    """The cheap scorer against DICTA on the shelf's own texts (plan §2.3).
+    """The cheap scorer against the annotator on the shelf's own texts (plan §2.3).
 
     Every modern public text is scored with a map built from the other four fifths of the
     shelf, split by series, for readers who know exactly the commonest 2,000 to 6,500
-    lemmas. Reads files only; nothing is fetched or spent.
+    lemmas: DICTA's lemmas for Hebrew, ru-local's for Russian. Reads files only; nothing
+    is fetched or spent.
     """
     from .finds import pool, score
 
@@ -5607,7 +5615,7 @@ def finds_calibrate(
     found = score.calibrate(texts, language)
     console.print(
         f"{found.test} of {found.texts} texts tested, {found.test_tokens} running words;"
-        f" agree with DICTA on {found.agree:.1%} of resolved words"
+        f" agree with the annotator on {found.agree:.1%} of resolved words"
     )
     console.print(
         "  found: " + ", ".join(f"{how} {share:.1%}" for how, share in found.found.items())
@@ -5636,6 +5644,12 @@ def finds_calibrate(
             data = gzip.compress(data, mtime=0)
         fixture.write_bytes(data)
         console.print(f"[dim]{len(body['texts'])} texts in the sample, {fixture}[/dim]")
+    if ledger is not None:
+        from . import evals
+
+        at = datetime.now(UTC).date().isoformat()
+        written = evals.append(found.ledger_rows(at), ledger)
+        console.print(f"[dim]{written} rows appended to {ledger}[/dim]")
 
 
 @finds_app.command("run")

@@ -50,6 +50,9 @@ from ..touchstones import a_word
 #: The file's shape. A file of another version is refused rather than misread.
 VERSION = "forms/1"
 
+#: The scorer's name in the eval ledger (`Calibration.ledger_rows`).
+SYSTEM = "cheap-scorer/1"
+
 #: Where the map is read from, in the order `sentence_level.PLACES` keeps: a path named
 #: in the environment is the path, found or not.
 ENV = "TARGUM_FORMS"
@@ -83,10 +86,24 @@ RANKS_KEPT = 30_000
 MAQAF = "\u05be"
 
 #: The languages whose finds are pooled: those whose calibration holds the bound. Russian
-#: was measured on 2026-10-31 at 15% unresolved and 4–8.5 points off DICTA's figure (no
-#: prefixes to strip, and a thin shelf), so its finds would nearly all be "not measured";
-#: it waits for a map of its own (a pymorphy3 one is a later card, plan §2.3).
-POOLED = frozenset({"he"})
+#: was measured on 2026-10-31 at 15% unresolved and 4–8.5 points off ru-local's figure (no
+#: prefixes to strip, and a thin shelf), so its finds would nearly all have been "not
+#: measured". With pymorphy3 reading the forms the shelf never showed (`MORPHED`) it came
+#: to 0.6% unresolved and at most 1.4 points off (2026-11-05, targum-internal#629).
+POOLED = frozenset({"he", "ru"})
+
+#: The languages whose forms the shelf never showed are read through pymorphy3's
+#: dictionary (`Forms.morph`). pymorphy3 is MIT; its dictionary is OpenCorpora's, CC BY-SA
+#: 3.0, and it is used here as a lookup only, the way `annotate/russian.py` checks with
+#: it: nothing of it is copied into the map, which keeps the shelf's own forms alone.
+MORPHED = frozenset({"ru"})
+
+#: pymorphy3's marks for a name, as `annotate.russian` reads them: such a reading is not a
+#: word to count, as DICTA's PROPN is not.
+MORPH_NAMES = frozenset({"Name", "Surn", "Patr", "Geox", "Orgn", "Trad"})
+
+#: A reading is (its lemma, whether it is a name), best first.
+Reading = tuple[str, bool]
 
 #: The languages written in Hebrew letters, with Hebrew's prefixes (`level._HEBREW_SCRIPT`).
 HEBREW_SCRIPT = frozenset({"he", "yi", "arc"})
@@ -126,15 +143,45 @@ def form_of(surface: str, language: str) -> str:
 
 
 #: How a token was resolved, for the calibration's table.
-EXACT, ONE, TWO, HASER, SUFFIX, NAME, UNRESOLVED = (
+EXACT, ONE, TWO, HASER, SUFFIX, MORPH, NAME, UNRESOLVED = (
     "exact",
     "one",
     "two",
     "haser",
     "suffix",
+    "morph",
     "name",
     "unresolved",
 )
+
+
+@lru_cache(maxsize=1)
+def _analyser() -> Any:
+    try:
+        import pymorphy3
+    except ImportError:
+        return None
+    return pymorphy3.MorphAnalyzer()
+
+
+@lru_cache(maxsize=200_000)
+def _russian_readings(word: str) -> tuple[Reading, ...]:
+    analyser = _analyser()
+    if analyser is None or not analyser.word_is_known(word):
+        return ()
+    return tuple(
+        (fold(parse.normal_form), bool(MORPH_NAMES & set(parse.tag.grammemes)))
+        for parse in analyser.parse(word)
+    )
+
+
+def morph_for(language: str) -> Callable[[str], Sequence[Reading]] | None:
+    """The dictionary a language's unseen forms are read through, or None where it has
+    none or it is not installed (the `russian` extra)."""
+    if code(language) == "ru" and _analyser() is not None:
+        return _russian_readings
+    return None
+
 
 #: The endings tried off a Hebrew token the map has never seen, longest first: plurals,
 #: the construct and the possessives. What is left is taken only where it is itself a
@@ -236,8 +283,11 @@ class Forms:
     names: frozenset[str] = frozenset()
     #: Each kept lemma's rank among the shelf's running words, commonest first, from 1.
     ranks: dict[str, int] = field(default_factory=dict)
+    #: A dictionary's readings of a form the shelf never showed (`MORPHED`), or None.
+    morph: Callable[[str], Sequence[Reading]] | None = field(default=None, repr=False)
     _male: dict[str, list[str]] | None = field(default=None, repr=False)
     _lemmas: frozenset[str] | None = field(default=None, repr=False)
+    _folded: dict[str, str] | None = field(default=None, repr=False)
 
     @property
     def hebrew(self) -> bool:
@@ -264,6 +314,24 @@ class Forms:
         as a lemma the map holds and was never seen inflected that way."""
         return self.forms.get(form) or (form if form in self.lemmas else "")
 
+    def _morphed(self, token: str) -> tuple[str, str]:
+        """A form the shelf never showed, read through the dictionary: a name where its
+        best reading is one; otherwise the first reading whose lemma the map holds,
+        spelled as the map spells it (ё and all), or else the best reading's lemma. A
+        form the dictionary does not know stays unresolved: pymorphy3's guesses at an
+        unknown word would make a page in another language look measured."""
+        readings = self.morph(token) if self.morph is not None else ()
+        if not readings:
+            return "", UNRESOLVED
+        if readings[0][1]:
+            return "", NAME
+        if self._folded is None:
+            self._folded = {fold(lemma): lemma for lemma in sorted(self.lemmas)}
+        for lemma, named in readings:
+            if not named and lemma in self._folded:
+                return self._folded[lemma], MORPH
+        return readings[0][0], MORPH
+
     def _suffixed(self, candidates: Sequence[str]) -> str:
         for form in candidates:
             for ending in SUFFIXES:
@@ -285,7 +353,7 @@ class Forms:
             if token in self.names:
                 return "", NAME
             lemma = self._lookup(token)
-            return (lemma, EXACT) if lemma else ("", UNRESOLVED)
+            return (lemma, EXACT) if lemma else self._morphed(token)
         bare = level_module._bare(token)
         candidates = level_module._forms_of(bare)
         for how, form in zip((EXACT, ONE, TWO), candidates, strict=False):
@@ -497,6 +565,7 @@ def forms_from(body: Mapping[str, Any], language: str) -> Forms | None:
         forms={str(k): str(v) for k, v in (held.get("forms") or {}).items()},
         names=frozenset(str(one) for one in held.get("names") or ()),
         ranks={str(lemma): at for at, lemma in enumerate(ranked, start=1)},
+        morph=morph_for(language),
     )
 
 
@@ -511,12 +580,18 @@ def _read(where: str, stamp: tuple[int, int]) -> dict[str, Any]:
 
 @lru_cache(maxsize=8)
 def _forms(where: str, stamp: tuple[int, int], language: str) -> Forms | None:
-    return forms_from(_read(where, stamp), language)
+    forms = forms_from(_read(where, stamp), language)
+    if forms is not None and forms.language in MORPHED and forms.morph is None:
+        # Without its dictionary the map alone leaves 15% of a Russian page unresolved:
+        # better no pool than one of pages nearly all "not measured".
+        return None
+    return forms
 
 
 def load(language: str, where: Path | None = None) -> Forms | None:
-    """One language's map, read once per change of the file; None where there is none.
-    A box without the file pools nothing, and Read next is as it was."""
+    """One language's map, read once per change of the file; None where there is none,
+    or where a `MORPHED` language's dictionary is not installed. A box without the file
+    pools nothing, and Read next is as it was."""
     file = where or path()
     if file is None:
         return None
@@ -601,6 +676,48 @@ class Calibration:
 
     def worst(self) -> float:
         return max((row.mean_abs for row in self.rows), default=0.0)
+
+    def system(self) -> str:
+        """The scorer by name, for the eval ledger: the map, and the dictionary where the
+        language reads its unseen forms through one."""
+        if self.language in MORPHED and morph_for(self.language) is not None:
+            from importlib.metadata import version
+
+            return f"{SYSTEM}+pymorphy3-{version('pymorphy3')}"
+        return SYSTEM
+
+    def ledger_rows(self, at: str, note: str = "") -> list[Any]:
+        """The calibration as `evals` rows (stage `finds`, corpus `<language>-shelf`):
+        the unresolved share and the agreement over the test's running words, and the
+        worst reader's error and same-side share over its texts. `evals/floors.json`
+        holds the lines they may not cross."""
+        from ..evals import Row as EvalRow
+
+        system = self.system()
+        corpus = f"{self.language}-shelf"
+        said = f"{self.test} of {self.texts} public modern texts, five folds by series"
+        said = f"{said}; {note}" if note else said
+        values = [
+            ("unresolved_share", self.found.get(UNRESOLVED, 0.0), self.test_tokens),
+            ("agree", self.agree, self.test_tokens),
+            ("mean_abs_worst", self.worst(), self.test),
+            ("p90_abs_worst", max((row.p90_abs for row in self.rows), default=0.0), self.test),
+            ("same_side_least", min((row.same_side for row in self.rows), default=0.0), self.test),
+        ]
+        return [
+            EvalRow(
+                at=at,
+                stage="finds",
+                system=system,
+                version=system,
+                metric=metric,
+                score=round(value, 4),
+                n=n,
+                corpus=corpus,
+                note=said,
+            )
+            for metric, value, n in values
+        ]
 
     def state(self) -> dict[str, Any]:
         return {
@@ -730,7 +847,11 @@ def calibrate(
         texts=sum(1 for one in texts if one.language == code(language)),
         test=len(held),
         test_tokens=sum(sum(case.lemmas.values()) for _, case in held),
-        found={how: found[how] / total for how in (EXACT, ONE, TWO, HASER, SUFFIX, UNRESOLVED)},
+        found={
+            how: found[how] / total
+            for how in (EXACT, ONE, TWO, HASER, SUFFIX, MORPH, UNRESOLVED)
+            if how != MORPH or code(language) in MORPHED
+        },
         agree=agree / resolved if resolved else 0.0,
         rows=table([case for _, case in held]),
     )
@@ -742,24 +863,31 @@ def _reach(forms: Forms, tokens: Iterable[str]) -> tuple[dict[str, str], list[st
     reach: dict[str, str] = {}
     names: set[str] = set()
     for token in tokens:
-        bare = level_module._bare(token) if forms.hebrew else token
-        candidates = level_module._forms_of(bare) if forms.hebrew else [bare]
+        if not forms.hebrew:
+            # One form, one lookup: what the map or the dictionary made of it is frozen
+            # as the form itself, so a sample scores the same without pymorphy3.
+            lemma, how = forms.resolve(token)
+            if how == NAME:
+                names.add(token)
+            elif lemma:
+                reach[token] = lemma
+            continue
+        candidates = level_module._forms_of(level_module._bare(token))
         for form in candidates:
             if form in forms.names:
                 names.add(form)
             lemma = forms._lookup(form)
             if lemma:
                 reach[form] = lemma
-        if forms.hebrew and level_module._POINTS.search(token):
+        if level_module._POINTS.search(token):
             male = forms._haser(candidates)
             if male in forms.names:
                 names.add(male)
             elif male:
                 reach[male] = forms.forms[male]
-        if forms.hebrew:
-            lemma = forms._suffixed(candidates)
-            if lemma:
-                reach[lemma] = lemma
+        lemma = forms._suffixed(candidates)
+        if lemma:
+            reach[lemma] = lemma
     return reach, sorted(names)
 
 

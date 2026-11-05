@@ -105,6 +105,109 @@ def test_the_calibration_holds_the_mean_error_under_two_and_a_half_points() -> N
         assert row.same_side >= 0.8, row
 
 
+def ru_forms(**pairs: str) -> score.Forms:
+    """A Russian map with a stand-in for pymorphy3, so the suite needs no `russian`
+    extra: each form's readings as (lemma, a name), best first, folded as `fold` does."""
+    readings: dict[str, tuple[score.Reading, ...]] = {
+        "домами": (("дом", False),),
+        "кошки": (("кошка", False),),
+        "ученого": (("ученый", False),),
+        "путин": (("путин", True), ("путина", False)),
+        "стали": (("стать", False), ("сталь", False)),
+    }
+    return score.Forms(
+        language="ru",
+        forms=dict(pairs),
+        names=frozenset({"москва"}),
+        morph=lambda word: readings.get(word, ()),
+    )
+
+
+def test_a_russian_form_the_shelf_never_showed_is_read_through_the_dictionary() -> None:
+    held = ru_forms(дом="дом", учёный="учёный", сталь="сталь")
+    assert held.resolve("дом") == ("дом", score.EXACT)
+    assert held.resolve("домами") == ("дом", score.MORPH)
+    assert held.resolve("кошки") == ("кошка", score.MORPH), "a lemma the map never held"
+    assert held.resolve("ученого") == ("учёный", score.MORPH), "spelled as the map spells it"
+    assert held.resolve("стали") == ("сталь", score.MORPH), "the reading the map holds first"
+    assert held.resolve("путин") == ("", score.NAME), "a name is never counted"
+    assert held.resolve("москва") == ("", score.NAME)
+    assert held.resolve("абвгд") == ("", score.UNRESOLVED), "a word the dictionary lacks"
+    bare = score.Forms(language="ru", forms={"дом": "дом"})
+    assert bare.resolve("домами") == ("", score.UNRESOLVED), "no dictionary, no guess"
+
+
+def test_a_russian_map_is_not_loaded_without_its_dictionary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without pymorphy3 a Russian page is 15% unresolved (2026-10-31), so a box without
+    the `russian` extra pools no Russian rather than a pool of pages not measured."""
+    where = tmp_path / "forms.json"
+    held = {"forms": {"дом": "дом"}, "names": [], "ranked": ["дом"]}
+    score.write({"version": score.VERSION, "languages": {"ru": held, "he": held}}, where)
+    monkeypatch.setattr(score, "morph_for", lambda language: None)
+    assert score.load("ru", where) is None
+    assert score.load("he", where) is not None, "Hebrew needs no dictionary"
+    monkeypatch.setattr(score, "morph_for", lambda language: lambda word: (("дом", False),))
+    score._forms.cache_clear()
+    loaded = score.load("ru", where)
+    assert loaded is not None and loaded.resolve("домом") == ("дом", score.MORPH)
+
+
+def test_pymorphy3_reads_russian_forms_as_ru_local_does() -> None:
+    pytest.importorskip("pymorphy3")
+    morph = score.morph_for("ru")
+    assert morph is not None
+    held = score.Forms(language="ru", forms={"учёный": "учёный"}, morph=morph)
+    assert held.resolve("могу") == ("мочь", score.MORPH)
+    assert held.resolve("пошел") == ("пойти", score.MORPH), "ё folded on both sides"
+    assert held.resolve("ученого") == ("учёный", score.MORPH)
+    assert held.resolve("путин")[1] == score.NAME
+    assert held.resolve("кваксыргл")[1] == score.UNRESOLVED, "no guess at an unknown word"
+
+
+def test_the_russian_calibration_holds_its_floor() -> None:
+    """targum-internal#629: a frozen sample of 20 held-out public Russian texts (public
+    domain and CC BY only), scored with the slice of their fold's map and of pymorphy3's
+    readings their words reach, against ru-local's running-word coverage. Russian is held
+    to its own sample, never to Hebrew's. Measured over the whole laptop shelf on
+    2026-11-05: 0.6% of running words unresolved (15.0% before), |error| 1.3–1.4 points
+    at every reader (4.3–8.5 before)."""
+    body = json.loads(gzip.decompress((FIXTURES / "finds_calibration_ru.json.gz").read_bytes()))
+    assert body["language"] == "ru"
+    cases = score.fixture_cases(body)
+    assert len(cases) >= 15
+    scored = [case.forms.score_counts(case.tokens) for case in cases]
+    unresolved = sum(one.unresolved for one in scored) / sum(one.tokens for one in scored)
+    assert unresolved <= 0.05, unresolved
+    assert sum(one.measured for one in scored) >= 0.8 * len(scored)
+    rows = score.table(cases)
+    assert [row.known for row in rows] == list(score.READERS)
+    for row in rows:
+        assert row.mean_abs <= 0.025, row
+        assert row.same_side >= 0.85, row
+
+
+def test_a_calibration_becomes_ledger_rows_for_its_own_language() -> None:
+    found = score.Calibration(
+        language="ru",
+        texts=129,
+        test=79,
+        test_tokens=200_842,
+        found={score.EXACT: 0.85, score.MORPH: 0.144, score.UNRESOLVED: 0.006},
+        agree=0.932,
+        rows=[
+            score.Row(2000, -0.006, 0.013, 0.032, 0, 0, 1.0),
+            score.Row(6500, -0.005, 0.014, 0.032, 11, 10, 0.96),
+        ],
+    )
+    rows = {row.metric: row for row in found.ledger_rows("2026-11-05")}
+    assert {row.corpus for row in rows.values()} == {"ru-shelf"}
+    assert {row.stage for row in rows.values()} == {"finds"}
+    assert rows["unresolved_share"].score == 0.006
+    assert rows["mean_abs_worst"].score == 0.014 and rows["same_side_least"].score == 0.96
+
+
 # -- the map: public texts only ----------------------------------------------------------
 
 
@@ -166,6 +269,8 @@ def test_deploy_builds_and_checks_the_map_on_the_box() -> None:
     assert "targum finds forms --library /var/lib/targum/targums" in text
     assert "targum finds forms --check /var/lib/targum/forms.json" in text
     assert "/etc/targum/forms.json" in text
+    assert "for finds_language in he ru; do" in text, "each pooled language calibrated"
+    assert 'BOX_EXTRAS="' in text and " russian " in text.split('BOX_EXTRAS="')[1].split("\n")[0]
 
 
 # -- the pool --------------------------------------------------------------------------
@@ -400,12 +505,33 @@ def test_a_language_with_no_map_is_not_fetched(store: Store) -> None:
     found = news.refresh(
         store,
         kept={"https://feed.example/rss": [item("https://news.example/a")]},
-        publishers=[publisher(language="ru")],
+        publishers=[publisher(language="fr")],
         read=door,
         robots=robots.Robots(read=lambda url: ""),
         forms_for=lambda language: forms(),
     )
-    assert found.seen == 0 and door.asked == [], "Russian waits for a map of its own"
+    assert found.seen == 0 and door.asked == [], "French waits for a map of its own"
+
+
+def test_russian_news_is_pooled_and_scored(store: Store) -> None:
+    """targum-internal#629: Russian is pooled, so its news is scored against its own map
+    and offered as measured, never shown as not measured for want of one."""
+    assert "ru" in score.POOLED
+    page = " ".join(["дом"] * 60 + ["домами"] * 30 + ["кошки"] * 10)
+    held = ru_forms(дом="дом")
+    door = Door({"https://news.example/ru": page})
+    found = news.refresh(
+        store,
+        kept={"https://feed.example/rss": [item("https://news.example/ru", title="Кошки")]},
+        publishers=[publisher(language="ru")],
+        read=door,
+        robots=robots.Robots(read=lambda url: ""),
+        forms_for=lambda language: held if language == "ru" else None,
+    )
+    assert found.kept == 1
+    (kept,) = pool.pick(store, "ru", None)
+    assert kept.unresolved == 0 and kept.bag["дом"] == 90 and kept.bag["кошка"] >= 10
+    assert provider.share_of(kept, {"дом": KNOWN}) == pytest.approx(90 / kept.tokens)
 
 
 # -- offered on Read next ------------------------------------------------------------
@@ -705,5 +831,22 @@ def test_the_back_office_counts_the_pool_and_names_no_link(store: Store) -> None
     finally:
         db.close()
     assert found.by_language == {"he": 1} and found.dropped == {"words": 1}
+    assert found.calibrations == {}
     assert found.by_topic == {"tech": 1}
     assert _find_rungs(found) == [("he", "ג", 1)]
+
+
+def test_the_back_office_keeps_the_last_calibration_of_each_language(store: Store) -> None:
+    import sqlite3
+
+    for language, mean in (("he", -0.01), ("ru", -0.05), ("ru", -0.006)):
+        run = pool.start_run(store, "calibrate")
+        pool.finish_run(store, run, seen=1, note={"language": language, "rows": [mean]})
+    db = sqlite3.connect(f"file:{store.path}?mode=ro", uri=True)
+    try:
+        found = pool.survey(db)
+    finally:
+        db.close()
+    assert sorted(found.calibrations) == ["he", "ru"]
+    assert found.calibrations["ru"]["rows"] == [-0.006], "the newest of each"
+    assert found.calibration is not None and found.calibration["language"] == "ru"

@@ -46,6 +46,7 @@ found one, and is not read as free.
 | Scratch shelf of six | no reference | per text on the shelf | eval | `suggest/shelf-6` |
 | Morphalou 3.1, over the French shelf | no reference (coverage of a lexicon) | LGPL-LR | lookup; the French card reads it | none: no stage fits, so the number is in targum-internal#266 |
 | French liaisons and readings, drafted | **model-drafted, not yet read by a person** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
+| The Russian shelf, ru-local's lemmas | the annotator's own reading, not a person's | per text on the shelf; public texts only | eval; a frozen sample of open-licence texts' counts is in the suite | `finds/ru-shelf` |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
 default branch of a repository or a live dump, so the files can change under the same
@@ -440,6 +441,14 @@ These are measured without gold. The number is a property of the output.
   laptop had on 2026-09-22. Measures the `known_share` of what `suggest_next` offers a
   reader who knows the 500 commonest words. Calls no model. Scored by
   `scripts/eval_suggest.py`; the corpus name records the shelf size.
+- **`finds/ru-shelf`.** The cheap finds scorer (`finds/score.py`) against ru-local's
+  lemmas on the laptop's public modern Russian texts, five folds by series, each scored
+  with a map built from the other four (targum-internal#629). The reference is the
+  annotator the shelf runs, not a person's reading: it measures how far the cheap figure
+  is from the one a built text would show. Reads files only. Written by `targum finds
+  calibrate --language ru --ledger evals/ledger.jsonl`; the corpus is whatever shelf it
+  is pointed at, so the note gives the text count. `tests/fixtures/finds_calibration_ru.json.gz`
+  is 20 of its public-domain and CC BY texts as counts of words, never the text.
 - **`eval_align.py --on tts`.** Each word synthesised as its own clip and joined, so every
   boundary is known by construction. An upper bound, not a hand-marked truth. No rows yet.
 - **`eval_align.py --on clips`.** Built for Common Voice's layout; no set fetched and no

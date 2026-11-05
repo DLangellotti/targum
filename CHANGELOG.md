@@ -14,6 +14,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- Russian news is scored and offered in Read next (targum-internal#629, under #628).
+  The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
+  dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
+  name by its reading is left out, and a word the dictionary does not know stays
+  unresolved rather than guessed. Against ru-local on the laptop's 129 public Russian
+  texts: 0.6% of running words unresolved (15.0% with the map alone) and 1.3 to 1.4
+  points off at every reader (4.3 to 8.5). Russian joins `POOLED`, `targum finds forms`
+  maps he and ru by default, deploy calibrates each language, and the back office shows
+  the last calibration of each. The figures are in the eval ledger as `finds/ru-shelf`
+  with floors, and a frozen sample of 20 public-domain and CC BY texts' counts is in the
+  suite. A box without the `russian` extra pools no Russian. No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
