@@ -268,6 +268,14 @@ def track(url: str) -> Track:
         return Track(text=text, age_limit=age, size=size)
 
 
+def words_per_minute(text: str, seconds: float) -> float:
+    """A track's words a minute over the video's length, counted as
+    `screen.words_per_minute` counts its cues; 0 where the length is not known."""
+    if seconds <= 0:
+        return 0.0
+    return len(text.split()) / (seconds / 60)
+
+
 def run_cost(size: int) -> float:
     """What one subtitle run costs targum in dollars: nothing without the proxy."""
     from ..video.youtube import proxy
@@ -526,6 +534,10 @@ def _keep(
         licence=CC_BY if open_licence else "",
         licence_url=CC_BY_TERMS if open_licence else "",
         licence_from="youtube" if open_licence else "",
+        # Words a minute heard, as `screen.words_per_minute` counts a track: its words
+        # over the video's minutes (design.md §12, "Fast speech asks a little more of a
+        # reader below gimel", 2026-11-05).
+        rate=words_per_minute(got.text, video.seconds),
         at=when,
     )
     if added:

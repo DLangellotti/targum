@@ -384,6 +384,42 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Fast speech asks a little more of a reader below gimel — 2026-11-05
+
+targum-internal#614 (David, 2026-11-05, in chat): the research's §3.5, "above about 110
+Hebrew words a minute, raise the effective difficulty for readers below gimel". It amends
+"What to read next teaches words that come back" (2026-11-01), whose medium bands took
+no account of how fast a recording is spoken.
+
+- **How much.** For a Hebrew reader whose estimate stands below gimel (fewer than 4,500
+  lemmas, `estimate.Estimate.words`), an item heard at more than 110 words a minute has
+  `min(0.03, (wpm − 110) / 2000)` taken off its share before the chooser places it: half
+  a point for every 10 words a minute over 110, three points at most. So at 130 words a
+  minute a text-and-video item needs 91% where it needed 90%, at 150 it needs 92%, and at
+  170 and above 93%. The aim moves with the floor, so a fast item also sorts later inside
+  the band. Audio heard with no text on screen goes from 95% up to 98% the same way.
+- **Audio and video both.** David chose both: a captioned video is heard at the same
+  speed as a podcast.
+- **Why this form.** Measured on the finds and the shelf (builder, 2026-11-05): the
+  median podcast find is spoken at 120 words a minute and the median YouTube find at 115,
+  so 110 touches most native speech, which is what §3.5 intends. A fixed step at 110 is a
+  cliff: a podcast at 109 passes and one at 111 is held to 95%. A point per 10 words makes
+  a captioned clip as strict as audio alone. Half a point is graded and stays inside the
+  gap the medium bands already hold. The research gives a direction and no amount, so
+  the 0.5 is a starting point, to be calibrated from what readers finish.
+- **Where the rate comes from.** A podcast find's words a minute heard (`pool.Find.rate`:
+  its transcript, or two minutes from the middle). A YouTube find's is its track's words
+  over its length, counted as `screen.words_per_minute` counts them, from the night it is
+  found. Finds kept before then carry none until they expire. An item with no rate takes
+  no penalty: every text, every recording on the shelf (all spoken under 110), and the
+  shelf's videos, which carry no rate at choosing time.
+- **Who it reaches.** Nobody at gimel or above, nobody reading a text, and no language
+  but Hebrew, since the threshold was measured on Hebrew. On the day it shipped no reader
+  below gimel had a fast find in band, so nothing on screen changed. It starts to matter
+  as their marks grow.
+- **The figure a page prints does not move.** The penalty decides where an item sits and
+  how it sorts. The card still says the share of words the reader knows.
+
 ### Today's news is measured on the article where we have read it — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`

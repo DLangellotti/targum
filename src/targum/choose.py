@@ -40,6 +40,11 @@ Each reader's aim is moved by an offset (`OFFSETS`) learned from what became of 
 suggested to them (`outcomes`, the clause 3.6 record): a day's draw by Thompson sampling
 over the three aims (`learned`), seeded by the reader and the day, so every surface that
 chooses agrees and a reload never reshuffles. The floor and the too-easy line never move.
+
+**Fast speech asks a little more of a reader below gimel** (design.md §12, 2026-11-05;
+targum-internal#614). Where an item is heard, its words a minute over 110 take up to
+three points off the share it is placed on (`rate_penalty`), for a Hebrew reader below
+gimel only.
 """
 
 from __future__ import annotations
@@ -115,6 +120,35 @@ def held(register: str, registers: frozenset[str]) -> bool:
     """Whether a text in this register waits for this reader: an older register they
     have not opened (`opened`)."""
     return register in OLDER and register not in registers
+
+
+#: Fast speech asks a little more of a reader below gimel (design.md §12, 2026-11-05;
+#: targum-internal#614): over `RATE_FREE` words a minute, half a point of share for every
+#: 10 more, at most `RATE_MOST`. Hebrew only, where the threshold was measured.
+RATE_FREE = 110.0
+RATE_PER_POINT = 2000.0
+RATE_MOST = 0.03
+#: Gimel's lemmas (`level.ULPAN`): an estimate under this is below gimel.
+GIMEL_WORDS = 4500
+#: The media that are heard, and so have a speed: what a find's `medium` says.
+HEARD = frozenset({AUDIO, VIDEO, "podcast", "recording", "youtube"})
+
+
+def rate_penalty(wpm: float, words: int | None) -> float:
+    """What fast speech takes off an item's share for a reader whose estimate stands at
+    `words` lemmas: nought at gimel and above, for a reader with no estimate (None), and
+    at or under `RATE_FREE` words a minute, which takes in an item with no rate (0)."""
+    if words is None or words >= GIMEL_WORDS or wpm <= RATE_FREE:
+        return 0.0
+    return round(min(RATE_MOST, (wpm - RATE_FREE) / RATE_PER_POINT), 6)
+
+
+def reader_words(estimate: Any) -> int | None:
+    """The lemmas a reader's estimate stands for, for `rate_penalty`: None where there is
+    no estimate, or it is not Hebrew, whose ladder gimel is on."""
+    if estimate is None or str(getattr(estimate, "language", "")).split("-")[0] != "he":
+        return None
+    return int(estimate.words())
 
 
 def band(medium: str = TEXT) -> Band:
