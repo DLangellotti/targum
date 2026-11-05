@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- YouTube finds also read the newest uploads of seed channels a curator lists
+  (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
+  somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
+  address as its homepage is read before the night's searches, at three Data API units a
+  channel and only for uploads of the last thirty days, through the same gate, track cap
+  and discovery budget. The list starts empty, so nothing changes until a channel is
+  added. Still behind `TARGUM_FINDS_YOUTUBE`. No new strings.
 - `targum finds shows` lists the month's podcast shows to look at (targum-internal#621;
   plan §1.3; design.md §12, "Podcast finds are scored on a transcript or two minutes").
   It searches Apple's directory for Israel on the forty topics' Hebrew phrases, free

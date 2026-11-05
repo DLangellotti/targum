@@ -1555,6 +1555,11 @@ web find is a pasted link targum found" (2026-10-31) and changes no rail. Behind
   search strict and the last thirty days. A night spends at most 3,000 of the project's
   10,000 daily units, so it asks about thirty queries and the next night starts where it
   stopped. A video carries the chip that found it, so "Topic" finds it at once.
+- **And the channels a curator chose** (2026-11-05, plan §1.2). Before the searches,
+  each night reads the newest uploads of every seed channel: a `kind: video` publisher
+  in sources.json whose homepage is a YouTube channel's address. Three units a channel,
+  the last thirty days only, and the same gate, track, cap and budget as a search's
+  videos. The list is the curator's and starts empty; nothing else changes.
 - **Only a track somebody wrote.** The plan let an auto-caption track score too, flagged.
   This slice takes only Hebrew tracks a person wrote: a find is offered on its words, and
   YouTube's guess is not words anybody checked. A video whose only track is YouTube's own
