@@ -41,10 +41,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -193,6 +195,136 @@ def shows(path: Path | None = None) -> list[Show]:
             out.append(made)
             held.add(made.feed)
     return out
+
+
+# -- shows to propose ----------------------------------------------------------------
+
+#: Apple's public podcast directory search (plan §1.3): free, no key, JSON.
+DIRECTORY = "https://itunes.apple.com/search"
+
+#: Results a directory search asks for: Apple's own most.
+DIRECTORY_LIMIT = 200
+
+#: A show whose newest episode is older than this, in days, has stopped, and is not
+#: proposed: the round reads only the last thirty days of a feed.
+ACTIVE_DAYS = 60
+
+#: One directory search: the address and its query in, the JSON answer out.
+Ask = Callable[[str, dict[str, str]], dict[str, Any]]
+
+
+@dataclass
+class Proposal:
+    """A show the directory has and the list does not, for a curator to look at."""
+
+    name: str
+    publisher: str
+    feed: str
+    #: Apple's page for the show, for the curator to open.
+    page: str
+    #: The chips whose phrase found it, in the chips' order.
+    chips: list[str] = field(default_factory=list)
+    explicit: bool = False
+    episodes: int = 0
+    #: The day of its newest episode, as Apple says it (YYYY-MM-DD).
+    newest: str = ""
+
+    def row(self) -> dict[str, Any]:
+        """A draft `podcasts.json` row: the key, licence and robots check are the
+        curator's to write once they have read the feed."""
+        return {
+            "key": "",
+            "name": self.name,
+            "publisher": self.publisher,
+            "feed": self.feed,
+            "chips": self.chips,
+            "licence": "",
+            "checked": "",
+            "directory": {
+                "page": self.page,
+                "episodes": self.episodes,
+                "newest": self.newest,
+                "explicit": self.explicit,
+            },
+        }
+
+
+def _directory(url: str, query: dict[str, str]) -> dict[str, Any]:
+    from ..ingest.url import fetch
+
+    answer = json.loads(fetch(url, query, proxy=False).text)
+    return answer if isinstance(answer, dict) else {}
+
+
+def propose(
+    language: str = "he",
+    *,
+    ask: Ask | None = None,
+    held: Sequence[Show] | None = None,
+    at: int | None = None,
+) -> list[Proposal]:
+    """The shows Apple's directory for Israel finds on the chips' own phrases that the
+    reviewed list and sources.json do not hold, titled in the language, active in the
+    last `ACTIVE_DAYS`: what a curator reads each month (plan §1.3). Free, read-only,
+    and nothing is added: a show joins only when a curator writes it into the list.
+    The most-found first, then the one with more episodes."""
+    from ..video.discover import SCRIPTS
+    from ..weekly.feeds import link_key
+
+    get = ask or _directory
+    when = pool.now_ms() if at is None else at
+    since = when - ACTIVE_DAYS * pool.DAY_MS
+    have = {link_key(show.feed) for show in (shows() if held is None else held)}
+    letters = SCRIPTS.get(language, "")
+    found: dict[str, Proposal] = {}
+    for chip in chips.CHIPS:
+        phrase = chip.phrases.get(language)
+        if not phrase:
+            continue
+        try:
+            answer = get(
+                DIRECTORY,
+                {
+                    "term": phrase,
+                    "media": "podcast",
+                    "entity": "podcast",
+                    "country": "IL",
+                    "limit": str(DIRECTORY_LIMIT),
+                },
+            )
+        except Exception as error:  # noqa: BLE001 - one phrase never stops the list
+            log.info("finds: the directory did not answer for %s: %s", chip.code, error)
+            continue
+        for result in answer.get("results") or ():
+            feed = str(result.get("feedUrl") or "")
+            name = str(result.get("collectionName") or "")
+            if not feed.startswith(("http://", "https://")) or link_key(feed) in have:
+                continue
+            if letters and not re.search(f"[{letters}]", name):
+                continue
+            newest = str(result.get("releaseDate") or "")
+            try:
+                stamp = datetime.fromisoformat(newest.replace("Z", "+00:00"))
+                last = int(stamp.astimezone(UTC).timestamp() * 1000)
+            except ValueError:
+                last = 0
+            if last < since:
+                continue
+            key = link_key(feed)
+            proposal = found.get(key)
+            if proposal is None:
+                proposal = found[key] = Proposal(
+                    name=name,
+                    publisher=str(result.get("artistName") or ""),
+                    feed=feed,
+                    page=str(result.get("collectionViewUrl") or ""),
+                    explicit=str(result.get("collectionExplicitness") or "") == "explicit",
+                    episodes=int(result.get("trackCount") or 0),
+                    newest=newest[:10],
+                )
+            if chip.code not in proposal.chips:
+                proposal.chips.append(chip.code)
+    return sorted(found.values(), key=lambda one: (-len(one.chips), -one.episodes, one.name))
 
 
 # -- the episodes --------------------------------------------------------------------

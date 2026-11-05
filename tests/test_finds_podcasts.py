@@ -585,3 +585,77 @@ def test_the_caps_are_thirty_a_night_and_six_hundred_a_month() -> None:
     assert podcasts.MONTH_SAMPLES * podcasts.sample_cost() < pool.BUDGET_DEFAULT / 2, (
         "a full month of samples leaves the other sources most of the default budget"
     )
+
+
+# -- the month's shows to propose (plan §1.3) ------------------------------------------
+
+
+def directory(results: dict[str, list[dict[str, Any]]]) -> Any:
+    """Apple's directory search, faked: results by the phrase searched, every query kept."""
+    asked: list[dict[str, str]] = []
+
+    def ask(url: str, query: dict[str, str]) -> dict[str, Any]:
+        assert url == podcasts.DIRECTORY
+        asked.append(dict(query))
+        return {"results": results.get(query["term"], [])}
+
+    ask.asked = asked  # type: ignore[attr-defined]
+    return ask
+
+
+def listed(name: str, feed: str, newest: str = "2026-10-30T05:00:00Z", **more: Any) -> dict:
+    return {
+        "collectionName": name,
+        "artistName": "מגישה",
+        "feedUrl": feed,
+        "collectionViewUrl": f"https://podcasts.apple.com/il/podcast/{abs(hash(feed))}",
+        "releaseDate": newest,
+        "trackCount": more.pop("episodes", 40),
+        "collectionExplicitness": more.pop("explicitness", "notExplicit"),
+        **more,
+    }
+
+
+def test_the_directory_proposes_only_shows_the_list_does_not_hold() -> None:
+    science, history = (
+        chips.BY_CODE["science"].phrases["he"],
+        chips.BY_CODE["history"].phrases["he"],
+    )
+    ask = directory(
+        {
+            science: [
+                listed("מדע בקטנה", "https://new.example/a.rss", episodes=12),
+                listed("Science Weekly", "https://new.example/english.rss"),
+                listed("תוכנית לדוגמה", "https://FEEDS.EXAMPLE/show.rss"),
+                listed("ישן ושקט", "https://new.example/old.rss", newest="2026-06-01T00:00:00Z"),
+            ],
+            history: [
+                listed("מדע בקטנה", "https://new.example/a.rss", episodes=12),
+                listed(
+                    "היסטוריה בלילה",
+                    "https://new.example/b.rss",
+                    episodes=90,
+                    explicitness="explicit",
+                ),
+            ],
+        }
+    )
+    found = podcasts.propose(ask=ask, held=[SHOW], at=AT)
+    assert [one.name for one in found] == ["מדע בקטנה", "היסטוריה בלילה"]
+    assert found[0].chips == ["science", "history"]
+    assert found[1].explicit and found[1].episodes == 90
+    assert {query["country"] for query in ask.asked} == {"IL"}
+    assert {query["media"] for query in ask.asked} == {"podcast"}
+    # The queries are the chips' own phrases and nothing else.
+    assert [query["term"] for query in ask.asked] == [
+        chip.phrases["he"] for chip in chips.CHIPS if chip.phrases.get("he")
+    ]
+    row = found[0].row()
+    assert row["feed"] == "https://new.example/a.rss" and row["licence"] == "" and row["key"] == ""
+
+
+def test_a_directory_that_does_not_answer_proposes_nothing_and_says_so() -> None:
+    def ask(url: str, query: dict[str, str]) -> dict[str, Any]:
+        raise OSError("no route")
+
+    assert podcasts.propose(ask=ask, held=[SHOW], at=AT) == []
