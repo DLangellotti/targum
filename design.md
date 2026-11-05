@@ -384,6 +384,32 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Hebrew Wikipedia and Wikivoyage come back through their own API — 2026-11-05
+
+David, 2026-11-05 (targum-internal#622, in chat): bring the MediaWiki API back as an
+open-web source. This reverses the line in "The open web is searched each night, on the
+forty topics" (2026-11-03) that said the nightly search "replaces the card's Brave Search
+and MediaWiki plan": the search still replaces Brave, and MediaWiki runs beside it. It
+changes no rail. Behind `TARGUM_FINDS_WIKI` until it is switched on.
+
+- **The same forty phrases, free.** Each night he.wikipedia.org is searched with the
+  chips' own Hebrew phrases, starting where the last night stopped, through the
+  MediaWiki API (`list=search`, `prop=extracts`). he.wikivoyage.org is searched only on the
+  chips a travel guide answers: travel, food, nature, history, Israel and the holidays. No
+  key and no cost. Each request names targum and its contact address in the User-Agent, as
+  Wikimedia asks, and waits a second and a half after the last one.
+- **The night's caps hold.** At most five pages from each wiki a night, counted with
+  whatever the night's search reads there. A page is read only where robots.txt allows its
+  `/wiki/` address. The words come from the API, the channel Wikimedia offers for
+  programs, and not from the page. Disambiguation pages are skipped. The host and word
+  screens, "too short", "one article pooled once" and the sixty days are the night's own.
+  There is no adult-or-graphic model check (David, 2026-11-05: the screens are enough).
+- **The licence is the site's, said in full.** Every row carries CC BY-SA 4.0, the deed's
+  address, the page's own address, and "Wikipedia contributors" or "Wikivoyage
+  contributors" as who to credit. A copy that joins the library says "Vowel points and
+  notes added by targum", as "A text whose licence asks says we changed it" (2026-11-03)
+  has it.
+
 ### Home's one card offers the words to learn first, and a pick moves easier or harder — 2026-11-05
 
 David, approving the mocks of 2026-11-05 (targum-internal#614, #615). This amends "Home's
@@ -1148,7 +1174,8 @@ and their notes between the headline and the two lists, so a reader scrolled 1,1
 David, 2026-11-03 (targum-internal#622, slice D of the web-discovery plan): each night
 Anthropic's web search looks for real Hebrew pages on the forty topics of "Find me
 something", and what it finds is scored and pooled like every other find. It replaces the
-card's Brave Search and MediaWiki plan (David, 2026-11-01: Anthropic over Brave), adds a
+card's Brave Search and MediaWiki plan (David, 2026-11-01: Anthropic over Brave; MediaWiki
+came back beside it on 2026-11-05, "Hebrew Wikipedia and Wikivoyage come back"), adds a
 source to "A web find is a pasted link targum found" (2026-10-31) and changes no rail.
 Behind `TARGUM_FINDS_WEB` until it is switched on.
 

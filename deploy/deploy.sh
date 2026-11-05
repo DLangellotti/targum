@@ -526,7 +526,8 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
   # And the nightly podcast finds (targum-internal#621): off until
   # TARGUM_FINDS_PODCASTS=1, and then at most 30 whisper samples a day inside the budget.
   # And the nightly open-web finds (targum-internal#622): off until TARGUM_FINDS_WEB=1,
-  # and then at most \$1 of Anthropic web search a night inside the budget.
+  # and then at most \$1 of Anthropic web search a night inside the budget. The same unit
+  # reads Hebrew Wikipedia and Wikivoyage first, free, once TARGUM_FINDS_WIKI=1.
   for unit in targum-backup.service targum-backup.timer targum-health.service targum-health.timer targum-visits.service targum-visits.timer targum-weekly-watch.service targum-weekly-watch.timer targum-subscriptions.service targum-subscriptions.timer targum-subscriptions-mail.service targum-subscriptions-mail.timer targum-tables.service targum-tables.timer targum-finds-youtube.service targum-finds-youtube.timer targum-finds-podcasts.service targum-finds-podcasts.timer targum-finds-web.service targum-finds-web.timer; do
     install -o root -g root -m 0644 /tmp/targum-units/\$unit /etc/systemd/system/\$unit
   done

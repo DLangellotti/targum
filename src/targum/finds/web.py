@@ -369,12 +369,14 @@ def refresh(
     forms_for: Callable[[str], score_module.Forms | None] = score_module.load,
     publishers: Sequence[Publisher] | None = None,
     clock: Callable[[], float] = time.monotonic,
+    hosts: Mapping[str, int] | None = None,
     at: int | None = None,
 ) -> Night:
     """One night: a search a topic while the night's allowance lasts, and every page it
     returns read, screened, scored and pooled. Each search's cost is written as it is
     spent and each find as it is kept, so a killed night has said what it cost and kept
-    what it found."""
+    what it found. `hosts` is what the night already read from a host (the wikis' round,
+    `wiki.Night.hosts`), counted against `HOST_MOST`."""
     from ..chat import sources as sources_module
     from ..chat.sources import site
     from ..weekly.feeds import link_key
@@ -396,7 +398,7 @@ def refresh(
     found.allowance = allowance(store, when)
     begun = clock()
     shut = set(store.closed(limit=500))
-    per_host: Counter[str] = Counter()
+    per_host: Counter[str] = Counter(dict(hosts or {}))
     tonight = 0.0
     worst = WORST_CALL_USD
     done = 0
