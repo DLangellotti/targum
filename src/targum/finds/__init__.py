@@ -18,6 +18,8 @@ a pasted link targum found", 2026-10-31.
 - `web`: the nightly round over the open web (#622): one Anthropic web search for each
   of the forty topics, the pages read direct and scored, at most $1 a night, behind
   `TARGUM_FINDS_WEB`.
+- `wiki`: Hebrew Wikipedia and Wikivoyage on the same forty phrases through the MediaWiki
+  API, free, CC BY-SA 4.0 and credited to their contributors, behind `TARGUM_FINDS_WIKI`.
 - `provider`: the pool scored for one reader, as candidates for Read next.
 - `button`, `interests` and `live`: "Find me something" (#615): one pick for one reader,
   steered by topics, and a capped look on the web when the pool has nothing that fits.
