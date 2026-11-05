@@ -34,13 +34,21 @@ story for a reader who knows modern Hebrew (a B1 reader after the words check: E
 hard is the register — the forms, the syntax, the senses — and the model has no feature
 for it. So a text in an older register (`OLDER`) is `held` for a reader who has not opened
 that register (`opened`), and `key` ranks it after everything else rather than in the band.
+
+**The aim moves with what you finish** (design.md §12, 2026-11-05; targum-internal#615).
+Each reader's aim is moved by an offset (`OFFSETS`) learned from what became of the texts
+suggested to them (`outcomes`, the clause 3.6 record): a day's draw by Thompson sampling
+over the three aims (`learned`), seeded by the reader and the day, so every surface that
+chooses agrees and a reload never reshuffles. The floor and the too-easy line never move.
 """
 
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 #: The least share of a text's running words a reader must know for it to fit.
@@ -114,6 +122,95 @@ def band(medium: str = TEXT) -> Band:
     return BANDS.get(medium, BANDS[TEXT])
 
 
+#: The three aims a reader's record can move the band's aim to, as offsets on it
+#: (design.md §12, "The aim moves with what you finish", 2026-11-05): two points harder,
+#: as it is, two points easier. Never so far that the aim leaves the band.
+HARDER = "harder"
+AS_IT_IS = "as-it-is"
+EASIER = "easier"
+OFFSETS: dict[str, float] = {HARDER: -0.02, AS_IT_IS: 0.0, EASIER: 0.02}
+
+#: Under this many known outcomes the aim stays as it is.
+LEAST_OUTCOMES = 6
+
+#: How many days of the record the offset is learned from.
+OUTCOME_DAYS = 90
+
+#: The wins "as it is" starts ahead by, so a thin record leans to the research's aim.
+AS_IT_IS_LEAD = 1.0
+
+FINISHED = "finished"
+ASIDE = "aside"
+
+
+def aim(medium: str = TEXT, offset: float = 0.0) -> tuple[float, float]:
+    """A medium's aim, moved by a reader's offset."""
+    low, high = band(medium).aim
+    return (round(low + offset, 4), round(high + offset, 4))
+
+
+def arm(share: float | None, medium: str = TEXT) -> str | None:
+    """Which aim a suggestion at this estimated share speaks for: under the aim as it is,
+    harder; inside it, as it is; over it, easier. None outside the band, where a finish
+    or a setting aside says nothing about where inside the band a reader likes to be."""
+    if share is None or fit(share, medium) != BAND:
+        return None
+    low, high = band(medium).aim
+    if share < low:
+        return HARDER
+    if share > high:
+        return EASIER
+    return AS_IT_IS
+
+
+def learned(outcomes: Iterable[tuple[float | None, str]], seed: str) -> float:
+    """A reader's offset for the day, by Thompson sampling over the three aims.
+
+    `outcomes` is one pair a suggested text: the share the chooser estimated when it was
+    suggested, and `FINISHED` or `ASIDE`. Each aim's record is Beta(1 + wins, 1 +
+    losses), "as it is" `AS_IT_IS_LEAD` wins ahead; one draw is made from each with a
+    generator seeded by `seed` (the reader and the day), and the highest draw's offset is
+    the answer. Under `LEAST_OUTCOMES` outcomes that count, nought."""
+    wins = dict.fromkeys(OFFSETS, 0.0)
+    losses = dict.fromkeys(OFFSETS, 0.0)
+    counted = 0
+    for share, result in outcomes:
+        which = arm(share)
+        if which is None or result not in (FINISHED, ASIDE):
+            continue
+        counted += 1
+        if result == FINISHED:
+            wins[which] += 1
+        else:
+            losses[which] += 1
+    if counted < LEAST_OUTCOMES:
+        return 0.0
+    wins[AS_IT_IS] += AS_IT_IS_LEAD
+    draw = random.Random(seed)  # noqa: S311 - exploration, not secrecy
+    drawn = {name: draw.betavariate(1 + wins[name], 1 + losses[name]) for name in OFFSETS}
+    best = max(OFFSETS, key=lambda name: (drawn[name], name == AS_IT_IS))
+    return OFFSETS[best]
+
+
+def offset_for(store: Any, person_id: int | None, language: str, day: str = "") -> float:
+    """This reader's offset today, from what became of the texts suggested to them in
+    `language` (`Store.suggest_outcomes`). Nought for nobody, for a store that keeps no
+    record, or for a record too thin to learn from. Worked out each time and kept
+    nowhere."""
+    if store is None or person_id is None:
+        return 0.0
+    reading = getattr(store, "suggest_outcomes", None)
+    if reading is None:
+        return 0.0
+    today = day or datetime.now(UTC).date().isoformat()
+    code = (language or "he").split("-")[0].lower()
+    try:
+        outcomes = reading(person_id, code, days=OUTCOME_DAYS)
+    except Exception:  # noqa: BLE001 - a pick never fails for want of its record
+        return 0.0
+    return learned(outcomes, f"{person_id}:{code}:{today}")
+
+
 def medium_of(kind: str, *, source: str = "", text_on_screen: bool = True) -> str:
     """Which band a candidate is held to: audio where it is heard with no text on screen,
     video where it is watched, text otherwise. Every reader targum builds shows its text,
@@ -156,9 +253,10 @@ def fit(share: float | None, medium: str = TEXT) -> str:
     return UNDER
 
 
-def from_aim(share: float, medium: str = TEXT) -> float:
-    """How far a share is from the medium's aim: nought inside it."""
-    low, high = band(medium).aim
+def from_aim(share: float, medium: str = TEXT, offset: float = 0.0) -> float:
+    """How far a share is from the medium's aim, moved by the reader's offset: nought
+    inside it."""
+    low, high = aim(medium, offset)
     if share < low:
         return low - share
     if share > high:
@@ -166,9 +264,9 @@ def from_aim(share: float, medium: str = TEXT) -> float:
     return 0.0
 
 
-def fit_step(share: float, medium: str = TEXT) -> int:
+def fit_step(share: float, medium: str = TEXT, offset: float = 0.0) -> int:
     """How far from the aim a share in the band is, in whole `FIT_STEP`s: 0 inside it."""
-    return math.ceil(round(from_aim(share, medium) / FIT_STEP, 6))
+    return math.ceil(round(from_aim(share, medium, offset) / FIT_STEP, 6))
 
 
 def learn_step(learn: float) -> int:
@@ -187,6 +285,7 @@ def key(
     interest: int = 0,
     fresh: int = 0,
     waits: bool = False,
+    offset: float = 0.0,
 ) -> tuple[Any, ...]:
     """The sort key every chooser uses, lowest first.
 
@@ -211,6 +310,9 @@ def key(
     5. `waits`: a text in an older register the reader has not opened (`held`), after
        everything else whatever its share, gentlest first, so a reader is never offered
        Esther as at their level and is still offered something where nothing else is.
+
+    `offset` is the reader's learned offset on the aim (`offset_for`): it moves where
+    inside the band is nearest, never the band.
     """
     tilt = -1 if liked else 0
     if waits:
@@ -220,11 +322,11 @@ def key(
         return (
             0,
             int(scene),
-            fit_step(share, medium),
+            fit_step(share, medium, offset),
             -learn_step(learn),
             -interest,
             -fresh,
-            round(from_aim(share, medium), 4),
+            round(from_aim(share, medium, offset), 4),
             tilt,
             gentle,
         )

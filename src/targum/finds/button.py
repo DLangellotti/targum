@@ -108,6 +108,7 @@ def ranked(
     at: int | None = None,
     harder: bool = False,
     started: Iterable[parts.Part] = (),
+    offset: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Every pool find this reader could be offered for this press, best first, each as
     the card's row. Fetches nothing. With chips chosen, only finds about one of them.
@@ -115,7 +116,10 @@ def ranked(
 
     Never the middle of a series (design.md §12, 2026-11-03): a later part only where the
     reader opened the part before it (`started`, and what the pool knows of `built`),
-    and part 1 in its place where the pool holds it and it fits (`parts.gate`)."""
+    and part 1 in its place where the pool holds it and it fits (`parts.gate`).
+
+    `offset` is the reader's learned offset on the aim (`choose.offset_for`; design.md
+    §12, "The aim moves with what you finish", 2026-11-05)."""
     built = list(built)
     found = provider.offered(
         store,
@@ -168,7 +172,7 @@ def ranked(
         if harder:
             out.append((_harder_key(row, scored.chosen_on, medium, on_topic), row))
             continue
-        rank = choose.key(scored.chosen_on, medium=medium, learn=learn)
+        rank = choose.key(scored.chosen_on, medium=medium, learn=learn, offset=offset)
         # Inside a tier, a find on the reader's topics first, then fit and what it would
         # teach (`choose.key`), then fresh.
         key = (rank[0], 0 if on_topic else 1, *rank[1:], -find.published, find.id)

@@ -384,6 +384,46 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The aim moves with what you finish — 2026-11-05
+
+targum-internal#615, Phase 3 of the comprehensible-input epic #617: "Band offset learned
+per reader from behaviour only (opens, finishes, skips, lookups) — no self-report tap"
+(David, 2026-10-31, decision 4). It amends "What to read next teaches words that come
+back" (2026-11-01), whose aim inside the band was the same 94–97% for every reader.
+
+- **Why.** The research's 94–97% is an average. Some readers finish texts at 92% and
+  enjoy the stretch; others set aside anything under 96%. The record of what became of
+  each suggestion (clause 3.6, "What became of a suggestion is recorded", 2026-11-01)
+  already says which texts a reader finished and which they set aside, and at what
+  estimated share. Its stated purpose includes choosing the texts targum suggests.
+- **Three aims.** The aim is moved by an offset: harder (−2 points, 92–95%), as it is
+  (94–97%), or easier (+2 points, 96–99%). The floor (90%) and the too-easy line (99.5%)
+  do not move, so the band itself never widens or narrows. Only the order inside it
+  shifts.
+- **What counts.** Every text suggested on Home's card in the last 90 days, in the
+  language being chosen for, whose outcome is known. A text finished counts as a win
+  for the aim its estimated share fell in when it was suggested. A text set aside by
+  Something else, and never finished, counts as a loss. A text only shown, or opened and
+  not finished, says nothing yet. A text in the band but under 94% belongs to harder,
+  94–97% to as it is, and above 97% to easier. A "Show me something harder" pick and
+  anything under the floor or too easy count for none of them.
+- **How it is chosen: Thompson sampling.** Each aim's record is a Beta distribution
+  (one plus its wins, one plus its losses), and "as it is" starts one win ahead. Each
+  day one draw is made from each, and the aim with the highest draw is used for that
+  reader that day. The draw is seeded by the reader and the day, so the card, Something
+  else, More that fit you, Your Progress's "Texts at your level now" and Find me
+  something all agree, and a reload never reshuffles them. Under six known outcomes the
+  aim stays as it is. This explores without a randomness the reader can see: an aim
+  that keeps being finished is drawn more and more often, and one that keeps being set
+  aside fades.
+- **Nothing is stored, and nothing is asked.** The offset is worked out from the record
+  when a pick is made and is kept nowhere. A reader who has turned the record off, or
+  erased it, has no outcomes, and so has the aim as it is. There is still no tap asking
+  "too easy or too hard" (decision 4).
+- **Not yet:** look-ups. Looking up more than the estimate predicts is the clearer sign
+  of "too hard", but #586's pooled calibration is what makes the prediction worth
+  comparing against.
+
 ### A text keeps the shape its edition gives it — 2026-11-04
 
 David, 2026-11-04, approving the formatting mock ("I'd like targum to be better at

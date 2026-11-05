@@ -265,6 +265,7 @@ def at_level(
     chances: Sequence[float] | None = None,
     taught: Any = None,
     registers: frozenset[str] | None = None,
+    offset: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
@@ -288,6 +289,10 @@ def at_level(
     `registers`, where given, is the older registers the reader has asked for (`choose.
     opened`); a text in any other older register is never listed (design.md §12, "An
     older Hebrew waits until it is asked for", 2026-11-03).
+
+    `offset` is the reader's learned offset on the aim (`choose.offset_for`), the same
+    one Home's card is chosen with (design.md §12, "The aim moves with what you finish",
+    2026-11-05).
     """
     from . import catalogue as catalogue_module
     from . import choose, estimate
@@ -326,6 +331,7 @@ def at_level(
             medium=medium,
             learn=learn or 0.0,
             interest=interest,
+            offset=offset,
         )
         found.append((rank, estimate.shown(measured.known, expected), entry))
     found.sort(key=lambda one: one[0])
