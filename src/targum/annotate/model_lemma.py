@@ -374,6 +374,13 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
         mentioned[number] = True
         surface, lemma, pos = fields[1], fields[2], fields[3].upper()
         grammar = fields[4] if len(fields) >= 5 else ""
+        if _left_off(lemma, pos):
+            # The dictionary form left off: `и  CCONJ  _` is the word, its part of speech
+            # and its features one column early. Read as written, the tag became the word's
+            # dictionary form and its features the part of speech, so 1,581 Russian words on
+            # the shelf carried "cconj", "noun" or "verb" to the card and the word list
+            # (targum-internal#562). The word stands for its own form, as an empty column does.
+            lemma, pos, grammar = "", lemma, fields[3]
         named = fields[5] if len(fields) == 6 else ""
         if surface and pos not in _SKIPPED:
             tag = pos if pos in UPOS else "X"
@@ -422,6 +429,20 @@ def parse(answer: str, texts: Sequence[str], language: str = "") -> list[list[To
     return out
 
 
+def _left_off(lemma: str, pos: str) -> bool:
+    """Whether a line's third column is the part of speech, with the dictionary form left
+    off: a tag written as one (in capitals) where the dictionary form goes, and no tag where
+    the part of speech goes. A dictionary form is lowercase, a name's included."""
+    return lemma in UPOS and pos not in UPOS
+
+
+def _lost_form(lemma: str, pos: str, surface: str) -> bool:
+    """Whether a cached row is one `_left_off` would have read again: a tag as the
+    dictionary form, lowercased by `parse`, with X for its part of speech. The word itself
+    is never mistaken for one (a Latin `x` stays `x`)."""
+    return pos == "X" and lemma.upper() in UPOS and surface.lower() != lemma
+
+
 def _stored(tokens: list[Token]) -> list[list[Any]]:
     """A row a token, with a seventh column only on a pronoun that stands for something."""
     return [
@@ -450,15 +471,22 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
             and isinstance(named[1], str)
             else None
         )
+        lemma, pos, feats = str(lemma), str(pos), str(feats)
+        if _lost_form(lemma, pos, surface):
+            # Read before `_left_off`: the row is mended rather than bought again, so a
+            # sweep or a rebuild reads the word as its own form (targum-internal#562).
+            # Its features were in the part of speech's column and are not recovered.
+            lemma, pos = surface.lower(), lemma.upper()
+            feats = f"UPOS={pos}"
         tokens.append(
             Token(
                 start=start,
                 end=end,
                 surface=surface,
-                lemma=str(lemma),
+                lemma=lemma,
                 band=0,
-                pos=str(pos),
-                feats=str(feats) or None,
+                pos=pos,
+                feats=feats or None,
                 stands_for=stands_for,
             )
         )
