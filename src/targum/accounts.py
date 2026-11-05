@@ -45,6 +45,7 @@ from typing import Any
 
 # The pool of web finds (targum-internal#619): its own module says what it holds and why.
 from .finds.pool import SCHEMA as FINDS
+from .finds.steer import SCHEMA as PRESSES
 
 # The folder a reader's address names, `/reader/<name>/…`: what a text keeps through a
 # rebuild that gives it a new hash, and so what tells one text's places apart.
@@ -389,10 +390,16 @@ REGISTRATIONS_PER_HOUR = 60
 #    -1 on every row written before, which is read off its title instead; 0 where a find
 #    is no part of anything. On a table every box has, so they are in MIGRATIONS.
 #
+# 60→61: chip_press — Filter presses on Home's one card, tallied by month, language,
+#    medium, topic and rung, with no reader (targum-internal#622; design.md §12, "The
+#    night's search leans toward the topics readers ask for", 2026-11-05;
+#    `finds.steer.SCHEMA`). Written only while `TARGUM_CHIP_COUNTS` is on. A new table, so
+#    `CREATE TABLE IF NOT EXISTS` is the whole migration.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 60
+SCHEMA_VERSION = 61
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -2049,6 +2056,7 @@ class Store:
         self.db.executescript(CHOSEN)
         self.db.executescript(EVENTS)
         self.db.executescript(FINDS)
+        self.db.executescript(PRESSES)
         self._migrate()
         self._adopt_reads()
         # The day the word records began here (targum-internal#603): kept once, at the

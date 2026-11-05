@@ -15913,6 +15913,19 @@ class Handler(BaseHTTPRequestHandler):
 
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
         rung = chat_tools._rung(ctx.level) if code == "he" else None
+        if payload.get("pressed") is True and (chosen or medium or length):
+            # A Filter press, tallied by its cell with no reader (design.md §12, "The
+            # night's search leans toward the topics readers ask for", 2026-11-05). Only
+            # while `TARGUM_CHIP_COUNTS` is on.
+            from .finds import steer
+
+            steer.count(
+                self.store,
+                language=code,
+                medium=medium,
+                topic=chosen[0] if chosen else "",
+                rung=rung,
+            )
 
         def choose() -> list[dict[str, Any]]:
             mine, _ = chat_tools._shelf(ctx)

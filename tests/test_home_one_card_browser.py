@@ -321,7 +321,8 @@ def test_a_topic_picks_again_at_once_and_names_the_press(browser, width: int) ->
     assert not thrown, thrown
     assert chips == [["Cooking", True], ["Sport", False], ["Football", False]], chips
     assert not sideways
-    asked = {"language": "he", "skip": [], "topics": ["football"], "done": []}
+    # A pill's ask says it was pressed, so the press is tallied (design.md §12, 2026-11-05).
+    asked = {"language": "he", "skip": [], "topics": ["football"], "done": [], "pressed": True}
     assert {**asked, "near": {"topics": ["football"], "skip": [], "done": []}} in posted, posted
     assert got["presses"] == ["Watch", "Something else", "Football"], got
     assert got["credits"] and got["facts"] == "Video · 6 min · youtube.com", got

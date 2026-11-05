@@ -384,6 +384,26 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### The night's search leans toward the topics readers ask for — 2026-11-05
+
+David, 2026-11-05 (targum-internal#622, in chat): count the Filter presses with no reader
+stored, and spend more of the nightly queries on topics that are thin. This amends "The
+open web is searched each night, on the forty topics" (2026-11-03). Behind
+`TARGUM_CHIP_COUNTS` until it is switched on, because the privacy notice names no such
+count yet: the sentence for it waits on David.
+
+- **A press is a tally, not a record.** Each Filter press on Home's one card adds one to
+  its cell: the month, the language, the medium chosen, the topic chosen and the rung the
+  reader was at. Nothing else is kept: no reader, no account, no day and no text. A retry
+  is not a second press. The count is never shown to a reader.
+- **The same dollar, spent where it is missing.** Before the night's searches, each
+  topic is weighed by the presses for something to read on it (Read, or no medium
+  chosen), this month and the last, at each rung where the pool holds fewer than twelve
+  finds on it for a reader at that rung, over one more than what it holds. Up to ten
+  topics that weigh most are searched first. The rest keep the rotation, so every topic
+  still comes round, and the rotation moves only for the topics it reached in its turn.
+  The night's dollar and the month's pacing are unchanged.
+
 ### Home's one card offers the words to learn first, and a pick moves easier or harder — 2026-11-05
 
 David, approving the mocks of 2026-11-05 (targum-internal#614, #615). This amends "Home's
