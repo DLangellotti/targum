@@ -384,6 +384,141 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Home's one card offers the words to learn first, and a pick moves easier or harder — 2026-11-05
+
+David, approving the mocks of 2026-11-05 (targum-internal#614, #615). This amends "Home's
+one card finds what fits you" (2026-11-01) and "Show me something harder" (2026-11-02).
+Still behind `TARGUM_FIND_BUTTON`.
+
+1. A pick under 93% with at least three unknown words that come up three or more times
+   in it carries "Words to know first n": up to five, most often first, no names, each
+   opening the word's card as Your Words does. Marking is the reader's act, and nothing
+   is marked by showing them.
+2. Every pick carries Easier and Harder on its share line, walking to the next pick above
+   or below its share within the topic and filters chosen, and Harder walks on under the
+   floor. That replaces "Nowhere else: not under a pick" in "Show me something harder".
+3. Topic becomes Filter: Read, Watch and Listen, How long, and the forty topics, in one
+   field, the press naming what is chosen.
+
+A Harder or Easier press is a suggestion set aside under clause 3.6 as it stands, so the
+record needs no new clause. It feeds the learned aim ("The aim moves with what you
+finish", 2026-11-05) exactly as Something else does, as a set-aside and nothing more; a
+pick Harder walks to under the floor carries `harder` and counts for no aim.
+
+### A borrowed word is easier than its frequency says — 2026-11-05
+
+David, 2026-11-05 (targum-internal#613): the estimate's difficulty gets part of speech, a
+loanword flag and the root family's known share, each kept only if it beats frequency
+alone on `scripts/eval_estimate.py`'s held-out marks. One did. It amends "The chooser
+estimates the words you have not marked" (2026-11-01, below), whose difficulty was
+frequency alone.
+
+- **A Hebrew word targum's root lexicon marks borrowed** (טלפון, אינטרנט, קפה; the
+  `borrowed` field the lexicon already has, which `deploy.sh` puts on the box) is
+  estimated as if it were about five times commoner: its difficulty is the log of its
+  place less 1.6.
+  Every reader language alike, since the measured readers read in English and an
+  internationalism is one in Russian too. A machine without the lexicon estimates as
+  before. Nothing new is stored and nothing is spent.
+- **Measured** (`scripts/eval_difficulty_features.py`, five folds of the laptop's 3,388
+  marked words, 289 not known): pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, log
+  loss 0.1865 → 0.1848, calibration error 0.027 unchanged. With the weight fitted on the
+  other readers only, AUC 0.917; the paired bootstrap's 95% interval is above nought in
+  both.
+- **Left out, measured the same way.** Part of speech, nouns against verbs, adjectives,
+  adverbs and the closed classes: AUC 0.914, and 0.909 with the weights from the other
+  readers. (With names and words no built text has given their own weight it reads
+  0.923, but that weight measures where a mark came from, not the word.) A loanword list
+  drawn from the glosses, a word whose English gloss its consonants spell (579 lemmas,
+  private, under `~/.targum/research/loanwords/`): 0.916, inside the noise. The share of
+  the word's root family the reader has marked known: 0.916, its weight the wrong way
+  round. None needs spend; each can be tried again when there are more readers' marks.
+- **The simulated half cannot judge it.** Its truth is built on the estimate's own
+  difficulty, so it moves with the change: coverage error 4.0–5.3 points against
+  4.0–4.8, within the run's noise.
+
+### Fast speech asks a little more of a reader below gimel — 2026-11-05
+
+targum-internal#614 (David, 2026-11-05, in chat): the research's §3.5, "above about 110
+Hebrew words a minute, raise the effective difficulty for readers below gimel". It amends
+"What to read next teaches words that come back" (2026-11-01), whose medium bands took
+no account of how fast a recording is spoken.
+
+- **How much.** For a Hebrew reader whose estimate stands below gimel (fewer than 4,500
+  lemmas, `estimate.Estimate.words`), an item heard at more than 110 words a minute has
+  `min(0.03, (wpm − 110) / 2000)` taken off its share before the chooser places it: half
+  a point for every 10 words a minute over 110, three points at most. So at 130 words a
+  minute a text-and-video item needs 91% where it needed 90%, at 150 it needs 92%, and at
+  170 and above 93%. The aim moves with the floor, so a fast item also sorts later inside
+  the band. Audio heard with no text on screen goes from 95% up to 98% the same way.
+- **Audio and video both.** David chose both: a captioned video is heard at the same
+  speed as a podcast.
+- **Why this form.** Measured on the finds and the shelf (builder, 2026-11-05): the
+  median podcast find is spoken at 120 words a minute and the median YouTube find at 115,
+  so 110 touches most native speech, which is what §3.5 intends. A fixed step at 110 is a
+  cliff: a podcast at 109 passes and one at 111 is held to 95%. A point per 10 words makes
+  a captioned clip as strict as audio alone. Half a point is graded and stays inside the
+  gap the medium bands already hold. The research gives a direction and no amount, so
+  the 0.5 is a starting point, to be calibrated from what readers finish.
+- **Where the rate comes from.** A podcast find's words a minute heard (`pool.Find.rate`:
+  its transcript, or two minutes from the middle). A YouTube find's is its track's words
+  over its length, counted as `screen.words_per_minute` counts them, from the night it is
+  found. Finds kept before then carry none until they expire. An item with no rate takes
+  no penalty: every text, every recording on the shelf (all spoken under 110), and the
+  shelf's videos, which carry no rate at choosing time.
+- **Who it reaches.** Nobody at gimel or above, nobody reading a text, and no language
+  but Hebrew, since the threshold was measured on Hebrew. On the day it shipped no reader
+  below gimel had a fast find in band, so nothing on screen changed. It starts to matter
+  as their marks grow.
+- **The figure a page prints does not move.** The penalty decides where an item sits and
+  how it sorts. The card still says the share of words the reader knows.
+
+### An idiom is one word to know — 2026-11-05
+
+targum-internal#614 (David, 2026-11-05, in chat): count ling-he's hand-picked multiword
+expressions as one unit in running-word coverage. A reader who knows אחר and כך still
+has to learn אחר כך, and a share that counts it as two known words says they know more
+of the page than they do. It amends "The Library's bands count running words"
+(2026-11-01).
+
+- **The list.** ling-he chose 174 keys by hand on 2026-11-05 (about 164 expressions: the
+  rest are DICTA's second spelling of the same lemma). Each was kept because a learner
+  who knows every word in it still would not get its meaning from the parts: idioms
+  (שם לב, מצא חן), fixed connectives (אף על פי, בכל זאת, אחר כך), set phrases (מה
+  נשמע, כל הכבוד) and lexicalised compounds (בית ספר, עורך דין). It ships in the
+  package as `units.tsv`: lemma keys, the written form, ling-he's glosses and notes, and
+  nothing from any text or reader. A line added or taken out there changes the count
+  at the next deploy.
+- **Matched on the text's own words.** A unit is found where its lemmas come one after
+  another in one segment of a Hebrew text's annotation, with nothing but a space or a
+  maqaf between them. The longest is matched first. The `phrases` table is not used:
+  it skips any run of function words, which drops many of the commonest units (אחר כך
+  is there twice and in the library 356 times). Seven keys mean the expression only
+  with a prefix (מכל מקום, בכל זאת, מצד אחד, מצד שני, מפעם לפעם, מעת לעת), and match only
+  where the word carries it. Elsewhere a prefix is allowed and not required, so ובית
+  הספר is still a school.
+- **One key, two meanings, one unit.** A few keys cover two fixed expressions (על יד: על
+  ידי "by" and על יד "next to"; על פה: על פי and בעל פה; על פנים; עם הארץ; יום טוב).
+  Each counts as the unit wherever it occurs. Both readings are fixed expressions, and
+  the lemmas cannot tell them apart.
+- **The mark that counts is the expression's own.** A unit is known where the reader
+  kept it as a phrase and marked the phrase known. The phrase's text is matched to the
+  unit's written form, with or without a prefix. A unit not marked that way is not known
+  in the marked share, even where every word in it is marked known, because the
+  expression is what has to be known. The chooser's estimate gives an unmarked unit the
+  product of its words' chances, a mark on each word winning as usual (known 1, being
+  learned 0). So it is never more likely known than its rarest word. Nothing new is
+  drawn: keeping a phrase and marking it is already on the Words page.
+- **Where it counts.** A catalogue text's running share and the chooser's estimate, from
+  the lemma index `catalogue-lemmas` writes at each deploy, and a text the reader built,
+  from the counts cached beside its annotation. Each counts one running word an
+  occurrence in place of its two or three. Not yet in web finds, whose pool keeps lemma
+  counts and never the words in order, or in the record of finished sections. A word's
+  own counts ("4× in Jonah") are unchanged: an אחר inside אחר כך is still an אחר.
+- **What it costs.** Nothing is annotated, bought or renamed, and `SCHEMA_VERSION` and
+  the annotator are untouched. Each built text's cached counts are read again from its
+  annotation once, and the index is rewritten as every deploy rewrites it.
+
 ### Today's news is measured on the article where we have read it — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`
@@ -1591,7 +1726,8 @@ on running words" (2026-10-31), whose share was marks only.
   place in the language's frequency list, and each reader a `theta` on the same scale:
   roughly where in the list they know half the words. The chance they know a word they
   have not marked is σ(0.8 × (theta − difficulty)), a one-parameter Rasch model. It
-  says nothing about part of speech, loanwords or root families yet.
+  says nothing about part of speech, loanwords or root families yet. *(A borrowed word
+  since 2026-11-05: "A borrowed word is easier than its frequency says", above.)*
 - **What theta is fitted on.** A word marked known says known. A word at steps 1–3 says
   not known. A word looked up and not since marked known says not known, once. A word met
   in a finished section and neither looked up nor marked says probably known, at a tenth

@@ -14,6 +14,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- Fast speech asks a little more of a Hebrew reader below gimel (David, 2026-11-05;
+  targum-internal#614; design.md §12, "Fast speech asks a little more of a reader below
+  gimel"). A podcast or video find heard at more than 110 words a minute has
+  `min(0.03, (wpm − 110) / 2000)` taken off the share it is chosen on: at 130 words a
+  minute it needs 91% where it needed 90%, at 150 it needs 92%, and 93% at most. Readers
+  at gimel and above, texts and items with no rate are untouched, and the card still says
+  the share known. YouTube finds now keep their words a minute from the night they are
+  found. No new strings.
+- An idiom is one word to know (David, 2026-11-05; targum-internal#614; design.md §12,
+  "An idiom is one word to know"). ling-he's 174 hand-picked multiword expressions
+  (`units.tsv`: אחר כך, בית ספר, אף על פי, בכל זאת…) count as one running word in a
+  Hebrew text's coverage, matched on the text's own tokens with the prefixes the list
+  asks for. A unit is known where the reader kept it as a phrase and marked it known;
+  otherwise the chooser's estimate gives it the product of its words' chances. Shelf
+  texts take it from the lemma index the next deploy writes, and a built text's cached
+  counts are read again once. Nothing is annotated and no new strings.
 - `search_sources` measures today's news on the article where the news round has read it
   (targum-internal#615; design.md §12, "Today's news is measured on the article where we
   have read it"). An item the finds pool keeps, measured, is given the figure from the
@@ -21,6 +37,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and four hundred characters of summary. Every other item is measured as before. Each
   row says `measured_on`, either `article` or `headline`. Nothing is fetched and nothing
   new is stored. No new strings.
+- Home's one card offers the words to know first on a pick near the floor (David,
+  2026-11-05; targum-internal#614; design.md §12, "Home's one card offers the words to
+  learn first, and a pick moves easier or harder"). Behind `TARGUM_FIND_BUTTON`. A pick
+  under 93% asks `POST /find` with `words` for its own unknown words that come up three
+  times or more, most often first, at most five, with the meaning the glossary already
+  holds; a name the tagger missed and a word with no meaning are left out, and under
+  three there is no press (`preteach.py`). The press, "Words to know first n", reuses the
+  reader's string and folds the list; a tap opens the word's card as Your Words does
+  (`TargumLists.openWord`), and a word marked known or ignored leaves the list. Nothing
+  is bought and nothing is marked by showing them. New strings: "Tap a word to mark it."
+  and "{n} times in this text", with Russian drafts.
+- The estimate of what a reader knows takes a borrowed word as easier than its place in
+  the frequency list says (targum-internal#613; design.md §12, "A borrowed word is easier
+  than its frequency says"). A Hebrew word the root lexicon marks borrowed has 1.6 taken
+  off its difficulty, about five times commoner. On the laptop's held-out marks pooled
+  AUC goes 0.915 → 0.918 and Brier 0.0566 → 0.0560. Part of speech (0.914), a loanword
+  list drawn from the glosses (0.916) and the root family's known share (0.916) were
+  measured the same way and left out. `scripts/eval_difficulty_features.py` runs the
+  comparison, offline. No new strings.
 - Every pick on Home's one card carries Easier and Harder on its share line (David,
   2026-11-05; targum-internal#615; design.md §12, "Home's one card offers the words to
   learn first, and a pick moves easier or harder"). Behind `TARGUM_FIND_BUTTON`.

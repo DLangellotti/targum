@@ -1062,7 +1062,7 @@
   var ONE_CARD = !!document.body && document.body.getAttribute("data-find") === "1";
   var FIND_STEP_MS = 1500;
   var FIND_STEPS_MOST = 120;
-  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [], retry: null };
+  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [], retry: null, taught: {}, wordsOpen: false };
 
   function chevron() {
     var ns = "http://www.w3.org/2000/svg";
@@ -1316,6 +1316,145 @@
     body.appendChild(el("p", "rc-quiet", tn("home.card.left", oneCard.left, "{n} web search left today", "{n} web searches left today")));
   }
 
+  /* Words to know first (design.md §12, "Home's one card offers the words to learn
+     first, and a pick moves easier or harder", 2026-11-05; targum-internal#614). A pick
+     under 93% carries, folded behind one press, up to five of its own unknown words that
+     come up three times or more, most often first (`preteach.py`). Fewer than three and
+     there is no press. A tap opens the word's card as Your Words opens it; marking is the
+     reader's act, nothing is marked by showing them, and a word marked known or ignored
+     leaves the list. Asked of the server once a pick, and never for a scene. */
+  var PRETEACH_UNDER = 93;
+  var PRETEACH_LEAST = 3;
+  var KNOWN_STEP = 9;
+  var IGNORED_STEP = 0;
+
+  function pickKey(row) {
+    return row.find ? "find:" + row.find : "id:" + row.id;
+  }
+
+  // The words the reader has not settled since the server answered: their ledger in this
+  // browser wins, as it does in the reader's own list (`preread.js`).
+  function unsettled(list) {
+    var ledger = stored("targum:vocab:" + (cardAsk.code || "he"));
+    return (list || []).filter(function (word) {
+      var held = ledger[word.lemma];
+      return !(held && (held.status === KNOWN_STEP || held.status === IGNORED_STEP));
+    });
+  }
+
+  function preteach(row, share) {
+    if (!row || row.scene || !share || share >= PRETEACH_UNDER) return;
+    var at = pickKey(row);
+    var draw = function (list) {
+      if (oneCard.row !== row) return;
+      drawTaught(row, unsettled(list), true);
+    };
+    if (oneCard.taught[at]) return draw(oneCard.taught[at]);
+    var asked = row.find ? { find: row.find } : { id: row.id };
+    askWith("/find", { words: asked, language: cardAsk.code })
+      .then(function (got) {
+        oneCard.taught[at] = ((got && got.words) || []).map(function (word) {
+          word.into = (got && got.into) || "";
+          return word;
+        });
+        draw(oneCard.taught[at]);
+      })
+      .catch(function () {});
+  }
+
+  function timesSaid(n) {
+    return tn("home.card.words.times", n, "{n} time in this text", "{n} times in this text");
+  }
+
+  // The press and, open, the well under it. `fresh` is a first drawing, which keeps to
+  // the three-word least; after a mark the list only shrinks.
+  function drawTaught(row, list, fresh) {
+    var body = document.getElementById("try-next");
+    if (!body || oneCard.row !== row) return;
+    var press = body.querySelector(".rc-words-press");
+    var well = document.getElementById("rc-words");
+    if (press) press.remove();
+    if (well) well.remove();
+    if (!list.length || (fresh && list.length < PRETEACH_LEAST)) return;
+    press = el("button", "btn text small rc-words-press");
+    press.type = "button";
+    press.setAttribute("aria-controls", "rc-words");
+    press.setAttribute("aria-expanded", oneCard.wordsOpen ? "true" : "false");
+    press.appendChild(document.createTextNode(t("reader.preread.words-to-know-first", "Words to know first") + " "));
+    press.appendChild(el("span", "rc-words-n", String(list.length)));
+    press.appendChild(chevron());
+    well = el("div", "rc-words");
+    well.id = "rc-words";
+    well.hidden = !oneCard.wordsOpen;
+    var rows = el("ol");
+    list.forEach(function (word) {
+      var item = el("li");
+      item.setAttribute("tabindex", "0");
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-haspopup", "dialog");
+      item.setAttribute("data-lemma", word.lemma);
+      var head = el("bdi", "w-he", word.lemma);
+      head.setAttribute("lang", cardAsk.code || "he");
+      head.setAttribute("dir", "auto");
+      item.appendChild(head);
+      var means = el("span", "w-means", word.meaning);
+      means.setAttribute("lang", words.language || "en");
+      item.appendChild(means);
+      var times = el("span", "w-times", word.count + "\u00d7");
+      times.setAttribute("aria-label", timesSaid(word.count));
+      item.appendChild(times);
+      var open = function () {
+        openTaught(row, item, word);
+      };
+      item.addEventListener("click", open);
+      item.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open();
+      });
+      rows.appendChild(item);
+    });
+    well.appendChild(rows);
+    well.appendChild(el("p", "rc-quiet", t("home.card.words.tap", "Tap a word to mark it.")));
+    press.addEventListener("click", function () {
+      oneCard.wordsOpen = !oneCard.wordsOpen;
+      press.setAttribute("aria-expanded", oneCard.wordsOpen ? "true" : "false");
+      well.hidden = !oneCard.wordsOpen;
+    });
+    var presses = body.querySelector(".rc-presses");
+    body.insertBefore(press, presses);
+    body.insertBefore(well, presses);
+  }
+
+  // The word's card, as Your Words opens it (`lists.js`). A level said there is the
+  // reader's mark; known or ignored takes the word off this list.
+  function openTaught(row, item, word) {
+    var lists = window.TargumLists;
+    if (!lists || !lists.openWord) return;
+    var open = document.querySelectorAll("#rc-words li.is-open");
+    for (var n = 0; n < open.length; n++) open[n].classList.remove("is-open");
+    item.classList.add("is-open");
+    lists.openWord(item, {
+      lemma: word.lemma,
+      meaning: word.meaning,
+      count: word.count,
+      into: word.into,
+      language: cardAsk.code || "he",
+      beside: item.closest ? item.closest(".home-side") : null,
+      onStatus: function (status) {
+        item.classList.remove("is-open");
+        if (status !== KNOWN_STEP && status !== IGNORED_STEP) return;
+        var left = unsettled(oneCard.taught[pickKey(row)]);
+        drawTaught(row, left, false);
+        var next = document.querySelector("#rc-words li") || document.querySelector("#try-next .rc-words-press") || document.querySelector("#try-next .rc-open");
+        if (next && next.focus) next.focus();
+      },
+      onClose: function () {
+        item.classList.remove("is-open");
+      },
+    });
+  }
+
   /* Easier and Harder on any pick (design.md §12, "Home's one card offers the words to
      learn first, and a pick moves easier or harder", 2026-11-05; targum-internal#615):
      two small outline presses on the share line, beside the figure they move. Easier
@@ -1467,6 +1606,11 @@
     topicsField(body);
     leftLine(body);
     suggestShown(row);
+    if (oneCard.taughtFor !== pickKey(row)) {
+      oneCard.taughtFor = pickKey(row);
+      oneCard.wordsOpen = false;
+    }
+    preteach(row, share);
   }
 
   // Something else: the shelf's next best while it has one and no topic is chosen, and

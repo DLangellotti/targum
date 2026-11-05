@@ -15151,10 +15151,16 @@ class Handler(BaseHTTPRequestHandler):
         # estimate reads it (design.md §12, "An older Hebrew waits until it is asked for",
         # 2026-11-03).
         mine_registers = {str(row.get("register") or "") for row in mine}
+        from . import units as units_module
+
         answer["texts"] = touchstones.at_level(
             entries,
             index,
-            marked,
+            # A multiword unit kept as a phrase and marked known is known under its key
+            # (design.md §12, "An idiom is one word to know", 2026-11-05).
+            units_module.with_phrases(marked, self.store.known_phrases(person.id))
+            if language.split("-")[0] in units_module.LANGUAGES
+            else marked,
             language,
             ui_language=self._ui_language(),
             chances=chances,
@@ -15842,6 +15848,16 @@ class Handler(BaseHTTPRequestHandler):
                     ]
                 }
             )
+        asked_words = payload.get("words")
+        if isinstance(asked_words, dict):
+            # The pick's words to know first (design.md §12, 2026-11-05;
+            # targum-internal#614): asked once a pick near the floor is drawn.
+            return self._json(
+                {
+                    "words": self._pick_words(person, admin, spoken, asked_words),
+                    "into": self._reading_language(),
+                }
+            )
         given = payload.get("topics")
         picked = [str(one) for one in given[:40]] if isinstance(given, list) else []
         chosen = tuple(dict.fromkeys(code for code in picked if code in chips_module.BY_CODE))
@@ -16085,6 +16101,68 @@ class Handler(BaseHTTPRequestHandler):
             )
             return answer({"pick": None, "why": why, "message": message})
         return answer(nothing_fits({"why": why}))
+
+    def _pick_words(
+        self, person: Any, admin: bool, spoken: str, asked: Mapping[str, Any]
+    ) -> list[dict[str, object]]:
+        """Words to know first for one pick on Home's card (`preteach.py`; design.md §12,
+        "Home's one card offers the words to learn first, and a pick moves easier or
+        harder", 2026-11-05): its own unknown words that come up three times or more,
+        with the meaning the glossary already holds. `asked` is `{"id"}` for a library
+        text and `{"find"}` for a web find. Nothing is bought and nothing is marked."""
+        from . import catalogue as catalogue_module
+        from . import coverage as coverage_module
+        from . import estimate as estimate_module
+        from . import preteach
+        from .annotate import closed
+        from .annotate.gloss import cached_gloss, gloss_provider_name
+        from .finds import pool
+        from .models import VERB_MARK
+        from .touchstones import a_word
+
+        if self.chats is None:
+            return []
+        code = spoken.split("-")[0].lower()
+        counts: Mapping[str, int] = {}
+        find = asked.get("find")
+        if isinstance(find, int) and not isinstance(find, bool):
+            found = pool.get(self.store, find)
+            if found is None or found.language.split("-")[0].lower() != code:
+                return []
+            counts = found.bag
+        else:
+            entry_id = str(asked.get("id") or "")[:200]
+            if not entry_id:
+                return []
+            index = coverage_module.read_index(catalogue_module.lemmas_path())
+            tally = index.counts.get(entry_id)
+            positions = index.texts.get(entry_id) or ()
+            if tally is None:
+                return []
+            counts = {
+                index.words[at]: int(n)
+                for at, n in zip(positions, tally, strict=False)
+                if at < len(index.words)
+            }
+        if not counts:
+            return []
+        ctx = self.chats.context(person, self._home(), "", admin, spoken)
+        known = estimate_module.for_reader(self.store, person.id, code, ctx.level)
+        target = self._reading_language()
+        provider = gloss_provider_name()
+
+        def meaning_of(lemma: str) -> str:
+            # The hand table first, as "Words you may already know" asks it, then the
+            # glossary under the lemma, then under its verb's key (`Token.glossed_as`).
+            said = closed.common_gloss(lemma, target) if code == "he" else ""
+            for key in (lemma, lemma + VERB_MARK):
+                if said:
+                    break
+                held = cached_gloss(key, code, target, provider)
+                said = held.gloss if held else ""
+            return said
+
+        return [word.state() for word in preteach.words(counts, known.p_known, meaning_of, a_word)]
 
     def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
         """A pick as the card draws it, its lines in the page's language."""
