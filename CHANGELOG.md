@@ -14,6 +14,45 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- An idiom is one word to know in French and Russian too (targum-internal#636, under
+  #628). ling-fr's list of 179 and ling-ru's of 205, `units-fr.tsv` and `units-ru.tsv`
+  beside Hebrew's and in its columns, are matched on the annotator's lemmas, so a Russian
+  unit counts however it is inflected (имею, имели в виду). A French elided or contracted
+  word is folded to its full form on both sides (d'abord, qu', du), a list's `se` is said
+  me, te, nous or vous too, and a hyphenated word matches as one token or as its pieces.
+  ё reads as е. For French and Russian `needs` says what Hebrew's prefixes say for
+  Hebrew: `~6` lets up to six words stand before a word, inside the sentence, for the 14
+  discontinuous units (ne… que, не только… но и, у… есть). The gap stops at punctuation
+  except in a correlative marked `~6,` (ни X, ни Y), and after ne at another negation, so
+  ne… pas que is not ne… que. `=form` holds a word to
+  its written form for the four whose lemmas meet something else (est-ce que, то есть,
+  может быть, на днях). A kept phrase is matched against its own language's list only.
+  The rows also carry the rules ling-fr's and ling-ru's hand-read golds asked for. A
+  word may be held to its written form unfolded (du coup, not des coups), or to a clause
+  start (bien que). It may be refused before or after a word (venir de + an infinitive,
+  même si, ne… que not ce que), or refused as an AUX. У… есть needs a person, может
+  быть must be set off and never negated, and replies (не за что) must start the
+  segment. An expletive ne, before a subjunctive, opens no negation, and ni is a
+  negation a gap stops at. A row may count under another key (est-ce cut in two, к тому
+  же). Candidates are chosen across the sentence: the longest first, then a
+  correlative, then one with no gap. Precision and recall are floored in the suite on
+  the golds, at what was measured less two misses: French 0.938 and 0.968, Russian
+  0.883 and 0.907 on its public-domain lines (0.913 and 0.922 on all of them).
+  The floors now come from held-out golds the rules were never tuned on: French 103
+  new sentences of the same 14 texts (0.986 and 0.959), Russian 104 segments of 19
+  public-domain texts outside the first gold (0.824 and 0.933 as they came, 0.956 and
+  0.956 after six general fixes). Как бы counts only before a gerund, participle,
+  adjective, noun, preposition or finite verb and never after бояться or о том, so
+  "lest" and "how would" are refused; так как is refused before же, the tail в вид
+  needs виду, ни… ни never opens on a concessive бы ни, что такое is held to the form
+  такое (the conjunction что такие is not it, an indirect question is), and в то же
+  время lets самое stand before время. On 23,434 shelf segments outside both golds,
+  как бы keeps 66 of its 75 right hits and refuses 54 of its 60 wrong ones, and что
+  такое keeps all 46 right and refuses 9 of 10 wrong.
+  The first golds stay as a regression check at their earlier floors.
+  The Russian list and both golds await David's read. Hebrew is unchanged; the counts' cache stamp now
+  names the French and Russian lists, so each built text's counts are read again once,
+  locally, with no spend and no re-annotation. No new strings.
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).
   The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
   dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
