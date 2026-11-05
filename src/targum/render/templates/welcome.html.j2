@@ -71,8 +71,10 @@
       <div class="arrival-opts arrival-levels" id="arrival-levels" role="radiogroup" aria-labelledby="arrival-asks-level"></div>
       <button type="button" class="arrival-unsure" id="arrival-unsure">{{ t("welcome.level.unsure", "I’m not sure, show me a page") }}</button>
     </div>
-    {#- 4 and 5, for a Hebrew reader: which of these words do you know (design.md §12, "The
-        arrival asks which words you know", 2026-11-01). Two rounds on one screen, the
+    {#- 4 and 5, for a Hebrew, French or Russian reader: which of these words do you know
+        (design.md §12, "The arrival asks which words you know", 2026-11-01; "The words
+        check in French and Russian", 2026-11-05). `arrival.js` sets the list's language
+        and direction to the one pressed. Two rounds on one screen, the
         second chosen from the first's ticks; a few of the words are made up. Tapping
         marks a word for the estimate and never puts it on the reader's list. -#}
     <div class="arrival-screen" id="arrival-check" hidden>
@@ -107,8 +109,8 @@ window.TARGUM_KEY = "{{ token }}";
 window.TARGUM_INTO = {{ into|tojson }};
 window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ name }}"{% if not loop.last %}, {% endif %}{% endfor %} };
 window.TARGUM_STAGES = {{ stage_table()|safe }};
-{#- The words check's lists and round sizes (`check.page_data`). -#}
-window.TARGUM_CHECK = {{ check|tojson }};
+{#- The words check's lists and round sizes, by language (`check.pages`). -#}
+window.TARGUM_CHECKS = {{ checks|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 {{ script('strings.js') }}

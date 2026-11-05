@@ -121,7 +121,13 @@ def test_done_sends_the_ticks_alone_and_thanks_them() -> None:
     assert page["step"] == "" and not page["backShown"] and not page["skipShown"]
     assert page["doneSays"] == "Continue"
     sent = [call["body"] for call in page["sent"] if call["path"].startswith("/account/check")]
-    assert sent == [{"version": check.VERSION, "ticked": ["עכשיו", "תלבוטה", check.BANDS[1][3]]}]
+    assert sent == [
+        {
+            "version": check.VERSION,
+            "language": "he",
+            "ticked": ["עכשיו", "תלבוטה", check.BANDS[1][3]],
+        }
+    ]
     assert not page["went"], "the thanks waits for Continue"
     opened = run(
         [*TO_CHECK, {"press": "arrival-done"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
@@ -230,8 +236,69 @@ def test_not_sure_leads_into_the_check_in_hebrew() -> None:
 
 
 def test_not_sure_shows_a_page_where_there_is_no_check() -> None:
-    """Every other language has no check, so its button still promises a page and opens
+    """A language with no check, Italian among them, still promises a page and opens
     one."""
-    steps = [{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
-    asked = run(steps)
+    steps = [{"learn": "Italian"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
+    asked = draw([], shared=seeded(), checks=check.pages(), me=SIGNED_IN, do=steps)
     assert asked["unsureSays"] == "I’m not sure, show me a page"
+    assert asked["step"] == "3 of 3"
+
+
+# -- French and Russian (targum-internal#631, 2026-11-05) -------------------------------
+
+LANGUAGE_NAMES = {"fr": "French", "ru": "Russian"}
+
+
+def other(code: str, do: list[dict[str, Any]], **options: Any) -> dict[str, Any]:
+    """The page as `/welcome` draws it since 2026-11-05: every language's lists, the
+    reader pressing `code` on the first screen."""
+    options.setdefault("me", SIGNED_IN)
+    pick = [{"learn": LANGUAGE_NAMES[code]}, {"press": "arrival-done"}, {"press": "arrival-done"}]
+    return draw([], shared=seeded(), checks=check.pages(), do=[*pick, *do], **options)
+
+
+@pytest.mark.parametrize("code", ["fr", "ru"])
+def test_a_french_or_russian_reader_takes_the_check_in_their_language(code: str) -> None:
+    """After the level, round one of their own language's lists, left to right and
+    marked as that language, the step counted with the rest."""
+    page = other(code, [{"rung": "I can read simple"}, {"press": "arrival-done"}])
+    assert page["checkUp"] and page["step"] == "4 of 5"
+    real, made = check.first_round(code)
+    assert sorted(page["words"]) == sorted([*real, *made])
+    assert page["wordsLang"] == code and page["wordsDir"] == "ltr"
+    assert other(code, [])["unsureSays"] == "I’m not sure, help me find my level"
+    hebrew = draw([], shared=seeded(), checks=check.pages(), me=SIGNED_IN, do=TO_CHECK)
+    assert hebrew["wordsLang"] == "he" and hebrew["wordsDir"] == "rtl"
+
+
+@pytest.mark.parametrize("code", ["fr", "ru"])
+def test_their_round_two_and_their_ticks_go_by_their_own_lists(code: str) -> None:
+    """Round two is the one `check.second_round` draws in their language, and Done sends
+    the ticks with that language and its lists' version."""
+    lists = check.LISTS[code]
+    ticks = [word for band in lists.bands[:3] for word in band[: check.FIRST]]
+    do = [{"rung": "I can read simple"}, {"press": "arrival-done"}]
+    do += [{"tick": word} for word in ticks]
+    do += [{"press": "arrival-done"}]
+    page = other(code, do)
+    assert page["checkUp"] and page["step"] == "5 of 5"
+    real, made = check.second_round(ticks, code)
+    assert sorted(page["words"]) == sorted([*real, *made])
+    done = other(code, [*do, {"tick": real[0]}, {"press": "arrival-done"}])
+    assert done["thanksUp"]
+    sent = [call["body"] for call in done["sent"] if call["path"].startswith("/account/check")]
+    assert sent == [{"version": lists.version, "language": code, "ticked": [*ticks, real[0]]}]
+
+
+@pytest.mark.parametrize("code", ["fr", "ru"])
+def test_their_level_is_kept_on_the_cefr_ladder(code: str) -> None:
+    """The four sentences stand for A1, A2, B1 and C1, kept as Hebrew's rung is: on the
+    account and in the browser. Skip keeps it too; Not sure takes it back."""
+    for say, rung in (("I’m just starting", "a1"), ("I read the news", "b1")):
+        skipped = other(code, [{"rung": say}, {"press": "arrival-done"}, {"skip": True}])
+        body = {"level": rung, "language": code}
+        assert {"path": "/account/level?k=k", "body": body} in skipped["sent"]
+        assert skipped["kept"].get(f"targum:declared:{code}") == rung
+        assert "targum:declared" not in skipped["kept"], "and never as Hebrew's"
+    unsure = other(code, [{"unsure": True}, {"skip": True}])
+    assert {"path": "/account/level?k=k", "body": {"level": "", "language": code}} in unsure["sent"]

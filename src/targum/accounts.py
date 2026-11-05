@@ -2214,6 +2214,9 @@ class Store:
             # Handed back so a second browser does not ask again. It is the reader's own
             # answer going back to the reader's own page; no page prints it.
             "declared": self.declared_of(str(row["declared"] or "")),
+            # Every language's, since a French or Russian rung no longer takes Hebrew's
+            # place (targum-internal#631): {"he": "bet", "ru": "a2"}.
+            "declaredBy": self.declared_map(str(row["declared"] or "")),
         }
 
     #: What a reader can say they are interested in, asked when they arrive
@@ -2309,8 +2312,10 @@ class Store:
             db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
         return kept
 
-    #: The rungs a reader can say they are on, aleph to vav: `level.ULPAN`'s, by the ids
-    #: the arrival uses (targum-internal#306, 2026-09-19).
+    #: The rungs a reader can say they are on, by the ids the arrival uses: aleph to vav,
+    #: `level.ULPAN`'s, asked of a Hebrew reader (targum-internal#306, 2026-09-19), and a1
+    #: to c2, `level.CEFR`'s, asked of a French or Russian one (targum-internal#631,
+    #: 2026-11-05).
     DECLARED = (
         "aleph",
         "aleph-plus",
@@ -2320,36 +2325,90 @@ class Store:
         "dalet",
         "hey",
         "vav",
+        "a1",
+        "a2",
+        "b1",
+        "b2",
+        "c1",
+        "c2",
     )
 
-    def declared(self, person_id: int | None) -> str:
-        """The rung they named on arrival, or "" where they named none."""
-        if person_id is None:
-            return ""
+    #: Which rungs each language is asked over: its own ladder, and no other.
+    DECLARED_BY: dict[str, tuple[str, ...]] = {
+        "he": DECLARED[:8],
+        "fr": DECLARED[8:],
+        "ru": DECLARED[8:],
+    }
+
+    @staticmethod
+    def _declared_code(language: str | None) -> str:
+        return str(language or "he").split("-")[0].strip().lower() or "he"
+
+    @classmethod
+    def declared_map(cls, stored: str) -> dict[str, str]:
+        """The stored column read back as a rung per language (targum-internal#631).
+
+        One column, one rung per language, so a Russian rung never takes the place of a
+        Hebrew one (qa-claude on targum#1112): "bet,ru:a2". A bare rung is Hebrew's, as
+        every rung stored before 2026-11-05 was, so the column of a Hebrew-only reader is
+        exactly what it always was and needs no migration. A rung off its language's own
+        ladder, or a language that is not asked, is dropped."""
+        out: dict[str, str] = {}
+        for part in str(stored or "").lower().split(","):
+            code, _, rung = part.strip().rpartition(":")
+            code = code.strip() or "he"
+            if rung.strip() in cls.DECLARED_BY.get(code, ()):
+                out[code] = rung.strip()
+        return out
+
+    @classmethod
+    def declared_of(cls, stored: str, language: str = "he") -> str:
+        """One language's rung in the stored column, or "" where it has none."""
+        return cls.declared_map(stored).get(cls._declared_code(language), "")
+
+    @classmethod
+    def _declared_column(cls, rungs: dict[str, str]) -> str:
+        """The column for a rung per language: Hebrew's bare and first, then the rest."""
+        parts = [rungs["he"]] if rungs.get("he") else []
+        parts += [f"{code}:{rungs[code]}" for code in sorted(rungs) if code != "he" and rungs[code]]
+        return ",".join(parts)
+
+    def _declared_row(self, person_id: int) -> str:
         row = self.db.execute(
             "SELECT declared FROM person WHERE id = ?", (int(person_id),)
         ).fetchone()
-        return self.declared_of(str(row["declared"] or "")) if row is not None else ""
+        return str(row["declared"] or "") if row is not None else ""
 
-    @classmethod
-    def declared_of(cls, stored: str) -> str:
-        """The stored column read back, dropping a rung this targum does not know."""
-        said = str(stored or "").strip().lower()
-        return said if said in cls.DECLARED else ""
+    def declared(self, person_id: int | None, language: str = "he") -> str:
+        """The rung they named on arrival for `language`, or "" where they named none."""
+        if person_id is None:
+            return ""
+        return self.declared_of(self._declared_row(person_id), language)
 
-    def set_declared(self, person: Person, rung: str) -> str:
-        """Keep the rung they named; "" takes it back, and anything else is refused.
+    def declared_by(self, person_id: int | None) -> dict[str, str]:
+        """Every rung they named, by language."""
+        if person_id is None:
+            return {}
+        return self.declared_map(self._declared_row(person_id))
+
+    def set_declared(self, person: Person, rung: str, language: str = "he") -> str:
+        """Keep the rung they named for `language`; "" takes it back, and a rung off that
+        language's own ladder is refused. The other languages' rungs stay as they were.
 
         Settable again, like the subjects: it is a seed and not a record, and a reader
         who said bet and meant gimel loses nothing by saying so.
         """
+        code = self._declared_code(language)
         said = str(rung or "").strip().lower()
-        if said and said not in self.DECLARED:
+        if code not in self.DECLARED_BY or (said and said not in self.DECLARED_BY[code]):
             raise ValueError("No such choice.")
         with self.write() as db:
+            row = db.execute("SELECT declared FROM person WHERE id = ?", (person.id,)).fetchone()
+            rungs = self.declared_map(str(row["declared"] or "") if row is not None else "")
+            rungs[code] = said
             db.execute(
                 "UPDATE person SET declared = ?, ledger = ledger + 1 WHERE id = ?",
-                (said, person.id),
+                (self._declared_column(rungs), person.id),
             )
         return said
 
