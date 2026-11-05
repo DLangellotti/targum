@@ -1,7 +1,7 @@
 lemmas	surface	gloss_en	register	note	needs	key
 потому что	потому что	because	standard	shelf 753	
 так что	так что	so, so that	standard	borderline: also так, что "in such a way that"; shelf 99	
-так как	так как	since, because	standard	borderline: also так, как "the way that"; shelf 149	
+так как	так как	since, because	standard	borderline: also так, как "the way that"; shelf 149	|!же
 все равно	всё равно	all the same, anyway; it makes no difference	standard	shelf 59	|!что
 весь равно	всё равно	all the same, anyway; it makes no difference	standard	second lemma the shelf gives for the same; shelf 36	|!что
 мочь быть	может быть	maybe, perhaps	standard	borderline: also "can be" (это может быть опасно), and the key meets мог быть, могут быть; match on the surface может; shelf 359	=может <!не edge|
@@ -14,7 +14,6 @@ lemmas	surface	gloss_en	register	note	needs	key
 тот более	тем более	all the more, especially	standard	second lemma the shelf gives for the same; shelf 8	
 как будто	как будто	as if	standard	shelf 175	
 как раз	как раз	just, exactly; just right	standard	shelf 75	
-как бы	как бы	sort of, as it were	spoken	borderline: also conditional "how would"; shelf 145	|!VerbForm=Inf/это/то
 как правило	как правило	as a rule	standard	shelf 16	
 как обычно	как обычно	as usual	standard	shelf 13	
 как следовать	как следует	properly	standard	shelf 5	
@@ -26,7 +25,7 @@ lemmas	surface	gloss_en	register	note	needs	key
 тот же	то же (самое)	the same (thing)	standard	second lemma the shelf gives for the same; shelf 16	
 то же самый	то же самое	the same thing	standard	shelf 22	
 в то же время	в то же время	at the same time	standard	shelf 14	
-в тот же время	в то же время	at the same time	standard	second lemma the shelf gives for the same; shelf 6	
+в тот же время	в то же время	at the same time	standard	second lemma the shelf gives for the same; shelf 6	|||~1
 в тот время как	в то время как	while, whereas	standard	shelf 3	
 в тот время	в то время	at that time	standard	shelf 26	
 в то время	в то время	at that time	standard	second lemma the shelf gives for the same; shelf 20	
@@ -61,7 +60,7 @@ lemmas	surface	gloss_en	register	note	needs	key
 в результат	в результате	as a result	standard	shelf 15	
 в зависимость от	в зависимости от	depending on	standard	shelf 18	
 в течение	в течение	during, over (a period)	standard	shelf 51	
-в вид	иметь в виду	(with иметь) to mean, to have in mind	standard	key is the tail; see иметь в виду; shelf 29	
+в вид	иметь в виду	(with иметь) to mean, to have in mind	standard	key is the tail; see иметь в виду; shelf 29	|=виду
 иметь в вид	иметь в виду	to mean, to have in mind	standard	shelf 18	
 в последний время	в последнее время	lately, recently	standard	shelf 15	
 в первый раз	в первый раз	for the first time	standard	shelf 39	
@@ -105,7 +104,7 @@ lemmas	surface	gloss_en	register	note	needs	key
 как так и	как… так и	both… and	standard	discontinuous: как X, так и Y; shelf 39, an upper bound (any и within six words)	|~6,|
 чем тем	чем… тем	the more… the more	standard	discontinuous: чем больше X, тем Y; shelf 36, an upper bound (any тем within six words)	|~8,
 либо либо	либо… либо	either… or	standard	discontinuous; shelf 35, an upper bound (any либо within six words)	|~6,
-ни ни	ни… ни	neither… nor	standard	discontinuous; shelf 105, an upper bound (any ни within six words)	|~8,
+ни ни	ни… ни	neither… nor	standard	discontinuous; shelf 105, an upper bound (any ни within six words)	<!бы|~8,
 не то чтобы	не то чтобы	not exactly, not that	spoken	shelf 3	
 вряд ли	вряд ли	hardly, unlikely	standard	shelf 17	
 едва ли	едва ли	hardly	standard	shelf 9	
@@ -136,7 +135,7 @@ lemmas	surface	gloss_en	register	note	needs	key
 как можно	как можно (скорее)	as (soon) as possible	standard	shelf 44	|+скорее/лучше/больше/быстрее/меньше/чаще/дальше/сильнее/громче/тише/раньше/позже/ближе/выше/ниже/проще/легче/подробнее/точнее
 как можно скорее	как можно скорее	as soon as possible	standard	shelf 2	
 что ли	что ли	or something, is it	spoken	shelf 21	
-что такой	что такое	what is (it); what's the matter	standard	shelf 62	
+что такой	что такое	what is (it); what's the matter	standard	shelf 62	-SCONJ
 что с он	что с тобой	what's wrong with you	spoken	the pronoun changes with the person: one key each; shelf 11	^^||
 что с вы	что с тобой	what's wrong with you	spoken	the same with another person; shelf 10	^^||
 что с ты	что с тобой	what's wrong with you	spoken	the same with another person; shelf 6	^^||

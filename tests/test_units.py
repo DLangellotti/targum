@@ -621,17 +621,24 @@ def test_a_correlative_keeps_its_closing_word_from_a_shorter_unit() -> None:
     assert "чем тем" in keys_in(more, "ru") and "тем более" not in keys_in(more, "ru")
 
 
-#: Precision and recall on ling-fr's and ling-ru's golds, each at what was measured on
-#: 2026-11-06 less two misses (targum-internal#636): fr 122/130 and 122/126, ru 68/77
-#: and 68/75. The Russian gold is ling-ru's draft for David's read, and only its
-#: public-domain texts are in the repository.
-FLOORS = {"fr": (0.923, 0.952), "ru": (0.857, 0.880)}
+#: Precision and recall on ling-fr's and ling-ru's held-out golds (2026-11-06), sentences
+#: the rules were never tuned on, each at what was measured less two misses
+#: (targum-internal#636): fr 69/72 and 69/74, ru 41/45 and 41/45. The French lines are
+#: new sentences of the tuning gold's 14 texts; the Russian are 19 texts it never saw.
+#: Before the five general Russian fixes the held-out read 42/51 and 42/45, so the
+#: Russian figure is no longer blind. Both Russian golds are ling-ru's draft for
+#: David's read, and only public-domain texts are in the repository.
+FLOORS = {"fr": (0.958, 0.932), "ru": (0.911, 0.911)}
+
+#: The tuning golds (2026-11-05), kept as a regression check at their earlier floors:
+#: fr 120/130 and 120/126, ru 66/77 and 66/75.
+TUNING_FLOORS = {"fr": (0.923, 0.952), "ru": (0.857, 0.880)}
 
 
-@pytest.mark.parametrize("language", ["fr", "ru"])
-def test_the_lists_hold_their_floor_on_the_linguists_gold(language: str) -> None:
+def _scored(name: str, language: str) -> tuple[int, int, int]:
+    """Hits, right hits and gold units on one of the linguists' golds."""
     units.clear()
-    path = Path(__file__).resolve().parent.parent / "evals" / f"units-gold-{language}.jsonl"
+    path = Path(__file__).resolve().parent.parent / "evals" / f"{name}-{language}.jsonl"
     hits = right = truth = 0
     for line in path.read_text(encoding="utf-8").splitlines():
         row = json.loads(line)
@@ -644,7 +651,44 @@ def test_the_lists_hold_their_floor_on_the_linguists_gold(language: str) -> None
         hits += len(got)
         right += len(got & want)
         truth += len(want)
+    return hits, right, truth
+
+
+@pytest.mark.parametrize("language", ["fr", "ru"])
+def test_the_lists_hold_their_floor_on_the_held_out_gold(language: str) -> None:
+    hits, right, truth = _scored("units-heldout", language)
     precision, recall = FLOORS[language]
+    assert right / hits >= precision, f"{right}/{hits}"
+    assert right / truth >= recall, f"{right}/{truth}"
+
+
+def test_the_held_out_russian_fixes() -> None:
+    """ling-ru's held-out gold (2026-11-06), each fix a pattern rather than a line."""
+    how = said(("Ну", "ну"), ("так", "так"), ("как", "как"), ("же", "же"), ("я", "я"))
+    assert keys_in(how, "ru") == [], "так как же is so how, not since"
+    since = said(("так", "так"), ("как", "как"), ("жизнь", "жизнь"))
+    assert keys_in(since, "ru") == ["так как"]
+    guise = said(("в", "в", "ADP"), ("виде", "вид", "NOUN"), ("странника", "странник"))
+    assert keys_in(guise, "ru") == [], "the tail of иметь в виду is виду only"
+    ever = said(
+        ("куда", "куда"), ("бы", "бы"), ("ни", "ни"), ("идти", "идти"),
+        ("о", "о"), ("чем", "что"), ("ни", "ни"), ("говорить", "говорить"),
+    )  # fmt: skip
+    assert keys_in(ever, "ru") == [], "a concessive ни after бы is not ни… ни"
+    that = said(("знал", "знать"), ("что", "что", "SCONJ"), ("такие", "такой", "DET"))
+    assert keys_in(that, "ru") == [], "the conjunction что is not что такое"
+    what = said(("Что", "что", "PRON"), ("такое", "такой", "DET"))
+    assert keys_in(what, "ru") == ["что такой"]
+    same = said(("в", "в"), ("то", "тот"), ("же", "же"), ("самое", "самый"), ("время", "время"))
+    assert keys_in(same, "ru") == ["в тот же время"], "самое may stand before время"
+    sort = said(("Зверь", "зверь"), ("как", "как"), ("бы", "бы"), ("жаловался", "жаловаться"))
+    assert keys_in(sort, "ru") == [], "как бы is off the list: 1 right of 4 in both golds"
+
+
+@pytest.mark.parametrize("language", ["fr", "ru"])
+def test_the_lists_hold_their_floor_on_the_linguists_gold(language: str) -> None:
+    hits, right, truth = _scored("units-gold", language)
+    precision, recall = TUNING_FLOORS[language]
     assert right / hits >= precision, f"{right}/{hits}"
     assert right / truth >= recall, f"{right}/{truth}"
 

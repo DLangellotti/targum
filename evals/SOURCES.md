@@ -441,7 +441,26 @@ and every unit in them, with the indices of its words.
   repository.
 - **Licence:** the texts are public domain; the labels are targum's own.
 - **Where:** `evals/units-gold-fr.jsonl`, `evals/units-gold-ru.jsonl`, in the repository.
-- **Use:** evaluation only.
+- **Use:** evaluation only, and since the held-out golds below, a regression check.
+- **Scored by:** `tests/test_units.py` (`TUNING_FLOORS`), on every run of the suite. It
+  writes no ledger row.
+
+### Held out
+
+`evals/units-heldout-fr.jsonl`, 103 sentences, and `evals/units-heldout-ru.jsonl`, 104
+segments, read by ling-fr and ling-ru on 2026-11-06. None was used to write the rules
+before it was read, and none was chosen for stress: each is a random draw (seed 20261106)
+from the segments where the matcher fires or where all of a unit's lemmas occur.
+
+- **French is held out by sentence only.** The shelf's 14 public-domain French texts are
+  all in the first gold, so these are new sentences of the same texts.
+- **Russian is held out by text:** 19 public-domain texts not in the first gold (Chekhov,
+  Dostoevsky, Lermontov, Leskov, Pushkin, Tolstoy, Turgenev). Each line names its
+  annotator. Five general fixes were taken from its notes after it was scored (0.824 and
+  0.933 as it came), so the Russian figure is no longer blind. **It is ling-ru's draft
+  for David's read** (`"drafted"`).
+- **Licence:** the texts are public domain; the labels are targum's own.
+- **Use:** evaluation only. The suite's floors are set from these golds.
 - **Scored by:** `tests/test_units.py` (`FLOORS`), on every run of the suite. It writes
   no ledger row.
 
