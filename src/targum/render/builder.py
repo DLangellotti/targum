@@ -7075,6 +7075,9 @@ def render(
         # table is left out where no row on the page needs it.
         lemma_at: dict[tuple[str, str], int] = {}
         heads: list[str] = []
+        # How each word is used on the page, its part of speech and the word after it,
+        # for the false friends said only of some uses (`false_friends.gates`).
+        uses: dict[int, list[tuple[str, str]]] = {}
         # Root and binyan belong to the dictionary form, not to the occurrence, so they
         # ride in tables beside the lemmas rather than on every token. Empty for every
         # word that is not a Hebrew verb, and for the verbs whose root could not be had
@@ -7214,6 +7217,10 @@ def render(
                         to_bare[sid],
                     )
                 # A name of several words is one chip (targum-internal#149).
+                after_of = {
+                    id(one): next_one.surface
+                    for one, next_one in zip(on_row, on_row[1:], strict=False)
+                }
                 for token in on_row:
                     word = (token.lemma, token.head)
                     verb = (token.lemma, token.head, token.binyan or "")
@@ -7253,6 +7260,9 @@ def render(
                                 tuple(verb_said.get(verb, ())),
                             )
                         )
+                    uses.setdefault(lemma_at[word], []).append(
+                        (token.pos or "", after_of.get(id(token), "").lower())
+                    )
                     # Offsets arrive measured against the segment as ingested, which may
                     # itself be pointed. They ship measured against the bare form, the
                     # one coordinate system the reader keeps everything in. Where the
@@ -7387,7 +7397,7 @@ def render(
         from ..annotate.false_friends import friend_of, is_on
 
         if is_on() and segmented.language.split("-")[0].lower() == "fr":
-            friends = [friend_of(lemma) for lemma in lemmas]
+            friends = [friend_of(lemma, uses.get(at, ())) for at, lemma in enumerate(lemmas)]
         # A verb's aspect partner, and apart from it the verbs that are not partners but
         # stand beside it — постоять for a while, заплакать begin (David, 2026-10-30).
         # targum's own list answers for the verbs it covers, a none included; OpenRussian

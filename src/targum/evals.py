@@ -71,6 +71,9 @@ STAGES = (
     # The card's Russian aspect partner line against ling-ru's reviewed list
     # (2026-10-30), from scripts/eval_aspect_partners.py.
     "partners",
+    # The French card's false friend line, read in context by ling-fr (2026-11-05,
+    # targum-internal#644), from scripts/eval_false_friends.py.
+    "friends",
 )
 
 
@@ -108,6 +111,9 @@ SCRIPTS = {
     "said": "eval_liaison.py",
     "connector": "eval_connector.py",
     "partners": "eval_aspect_partners.py",
+    "friends": "eval_false_friends.py",
+    # The passé composé against the imparfait, on ling-fr's French-shelf gold (#644).
+    "lemma/pc-imparfait": "eval_pc_imparfait.py",
 }
 
 
