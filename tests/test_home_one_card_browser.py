@@ -217,7 +217,7 @@ def test_one_card_draws_the_pick_and_more_that_fit_under_it(browser, width: int)
     assert got["label"] == "One to try next" and got["title"] == "חנה סנש: יומן"
     assert got["known"] == "95% known" and got["facts"] == "Book · 14 min", got
     assert not got["credits"], "a free pick says nothing of credits"
-    assert got["presses"] == ["Read", "Something else", "Topic"], got
+    assert got["presses"] == ["Read", "Something else", "Filter"], got
     assert "tonal" in got["open"] and "filled" in got["upload"] and not got["uploadSlab"]
     assert got["more"] == ["96% known · Conversation", "94% known · Book", "93% known · Article",
                            "91% known · Story"], got  # fmt: skip
@@ -306,9 +306,9 @@ def test_a_topic_picks_again_at_once_and_names_the_press(browser, width: int) ->
     context, page, thrown, posted, _ = home(browser, width, find)
     page.wait_for_selector("#try-next .rc-pick")
     page.click("#try-next .rc-topic")
-    page.wait_for_selector("#rc-topics .tab")
+    page.wait_for_selector("#rc-topics .rc-topic-tabs .tab")
     chips = page.evaluate(
-        "() => [...document.querySelectorAll('#rc-topics .tab')]"
+        "() => [...document.querySelectorAll('#rc-topics .rc-topic-tabs .tab')]"
         ".map((t) => [t.textContent, t.classList.contains('is-likely')])"
     )
     sideways = page.evaluate("() => document.documentElement.scrollWidth > window.innerWidth")
@@ -321,7 +321,7 @@ def test_a_topic_picks_again_at_once_and_names_the_press(browser, width: int) ->
     assert not thrown, thrown
     assert chips == [["Cooking", True], ["Sport", False], ["Football", False]], chips
     assert not sideways
-    asked = {"language": "he", "skip": [], "topics": ["football"]}
+    asked = {"language": "he", "skip": [], "topics": ["football"], "done": []}
     assert {**asked, "near": {"topics": ["football"], "skip": [], "done": []}} in posted, posted
     assert got["presses"] == ["Watch", "Something else", "Football"], got
     assert got["credits"] and got["facts"] == "Video · 6 min · youtube.com", got
@@ -340,7 +340,7 @@ def test_nothing_fits_and_the_day_s_limit_each_leave_one_press(browser, width: i
     context.close()
     assert not thrown, thrown
     assert got["says"] == "That's today's 3 web searches. More tomorrow."
-    assert got["presses"] == ["Topic"], got
+    assert got["presses"] == ["Filter"], got
 
 
 @pytest.mark.parametrize("width", WIDTHS)
@@ -413,7 +413,7 @@ def test_no_suggestion_says_nothing_fits_with_a_press(browser, width: int) -> No
     shot(page, "no-suggestion", width)
     context.close()
     assert not thrown, thrown
-    assert got["says"] == "No new text is 90% known for you yet." and got["presses"] == ["Topic"]
+    assert got["says"] == "No new text is 90% known for you yet." and got["presses"] == ["Filter"]
 
 
 def test_the_card_is_the_old_one_while_the_switch_is_off(
@@ -508,7 +508,7 @@ def test_nothing_fits_names_the_nearest_text_and_its_press_opens_it(browser, wid
     context.close()
     assert not thrown, thrown
     assert none["says"] == NONE and "today" not in none["says"]
-    assert none["presses"] == ["Topic", "Read one at 78% known"], none
+    assert none["presses"] == ["Filter", "Read one at 78% known"], none
     assert figure(none["presses"][1]) == figure(first["known"]), (none, first)
     asked = [body for body in posted if body.get("harder")]
     assert asked[0]["skip"] == [] and "hannah" in asked[0]["done"], asked[0]
@@ -516,11 +516,11 @@ def test_nothing_fits_names_the_nearest_text_and_its_press_opens_it(browser, wid
     near = next(body["near"] for body in posted if "near" in body)
     assert near == {key: asked[0][key] for key in ("topics", "skip", "done")}, (near, asked[0])
     assert first["known"] == "78% known" and first["facts"] == "Story · 9 min", first
-    assert first["presses"] == ["Read", "Something else", "Topic"], first
+    assert first["presses"] == ["Read", "Something else", "Filter"], first
     assert asked[1]["skip"] == ["hard-story"], asked[1]
     assert second["known"] == "71% known" and second["presses"][0] == "Read", second
     assert last["says"] == "No other new text is close yet."
-    assert last["presses"] == ["Topic"], "nothing harder left: no second offer"
+    assert last["presses"] == ["Filter"], "nothing harder left: no second offer"
     assert not any(body.get("search") for body in posted), "never a look on the web"
     assert not first["sideways"] and not none["sideways"]
 
@@ -561,13 +561,13 @@ def test_the_press_says_watch_or_listen_and_is_gone_with_nothing_under_the_floor
         context.close()
         assert not thrown, thrown
     none, pick = seen["watch"]
-    assert none["presses"] == ["Topic", "Watch one at 64% known"], none
+    assert none["presses"] == ["Filter", "Watch one at 64% known"], none
     assert pick["presses"][0] == "Watch" and figure(none["presses"][1]) == figure(pick["known"])
     none, pick = seen["listen"]
-    assert none["presses"] == ["Topic", "Listen to one at 83% known"], none
+    assert none["presses"] == ["Filter", "Listen to one at 83% known"], none
     assert pick["presses"][0] == "Listen" and figure(none["presses"][1]) == figure(pick["known"])
     none, _ = seen["nothing"]
-    assert none["says"] == NONE and none["presses"] == ["Topic"], none
+    assert none["says"] == NONE and none["presses"] == ["Filter"], none
 
 
 @pytest.mark.parametrize("width", WIDTHS)
@@ -595,7 +595,7 @@ def test_with_nothing_on_the_topic_the_press_says_any_topic(browser, width: int)
     pick = page.evaluate(CARD)
     context.close()
     assert not thrown, thrown
-    assert none["presses"] == ["Topic", "Read one at 82% known (any topic)"], none
+    assert none["presses"] == ["Filter", "Read one at 82% known (any topic)"], none
     assert pick["known"] == "82% known" and pick["presses"][0] == "Read", pick
 
 
@@ -695,3 +695,61 @@ def test_a_suggestion_with_no_outlet_has_no_source_line(browser, width: int) -> 
     context.close()
     assert not thrown, thrown
     assert got["pick"] is None and got["more"] == [None] * len(MORE)
+
+
+# -- Filter: medium, length and topic in one field (design.md §12, 2026-11-05) ---------
+
+FILTER = """() => {
+  const tabs = (s) => [...document.querySelectorAll(s)].map((t) => [t.textContent, t.getAttribute('aria-pressed')]);
+  return {
+    media: tabs('#rc-topics .rc-media .tab'),
+    lengths: tabs('#rc-topics .rc-lengths .tab'),
+    labels: [...document.querySelectorAll('#rc-topics .home-label')].map((e) => e.textContent),
+    press: (document.querySelector('#try-next .rc-topic') || {}).textContent || '',
+    tonal: ((document.querySelector('#try-next .rc-topic') || {}).className || '').includes('tonal'),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+  };
+}"""  # noqa: E501
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_filter_holds_medium_length_and_topic_and_the_press_names_them(browser, width: int) -> None:
+    video = {**WEB_PICK, "id": "find-9", "find": 9, "title": "שימור אנרגיה", "kind": "video",
+             "minutes": 7, "host": "youtube.com"}  # fmt: skip
+
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("chips"):
+            return {"chips": CHIPS, "listen": False}
+        if body.get("medium") == "watch":
+            return {"pick": video}
+        return {"pick": None, "why": "off", "message": NONE}
+
+    context, page, thrown, posted, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.click("#try-next .rc-topic")
+    page.wait_for_selector("#rc-topics .rc-media .tab")
+    field = page.evaluate(FILTER)
+    shot(page, "filter", width)
+    page.click("#rc-topics .rc-media .tab:has-text('Watch')")
+    page.wait_for_selector("#try-next .home-card-title:has-text('שימור')")
+    page.click("#try-next .rc-topic")
+    page.wait_for_selector("#rc-topics .rc-media .tab")
+    page.click("#rc-topics .rc-lengths .tab:has-text('5–15 min')")
+    page.wait_for_selector("#try-next .home-card-title:has-text('שימור')")
+    named = page.evaluate(FILTER)
+    page.click("#try-next .rc-topic")
+    page.wait_for_selector("#rc-topics .rc-media .tab")
+    chosen = page.evaluate(FILTER)
+    context.close()
+    assert not thrown, thrown
+    assert field["media"] == [["Read", "false"], ["Watch", "false"]], "no Listen without audio"
+    assert field["lengths"] == [["Under 5 min", "false"], ["5–15 min", "false"],
+                                ["Over 15 min", "false"]], field  # fmt: skip
+    assert field["labels"] == ["How long", "Topic"] and field["press"] == "Filter", field
+    assert not field["tonal"] and not field["sideways"], field
+    asks = [body for body in posted if "medium" in body]
+    assert asks[0]["medium"] == "watch" and "length" not in asks[0], asks
+    assert asks[1]["medium"] == "watch" and asks[1]["length"] == "mid", asks
+    assert asks[1]["near"]["medium"] == "watch" and asks[1]["near"]["length"] == "mid"
+    assert named["press"] == "Watch · 5–15 min" and named["tonal"], named
+    assert chosen["media"][1] == ["Watch", "true"] and chosen["lengths"][1][1] == "true"
