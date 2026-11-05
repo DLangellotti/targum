@@ -305,17 +305,17 @@ IN_CONTEXT = [
     ("tout", "Déterminant", "tous", "plural", "-", "masculine", "-", "-", "t u s"),
     ("le", "Déterminant", "les", "plural", "-", "-", "-", "-", "l e"),
     ("loup", "Nom commun", "loups", "plural", "-", "masculine", "-", "-", "l u"),
-    ("six", "Adjectif numéral", "six", "-", "-", "-", "-", "-", "s i s"),
-    ("dix", "Adjectif numéral", "dix", "-", "-", "-", "-", "-", "d i s"),
+    ("six", "Nombre", "six", "-", "-", "-", "-", "-", "s i s"),
+    ("dix", "Nombre", "dix", "-", "-", "-", "-", "-", "d i s"),
     ("chèvre", "Nom commun", "chèvres", "plural", "-", "feminine", "-", "-", "S E v R @"),
     ("enfant", "Nom commun", "enfants", "plural", "-", "-", "-", "-", "a~ f a~"),
-    ("vingt", "Adjectif numéral", "vingt", "-", "-", "-", "-", "-", "v e~"),
-    ("cinq", "Adjectif numéral", "cinq", "-", "-", "-", "-", "-", "s e~ k"),
+    ("vingt", "Nombre", "vingt", "-", "-", "-", "-", "-", "v e~"),
+    ("cinq", "Nombre", "cinq", "-", "-", "-", "-", "-", "s e~ k"),
 ]
 
 
 def _said(text: str, spec: list[tuple[str, str, str]]) -> list[str]:
-    lines = [HEAD.rstrip("\n")]
+    lines = HEAD.rstrip("\n").splitlines()
     for n, (lemma, category, form, number, mood, gender, tense, person, said) in enumerate(
         IN_CONTEXT
     ):
