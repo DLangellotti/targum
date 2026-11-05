@@ -22,6 +22,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   at gimel and above, texts and items with no rate are untouched, and the card still says
   the share known. YouTube finds now keep their words a minute from the night they are
   found. No new strings.
+- An idiom is one word to know (David, 2026-11-05; targum-internal#614; design.md §12,
+  "An idiom is one word to know"). ling-he's 174 hand-picked multiword expressions
+  (`units.tsv`: אחר כך, בית ספר, אף על פי, בכל זאת…) count as one running word in a
+  Hebrew text's coverage, matched on the text's own tokens with the prefixes the list
+  asks for. A unit is known where the reader kept it as a phrase and marked it known;
+  otherwise the chooser's estimate gives it the product of its words' chances. Shelf
+  texts take it from the lemma index the next deploy writes, and a built text's cached
+  counts are read again once. Nothing is annotated and no new strings.
 - `search_sources` measures today's news on the article where the news round has read it
   (targum-internal#615; design.md §12, "Today's news is measured on the article where we
   have read it"). An item the finds pool keeps, measured, is given the figure from the

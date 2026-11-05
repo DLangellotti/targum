@@ -15151,10 +15151,16 @@ class Handler(BaseHTTPRequestHandler):
         # estimate reads it (design.md §12, "An older Hebrew waits until it is asked for",
         # 2026-11-03).
         mine_registers = {str(row.get("register") or "") for row in mine}
+        from . import units as units_module
+
         answer["texts"] = touchstones.at_level(
             entries,
             index,
-            marked,
+            # A multiword unit kept as a phrase and marked known is known under its key
+            # (design.md §12, "An idiom is one word to know", 2026-11-05).
+            units_module.with_phrases(marked, self.store.known_phrases(person.id))
+            if language.split("-")[0] in units_module.LANGUAGES
+            else marked,
             language,
             ui_language=self._ui_language(),
             chances=chances,
