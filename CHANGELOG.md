@@ -56,6 +56,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   list drawn from the glosses (0.916) and the root family's known share (0.916) were
   measured the same way and left out. `scripts/eval_difficulty_features.py` runs the
   comparison, offline. No new strings.
+- Every pick on Home's one card carries Easier and Harder on its share line (David,
+  2026-11-05; targum-internal#615; design.md §12, "Home's one card offers the words to
+  learn first, and a pick moves easier or harder"). Behind `TARGUM_FIND_BUTTON`.
+  `POST /find` with `step` answers the next pick above or below the card's share, from
+  the shelf and the pool, within the topic chosen; Easier keeps to the band and Harder
+  walks on under the floor, its picks carrying `harder`. It never looks on the web. The
+  pick left is recorded as set aside. With nothing left the pick stays and the card says
+  "Nothing easier fits yet." or "No other new text is close yet." New strings: "Easier",
+  "Harder", "Nothing easier fits yet.", with Russian drafts.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

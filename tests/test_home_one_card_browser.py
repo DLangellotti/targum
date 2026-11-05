@@ -812,3 +812,61 @@ def test_no_words_to_know_first_above_93_or_with_fewer_than_three(browser, width
     assert above["press"] is None and not [body for body in posted if body.get("words")]
     assert [body for body in posted_too if body.get("words")], "asked under 93%"
     assert few["press"] is None, "two words is no press"
+
+
+# -- Easier and Harder on any pick (design.md §12, 2026-11-05; targum-internal#615) -----
+
+UNDER_PICK = {
+    **SHELF_PICK, "id": "sharon", "title": "אריאל שרון הלך לעולמו", "kind": "article",
+    "reason": {"key": "suggest.known", "share": 88}, "fit": "under", "harder": True,
+}  # fmt: skip
+
+STEP = """() => {
+  const q = (s) => document.querySelector(s);
+  const row = q('#try-next .rc-known-row');
+  return {
+    title: (q('#try-next .home-card-title') || {}).textContent || '',
+    known: (q('#try-next .rc-known') || {}).textContent || '',
+    steps: row ? [...row.querySelectorAll('.rc-step .btn')].map((b) => [b.textContent, b.className]) : [],
+    status: (q('#try-next .rc-status') || {}).textContent || '',
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    reach: (() => { const b = q('#try-next .rc-step .btn'); return b ? b.getBoundingClientRect().height : 0; })(),
+  };
+}"""  # noqa: E501
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_easier_and_harder_walk_from_the_pick_and_say_when_nothing_is_left(
+    browser, width: int
+) -> None:
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("step") == "harder":
+            return {"pick": UNDER_PICK, "step": "harder", "more": 0}
+        if body.get("step") == "easier":
+            return {"pick": None, "why": "easier", "message": "Nothing easier fits yet."}
+        return {"pick": None}
+
+    context, page, thrown, posted, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-step")
+    first = page.evaluate(STEP)
+    page.click("#try-next .rc-step-harder")
+    page.wait_for_selector("#try-next .home-card-title:has-text('שרון')")
+    walked = page.evaluate(STEP)
+    shot(page, "harder", width)
+    page.click("#try-next .rc-step-easier")
+    page.wait_for_selector("#try-next .rc-status")
+    stayed = page.evaluate(STEP)
+    context.close()
+    assert not thrown, thrown
+    assert first["steps"] == [
+        ["Easier", "btn ghost outline small rc-step-easier"],
+        ["Harder", "btn ghost outline small rc-step-harder"],
+    ], first
+    steps = [body for body in posted if body.get("step")]
+    assert steps[0]["from"] == 95 and steps[0]["done"][-1] == "hannah", steps
+    assert walked["known"] == "88% known" and walked["steps"], walked
+    assert steps[1] == {**steps[1], "step": "easier", "from": 88}
+    assert stayed["title"] == walked["title"] and stayed["status"] == "Nothing easier fits yet."
+    assert not stayed["sideways"], stayed
+    if width < 640:
+        assert first["reach"] >= 44, first

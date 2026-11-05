@@ -15981,6 +15981,78 @@ class Handler(BaseHTTPRequestHandler):
                 }
             return body
 
+        def shown_share(row: Mapping[str, Any]) -> int:
+            """The figure a pick says on the card, in whole points: its share known, marked
+            or our estimate (`suggest.known`, `suggest.estimated`), or its `percent`."""
+            reason = row.get("reason") or {}
+            if reason.get("key") in ("suggest.known", "suggest.estimated") and reason.get("share"):
+                return int(reason["share"])
+            percent = row.get("percent")
+            return int(percent) if isinstance(percent, (int, float)) else 0
+
+        def stepped(way: str) -> dict[str, Any]:
+            """Easier or Harder on any pick (design.md §12, "Home's one card offers the
+            words to learn first, and a pick moves easier or harder", 2026-11-05;
+            targum-internal#615): the next pick above or below the share of the one on
+            the card (`from`), within the topic chosen. Easier keeps to the band; Harder
+            walks on under the floor, as the reader's own press, and a pick there carries
+            `harder` as Show me something harder's do. From the shelf and the pool, never
+            a look on the web."""
+            try:
+                at = int(payload.get("from") or 0)
+            except (TypeError, ValueError):
+                at = 0
+            given_done = payload.get("done")
+            done = (
+                [str(one)[:200] for one in given_done[: self.SUGGEST_SKIP_MOST]]
+                if isinstance(given_done, list)
+                else []
+            )
+            left_out = {*done, *skip}
+            found: list[dict[str, Any]] = [
+                row for row in choose() if row.get("fit") == choose_module.BAND
+            ]
+            if not chosen:
+                shelf = (
+                    chat_tools.suggest_next(
+                        ctx, {"language": code, "limit": 10, "skip": sorted(left_out)}
+                    ).get("suggestions")
+                    or []
+                )
+                found += [
+                    row
+                    for row in shelf
+                    if row.get("fit") == choose_module.BAND and not row.get("held")
+                ]
+            if way == "harder":
+                found += under_floor({"topics": list(chosen), "skip": list(skip), "done": done})
+            seen: set[str] = set()
+            walk: list[tuple[int, dict[str, Any]]] = []
+            for row in found:
+                name = str(row.get("id") or "")
+                share = shown_share(row)
+                if not name or name in seen or name in left_out or not share:
+                    continue
+                if (way == "easier" and share <= at) or (way == "harder" and share >= at):
+                    continue
+                seen.add(name)
+                walk.append((share, row))
+            # The nearest first: the next figure up for Easier, the next down for Harder.
+            walk.sort(key=lambda one: (abs(one[0] - at), str(one[1].get("id"))))
+            if walk:
+                return {"pick": self._find_row(walk[0][1]), "step": way, "more": len(walk) - 1}
+            if way == "easier":
+                return {
+                    "pick": None,
+                    "why": "easier",
+                    "message": self._say("find.easier-none", "Nothing easier fits yet."),
+                }
+            return {
+                "pick": None,
+                "why": "harder",
+                "message": self._say("find.harder-none", "No other new text is close yet."),
+            }
+
         if ended is not None:
             return answer(nothing_fits(ended))
         if payload.get("harder"):
@@ -15996,6 +16068,9 @@ class Handler(BaseHTTPRequestHandler):
                     "message": self._say("find.harder-none", "No other new text is close yet."),
                 }
             )
+        step = str(payload.get("step") or "")
+        if step in ("easier", "harder"):
+            return answer(stepped(step))
         rows = choose()
         if button.fits(rows):
             return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
