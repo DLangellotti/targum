@@ -288,11 +288,57 @@ def test_the_marks_are_the_tie_the_apostrophe_and_the_silent_letters(
     assert [text[a:b] for a, b, _, _ in marks] == ["’", "st", " ", "s"], "no letter is added"
 
 
-def test_the_switch_is_off_unless_it_is_set(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_switch_is_on_unless_it_is_turned_off(monkeypatch: pytest.MonkeyPatch) -> None:
+    """On for every French reader since ling-fr's read cleared the floor (David's D6,
+    2026-11-05, targum-internal#644), and still a switch to turn off."""
     monkeypatch.delenv(french_said.FLAG, raising=False)
-    assert not french_said.is_on()
+    assert french_said.is_on()
     monkeypatch.setenv(french_said.FLAG, "1")
     assert french_said.is_on()
+    for off in ("0", "false", "no", "off", "OFF"):
+        monkeypatch.setenv(french_said.FLAG, off)
+        assert not french_said.is_on(), off
+
+
+#: Morphalou's rows for the words a next word changes, in its own notation.
+IN_CONTEXT = [
+    ("tout", "Déterminant", "tous", "plural", "-", "masculine", "-", "-", "t u s"),
+    ("le", "Déterminant", "les", "plural", "-", "-", "-", "-", "l e"),
+    ("loup", "Nom commun", "loups", "plural", "-", "masculine", "-", "-", "l u"),
+    ("six", "Adjectif numéral", "six", "-", "-", "-", "-", "-", "s i s"),
+    ("dix", "Adjectif numéral", "dix", "-", "-", "-", "-", "-", "d i s"),
+    ("chèvre", "Nom commun", "chèvres", "plural", "-", "feminine", "-", "-", "S E v R @"),
+    ("enfant", "Nom commun", "enfants", "plural", "-", "-", "-", "-", "a~ f a~"),
+    ("vingt", "Adjectif numéral", "vingt", "-", "-", "-", "-", "-", "v e~"),
+    ("cinq", "Adjectif numéral", "cinq", "-", "-", "-", "-", "-", "s e~ k"),
+]
+
+
+def _said(text: str, spec: list[tuple[str, str, str]]) -> list[str]:
+    lines = [HEAD.rstrip("\n")]
+    for n, (lemma, category, form, number, mood, gender, tense, person, said) in enumerate(
+        IN_CONTEXT
+    ):
+        grammar = f"{number};{mood};{gender};{tense};{person}"
+        lines.append(f"{lemma};{n};{category};;;-;;;m;{form};{n};{grammar};{said};m")
+    table = morphalou.parse(lines)
+    return [one.ipa for one in french_said.sentence(text, tagged(text, spec), table)]
+
+
+def test_a_word_is_said_as_its_next_word_has_it() -> None:
+    """*tous* the determiner is /tu/, the pronoun /tus/; *six* and *dix* drop their
+    consonant before a consonant and keep it before a vowel or a stop; *vingt* says its t
+    at the head of a compound (ling-fr's read, 2026-11-05, targum-internal#644)."""
+    det = _said(
+        "tous les loups", [("tous", "tout", "DET"), ("les", "le", "DET"), ("loups", "loup", "NOUN")]
+    )
+    assert det[0] == "tu"
+    assert _said("tous", [("tous", "tout", "PRON")]) == ["tus"], "the pronoun says its s"
+    assert _said("six chèvres", [("six", "six", "NUM"), ("chèvres", "chèvre", "NOUN")])[0] == "si"
+    assert _said("dix chèvres", [("dix", "dix", "NUM"), ("chèvres", "chèvre", "NOUN")])[0] == "di"
+    assert _said("six enfants", [("six", "six", "NUM"), ("enfants", "enfant", "NOUN")])[0] == "sis"
+    assert _said("six, chèvres", [("six", "six", "NUM"), ("chèvres", "chèvre", "NOUN")])[0] == "sis"
+    assert _said("vingt-cinq", [("vingt-cinq", "vingt-cinq", "NUM")]) == ["vɛ̃tsɛ̃k"]
 
 
 # --- the page -----------------------------------------------------------------------
@@ -335,10 +381,7 @@ def french_page(out: Path, monkeypatch: pytest.MonkeyPatch, *, on: bool, fetched
     )
     from targum.render import render
 
-    if on:
-        monkeypatch.setenv(french_said.FLAG, "1")
-    else:
-        monkeypatch.delenv(french_said.FLAG, raising=False)
+    monkeypatch.setenv(french_said.FLAG, "1" if on else "0")
     parsed = morphalou.parse(table().splitlines())
     monkeypatch.setattr(morphalou, "lexicon", lambda: parsed if fetched else None)
     segments, tokens = [], {}

@@ -28,6 +28,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   dictionary reading is committed. Deploy checks and calibrates each language on its own
   (`finds forms --drop-short`, `--check --language`), so a thin Russian shelf costs
   Russian alone. A box without the `russian` extra pools no Russian. No new strings.
+- French's hard spots are each measured on French gold, and the IPA and the false
+  friends are on for every French reader (targum-internal#644, #266, #267; David's D6,
+  2026-11-05). ling-fr read the liaison gold, the false-friends list and every line it
+  says on the shelf, and wrote a gold for the passé composé against the imparfait.
+  Liaison precision is 1.0 with the gold's tags (80 of 80) and with the tagger's (71 of
+  71), floor 0.98. *tous* the determiner now reads /tu/, *six*, *dix* and *huit* before a
+  consonant /si/, /di/, /ɥi/, and *vingt-cinq* says its t. The false-friends list loses
+  *merci*, *notoire*, *agression* and *spectacle*, mends six lines, says *matériel* and
+  *nouvelle* only of the noun and *assister* only before *à*, and gains eleven entries:
+  1.0 in context (91 of 91), floor 0.97, where the drafted list read 0.967. The card's
+  tense names 101 of ling-fr's 102 passé composé and imparfait verbs right and calls none
+  of her 45 traps either (floors 0.97, and 0.045 at most). `TARGUM_FRENCH_IPA` and
+  `TARGUM_FALSE_FRIENDS` are on unless set to 0; a French text carries them from its
+  next rebuild. French's known-issues list is on record. French still wears
+  Experimental: register (ne-drop, on/nous) has no floor and there is no read-through.
+  No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's

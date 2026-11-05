@@ -234,12 +234,13 @@ def test_french_notes_wait_for_their_switches(
     words = [{"language": "fr", "lemma": "actuellement", "status": 1, "at": 1, "seen": 1}]
     call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
 
-    monkeypatch.delenv("TARGUM_FALSE_FRIENDS", raising=False)
-    monkeypatch.delenv("TARGUM_FRENCH_IPA", raising=False)
+    monkeypatch.setenv("TARGUM_FALSE_FRIENDS", "0")
+    monkeypatch.setenv("TARGUM_FRENCH_IPA", "0")
     _, said, _ = call(port, "GET", f"/account/words?language=fr&k={token}", cookie=cookie)
     assert said["notes"] == {}, "off, the row is what it was"
 
-    monkeypatch.setenv("TARGUM_FALSE_FRIENDS", "1")
+    # On unless turned off, since ling-fr's read (D6, 2026-11-05).
+    monkeypatch.delenv("TARGUM_FALSE_FRIENDS")
     _, said, _ = call(port, "GET", f"/account/words?language=fr&k={token}", cookie=cookie)
     assert said["notes"]["actuellement"]["friend"]["looks"] == "actually"
     _, said, _ = call(port, "GET", f"/account/words?language=fr&into=ru&k={token}", cookie=cookie)
