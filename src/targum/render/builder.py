@@ -2518,6 +2518,9 @@ def list_page(token: str, which: str, language: str = "en") -> str:
                 "subs.",
                 "practice.",
                 "sentences.",
+                # Home's words to know first share the reader's name for its own list
+                # (design.md §12, 2026-11-05).
+                "reader.preread.words-to-know-first",
             ),
         )
     )
