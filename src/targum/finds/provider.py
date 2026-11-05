@@ -26,8 +26,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .. import choose, parts
 from .. import level as level_module
-from .. import parts
 from ..video import youtube as youtube_module
 from . import pool
 from .score import Score
@@ -36,8 +36,7 @@ if TYPE_CHECKING:
     from ..accounts import Store
     from ..estimate import Estimate
 
-#: The chooser's floor (`choose.FLOOR`), restated so this module has no import cycle
-#: with it; a test holds the two equal.
+#: The chooser's floor (`choose.FLOOR`), restated here; a test holds the two equal.
 FLOOR = 0.90
 
 #: How far above the floor a find must be to be offered (plan §2.3).
@@ -63,10 +62,14 @@ class Scored:
     #: The estimated share (`estimate`), which the chooser goes by; None where there is
     #: no estimate, and then the marked share chooses.
     expected: float | None = None
+    #: What fast speech takes off the share it is chosen on, for a reader below gimel
+    #: (`choose.rate_penalty`; design.md §12, 2026-11-05). The card still says `share`.
+    penalty: float = 0.0
 
     @property
     def chosen_on(self) -> float:
-        return self.share if self.expected is None else self.expected
+        on = self.share if self.expected is None else self.expected
+        return round(on - self.penalty, 6) if self.penalty else on
 
 
 def share_of(find: pool.Find, marked: Mapping[str, int]) -> float | None:
@@ -126,6 +129,7 @@ def offered(
     # thing it does (2026-11-03). It stays in the pool and comes back once a look at
     # YouTube answers again (`video.youtube.reachable`).
     youtube_ok: bool | None = None
+    words = choose.reader_words(estimate)
     for find in near:
         if find.url in own or f"{PREFIX}{find.id}" in passed:
             continue
@@ -140,7 +144,8 @@ def offered(
         if share is None:
             continue
         expected = expected_of(find, estimate) if estimate is not None else None
-        chosen = Scored(find, share, expected)
+        penalty = choose.rate_penalty(find.rate, words) if find.medium in choose.HEARD else 0.0
+        chosen = Scored(find, share, expected, penalty)
         if under:
             if chosen.chosen_on >= FLOOR:
                 continue

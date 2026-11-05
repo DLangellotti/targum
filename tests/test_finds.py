@@ -434,6 +434,33 @@ def test_only_a_measured_find_clear_of_the_floor_is_offered(store: Store) -> Non
     assert row["credits"] == 0 and row["minutes"] == 1
 
 
+def test_fast_speech_holds_a_find_back_from_a_reader_below_gimel_only(store: Store) -> None:
+    """A podcast at 150 words a minute needs 92% of a reader below gimel, so at 93% it
+    is no longer clear of the floor; a reader at gimel, and a text at the same rate, are
+    untouched (design.md §12, "Fast speech asks a little more of a reader below gimel",
+    2026-11-05)."""
+    import math
+
+    from targum import estimate as estimate_module
+
+    marked = {"בית": KNOWN, "ספר": 1}
+    keep(store, "https://n.example/heard", {"בית": 93, "ספר": 7}, medium="podcast", rate=150)
+    keep(store, "https://n.example/read", {"בית": 93, "ספר": 7}, rate=150)
+
+    def reader(words: int) -> estimate_module.Estimate:
+        theta = math.log(words) + estimate_module.FORMS_PER_LEMMA
+        return estimate_module.Estimate("he", theta, marked)
+
+    below = provider.offered(store, "he", marked, credits_left=2, estimate=reader(1800))
+    assert [one.find.url for one in below] == ["https://n.example/read"]
+    gimel = provider.offered(store, "he", marked, credits_left=2, estimate=reader(4500))
+    assert {one.find.url for one in gimel} == {"https://n.example/heard", "https://n.example/read"}
+    heard = next(one for one in gimel if one.find.url == "https://n.example/heard")
+    held = replace(heard, penalty=choose.rate_penalty(heard.find.rate, 1800))
+    assert held.chosen_on == pytest.approx(0.91), "chosen on two points less"
+    assert held.share == pytest.approx(0.93), "the card still says what is known"
+
+
 def test_a_youtube_find_is_not_offered_while_youtube_is_out_of_reach(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
