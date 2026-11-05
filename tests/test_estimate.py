@@ -44,6 +44,26 @@ def test_commoner_words_are_likelier_known() -> None:
     assert est.difficulty(RARE, "he") == pytest.approx(math.log(est.UNRANKED_AT))
 
 
+def test_a_borrowed_word_is_easier_than_its_place_says(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """design.md §12, "A borrowed word is easier than its frequency says" (2026-11-05)."""
+    plain = est.difficulty(MIDDLE, "he")
+    index = index_of({"t": {MIDDLE: 1, "של": 1}})
+    before = dict(zip(index.words, est.Estimate("he", 9.0, {}).chances(index), strict=True))
+    file = tmp_path / "roots-he.json"
+    rows = {MIDDLE: {"root": None, "borrowed": True}, "של": {"root": None, "borrowed": False}}
+    body = {"version": "roots/1", "language": "he", "lemmas": rows}
+    file.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setenv("TARGUM_ROOTS_HE", str(file))
+    assert est.difficulty(MIDDLE, "he") == pytest.approx(plain - est.BORROWED)
+    known = est.Estimate("he", 9.0, {})
+    by_word = dict(zip(index.words, known.chances(index), strict=True))
+    assert by_word[MIDDLE] == pytest.approx(known.chance(MIDDLE)), "the table agrees"
+    assert by_word[MIDDLE] > before[MIDDLE]
+    assert by_word["של"] == pytest.approx(before["של"]), "a word not borrowed is unchanged"
+
+
 def test_a_mark_always_wins() -> None:
     known = est.Estimate("he", 20.0, {"ים": KNOWN, "בית": 2, "דוד": IGNORED})
     assert known.p_known("ים") == 1.0

@@ -47,15 +47,28 @@ the chooser's first pick lands in the band for 47–57% of readers against 1% on
 After reading the estimate runs 3–4 points high, and the first pick lands in the band
 about as often as on marks (51–65%), short of the 63–78% a perfect estimate would.
 
-**What it is not, yet.** Part of speech, loanwords and root families (the card's other
-features), pooled difficulty from many readers (#586) and forgetting all come later; each
-changes `difficulty` or adds evidence, not the callers.
+**A borrowed word is easier than its place says** (design.md §12, "A borrowed word is
+easier than its frequency says", 2026-11-05). A Hebrew word targum's root lexicon marks
+borrowed (טלפון, אינטרנט, קפה: `annotate.root_card`, the file already on the box) has
+`BORROWED` taken off its `b`. Measured on the laptop's marks, five folds held out, the
+weight fitted on the four: pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, log loss
+0.1865 → 0.1848, calibration error unchanged at 0.027; with the weight fitted on the
+other readers only, 0.917. A machine without the lexicon estimates as before.
+
+**Tried and left out** (2026-11-05, the same run, `scripts/eval_difficulty_features.py`):
+part of speech (verb, adjective, adverb and the closed classes against nouns) loses, AUC
+0.914 and 0.909 with the weights from the other readers; a loanword list drawn from the
+glosses (a Hebrew word whose English gloss it transliterates) is level, 0.916, inside
+the noise; and the share of the root family the reader knows is level, 0.916, its weight
+the wrong way round. Pooled difficulty from many readers (#586) and forgetting come
+later; each changes `difficulty` or adds evidence, not the callers.
 """
 
 from __future__ import annotations
 
 import math
 import threading
+import unicodedata
 from array import array
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -98,6 +111,11 @@ SKIP_WEIGHT = 0.1
 #: its made-up words measure it for them instead (`check.guess`).
 CLAIM_GUESS = 0.15
 
+#: How much easier, in log rank, a word the root lexicon marks borrowed is than its
+#: place in the frequency list says: about five times commoner. Fitted on the laptop's
+#: marks (2026-11-05, five folds): 1.60, the mean of the folds' weights.
+BORROWED = 1.6
+
 #: Where theta is looked for: the 20th word to past the 400,000th.
 LOW, HIGH = math.log(20), math.log(400_000)
 
@@ -110,11 +128,37 @@ def sigmoid(x: float) -> float:
 
 
 def difficulty(lemma: str, language: str) -> float:
-    """A word's `b`: the log of its place in the language's frequency list."""
+    """A word's `b`: the log of its place in the language's frequency list, less
+    `BORROWED` for a word the root lexicon marks borrowed."""
     from .annotate import frequency
 
     place = frequency.rank(lemma, language)
-    return math.log(place) if place else math.log(UNRANKED_AT)
+    b = math.log(place) if place else math.log(UNRANKED_AT)
+    loans = _borrowed(language)
+    if loans and unicodedata.normalize("NFC", frequency._POINTS.sub("", lemma)) in loans:
+        b -= BORROWED
+    return b
+
+
+def _borrowed(language: str) -> frozenset[str]:
+    """The words the root lexicon marks borrowed, for Hebrew; none for another language,
+    or where the lexicon is not on this machine. Read again when the file changes."""
+    if language.split("-")[0].lower() != "he":
+        return frozenset()
+    from .annotate import root_card
+
+    found = root_card.lexicon("he")
+    if found is None:
+        return frozenset()
+    with _DIFFICULTY_LOCK:
+        held = _LOANS.get(found.version)
+        if held is not None and held[0] is found:
+            return held[1]
+    loans = frozenset(lemma for lemma, row in found.hebrew.items() if row.borrowed)
+    with _DIFFICULTY_LOCK:
+        _LOANS.clear()
+        _LOANS[found.version] = (found, loans)
+    return loans
 
 
 def ranked(language: str) -> bool:
@@ -327,17 +371,19 @@ class Estimate:
 
 
 _DIFFICULTY_LOCK = threading.Lock()
-_DIFFICULTIES: dict[tuple[int, str], tuple[tuple[str, ...], array[float]]] = {}
+_DIFFICULTIES: dict[tuple[int, str], tuple[tuple[str, ...], frozenset[str], array[float]]] = {}
+_LOANS: dict[str, tuple[Any, frozenset[str]]] = {}
 
 
 def _difficulties(index: Index, language: str) -> array[float]:
     """`difficulty` of every form in the index's table for one language; NaN for a form
     not written in the language's script, which `chances` reads as 0."""
     key = (id(index.words), language)
+    loans = _borrowed(language)
     with _DIFFICULTY_LOCK:
         held = _DIFFICULTIES.get(key)
-        if held is not None and held[0] is index.words:
-            return held[1]
+        if held is not None and held[0] is index.words and held[1] is loans:
+            return held[2]
     from .annotate import frequency
 
     places = frequency.ranks(language)
@@ -350,12 +396,15 @@ def _difficulties(index: Index, language: str) -> array[float]:
             values.append(math.nan)
             continue
         place = places.get(bare)
-        values.append(math.log(place) if place else unranked)
+        b = math.log(place) if place else unranked
+        if loans and unicodedata.normalize("NFC", bare) in loans:
+            b -= BORROWED
+        values.append(b)
     with _DIFFICULTY_LOCK:
         # One index at a time is all a box ever reads; an old one is let go.
         for stale in [one for one in _DIFFICULTIES if one[0] != key[0]]:
             del _DIFFICULTIES[stale]
-        _DIFFICULTIES[key] = (index.words, values)
+        _DIFFICULTIES[key] = (index.words, loans, values)
     return values
 
 
