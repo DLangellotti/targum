@@ -41,9 +41,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The floors now come from held-out golds the rules were never tuned on: French 103
   new sentences of the same 14 texts (0.986 and 0.959), Russian 104 segments of 19
   public-domain texts outside the first gold (0.824 and 0.933 as they came, 0.956 and
-  0.956 after five general fixes). Как бы is off the Russian list, так как is refused
-  before же, the tail в вид needs виду, ни… ни never opens on a concessive бы ни, the
-  conjunction что is not что такое, and в то же время lets самое stand before время.
+  0.956 after six general fixes). Как бы counts only before a gerund, participle,
+  adjective, noun, preposition or finite verb and never after бояться or о том, so
+  "lest" and "how would" are refused; так как is refused before же, the tail в вид
+  needs виду, ни… ни never opens on a concessive бы ни, что такое is held to the form
+  такое (the conjunction что такие is not it, an indirect question is), and в то же
+  время lets самое stand before время. On 23,434 shelf segments outside both golds,
+  как бы keeps 66 of its 75 right hits and refuses 54 of its 60 wrong ones, and что
+  такое keeps all 46 right and refuses 9 of 10 wrong.
   The first golds stay as a regression check at their earlier floors.
   The Russian list and both golds await David's read. Hebrew is unchanged; the counts' cache stamp now
   names the French and Russian lists, so each built text's counts are read again once,

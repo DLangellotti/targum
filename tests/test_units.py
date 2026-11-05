@@ -625,13 +625,14 @@ def test_a_correlative_keeps_its_closing_word_from_a_shorter_unit() -> None:
 #: the rules were never tuned on, each at what was measured less two misses
 #: (targum-internal#636): fr 69/72 and 69/74, ru 41/45 and 41/45. The French lines are
 #: new sentences of the tuning gold's 14 texts; the Russian are 19 texts it never saw.
-#: Before the five general Russian fixes the held-out read 42/51 and 42/45, so the
+#: Before the six general Russian fixes the held-out read 42/51 and 42/45, so the
 #: Russian figure is no longer blind. Both Russian golds are ling-ru's draft for
 #: David's read, and only public-domain texts are in the repository.
 FLOORS = {"fr": (0.958, 0.932), "ru": (0.911, 0.911)}
 
 #: The tuning golds (2026-11-05), kept as a regression check at their earlier floors:
-#: fr 120/130 and 120/126, ru 66/77 and 66/75.
+#: fr 120/130 and 120/126, ru 66/77 and 66/75 (measured 68/76 and 68/75 since как бы
+#: came back with its context rule).
 TUNING_FLOORS = {"fr": (0.923, 0.952), "ru": (0.857, 0.880)}
 
 
@@ -662,27 +663,110 @@ def test_the_lists_hold_their_floor_on_the_held_out_gold(language: str) -> None:
     assert right / truth >= recall, f"{right}/{truth}"
 
 
-def test_the_held_out_russian_fixes() -> None:
-    """ling-ru's held-out gold (2026-11-06), each fix a pattern rather than a line."""
+# ling-ru's held-out gold (2026-11-06) and qa-claude's shelf read on targum#1114: each
+# fix a pattern rather than a line, one test each, with a right hit kept beside the
+# wrong one refused.
+
+
+def test_so_how_is_not_since() -> None:
     how = said(("Ну", "ну"), ("так", "так"), ("как", "как"), ("же", "же"), ("я", "я"))
     assert keys_in(how, "ru") == [], "так как же is so how, not since"
     since = said(("так", "так"), ("как", "как"), ("жизнь", "жизнь"))
     assert keys_in(since, "ru") == ["так как"]
+
+
+def test_the_tail_of_to_mean_is_vidu_only() -> None:
     guise = said(("в", "в", "ADP"), ("виде", "вид", "NOUN"), ("странника", "странник"))
-    assert keys_in(guise, "ru") == [], "the tail of иметь в виду is виду only"
+    assert keys_in(guise, "ru") == [], "в виде странника is in the guise of"
+
+
+def test_a_concessive_ni_after_by_is_not_neither_nor() -> None:
     ever = said(
         ("куда", "куда"), ("бы", "бы"), ("ни", "ни"), ("идти", "идти"),
         ("о", "о"), ("чем", "что"), ("ни", "ни"), ("говорить", "говорить"),
     )  # fmt: skip
-    assert keys_in(ever, "ru") == [], "a concessive ни after бы is not ни… ни"
-    that = said(("знал", "знать"), ("что", "что", "SCONJ"), ("такие", "такой", "DET"))
-    assert keys_in(that, "ru") == [], "the conjunction что is not что такое"
+    assert keys_in(ever, "ru") == []
+
+
+def test_what_is_is_held_to_the_form_takoe() -> None:
+    """The conjunction что before такие, такой, такая is not что такое; an indirect
+    question, which the annotator also tags SCONJ, is (qa-claude's shelf read)."""
+    that = said(
+        ("я", "я", "PRON"), ("только", "только", "ADV"), ("хочу", "хотеть", "VERB"),
+        ("сказать", "сказать", "VERB"), ("что", "что", "SCONJ"), ("такие", "такой", "DET"),
+        ("люди", "человек", "NOUN"),
+    )  # fmt: skip
+    assert keys_in(that, "ru") == [], "Человек в футляре: что такие люди"
+    asked = said(
+        ("Тут-то", "тут-то", "ADV"), ("он", "он", "PRON"), ("и", "и", "PART"),
+        ("узнал", "узнать", "VERB"), ("что", "что", "SCONJ"), ("такое", "такой", "DET"),
+        ("уха", "уха", "NOUN"),
+    )  # fmt: skip
+    assert keys_in(asked, "ru") == ["что такой"], "Премудрый пискарь: что такое уха"
     what = said(("Что", "что", "PRON"), ("такое", "такой", "DET"))
     assert keys_in(what, "ru") == ["что такой"]
+
+
+def test_samoe_may_stand_before_vremya() -> None:
     same = said(("в", "в"), ("то", "тот"), ("же", "же"), ("самое", "самый"), ("время", "время"))
     assert keys_in(same, "ru") == ["в тот же время"], "самое may stand before время"
-    sort = said(("Зверь", "зверь"), ("как", "как"), ("бы", "бы"), ("жаловался", "жаловаться"))
-    assert keys_in(sort, "ru") == [], "как бы is off the list: 1 right of 4 in both golds"
+
+
+def _as_if(*after: tuple[str, ...], before: tuple[tuple[str, ...], ...] = ()) -> list[str]:
+    return keys_in(said(*before, ("как", "как", "ADV"), ("бы", "бы", "PART"), *after), "ru")
+
+
+def test_as_if_holds_before_a_gerund_a_preposition_or_a_verb() -> None:
+    """Муму, Зверь: the listed sense, "as if, as it were"."""
+    assert _as_if(
+        ("жалуясь", "жаловаться", "VERB", "VerbForm=Conv"), ("и", "и", "CCONJ"),
+        before=(("Муму", "Муму", "PROPN"), ("слабо", "слабо", "ADV"),
+                ("визгнула", "визгнуть", "VERB", "VerbForm=Fin")),
+    ) == ["как бы"]  # fmt: skip
+    assert _as_if(
+        ("в", "в", "ADP"), ("раздумье", "раздумье", "NOUN"),
+        before=(("он", "он", "PRON"), ("остановился", "остановиться", "VERB", "VerbForm=Fin")),
+    ) == ["как бы"]  # fmt: skip
+    assert _as_if(
+        ("жаловался", "жаловаться", "VERB", "VerbForm=Fin"),
+        before=(("Зверь", "зверь", "NOUN"),),
+    ) == ["как бы"]
+
+
+def test_as_if_is_not_lest_or_how_would() -> None:
+    """The wrong kinds on the shelf: "lest" after бояться, "how to" after о том, the
+    conditional before a pronoun, an adverb or хотеться."""
+    lest = _as_if(
+        ("у", "у", "ADP"), ("нас", "мы", "PRON"), ("романа", "роман", "NOUN"),
+        ("не", "не", "PART"),
+        before=(("Ане", "Аня", "PROPN"), ("боялась", "бояться", "VERB", "VerbForm=Fin")),
+    )  # fmt: skip
+    assert lest == [], "Вишнёвый сад: боялась, как бы у нас романа не вышло"
+    how = _as_if(
+        ("работу", "работа", "NOUN"), ("к", "к", "ADP"),
+        before=(("думала", "думать", "VERB", "VerbForm=Fin"), ("о", "о", "ADP"),
+                ("том", "то", "PRON")),
+    )  # fmt: skip
+    assert how == [], "Муму: думала только о том, как бы работу к сроку кончить"
+    told = _as_if(
+        ("вам", "вы", "PRON"), ("это", "это", "PRON"),
+        ("рассказать", "рассказать", "VERB", "VerbForm=Inf"),
+        before=(("не", "не", "PART"), ("знаю", "знать", "VERB", "VerbForm=Fin")),
+    )  # fmt: skip
+    assert told == [], "Белые ночи: не знаю, как бы вам это рассказать"
+    hid = _as_if(
+        ("получше", "получше", "ADV"), ("ее", "она", "PRON"),
+        ("спрятать", "спрятать", "VERB", "VerbForm=Inf"),
+        before=(("соображал", "соображать", "VERB", "VerbForm=Fin"),),
+    )  # fmt: skip
+    assert hid == [], "Муму: соображал, как бы получше ее спрятать"
+    wished = _as_if(
+        ("хотелось", "хотеть", "VERB", "VerbForm=Fin"),
+        before=(("не", "не", "PART"), ("удалось", "удаться", "VERB", "VerbForm=Fin")),
+    )  # fmt: skip
+    assert wished == [], "Первая любовь: мне не удалось, как бы хотелось"
+    whatever = _as_if(("то", "то", "DET"), ("ни", "ни", "PART"), ("было", "быть", "AUX"))
+    assert whatever == [], "как бы то ни было is however that may be"
 
 
 @pytest.mark.parametrize("language", ["fr", "ru"])

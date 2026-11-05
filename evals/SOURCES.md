@@ -456,8 +456,9 @@ from the segments where the matcher fires or where all of a unit's lemmas occur.
   all in the first gold, so these are new sentences of the same texts.
 - **Russian is held out by text:** 19 public-domain texts not in the first gold (Chekhov,
   Dostoevsky, Lermontov, Leskov, Pushkin, Tolstoy, Turgenev). Each line names its
-  annotator. Five general fixes were taken from its notes after it was scored (0.824 and
-  0.933 as it came), so the Russian figure is no longer blind. **It is ling-ru's draft
+  annotator. Six general fixes were taken from its notes after it was scored (0.824 and
+  0.933 as it came), so the Russian figure is no longer blind; two of them were then
+  narrowed against the wider shelf (targum#1114). **It is ling-ru's draft
   for David's read** (`"drafted"`).
 - **Licence:** the texts are public domain; the labels are targum's own.
 - **Use:** evaluation only. The suite's floors are set from these golds.
