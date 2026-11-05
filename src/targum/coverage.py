@@ -19,9 +19,10 @@ number means a text will be comfortable, not that it has been finished.
 from __future__ import annotations
 
 import json
+import math
 from array import array
 from bisect import bisect_left
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import tzinfo
 from functools import cached_property, lru_cache
@@ -96,7 +97,19 @@ def tally(folder: Path) -> dict[str, int]:
     return _lemmas_and_counts(folder, counted=True)[1]
 
 
+def units_in(folder: Path) -> dict[str, int]:
+    """How often each multiword unit comes round in a built targum (`units.match`;
+    design.md §12, "An idiom is one word to know", 2026-11-05), by its key. Its words
+    are still in `tally`: a measure takes them out where it counts the unit."""
+    return _read(folder, counted=True)[2]
+
+
 def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int]]:
+    found = _read(folder, counted=counted)
+    return found[0], found[1]
+
+
+def _read(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int], dict[str, int]]:
     """Every distinct dictionary form in a built targum, and each one's running count.
 
     Cached beside the annotation it came from, because the annotation is large — 4.4 MB
@@ -109,18 +122,19 @@ def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[
     """
     annotation = folder / ANNOTATION
     if not annotation.is_file():
-        return [], {}
+        return [], {}, {}
     # The cache is stamped with the annotation it was read from. An annotation is
     # rewritten in place when the annotator learns something — every word became a
     # token on 2026-08-28 — and a cache that outlived that would go on reporting a
     # denominator a tenth too small, for half the shelf, with nothing to say so.
+    from . import units as units_module
     from .ingest import post as post_module
 
     try:
         stat = annotation.stat()
-        stamp = [stat.st_mtime_ns, stat.st_size]
+        stamp: list[int | str] = [stat.st_mtime_ns, stat.st_size]
     except OSError:
-        return [], {}
+        return [], {}, {}
     # A post's hashtags, mentions and addresses are names, not words (design.md §12, "A
     # post keeps its shape"), and are left out here as the page leaves them out. The
     # stamp says so, because a count cached before the post's manifest was there counted
@@ -128,6 +142,9 @@ def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[
     unwordly = post_module.left_out(folder)
     if unwordly is not None:
         stamp.append(1)
+    # And the multiword units, counted under the list they were matched against
+    # (design.md §12, "An idiom is one word to know", 2026-11-05).
+    stamp.append(f"units:{units_module.stamp()}")
     cached = folder / LEMMAS
     if cached.is_file():
         try:
@@ -142,25 +159,34 @@ def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[
             and (not counted or isinstance(found.get("counts"), dict))
         ):
             kept = found.get("counts") if isinstance(found.get("counts"), dict) else {}
+            held = found.get("units") if isinstance(found.get("units"), dict) else {}
             return (
                 [str(lemma) for lemma in found.get("lemmas") or []],
                 {str(lemma): int(n) for lemma, n in (kept or {}).items()},
+                {str(key): int(n) for key, n in (held or {}).items()},
             )
 
     try:
         loaded = json.loads(annotation.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return [], {}
+        return [], {}, {}
 
     from .annotate.base import not_vocabulary
 
     # A name is not a word the reader has to know, so it is not one they can fail to
     # know either: left out of the denominator, or a book of names could never be read.
     counts: dict[str, int] = {}
+    joined: dict[str, int] = {}
+    # Units are matched on the text's words in order, a post's tags left out. A word of
+    # one that is not counted — DICTA tags the אחד of אף אחד a numeral — stays out: the
+    # unit is recorded with the words that are counted (`units.entry`).
+    joins = str(loaded.get("language") or "").split("-")[0] in units_module.LANGUAGES
     for sid, tokens in (loaded.get("tokens") or {}).items():
+        here: list[dict[str, Any]] = []
+        counted_here: list[bool] = []
         for token in tokens:
             lemma = str(token.get("lemma") or "")
-            if not lemma or not_vocabulary(token.get("pos"), token.get("entity")):
+            if not lemma:
                 continue
             if (
                 unwordly
@@ -170,18 +196,31 @@ def _lemmas_and_counts(folder: Path, *, counted: bool) -> tuple[list[str], dict[
                 )
             ):
                 continue
-            counts[lemma] = counts.get(lemma, 0) + 1
+            counted = not not_vocabulary(token.get("pos"), token.get("entity"))
+            if counted:
+                counts[lemma] = counts.get(lemma, 0) + 1
+            if joins:
+                here.append(token)
+                counted_here.append(counted)
+        for at, unit in units_module.match(here):
+            words = [part for n, part in enumerate(unit.parts) if counted_here[at + n]]
+            if words:
+                name = units_module.entry(unit.key, words)
+                joined[name] = joined.get(name, 0) + 1
     out = sorted(counts)
 
     try:
         write_atomic(
             cached,
-            json.dumps({"stamp": stamp, "lemmas": out, "counts": counts}, ensure_ascii=False),
+            json.dumps(
+                {"stamp": stamp, "lemmas": out, "counts": counts, "units": joined},
+                ensure_ascii=False,
+            ),
         )
     except OSError:
         # A read-only or full disk costs the cache, not the answer.
         pass
-    return out, counts
+    return out, counts, joined
 
 
 def against(folder: Path, marked: dict[str, int]) -> Coverage | None:
@@ -211,16 +250,71 @@ def running_against(
     counts = tally(folder)
     if not counts:
         return None
-    return measure_running(counts, marked, estimate)
+    return measure_running(counts, marked, estimate, units_in(folder))
+
+
+def _joined(
+    found: Iterable[tuple[str, int]],
+    count_of: Callable[[str], int],
+    status_of: Callable[[str], int | None],
+    chance_of: Callable[[str], float] | None,
+) -> tuple[int, int, float]:
+    """What counting each multiword unit as one word changes in a running count (design.md
+    §12, "An idiom is one word to know", 2026-11-05), as (known, scored, estimated known):
+    each occurrence's words come out, and one word goes in.
+
+    The unit is known where it is marked known under its own key (a phrase the reader
+    kept and marked, `units.with_phrases`); otherwise it is not known on marks, and the
+    estimate gives it the product of its words' chances, a mark on a word winning (known
+    1, being learned 0). A unit with a word the reader ignored is left as words. A
+    one-letter clitic in a key was never counted, so it does not come out."""
+    from .touchstones import a_word
+    from .units import counted_in
+
+    known = scored = 0
+    guessed = 0.0
+    for name, n in found:
+        key, counted = counted_in(name)
+        parts = [part for part in counted if a_word(part)]
+        if not parts or n <= 0:
+            continue
+        held = [status_of(part) for part in parts]
+        own = status_of(key)
+        if IGNORED in held or own == IGNORED:
+            continue
+        n = min(n, *(count_of(part) for part in parts))
+        if n <= 0:
+            continue
+        chances = [
+            1.0
+            if status == KNOWN
+            else 0.0
+            if status is not None
+            else (chance_of(part) if chance_of is not None else 0.0)
+            for part, status in zip(parts, held, strict=True)
+        ]
+        scored += n * (1 - len(parts))
+        known -= n * sum(1 for status in held if status == KNOWN)
+        guessed -= n * sum(chances)
+        if own == KNOWN:
+            known += n
+            guessed += n
+        elif own is None:
+            guessed += n * math.prod(chances)
+    return known, scored, guessed
 
 
 def measure_running(
-    counts: Mapping[str, int], marked: Mapping[str, int], estimate: Any = None
+    counts: Mapping[str, int],
+    marked: Mapping[str, int],
+    estimate: Any = None,
+    units: Mapping[str, int] | None = None,
 ) -> Coverage:
     """Running counts measured against marks: `known` the share of running words marked
     known, `fresh` the distinct forms not on the list, `total` running words. With
     `estimate`, `expected` counts each unmarked word as its chance (`Estimate.chance`),
-    as `Index.expected` counts a catalogue entry's."""
+    as `Index.expected` counts a catalogue entry's. `units` (`units_in`) counts each
+    multiword unit as one word (`_joined`)."""
     from .touchstones import a_word
 
     known = scored = fresh = 0
@@ -238,6 +332,17 @@ def measure_running(
             fresh += 1
             if estimate is not None:
                 guessed += n * estimate.chance(lemma)
+    if units:
+        guessed += known
+        more_known, more_scored, more_guessed = _joined(
+            units.items(),
+            lambda part: int(counts.get(part, 0)),
+            marked.get,
+            estimate.chance if estimate is not None else None,
+        )
+        known += more_known
+        scored += more_scored
+        guessed += more_guessed - known
     expected = (known + guessed) / scored if scored and estimate is not None else None
     if estimate is not None and not scored:
         expected = 0.0
@@ -301,6 +406,20 @@ class Index:
     #: version bump because an older reader ignores it and a newer one reads an older
     #: file as uncounted, so neither misreads the other.
     counts: dict[str, array[int]] = field(default_factory=dict)
+    #: How often each multiword unit comes round in an entry (`units_in`; design.md §12,
+    #: "An idiom is one word to know", 2026-11-05), as a flat run of (position of its key
+    #: in `words`, count). A key is in `words` and never in `texts`, so a word's own
+    #: counts and an entry's distinct forms are what they were. Missing for an entry
+    #: counted before units were, which counts its words as before.
+    units: dict[str, tuple[int, ...]] = field(default_factory=dict)
+
+    def _joined_in(self, entry_id: str) -> list[tuple[str, int]]:
+        """An entry's units, as (key, count)."""
+        flat = self.units.get(entry_id, ())
+        last = len(self.words)
+        return [
+            (self.words[at], n) for at, n in zip(flat[0::2], flat[1::2], strict=True) if at < last
+        ]
 
     def _position(self, lemma: str) -> int | None:
         """Where a dictionary form sits in the shared table, which is sorted."""
@@ -416,6 +535,16 @@ class Index:
                 known += n
             elif status is None:
                 fresh += 1
+        joined = self._joined_in(entry_id)
+        if joined:
+            more_known, more_scored, _ = _joined(
+                joined,
+                lambda part: self.count_in(entry_id, part) or 0,
+                lambda lemma: _at(held, self._position(lemma)),
+                None,
+            )
+            known += more_known
+            scored += more_scored
         return Coverage(known=known / scored if scored else 0.0, fresh=fresh, total=scored)
 
     def expected(
@@ -452,7 +581,27 @@ class Index:
                 known += n
             elif status is None and at < last:
                 known += n * chances[at]
+        joined = self._joined_in(entry_id)
+        if joined:
+
+            def chance_of(lemma: str) -> float:
+                at = self._position(lemma)
+                return chances[at] if at is not None and at < last else 0.0
+
+            _, more_scored, more_known = _joined(
+                joined,
+                lambda part: self.count_in(entry_id, part) or 0,
+                lambda lemma: _at(statuses, self._position(lemma)),
+                chance_of,
+            )
+            known += more_known
+            scored += more_scored
         return known / scored if scored else 0.0
+
+
+def _at(statuses: Mapping[int, int], at: int | None) -> int | None:
+    """A status by position, None where the form is not in the table or not marked."""
+    return None if at is None else statuses.get(at)
 
 
 EMPTY = Index(words=(), texts={})
@@ -508,11 +657,20 @@ def _index_from(loaded: object) -> Index:
                 counts[str(entry_id)] = array("I", (int(n) for n in tally))
             except (OverflowError, TypeError, ValueError):
                 continue
-    return Index(words=words, texts=texts, counts=counts)
+    units: dict[str, tuple[int, ...]] = {}
+    for entry_id, flat in (loaded.get("units") or {}).items():
+        if isinstance(flat, list) and len(flat) % 2 == 0 and str(entry_id) in counts:
+            try:
+                units[str(entry_id)] = tuple(int(n) for n in flat)
+            except (TypeError, ValueError):
+                continue
+    return Index(words=words, texts=texts, counts=counts, units=units)
 
 
 def build_index(
-    found: dict[str, list[str]], tallies: dict[str, dict[str, int]] | None = None
+    found: dict[str, list[str]],
+    tallies: dict[str, dict[str, int]] | None = None,
+    units: dict[str, dict[str, int]] | None = None,
 ) -> Index:
     """Turn a map of entry id to its dictionary forms into the shared-table shape.
 
@@ -520,8 +678,22 @@ def build_index(
     (`occurrences.Occurrences.totals`); an entry with no tally is indexed uncounted. A
     form in `found` that the tally does not have counts 0 — the two are read off the
     same annotation, so that is a word neither filter kept, not a word nobody counted.
+    `units` is each counted entry's multiword units (`units_in`), whose keys join the
+    table and no entry's forms.
     """
-    table = sorted({lemma for lemmas_ in found.values() for lemma in lemmas_ if lemma})
+    joined = {
+        entry_id: {key: n for key, n in found_units.items() if key and n > 0}
+        for entry_id, found_units in (units or {}).items()
+        if entry_id in (tallies or {})
+    }
+    from .units import counted_in
+
+    table = sorted(
+        {lemma for lemmas_ in found.values() for lemma in lemmas_ if lemma}
+        | {key for found_units in joined.values() for key in found_units}
+        # And each unit's own key, which its mark is filed under (`units.with_phrases`).
+        | {counted_in(key)[0] for found_units in joined.values() for key in found_units}
+    )
     at = {lemma: n for n, lemma in enumerate(table)}
     texts: dict[str, tuple[int, ...]] = {}
     for entry_id, lemmas_ in found.items():
@@ -536,7 +708,12 @@ def build_index(
     for entry_id, tally in (tallies or {}).items():
         if entry_id in texts:
             counts[entry_id] = array("I", (int(tally.get(table[at], 0)) for at in texts[entry_id]))
-    return Index(words=tuple(table), texts=texts, counts=counts)
+    flat = {
+        entry_id: tuple(n for key in sorted(found_units) for n in (at[key], found_units[key]))
+        for entry_id, found_units in joined.items()
+        if entry_id in counts and found_units
+    }
+    return Index(words=tuple(table), texts=texts, counts=counts, units=flat)
 
 
 def write_index(path: Path, index: Index) -> None:
@@ -556,6 +733,15 @@ def write_index(path: Path, index: Index) -> None:
                         }
                     }
                     if index.counts
+                    else {}
+                ),
+                **(
+                    {
+                        "units": {
+                            entry_id: list(flat) for entry_id, flat in sorted(index.units.items())
+                        }
+                    }
+                    if index.units
                     else {}
                 ),
             },

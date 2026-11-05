@@ -5180,6 +5180,18 @@ class Store:
         ).fetchall()
         return [str(row["text"]) for row in rows]
 
+    def known_phrases(self, person_id: int | None) -> list[str]:
+        """The text of every phrase this person kept and marked known, for the multiword
+        units they know (`units.with_phrases`; design.md §12, "An idiom is one word to
+        know", 2026-11-05)."""
+        if person_id is None:
+            return []
+        rows = self.db.execute(
+            "SELECT text FROM phrase WHERE person = ? AND gone = 0 AND status = ? AND text != ''",
+            (person_id, KNOWN_STATUS),
+        ).fetchall()
+        return [str(row["text"]) for row in rows]
+
     def chat_open(self, person_id: int | None, language: str = "he", mode: str = "talk") -> str:
         """Start a conversation. Its id is a bearer token in the sense a job's is:
         unguessable, and still checked against the asker on every read."""
