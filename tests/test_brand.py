@@ -572,6 +572,8 @@ THUMBED = (
     ".sub-latest-title",
     ".sub-item-title",
     ".sub-foot a",
+    # Easier and Harder on Home's pick (design.md §12, 2026-11-05).
+    ".rc-step .btn",
 )
 
 

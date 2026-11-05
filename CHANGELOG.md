@@ -21,6 +21,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and four hundred characters of summary. Every other item is measured as before. Each
   row says `measured_on`, either `article` or `headline`. Nothing is fetched and nothing
   new is stored. No new strings.
+- Every pick on Home's one card carries Easier and Harder on its share line (David,
+  2026-11-05; targum-internal#615; design.md §12, "Home's one card offers the words to
+  learn first, and a pick moves easier or harder"). Behind `TARGUM_FIND_BUTTON`.
+  `POST /find` with `step` answers the next pick above or below the card's share, from
+  the shelf and the pool, within the topic chosen; Easier keeps to the band and Harder
+  walks on under the floor, its picks carrying `harder`. It never looks on the web. The
+  pick left is recorded as set aside. With nothing left the pick stays and the card says
+  "Nothing easier fits yet." or "No other new text is close yet." New strings: "Easier",
+  "Harder", "Nothing easier fits yet.", with Russian drafts.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

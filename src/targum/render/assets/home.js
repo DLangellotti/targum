@@ -1316,6 +1316,80 @@
     body.appendChild(el("p", "rc-quiet", tn("home.card.left", oneCard.left, "{n} web search left today", "{n} web searches left today")));
   }
 
+  /* Easier and Harder on any pick (design.md §12, "Home's one card offers the words to
+     learn first, and a pick moves easier or harder", 2026-11-05; targum-internal#615):
+     two small outline presses on the share line, beside the figure they move. Easier
+     takes the next pick above this share and Harder the next below, within the topic
+     chosen; Harder walks on under the floor, as the reader's own press. The pick left is
+     a suggestion set aside, as Something else's is. With nothing left that way the pick
+     stays and the card says so. */
+  function stepPresses(row, share) {
+    var group = el("span", "rc-step");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", t("home.card.known-short", "{n}% known", { n: share }));
+    [
+      ["easier", t("home.card.step.easier", "Easier")],
+      ["harder", t("home.card.step.harder", "Harder")],
+    ].forEach(function (one) {
+      var press = el("button", "btn ghost outline small rc-step-" + one[0], one[1]);
+      press.type = "button";
+      press.addEventListener("click", function () {
+        stepPick(row, one[0], share);
+      });
+      group.appendChild(press);
+    });
+    return group;
+  }
+
+  function stepPick(row, way, share) {
+    var presses = document.querySelectorAll("#try-next .rc-step .btn");
+    for (var n = 0; n < presses.length; n++) presses[n].disabled = true;
+    var id = row && row.id ? String(row.id) : "";
+    // Only what is finished or under Continue, and the pick itself, are left out: a walk
+    // may come back to a pick it passed.
+    var body = {
+      language: cardAsk.code,
+      step: way,
+      from: share,
+      topics: oneCard.chip ? [oneCard.chip] : [],
+      skip: id ? [id] : [],
+      done: cardAsk.skip.concat(id ? [id] : []),
+    };
+    askWith("/find", body)
+      .then(function (got) {
+        if (oneCard.row !== row) return;
+        if (got && typeof got.left === "number") oneCard.left = got.left;
+        if (got && got.pick) {
+          if (id && cardAsk.aside.indexOf(id) < 0) cardAsk.aside.push(id);
+          suggestNote("aside", row);
+          drawPick(got.pick);
+          var again = document.querySelector("#try-next .rc-step-" + way);
+          if (again && !again.disabled) again.focus();
+          return;
+        }
+        stepSaid(row, way, way === "easier"
+          ? ownLine("home.card.easier-none") || (got && got.message) || t("home.card.easier-none", "Nothing easier fits yet.")
+          : ownLine("home.card.harder-none") || (got && got.message) || t("home.card.harder-none", "No other new text is close yet."));
+      })
+      .catch(function () {
+        if (oneCard.row !== row) return;
+        stepSaid(row, way, t("home.card.suggest-failed", "We couldn't find one for you just now."));
+      });
+  }
+
+  // The pick stays, and a line under its presses says why nothing moved.
+  function stepSaid(row, way, said) {
+    drawPick(row);
+    var body = document.getElementById("try-next");
+    var presses = body && body.querySelector(".rc-presses");
+    if (!presses) return;
+    var line = el("p", "rc-status", said);
+    line.setAttribute("role", "status");
+    presses.parentNode.insertBefore(line, presses.nextSibling);
+    var tried = body.querySelector(".rc-step-" + way);
+    if (tried && tried.focus) tried.focus();
+  }
+
   function drawPick(row, first) {
     if (first !== undefined) oneCard.first = !!first;
     first = oneCard.first;
@@ -1345,7 +1419,12 @@
     // Our estimate shows on the first pick too: it is what the line above the card
     // promises, and a reader with no marks has it (David, 2026-11-03).
     var estimated = estimatedOf(row);
-    if (share && (row.harder || estimated || (!first && !row.scene))) parts.what.appendChild(shareLine({ name: "rc-known" }, share, estimated));
+    if (share && (row.harder || estimated || (!first && !row.scene))) {
+      var known = el("div", "rc-known-row");
+      known.appendChild(shareLine({ name: "rc-known" }, share, estimated));
+      known.appendChild(stepPresses(row, share));
+      parts.what.appendChild(known);
+    }
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
     var from = sourceLine(row, "rc-source");

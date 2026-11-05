@@ -628,6 +628,12 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
 /* Our estimate's label, quiet beside the number it qualifies (§12, 2026-11-04). */
 .rc-known .estimate-ours { font-size: 0.8125rem; font-weight: 400; color: var(--ink-soft); }
 .rc-what .home-card-facts { margin: 0; }
+/* Easier and Harder (§12, 2026-11-05; targum-internal#615): on the share line of any
+   pick, small outline presses beside the figure they move. */
+.rc-known-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.5rem; }
+.rc-known-row .rc-known { margin: 0; }
+.rc-step { display: inline-flex; gap: 0.25rem; }
+.rc-step .btn { min-block-size: 1.75rem; padding-inline: 0.625rem; font-size: 0.8125rem; }
 .rc-credits { margin: 0; font-size: 0.875rem; color: var(--ink); }
 /* Where it comes from (§12, 2026-11-02): the outlet is the link, the day beside it. */
 .rc-source, .more-source { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); min-inline-size: 0; overflow-wrap: anywhere; }
@@ -698,10 +704,12 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   .rc-pick .home-thumb.is-letter .glyph { font-size: 1.75rem; }
   .rc-foot .btn.filled { flex: 1 1 100%; }
   .rc-topics { max-block-size: 14rem; }
+  .rc-step .btn { min-block-size: 2.25rem; }
 }
 @media (hover: none) and (pointer: coarse) {
   .rc-presses .btn, .rc-topics .tab, .rc-head .btn { min-block-size: 44px; }
   .more-rows a { min-block-size: 44px; }
+  .rc-step .btn { min-block-size: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .rc-steps li.now .dot::before { animation: none; }
