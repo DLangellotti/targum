@@ -5715,6 +5715,35 @@ def finds_podcasts(
         )
 
 
+@finds_app.command("shows")
+def finds_shows(
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write the draft rows here as JSON.")
+    ] = None,
+) -> None:
+    """The month's podcast shows to look at (targum-internal#621, plan §1.3): Apple's
+    directory for Israel, searched on the forty topics' Hebrew phrases, less the shows
+    the reviewed list (finds/podcasts.json) and sources.json already hold. Free and
+    read-only: a show joins only when a curator reads its feed, its licence and its
+    robots.txt and writes it into the list. Check the list's `excluded` too."""
+    import json
+
+    from .finds import podcasts
+
+    found = podcasts.propose()
+    for one in found:
+        flag = " [yellow]explicit[/yellow]" if one.explicit else ""
+        console.print(
+            f"{one.name} — {one.publisher} · {one.episodes} episodes, newest {one.newest} · "
+            f"{', '.join(one.chips)}{flag}\n  {one.feed}"
+        )
+    console.print(f"[green]Shows[/green]: {len(found)} not on the list.")
+    if out is not None:
+        rows = [one.row() for one in found]
+        out.write_text(json.dumps(rows, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        console.print(f"Draft rows: {out}")
+
+
 @finds_app.command("web")
 def finds_web(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,

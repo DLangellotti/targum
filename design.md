@@ -1360,6 +1360,11 @@ changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
   left out and why: Spreaker's download host refuses every crawler, so no Spreaker show
   can be sampled; two shows the feed marks explicit; two dead feeds. A curator adds one by
   editing the list, or as a `kind: podcast` row in sources.json.
+- **The month's shows to look at** (2026-11-05, plan §1.3). `targum finds shows` asks
+  Apple's directory for Israel once for each topic's Hebrew phrase and lists the
+  active Hebrew shows that neither the list nor sources.json holds, with draft rows. It
+  is free and read-only. A show joins only when a curator has read its feed, licence
+  and robots.txt and written it into the list.
 - **Any licence, and the feed's own terms.** Almost every show is all rights reserved.
   A find is the reader's own reading, built from the episode's audio when they press
   Listen, as a pasted link is, and never shelved. targum reads only what a podcast app

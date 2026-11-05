@@ -21,6 +21,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   channel and only for uploads of the last thirty days, through the same gate, track cap
   and discovery budget. The list starts empty, so nothing changes until a channel is
   added. Still behind `TARGUM_FINDS_YOUTUBE`. No new strings.
+- `targum finds shows` lists the month's podcast shows to look at (targum-internal#621;
+  plan §1.3; design.md §12, "Podcast finds are scored on a transcript or two minutes").
+  It searches Apple's directory for Israel on the forty topics' Hebrew phrases, free
+  and direct, and prints the active Hebrew shows that the reviewed list and sources.json
+  do not hold, most-found first, with draft `podcasts.json` rows under `--out`. Nothing
+  is added until a curator writes a show into the list. No new reader strings.
 - Fast speech asks a little more of a Hebrew reader below gimel (David, 2026-11-05;
   targum-internal#614; design.md §12, "Fast speech asks a little more of a reader below
   gimel"). A podcast or video find heard at more than 110 words a minute has
