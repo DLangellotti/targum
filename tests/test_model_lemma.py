@@ -311,6 +311,68 @@ def test_the_grammar_comes_with_the_word() -> None:
     assert bare is not None and [t.feats for t in bare] == ["UPOS=PRON", "UPOS=VERB"]
 
 
+def test_a_line_without_its_dictionary_form_is_not_read_one_column_off() -> None:
+    """targum-internal#562: `и  CCONJ  _` put "cconj" on the card as the word's dictionary
+    form and X as its part of speech, on 1,581 Russian words of the shelf. The word stands
+    for its own form, as an empty column does, and keeps its tag and grammar."""
+    text = "И книгу взял"
+    answer = "\n".join(
+        [
+            "1\tИ\tCCONJ\t_",
+            "1\tкнигу\tNOUN\tCase=Acc|Gender=Fem|Number=Sing",
+            "1\tвзял\tвзять\tVERB\tAspect=Perf",
+        ]
+    )
+    [tokens] = model_lemma.parse(answer, [text], "ru")
+    assert tokens is not None
+    assert [(t.lemma, t.pos, t.feats) for t in tokens] == [
+        ("и", "CCONJ", "UPOS=CCONJ"),
+        ("книгу", "NOUN", "UPOS=NOUN|Case=Acc|Gender=Fem|Number=Sing"),
+        ("взять", "VERB", "UPOS=VERB|Aspect=Perf"),
+    ]
+
+
+def test_a_cached_row_read_one_column_off_is_mended() -> None:
+    """The readings already bought keep the tag as the form; they are mended as they are
+    read, so a sweep or a rebuild buys nothing to fix them. An X whose form is its own word
+    is left as it is."""
+    text = "И x"
+    rows = [[0, 1, "И", "cconj", "X", "UPOS=X"], [2, 3, "x", "x", "X", "UPOS=X"]]
+    restored = model_lemma._restored(rows, text)
+    assert restored is not None
+    assert [(t.lemma, t.pos, t.feats) for t in restored] == [
+        ("и", "CCONJ", "UPOS=CCONJ"),
+        ("x", "X", "UPOS=X"),
+    ]
+
+
+def test_a_mended_name_keeps_its_case() -> None:
+    """A fresh read keeps a name's capital, so the mended row does too: 38 cached rows,
+    Pinocchio and Genova among them, would otherwise have lost it."""
+    text = "Genova"
+    rows = [[0, 6, "Genova", "propn", "X", "UPOS=X"]]
+    restored = model_lemma._restored(rows, text)
+    assert restored is not None
+    assert [(t.lemma, t.pos, t.feats) for t in restored] == [("Genova", "PROPN", "UPOS=PROPN")]
+
+
+def test_only_a_row_written_one_column_off_is_mended() -> None:
+    """A word that is itself a tag word (French `aux`) is its own form, and a row with
+    features of its own (an English `Nouns`) was not read one column off: both are left
+    as they are."""
+    text = "aux Nouns"
+    rows = [
+        [0, 3, "aux", "aux", "X", "UPOS=X"],
+        [4, 9, "Nouns", "noun", "X", "UPOS=X|Foreign=Yes|Number=Plur"],
+    ]
+    restored = model_lemma._restored(rows, text)
+    assert restored is not None
+    assert [(t.lemma, t.pos, t.feats) for t in restored] == [
+        ("aux", "X", "UPOS=X"),
+        ("noun", "X", "UPOS=X|Foreign=Yes|Number=Plur"),
+    ]
+
+
 def test_the_grammar_is_kept_with_the_words(tmp_path: Path) -> None:
     fake = FakeModel()
     first = reader(tmp_path, fake, buy=True).lemmas([segment(0, "Кошка спит.")], "ru")
