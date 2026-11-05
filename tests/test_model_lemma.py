@@ -346,6 +346,33 @@ def test_a_cached_row_read_one_column_off_is_mended() -> None:
     ]
 
 
+def test_a_mended_name_keeps_its_case() -> None:
+    """A fresh read keeps a name's capital, so the mended row does too: 38 cached rows,
+    Pinocchio and Genova among them, would otherwise have lost it."""
+    text = "Genova"
+    rows = [[0, 6, "Genova", "propn", "X", "UPOS=X"]]
+    restored = model_lemma._restored(rows, text)
+    assert restored is not None
+    assert [(t.lemma, t.pos, t.feats) for t in restored] == [("Genova", "PROPN", "UPOS=PROPN")]
+
+
+def test_only_a_row_written_one_column_off_is_mended() -> None:
+    """A word that is itself a tag word (French `aux`) is its own form, and a row with
+    features of its own (an English `Nouns`) was not read one column off: both are left
+    as they are."""
+    text = "aux Nouns"
+    rows = [
+        [0, 3, "aux", "aux", "X", "UPOS=X"],
+        [4, 9, "Nouns", "noun", "X", "UPOS=X|Foreign=Yes|Number=Plur"],
+    ]
+    restored = model_lemma._restored(rows, text)
+    assert restored is not None
+    assert [(t.lemma, t.pos, t.feats) for t in restored] == [
+        ("aux", "X", "UPOS=X"),
+        ("noun", "X", "UPOS=X|Foreign=Yes|Number=Plur"),
+    ]
+
+
 def test_the_grammar_is_kept_with_the_words(tmp_path: Path) -> None:
     fake = FakeModel()
     first = reader(tmp_path, fake, buy=True).lemmas([segment(0, "Кошка спит.")], "ru")

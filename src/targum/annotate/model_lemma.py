@@ -436,11 +436,12 @@ def _left_off(lemma: str, pos: str) -> bool:
     return lemma in UPOS and pos not in UPOS
 
 
-def _lost_form(lemma: str, pos: str, surface: str) -> bool:
+def _lost_form(lemma: str, pos: str, feats: str, surface: str) -> bool:
     """Whether a cached row is one `_left_off` would have read again: a tag as the
-    dictionary form, lowercased by `parse`, with X for its part of speech. The word itself
-    is never mistaken for one (a Latin `x` stays `x`)."""
-    return pos == "X" and lemma.upper() in UPOS and surface.lower() != lemma
+    dictionary form, lowercased by `parse`, with X for its part of speech and nothing else
+    for its features, which is how every such row in the cache reads. The word itself is
+    never mistaken for one (a Latin `x` or a French `aux` stays as it is)."""
+    return pos == "X" and feats == "UPOS=X" and lemma.upper() in UPOS and surface.lower() != lemma
 
 
 def _stored(tokens: list[Token]) -> list[list[Any]]:
@@ -472,11 +473,13 @@ def _restored(rows: Any, text: str) -> list[Token] | None:
             else None
         )
         lemma, pos, feats = str(lemma), str(pos), str(feats)
-        if _lost_form(lemma, pos, surface):
+        if _lost_form(lemma, pos, feats, surface):
             # Read before `_left_off`: the row is mended rather than bought again, so a
             # sweep or a rebuild reads the word as its own form (targum-internal#562).
             # Its features were in the part of speech's column and are not recovered.
-            lemma, pos = surface.lower(), lemma.upper()
+            # A name keeps its case, as `parse` keeps it on a fresh read.
+            pos = lemma.upper()
+            lemma = surface if pos == "PROPN" else surface.lower()
             feats = f"UPOS={pos}"
         tokens.append(
             Token(
