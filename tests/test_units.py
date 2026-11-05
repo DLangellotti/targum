@@ -677,6 +677,20 @@ def test_que_stops_a_gap_after_ne_too() -> None:
         ("plus", "plus"),
     )
     assert "ne plus" not in keys_in(other, "fr")
+    # qa-claude on targum#1114: ne… que does not take this ne (ce que), so only que
+    # keeps ne… plus from reaching the plus of plus tard.
+    later = said(
+        ("Je", "je"),
+        ("ne", "ne"),
+        ("sais", "savoir"),
+        ("ce", "ce"),
+        ("que", "que"),
+        ("je", "je"),
+        ("ferai", "faire"),
+        ("plus", "plus"),
+        ("tard", "tard"),
+    )
+    assert keys_in(later, "fr") == [], "je ne sais ce que je ferai plus tard"
 
 
 @pytest.mark.parametrize(
