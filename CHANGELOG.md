@@ -1014,6 +1014,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The nightly open-web search leans toward the topics readers ask for and the pool lacks
+  (David, 2026-11-05; targum-internal#622; design.md §12, "The night's search leans
+  toward the topics readers ask for"). Each Filter press on Home's one card adds one to a
+  cell of the month, language, medium, topic and rung (`chip_press`, store schema 61),
+  with no reader, account, day or text. A retry is not a press. Each night the topics
+  pressed for reading, where the pool holds fewer than twelve finds for that rung, are
+  weighed by presses over what is held, and up to ten of them are searched first. The
+  rest keep their rotation, and the night's dollar and the month's pacing are unchanged.
+  Behind a new flag, `TARGUM_CHIP_COUNTS`, off by default, until the privacy notice names
+  the count. No new strings.
 - Hebrew Wikipedia and Wikivoyage join the nightly open-web finds through the MediaWiki
   API (David, 2026-11-05; targum-internal#622; design.md §12, "Hebrew Wikipedia and
   Wikivoyage come back through their own API"). Before the night's search, the forty

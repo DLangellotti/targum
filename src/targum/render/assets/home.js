@@ -1319,10 +1319,18 @@
     return item;
   }
 
+  // A pill pressed: the ask says so, so the server can tally the press with no reader
+  // (design.md §12, "The night's search leans toward the topics readers ask for").
+  function pressedFilters() {
+    var out = filters();
+    out.pressed = true;
+    return out;
+  }
+
   function chooseFilter(what, value) {
     oneCard[what] = oneCard[what] === value ? "" : value;
     oneCard.open = false;
-    askFind(filters());
+    askFind(pressedFilters());
   }
 
   function topicsField(body) {
@@ -1386,7 +1394,7 @@
           oneCard.chip = again ? "" : chip.topic;
           oneCard.chipLabel = again ? "" : chip.label;
           oneCard.open = false;
-          askFind(filters());
+          askFind(pressedFilters());
         });
         if (chip.suggested) item.firstChild.classList.add("is-likely");
         list.appendChild(item);
@@ -1745,7 +1753,12 @@
     // With a filter chosen the shelf's own texts are asked too, less what is finished,
     // under Continue or set aside.
     if (!body.done && filtered()) body.done = cardAsk.skip.concat(cardAsk.aside);
-    oneCard.lastAsk = body;
+    // A retry asks again; it is not a second press.
+    var again = {};
+    Object.keys(body).forEach(function (key) {
+      if (key !== "pressed") again[key] = body[key];
+    });
+    oneCard.lastAsk = again;
     var host = cardBody();
     if (host) {
       var looking = el("p", "rc-says", t("home.card.looking", "Looking…"));

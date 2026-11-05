@@ -52,7 +52,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
-from . import chips, live, news, pool, screen
+from . import chips, live, news, pool, screen, steer
 from . import score as score_module
 from .robots import ROBOTS, Robots
 
@@ -369,6 +369,7 @@ def refresh(
     forms_for: Callable[[str], score_module.Forms | None] = score_module.load,
     publishers: Sequence[Publisher] | None = None,
     clock: Callable[[], float] = time.monotonic,
+    lean: Mapping[str, float] | None = None,
     hosts: Mapping[str, int] | None = None,
     at: int | None = None,
 ) -> Night:
@@ -376,7 +377,9 @@ def refresh(
     returns read, screened, scored and pooled. Each search's cost is written as it is
     spent and each find as it is kept, so a killed night has said what it cost and kept
     what it found. `hosts` is what the night already read from a host (the wikis' round,
-    `wiki.Night.hosts`), counted against `HOST_MOST`."""
+    `wiki.Night.hosts`), counted against `HOST_MOST`. `lean` is each topic's weight
+    tonight (`steer.weights`, where `TARGUM_CHIP_COUNTS` is on): the heaviest go first,
+    inside the same allowance."""
     from ..chat import sources as sources_module
     from ..chat.sources import site
     from ..weekly.feeds import link_key
@@ -393,7 +396,14 @@ def refresh(
     listed = outlets(sources_module.load() if publishers is None else publishers)
     asker = ask or (lambda one: search(live.client(), one))
     start = _start(store)
-    order = rotated(asked, start)
+    base = rotated(asked, start)
+    # The topics readers ask for and the pool lacks go first (`steer`); the night's dollar
+    # is the same, so the lean moves which topics it buys, never how much.
+    if lean is None:
+        lean = steer.weights(store, code, known=_lexicon(), at=when) if steer.on() else {}
+    order = steer.leaning(base, lean)
+    steered = [pair for pair in order if lean.get(pair[0], 0.0) > 0][: steer.STEER_MOST]
+    after = [at for at, pair in enumerate(base) if pair not in steered]
     run = pool.start_run(store, RUN_SOURCE, when)
     found.allowance = allowance(store, when)
     begun = clock()
@@ -484,11 +494,13 @@ def refresh(
                 )
     finally:
         note: dict[str, Any] = {
-            "next": (start + done) % max(1, len(asked)),
+            "next": _next(start, done, len(steered), after, len(asked)),
             "queries": found.queries,
             "searches": found.searches,
             "allowance": round(found.allowance, 4),
         }
+        if steered:
+            note["steered"] = [chip for chip, _ in steered]
         if found.stopped:
             note["stopped"] = found.stopped
         pool.finish_run(
@@ -500,6 +512,21 @@ def refresh(
             note=note,
         )
     return found
+
+
+def _next(start: int, done: int, steered: int, after: Sequence[int], every: int) -> int:
+    """Where tomorrow's rotation starts: past the last topic tonight took in its turn.
+    The topics the lean put first are not the rotation's, so they do not move it."""
+    taken = max(0, done - steered)
+    if not taken or not after:
+        return start % max(1, every)
+    return (start + after[min(taken, len(after)) - 1] + 1) % max(1, every)
+
+
+def _lexicon() -> Any:
+    from .interests import lexicon
+
+    return lexicon()
 
 
 def _keep(
