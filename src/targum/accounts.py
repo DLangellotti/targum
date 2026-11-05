@@ -4510,7 +4510,9 @@ class Store:
         return {
             "address": row["address"],
             "interest": [word for word in str(row["interest"]).split(",") if word],
-            "declared": row["declared"],
+            # A rung per language, as the reader named them, not the packed column
+            # ("bet,ru:a2"), which is targum's way of keeping them (qa-claude on #1112).
+            "declared": self.declared_map(str(row["declared"] or "")),
             "record": "off" if row["events"] == "off" else "kept",
             "granted": row["granted"],
         }

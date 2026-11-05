@@ -508,6 +508,24 @@ def test_a_french_or_russian_rung_is_shown_on_its_own_ladder() -> None:
     assert [one["value"] for one in page["level"]][1:] == RUNGS_HE
 
 
+def test_french_is_shown_on_its_own_ladder_too() -> None:
+    """French's row is the CEFR ladder, as Russian's is, and never Hebrew's (qa-claude on
+    targum#1112: nothing pinned it)."""
+    page = run(
+        who={
+            **SIGNED_IN,
+            "learning": ["fr"],
+            "declared": "",
+            "declaredBy": {"fr": "a2"},
+        }
+    )
+    fr = page["levels"]["fr"]
+    assert not fr["hidden"] and page["levels"]["ru"]["hidden"], "only what is learned"
+    assert [one["value"] for one in fr["offered"]] == ["", "a1", "a2", "b1", "b2", "c1", "c2"]
+    assert [one["value"] for one in fr["offered"] if one["on"]] == ["a2"]
+    assert not any(one["value"] in RUNGS_HE for one in fr["offered"])
+
+
 def test_a_cefr_rung_is_changed_for_its_own_language_only() -> None:
     page = run(
         who={
