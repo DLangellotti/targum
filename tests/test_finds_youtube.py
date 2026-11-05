@@ -22,7 +22,7 @@ from targum.accounts import Store
 from targum.cli import app
 from targum.finds import button, chips, pool, provider, score
 from targum.finds import youtube as finds_youtube
-from targum.video import discover
+from targum.video import channels, discover
 from targum.video import youtube as video_youtube
 
 FIXTURES = Path(__file__).parent / "fixtures" / "youtube_finds"
@@ -39,6 +39,7 @@ def quiet(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPa
     monkeypatch.delenv(pool.BUDGET_ENV, raising=False)
     monkeypatch.delenv(finds_youtube.UNITS_ENV, raising=False)
     monkeypatch.delenv(finds_youtube.FLAG, raising=False)
+    monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path_factory.mktemp("sources") / "absent.json"))
 
 
 @pytest.fixture
@@ -53,17 +54,40 @@ def forms() -> score.Forms:
 
 
 class Api:
-    """The Data API as the round asks it: recorded answers, and every query written down."""
+    """The Data API as the round asks it: recorded answers, and every query written down.
+    A seed channel's uploads are `uploads`: (video id, day it went up) in its newest
+    order, synthetic like the rest."""
 
-    def __init__(self, search: str = "search.json", videos: str = "videos.json") -> None:
+    def __init__(
+        self,
+        search: str = "search.json",
+        videos: str = "videos.json",
+        uploads: Mapping[str, list[tuple[str, str]]] | None = None,
+    ) -> None:
         self.search = json.loads((FIXTURES / search).read_text(encoding="utf-8"))
         self.videos = json.loads((FIXTURES / videos).read_text(encoding="utf-8"))
+        self.uploads = dict(uploads or {})
         self.asked: list[tuple[str, dict[str, str]]] = []
 
     def __call__(self, address: str, query: Mapping[str, str]) -> dict[str, Any]:
         self.asked.append((address, dict(query)))
         if address == discover.SEARCH:
             return self.search
+        if address == channels.CHANNELS:
+            handle = query.get("forHandle", "")
+            if handle not in self.uploads:
+                return {"items": []}
+            playlist = {"uploads": "UU" + handle.lstrip("@")}
+            item = {"id": "UC" + handle.lstrip("@"), "snippet": {"title": handle}}
+            return {"items": [{**item, "contentDetails": {"relatedPlaylists": playlist}}]}
+        if address == channels.PLAYLIST_ITEMS:
+            handle = "@" + query["playlistId"].removeprefix("UU")
+            return {
+                "items": [
+                    {"contentDetails": {"videoId": vid, "videoPublishedAt": day}}
+                    for vid, day in self.uploads.get(handle, ())
+                ]
+            }
         wanted = set(query["id"].split(","))
         return {"items": [one for one in self.videos["items"] if one["id"] in wanted]}
 
@@ -321,3 +345,79 @@ def test_a_youtube_find_keeps_the_words_a_minute_its_track_is_spoken_at() -> Non
     (design.md §12, "Fast speech asks a little more of a reader below gimel", 2026-11-05)."""
     assert finds_youtube.words_per_minute("א " * 300, 120) == 150
     assert finds_youtube.words_per_minute("א ב", 0) == 0.0
+
+
+SEED = finds_youtube.Seed("seed-kids", "https://www.youtube.com/@seedkids")
+
+
+def test_a_seed_channel_s_newest_uploads_are_gated_and_fetched_like_a_search_s(
+    store: Store,
+) -> None:
+    uploads = {
+        "@seedkids": [
+            ("goodVideo02", "2026-10-25T08:00:00Z"),
+            ("ageRestrict", "2026-10-24T08:00:00Z"),
+            # Older than the thirty days a search looks back: not asked about.
+            ("goodVideo01", "2026-09-01T08:00:00Z"),
+        ]
+    }
+    api, tracks = Api(uploads=uploads), Tracks({"goodVideo02": GOOD})
+    found = night(store, api, tracks, budget_units=finds_youtube.CHANNEL_UNITS, channels=[SEED])
+    assert found.channels == 1 and found.asked == 0
+    assert found.units == finds_youtube.CHANNEL_UNITS
+    (gated,) = [query for address, query in api.asked if address == discover.VIDEOS]
+    assert gated["id"] == "goodVideo02,ageRestrict"
+    assert found.dropped["age"] == 1
+    assert tracks.asked == ["https://www.youtube.com/watch?v=goodVideo02"]
+    assert [find.url for find in pool.pick(store, "he", None, at=AT)] == [
+        "https://www.youtube.com/watch?v=goodVideo02"
+    ]
+
+
+def test_the_seed_channels_come_before_the_searches_and_one_that_fails_is_passed_over(
+    store: Store,
+) -> None:
+    api = Api(uploads={"@seedkids": [("goodVideo02", "2026-10-25T08:00:00Z")]})
+    gone = finds_youtube.Seed("gone", "https://www.youtube.com/@nosuchchannel")
+    found = night(store, api, Tracks({}), budget_units=110, channels=[gone, SEED])
+    assert found.channels == 1 and found.asked == 1
+    assert [address for address, _ in api.asked][:5] == [
+        channels.CHANNELS,
+        channels.CHANNELS,
+        channels.PLAYLIST_ITEMS,
+        discover.VIDEOS,
+        discover.SEARCH,
+    ]
+
+
+def test_the_seeds_are_the_curator_s_video_rows_with_a_channel_address(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    listed = tmp_path / "sources.json"
+    listed.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {"key": "kids", "kind": "video", "homepage": "https://www.youtube.com/@kids"},
+                    {"key": "paper", "kind": "news", "homepage": "https://www.youtube.com/@paper"},
+                    {
+                        "key": "watch",
+                        "kind": "video",
+                        "homepage": "https://www.youtube.com/watch?v=x",
+                    },
+                    {
+                        "key": "ru",
+                        "kind": "video",
+                        "language": "ru",
+                        "homepage": "https://www.youtube.com/@ru",
+                    },
+                    {"key": "again", "kind": "video", "feed": "https://www.youtube.com/@kids"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(listed))
+    assert finds_youtube.seeds("he") == [
+        finds_youtube.Seed("kids", "https://www.youtube.com/@kids", "he")
+    ]

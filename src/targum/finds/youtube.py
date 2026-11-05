@@ -13,7 +13,9 @@ One round, on a timer on the box (`targum finds youtube`, `targum-finds-youtube.
    `videoCaption=closedCaption`, `relevanceLanguage=he`, `regionCode=IL`,
    `safeSearch=strict` and the last thirty days. Forty-odd queries do not fit a night's
    units (`UNITS_DEFAULT`), so the night starts where the last one stopped and the
-   whole list is asked every two nights or so.
+   whole list is asked every two nights or so. Before the searches, the newest uploads of
+   the seed channels a curator holds in sources.json (`kind: video`, a YouTube channel's
+   address as its homepage; plan §1.2), three units a channel (`channel_uploads`).
 2. **The gate** (`videos.list`, 1 unit for fifty), free of the proxy: an age-restricted
    video, one not public, not embeddable, live, blocked in Israel, under a minute or
    over thirty, said to be in another language or titled in another script is dropped;
@@ -127,6 +129,43 @@ def queries(language: str) -> list[Query]:
         if chip.phrases.get(language)
     ]
     out += [Query(words) for words in EASY.get(language, ())]
+    return out
+
+
+#: What one seed channel costs a night: `channels.list` for its uploads playlist,
+#: `playlistItems.list` for its newest page and `videos.list` for the gate, 1 unit each.
+CHANNEL_UNITS = 3
+
+#: How many of a seed channel's newest uploads are read a night: a channel that puts out
+#: more than this in a day is a news desk, and its feed is the better door.
+CHANNEL_NEWEST = 10
+
+
+@dataclass(frozen=True)
+class Seed:
+    """A channel a curator approved, whose newest uploads are read every night."""
+
+    key: str
+    #: The channel's address, as `video.channels.named` reads it.
+    url: str
+    language: str = "he"
+
+
+def seeds(language: str) -> list[Seed]:
+    """The seed channels for `language`: every `kind: video` publisher in sources.json
+    whose homepage (or feed) is a YouTube channel's address, in the file's order."""
+    from ..chat import sources
+    from ..video.channels import named
+
+    out: list[Seed] = []
+    held: set[str] = set()
+    for publisher in sources.load():
+        if publisher.kind != "video" or publisher.language != language:
+            continue
+        url = next((one for one in (publisher.homepage, publisher.feed) if one and named(one)), "")
+        if url and url not in held:
+            held.add(url)
+            out.append(Seed(publisher.key, url, publisher.language))
     return out
 
 
@@ -294,9 +333,12 @@ class Round(news.Round):
 
     units: int = 0
     asked: int = 0
+    #: Seed channels whose newest uploads were read.
+    channels: int = 0
 
     def __str__(self) -> str:
-        return f"{super().__str__()}, {self.asked} searches, {self.units} units"
+        read = f", {self.channels} channels" if self.channels else ""
+        return f"{super().__str__()}{read}, {self.asked} searches, {self.units} units"
 
 
 def fetched_today(store: Store, when: int) -> int:
@@ -337,11 +379,13 @@ def refresh(
     fetch: Fetch = track,
     forms_for: Callable[[str], score_module.Forms | None] = score_module.load,
     budget_units: int | None = None,
+    channels: Sequence[Seed] | None = None,
     at: int | None = None,
 ) -> Round:
     """One night: search, gate, fetch the tracks and pool what passes. Each video is
     written as it is done, and each run's cost as it is spent, so a killed round has
     kept what it found and said what it cost."""
+    from ..video import channels as channel_api
     from ..video import discover
 
     when = pool.now_ms() if at is None else at
@@ -369,6 +413,70 @@ def refresh(
     by_query: list[list[Video]] = []
     held: dict[str, Video] = {}
     done = 0
+
+    def gated(ids: Sequence[str], tags: Sequence[str]) -> list[Video]:
+        """The videos among `ids` not pooled yet that pass the gate, in their order."""
+        fresh = [vid for vid in ids if not pool.known(store, Video(vid, "", "", 0, 0).url)]
+        mine: list[Video] = []
+        for at_id in range(0, len(fresh), discover.PAGE):
+            if at_id and found.units + discover.VIDEOS_UNITS > allowed:
+                break
+            found.units += discover.VIDEOS_UNITS
+            listed = ask(
+                discover.VIDEOS,
+                {
+                    "key": key,
+                    "part": "status,contentDetails,snippet",
+                    "id": ",".join(fresh[at_id : at_id + discover.PAGE]),
+                },
+            )
+            for item in listed.get("items") or ():
+                found.seen += 1
+                video = _video(item, tags)
+                why = gate(item, code)
+                if why:
+                    dropped(video.url, why)
+                    continue
+                held[video.id] = video
+                mine.append(video)
+        return mine
+
+    # -- the seed channels first: three units each, so the searches cannot crowd them out --
+    since = when - FRESH_DAYS * pool.DAY_MS
+    for seed in seeds(code) if channels is None else channels:
+        if found.units + CHANNEL_UNITS > allowed:
+            found.stopped = f"the night's {allowed} units"
+            break
+        try:
+            found.units += discover.VIDEOS_UNITS
+            channel = channel_api.find(seed.url, get=ask, api_key=key)
+            found.units += discover.VIDEOS_UNITS
+            listed = ask(
+                channel_api.PLAYLIST_ITEMS,
+                {
+                    "key": key,
+                    "part": "contentDetails",
+                    "playlistId": channel.uploads,
+                    "maxResults": str(CHANNEL_NEWEST),
+                },
+            )
+            uploads: list[str] = []
+            for item in listed.get("items") or ():
+                details = item.get("contentDetails") or {}
+                vid = str(details.get("videoId") or "")
+                if not vid or vid in uploads or vid in held:
+                    continue
+                # The same thirty days the searches look back, by the day it went up.
+                if _published(str(details.get("videoPublishedAt") or "")) < since:
+                    continue
+                uploads.append(vid)
+            if uploads:
+                by_query.append(gated(uploads, ()))
+        except Exception as error:  # noqa: BLE001 - one channel never stops a round
+            log.info("finds: seed channel %s not read: %s", seed.key, error)
+            continue
+        found.channels += 1
+
     try:
         for query in order:
             if found.units + discover.SEARCH_UNITS + discover.VIDEOS_UNITS > allowed:
@@ -402,30 +510,7 @@ def refresh(
                     held[vid].tags.extend(t for t in query.tags if t not in held[vid].tags)
                     continue
                 ids.append(vid)
-            fresh = [vid for vid in ids if not pool.known(store, Video(vid, "", "", 0, 0).url)]
-            mine: list[Video] = []
-            for at_id in range(0, len(fresh), discover.PAGE):
-                if at_id and found.units + discover.VIDEOS_UNITS > allowed:
-                    break
-                found.units += discover.VIDEOS_UNITS
-                listed = ask(
-                    discover.VIDEOS,
-                    {
-                        "key": key,
-                        "part": "status,contentDetails,snippet",
-                        "id": ",".join(fresh[at_id : at_id + discover.PAGE]),
-                    },
-                )
-                for item in listed.get("items") or ():
-                    found.seen += 1
-                    video = _video(item, query.tags)
-                    why = gate(item, code)
-                    if why:
-                        dropped(video.url, why)
-                        continue
-                    held[video.id] = video
-                    mine.append(video)
-            by_query.append(mine)
+            by_query.append(gated(ids, query.tags))
     except Exception as error:  # noqa: BLE001 - what was found is still fetched
         log.warning("finds: a YouTube search failed: %s", error)
         found.stopped = found.stopped or "the Data API did not answer"
@@ -441,6 +526,8 @@ def refresh(
         # Before the units: a night that ran out of searches had more than it could fetch.
         found.stopped = f"the day's {NIGHT_MOST} tracks"
     note: dict[str, Any] = {"next": (start + done) % max(1, len(asked)), "units": found.units}
+    if found.channels:
+        note["channels"] = found.channels
 
     def checkpoint() -> None:
         note["fetched"] = found.fetched
