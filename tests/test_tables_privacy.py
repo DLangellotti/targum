@@ -329,3 +329,51 @@ def test_scenes_feed_no_yardstick_by_default() -> None:
     assert registers.register_of("dialogue:scene-01-x") == registers.SCENES
     assert registers.SCENES not in registers.YARDSTICKS
     assert registers.register_of("weekly:2026-10-26") not in registers.YARDSTICKS
+
+
+def _russian(folder: Path, document_hash: str) -> Path:
+    _built(folder, document_hash, "ru-local/test/1")
+    annotation = {**_annotation(document_hash, "ru-local/test/1"), "language": "ru"}
+    (folder / "annotation.json").write_text(json.dumps(annotation), encoding="utf-8")
+    return folder
+
+
+def test_russian_is_folded_under_its_own_registers_behind_the_same_guard(
+    book: Path, library: Path
+) -> None:
+    """targum-internal#637: a public Russian text is counted, under `ru:` registers no
+    Hebrew yardstick reads, and a reader's Russian is refused exactly as their Hebrew."""
+    for home in ("p1", "local"):
+        _russian(library / home / "x", H["a"])
+    _russian(library / "shared" / "ru", H["b"])
+    _russian(library / "shared" / "held", H["c"])
+    ledger.Ledger(book).record_text(
+        ledger.Text(H["c"], "test:c", "Public Domain", frozenset({"p1"}), "t", 1)
+    )
+    _built(library / "shared" / "he", H["d"])
+    store = Store(book)
+
+    result = tables.sweep(library, store)
+    assert result.folded == 2
+    assert result.private == 3
+    assert store.registers(WORDS) == {"ru:unfiled": 1, registers.UNFILED: 1}
+    assert store.total(WORDS, "ru:unfiled") == WORD_COUNT
+    assert store.total(WORDS, registers.UNFILED) == WORD_COUNT
+    with sqlite3.connect(book) as db:
+        units = {row[0] for row in db.execute("SELECT unit FROM contribution")}
+    assert units == {H["b"], H["d"]}
+    # No Hebrew register holds a Russian row, and no yardstick names a Russian register.
+    assert all(registers.language_of(one) == "he" for one in registers.PICKER)
+    assert registers.language_of("ru:news") == "ru"
+    assert registers.in_language(registers.NEWS, "ru-RU") == "ru:news"
+    assert registers.in_language(registers.NEWS, "he") == registers.NEWS
+    assert registers.language_of(registers.pooled(registers.NEWS)) == "he"
+
+
+def test_what_readers_bring_and_finds_stay_hebrew_only() -> None:
+    """Their registers carry no language, so Russian there would mix into Hebrew's."""
+    from targum.tables import finds, imports, words
+
+    assert "ru" in words.LANGUAGES
+    assert imports.LANGUAGES == ("he",)
+    assert finds.LANGUAGES == ("he",)

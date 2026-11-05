@@ -9,9 +9,8 @@ answer shapes, checks, scores) is `targum.root_lexicon`.
 cache has one) or stressed form (Russian, from OpenRussian), its part of speech and its
 cached English gloss. Never a sentence. The lemmas come only from the language tables
 (`Store.top`), which only public texts reach; never from `word` rows or the gloss cache,
-which hold private imports. Hebrew reads the corpus ledger (`TARGUM_LEDGER`); Russian is
-not folded there, so `--sweep LIBRARY` folds the library's public Russian texts into a
-store of its own first (`root_lexicon.russian_store`), behind the same guard.
+which hold private imports. Both languages read the corpus ledger (`TARGUM_LEDGER`), where
+Russian is filed under registers of its own since targum-internal#637.
 
 **What it costs.** `--dry-run` quotes and spends nothing. `--cap` is hard: before a batch
 is sent, what has been spent plus the most every request in it could cost must fit, or
@@ -75,7 +74,6 @@ def main() -> int:
     parser.add_argument("--retries", type=int, default=1, help="Re-sends of failed rows.")
     parser.add_argument("--thinking", type=int, default=THINKING_PER_REQUEST)
     parser.add_argument("--requote", type=int, default=20000, help="Lemmas to re-quote for.")
-    parser.add_argument("--sweep", type=Path, help="Russian: fold this library's public texts.")
     parser.add_argument("--tables", type=Path, help="A store file to draw from instead.")
     parser.add_argument("--blind", type=int, default=0, help="Rows for the blind gold set.")
     parser.add_argument("--blind-out", type=Path)
@@ -175,18 +173,9 @@ def _lemmas(
     from targum.tables import Store
 
     store: Store | None
-    if args.tables:
-        store = Store(args.tables)
-    elif language == "ru":
-        if args.sweep:
-            store, result = rl.russian_store(args.sweep)
-            print(f"Folded the public Russian texts: {result}")
-        else:
-            store = Store(rl.RUSSIAN_TABLES)
-    else:
-        store = Store.from_env()
+    store = Store(args.tables) if args.tables else Store.from_env()
     if store is None or not store.file.is_file():
-        print("No tables: set TARGUM_LEDGER (Hebrew) or pass --sweep LIBRARY (Russian).")
+        print("No tables: set TARGUM_LEDGER or pass --tables FILE.")
         return []
     chosen = registers or list(rl.REGISTERS[language])
     lemmas, dropped, missing = rl.universe(

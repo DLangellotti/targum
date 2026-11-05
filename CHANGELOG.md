@@ -44,6 +44,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   next rebuild. French's known-issues list is on record. French still wears
   Experimental: register (ne-drop, on/nous) has no floor and there is no read-through.
   No new strings.
+- French reads by all its forms on the difficulty measure, as Russian does
+  (targum-internal#562). A French lemma's frequency is the sum of its forms in Morphalou,
+  looked up where `targum models fetch morphalou` put it (LGPL-LR, lookup only), and a form
+  two lemmas own is shared by how common each is, so luire does not take the pronoun lui,
+  and a form far commoner than the rest of its lemma's is left out as another word's, so
+  luire does not take the name Luis either.
+  On the fourteen French texts verbs counted as looked up fell from 23.5% to 11.6% and
+  each text measures 1 to 5 points easier; none changes level. The sum never makes a word
+  harder, and without Morphalou the measure is as before. The catalogue's French
+  `difficulty` needs a `scripts/measure_difficulty.py` sweep from a machine with Morphalou.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
@@ -125,6 +135,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   nothing said in Russian. Home now asks for the scene in the language shown, so a
   signed-out visitor on Russian, whose empty level is Hebrew's, is no longer handed
   Hebrew's first scene. Hebrew is unchanged. No new strings.
+- Russian is counted in the language tables (targum-internal#637, epic #628). The sweep
+  folds public Russian texts beside Hebrew, from the annotations a build already wrote,
+  behind the same `public_text` guard, and the nightly news round counts the Russian
+  outlets in sources.json with the local Russian reader, never the model, on its own caps.
+  Russian rows sit under registers of their own (`ru:news`, `ru:unfiled`;
+  `registers.in_language`), so no Hebrew yardstick, topic run or picker reads a Russian
+  lemma. The root lexicon reads Russian from the ledger, and its private `tables-ru.db`
+  and `build_roots.py --sweep` are gone. What readers bring and the finds pool stay
+  Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
+  on the Hebrew yardsticks. `targum tables news` previews each language's night on a
+  line of its own, under its own caps. Counts only. Spends nothing. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
