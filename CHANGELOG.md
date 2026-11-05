@@ -14,6 +14,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- Fast speech asks a little more of a Hebrew reader below gimel (David, 2026-11-05;
+  targum-internal#614; design.md §12, "Fast speech asks a little more of a reader below
+  gimel"). A podcast or video find heard at more than 110 words a minute has
+  `min(0.03, (wpm − 110) / 2000)` taken off the share it is chosen on: at 130 words a
+  minute it needs 91% where it needed 90%, at 150 it needs 92%, and 93% at most. Readers
+  at gimel and above, texts and items with no rate are untouched, and the card still says
+  the share known. YouTube finds now keep their words a minute from the night they are
+  found. No new strings.
 - `search_sources` measures today's news on the article where the news round has read it
   (targum-internal#615; design.md §12, "Today's news is measured on the article where we
   have read it"). An item the finds pool keeps, measured, is given the figure from the

@@ -111,6 +111,7 @@ def test_a_video_with_a_written_hebrew_track_is_pooled_as_a_video_find(store: St
     assert find.url == "https://www.youtube.com/watch?v=goodVideo01"
     assert find.medium == "video" and find.source == "youtube" and find.host == "www.youtube.com"
     assert find.seconds == 370 and find.minutes == 6
+    assert find.rate == round(len(TRACK.split()) / (370 / 60), 1), "words a minute heard"
     assert find.credits == 6, "a credit a minute: what Watch will quote"
     assert find.publisher == "ערוץ לדוגמה" and find.title == "מתכון לשקשוקה בעשר דקות"
     assert find.topics == (chips.tag(chips.CHIPS[0].code),), "tagged with the chip that found it"
@@ -313,3 +314,10 @@ def test_the_timer_runs_nightly_as_targum_and_every_deploy_carries_it() -> None:
     assert "targum-finds-youtube.service targum-finds-youtube.timer" in installed
     enable = next(line for line in script.splitlines() if "systemctl enable --now" in line)
     assert "targum-finds-youtube.timer" in enable
+
+
+def test_a_youtube_find_keeps_the_words_a_minute_its_track_is_spoken_at() -> None:
+    """Its track's words over its length, as `screen.words_per_minute` counts cues
+    (design.md §12, "Fast speech asks a little more of a reader below gimel", 2026-11-05)."""
+    assert finds_youtube.words_per_minute("א " * 300, 120) == 150
+    assert finds_youtube.words_per_minute("א ב", 0) == 0.0
