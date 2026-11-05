@@ -224,10 +224,11 @@ def french_sums(
             if form != key and form in alone:
                 # A form only this lemma owns, far commoner than anything else the lemma
                 # is read as, is another word's: luis is the name Luis, not luire's, and
-                # minutes the noun's plural, not minuter's. It is left out.
+                # minutes the noun's plural, not minuter's. It is left out, and so is one
+                # where wordfreq saw nothing else of the lemma at all (hui is not huir's).
                 rest = max((n for other, n in alone.items() if other != form), default=weight)
                 rest = max(rest, weight)
-                if rest and used > ANOTHER_WORDS * rest:
+                if used > ANOTHER_WORDS * rest:
                     continue
             # A form two lemmas own is shared by each one's own frequency; where wordfreq
             # saw none of their spellings, it is split evenly, never counted whole twice.

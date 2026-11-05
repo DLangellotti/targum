@@ -98,6 +98,22 @@ def test_a_name_spelled_as_a_rare_verb_s_form_is_not_the_verb_s() -> None:
     assert sums["sembler"] == pytest.approx(1e-5 + 1e-4 + 3e-5)
 
 
+def test_a_name_is_left_out_even_where_nothing_else_of_the_lemma_was_seen() -> None:
+    """hui is huir's in Morphalou and wordfreq saw neither huir nor its other forms, so
+    there was nothing to compare hui with and the rare verb took the whole word
+    (qa-claude on #1111)."""
+    from targum.annotate.difficulty import french_sums
+
+    head = "\n".join(TABLE.splitlines()[:2])
+    table = (
+        f"{head}\n"
+        "huir;1;Verbe;;;-;;;m;huir;1;-;infinitive;-;-;-;;m\n"
+        ";;;;;;;;;hui;2;singular;indicative;-;present;thirdPerson;;m\n"
+        ";;;;;;;;;huit;3;singular;indicative;-;present;thirdPerson;;m\n"
+    )
+    assert "huir" not in french_sums(table.splitlines, {"hui": 1e-4})
+
+
 def test_a_form_owned_only_by_unseen_lemmas_is_split_not_counted_twice() -> None:
     """Two lemmas wordfreq never saw, both listing one common form, take half each
     (qa-claude on #1111): whole to each, the form was counted twice."""
