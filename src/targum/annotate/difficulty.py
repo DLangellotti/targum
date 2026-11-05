@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter
+from collections.abc import Callable, Iterable, Mapping
 from functools import lru_cache
 from typing import Any
 
@@ -68,6 +69,13 @@ def band_of(lemma: str, language: str) -> int:
         summed = russian_zipf(lemma)
         if summed is not None:
             return band_for(summed)
+    if code == "fr":
+        summed = french_zipf(lemma)
+        if summed is not None:
+            # Never harder than the dictionary form alone: a share of a form another
+            # lemma also owns can leave a lemma below its own spelling (été the summer,
+            # whose été is mostly être's), and the sum is here to undo an undercount.
+            return min(band_for(summed), _bands.band(lemma, language))
     return _bands.band(lemma, language)
 
 
@@ -120,6 +128,119 @@ def russian_zipf(lemma: str) -> float | None:
     if best <= 0:
         return None
     return math.log10(best * 1e9)
+
+
+def french_zipf(lemma: str) -> float | None:
+    """A French lemma's frequency as the sum of its forms in Morphalou, or None where this
+    machine has not fetched Morphalou or the lemma is not in it.
+
+    **Why** (targum-internal#562, measured 2026-11-05): the same undercount Russian had.
+    wordfreq counts written forms, and a French verb is read as était, fait, dit, vient,
+    so its infinitive looks rarer than the verb is — sembler and demeurer at band 4,
+    falloir at 3. On the fourteen texts of the French shelf 23.5% of verb tokens counted
+    as looked up by the infinitive and 11.6% by the sum, and every text read 1 to 5
+    points easier, the Maupassant tales most. No text there changes level, since all
+    fourteen are under the Simplified ceiling and are placed by sentence length; an Easy
+    French text, under a ceiling of 15, is where the undercount would have bitten, as it
+    did for the Russian Storybooks.
+
+    **A form two lemmas own is shared by how common each lemma is**, not given whole to
+    each: Morphalou lists lui under luire and tu under taire, and summed whole those two
+    rare verbs came out as common as the pronouns. Each owner takes the form's frequency
+    in proportion to its own dictionary form's, so luire keeps almost none of lui and
+    suivre a few percent of suis.
+
+    A lookup only (LGPL-LR, David 2026-09-14): the table is read where
+    `targum models fetch morphalou` put it, nothing is trained on it, and no row of it
+    is in the repository. Only the difficulty measure, as for Russian: the bands a
+    reader's card shows are the annotation's and are left alone.
+    """
+    sums = _french_sums()
+    if sums is None:
+        return None
+    total = sums.get(_french_key(lemma))
+    if not total:
+        return None
+    return math.log10(total * 1e9)
+
+
+def _french_key(word: str) -> str:
+    from . import morphalou
+
+    return morphalou._bare_lemma(word)
+
+
+@lru_cache(maxsize=1)
+def _french_sums() -> dict[str, float] | None:
+    from . import morphalou
+
+    if not morphalou.available():
+        return None
+    try:
+        from wordfreq import get_frequency_dict
+    except ImportError:
+        return None
+    path = morphalou.directory() / morphalou.TABLE
+
+    def lines() -> Iterable[str]:
+        with path.open(encoding="utf-8", newline="") as handle:
+            yield from (line.rstrip("\r\n") for line in handle)
+
+    return french_sums(lines, get_frequency_dict("fr"))
+
+
+def french_sums(
+    lines: Callable[[], Iterable[str]], frequency: Mapping[str, float]
+) -> dict[str, float]:
+    """Each lemma's share of the frequency of every form Morphalou lists for it.
+
+    `lines` is called twice, once to weigh who owns each form and once to share it out,
+    so the table is never held in memory: only a weight per form, and a sum per lemma.
+    Reflexive lemmas are counted with their bare verb (se taire is taire), and a form of
+    more than one word (se taire itself) is left out, wordfreq having no such word.
+    """
+    owners: dict[str, float] = {}
+    for key, forms in _french_blocks(lines()):
+        weight = frequency.get(key, 0.0)
+        for form in forms:
+            owners[form] = owners.get(form, 0.0) + weight
+    sums: dict[str, float] = {}
+    for key, forms in _french_blocks(lines()):
+        weight = frequency.get(key, 0.0)
+        share = 0.0
+        for form in forms:
+            used = frequency.get(form, 0.0)
+            if not used:
+                continue
+            # A lemma whose own spelling wordfreq never saw takes no share, unless it is
+            # the only owner of the form.
+            whole = owners[form]
+            share += used * (weight / whole if whole else 1.0)
+        if share:
+            sums[key] = sums.get(key, 0.0) + share
+    return sums
+
+
+def _french_blocks(lines: Iterable[str]) -> Iterable[tuple[str, set[str]]]:
+    """(lemma, its distinct one-word forms in lower case), one per lemma of the table."""
+    from . import morphalou
+
+    current, key = "", ""
+    forms: set[str] = set()
+    for lemma, _category, form, _grammar, _phonetic in morphalou.rows(lines):
+        if lemma != current:
+            if forms:
+                yield key, forms
+            current, key = lemma, _french_key(lemma)
+            forms = {key} if " " not in key else set()
+        written = form.lower().translate(_APOSTROPHES)
+        if written and " " not in written:
+            forms.add(written)
+    if forms:
+        yield key, forms
+
+
+_APOSTROPHES = str.maketrans({"’": "'", "ʼ": "'"})
 
 
 @lru_cache(maxsize=1)

@@ -14,6 +14,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- French reads by all its forms on the difficulty measure, as Russian does
+  (targum-internal#562). A French lemma's frequency is the sum of its forms in Morphalou,
+  looked up where `targum models fetch morphalou` put it (LGPL-LR, lookup only), and a form
+  two lemmas own is shared by how common each is, so luire does not take the pronoun lui.
+  On the fourteen French texts verbs counted as looked up fell from 23.5% to 11.6% and
+  each text measures 1 to 5 points easier; none changes level. The sum never makes a word
+  harder, and without Morphalou the measure is as before. The catalogue's French
+  `difficulty` needs a `scripts/measure_difficulty.py` sweep from a machine with Morphalou.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
