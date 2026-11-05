@@ -204,6 +204,19 @@ def test_a_signed_out_russian_visitor_is_handed_russian_scene_one(
     assert got["suggestion"]["id"] == "scene-01-nice-to-meet-you", "Hebrew unchanged"
 
 
+@pytest.mark.parametrize("language", ["fr", "it", "yi"])
+def test_a_signed_out_visitor_on_a_language_without_scenes_gets_none(
+    chatting: Any, monkeypatch: pytest.MonkeyPatch, language: str
+) -> None:
+    """targum-internal#630: signed out, the empty level is Hebrew's, and a French,
+    Italian or Yiddish visitor was handed Hebrew's first scene. They have no series."""
+    port, key, _store, _chats = chatting
+    monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
+    got = call(port, "POST", f"/suggest?k={key}", {"language": language, "skip": []})[1]
+    suggestion = got.get("suggestion") or {}
+    assert "scene" not in suggestion, f"{language} was handed {suggestion.get('id')}"
+
+
 def test_a_real_text_that_fits_a_beginner_comes_before_their_scene(
     chatting: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

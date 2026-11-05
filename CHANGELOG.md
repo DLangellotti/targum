@@ -94,8 +94,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on the CEFR ladder, or with nothing measured. The ulpan rung named on arrival counts as
   nothing said in Russian. Home now asks for the scene in the language shown, so a
   signed-out visitor on Russian, whose empty level is Hebrew's, is no longer handed
-  Hebrew's first scene. Hebrew is unchanged. No new
-  strings.
+  Hebrew's first scene. Hebrew is unchanged. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
