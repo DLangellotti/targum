@@ -423,3 +423,30 @@ def test_the_page_counts_what_came_in_through_the_connector(store: sqlite3.Conne
     assert found.connector == {"quoted": 6, "pressed": 3, "finished": 1, "sets": 1}
     page = back_office_page(found, 30)
     assert "Through the connector" in page and "6 texts offered" in page
+
+
+def test_the_page_shows_the_last_calibration_of_each_language(
+    store: sqlite3.Connection,
+) -> None:
+    """targum-internal#629: one line per language, each with its unresolved share."""
+    from targum.finds.pool import Survey
+
+    def calibration(test: int, unresolved: float, mean: float) -> dict[str, object]:
+        rows = [{"known": 2000, "mean": mean, "mean_abs": abs(mean)}]
+        return {
+            "test": test,
+            "test_tokens": 1000,
+            "found": {"unresolved": unresolved},
+            "rows": rows,
+        }
+
+    finds = Survey(
+        by_language={"he": 1},
+        calibrations={"ru": calibration(79, 0.006, -0.013), "he": calibration(150, 0.055, 0.011)},
+    )
+    page = back_office_page(survey(store, today=date(2026, 11, 5)), 30, finds=finds)
+    he = page.index("Last calibration (he, 150 texts, 1000 words, 5.5% unresolved)")
+    ru = page.index("Last calibration (ru, 79 texts, 1000 words, 0.6% unresolved)")
+    assert he < ru, "in order of language"
+    assert "knows 2000: -1.3 pt, |1.3|" in page[ru:]
+    assert "knows 2000: +1.1 pt, |1.1|" in page[he:ru]
