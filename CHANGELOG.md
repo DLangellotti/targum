@@ -87,6 +87,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   filter and no topic it asks the shelf too, and Watch or Listen never starts a look on
   the web. Listen is drawn only once the pool holds a podcast (`chips` answers `listen`).
   New strings for Filter and its pills, with Russian drafts.
+- Russian is counted in the language tables (targum-internal#637, epic #628). The sweep
+  folds public Russian texts beside Hebrew, from the annotations a build already wrote,
+  behind the same `public_text` guard, and the nightly news round counts the Russian
+  outlets in sources.json with the local Russian reader, never the model, on its own caps.
+  Russian rows sit under registers of their own (`ru:news`, `ru:unfiled`;
+  `registers.in_language`), so no Hebrew yardstick, topic run or picker reads a Russian
+  lemma. The root lexicon reads Russian from the ledger, and its private `tables-ru.db`
+  and `build_roots.py --sweep` are gone. What readers bring and the finds pool stay
+  Hebrew only. Counts only. Spends nothing. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
