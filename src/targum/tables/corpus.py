@@ -131,17 +131,23 @@ def default_annotator() -> Any:
 
 
 def tally(
-    chunk: list[str], annotator: Any, unit: str, *, floor: int = PHRASE_FLOOR
+    chunk: list[str],
+    annotator: Any,
+    unit: str,
+    *,
+    floor: int = PHRASE_FLOOR,
+    language: str = "he",
 ) -> dict[str, Counter[tuple[str, str]]]:
     """One chunk's counts, table by table. The sentences live only inside this call.
 
     `floor` prunes the phrases; the news feeds (`tables.news`) pass 1, since one article
-    is a unit there and a floor of three would leave it no phrase at all."""
+    is a unit there and a floor of three would leave it no phrase at all. `language` is
+    the chunk's: the news feeds pass Russian for a Russian outlet (#637)."""
     from ..models import Segment, SegmentedDocument
 
     document = SegmentedDocument(
         document_hash=unit.rsplit(":", 1)[-1],
-        language="he",
+        language=language,
         segmenter="corpus",
         segments=[
             Segment(id=f"s{at}", block_id=f"b{at}", block_index=at, index=0, text=line)
@@ -154,7 +160,7 @@ def tally(
     }
     counted = count(tokens)
     phrases = Counter({key: n for key, n in counted[PHRASES].items() if n >= floor})
-    return {WORDS: counted[WORDS], PHRASES: phrases, roots.ROOTS: roots.count(tokens, "he")}
+    return {WORDS: counted[WORDS], PHRASES: phrases, roots.ROOTS: roots.count(tokens, language)}
 
 
 def count_corpus(

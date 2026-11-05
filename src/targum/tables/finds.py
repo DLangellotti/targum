@@ -47,7 +47,7 @@ from typing import TYPE_CHECKING
 
 from .registers import IMPORTS, NEWS, PODCASTS, VIDEO, WEB
 from .store import Contribution, Store
-from .words import LANGUAGES, WORDS
+from .words import WORDS
 
 if TYPE_CHECKING:
     from ..accounts import Store as AccountStore
@@ -72,6 +72,11 @@ KINDS = {"youtube": VIDEO, "podcast": PODCASTS, "news": NEWS}
 
 #: Only `public_finds` holds this, so only it can make a `PublicFind` `fold_finds` takes.
 _SEAL = object()
+
+#: The languages a find is counted in: Hebrew only, the one language the discovery pool
+#: scores (`finds.score.POOLED`). Its registers carry no language, so another language
+#: waits for its own card and its own registers (`registers.in_language`, #637).
+LANGUAGES = ("he",)
 
 
 @dataclass(frozen=True)

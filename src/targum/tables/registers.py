@@ -49,6 +49,30 @@ SORTED = (NEWS, SOCIAL, VIDEO, PODCASTS, EVERYDAY)
 PICKER = (*YARDSTICKS, SOCIAL, VIDEO, PODCASTS, EVERYDAY, IMPORTS)
 
 
+#: The language every unprefixed register is in. Hebrew's rows were written before any
+#: other language was folded, so they keep their names, and every yardstick, picker and
+#: topic run that names a register names a Hebrew one.
+HEBREW = "he"
+
+
+def in_language(register: str, language: str) -> str:
+    """Where one language's counts of `register` are filed: the register itself for
+    Hebrew, `<language>:<register>` for any other (targum-internal#637), so a Russian
+    lemma never sits in a register the Hebrew yardsticks read, and each language is
+    measured against its own counts."""
+    code = (language or HEBREW).split("-")[0].lower()
+    return register if code == HEBREW else f"{code}:{register}"
+
+
+def language_of(register: str) -> str:
+    """The language a register's rows are in: the prefix `in_language` gave it, else
+    Hebrew. The imports registers are Hebrew's: only Hebrew is pooled."""
+    head, sep, _ = register.partition(":")
+    if not sep or head == IMPORTS:
+        return HEBREW
+    return head
+
+
 def pooled(register: str) -> str:
     """Where the pool files what readers brought of one register: `imports` for what
     sorts into none, `imports:<register>` otherwise, so their counts never mix with the

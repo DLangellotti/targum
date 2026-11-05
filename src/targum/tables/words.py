@@ -13,6 +13,7 @@ from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from . import roots, spellings, weights
+from .registers import HEBREW, in_language
 from .store import Contribution, Store
 
 if TYPE_CHECKING:
@@ -32,9 +33,12 @@ RULE = "words/1"
 #: How long a phrase is: two lemmas and three.
 LENGTHS = (2, 3)
 
-#: The languages folded. DICTA's lemmas are the ones the spec measures; another
-#: language's annotator is a different yardstick and waits for its own decision.
-LANGUAGES = ("he",)
+#: The languages folded. Hebrew is read by DICTA and Russian by the local reader
+#: (`annotate.russian`), neither of which is bought, so a fold reads what a build wrote and
+#: spends nothing. Each language is filed under registers of its own
+#: (`registers.in_language`), so it is only ever measured against its own counts
+#: (targum-internal#637). French lemmas are bought, and wait for a decision of their own.
+LANGUAGES = ("he", "ru")
 
 
 def _key(token: Mapping[str, Any]) -> tuple[str, str, bool] | None:
@@ -97,9 +101,9 @@ def fold(
     reader's import cannot reach this by any path. The annotation must be that text's:
     one naming another document is refused rather than filed under this one's licence.
 
-    `languages` is `LANGUAGES` everywhere a table is kept. Only the root-lexicon generator
-    passes another (`root_lexicon.russian_store`), into a store file of its own, so a
-    Russian lemma never sits in a register the Hebrew yardsticks read.
+    `languages` is `LANGUAGES` everywhere a table is kept; a test may narrow it. A text
+    not in Hebrew is filed under its language's own registers (`registers.in_language`),
+    so a Russian lemma never sits in a register the Hebrew yardsticks read.
 
     `beside` is the vocalization and segments beside the annotation
     (`spellings.beside`): where it is given, and the text is Hebrew, the fold writes
@@ -126,7 +130,7 @@ def fold(
     written = 0
     counted: dict[str, Counter[tuple[str, str]]] | None = None
     for table in TABLES:
-        contribution = contribution_for(text, table, tool)
+        contribution = contribution_for(text, table, tool, language)
         if store.is_current(contribution.id):
             continue
         if counted is None:
@@ -135,7 +139,7 @@ def fold(
             written += 1
     if beside is not None and spellings.folds(language):
         contribution = contribution_for(
-            text, spellings.READINGS, spellings.tool(tool, beside.vocalizer)
+            text, spellings.READINGS, spellings.tool(tool, beside.vocalizer), language
         )
         if not store.is_current(contribution.id):
             readings = spellings.count(tokens, beside.texts, beside.pointed, beside.vocalizer)
@@ -144,11 +148,15 @@ def fold(
     return written
 
 
-def contribution_for(text: PublicText, table: str, tool: str) -> Contribution:
-    """What a fold of one text into one table under one annotator is filed as."""
+def contribution_for(
+    text: PublicText, table: str, tool: str, language: str = HEBREW
+) -> Contribution:
+    """What a fold of one text into one table under one annotator is filed as: under the
+    text's register in its own language (`registers.in_language`). The id does not carry
+    the register, so a sweep may ask whether a text is current without its language."""
     return Contribution(
         table=table,
-        register=text.register,
+        register=in_language(text.register, language),
         unit=text.document_hash,
         source=text.source,
         licence=text.licence,
