@@ -101,6 +101,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   filter and no topic it asks the shelf too, and Watch or Listen never starts a look on
   the web. Listen is drawn only once the pool holds a podcast (`chips` answers `listen`).
   New strings for Filter and its pills, with Russian drafts.
+- A Russian beginner's one card on Home is their next scene too, and the Library's
+  Russian shelves lead with Start here (targum-internal#630, under #628; design.md §12,
+  "A Hebrew beginner's one card is their next scene"). From Russian's own series
+  (`scene-ru-NN`, 114 scenes, A1 and A2), never Hebrew's, for a reader below B1 measured
+  on the CEFR ladder, or with nothing measured. The ulpan rung named on arrival counts as
+  nothing said in Russian. Home now asks for the scene in the language shown, so a
+  signed-out visitor on Russian, whose empty level is Hebrew's, is no longer handed
+  Hebrew's first scene. Hebrew is unchanged. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
