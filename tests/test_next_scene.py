@@ -45,7 +45,7 @@ def entry(id_: str, language: str = "he") -> catalogue_module.Entry:
 
 
 SCENES = [
-    entry(id_)
+    entry(id_, "ru" if id_.startswith("scene-ru-") else "he")
     for id_ in (
         "scene-he-01-b1-first",
         "scene-03-which-way",
@@ -96,7 +96,28 @@ def test_a_beginner_is_aleph_or_nothing_said_until_measured_past_the_scenes() ->
     assert tools.scene_reader(replace(he, here=rung("bet plus"), declared="gimel")), (
         "a measured rung outvotes the said one"
     )
-    assert not tools.scene_reader(replace(EMPTY, language="ru"))
+    assert not tools.scene_reader(replace(EMPTY, language="fr")), "no French scenes yet"
+
+
+def cefr(name: str) -> level_module.Rung:
+    return next(one for one in level_module.CEFR if one.name == name)
+
+
+def test_a_russian_beginner_is_below_b1_on_the_cefr_ladder() -> None:
+    """targum-internal#630: Russian's 114 scenes are A1 and A2, so a Russian reader is a
+    scene reader below B1, measured on Russian's own ladder. The rung a person names on
+    arrival is an ulpan rung and says nothing of their Russian."""
+    ru = replace(EMPTY, language="ru", ladder="CEFR level")
+    assert tools.scene_reader(ru), "nothing said, nothing measured"
+    assert tools.scene_reader(replace(ru, here=cefr("A1")))
+    assert tools.scene_reader(replace(ru, here=cefr("A2")))
+    assert not tools.scene_reader(replace(ru, here=cefr("B1"))), "a measured B1"
+    assert not tools.scene_reader(replace(ru, here=cefr("C2")))
+    assert tools.scene_reader(replace(ru, declared="gimel")), "a Hebrew rung is not Russian's"
+    assert tools.scene_reader(replace(ru, declared="a2"))
+    assert not tools.scene_reader(replace(ru, declared="b1")), "a CEFR rung said is kept"
+    assert tools.scene_reader(replace(ru, declared="b1", here=cefr("A2"))), "measured outvotes"
+    assert tools.scene_reader(replace(ru, language="ru-RU"))
 
 
 def test_a_fresh_reader_starts_at_scene_one_and_moves_on(ctx: Any) -> None:
@@ -115,6 +136,25 @@ def test_the_order_runs_on_past_a_hundred_then_to_the_conversations(ctx: Any) ->
     assert tools.next_scene(ctx, done)["id"] == "scene-he-01-b1-first"  # type: ignore[index]
     done.append("scene-he-01-b1-first")
     assert tools.next_scene(ctx, done) is None, "never Russian's scenes, never a non-scene"
+
+
+def test_a_russian_reader_is_handed_russian_scenes_only(ctx: Any) -> None:
+    """Russian's own series, and never Hebrew's: the same order, in its own count."""
+    SCENES.extend(entry(id_, language="ru") for id_ in ("scene-ru-03-kofe", "scene-ru-02-apteka"))
+    try:
+        ctx.level = replace(EMPTY, language="ru")
+        first = tools.next_scene(ctx)
+        assert first is not None and first["id"] == "scene-ru-01-privet"
+        assert first["scene"] == {"first": True}
+        after = tools.next_scene(ctx, ["scene-ru-01-privet", "scene-01-nice-to-meet-you"])
+        assert after is not None and after["id"] == "scene-ru-02-apteka"
+        assert after["scene"] == {"first": False}
+        done = ["scene-ru-01-privet", "scene-ru-02-apteka", "scene-ru-03-kofe"]
+        assert tools.next_scene(ctx, done) is None, "never a Hebrew scene in Russian"
+        ctx.level = replace(EMPTY, language="fr")
+        assert tools.next_scene(ctx) is None
+    finally:
+        del SCENES[-2:]
 
 
 def test_a_scene_known_well_enough_is_skipped(ctx: Any) -> None:
@@ -146,6 +186,22 @@ def test_suggest_hands_a_beginner_their_scene_and_anyone_else_the_ranking(
     monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": [picked]})
     got = call(port, "GET", f"/suggest?language=he&k={key}")[1]
     assert got["suggestion"]["id"] == "esther" and "scene" not in got["suggestion"]
+
+
+def test_a_signed_out_russian_visitor_is_handed_russian_scene_one(
+    chatting: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#630, asked of the running server: signed out, the level is the
+    empty one, which is Hebrew's, so the language asked has to reach the scenes."""
+    port, key, _store, _chats = chatting
+    shelf = [*catalogue_module.everything(), entry("scene-ru-01-privet", language="ru")]
+    monkeypatch.setattr(catalogue_module, "everything", lambda: list(shelf))
+    monkeypatch.setattr(tools, "suggest_next", lambda ctx, args: {"suggestions": []})
+    got = call(port, "POST", f"/suggest?k={key}", {"language": "ru", "skip": []})[1]
+    assert got["suggestion"]["id"] == "scene-ru-01-privet"
+    assert got["suggestion"]["scene"] == {"first": True}
+    got = call(port, "POST", f"/suggest?k={key}", {"language": "he", "skip": []})[1]
+    assert got["suggestion"]["id"] == "scene-01-nice-to-meet-you", "Hebrew unchanged"
 
 
 def test_a_real_text_that_fits_a_beginner_comes_before_their_scene(

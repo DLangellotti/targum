@@ -2132,6 +2132,82 @@ def test_hebrew_has_a_start_here_shelf_in_the_scenes_order(tmp_path: Path) -> No
     ]
 
 
+RU_SCENES = [
+    seeded(f"scene-ru-{n:02d}-{slug}", title, kind="dialogue", difficulty=6, language="ru")
+    for n, slug, title in (
+        (3, "kofe", "Кофе"),
+        (1, "privet", "Привет"),
+        (2, "apteka", "Где аптека?"),
+    )
+]
+
+
+def ru_scene_catalogue() -> list[dict[str, Any]]:
+    """The fixture catalogue, and Russian scene rows made from its first Hebrew scene."""
+    rows = scene_catalogue()
+    first = next(row for row in rows if row["id"] == "scene-01-nice-to-meet-you")
+    return rows + [
+        {
+            **first,
+            "id": one["entry"],
+            "title": one["title"],
+            "language": "ru",
+            "languages": ["ru"],
+            "source": "dialogue:" + one["entry"][len("scene-") :],
+        }
+        for one in RU_SCENES
+    ]
+
+
+def test_russian_has_a_start_here_shelf_of_its_own_scenes(tmp_path: Path) -> None:
+    """targum-internal#630: Russian's scenes, in their own order, lead the Russian
+    shelves; none of Hebrew's, and the Hebrew shelf is as it was."""
+    catalogue = ru_scene_catalogue()
+    shared = SCENES + RU_SCENES
+    drawn = draw(tmp_path, shelves=True, shared=shared, catalogue=catalogue, language="ru")
+    start = drawn["shelves"][0]
+    assert start["band"] == "start" and start["name"] == "Start here"
+    assert [card["id"] for card in start["cards"]] == [
+        "scene-ru-01-privet",
+        "scene-ru-02-apteka",
+        "scene-ru-03-kofe",
+    ]
+    done = {"targum:docs": json.dumps({"scene-ru-01-privet-h": {"done": 9}})}
+    later = draw(
+        tmp_path, shelves=True, shared=shared, catalogue=catalogue, language="ru", stored=done
+    )
+    assert [card["id"] for card in later["shelves"][0]["cards"]] == [
+        "scene-ru-02-apteka",
+        "scene-ru-03-kofe",
+    ]
+    hebrew = draw(tmp_path, shelves=True, shared=shared, catalogue=catalogue)
+    assert [card["id"] for card in hebrew["shelves"][0]["cards"]][0] == (
+        "scene-01-nice-to-meet-you"
+    )
+    assert not any(c["id"].startswith("scene-ru-") for c in hebrew["shelves"][0]["cards"])
+
+
+def test_a_russian_scene_is_chipped_start_here_then_next(tmp_path: Path) -> None:
+    catalogue = ru_scene_catalogue()
+    shared = SCENES + RU_SCENES
+    drawn = draw(
+        tmp_path, shared=shared, catalogue=catalogue, view={"kind": "dialogue"}, language="ru"
+    )
+    chips = {row["title"]: row["chip"] for row in drawn["rows"]}
+    assert chips["Привет"] == "Start here" and chips["Где аптека?"] == "", chips
+    done = {"targum:docs": json.dumps({"scene-ru-01-privet-h": {"done": 9}})}
+    later = draw(
+        tmp_path,
+        shared=shared,
+        catalogue=catalogue,
+        view={"kind": "dialogue"},
+        language="ru",
+        stored=done,
+    )
+    chips = {row["title"]: row["chip"] for row in later["rows"]}
+    assert chips["Где аптека?"] == "Next" and chips["Привет"] == "", chips
+
+
 def test_a_shelf_with_no_scenes_has_no_start_here(tmp_path: Path) -> None:
     drawn = draw(tmp_path, shelves=True, catalogue=media_shelf(), collections=[])
     assert "start" not in [one["band"] for one in drawn["shelves"]]
