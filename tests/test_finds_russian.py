@@ -107,6 +107,10 @@ def test_a_russian_look_asks_the_chips_phrase_with_the_level_words_by_rung() -> 
     assert live.queries([], "ru", None) == ("повседневная жизнь РКИ",)
     assert live.queries(["israel"], "ru", 3) == ("повседневная жизнь",), "no phrase, any topic"
     assert set(live.TOPIC_WORDS["ru"]) == set(live.TOPIC_WORDS["he"])
+    # `army` is hidden, so no Russian look is steered toward the army either (David,
+    # 2026-11-05): not by a chip, and not by the topics a reader's reading suggests.
+    assert not any("арми" in words for words in live.TOPIC_WORDS["ru"].values())
+    assert live.queries(["security"], "ru", 0) == ("безопасность РКИ",)
     # Hebrew is as it was.
     assert live.queries(["football"], "he", 2) == ("כדורגל בעברית קלה",)
     assert live.queries(["football"], "he", 3) == ("כדורגל",)
@@ -325,3 +329,74 @@ def test_the_russian_screen_holds_on_every_door() -> None:
     assert screen.term_in("Порнография и прочее") == "Порнограф"
     assert screen.passes("blog.example.ru", "Эротические рассказы") == "words"
     assert screen.term_in("футбол простым языком") == ""
+
+
+# -- one night for both languages -----------------------------------------------------
+
+
+def test_russian_youtube_has_the_units_hebrew_left_never_a_fresh_allowance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The night's 3,000 units are the night's, not each language's (#635)."""
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    given: list[tuple[str, int]] = []
+
+    def night(store: Store, *, language: str, budget_units: int) -> finds_youtube.Round:
+        given.append((language, budget_units))
+        return finds_youtube.Round(units=2_900 if language == "he" else budget_units)
+
+    monkeypatch.setenv(finds_youtube.FLAG, "1")
+    monkeypatch.setattr(finds_youtube, "refresh", night)
+    store = str(tmp_path / "t.db")
+    said = CliRunner().invoke(app, ["finds", "youtube", "--store", store, "--units", "3000"])
+    assert said.exit_code == 0, said.output
+    assert given == [("he", 3_000), ("ru", 100)]
+
+
+def test_a_host_gives_at_most_five_pages_a_night_across_both_languages(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`HOST_MOST` is the night's, as the command says: Russian's round counts on from
+    what Hebrew's read, rather than starting at nought."""
+    from collections import Counter
+
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    read: Counter[str] = Counter()
+
+    def reading(url: str) -> tuple[str, int]:
+        read[urlparse(url).hostname or ""] += 1
+        return page(len(read)), 0
+
+    def ask(query: str) -> web.Searched:
+        hits = [
+            web.Hit(f"https://blog.example.com/{abs(hash(query))}/{n}", "Спорт") for n in range(3)
+        ]
+        return web.Searched(hits=hits, searches=1, cost=0.0)
+
+    refresh = web.refresh
+
+    def night(store: Store, **kwargs: Any) -> web.Night:
+        return refresh(
+            store,
+            ask=ask,
+            read=reading,
+            robots=ALLOW,
+            forms_for=lambda language: forms(),
+            publishers=[],
+            lean={},
+            at=AT,
+            **kwargs,
+        )
+
+    monkeypatch.setenv(web.FLAG, "1")
+    monkeypatch.setattr(web, "refresh", night)
+    said = CliRunner().invoke(app, ["finds", "web", "--store", str(tmp_path / "t.db")])
+    assert said.exit_code == 0, said.output
+    assert "(he)" in said.output and "(ru)" in said.output
+    assert read["blog.example.com"] == web.HOST_MOST

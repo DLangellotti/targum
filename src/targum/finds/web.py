@@ -325,6 +325,9 @@ class Night(news.Round):
     searches: int = 0
     queries: list[str] = field(default_factory=list)
     allowance: float = 0.0
+    #: What the night has read from each host so far, this round's and what it was
+    #: handed (`refresh(hosts=...)`), so the next language's round counts on from it.
+    hosts: Counter[str] = field(default_factory=Counter)
 
     def __str__(self) -> str:
         return (
@@ -377,7 +380,7 @@ def refresh(
     from ..weekly.feeds import link_key
 
     when = pool.now_ms() if at is None else at
-    found = Night()
+    found = Night(hosts=Counter(dict(hosts or {})))
     code = score_module.code(language)
     forms = forms_for(code) if code in score_module.POOLED else None
     asked = queries(code)
@@ -400,7 +403,7 @@ def refresh(
     found.allowance = allowance(store, when)
     begun = clock()
     shut = set(store.closed(limit=500))
-    per_host: Counter[str] = Counter(dict(hosts or {}))
+    per_host = found.hosts
     tonight = 0.0
     worst = WORST_CALL_USD
     done = 0

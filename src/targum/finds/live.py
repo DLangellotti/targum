@@ -138,7 +138,10 @@ TOPIC_WORDS: dict[str, dict[str, str]] = {
         "nature": "природа и погода",
         "politics": "политика и власть",
         "law": "криминал и суд",
-        "security": "армия и безопасность",
+        # Not «армия и безопасность» (ling-ru's first draft): `army` is hidden for
+        # Russian to keep war coverage away from beginners (David, 2026-11-05), and
+        # *армия* here would steer a look to it anyway. DRAFT, awaiting David's read.
+        "security": "безопасность",
         "science": "наука и технологии",
         "religion": "религия и традиции",
     },

@@ -5819,23 +5819,28 @@ def finds_web(
         console.print(f"[dim]The wikis are off ({wiki.FLAG} is not set).[/dim]")
     if not web.on():
         console.print(f"[dim]The web search is off ({web.FLAG} is not set).[/dim]")
+    # At most five pages from a host a night, across both languages: each round counts
+    # on from what the rounds before it read.
+    night: Counter[str] = Counter()
     for code in language or web.LANGUAGES:
-        read: Counter[str] = Counter()
+        read: Counter[str] = Counter(night)
         if wiki.on():
             try:
                 wikis = wiki.refresh(keeping, language=code)
             except TargumError as error:
                 fail(error)
-            read = wikis.hosts
+            read.update(wikis.hosts)
             console.print(f"[green]Wikis[/green] ({code}): {wikis}")
             if wikis.stopped:
                 console.print(f"[yellow]Stopped[/yellow]: {wikis.stopped}.")
+        night = read
         if not web.on():
             continue
         try:
             found = web.refresh(keeping, language=code, hosts=read)
         except TargumError as error:
             fail(error)
+        night = found.hosts
         console.print(f"[green]Web[/green] ({code}): {found}")
         if found.stopped:
             console.print(f"[yellow]Stopped[/yellow]: {found.stopped}.")
