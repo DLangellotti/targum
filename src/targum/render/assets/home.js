@@ -1440,6 +1440,7 @@
       count: word.count,
       into: word.into,
       language: cardAsk.code || "he",
+      beside: item.closest ? item.closest(".home-side") : null,
       onStatus: function (status) {
         item.classList.remove("is-open");
         if (status !== KNOWN_STEP && status !== IGNORED_STEP) return;

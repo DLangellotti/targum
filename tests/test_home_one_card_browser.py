@@ -726,6 +726,17 @@ WORDS = """() => {
     meanings: JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}'),
     sideways: document.documentElement.scrollWidth > window.innerWidth,
     rowHeight: (() => { const li = q('#rc-words li'); return li ? li.getBoundingClientRect().height : 0; })(),
+    covers: (() => {
+      const card = q('#list-card');
+      if (!card || card.hidden) return null;
+      const c = card.getBoundingClientRect();
+      const side = q('.home-side').getBoundingClientRect();
+      const rows = [...document.querySelectorAll('#rc-words li')].some((li) => {
+        const r = li.getBoundingClientRect();
+        return c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top;
+      });
+      return { rows, beside: c.right <= side.left, inView: c.left >= 0 && c.right <= window.innerWidth };
+    })(),
   };
 }"""  # noqa: E501
 
@@ -774,6 +785,8 @@ def test_a_pick_near_the_floor_folds_its_words_to_know_first_and_a_mark_takes_on
     assert len(opened["rows"]) == 4 and opened["quiet"] == "Tap a word to mark it."
     assert carded["card"] and carded["levels"] == 5 and "advance; promote" in carded["cardSays"]
     assert carded["ledger"] == {}, "opening the card marks nothing"
+    if width >= 640:
+        assert carded["covers"] == {"rows": False, "beside": True, "inView": True}, carded
     assert marked["ledger"]["קידם"]["status"] == 9, marked["ledger"]
     assert marked["meanings"]["קידם"]["meaning"] == "advance; promote"
     assert [row[0] for row in marked["rows"]] == ["סיעה", "נוכחי", "הושבע"]

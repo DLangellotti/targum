@@ -908,6 +908,23 @@
       );
     });
     cardGone = word.onClose || null;
+    beside(row, word.beside);
+  }
+
+  /* On a desk, a card opened from a list in a narrow column stands beside the column, at
+     its inline-start and level with the row, so it covers none of the list it came from
+     (design.md §14.2). Where the page has no room there it stays under the row. */
+  function beside(row, column) {
+    if (!column || !column.getBoundingClientRect || card.classList.contains("sheet")) return;
+    var box = column.getBoundingClientRect();
+    var at = row.getBoundingClientRect();
+    var width = card.offsetWidth || 0;
+    var gutter = 16;
+    var rtl = (document.documentElement.getAttribute("dir") || "") === "rtl";
+    var left = rtl ? box.right + gutter : box.left - width - gutter;
+    if (left < gutter || left + width > (window.innerWidth || 0) - gutter) return;
+    card.style.left = left + (window.scrollX || 0) + "px";
+    card.style.top = at.top + (window.scrollY || 0) + "px";
   }
 
   function phraseCard(phrase) {
