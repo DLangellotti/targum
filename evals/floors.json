@@ -926,5 +926,37 @@
     "system": "aspect-partners/1",
     "at_least": 0.99,
     "why": "1.0000 on 2026-10-30, by construction: the card draws the reviewed list on the verbs it covers, and a fall means the list stopped winning"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "unresolved_share",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_most": 0.02,
+    "why": "0.0061 on 2026-11-05 (0.150 with the shelf's map alone, 2026-10-31); news.py drops a page past 8% (targum-internal#629)"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "mean_abs_worst",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_most": 0.025,
+    "why": "0.0136 on 2026-11-05 (0.085 with the map alone); the bound the Hebrew sample is held to, set on Russian's own"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "same_side_least",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_least": 0.9,
+    "why": "0.962 on 2026-11-05 (0.89 with the map alone)"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "agree",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_least": 0.9,
+    "why": "0.9316 on 2026-11-05, against ru-local's own lemma"
   }
 ]

@@ -757,10 +757,10 @@
   {%- for source, last in finds.last|dictsort %}
   <p class="quiet">Last {{ source }} round: {{ last.seen }} new, {{ last.kept }} kept{% for why, n in last.dropped|dictsort %} &middot; {{ why }} {{ n }}{% endfor %}</p>
   {%- endfor %}
-  {%- if finds.calibration %}
-  <p class="quiet">Last calibration ({{ finds.calibration.language }}, {{ finds.calibration.test }} texts, {{ finds.calibration.test_tokens }} words):
-    {%- for row in finds.calibration.rows %} knows {{ row.known }}: {{ '%+.1f'|format(row.mean * 100) }} pt, |{{ '%.1f'|format(row.mean_abs * 100) }}|{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
-  {%- endif %}
+  {%- for language, calibration in finds.calibrations|dictsort %}
+  <p class="quiet">Last calibration ({{ language }}, {{ calibration.test }} texts, {{ calibration.test_tokens }} words{% if calibration.found and calibration.found.unresolved is defined %}, {{ '%.1f'|format(calibration.found.unresolved * 100) }}% unresolved{% endif %}):
+    {%- for row in calibration.rows %} knows {{ row.known }}: {{ '%+.1f'|format(row.mean * 100) }} pt, |{{ '%.1f'|format(row.mean_abs * 100) }}|{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endfor %}
   {%- endif %}
 
   {#- How well targum estimates how hard a text is for a reader (targum-internal#612,
