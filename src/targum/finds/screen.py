@@ -181,7 +181,7 @@ def term_in(text: str) -> str:
     """The first listed term in the text's opening, in any of the three languages, or
     "". Every language is tried on every text: a Hebrew page quotes English."""
     opening = first_words(text)
-    for language in ("he", "ru", "en"):
+    for language in TERMS:
         found = _PATTERNS[language].search(opening)
         if found:
             return found.group(0)

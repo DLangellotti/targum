@@ -28,6 +28,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   dictionary reading is committed. Deploy checks and calibrates each language on its own
   (`finds forms --drop-short`, `--check --language`), so a thin Russian shelf costs
   Russian alone. A box without the `russian` extra pools no Russian. No new strings.
+- Russian runs through every finds door (targum-internal#635, under #628): Find me
+  something's chips, the live look, the nightly YouTube round, the open-web night and
+  Russian Wikipedia and Wikivoyage through the MediaWiki API, as Hebrew's do. The
+  languages come from data, not `("he",)` tuples. The Russian chip, topic and level
+  phrases are ling-ru's draft of 2026-11-05, awaiting David's read: no `israel` or
+  `holidays` chip in Russian and `army` hidden (David, 2026-11-05), "РКИ" at A1–A2 and
+  «простым языком» at B1. A Russian reader's rung is counted on the CEFR, as the pool
+  counts it. Each night's rotation is kept per language. Hebrew runs first each night,
+  and Russian runs on what the night has left: the web night's $1 and YouTube's units are
+  still the night's, so nothing new is spent. Hebrew is unchanged. No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's

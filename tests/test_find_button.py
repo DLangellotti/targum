@@ -153,7 +153,7 @@ def test_the_query_is_topic_words_language_and_level_and_nothing_else() -> None:
     assert live.queries(("food",), "he", 2) == ("אוכל ומסעדות בעברית קלה",)
     assert live.queries(("food",), "he", 3) == ("אוכל ומסעדות",), "bet plus is past bet"
     assert live.queries((), "he", None) == ("חיי היומיום בעברית קלה",)
-    assert live.queries(("food",), "ru", 1) == (), "no words for the language, no look"
+    assert live.queries(("food",), "fr", 1) == (), "no words for the language, no look"
 
 
 class Client:
@@ -340,6 +340,25 @@ def test_one_pick_from_the_pool_and_another_after_it(home: Any, on: None) -> Non
         home.port, "POST", "/find", {"language": "he", "skip": [got["pick"]["id"]]}, cookie=cookie
     )
     assert other["pick"]["url"] == "https://a.example/law"
+
+
+def test_a_russian_reader_is_offered_no_chip_without_a_russian_phrase(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No `israel`, `holidays` or `army` in Russian (David, 2026-11-05; targum-internal
+    #635), and a Hebrew reader keeps all forty."""
+    monkeypatch.setattr(Store, "learning", lambda self, who: {"he", "ru"})
+    cookie = sign_in(home.port, home.postbox)
+    ask = {"chips": True, "language": "ru"}
+    status, offered, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    codes = [one["topic"] for one in offered["chips"]]
+    assert status == 200 and len(codes) == 37
+    assert not {"israel", "holidays", "army"} & set(codes)
+    ask = {"chips": True, "language": "he"}
+    status, offered, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    assert [one["topic"] for one in offered["chips"]] == [chip.code for chip in chips.CHIPS]
 
 
 def test_with_nothing_that_fits_a_look_runs_and_the_page_polls_it(

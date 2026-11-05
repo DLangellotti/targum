@@ -572,6 +572,34 @@ def finish_run(
         )
 
 
+def last_note(store: Store, source: str, language: str = "he", most: int = 50) -> dict[str, Any]:
+    """The note of a source's last finished run in a language: a night's rotation goes
+    on where that language's last night stopped, whatever ran for another language in
+    between (targum-internal#635). A note that names no language is Hebrew's, written
+    before the rounds ran for more than one."""
+    for (raw,) in store.db.execute(
+        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT ?",
+        (source, most),
+    ):
+        try:
+            said = json.loads(raw or "{}")
+        except ValueError:
+            said = {}
+        if not isinstance(said, dict):
+            said = {}
+        if str(said.get("language") or "he") == language:
+            return said
+    return {}
+
+
+def last_next(store: Store, source: str, language: str = "he") -> int:
+    """Where a source's rotation starts tonight in a language (`last_note`'s `next`)."""
+    try:
+        return int(last_note(store, source, language).get("next") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def spend(store: Store, run: int, dollars: float) -> None:
     """Add to a run's spend as it happens, so a round killed partway has still said
     what it cost (memory: a run that spends must checkpoint)."""

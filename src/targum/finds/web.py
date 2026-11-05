@@ -99,7 +99,7 @@ DEADLINE_S = 45 * 60.0
 LATELY_MS = 20 * 60 * 60 * 1000
 
 #: The languages a night runs for: those the scorer has a map for and the chips a phrase.
-LANGUAGES = ("he",)
+LANGUAGES = ("he", "ru")
 
 SYSTEM = (
     "You run web searches for targum, a reading app for language learners, and say "
@@ -129,17 +129,9 @@ def rotated(asked: Sequence[Any], start: int) -> list[Any]:
     return [*asked[at:], *asked[:at]]
 
 
-def _start(store: Store) -> int:
-    """Where tonight's queries start: where the last night stopped."""
-    row = store.db.execute(
-        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT 1",
-        (RUN_SOURCE,),
-    ).fetchone()
-    try:
-        said = json.loads(row[0] or "{}") if row else {}
-    except ValueError:
-        said = {}
-    return int(said.get("next") or 0) if isinstance(said, dict) else 0
+def _start(store: Store, language: str = "he") -> int:
+    """Where tonight's queries start: where the last night in the language stopped."""
+    return pool.last_next(store, RUN_SOURCE, language)
 
 
 def bought_lately(store: Store, asked: str, at: int) -> bool:
@@ -395,7 +387,7 @@ def refresh(
     pool.expire(store, when)
     listed = outlets(sources_module.load() if publishers is None else publishers)
     asker = ask or (lambda one: search(live.client(), one))
-    start = _start(store)
+    start = _start(store, code)
     base = rotated(asked, start)
     # The topics readers ask for and the pool lacks go first (`steer`); the night's dollar
     # is the same, so the lean moves which topics it buys, never how much.
@@ -498,6 +490,7 @@ def refresh(
             "queries": found.queries,
             "searches": found.searches,
             "allowance": round(found.allowance, 4),
+            "language": code,
         }
         if steered:
             note["steered"] = [chip for chip, _ in steered]
