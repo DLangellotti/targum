@@ -1463,6 +1463,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     taught = teaching(
         ctx.store, ctx.person_id, language, index, statuses, chances, own, skip - {instead_of}
     )
+    # Where inside the band this reader's aim sits today, learned from what they finished
+    # and set aside (design.md §12, "The aim moves with what you finish", 2026-11-05).
+    offset = choose.offset_for(ctx.store, ctx.person_id, language)
     candidates: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
     opened_parts: list[parts_module.Part] = []
     collections = _collections()
@@ -1571,6 +1574,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             learn=learn or 0.0,
             interest=interest,
             waits=waits,
+            offset=offset,
         )
         if under and (row["fit"] != choose.UNDER or catalogue_module.scene_number(entry.id)):
             continue
@@ -1604,6 +1608,7 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                     learn=float(row.get("learn") or 0.0),
                     interest=int(on_topic),
                     fresh=choose.freshness(int(row.get("published") or 0), now),
+                    offset=offset,
                 )
                 candidates.append((rank, row))
     candidates.sort(key=lambda pair: pair[0])
