@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- `search_sources` measures today's news on the article where the news round has read it
+  (targum-internal#615; design.md §12, "Today's news is measured on the article where we
+  have read it"). An item the finds pool keeps, measured, is given the figure from the
+  article's own lemma counts, by the rule every page uses, instead of from its headline
+  and four hundred characters of summary. Every other item is measured as before. Each
+  row says `measured_on`, either `article` or `headline`. Nothing is fetched and nothing
+  new is stored. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

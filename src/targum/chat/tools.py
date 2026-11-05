@@ -44,6 +44,7 @@ import logging
 import math
 import re
 import secrets
+import sqlite3
 import threading
 import time
 from collections import OrderedDict
@@ -3537,6 +3538,46 @@ def _item_topics(publisher: sources_module.Publisher, item: Any) -> tuple[str, .
     return tuple(one for one in sources_module.TOPICS if one in found)
 
 
+def _pooled_bodies(ctx: Ctx, pulled: Iterable[Any]) -> dict[str, Any]:
+    """The finds pool's kept, unexpired rows at these feed items' links, by link
+    (`finds.pool.at_urls`): the articles the news round has read whole. Empty where
+    there is no store, and never an error: a search answers on headlines rather than
+    not at all."""
+    from ..finds import pool
+
+    if ctx.store is None:
+        return {}
+    links = [item.link for items in pulled if items for item in items if item.link]
+    if not links:
+        return {}
+    try:
+        return pool.at_urls(ctx.store, links)
+    except sqlite3.Error:
+        return {}
+
+
+def _article_figure(
+    ctx: Ctx,
+    body: Any,
+    language: str,
+    known: estimate_module.Estimate | None,
+    marks: dict[str, dict[str, int]],
+) -> tuple[float | None, bool] | None:
+    """A pooled article's figure for this reader, as every page prints a text's
+    (`estimate.shown`): the marked share of its running words where our estimate would
+    print the same whole percentage, else our estimate. None where the find is in
+    another language, or not measured, and the headline is measured instead."""
+    from ..finds import provider
+
+    if (body.language or "").split("-")[0].lower() != language:
+        return None
+    marked = provider.share_of(body, _marked(ctx, language, marks))
+    if marked is None:
+        return None
+    expected = provider.expected_of(body, known) if known is not None and known.ranked else None
+    return estimate_module.shown(marked, expected)
+
+
 def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     """What the publishers this box knows have published lately, matched to a query.
 
@@ -3571,6 +3612,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     categories read through `sources.CATEGORY_TOPICS`, together with its publisher row's
     where the feed is one section; `topic` keeps the items that carry it. An item with no
     topic is left out of a topic search and kept in every other.
+
+    **Measured on the article where we have read it** (2026-11-05, targum-internal#615;
+    design.md §12): an item the finds pool keeps from the news round is measured on the
+    article's own lemma counts, and says `measured_on: "article"`; any other on its title
+    and summary, `measured_on: "headline"`.
     """
     query = str(args.get("query") or "").lower().split()
     kind = str(args.get("kind") or "")
@@ -3610,6 +3656,11 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     # `_known_forms`.
     forms_by_language: dict[str, frozenset[str]] = {}
     estimates: dict[str, Any] = {}
+    marks_by_language: dict[str, dict[str, int]] = {}
+    # The items the news round has already read whole (design.md §12, "Today's news is
+    # measured on the article where we have read it", 2026-11-05): measured on their
+    # article's counts rather than their headline. One lookup for the whole search.
+    bodies = _pooled_bodies(ctx, pulled_by_feed.values()) if measuring else {}
     for publisher in publishers:
         written = publisher.language.split("-")[0].lower() or "he"
         if measuring and written not in forms_by_language:
@@ -3632,17 +3683,25 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             topics = _item_topics(publisher, item)
             if topic and topic not in topics:
                 continue
-            # What the reader would already know of it, from the hook the feed gives:
-            # a title and up to four hundred characters of summary. Not the article —
-            # nothing here has been fetched — so it is an estimate off an estimate, and
-            # `known_share` answers None below twenty tokens rather than guessing at a
-            # headline. Enough to tell two of the same day's stories apart, which is all
-            # it is asked to do.
+            # What the reader would already know of it: the article's own counts where
+            # the news round has read it whole (`bodies`, 2026-11-05). Otherwise the
+            # hook the feed gives, a title and up to four hundred characters of summary,
+            # an estimate off an estimate, and `known_share` answers None below twenty
+            # tokens rather than guessing at a headline. Enough to tell two of the same
+            # day's stories apart, which is all the hook is asked to do.
             #
             # Each item's answer is kept (`FEED_KNOWN`) under the reader's record and the
             # hook itself, so the same day's items are not measured again on every search.
             hook = f"{item.title}\n{item.summary}"
-            if whose is None:
+            body = bodies.get(item.link)
+            article = (
+                _article_figure(ctx, body, written, estimate_here, marks_by_language)
+                if body is not None
+                else None
+            )
+            if article is not None:
+                known, estimated = article
+            elif whose is None:
                 known, estimated = _known_figure(ctx, hook, forms, written, estimate_here)
             else:
                 digest = hashlib.sha256(hook.encode("utf-8")).hexdigest()
@@ -3662,6 +3721,7 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "licence": publisher.licence,
                 "known_share": level_module.page_share(known),
                 "known_estimated": estimated,
+                "measured_on": "article" if article is not None else "headline",
             }
             if topics:
                 row["topics"] = list(topics)

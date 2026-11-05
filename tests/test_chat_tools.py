@@ -1252,6 +1252,95 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert tools.search_sources(ctx, {})["note"] == "We don't follow any publishers yet."
 
 
+def test_search_sources_measures_an_item_on_its_article_where_the_pool_read_it(
+    world, monkeypatch, tmp_path
+) -> None:
+    """design.md §12, "Today's news is measured on the article where we have read it"
+    (2026-11-05; targum-internal#615): an item the news round kept is measured on the
+    article's own counts, by the rule every page prints a text's figure; an item it did
+    not keep, or kept unmeasured, still on its headline."""
+    from datetime import UTC, datetime
+
+    from targum import estimate as estimate_module
+    from targum.finds import pool
+    from targum.weekly import feeds
+
+    path = tmp_path / "sources.json"
+    path.write_text(
+        json.dumps(
+            {
+                "publishers": [
+                    {
+                        "key": "kan",
+                        "name": "כאן",
+                        "feed": "https://kan.example/rss",
+                        "kind": "news",
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_SOURCES", str(path))
+    headline = "שלום שלום בית בית ספר ספר ספר רעב רעב רעב " * 3
+
+    def pull(url: str, *, limit: int = 30) -> list[feeds.Item]:
+        return [
+            feeds.Item(
+                title=f"read {n}",
+                link=f"https://kan.example/{n}",
+                summary=headline,
+                published=datetime(2026, 11, 4, tzinfo=UTC),
+            )
+            for n in (1, 2, 3)
+        ]
+
+    monkeypatch.setattr(feeds, "pull", pull)
+    tools.FEEDS.clear()
+    tools.FEED_KNOWN.clear()
+    library, store, person, home = world
+
+    def kept(url: str, bag: dict[str, int], unresolved: int = 0) -> int:
+        return pool.add(
+            store,
+            language="he",
+            source="news",
+            url=url,
+            bag=bag,
+            tokens=sum(bag.values()) + unresolved,
+            unresolved=unresolved,
+            rung=3,
+            title="כותרת",
+            host="kan.example",
+        )
+
+    # The reader knows שלום and בית: the article is 90% those, the headline far less.
+    kept("https://kan.example/1", {"שלום": 60, "בית": 30, "ספר": 10})
+    # Kept, but a fifth of its words unplaced: not measured, so the headline answers.
+    kept("https://kan.example/2", {"שלום": 60, "בית": 20}, unresolved=20)
+    ctx = context(library, store, person, home)
+    rows = {row["link"]: row for row in tools.search_sources(ctx, {})["items"]}
+
+    article = rows["https://kan.example/1"]
+    assert article["measured_on"] == "article"
+    known = tools._estimate(ctx, "he")
+    marked = 0.9
+    expected = None
+    if known is not None and known.ranked:
+        expected = (60 + 30 + 10 * known.p_known("ספר")) / 100
+    share, estimated = estimate_module.shown(marked, expected)
+    assert article["known_share"] == level.page_share(share)
+    assert article["known_estimated"] is estimated
+
+    for link in ("https://kan.example/2", "https://kan.example/3"):
+        assert rows[link]["measured_on"] == "headline", link
+    assert (
+        rows["https://kan.example/3"]["known_share"] == rows["https://kan.example/2"]["known_share"]
+    ), "both measured on the same headline"
+    assert rows["https://kan.example/3"]["known_share"] != article["known_share"]
+
+
 def test_search_sources_holds_to_the_reader_s_language_unless_another_is_named(
     world, monkeypatch, tmp_path
 ) -> None:

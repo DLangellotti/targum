@@ -384,6 +384,29 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Today's news is measured on the article where we have read it — 2026-11-05
+
+targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`
+scores the fetched body, not the headline". Until now the chat's and the connector's
+`search_sources` measured each feed item on its title and up to four hundred characters
+of summary. That told two of the same day's stories apart, and not much more: a headline
+is a clipped register, and the article is what the reader would actually read.
+
+- **Where the finds pool holds the item, its figure is the article's.** The news round
+  (`finds/news.py`) has already read most of the same feeds' items whole, from the feed's
+  full text or one fetch through the door, and kept their lemma counts
+  (`find_lemma`). `search_sources` looks each link up in the pool (`pool.at_urls`). Where
+  the find is kept, unexpired and measured (`score.Score.measured`), the item's
+  `known_share` and `known_estimated` come from those counts, by the rule every page uses
+  (`estimate.shown`: the marked share where our estimate would print the same whole
+  percentage, otherwise our estimate). Nothing is fetched and nothing new is stored.
+- **Otherwise, the headline, as before.** An item the pool does not hold, or holds
+  unmeasured, is measured on its title and summary, exactly as it was.
+- **The row says which.** Each item carries `measured_on`, either `article` or
+  `headline`, so a model can say "about 92% of the article" only where that is true.
+- **The order is unchanged:** reachable first, newest day first, then the share. The
+  share is now the article's wherever we have one.
+
 ### The aim moves with what you finish — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "Band offset learned

@@ -450,6 +450,25 @@ def get(store: Store, find_id: int, at: int | None = None) -> Find | None:
     return _find(row, _bags(store, [int(row["id"])]).get(int(row["id"]), {}))
 
 
+def at_urls(store: Store, urls: Iterable[str], at: int | None = None) -> dict[str, Find]:
+    """The kept, unexpired finds at these addresses, with their counts, by address: what
+    `search_sources` measures a feed item on where the pool has read it whole (design.md
+    §12, "Today's news is measured on the article where we have read it", 2026-11-05)."""
+    when = now_ms() if at is None else at
+    wanted = list(dict.fromkeys(url for url in urls if url))
+    rows: list[sqlite3.Row] = []
+    for start in range(0, len(wanted), 500):
+        chunk = wanted[start : start + 500]
+        marks = ",".join("?" * len(chunk))
+        rows += store.db.execute(
+            f"SELECT {_COLUMNS} FROM find WHERE url IN ({marks})"  # noqa: S608 - marks only
+            " AND screen = ? AND expires > ?",
+            (*chunk, KEPT, when),
+        ).fetchall()
+    bags = _bags(store, [int(row["id"]) for row in rows])
+    return {str(row["url"]): _find(row, bags.get(int(row["id"]), {})) for row in rows}
+
+
 # A find's counts never change once written, so they are read once a process and kept,
 # keyed by database and id: Home scores up to `PICK_MOST` finds a request, and reading
 # their lemma rows each time was most of the request.
