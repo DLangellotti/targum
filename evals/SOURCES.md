@@ -424,6 +424,27 @@ into sentences.
 - **Scored by:** `scripts/eval_liaison.py`.
 - **Ledger:** `said/pd-fr-drafted`.
 
+## Multiword units, read by hand
+
+The golds the French and Russian unit lists are scored against (targum-internal#636):
+`evals/units-gold-fr.jsonl`, 109 sentences of 14 public-domain French texts on the shelf
+(Maupassant, Daudet, Perrault, Allais), and `evals/units-gold-ru.jsonl`, 93 segments of
+the shelf's public-domain Russian classics (Pushkin, Turgenev, Tolstoy, Chekhov,
+Dostoevsky, Leskov, Andreyev, Saltykov-Shchedrin). Each line has the shelf's own tokens
+and every unit in them, with the indices of its words.
+
+- **Kind: read by hand.** ling-fr and ling-ru read every line on 2026-11-05. Each set
+  leans toward hard cases: every ne… que, every est-ce, each kind of wrong hit, and the
+  у… есть and может быть rows drawn at random. **The Russian gold is ling-ru's draft for
+  David's read** and says so on every line (`"drafted"`). The 22 Russian lines from
+  OVD-Info, Teplitsa, Global Voices and Global Storybooks are left out of the
+  repository.
+- **Licence:** the texts are public domain; the labels are targum's own.
+- **Where:** `evals/units-gold-fr.jsonl`, `evals/units-gold-ru.jsonl`, in the repository.
+- **Use:** evaluation only.
+- **Scored by:** `tests/test_units.py` (`FLOORS`), on every run of the suite. It writes
+  no ledger row.
+
 ## Sets with no reference
 
 These are measured without gold. The number is a property of the output.

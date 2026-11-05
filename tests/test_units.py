@@ -368,14 +368,15 @@ def test_the_shipped_list_reads_whole(language: str) -> None:
     rows = path.read_text(encoding="utf-8").splitlines()
     assert rows[0].split("\t")[0] == "lemmas", "no line above the header"
     found = units.load(language=language)
-    assert {unit.key for unit in found} >= {
-        " ".join(units.words(r.split("\t")[0])) for r in rows[1:]
-    }
+    def key(row: str) -> str:
+        cells = row.split("\t")
+        return " ".join(units.words(cells[6] if len(cells) > 6 and cells[6] else cells[0]))
+
+    assert {unit.key for unit in found} == {key(r) for r in rows[1:]}
     for line in rows[1:]:
         cells = line.split("\t")
         if "discontinuous" in cells[4]:
-            key = " ".join(units.words(cells[0]))
-            assert any(sum(unit.gaps) for unit in found if unit.key == key), key
+            assert any(sum(unit.gaps) for unit in found if unit.key == key(line)), line
 
 
 def spaced(*words: tuple[str, str], comma_after: int = -1) -> list[dict[str, Any]]:
@@ -438,7 +439,9 @@ def test_a_discontinuous_unit_counts_the_words_it_is_made_of(lists: Path, tmp_pa
 
 def test_a_token_in_one_unit_is_never_in_another(lists: Path) -> None:
     said = sentence(("ne", "ne"), ("vient", "venir"), ("parce", "parce"), ("que", "que"))
-    assert [(at, unit.key) for at, unit in units.found(said, "fr")] == [((0, 3), "ne que")]
+    assert [(at, unit.key) for at, unit in units.found(said, "fr")] == [((2, 3), "parce que")], (
+        "the contiguous parce que keeps its que from ne… que"
+    )
 
 
 def test_an_elided_lemma_is_folded_to_its_full_form(lists: Path) -> None:
@@ -449,3 +452,197 @@ def test_an_elided_lemma_is_folded_to_its_full_form(lists: Path) -> None:
         token("autre", "autre", 7),
     ]
     assert [unit.key for _, unit in units.match(said, "fr")] == ["le un le autre"]
+
+
+# The shipped lists, and the rules ling-fr's and ling-ru's golds asked for (2026-11-05).
+
+
+def said(*words: tuple[str, ...], comma_after: int = -1) -> list[dict[str, Any]]:
+    """Tokens one space apart (two after `comma_after`), each (surface, lemma, pos,
+    feats)."""
+    out = []
+    at = 0
+    for n, word in enumerate(words):
+        surface, lemma = word[0], word[1]
+        one = token(surface, lemma, at, word[2] if len(word) > 2 else "X")
+        one["feats"] = word[3] if len(word) > 3 else ""
+        out.append(one)
+        at += len(surface) + (2 if n == comma_after else 1)
+    return out
+
+
+def keys_in(tokens: list[dict[str, Any]], language: str) -> list[str]:
+    units.clear()
+    return [unit.key for _, unit in units.found(tokens, language)]
+
+
+def test_the_shipped_gap_after_ne_is_six_words_and_stops_at_a_comma() -> None:
+    near = said(("Il", "il"), ("ne", "ne"), *[("mot", "mot")] * 6, ("que", "que"))
+    assert keys_in(near, "fr") == ["ne que"]
+    far = said(("Il", "il"), ("ne", "ne"), *[("mot", "mot")] * 7, ("que", "que"))
+    assert keys_in(far, "fr") == []
+    comma = said(("Il", "il"), ("ne", "ne"), ("vient", "venir"), ("que", "que"), comma_after=2)
+    assert keys_in(comma, "fr") == []
+    both = said(("ni", "ni"), ("lui", "lui"), ("ni", "ni"), ("moi", "moi"), comma_after=1)
+    assert keys_in(both, "fr") == ["ni ni"], "a correlative's comma is allowed"
+
+
+def test_ni_is_a_negation_a_gap_after_ne_stops_at() -> None:
+    neither = said(
+        ("Il", "il"),
+        ("ne", "ne"),
+        ("boit", "boire"),
+        ("ni", "ni"),
+        ("vin", "vin"),
+        ("ni", "ni"),
+        ("rien", "rien"),
+    )
+    assert "ne rien" not in keys_in(neither, "fr")
+
+
+def test_an_expletive_ne_opens_no_negation() -> None:
+    before = said(
+        ("avant", "avant"),
+        ("qu'", "que"),
+        ("il", "il"),
+        ("ne", "ne"),
+        ("parte", "partir", "VERB", "Mood=Sub|Person=3"),
+        ("que", "que"),
+        ("je", "je"),
+    )
+    assert "ne que" not in keys_in(before, "fr")
+    only = said(
+        ("il", "il"),
+        ("ne", "ne"),
+        ("part", "partir", "VERB", "Mood=Ind|Person=3"),
+        ("que", "que"),
+        ("demain", "demain"),
+    )
+    assert keys_in(only, "fr") == ["ne que"]
+
+
+def test_ne_que_is_not_ce_que() -> None:
+    what = said(("il", "il"), ("ne", "ne"), ("sait", "savoir"), ("ce", "ce"), ("que", "que"))
+    assert keys_in(what, "fr") == []
+
+
+def test_a_word_held_to_its_form_is_not_unfolded() -> None:
+    assert keys_in(said(("du", "de"), ("coup", "coup")), "fr") == ["de coup"]
+    assert keys_in(said(("de", "de"), ("coups", "coup")), "fr") == [], "des coups, de coups"
+    assert keys_in(said(("se", "se"), ("met", "mettre"), ("au", "à"), ("lit", "lit")), "fr") == []
+
+
+def test_a_row_asks_of_the_word_after_it() -> None:
+    come = said(("vient", "venir"), ("de", "de"), ("partir", "partir", "VERB", "VerbForm=Inf"))
+    assert keys_in(come, "fr") == ["venir de"]
+    assert keys_in(said(("vient", "venir"), ("de", "de"), ("Paris", "Paris", "PROPN")), "fr") == []
+    even = said(("même", "même"), ("si", "si"), ("vivement", "vivement", "ADV"))
+    assert keys_in(even, "fr") == []
+    assert keys_in(said(("même", "même"), ("si", "si"), ("tu", "tu", "PRON")), "fr") == ["même si"]
+    there = said(("y", "y"), ("avait", "avoir", "AUX"), ("pensé", "penser", "VERB"))
+    assert keys_in(there, "fr") == []
+
+
+def test_bien_que_starts_a_clause() -> None:
+    although = said(("bien", "bien"), ("que", "que"), ("il", "il"))
+    assert keys_in(although, "fr") == ["bien que"]
+    knows = said(("il", "il"), ("sait", "savoir"), ("bien", "bien"), ("que", "que"))
+    assert keys_in(knows, "fr") == []
+
+
+def test_a_reflexive_says_its_verbs_person() -> None:
+    mine = said(
+        ("je", "je"), ("me", "me"), ("rends", "rendre", "VERB", "Person=1"), ("compte", "compte")
+    )
+    assert keys_in(mine, "fr") == ["se rendre compte"]
+    shiver = said(
+        ("un", "un"), ("frisson", "frisson"), ("me", "me"), ("passa", "passer", "VERB", "Person=3")
+    )
+    assert keys_in(shiver, "fr") == []
+
+
+def test_a_row_may_count_under_another_key() -> None:
+    cut = said(("Est", "être"), ("ce", "ce"), ("que", "que"), ("tu", "tu"))
+    assert keys_in(cut, "fr") == ["être que"]
+    whole = said(("Est-ce", "être"), ("que", "que"), ("tu", "tu"))
+    assert keys_in(whole, "fr") == ["être que"]
+    besides = said(("к", "к"), ("тому", "то"), ("же", "же"))
+    assert keys_in(besides, "ru") == ["к тот же"]
+
+
+def test_a_gap_reaches_past_a_word_another_unit_holds() -> None:
+    only = said(("il", "il"), ("n'", "ne"), ("y", "y"), ("a", "avoir", "VERB"), ("que", "que"))
+    assert sorted(keys_in(only, "fr")) == ["ne que", "y avoir"]
+
+
+def test_a_russian_possessive_has_a_person() -> None:
+    has = said(("у", "у"), ("меня", "я", "PRON"), ("есть", "быть", "VERB"))
+    assert keys_in(has, "ru") == ["у быть"]
+    gate = said(("у", "у"), ("ворот", "ворота", "NOUN", "Animacy=Inan"), ("есть", "быть", "VERB"))
+    assert keys_in(gate, "ru") == []
+    written = said(
+        ("у", "у"),
+        ("него", "он", "PRON"),
+        ("было", "быть", "AUX"),
+        ("написано", "написать", "VERB", "VerbForm=Part"),
+    )
+    assert keys_in(written, "ru") == []
+
+
+def test_maybe_is_set_off_and_never_negated() -> None:
+    maybe = said(("может", "мочь"), ("быть", "быть"), ("он", "он"), comma_after=1)
+    assert keys_in(maybe, "ru") == ["мочь быть"]
+    can = said(("это", "это"), ("может", "мочь"), ("быть", "быть"), ("опасно", "опасно"))
+    assert keys_in(can, "ru") == []
+    never = said(("не", "не"), ("может", "мочь"), ("быть", "быть"))
+    assert keys_in(never, "ru") == []
+
+
+def test_a_reply_starts_its_segment() -> None:
+    assert keys_in(said(("не", "не"), ("за", "за"), ("что", "что")), "ru") == ["не за что"]
+    thank = said(
+        ("не", "не"), ("за", "за"), ("что", "что"), ("ее", "она"), ("благодарить", "благодарить")
+    )
+    assert keys_in([said(("и", "и"))[0], *thank[:3]], "ru") == []
+
+
+def test_a_correlative_keeps_its_closing_word_from_a_shorter_unit() -> None:
+    more = said(
+        ("Чем", "чем"),
+        ("более", "более"),
+        ("я", "я"),
+        ("наблюдал", "наблюдать"),
+        ("тем", "тем"),
+        ("более", "более"),
+        ("мне", "я"),
+        comma_after=3,
+    )
+    assert "чем тем" in keys_in(more, "ru") and "тем более" not in keys_in(more, "ru")
+
+
+#: Precision and recall on ling-fr's and ling-ru's golds, each at what was measured on
+#: 2026-11-06 less two misses (targum-internal#636): fr 122/130 and 122/126, ru 68/77
+#: and 68/75. The Russian gold is ling-ru's draft for David's read, and only its
+#: public-domain texts are in the repository.
+FLOORS = {"fr": (0.923, 0.952), "ru": (0.857, 0.880)}
+
+
+@pytest.mark.parametrize("language", ["fr", "ru"])
+def test_the_lists_hold_their_floor_on_the_linguists_gold(language: str) -> None:
+    units.clear()
+    path = Path(__file__).resolve().parent.parent / "evals" / f"units-gold-{language}.jsonl"
+    hits = right = truth = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+        tokens = [
+            {"start": w[0], "end": w[1], "surface": w[2], "lemma": w[3], "pos": w[4], "feats": w[5]}
+            for w in row["words"]
+        ]
+        got = {(unit.key, tuple(at)) for at, unit in units.found(tokens, language)}
+        want = {(unit["key"], tuple(unit["at"])) for unit in row["units"]}
+        hits += len(got)
+        right += len(got & want)
+        truth += len(want)
+    precision, recall = FLOORS[language]
+    assert right / hits >= precision, f"{right}/{hits}"
+    assert right / truth >= recall, f"{right}/{truth}"

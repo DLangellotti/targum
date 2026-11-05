@@ -71,11 +71,14 @@ REFLEXIVE = frozenset({"se", "me", "te", "nous", "vous"})
 #: parts, whatever its `needs` says: a segment is a sentence, so it never crosses one.
 MOST_BETWEEN = 8
 
+#: Words a clause starts after, besides punctuation and a conjunction (`^`).
+RELATIVES = frozenset({"qui", "que", "où", "dont", "lequel", "quoi", "который", "что", "где"})
+
 #: French negation particles. A gap after `ne` stops at any of them that is not the
 #: part it looks for: in ne… pas que, ne… pas plus, the ne is pas's, and the que, the
 #: plus are other words.
 NEGATIONS = frozenset(
-    {"pas", "point", "plus", "jamais", "rien", "personne", "guère", "aucun", "nul", "que"}
+    {"pas", "point", "plus", "jamais", "rien", "personne", "guère", "aucun", "nul", "que", "ni"}
 )
 
 #: The most characters between two words of one unit: a space or a maqaf.
@@ -87,6 +90,25 @@ PREFIX_LETTERS = frozenset("ובכלמשה")
 #: The status a mark says known with (`coverage.KNOWN`), restated so this module has no
 #: import cycle with coverage.
 KNOWN = 9
+
+
+@dataclass(frozen=True)
+class Rule:
+    """What a French or Russian `needs` cell asks of one word besides its gap and its
+    written form. Each set holds tags (NOUN), features (VerbForm=Inf) or words."""
+
+    #: `-X`: the word itself is none of these (y avoir, where avoir is not an AUX).
+    is_not: frozenset[str] = frozenset()
+    #: `+X`: the word right after it is one of these (venir de + an infinitive).
+    then: frozenset[str] = frozenset()
+    #: `!X`: the word right after it is none of these (même si, not before an adverb).
+    then_not: frozenset[str] = frozenset()
+    #: `<!X`: the word right before it is none of these (ne… que, not ce que).
+    after_not: frozenset[str] = frozenset()
+    #: `@X`: the first noun or pronoun after it is one of these (у + a person).
+    noun: frozenset[str] = frozenset()
+    #: `^`: it starts a clause; `^^`: it starts the segment.
+    starts: int = 0
 
 
 @dataclass(frozen=True)
@@ -108,6 +130,11 @@ class Unit:
     #: French and Russian: whether punctuation may stand in the gap before each part,
     #: as the comma before the но и of не только… но и does. Elsewhere it ends a gap.
     commas: tuple[bool, ...] = ()
+    #: French and Russian: what else each part asks of its token and its neighbours
+    #: (`Rule`). Empty in Hebrew.
+    rules: tuple[Rule, ...] = ()
+    #: French and Russian: the unit stands at a clause's edge on one side at least.
+    edge: bool = False
 
 
 def plain(text: str) -> str:
@@ -179,33 +206,73 @@ def _spelled(
     return out
 
 
-def _needed(
-    cell: str, count: int
-) -> tuple[tuple[int, ...], tuple[frozenset[str], ...], tuple[bool, ...]]:
-    """A French or Russian `needs` cell, one entry per word, `|` between: `~N` lets up
-    to N words stand before that word (ne|~6 is ne… que), and `~N,` lets punctuation
-    stand among them too (ни|~6, is ни X, ни Y); `=form` holds it to that written
-    form, alternatives split on "/" (=может); both space-separated."""
+def written(word: str) -> str:
+    """A word as a `=form` compares it: composed, lowercase, the apostrophe straight, ё
+    read as е, but not unfolded, so du is not de and au is not à."""
+    word = unicodedata.normalize("NFC", word).lower().translate(_APOSTROPHES)
+    return word.replace("ё", "е").strip()
+
+
+def _set(text: str) -> frozenset[str]:
+    return frozenset(
+        one if one.isupper() or "=" in one else fold(one) for one in text.split("/") if one
+    )
+
+
+@dataclass(frozen=True)
+class Needed:
+    """A French or Russian row's `needs`, read (`_needed`)."""
+
+    gaps: tuple[int, ...]
+    forms: tuple[frozenset[str], ...]
+    commas: tuple[bool, ...]
+    rules: tuple[Rule, ...]
+    edge: bool
+
+
+def _needed(cell: str, count: int) -> Needed:
+    """A French or Russian `needs` cell, one entry per word, `|` between, each entry's
+    marks space-separated:
+
+    - `~N` lets up to N words stand before the word (ne|~6 is ne… que), and `~N,` lets
+      punctuation stand among them too (ни|~6, is ни X, ни Y);
+    - `=form` holds the word to that written form, alternatives split on "/" (=может);
+    - `-X`, `+X`, `!X`, `<!X`, `@X`, `^`, `^^`: a `Rule`;
+    - `edge`, on any word: the unit touches a clause's edge (может быть, set off).
+    """
     cells = cell.split("|") if cell.strip() else []
     gaps: list[int] = []
     forms: list[frozenset[str]] = []
     commas: list[bool] = []
+    rules: list[Rule] = []
+    edge = False
     for at in range(count):
         gap = 0
         comma = False
         held: set[str] = set()
+        rule: dict[str, Any] = {}
         for one in (cells[at] if at < len(cells) else "").split():
             if one.startswith("~") and one[1:].rstrip(",").isdigit():
                 gap = min(int(one[1:].rstrip(",")), MOST_BETWEEN) if at else 0
                 comma = bool(at) and one.endswith(",")
             elif one.startswith("=") and one[1:]:
-                held.update(fold(form) for form in one[1:].split("/") if form)
+                held.update(written(form) for form in one[1:].split("/") if form)
+            elif one in ("^", "^^"):
+                rule["starts"] = len(one)
+            elif one == "edge":
+                edge = True
+            elif one.startswith("<!") and one[2:]:
+                rule["after_not"] = _set(one[2:])
+            elif one[:1] in "-+!@" and one[1:]:
+                name = {"-": "is_not", "+": "then", "!": "then_not", "@": "noun"}[one[0]]
+                rule[name] = _set(one[1:])
             else:
                 raise ValueError(f"units: cannot read {one!r} in needs {cell!r}")
         gaps.append(gap)
         forms.append(frozenset(held))
         commas.append(comma)
-    return tuple(gaps), tuple(forms), tuple(commas)
+        rules.append(Rule(**rule))
+    return Needed(tuple(gaps), tuple(forms), tuple(commas), tuple(rules), edge)
 
 
 def _written_words(surface: str) -> tuple[tuple[str, ...], ...]:
@@ -263,11 +330,15 @@ def _load_words(path: Path) -> tuple[Unit, ...]:
         if len(parts) < 2:
             continue
         written = _written_words(str(cells.get("surface") or ""))
-        gaps, forms, commas = _needed(str(cells.get("needs") or ""), len(parts))
+        need = _needed(str(cells.get("needs") or ""), len(parts))
+        gaps, forms, commas = need.gaps, need.forms, need.commas
+        # A row may name the key it counts under, where its words are another cut of
+        # a key's (être ce que for être que, where est-ce was cut in two).
+        key = " ".join(words(str(cells.get("key") or ""))) or " ".join(parts)
         for spelled, at in _spelled(parts):
             out.append(
                 Unit(
-                    key=" ".join(parts),
+                    key=key,
                     parts=spelled,
                     needs=("",) * len(spelled),
                     written=written,
@@ -275,6 +346,8 @@ def _load_words(path: Path) -> tuple[Unit, ...]:
                     gaps=tuple(gaps[n] if first else 0 for n, first in at),
                     forms=tuple(forms[n] if first else frozenset() for n, first in at),
                     commas=tuple(commas[n] if first else False for n, first in at),
+                    rules=tuple(need.rules[n] if first else Rule() for n, first in at),
+                    edge=need.edge,
                 )
             )
     return tuple(out)
@@ -472,8 +545,10 @@ def _place(
         comma = unit.commas[n] if n < len(unit.commas) else False
         negated = code == "fr" and n > 0 and unit.parts[0] == "ne"
         for where in here:
+            # A word another unit holds is never this one's, but a gap may pass it
+            # (il n'y a que: y avoir holds y a, and ne… que reaches past it).
             if where in taken:
-                break
+                continue
             token = tokens[where]
             if gap and not comma and _punctuated(tokens[where - 1], token):
                 break
@@ -481,7 +556,7 @@ def _place(
                 if negated and NEGATIONS & set(_read_as(token, code)):
                     break
                 continue
-            if form and fold(str(token.get("surface") or "")) not in form:
+            if form and written(str(token.get("surface") or "")) not in form:
                 continue
             if n and not gap:
                 before = tokens[placed[-1]]
@@ -491,9 +566,98 @@ def _place(
             break
         if hit is None:
             return None
+        if n < len(unit.rules) and not _keeps(unit.rules[n], tokens, hit, code):
+            return None
         if n:
             placed.append(hit)
+    if unit.edge and not (_edge_before(tokens, placed[0]) or _edge_after(tokens, placed[-1])):
+        return None
+    if code == "fr" and not _persons_agree(unit, tokens, placed):
+        return None
+    if code == "fr" and unit.parts[0] == "ne" and _expletive(tokens, placed):
+        return None
     return tuple(placed)
+
+
+def _one_of(token: Mapping[str, Any], wanted: frozenset[str], code: str) -> bool:
+    """Whether a token is one of `wanted`: its tag, a feature it has, or its word."""
+    if str(token.get("pos") or "") in wanted:
+        return True
+    feats = set(str(token.get("feats") or "").split("|"))
+    if feats & wanted:
+        return True
+    return bool(set(_read_as(token, code)) & wanted)
+
+
+def _edge_before(tokens: Sequence[Mapping[str, Any]], at: int) -> bool:
+    return at == 0 or _punctuated(tokens[at - 1], tokens[at])
+
+
+def _edge_after(tokens: Sequence[Mapping[str, Any]], at: int) -> bool:
+    return at == len(tokens) - 1 or _punctuated(tokens[at], tokens[at + 1])
+
+
+def _keeps(rule: Rule, tokens: Sequence[Mapping[str, Any]], at: int, code: str) -> bool:
+    """Whether the token at `at`, and its neighbours, keep a part's `Rule`."""
+    token = tokens[at]
+    after = tokens[at + 1] if at + 1 < len(tokens) else None
+    before = tokens[at - 1] if at else None
+    if rule.is_not and _one_of(token, rule.is_not, code):
+        return False
+    if rule.then and (after is None or not _one_of(after, rule.then, code)):
+        return False
+    if rule.then_not and after is not None and _one_of(after, rule.then_not, code):
+        return False
+    if rule.after_not and before is not None and _one_of(before, rule.after_not, code):
+        return False
+    if rule.noun:
+        nouns = [
+            t for t in tokens[at + 1 :] if str(t.get("pos") or "") in ("NOUN", "PRON", "PROPN")
+        ]
+        if not nouns or not _one_of(nouns[0], rule.noun, code):
+            return False
+    if rule.starts == 2 and at != 0:
+        return False
+    if rule.starts == 1 and not (
+        _edge_before(tokens, at)
+        or (before is not None and str(before.get("pos") or "") in ("CCONJ", "SCONJ"))
+        or (before is not None and bool(set(_read_as(before, code)) & RELATIVES))
+    ):
+        return False
+    return True
+
+
+#: The person a French object pronoun says, for a reflexive `se` (`_persons_agree`).
+PERSONS = {"me": "1", "nous": "1", "te": "2", "vous": "2"}
+
+
+def _persons_agree(unit: Unit, tokens: Sequence[Mapping[str, Any]], placed: Sequence[int]) -> bool:
+    """A list's `se` said me, te, nous or vous is reflexive only where its verb is in
+    that person (je me mis, not un frisson me passa); a verb with no person, an
+    infinitive, says nothing against it."""
+    for n, part in enumerate(unit.parts[:-1]):
+        if part != "se":
+            continue
+        person = PERSONS.get(fold(str(tokens[placed[n]].get("surface") or "")))
+        if person is None:
+            continue
+        feats = dict(
+            one.split("=", 1)
+            for one in str(tokens[placed[n + 1]].get("feats") or "").split("|")
+            if "=" in one
+        )
+        if feats.get("Person") and feats["Person"] != person:
+            return False
+    return True
+
+
+def _expletive(tokens: Sequence[Mapping[str, Any]], placed: Sequence[int]) -> bool:
+    """Whether a ne is expletive, not a negation's: the verb after it is in the
+    subjunctive (avant qu'il ne parte, je crains qu'il ne vienne)."""
+    for where in range(placed[0] + 1, placed[-1]):
+        if "Mood=Sub" in str(tokens[where].get("feats") or "").split("|"):
+            return True
+    return False
 
 
 def _punctuated(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
@@ -505,30 +669,41 @@ def _punctuated(before: Mapping[str, Any], after: Mapping[str, Any]) -> bool:
 def _found_words(
     tokens: Sequence[Mapping[str, Any]], code: str
 ) -> list[tuple[tuple[int, ...], Unit]]:
+    """French and Russian units, chosen across the whole segment, the longest first,
+    and of two as long the one with no gap, then the closest, then the earliest; a
+    token is in one unit at most. So coup de soleil wins over de coup, не только… но и
+    over не только, and parce que keeps its que from ne… que."""
     table = _by_first(code)
-    out: list[tuple[tuple[int, ...], Unit]] = []
-    taken: set[int] = set()
+    starts: list[tuple[int, Unit]] = []
     for at in range(len(tokens)):
-        if at in taken:
-            continue
         starting: list[Unit] = []
         for first in _read_as(tokens[at], code):
             starting.extend(table.get(first, ()))
         if code == "fr" and REFLEXIVE & set(_read_as(tokens[at], code)):
             starting.extend(table.get("se", ()))
-        # The longest, and of two as long the one whose words lie closest (ne mange
-        # plus que: ne… plus, not ne… que).
-        best: tuple[tuple[int, int], tuple[int, ...], Unit] | None = None
-        for unit in dict.fromkeys(starting):
-            placed = _place(unit, tokens, at, taken, code)
-            if placed is None:
-                continue
-            rank = (-len(unit.parts), placed[-1] - placed[0])
-            if best is None or rank < best[0]:
-                best = (rank, placed, unit)
-        if best is not None:
-            out.append((best[1], best[2]))
-            taken.update(best[1])
+        starts.extend((at, unit) for unit in dict.fromkeys(starting))
+    ranked: list[tuple[tuple[int, int, int, int], int, Unit]] = []
+    for at, unit in starts:
+        placed = _place(unit, tokens, at, set(), code)
+        if placed is None:
+            continue
+        # The longest; of two as long a correlative (чем… тем keeps its тем from тем
+        # более), then one with no gap (parce que keeps its que from ne… que); then the
+        # closest (ne mange plus que: ne… plus); then the first.
+        gapped = 0 if any(unit.commas) else 2 if any(unit.gaps) else 1
+        ranked.append(((-len(unit.parts), gapped, placed[-1] - placed[0], at), at, unit))
+    ranked.sort(key=lambda hit: hit[0])
+    out: list[tuple[tuple[int, ...], Unit]] = []
+    taken: set[int] = set()
+    for _, at, unit in ranked:
+        if at in taken:
+            continue
+        # Placed again around what is taken, so a gap may reach past it to another word.
+        placed = _place(unit, tokens, at, taken, code)
+        if placed is None or taken & set(placed):
+            continue
+        out.append((placed, unit))
+        taken.update(placed)
     out.sort(key=lambda hit: hit[0][0])
     return out
 

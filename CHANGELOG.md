@@ -27,7 +27,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   ne… pas que is not ne… que. `=form` holds a word to
   its written form for the four whose lemmas meet something else (est-ce que, то есть,
   может быть, на днях). A kept phrase is matched against its own language's list only.
-  The Russian list awaits David's read. Hebrew is unchanged; the counts' cache stamp now
+  The rows also carry the rules ling-fr's and ling-ru's hand-read golds asked for. A
+  word may be held to its written form unfolded (du coup, not des coups), or to a clause
+  start (bien que). It may be refused before or after a word (venir de + an infinitive,
+  même si, ne… que not ce que), or refused as an AUX. У… есть needs a person, может
+  быть must be set off and never negated, and replies (не за что) must start the
+  segment. An expletive ne, before a subjunctive, opens no negation, and ni is a
+  negation a gap stops at. A row may count under another key (est-ce cut in two, к тому
+  же). Candidates are chosen across the sentence: the longest first, then a
+  correlative, then one with no gap. Precision and recall are floored in the suite on
+  the golds, at what was measured less two misses: French 0.938 and 0.968, Russian
+  0.883 and 0.907 on its public-domain lines (0.913 and 0.922 on all of them).
+  The Russian list and gold await David's read. Hebrew is unchanged; the counts' cache stamp now
   names the French and Russian lists, so each built text's counts are read again once,
   locally, with no spend and no re-annotation. No new strings.
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).

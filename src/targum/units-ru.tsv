@@ -1,10 +1,10 @@
-lemmas	surface	gloss_en	register	note	needs
+lemmas	surface	gloss_en	register	note	needs	key
 потому что	потому что	because	standard	shelf 753	
 так что	так что	so, so that	standard	borderline: also так, что "in such a way that"; shelf 99	
 так как	так как	since, because	standard	borderline: also так, как "the way that"; shelf 149	
-все равно	всё равно	all the same, anyway; it makes no difference	standard	shelf 59	
-весь равно	всё равно	all the same, anyway; it makes no difference	standard	second lemma the shelf gives for the same; shelf 36	
-мочь быть	может быть	maybe, perhaps	standard	borderline: also "can be" (это может быть опасно), and the key meets мог быть, могут быть; match on the surface может; shelf 359	=может|
+все равно	всё равно	all the same, anyway; it makes no difference	standard	shelf 59	|!что
+весь равно	всё равно	all the same, anyway; it makes no difference	standard	second lemma the shelf gives for the same; shelf 36	|!что
+мочь быть	может быть	maybe, perhaps	standard	borderline: also "can be" (это может быть опасно), and the key meets мог быть, могут быть; match on the surface может; shelf 359	=может <!не edge|
 в тот число	в том числе	including	standard	shelf 36	
 то быть	то есть	that is, I mean	standard	the shelf mostly writes есть as быть, so the key also meets то было "that was": match on the surface есть; shelf 477	|=есть
 то есть	то есть	that is, I mean	standard	second lemma the shelf gives for the same; shelf 190	
@@ -14,7 +14,7 @@ lemmas	surface	gloss_en	register	note	needs
 тот более	тем более	all the more, especially	standard	second lemma the shelf gives for the same; shelf 8	
 как будто	как будто	as if	standard	shelf 175	
 как раз	как раз	just, exactly; just right	standard	shelf 75	
-как бы	как бы	sort of, as it were	spoken	borderline: also conditional "how would"; shelf 145	
+как бы	как бы	sort of, as it were	spoken	borderline: also conditional "how would"; shelf 145	|!VerbForm=Inf/это/то
 как правило	как правило	as a rule	standard	shelf 16	
 как обычно	как обычно	as usual	standard	shelf 13	
 как следовать	как следует	properly	standard	shelf 5	
@@ -50,7 +50,7 @@ lemmas	surface	gloss_en	register	note	needs
 кроме тот что	кроме того, что	apart from the fact that	standard	shelf 0	
 несмотря на	несмотря на	despite	standard	shelf 66	
 несмотря на то что	несмотря на то что	although	standard	shelf 5	
-в общий	в общем	in short, all in all	spoken	shelf 83	
+в общий	в общем	in short, all in all	spoken	shelf 83	|=общем
 в целый	в целом	on the whole	standard	shelf 48	
 в принцип	в принципе	basically, in principle	standard	shelf 66	
 в основной	в основном	mainly	standard	shelf 45	
@@ -69,30 +69,29 @@ lemmas	surface	gloss_en	register	note	needs
 ни раз	ни разу	not once	standard	shelf 29	
 до свидание	до свидания	goodbye	standard	shelf 5	
 на здоровье	на здоровье	you're welcome (for food); cheers	spoken	shelf 3	
-не за что	не за что	you're welcome	spoken	shelf 2	
+не за что	не за что	you're welcome	spoken	shelf 2	^^||
 ничего себя	ничего себе	wow; not bad	spoken	shelf 5	
-ничего страшный	ничего страшного	it's nothing, no problem	spoken	shelf 6	
-ничто страшный	ничего страшного	it's nothing, no problem	spoken	second lemma the shelf gives for the same; shelf 3	
+ничего страшный	ничего страшного	it's nothing, no problem	spoken	shelf 6	^^|
+ничто страшный	ничего страшного	it's nothing, no problem	spoken	second lemma the shelf gives for the same; shelf 3	^^|
 не стоить	не стоит	don't mention it; it's not worth it	spoken	shelf 18	
 так сказать	так сказать	so to speak	spoken	shelf 16	
 можно сказать	можно сказать	you could say	standard	shelf 74	
 честно говорить	честно говоря	to be honest	standard	shelf 22	
 кстати говорить	кстати говоря	by the way	standard	shelf 0	
-другой слово	другими словами	in other words	standard	shelf 1	
+другой слово	другими словами	in other words	standard	shelf 1	=другими|=словами
 иной слово	иными словами	in other words	formal	shelf 1	
-один слово	одним словом	in a word	standard	shelf 14	
-с один сторона	с одной стороны	on the one hand	standard	shelf 24	
+один слово	одним словом	in a word	standard	shelf 14	=одним|=словом
+с один сторона	с одной стороны	on the one hand	standard	shelf 24	||!NOUN
 с другой сторона	с другой стороны	on the other hand	standard	borderline: also "from the other side"; shelf 30	
 с сторона	со стороны	on the part of; from outside	standard	shelf 23	
 со сторона	со стороны	on the part of; from outside	standard	second lemma the shelf gives for the same; shelf 10	
 на следующий день	на следующий день	the next day	standard	shelf 22	
 на день	на днях	the other day; in the next few days	spoken	the shelf lemmatizes днях as день, so the key also meets на день "for a day": match on the surface днях; shelf 9	|=днях
-на самый	на самом (деле)	(tail) actually	standard	drop: covered by на самом деле; shelf 95	
 за граница	за границей / за границу	abroad	abroad	shelf 20	
 из-за тот что	из-за того, что	because	standard	shelf 1	
 для тот чтобы	для того чтобы	in order to	standard	shelf 3	
-для тот	для того (чтобы)	(tail) in order to	standard	drop: needs чтобы; shelf 71	
-для то	для того (чтобы)	(tail) in order to	standard	second lemma the shelf gives for the same; shelf 26	
+для тот	для того (чтобы)	(tail) in order to	standard	drop: needs чтобы; shelf 71	|+чтобы
+для то	для того (чтобы)	(tail) in order to	standard	second lemma the shelf gives for the same; shelf 26	|+чтобы
 после тот как	после того как	after	standard	shelf 9	
 после то как	после того как	after	standard	second lemma the shelf gives for the same; shelf 4	
 до тот как	до того как	before	standard	shelf 2	
@@ -104,9 +103,9 @@ lemmas	surface	gloss_en	register	note	needs
 не только	не только (… но и)	not only (… but also)	standard	shelf 137	
 не только но и	не только… но и	not only… but also	standard	discontinuous: не только X, но и Y; shelf 49, an upper bound (any и within six words)	||~6,|
 как так и	как… так и	both… and	standard	discontinuous: как X, так и Y; shelf 39, an upper bound (any и within six words)	|~6,|
-чем тем	чем… тем	the more… the more	standard	discontinuous: чем больше X, тем Y; shelf 36, an upper bound (any тем within six words)	|~6,
+чем тем	чем… тем	the more… the more	standard	discontinuous: чем больше X, тем Y; shelf 36, an upper bound (any тем within six words)	|~8,
 либо либо	либо… либо	either… or	standard	discontinuous; shelf 35, an upper bound (any либо within six words)	|~6,
-ни ни	ни… ни	neither… nor	standard	discontinuous; shelf 105, an upper bound (any ни within six words)	|~6,
+ни ни	ни… ни	neither… nor	standard	discontinuous; shelf 105, an upper bound (any ни within six words)	|~8,
 не то чтобы	не то чтобы	not exactly, not that	spoken	shelf 3	
 вряд ли	вряд ли	hardly, unlikely	standard	shelf 17	
 едва ли	едва ли	hardly	standard	shelf 9	
@@ -134,14 +133,14 @@ lemmas	surface	gloss_en	register	note	needs
 скорее все	скорее всего	most likely	standard	second lemma the shelf gives for the same; shelf 8	
 во всякий случай	во всяком случае	in any case	standard	shelf 6	
 во что бы то ни стать	во что бы то ни стало	at all costs	literary	shelf 5	
-как можно	как можно (скорее)	as (soon) as possible	standard	shelf 44	
+как можно	как можно (скорее)	as (soon) as possible	standard	shelf 44	|+скорее/лучше/больше/быстрее/меньше/чаще/дальше/сильнее/громче/тише/раньше/позже/ближе/выше/ниже/проще/легче/подробнее/точнее
 как можно скорее	как можно скорее	as soon as possible	standard	shelf 2	
 что ли	что ли	or something, is it	spoken	shelf 21	
 что такой	что такое	what is (it); what's the matter	standard	shelf 62	
-что с он	что с тобой	what's wrong with you	spoken	the pronoun changes with the person: one key each; shelf 11	
-что с вы	что с тобой	what's wrong with you	spoken	the same with another person; shelf 10	
-что с ты	что с тобой	what's wrong with you	spoken	the same with another person; shelf 6	
-что с она	что с тобой	what's wrong with you	spoken	the same with another person; shelf 1	
+что с он	что с тобой	what's wrong with you	spoken	the pronoun changes with the person: one key each; shelf 11	^^||
+что с вы	что с тобой	what's wrong with you	spoken	the same with another person; shelf 10	^^||
+что с ты	что с тобой	what's wrong with you	spoken	the same with another person; shelf 6	^^||
+что с она	что с тобой	what's wrong with you	spoken	the same with another person; shelf 1	^^||
 в что дело	в чём дело	what's the matter	standard	shelf 13	
 дело в тот	дело в том, что	the thing is	standard	shelf 23	
 дело в то	дело в том, что	the thing is	standard	second lemma the shelf gives for the same; shelf 7	
@@ -158,7 +157,7 @@ lemmas	surface	gloss_en	register	note	needs
 друг к друг	друг к другу	to each other	standard	shelf 1	
 один и тот же	один и тот же	one and the same	standard	shelf 21	
 один и то же	один и тот же	one and the same	standard	second lemma the shelf gives for the same; shelf 10	
-у быть	у меня есть	(I) have	standard	discontinuous: у + pronoun or noun + есть; the possessive, which a learner cannot build from the words; shelf 738, an upper bound (any быть within six words)	|~6
+у быть	у меня есть	(I) have	standard	discontinuous: у + pronoun or noun + есть; the possessive, which a learner cannot build from the words; shelf 738, an upper bound (any быть within six words)	@PRON/PROPN/Animacy=Anim|~6 !VerbForm=Part
 иметь значение	иметь значение	to matter	standard	shelf 1	
 обратить внимание	обращать внимание на	to pay attention to	standard	shelf 23	
 обращать внимание	обращать внимание на	to pay attention to	standard	the other aspect; shelf 18	
@@ -202,5 +201,5 @@ lemmas	surface	gloss_en	register	note	needs
 с удовольствие	с удовольствием	gladly	standard	shelf 22	
 на память	на память	as a keepsake; from memory	standard	shelf 3	
 по путь	по пути	on the way	standard	shelf 3	
-по дорога	по дороге	on the way	standard	shelf 33	
 по очередь	по очереди	in turn	standard	shelf 1	
+к то же	к тому же	besides, moreover	standard	тому lemmatized то; counts as к тот же		к тот же
