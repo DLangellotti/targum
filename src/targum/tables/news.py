@@ -305,8 +305,7 @@ def count_news(
             result.held += 1
         else:
             fresh.append(item)
-    present = {item.language for item in fresh}
-    order = [one for one in LANGUAGES if one in present] + sorted(present - set(LANGUAGES))
+    order = _order(fresh)
     stops: list[str] = []
     for language in order:
         mine = [item for item in fresh if item.language == language]
@@ -321,6 +320,32 @@ def count_news(
     result.stopped = "; ".join(stops)
     _settle(result)
     return result
+
+
+def _order(items: Iterable[FeedItem]) -> list[str]:
+    """The languages `items` hold, in the order a night counts them."""
+    present = {item.language for item in items}
+    return [one for one in LANGUAGES if one in present] + sorted(present - set(LANGUAGES))
+
+
+def nights(
+    fresh: Iterable[FeedItem], *, words: int = NIGHT_WORDS, most: int = NIGHT_ITEMS
+) -> dict[str, list[FeedItem]]:
+    """What a night would count of `fresh`, language by language, each under its own
+    caps as `count_news` applies them, for `targum tables news` to preview. Reads
+    nothing: an item a night fails to read still counts against its caps here."""
+    fresh = list(fresh)
+    out: dict[str, list[FeedItem]] = {}
+    for language in _order(fresh):
+        night: list[FeedItem] = []
+        read = 0
+        for item in in_turn(one for one in fresh if one.language == language):
+            if len(night) >= most or (night and read + item.words > words):
+                break
+            night.append(item)
+            read += item.words
+        out[language] = night
+    return out
 
 
 def _reader(annotator: Any, language: str) -> Any:

@@ -5325,7 +5325,8 @@ def tables_snapshot(
 @tables_app.command("news")
 def tables_news() -> None:
     """Say what tonight's news count would take (targum-internal#582): the items the
-    followed Hebrew news feeds carry now, which are new, and how many words.
+    followed Hebrew and Russian news feeds carry now, which are new, and how many words,
+    a line a language, each under its own night's caps (targum-internal#637).
 
     Pulls each feed once, as the server does every few minutes, and fetches no page.
     Counts nothing and runs no model: the box counts at night inside the service, with
@@ -5336,7 +5337,7 @@ def tables_news() -> None:
     from .tables import news as news_module
     from .tables import no_models
     from .tables import yardstick as yardstick_module
-    from .tables.registers import NEWS
+    from .tables.registers import NEWS, in_language
     from .tables.words import WORDS
 
     store = _tables_store()
@@ -5348,15 +5349,9 @@ def tables_news() -> None:
         items = news_module.feed_items(kept, publishers)
         done = store.current_units(WORDS, (item.unit for item in items))
         fresh = [item for item in items if item.unit not in done]
-        night: list[news_module.FeedItem] = []
-        words = 0
-        for item in news_module.in_turn(fresh):
-            if len(night) >= news_module.NIGHT_ITEMS or (
-                night and words + item.words > news_module.NIGHT_WORDS
-            ):
-                break
-            night.append(item)
-            words += item.words
+        nights = news_module.nights(
+            fresh, words=news_module.NIGHT_WORDS, most=news_module.NIGHT_ITEMS
+        )
         by_outlet: dict[str, list[int]] = {}
         for item in items:
             row = by_outlet.setdefault(item.outlet, [0, 0, 0, 0])
@@ -5365,19 +5360,27 @@ def tables_news() -> None:
             if item.unit not in done:
                 row[2] += 1
                 row[3] += item.words
-        content = sum(n for _, n in store.top(WORDS, NEWS, limit=10**6))
+        # Each language has its own night and its own register (targum-internal#637).
+        languages = list(dict.fromkeys([*news_module.LANGUAGES[:1], *nights]))
+        held: dict[str, tuple[int, int]] = {}
+        for language in languages:
+            register = in_language(NEWS, language)
+            content = sum(n for _, n in store.top(WORDS, register, limit=10**6))
+            held[language] = (store.total(WORDS, register), content)
     console.print(f"{'outlet':<16}{'items':>7}{'words':>8}{'new':>6}{'new words':>11}")
     for outlet, (n, w, new, new_words) in sorted(by_outlet.items()):
         console.print(f"{outlet:<16}{n:>7}{w:>8}{new:>6}{new_words:>11}")
-    console.print(
-        f"Tonight would count {len(night)} of {len(fresh)} new items, {words:,} words"
-        f" (caps: {news_module.NIGHT_ITEMS} items, {news_module.NIGHT_WORDS:,} words)."
-    )
-    console.print(
-        f"News holds {store.total(WORDS, NEWS):,} words now,"
-        f" {content:,} of them content words; its first list needs"
-        f" {yardstick_module.FLOOR:,}."
-    )
+    for language in languages:
+        night = nights.get(language, [])
+        waiting = sum(1 for item in fresh if item.language == language)
+        total, content = held[language]
+        console.print(
+            f"{language}: tonight would count {len(night)} of {waiting} new items,"
+            f" {sum(item.words for item in night):,} words"
+            f" (caps: {news_module.NIGHT_ITEMS} items, {news_module.NIGHT_WORDS:,} words)."
+            f" News holds {total:,} words now, {content:,} of them content words;"
+            f" its first list needs {yardstick_module.FLOOR:,}."
+        )
 
 
 @tables_app.command("count-corpus")

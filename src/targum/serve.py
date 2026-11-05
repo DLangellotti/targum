@@ -14709,11 +14709,12 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import level as level_module
         from .tables.registers import PICKER
-        from .tables.words import LANGUAGES
 
         out: dict[str, Any] = {}
         began = self.store.began()
-        for language in LANGUAGES:
+        # Hebrew's alone (targum-internal#637): PICKER's registers are Hebrew's counts,
+        # and a Russian list measured on them would be a Russian score on Hebrew lemmas.
+        for language in ("he",):
             dated = self.store.known_dated(person_id, language)
             registers: dict[str, Any] = {}
             for register in PICKER:

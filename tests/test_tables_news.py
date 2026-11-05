@@ -326,3 +326,35 @@ def test_russian_is_never_read_by_the_model(
     assert (result.counted, result.left) == (0, 2)
     assert result.stopped == "no free ru reader here"
     assert store.total(WORDS) == 0
+
+
+def test_the_preview_says_each_languages_own_night(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#637: `targum tables news` previews the night `count_news` runs,
+    a line a language under its own caps, never one cap over Hebrew and Russian."""
+    from typer.testing import CliRunner
+
+    from targum import cli
+    from targum.chat import sources as sources_module
+    from targum.chat import tools as tools_module
+
+    kept = {
+        PAPER.feed: [_item(n) for n in range(1, 4)],
+        RUSSIAN.feed: [_russian_item(n) for n in range(1, 4)],
+    }
+    items = news.feed_items(kept, PUBLISHERS)
+    assert {key: len(run) for key, run in news.nights(items, most=2).items()} == {
+        "he": 2,
+        "ru": 2,
+    }
+    store = Store(tmp_path / "corpus.db")
+    monkeypatch.setattr(news, "NIGHT_ITEMS", 2)
+    monkeypatch.setattr(cli, "_tables_store", lambda: store)
+    monkeypatch.setattr(sources_module, "load", lambda: PUBLISHERS)
+    monkeypatch.setattr(tools_module.FEEDS, "pull", lambda urls, timeout: kept)
+    result = CliRunner().invoke(cli.app, ["tables", "news"], env={"COLUMNS": "400"})
+    assert result.exit_code == 0, result.output
+    said = " ".join(result.output.split())
+    assert "he: tonight would count 2 of 3 new items" in said, said
+    assert "ru: tonight would count 2 of 3 new items" in said, said

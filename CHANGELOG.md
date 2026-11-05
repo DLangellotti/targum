@@ -95,7 +95,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `registers.in_language`), so no Hebrew yardstick, topic run or picker reads a Russian
   lemma. The root lexicon reads Russian from the ledger, and its private `tables-ru.db`
   and `build_roots.py --sweep` are gone. What readers bring and the finds pool stay
-  Hebrew only. Counts only. Spends nothing. No new strings.
+  Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
+  on the Hebrew yardsticks. `targum tables news` previews each language's night on a
+  line of its own, under its own caps. Counts only. Spends nothing. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
