@@ -417,6 +417,31 @@ def test_a_russian_press_on_army_steers_nothing_and_is_never_tallied_or_tagged(
     assert [tuple(row) for row in rows] == [("ru", "read", "")], "the medium, not army"
 
 
+def test_a_russian_harder_press_on_army_ranks_no_chip_under_the_floor(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Show me something harder keeps to the chips offered too: a Russian `army` sent
+    with the press steers neither the ranking under the floor nor its any-topic retry
+    (targum-internal#635)."""
+    seen = a_russian_press(monkeypatch, rung=0)
+    harder = button.harder
+    shelf_asks: list[tuple[str, ...]] = []
+
+    def under(shelf: Any, ask: button.Ask, known: Any) -> Any:
+        shelf_asks.append(ask.chosen)
+        return harder(shelf, ask, known)
+
+    monkeypatch.setattr(button, "harder", under)
+    cookie = sign_in(home.port, home.postbox)
+    body = {"language": "ru", "harder": True, "topics": ["army"], "skip": [], "done": []}
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert status == 200 and got["why"] == "harder"
+    assert [ask.chosen for ask, _ in seen["ranked"]] == [()], "one ranking, on no chip"
+    assert shelf_asks == [()]
+
+
 def test_a_russian_press_is_ranked_counted_and_looked_for_on_the_cefr_rung(
     home: Any,  # noqa: F811
     on: None,
