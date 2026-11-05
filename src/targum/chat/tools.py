@@ -68,6 +68,7 @@ from .. import level as level_module
 from .. import parts as parts_module
 from .. import remembered as remembered_module
 from .. import sentence_level
+from .. import units as units_module
 from ..level import Level
 from ..translate.prompts import INTO, language_name
 from ..usage import Usage
@@ -407,7 +408,15 @@ def _marked(ctx: Ctx, language: str, cache: dict[str, dict[str, int]]) -> dict[s
     if ctx.store is None or ctx.person is None:
         return {}
     if language not in cache:
-        cache[language] = ctx.store.marked(ctx.person, language)
+        marked = ctx.store.marked(ctx.person, language)
+        # A multiword unit the reader kept as a phrase and marked known is known under its
+        # key, for the running counts alone (design.md §12, "An idiom is one word to
+        # know", 2026-11-05).
+        if language.split("-")[0] in units_module.LANGUAGES:
+            known = getattr(ctx.store, "known_phrases", None)
+            if known is not None:
+                marked = units_module.with_phrases(marked, known(ctx.person_id))
+        cache[language] = marked
     return cache[language]
 
 

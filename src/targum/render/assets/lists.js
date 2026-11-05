@@ -700,12 +700,18 @@
     return card;
   }
 
+  //: Told when the card goes, for a card opened from another page's list (`openWord`).
+  var cardGone = null;
+
   function closeCard() {
     if (!card || card.hidden) return;
     card.hidden = true;
     card.textContent = "";
     var back = cardFrom;
     cardFrom = null;
+    var gone = cardGone;
+    cardGone = null;
+    if (gone) gone();
     if (back && back.focus && back.isConnected !== false) back.focus();
   }
 
@@ -849,6 +855,76 @@
         })
       );
     };
+  }
+
+  /* A word not yet on the list, or on it, opened from Home's words to know first
+     (design.md §12, 2026-11-05; targum-internal#614): the same card, its meaning the one
+     the glossary holds, and its level written to the same ledger a tap in a text writes.
+     Opening it marks nothing; only a level pressed does. */
+  function openWord(row, word) {
+    var language = word.language || code || "he";
+    var name = "targum:vocab:" + language;
+    var held = read(name, "{}")[word.lemma] || null;
+    openCard(row, function (host) {
+      host.appendChild(headline(word.lemma, language, true));
+      host.appendChild(meaningLine("", word.meaning, word.into || ""));
+      if (word.count) {
+        host.appendChild(
+          el("span", "form", tn("home.card.words.times", word.count, "{n} time in this text", "{n} times in this text"))
+        );
+      }
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: held ? held.status : undefined,
+          legend: true,
+          onStatus: function (value) {
+            var store = read(name, "{}");
+            var item = store[word.lemma];
+            var now = Date.now();
+            if (!item) {
+              item = store[word.lemma] = { status: value, surface: word.lemma, band: "", learned: 0, at: now };
+            } else {
+              if (charts.learnedBy(item.status, value)) item.learned = 1;
+              item.status = value;
+            }
+            item.seen = now;
+            save(name, store);
+            // Its meaning filed where Your Words reads it, as "Words you may already
+            // know" files one; a meaning already there is the reader's own, and stays.
+            if (word.meaning && word.into) {
+              var into = "targum:meanings:" + language + ":" + word.into;
+              var meanings = read(into, "{}");
+              var was = meanings[word.lemma] || {};
+              if (!was.meaning) {
+                meanings[word.lemma] = { meaning: word.meaning, note: was.note || "", at: was.at || now, seen: now };
+                save(into, meanings);
+              }
+            }
+            cardGone = null;
+            closeCard();
+            if (word.onStatus) word.onStatus(value);
+          },
+        })
+      );
+    });
+    cardGone = word.onClose || null;
+    beside(row, word.beside);
+  }
+
+  /* On a desk, a card opened from a list in a narrow column stands beside the column, at
+     its inline-start and level with the row, so it covers none of the list it came from
+     (design.md §14.2). Where the page has no room there it stays under the row. */
+  function beside(row, column) {
+    if (!column || !column.getBoundingClientRect || card.classList.contains("sheet")) return;
+    var box = column.getBoundingClientRect();
+    var at = row.getBoundingClientRect();
+    var width = card.offsetWidth || 0;
+    var gutter = 16;
+    var rtl = (document.documentElement.getAttribute("dir") || "") === "rtl";
+    var left = rtl ? box.right + gutter : box.left - width - gutter;
+    if (left < gutter || left + width > (window.innerWidth || 0) - gutter) return;
+    card.style.left = left + (window.scrollX || 0) + "px";
+    card.style.top = at.top + (window.scrollY || 0) + "px";
   }
 
   function phraseCard(phrase) {
@@ -1889,6 +1965,7 @@
     onMeaningLanguage: function (fn) {
       redrawing = fn;
     },
+    openWord: openWord,
     offerExports: offerExports,
   };
 })();

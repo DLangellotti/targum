@@ -425,3 +425,46 @@ def test_a_waiting_text_comes_after_every_other_tier() -> None:
     assert choose.held("biblical", frozenset()) and not choose.held("modern", frozenset())
     assert not choose.held("biblical", choose.opened(("judaism",)))
     assert choose.held("revival", choose.opened(("judaism", "stories")))
+
+
+# -- fast speech, below gimel (design.md §12, 2026-11-05; targum-internal#614) ----------
+
+BET = 1800
+
+
+def floor_at(wpm: float, medium: str = choose.TEXT, words: int | None = BET) -> float:
+    """The least share an item heard at `wpm` needs to sit in the band."""
+    return round(choose.band(medium).floor + choose.rate_penalty(wpm, words), 6)
+
+
+def test_fast_speech_raises_the_floor_half_a_point_per_ten_words() -> None:
+    assert floor_at(110) == 0.90
+    assert floor_at(130) == 0.91
+    assert floor_at(150) == 0.92
+    placed = 0.915 - choose.rate_penalty(130, BET)
+    assert choose.fit(placed, choose.VIDEO) == choose.BAND
+    assert choose.fit(0.915 - choose.rate_penalty(150, BET), choose.VIDEO) == choose.UNDER
+
+
+def test_fast_speech_takes_three_points_at_most() -> None:
+    assert floor_at(170) == 0.93
+    assert floor_at(182) == 0.93
+    assert floor_at(250) == 0.93
+    assert floor_at(250, choose.AUDIO) == 0.98
+
+
+def test_a_reader_at_gimel_or_with_no_estimate_takes_no_penalty() -> None:
+    assert choose.GIMEL_WORDS == next(r.at for r in level_module.ULPAN if r.name == "gimel")
+    assert choose.rate_penalty(182, choose.GIMEL_WORDS) == 0.0
+    assert choose.rate_penalty(182, 9000) == 0.0
+    assert choose.rate_penalty(182, None) == 0.0
+    assert choose.rate_penalty(0, BET) == 0.0, "an item with no rate takes none"
+
+
+def test_reader_words_is_hebrew_only() -> None:
+    import math
+
+    theta = math.log(BET) + estimate_module.FORMS_PER_LEMMA
+    assert choose.reader_words(estimate_module.Estimate("he", theta, {})) == BET
+    assert choose.reader_words(estimate_module.Estimate("ru", theta, {})) is None
+    assert choose.reader_words(None) is None

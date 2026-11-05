@@ -1062,7 +1062,7 @@
   var ONE_CARD = !!document.body && document.body.getAttribute("data-find") === "1";
   var FIND_STEP_MS = 1500;
   var FIND_STEPS_MOST = 120;
-  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [], retry: null };
+  var oneCard = { row: null, first: false, chip: "", chipLabel: "", shown: [], look: "", left: null, chips: null, open: false, lastAsk: null, harder: [], retry: null, taught: {}, wordsOpen: false };
 
   function chevron() {
     var ns = "http://www.w3.org/2000/svg";
@@ -1406,6 +1406,221 @@
     body.appendChild(el("p", "rc-quiet", tn("home.card.left", oneCard.left, "{n} web search left today", "{n} web searches left today")));
   }
 
+  /* Words to know first (design.md §12, "Home's one card offers the words to learn
+     first, and a pick moves easier or harder", 2026-11-05; targum-internal#614). A pick
+     under 93% carries, folded behind one press, up to five of its own unknown words that
+     come up three times or more, most often first (`preteach.py`). Fewer than three and
+     there is no press. A tap opens the word's card as Your Words opens it; marking is the
+     reader's act, nothing is marked by showing them, and a word marked known or ignored
+     leaves the list. Asked of the server once a pick, and never for a scene. */
+  var PRETEACH_UNDER = 93;
+  var PRETEACH_LEAST = 3;
+  var KNOWN_STEP = 9;
+  var IGNORED_STEP = 0;
+
+  function pickKey(row) {
+    return row.find ? "find:" + row.find : "id:" + row.id;
+  }
+
+  // The words the reader has not settled since the server answered: their ledger in this
+  // browser wins, as it does in the reader's own list (`preread.js`).
+  function unsettled(list) {
+    var ledger = stored("targum:vocab:" + (cardAsk.code || "he"));
+    return (list || []).filter(function (word) {
+      var held = ledger[word.lemma];
+      return !(held && (held.status === KNOWN_STEP || held.status === IGNORED_STEP));
+    });
+  }
+
+  function preteach(row, share) {
+    if (!row || row.scene || !share || share >= PRETEACH_UNDER) return;
+    var at = pickKey(row);
+    var draw = function (list) {
+      if (oneCard.row !== row) return;
+      drawTaught(row, unsettled(list), true);
+    };
+    if (oneCard.taught[at]) return draw(oneCard.taught[at]);
+    var asked = row.find ? { find: row.find } : { id: row.id };
+    askWith("/find", { words: asked, language: cardAsk.code })
+      .then(function (got) {
+        oneCard.taught[at] = ((got && got.words) || []).map(function (word) {
+          word.into = (got && got.into) || "";
+          return word;
+        });
+        draw(oneCard.taught[at]);
+      })
+      .catch(function () {});
+  }
+
+  function timesSaid(n) {
+    return tn("home.card.words.times", n, "{n} time in this text", "{n} times in this text");
+  }
+
+  // The press and, open, the well under it. `fresh` is a first drawing, which keeps to
+  // the three-word least; after a mark the list only shrinks.
+  function drawTaught(row, list, fresh) {
+    var body = document.getElementById("try-next");
+    if (!body || oneCard.row !== row) return;
+    var press = body.querySelector(".rc-words-press");
+    var well = document.getElementById("rc-words");
+    if (press) press.remove();
+    if (well) well.remove();
+    if (!list.length || (fresh && list.length < PRETEACH_LEAST)) return;
+    press = el("button", "btn text small rc-words-press");
+    press.type = "button";
+    press.setAttribute("aria-controls", "rc-words");
+    press.setAttribute("aria-expanded", oneCard.wordsOpen ? "true" : "false");
+    press.appendChild(document.createTextNode(t("reader.preread.words-to-know-first", "Words to know first") + " "));
+    press.appendChild(el("span", "rc-words-n", String(list.length)));
+    press.appendChild(chevron());
+    well = el("div", "rc-words");
+    well.id = "rc-words";
+    well.hidden = !oneCard.wordsOpen;
+    var rows = el("ol");
+    list.forEach(function (word) {
+      var item = el("li");
+      item.setAttribute("tabindex", "0");
+      item.setAttribute("role", "button");
+      item.setAttribute("aria-haspopup", "dialog");
+      item.setAttribute("data-lemma", word.lemma);
+      var head = el("bdi", "w-he", word.lemma);
+      head.setAttribute("lang", cardAsk.code || "he");
+      head.setAttribute("dir", "auto");
+      item.appendChild(head);
+      var means = el("span", "w-means", word.meaning);
+      means.setAttribute("lang", words.language || "en");
+      item.appendChild(means);
+      var times = el("span", "w-times", word.count + "\u00d7");
+      times.setAttribute("aria-label", timesSaid(word.count));
+      item.appendChild(times);
+      var open = function () {
+        openTaught(row, item, word);
+      };
+      item.addEventListener("click", open);
+      item.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open();
+      });
+      rows.appendChild(item);
+    });
+    well.appendChild(rows);
+    well.appendChild(el("p", "rc-quiet", t("home.card.words.tap", "Tap a word to mark it.")));
+    press.addEventListener("click", function () {
+      oneCard.wordsOpen = !oneCard.wordsOpen;
+      press.setAttribute("aria-expanded", oneCard.wordsOpen ? "true" : "false");
+      well.hidden = !oneCard.wordsOpen;
+    });
+    var presses = body.querySelector(".rc-presses");
+    body.insertBefore(press, presses);
+    body.insertBefore(well, presses);
+  }
+
+  // The word's card, as Your Words opens it (`lists.js`). A level said there is the
+  // reader's mark; known or ignored takes the word off this list.
+  function openTaught(row, item, word) {
+    var lists = window.TargumLists;
+    if (!lists || !lists.openWord) return;
+    var open = document.querySelectorAll("#rc-words li.is-open");
+    for (var n = 0; n < open.length; n++) open[n].classList.remove("is-open");
+    item.classList.add("is-open");
+    lists.openWord(item, {
+      lemma: word.lemma,
+      meaning: word.meaning,
+      count: word.count,
+      into: word.into,
+      language: cardAsk.code || "he",
+      beside: item.closest ? item.closest(".home-side") : null,
+      onStatus: function (status) {
+        item.classList.remove("is-open");
+        if (status !== KNOWN_STEP && status !== IGNORED_STEP) return;
+        var left = unsettled(oneCard.taught[pickKey(row)]);
+        drawTaught(row, left, false);
+        var next = document.querySelector("#rc-words li") || document.querySelector("#try-next .rc-words-press") || document.querySelector("#try-next .rc-open");
+        if (next && next.focus) next.focus();
+      },
+      onClose: function () {
+        item.classList.remove("is-open");
+      },
+    });
+  }
+
+  /* Easier and Harder on any pick (design.md §12, "Home's one card offers the words to
+     learn first, and a pick moves easier or harder", 2026-11-05; targum-internal#615):
+     two small outline presses on the share line, beside the figure they move. Easier
+     takes the next pick above this share and Harder the next below, within the topic
+     chosen; Harder walks on under the floor, as the reader's own press. The pick left is
+     a suggestion set aside, as Something else's is. With nothing left that way the pick
+     stays and the card says so. */
+  function stepPresses(row, share) {
+    var group = el("span", "rc-step");
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", t("home.card.known-short", "{n}% known", { n: share }));
+    [
+      ["easier", t("home.card.step.easier", "Easier")],
+      ["harder", t("home.card.step.harder", "Harder")],
+    ].forEach(function (one) {
+      var press = el("button", "btn ghost outline small rc-step-" + one[0], one[1]);
+      press.type = "button";
+      press.addEventListener("click", function () {
+        stepPick(row, one[0], share);
+      });
+      group.appendChild(press);
+    });
+    return group;
+  }
+
+  function stepPick(row, way, share) {
+    var presses = document.querySelectorAll("#try-next .rc-step .btn");
+    for (var n = 0; n < presses.length; n++) presses[n].disabled = true;
+    var id = row && row.id ? String(row.id) : "";
+    // Only what is finished or under Continue, and the pick itself, are left out: a walk
+    // may come back to a pick it passed.
+    var body = {
+      language: cardAsk.code,
+      step: way,
+      from: share,
+      topics: oneCard.chip ? [oneCard.chip] : [],
+      skip: id ? [id] : [],
+      done: cardAsk.skip.concat(id ? [id] : []),
+    };
+    if (oneCard.medium) body.medium = oneCard.medium;
+    if (oneCard.length) body.length = oneCard.length;
+    askWith("/find", body)
+      .then(function (got) {
+        if (oneCard.row !== row) return;
+        if (got && typeof got.left === "number") oneCard.left = got.left;
+        if (got && got.pick) {
+          if (id && cardAsk.aside.indexOf(id) < 0) cardAsk.aside.push(id);
+          suggestNote("aside", row);
+          drawPick(got.pick);
+          var again = document.querySelector("#try-next .rc-step-" + way);
+          if (again && !again.disabled) again.focus();
+          return;
+        }
+        stepSaid(row, way, way === "easier"
+          ? ownLine("home.card.easier-none") || (got && got.message) || t("home.card.easier-none", "Nothing easier fits yet.")
+          : ownLine("home.card.harder-none") || (got && got.message) || t("home.card.harder-none", "No other new text is close yet."));
+      })
+      .catch(function () {
+        if (oneCard.row !== row) return;
+        stepSaid(row, way, t("home.card.suggest-failed", "We couldn't find one for you just now."));
+      });
+  }
+
+  // The pick stays, and a line under its presses says why nothing moved.
+  function stepSaid(row, way, said) {
+    drawPick(row);
+    var body = document.getElementById("try-next");
+    var presses = body && body.querySelector(".rc-presses");
+    if (!presses) return;
+    var line = el("p", "rc-status", said);
+    line.setAttribute("role", "status");
+    presses.parentNode.insertBefore(line, presses.nextSibling);
+    var tried = body.querySelector(".rc-step-" + way);
+    if (tried && tried.focus) tried.focus();
+  }
+
   function drawPick(row, first) {
     if (first !== undefined) oneCard.first = !!first;
     first = oneCard.first;
@@ -1435,7 +1650,12 @@
     // Our estimate shows on the first pick too: it is what the line above the card
     // promises, and a reader with no marks has it (David, 2026-11-03).
     var estimated = estimatedOf(row);
-    if (share && (row.harder || estimated || (!first && !row.scene))) parts.what.appendChild(shareLine({ name: "rc-known" }, share, estimated));
+    if (share && (row.harder || estimated || (!first && !row.scene))) {
+      var known = el("div", "rc-known-row");
+      known.appendChild(shareLine({ name: "rc-known" }, share, estimated));
+      known.appendChild(stepPresses(row, share));
+      parts.what.appendChild(known);
+    }
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
     var from = sourceLine(row, "rc-source");
@@ -1478,6 +1698,11 @@
     topicsField(body);
     leftLine(body);
     suggestShown(row);
+    if (oneCard.taughtFor !== pickKey(row)) {
+      oneCard.taughtFor = pickKey(row);
+      oneCard.wordsOpen = false;
+    }
+    preteach(row, share);
   }
 
   // Something else: the shelf's next best while it has one and no topic is chosen, and

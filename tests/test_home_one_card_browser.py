@@ -697,6 +697,181 @@ def test_a_suggestion_with_no_outlet_has_no_source_line(browser, width: int) -> 
     assert got["pick"] is None and got["more"] == [None] * len(MORE)
 
 
+# -- words to know first (design.md §12, 2026-11-05; targum-internal#614) ---------------
+
+NEAR_PICK = {**SHELF_PICK, "id": "knesset", "reason": {"key": "suggest.known", "share": 90}}
+
+TAUGHT = [
+    {"lemma": "קידם", "meaning": "advance; promote", "count": 4},
+    {"lemma": "סיעה", "meaning": "faction; party group", "count": 4},
+    {"lemma": "נוכחי", "meaning": "current; present", "count": 3},
+    {"lemma": "הושבע", "meaning": "was sworn in", "count": 3},
+]
+
+WORDS = """() => {
+  const q = (s) => document.querySelector(s);
+  const seen = (s) => { const e = q(s); return !!e && !e.closest('[hidden]') && e.getBoundingClientRect().height > 0; };
+  const press = q('#try-next .rc-words-press');
+  return {
+    press: press ? press.textContent.trim() : null,
+    expanded: press ? press.getAttribute('aria-expanded') : null,
+    beforePresses: !!press && press.nextElementSibling && press.nextElementSibling.id === 'rc-words',
+    open: seen('#rc-words'),
+    rows: [...document.querySelectorAll('#rc-words li')].map((li) => [li.querySelector('.w-he').textContent, li.querySelector('.w-means').textContent, li.querySelector('.w-times').textContent, li.querySelector('.w-times').getAttribute('aria-label')]),
+    quiet: (q('#rc-words .rc-quiet') || {}).textContent || '',
+    card: seen('#list-card'),
+    cardSays: seen('#list-card') ? q('#list-card').textContent : '',
+    levels: [...document.querySelectorAll('#list-card .level')].length,
+    ledger: JSON.parse(localStorage.getItem('targum:vocab:he') || '{}'),
+    meanings: JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}'),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    rowHeight: (() => { const li = q('#rc-words li'); return li ? li.getBoundingClientRect().height : 0; })(),
+    covers: (() => {
+      const card = q('#list-card');
+      if (!card || card.hidden) return null;
+      const c = card.getBoundingClientRect();
+      const side = q('.home-side').getBoundingClientRect();
+      const rows = [...document.querySelectorAll('#rc-words li')].some((li) => {
+        const r = li.getBoundingClientRect();
+        return c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top;
+      });
+      return { rows, beside: c.right <= side.left, inView: c.left >= 0 && c.right <= window.innerWidth };
+    })(),
+  };
+}"""  # noqa: E501
+
+
+def _taught(words: list[dict[str, Any]]) -> Answer:
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("words"):
+            return {"words": words, "into": "en"}
+        return {"pick": None}
+
+    return find
+
+
+def _near(body: dict[str, Any]) -> Any:
+    if body.get("instead_of"):
+        return {"suggestion": None}
+    return {"suggestion": NEAR_PICK, "library": True, "more": MORE}
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_pick_near_the_floor_folds_its_words_to_know_first_and_a_mark_takes_one_off(
+    browser, width: int
+) -> None:
+    context, page, thrown, posted, _ = home(browser, width, _taught(TAUGHT), _near)
+    page.wait_for_selector("#try-next .rc-words-press")
+    closed = page.evaluate(WORDS)
+    shot(page, "words-closed", width)
+    page.click("#try-next .rc-words-press")
+    opened = page.evaluate(WORDS)
+    page.click("#rc-words li:first-child")
+    page.wait_for_selector("#list-card:not([hidden])")
+    carded = page.evaluate(WORDS)
+    shot(page, "words-card", width)
+    page.click("#list-card .level-9")
+    page.wait_for_timeout(100)
+    marked = page.evaluate(WORDS)
+    context.close()
+    assert not thrown, thrown
+    asked = [body for body in posted if body.get("words")]
+    assert asked == [{"words": {"id": "knesset"}, "language": "he"}], posted
+    assert closed["press"] == "Words to know first 4" and closed["expanded"] == "false"
+    assert not closed["open"] and closed["beforePresses"], closed
+    assert closed["ledger"] == {}, "nothing is marked by showing the words"
+    assert opened["open"] and opened["expanded"] == "true"
+    assert opened["rows"][0] == ["קידם", "advance; promote", "4×", "4 times in this text"]
+    assert len(opened["rows"]) == 4 and opened["quiet"] == "Tap a word to mark it."
+    assert carded["card"] and carded["levels"] == 5 and "advance; promote" in carded["cardSays"]
+    assert carded["ledger"] == {}, "opening the card marks nothing"
+    if width >= 640:
+        assert carded["covers"] == {"rows": False, "beside": True, "inView": True}, carded
+    assert marked["ledger"]["קידם"]["status"] == 9, marked["ledger"]
+    assert marked["meanings"]["קידם"]["meaning"] == "advance; promote"
+    assert [row[0] for row in marked["rows"]] == ["סיעה", "נוכחי", "הושבע"]
+    assert marked["press"] == "Words to know first 3" and not marked["card"]
+    assert not marked["sideways"], marked
+    if width < 640:
+        assert opened["rowHeight"] >= 44, opened
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_no_words_to_know_first_above_93_or_with_fewer_than_three(browser, width: int) -> None:
+    context, page, thrown, posted, _ = home(browser, width, _taught(TAUGHT))
+    page.wait_for_selector("#try-next .rc-pick")
+    page.wait_for_timeout(200)
+    above = page.evaluate(WORDS)
+    context.close()
+    context, page, thrown_too, posted_too, _ = home(browser, width, _taught(TAUGHT[:2]), _near)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.wait_for_timeout(300)
+    few = page.evaluate(WORDS)
+    context.close()
+    assert not thrown and not thrown_too, (thrown, thrown_too)
+    assert above["press"] is None and not [body for body in posted if body.get("words")]
+    assert [body for body in posted_too if body.get("words")], "asked under 93%"
+    assert few["press"] is None, "two words is no press"
+
+
+# -- Easier and Harder on any pick (design.md §12, 2026-11-05; targum-internal#615) -----
+
+UNDER_PICK = {
+    **SHELF_PICK, "id": "sharon", "title": "אריאל שרון הלך לעולמו", "kind": "article",
+    "reason": {"key": "suggest.known", "share": 88}, "fit": "under", "harder": True,
+}  # fmt: skip
+
+STEP = """() => {
+  const q = (s) => document.querySelector(s);
+  const row = q('#try-next .rc-known-row');
+  return {
+    title: (q('#try-next .home-card-title') || {}).textContent || '',
+    known: (q('#try-next .rc-known') || {}).textContent || '',
+    steps: row ? [...row.querySelectorAll('.rc-step .btn')].map((b) => [b.textContent, b.className]) : [],
+    status: (q('#try-next .rc-status') || {}).textContent || '',
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    reach: (() => { const b = q('#try-next .rc-step .btn'); return b ? b.getBoundingClientRect().height : 0; })(),
+  };
+}"""  # noqa: E501
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_easier_and_harder_walk_from_the_pick_and_say_when_nothing_is_left(
+    browser, width: int
+) -> None:
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("step") == "harder":
+            return {"pick": UNDER_PICK, "step": "harder", "more": 0}
+        if body.get("step") == "easier":
+            return {"pick": None, "why": "easier", "message": "Nothing easier fits yet."}
+        return {"pick": None}
+
+    context, page, thrown, posted, _ = home(browser, width, find)
+    page.wait_for_selector("#try-next .rc-step")
+    first = page.evaluate(STEP)
+    page.click("#try-next .rc-step-harder")
+    page.wait_for_selector("#try-next .home-card-title:has-text('שרון')")
+    walked = page.evaluate(STEP)
+    shot(page, "harder", width)
+    page.click("#try-next .rc-step-easier")
+    page.wait_for_selector("#try-next .rc-status")
+    stayed = page.evaluate(STEP)
+    context.close()
+    assert not thrown, thrown
+    assert first["steps"] == [
+        ["Easier", "btn ghost outline small rc-step-easier"],
+        ["Harder", "btn ghost outline small rc-step-harder"],
+    ], first
+    steps = [body for body in posted if body.get("step")]
+    assert steps[0]["from"] == 95 and steps[0]["done"][-1] == "hannah", steps
+    assert walked["known"] == "88% known" and walked["steps"], walked
+    assert steps[1] == {**steps[1], "step": "easier", "from": 88}
+    assert stayed["title"] == walked["title"] and stayed["status"] == "Nothing easier fits yet."
+    assert not stayed["sideways"], stayed
+    if width < 640:
+        assert first["reach"] >= 44, first
+
+
 # -- Filter: medium, length and topic in one field (design.md §12, 2026-11-05) ---------
 
 FILTER = """() => {

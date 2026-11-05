@@ -572,6 +572,11 @@ THUMBED = (
     ".sub-latest-title",
     ".sub-item-title",
     ".sub-foot a",
+    # Home's words to know first (design.md §12, 2026-11-05): the fold and its rows.
+    ".rc-words li",
+    ".rc-words-press",
+    # Easier and Harder on Home's pick (design.md §12, 2026-11-05).
+    ".rc-step .btn",
 )
 
 
