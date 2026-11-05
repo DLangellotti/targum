@@ -2812,6 +2812,7 @@ and voice, which stay private and are not what writes this; and Correct the text
 - **Skip and move on:** it skips a scene they'd follow 95%+ of from their own known words. Once their measured level is past the scenes, the card goes back to the ordinary suggestion.
 - **Still one card** inside "Home is Continue and one card of rows": Continue leads, and nothing spends.
 - **Library:** a Start here shelf for the same order, and a **Dialogues** door among Browse by kind. Scenes 1–240 are one collection, Scenes, with nothing that splits 1–100 from 101–240 (David, 2026-10-28: "there should be no distinguishment, also we'll add more soon"): its order is built from the scene numbers, so a scene 241 joins it without a new collection.
+- **Russian too** (2026-11-05, targum-internal#630, under #628's parity): the same card and the same Start here shelf for a Russian reader, from Russian's own series (`scene-ru-NN`, 114 scenes, A1 and A2) and never Hebrew's. The cut is below B1 on the CEFR ladder, measured on the reader's Russian. The rung a person names on arrival is an ulpan rung and says nothing of their Russian, so for Russian it counts as nothing said; only a CEFR rung said below B1 would count. French joins when it has scenes.
 
 It does not overturn: no streaks or counts to beat; the gap is never shown on welcome back; easiest-first lives in the Library.
 

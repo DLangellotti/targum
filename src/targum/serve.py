@@ -11527,8 +11527,16 @@ class Handler(BaseHTTPRequestHandler):
             and rows[0].get("fit") == "band"
             and not (catalogue_module.scene_number(str(rows[0].get("id") or "")))
         )
-        if not instead_of and not real_fits and chat_tools.scene_reader(ctx.level):
-            scene = chat_tools.next_scene(ctx, done)
+        # In the language asked (targum-internal#630): signed out, the level is the empty
+        # one, which is Hebrew's, and a Russian visitor was handed Hebrew's first scene.
+        code = (spoken or "").split("-")[0].lower()
+        scenes_ctx = ctx
+        if code and ctx.level.language.split("-")[0].lower() != code:
+            from dataclasses import replace
+
+            scenes_ctx = replace(ctx, level=replace(ctx.level, language=code))
+        if not instead_of and not real_fits and chat_tools.scene_reader(scenes_ctx.level):
+            scene = chat_tools.next_scene(scenes_ctx, done)
             if scene is not None:
                 return self._json({"suggestion": scene, "library": True})
         if rows:
@@ -11552,7 +11560,6 @@ class Handler(BaseHTTPRequestHandler):
                 rows[0]["because"] = ""
         # Whether the library has anything in this language at all: home says so plainly
         # where it has nothing, in place of a suggestion (board YiHome, P4 2026-10-09).
-        code = (spoken or "").split("-")[0].lower()
         library = any(code in entry.languages for entry in catalogue_module.everything())
         from . import source_line
 

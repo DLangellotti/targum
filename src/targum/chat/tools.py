@@ -1654,24 +1654,44 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
 #: aleph or bet, or nothing said at all (bet added by David, 2026-10-28).
 SCENE_DECLARED = frozenset({"", "aleph", "bet"})
 #: The measured rung at which the scenes are behind a reader: B1, the level of the last
-#: series of them. Measured, it outvotes what they said (`level.seed`).
+#: series of them. Measured, it outvotes what they said (`level.seed`). Per language, on
+#: that language's own ladder: gimel on the ulpan's, B1 on the CEFR's for Russian, whose
+#: 114 scenes are A1 and A2 (targum-internal#630, 2026-11-05).
 PAST_THE_SCENES = "gimel"
+SCENES_PAST: dict[str, str] = {"he": PAST_THE_SCENES, "ru": "B1"}
+#: Which series are a language's scenes on home and the Start here shelf, in order: for
+#: Hebrew the unprefixed A1 path then the B1 conversations; for Russian its one series.
+SCENE_SERIES: dict[str, tuple[str, ...]] = {"he": ("", "he"), "ru": ("ru",)}
 #: A scene a reader would follow this much of from their own known words is skipped.
 SCENE_KNOWN_ENOUGH = 0.95
 
 
-def scene_reader(level: Level) -> bool:
-    """Whether this Hebrew reader's one card on home is their next scene.
+def _scene_language(level: Level) -> str:
+    return (level.language or "he").split("-")[0].lower()
 
-    A measured rung decides when there is one: below gimel, the scenes are still ahead.
-    Without one, what they said on arrival does: aleph, bet, or nothing."""
-    if (level.language or "he").split("-")[0].lower() != "he":
+
+def scene_reader(level: Level) -> bool:
+    """Whether this reader's one card on home is their next scene: Hebrew and Russian,
+    the two languages with scenes (targum-internal#630).
+
+    A measured rung decides when there is one: below the language's `SCENES_PAST`, the
+    scenes are still ahead. Without one, what they said on arrival does. In Hebrew that
+    is aleph, bet, or nothing. The rung a person names is an ulpan rung, which says
+    nothing of their Russian, so in Russian only a CEFR rung said below B1 counts, and
+    anything else is nothing said."""
+    code = _scene_language(level)
+    past = SCENES_PAST.get(code)
+    ladder = level_module.ladder_for(code)
+    if past is None or ladder is None:
         return False
+    names = [rung.name for rung in ladder.rungs]
     if level.here is not None:
-        names = [rung.name for rung in level_module.ULPAN]
         here = names.index(level.here.name) if level.here.name in names else 0
-        return here < names.index(PAST_THE_SCENES)
-    return level.declared in SCENE_DECLARED
+        return here < names.index(past)
+    if code == "he":
+        return level.declared in SCENE_DECLARED
+    said = level.declared.upper()
+    return said not in names or names.index(said) < names.index(past)
 
 
 def _scene_order(entry: catalogue_module.Entry) -> tuple[int, int, str]:
@@ -1682,19 +1702,22 @@ def _scene_order(entry: catalogue_module.Entry) -> tuple[int, int, str]:
 
 
 def next_scene(ctx: Ctx, skip: Iterable[str] = ()) -> dict[str, Any] | None:
-    """A Hebrew beginner's next scene: the first in order not finished, not among `skip`
-    (what the page says is finished or already in Continue), and not one they would
-    follow `SCENE_KNOWN_ENOUGH` of from their own known words. None when every scene is
-    behind them. The row is `suggest_next`'s, with `scene` saying whether it is the first.
+    """A beginner's next scene in the language of `ctx.level`: the first in order not
+    finished, not among `skip` (what the page says is finished or already in Continue),
+    and not one they would follow `SCENE_KNOWN_ENOUGH` of from their own known words.
+    None when every scene is behind them. The row is `suggest_next`'s, with `scene`
+    saying whether it is the first.
     """
     left_out = {str(one) for one in skip if str(one)}
+    code = _scene_language(ctx.level)
+    series = SCENE_SERIES.get(code, ())
     scenes = sorted(
         (
             entry
             for entry in catalogue_module.everything()
-            if entry.language.split("-")[0] == "he"
+            if entry.language.split("-")[0] == code
             and catalogue_module.scene_number(entry.id)
-            and catalogue_module.scene_series(entry.id) in ("", "he")
+            and catalogue_module.scene_series(entry.id) in series
         ),
         key=_scene_order,
     )

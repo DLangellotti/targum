@@ -1760,17 +1760,23 @@
     hard: t("library.band.hard-note", "You know less than 80% of their words. The nearest come first."),
   };
 
-  /* Hebrew's Start here shelf (design.md §12, "A Hebrew beginner's one card is their next
-     scene", 2026-10-27): the scenes in the order to meet them — 1 to 100, 101 to 240, then
-     the B1 conversations, each series on its own — from the first one not finished. The
-     same order home's one card follows; nothing here is ranked by how easy it reads. */
+  /* The series that are a language's Start here shelf, in order: Hebrew's A1 path then
+     its B1 conversations; Russian's one series (targum-internal#630). `SCENE_SERIES` in
+     `chat/tools.py` is the same list for home's card. */
+  var SCENE_SERIES = { he: ["", "he"], ru: ["ru"] };
+
+  /* The Start here shelf (design.md §12, "A Hebrew beginner's one card is their next
+     scene", 2026-10-27; Russian since 2026-11-05): the scenes in the order to meet them —
+     in Hebrew 1 to 100, 101 to 240, then the B1 conversations, each series on its own —
+     from the first one not finished. The same order home's one card follows; nothing here
+     is ranked by how easy it reads. */
   function startHere(pool, code) {
     var scenes = window.TargumScenes;
-    if (code !== "he" || !scenes) return [];
+    var series = SCENE_SERIES[code];
+    if (!series || !scenes) return [];
     var inOrder = scenes.ordered(
       pool.filter(function (row) {
-        var series = scenes.seriesOf(row.id);
-        return scenes.numberOf(row.id) > 0 && (series === "" || series === "he");
+        return scenes.numberOf(row.id) > 0 && series.indexOf(scenes.seriesOf(row.id)) >= 0;
       })
     );
     var out = [];
@@ -1782,7 +1788,7 @@
     return out;
   }
 
-  /* The shelves, in order: Start here (Hebrew), Read it now, A stretch, targum's playlists,
+  /* The shelves, in order: Start here (Hebrew, Russian), Read it now, A stretch, targum's playlists,
      Hard for now. A band with nothing in it is not drawn. Answers how many shelves stand. */
   function drawShelves(host, pool, shared, code, onSee) {
     host.textContent = "";
@@ -2958,14 +2964,21 @@
       readers.concat(shared).forEach(function (reader) {
         reader.opened = opened[reader.document] || 0;
       });
+      nextScene(chosen);
+    }
+
+    /* The one scene to open next, and whether any is finished, in the language being
+       shown: Russian has scenes too (targum-internal#630). Hebrew's where the language
+       has none, as before. */
+    function nextScene(code) {
       nextRow = null;
       anyFinished = false;
-      if (window.TargumScenes) {
-        nextRow = window.TargumScenes.next(shared, finishedDocs);
-        anyFinished = shared.some(function (reader) {
-          return window.TargumScenes.onPath(reader.entry, "he") && window.TargumScenes.finished(reader, finishedDocs);
-        });
-      }
+      if (!window.TargumScenes) return;
+      var scenesIn = SCENE_SERIES[base(code)] ? base(code) : "he";
+      nextRow = window.TargumScenes.next(shared, finishedDocs, scenesIn);
+      anyFinished = shared.some(function (reader) {
+        return window.TargumScenes.onPath(reader.entry, scenesIn) && window.TargumScenes.finished(reader, finishedDocs);
+      });
     }
     take(lastAnswer() || {});
 
@@ -3174,6 +3187,7 @@
     function redraw() {
       remember("targum:library", views);
       closeMenu(false);
+      nextScene(chosen);
       /* The Jewish texts are Hebrew's, and are drawn only where the catalogue says which
          door anything stands behind: a door onto an empty tree is a dead end. Under
          another language, or a file with no doors, a view left in it goes back to the

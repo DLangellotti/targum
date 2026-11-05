@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- Russian news is scored and offered in Read next (targum-internal#629, under #628).
+  The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
+  dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
+  name by its reading is left out, and a word the dictionary does not know stays
+  unresolved rather than guessed. Against ru-local on the laptop's 129 public Russian
+  texts: 0.6% of running words unresolved (15.0% with the map alone) and 1.3 to 1.4
+  points off at every reader (4.3 to 8.5). Russian joins `POOLED`, `targum finds forms`
+  maps he and ru by default, deploy calibrates each language, and the back office shows
+  the last calibration of each. The figures are in the eval ledger as `finds/ru-shelf`
+  with floors, and a frozen sample of 20 public-domain and CC BY texts' counts is in the
+  suite, holding the shelf map's own pairs only and read through pymorphy3 again, so no
+  dictionary reading is committed. Deploy checks and calibrates each language on its own
+  (`finds forms --drop-short`, `--check --language`), so a thin Russian shelf costs
+  Russian alone. A box without the `russian` extra pools no Russian. No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
@@ -87,6 +101,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   filter and no topic it asks the shelf too, and Watch or Listen never starts a look on
   the web. Listen is drawn only once the pool holds a podcast (`chips` answers `listen`).
   New strings for Filter and its pills, with Russian drafts.
+- A Russian beginner's one card on Home is their next scene too, and the Library's
+  Russian shelves lead with Start here (targum-internal#630, under #628; design.md §12,
+  "A Hebrew beginner's one card is their next scene"). From Russian's own series
+  (`scene-ru-NN`, 114 scenes, A1 and A2), never Hebrew's, for a reader below B1 measured
+  on the CEFR ladder, or with nothing measured. The ulpan rung named on arrival counts as
+  nothing said in Russian. Home now asks for the scene in the language shown, so a
+  signed-out visitor on Russian, whose empty level is Hebrew's, is no longer handed
+  Hebrew's first scene. Hebrew is unchanged. No new strings.
 - Russian is counted in the language tables (targum-internal#637, epic #628). The sweep
   folds public Russian texts beside Hebrew, from the annotations a build already wrote,
   behind the same `public_text` guard, and the nightly news round counts the Russian
