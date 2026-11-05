@@ -21,6 +21,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and four hundred characters of summary. Every other item is measured as before. Each
   row says `measured_on`, either `article` or `headline`. Nothing is fetched and nothing
   new is stored. No new strings.
+- Home's one card offers the words to know first on a pick near the floor (David,
+  2026-11-05; targum-internal#614; design.md §12, "Home's one card offers the words to
+  learn first, and a pick moves easier or harder"). Behind `TARGUM_FIND_BUTTON`. A pick
+  under 93% asks `POST /find` with `words` for its own unknown words that come up three
+  times or more, most often first, at most five, with the meaning the glossary already
+  holds; a name the tagger missed and a word with no meaning are left out, and under
+  three there is no press (`preteach.py`). The press, "Words to know first n", reuses the
+  reader's string and folds the list; a tap opens the word's card as Your Words does
+  (`TargumLists.openWord`), and a word marked known or ignored leaves the list. Nothing
+  is bought and nothing is marked by showing them. New strings: "Tap a word to mark it."
+  and "{n} times in this text", with Russian drafts.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

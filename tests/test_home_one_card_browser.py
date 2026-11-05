@@ -695,3 +695,107 @@ def test_a_suggestion_with_no_outlet_has_no_source_line(browser, width: int) -> 
     context.close()
     assert not thrown, thrown
     assert got["pick"] is None and got["more"] == [None] * len(MORE)
+
+
+# -- words to know first (design.md §12, 2026-11-05; targum-internal#614) ---------------
+
+NEAR_PICK = {**SHELF_PICK, "id": "knesset", "reason": {"key": "suggest.known", "share": 90}}
+
+TAUGHT = [
+    {"lemma": "קידם", "meaning": "advance; promote", "count": 4},
+    {"lemma": "סיעה", "meaning": "faction; party group", "count": 4},
+    {"lemma": "נוכחי", "meaning": "current; present", "count": 3},
+    {"lemma": "הושבע", "meaning": "was sworn in", "count": 3},
+]
+
+WORDS = """() => {
+  const q = (s) => document.querySelector(s);
+  const seen = (s) => { const e = q(s); return !!e && !e.closest('[hidden]') && e.getBoundingClientRect().height > 0; };
+  const press = q('#try-next .rc-words-press');
+  return {
+    press: press ? press.textContent.trim() : null,
+    expanded: press ? press.getAttribute('aria-expanded') : null,
+    beforePresses: !!press && press.nextElementSibling && press.nextElementSibling.id === 'rc-words',
+    open: seen('#rc-words'),
+    rows: [...document.querySelectorAll('#rc-words li')].map((li) => [li.querySelector('.w-he').textContent, li.querySelector('.w-means').textContent, li.querySelector('.w-times').textContent, li.querySelector('.w-times').getAttribute('aria-label')]),
+    quiet: (q('#rc-words .rc-quiet') || {}).textContent || '',
+    card: seen('#list-card'),
+    cardSays: seen('#list-card') ? q('#list-card').textContent : '',
+    levels: [...document.querySelectorAll('#list-card .level')].length,
+    ledger: JSON.parse(localStorage.getItem('targum:vocab:he') || '{}'),
+    meanings: JSON.parse(localStorage.getItem('targum:meanings:he:en') || '{}'),
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+    rowHeight: (() => { const li = q('#rc-words li'); return li ? li.getBoundingClientRect().height : 0; })(),
+  };
+}"""  # noqa: E501
+
+
+def _taught(words: list[dict[str, Any]]) -> Answer:
+    def find(body: dict[str, Any]) -> Any:
+        if body.get("words"):
+            return {"words": words, "into": "en"}
+        return {"pick": None}
+
+    return find
+
+
+def _near(body: dict[str, Any]) -> Any:
+    if body.get("instead_of"):
+        return {"suggestion": None}
+    return {"suggestion": NEAR_PICK, "library": True, "more": MORE}
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_pick_near_the_floor_folds_its_words_to_know_first_and_a_mark_takes_one_off(
+    browser, width: int
+) -> None:
+    context, page, thrown, posted, _ = home(browser, width, _taught(TAUGHT), _near)
+    page.wait_for_selector("#try-next .rc-words-press")
+    closed = page.evaluate(WORDS)
+    shot(page, "words-closed", width)
+    page.click("#try-next .rc-words-press")
+    opened = page.evaluate(WORDS)
+    page.click("#rc-words li:first-child")
+    page.wait_for_selector("#list-card:not([hidden])")
+    carded = page.evaluate(WORDS)
+    shot(page, "words-card", width)
+    page.click("#list-card .level-9")
+    page.wait_for_timeout(100)
+    marked = page.evaluate(WORDS)
+    context.close()
+    assert not thrown, thrown
+    asked = [body for body in posted if body.get("words")]
+    assert asked == [{"words": {"id": "knesset"}, "language": "he"}], posted
+    assert closed["press"] == "Words to know first 4" and closed["expanded"] == "false"
+    assert not closed["open"] and closed["beforePresses"], closed
+    assert closed["ledger"] == {}, "nothing is marked by showing the words"
+    assert opened["open"] and opened["expanded"] == "true"
+    assert opened["rows"][0] == ["קידם", "advance; promote", "4×", "4 times in this text"]
+    assert len(opened["rows"]) == 4 and opened["quiet"] == "Tap a word to mark it."
+    assert carded["card"] and carded["levels"] == 5 and "advance; promote" in carded["cardSays"]
+    assert carded["ledger"] == {}, "opening the card marks nothing"
+    assert marked["ledger"]["קידם"]["status"] == 9, marked["ledger"]
+    assert marked["meanings"]["קידם"]["meaning"] == "advance; promote"
+    assert [row[0] for row in marked["rows"]] == ["סיעה", "נוכחי", "הושבע"]
+    assert marked["press"] == "Words to know first 3" and not marked["card"]
+    assert not marked["sideways"], marked
+    if width < 640:
+        assert opened["rowHeight"] >= 44, opened
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_no_words_to_know_first_above_93_or_with_fewer_than_three(browser, width: int) -> None:
+    context, page, thrown, posted, _ = home(browser, width, _taught(TAUGHT))
+    page.wait_for_selector("#try-next .rc-pick")
+    page.wait_for_timeout(200)
+    above = page.evaluate(WORDS)
+    context.close()
+    context, page, thrown_too, posted_too, _ = home(browser, width, _taught(TAUGHT[:2]), _near)
+    page.wait_for_selector("#try-next .rc-pick")
+    page.wait_for_timeout(300)
+    few = page.evaluate(WORDS)
+    context.close()
+    assert not thrown and not thrown_too, (thrown, thrown_too)
+    assert above["press"] is None and not [body for body in posted if body.get("words")]
+    assert [body for body in posted_too if body.get("words")], "asked under 93%"
+    assert few["press"] is None, "two words is no press"

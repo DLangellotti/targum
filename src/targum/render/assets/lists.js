@@ -700,12 +700,18 @@
     return card;
   }
 
+  //: Told when the card goes, for a card opened from another page's list (`openWord`).
+  var cardGone = null;
+
   function closeCard() {
     if (!card || card.hidden) return;
     card.hidden = true;
     card.textContent = "";
     var back = cardFrom;
     cardFrom = null;
+    var gone = cardGone;
+    cardGone = null;
+    if (gone) gone();
     if (back && back.focus && back.isConnected !== false) back.focus();
   }
 
@@ -849,6 +855,59 @@
         })
       );
     };
+  }
+
+  /* A word not yet on the list, or on it, opened from Home's words to know first
+     (design.md §12, 2026-11-05; targum-internal#614): the same card, its meaning the one
+     the glossary holds, and its level written to the same ledger a tap in a text writes.
+     Opening it marks nothing; only a level pressed does. */
+  function openWord(row, word) {
+    var language = word.language || code || "he";
+    var name = "targum:vocab:" + language;
+    var held = read(name, "{}")[word.lemma] || null;
+    openCard(row, function (host) {
+      host.appendChild(headline(word.lemma, language, true));
+      host.appendChild(meaningLine("", word.meaning, word.into || ""));
+      if (word.count) {
+        host.appendChild(
+          el("span", "form", tn("home.card.words.times", word.count, "{n} time in this text", "{n} times in this text"))
+        );
+      }
+      host.appendChild(
+        window.TargumVocab.editor({
+          status: held ? held.status : undefined,
+          legend: true,
+          onStatus: function (value) {
+            var store = read(name, "{}");
+            var item = store[word.lemma];
+            var now = Date.now();
+            if (!item) {
+              item = store[word.lemma] = { status: value, surface: word.lemma, band: "", learned: 0, at: now };
+            } else {
+              if (charts.learnedBy(item.status, value)) item.learned = 1;
+              item.status = value;
+            }
+            item.seen = now;
+            save(name, store);
+            // Its meaning filed where Your Words reads it, as "Words you may already
+            // know" files one; a meaning already there is the reader's own, and stays.
+            if (word.meaning && word.into) {
+              var into = "targum:meanings:" + language + ":" + word.into;
+              var meanings = read(into, "{}");
+              var was = meanings[word.lemma] || {};
+              if (!was.meaning) {
+                meanings[word.lemma] = { meaning: word.meaning, note: was.note || "", at: was.at || now, seen: now };
+                save(into, meanings);
+              }
+            }
+            cardGone = null;
+            closeCard();
+            if (word.onStatus) word.onStatus(value);
+          },
+        })
+      );
+    });
+    cardGone = word.onClose || null;
   }
 
   function phraseCard(phrase) {
@@ -1889,6 +1948,7 @@
     onMeaningLanguage: function (fn) {
       redrawing = fn;
     },
+    openWord: openWord,
     offerExports: offerExports,
   };
 })();
