@@ -125,6 +125,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- A word the model tagged without its dictionary form no longer shows a part of speech
+  as its form (targum-internal#562). A line written as the word, its tag and its features
+  was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf
+  had "cconj", "noun" or "verb" as their dictionary form and X as their tag, on the card,
+  in the word list and in the difficulty measure. Such a line is now read as the word
+  standing for its own form, with its tag and grammar, and a reading already bought is
+  mended as it is read from the cache, so nothing is bought again and the annotator keeps
+  its name. Measured on the 21 Russian texts with such words: the share looked up falls by
+  up to 10 points (ovd-buryatia-father 17 to 8, teplitsa-repression-archives 17 to 7,
+  which is what the catalogue already says), and no text changes level. A built text keeps
+  its words until it is annotated again. No new strings.
 - A row too tall for a page is cut between lines in each of its columns (2026-11-04). A
   halakha whose English ran longer than its Hebrew was cut once for both columns, and
   their lines interleave, so there was no gap to cut in and the cut fell through a line:
