@@ -195,6 +195,8 @@ def test_a_russian_night_on_youtube_pools_a_russian_video(store: Store) -> None:
     assert tube.asked[0]["q"] == "спорт" and tube.asked[0]["relevanceLanguage"] == "ru"
     asked = [query.words for query in finds_youtube.queries("ru")]
     assert "армия и военная служба" not in asked and asked[-3:] == list(finds_youtube.EASY["ru"])
+    # ling-ru's easy queries (2026-11-06), awaiting David's read.
+    assert finds_youtube.EASY["ru"] == ("РКИ", "сказка для детей", "простым языком")
     # Its rotation is its own: a Russian night does not move Hebrew's.
     assert pool.last_next(store, finds_youtube.SOURCE, "ru") == 1
     assert pool.last_next(store, finds_youtube.SOURCE, "he") == 0

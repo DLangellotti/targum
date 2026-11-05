@@ -39,8 +39,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and Russian runs on what the night has left: the web night's $1 and YouTube's units are
   still the night's, so nothing new is spent, and a host gives at most five pages a
   night across both languages. The live look's `security` topic asks «безопасность»
-  without *армия*, so nothing steers a Russian look toward the hidden `army` (draft,
-  awaiting ling-ru's and David's read). Hebrew is unchanged. No new strings.
+  without *армия*, so nothing steers a Russian look toward the hidden `army` (ling-ru's,
+  awaiting David's read). The easy YouTube queries for Russian are ling-ru's «РКИ»,
+  «сказка для детей» and «простым языком» (awaiting David's read). Hebrew is unchanged.
+  No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's

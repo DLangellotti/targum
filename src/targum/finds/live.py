@@ -140,7 +140,8 @@ TOPIC_WORDS: dict[str, dict[str, str]] = {
         "law": "криминал и суд",
         # Not «армия и безопасность» (ling-ru's first draft): `army` is hidden for
         # Russian to keep war coverage away from beginners (David, 2026-11-05), and
-        # *армия* here would steer a look to it anyway. DRAFT, awaiting David's read.
+        # *армия* here would steer a look to it anyway. ling-ru agreed (2026-11-06);
+        # awaiting David's read.
         "security": "безопасность",
         "science": "наука и технологии",
         "religion": "религия и традиции",

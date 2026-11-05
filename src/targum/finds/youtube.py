@@ -93,10 +93,10 @@ RUN_BYTES = 1_500_000
 #: phrase alone finds mostly native-speed talk.
 EASY: dict[str, tuple[str, ...]] = {
     "he": ("עברית קלה", "עברית למתחילים", "סיפור לילדים", "הסבר פשוט"),
-    # builder-3's draft from ling-ru's level words (2026-11-05; targum-internal#635),
-    # awaiting her and David's read: "РКИ" and its long form for graded videos at A1–A2,
-    # "простым языком" for plain native explainers at B1.
-    "ru": ("РКИ", "русский как иностранный", "простым языком"),
+    # ling-ru, 2026-11-06 (targum-internal#635), awaiting David's read: "РКИ" for graded
+    # videos at A1–A2, "сказка для детей" for children's tales (as Hebrew's "סיפור
+    # לילדים"), "простым языком" for plain native explainers at B1.
+    "ru": ("РКИ", "сказка для детей", "простым языком"),
 }
 
 #: The languages a round runs for: those the scorer has a map for and the chips a phrase.
