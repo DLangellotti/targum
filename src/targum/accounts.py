@@ -2309,8 +2309,11 @@ class Store:
             db.execute("UPDATE person SET interest = ? WHERE id = ?", (",".join(kept), person.id))
         return kept
 
-    #: The rungs a reader can say they are on, aleph to vav: `level.ULPAN`'s, by the ids
-    #: the arrival uses (targum-internal#306, 2026-09-19).
+    #: The rungs a reader can say they are on, by the ids the arrival uses: aleph to vav,
+    #: `level.ULPAN`'s, asked of a Hebrew reader (targum-internal#306, 2026-09-19), and a1
+    #: to c2, `level.CEFR`'s, asked of a French or Russian one (targum-internal#631,
+    #: 2026-11-05). One column, the rung last named; `level.seed` reads it only on its own
+    #: ladder.
     DECLARED = (
         "aleph",
         "aleph-plus",
@@ -2320,6 +2323,12 @@ class Store:
         "dalet",
         "hey",
         "vav",
+        "a1",
+        "a2",
+        "b1",
+        "b2",
+        "c1",
+        "c2",
     )
 
     def declared(self, person_id: int | None) -> str:

@@ -628,6 +628,39 @@ back" (2026-11-01), whose aim inside the band was the same 94–97% for every re
   of "too hard", but #586's pooled calibration is what makes the prediction worth
   comparing against.
 
+### The words check in French and Russian — 2026-11-05
+
+David, 2026-11-05 (targum-internal#628, French and Russian to parity with Hebrew; card
+#631, lists #632): a new French or Russian reader takes the arrival's words check in their
+language, as a Hebrew reader does. It amends "The arrival asks which words you know"
+(2026-11-01), which asked Hebrew alone, and "The arrival is two questions…" (2026-09-19),
+which kept Hebrew's level alone.
+
+- **Where and how, as Hebrew's.** After the level, two rounds counted with the rest ("4
+  of 5", "5 of 5"), then "Thanks.". Not sure leads into round one, Skip goes home, a tick
+  is evidence only, and only the ticked words are kept (`checked`, one row a reader and
+  language). The page, the rules and the round sizes are Hebrew's. The words are in the
+  reading face, left to right, marked with their language. Italian, Aramaic and Yiddish
+  still end on the level.
+- **Each language has its own lists and its own version** (`check.LISTS`): six bands of
+  eight real words in Hebrew's six windows of wordfreq's list, and sixteen made-up words,
+  by ling-fr and ling-ru. One rule is new: no real word is an English cognate or an
+  international loan (*famille*, *проблема*), so a tick means the reader knows the
+  French or Russian word. **Russian's lists are a draft awaiting David's read.**
+- **The level is kept on the CEFR ladder.** The four sentences stand for A1, A2, B1 and
+  C1, as Hebrew's stand for aleph, bet, gimel and hey, and are kept by the ids `a1` to
+  `c2` in the one column that holds the rung last named (`Store.DECLARED`). A rung is
+  read only on its own ladder (`level.seed`, `charts.seed`), so an ulpan rung says
+  nothing of a reader's Russian. A measured rung still outvotes it.
+- **The rung the check gives** is the CEFR rung the estimate stands at: its expected
+  known words among the commonest five thousand (`check.common_known`), the CEFR ladder's
+  own measure. It places the first text and, labelled "From your words check", Your
+  Progress's level until the marks reach one.
+- **Not yet measured.** Hebrew's bands came from Hebrew readers' answers; French's and
+  Russian's come from the frequency list alone. Each language's placement is to be
+  scored against its own small gold of known readers or ling-graded profiles, never
+  Hebrew's, once readers have taken it.
+
 ### A text keeps the shape its edition gives it — 2026-11-04
 
 David, 2026-11-04, approving the formatting mock ("I'd like targum to be better at
@@ -1725,7 +1758,8 @@ of steps, and Skip.
 - **Where.** After the level, for a Hebrew reader only: two screens, counted with the
   rest ("4 of 5", "5 of 5"), then "Thanks." with no count over it and no way back. Every
   other language still ends on the level ("1 of 3"), and the count changes with the
-  language pressed. **Not sure leads into the check** (David, 2026-11-01, the same day):
+  language pressed. *(French and Russian too since 2026-11-05: "The words check in French
+  and Russian", above.)* **Not sure leads into the check** (David, 2026-11-01, the same day):
   in Hebrew the level screen's way past says "I'm not sure, help me find my level", keeps
   no level, and goes to round one, so the reader the check helps most is the one who
   meets it. Every other language has no check, so there it still says "I'm not sure, show

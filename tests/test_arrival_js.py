@@ -296,8 +296,9 @@ def russian_shelf() -> list[dict[str, Any]]:
 
 
 def test_another_language_opens_a_text_in_it_placed_by_what_they_read() -> None:
-    """Nothing reads a level for Russian yet, so the answer is kept nowhere and places
-    the first text along that shelf by difficulty."""
+    """The answer places the first text along that shelf by difficulty. Russian's is
+    kept since 2026-11-05, on the CEFR ladder (targum-internal#631); Italian's, which has
+    no words check, is kept nowhere."""
     pick = [{"learn": "Russian"}, {"press": "arrival-done"}, {"press": "arrival-done"}]
     novel = draw(
         [],
@@ -305,8 +306,21 @@ def test_another_language_opens_a_text_in_it_placed_by_what_they_read() -> None:
         do=[*pick, {"rung": "I read almost anything"}, {"press": "arrival-done"}],
     )
     assert "/reader/sergius" in novel["went"], novel["went"]
-    assert not [c for c in novel["sent"] if "/account/level" in c["path"]], "kept nowhere"
-    assert "targum:declared" not in novel["kept"]
+    sent = [c["body"] for c in novel["sent"] if "/account/level" in c["path"]]
+    assert sent == [{"level": "c1"}] and novel["kept"].get("targum:declared") == "c1"
+    italian = draw(
+        [],
+        shared=seeded(),
+        do=[
+            {"learn": "Italian"},
+            {"press": "arrival-done"},
+            {"press": "arrival-done"},
+            {"rung": "I read almost anything"},
+            {"press": "arrival-done"},
+        ],
+    )
+    assert not [c for c in italian["sent"] if "/account/level" in c["path"]], "kept nowhere"
+    assert "targum:declared" not in italian["kept"]
     unsure = draw([], shared=russian_shelf(), do=[*pick, {"unsure": True}])
     assert "/reader/kashtanka" in unsure["went"], "the easiest page there is"
 

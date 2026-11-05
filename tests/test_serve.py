@@ -829,6 +829,38 @@ def test_the_words_check_keeps_the_ticks_and_never_the_list(
     assert everything["words"] == [], "a tick never puts a word on the list"
 
 
+def test_a_french_or_russian_check_is_kept_in_its_own_language(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#631 (2026-11-05): the check names its language, is read by that
+    language's lists and version, is kept in that language's row, and answers with a rung
+    of the CEFR ladder. A language with no check is refused."""
+    from targum import check
+
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    lists = check.LISTS["ru"]
+    real, made = check.first_round("ru")
+    body = {"version": lists.version, "language": "ru", "ticked": [real[0], made[0], "עכשיו"]}
+    status, answer, _ = call(port, "POST", f"/account/check?k={token}", body, cookie=cookie)
+    assert status == 200 and answer["rung"] in {"a1", "a2", "b1", "b2", "c1", "c2"}
+    hebrew = {**body, "version": check.VERSION}
+    if check.VERSION != lists.version:
+        status, _, _ = call(port, "POST", f"/account/check?k={token}", hebrew, cookie=cookie)
+        assert status == 409, "a Russian check is held to Russian's version"
+    nowhere = {**body, "language": "it"}
+    status, _, _ = call(port, "POST", f"/account/check?k={token}", nowhere, cookie=cookie)
+    assert status == 400
+    status, everything, _ = call(port, "GET", f"/account/export?k={token}", cookie=cookie)
+    rows = {row["language"]: row for row in everything["checked"]}
+    assert set(rows) == {"ru"} and rows["ru"]["ticked"] == [real[0], made[0]]
+    assert rows["ru"]["version"] == lists.version
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "a2"}, cookie=cookie
+    )
+    assert status == 200 and answer["declared"] == "a2"
+
+
 def test_progress_shows_the_words_check_s_level_until_the_marks_reach_one(
     served: tuple[int, str, Path], postbox: Postbox
 ) -> None:

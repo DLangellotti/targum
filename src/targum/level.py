@@ -313,15 +313,28 @@ def seed(level: Level) -> Rung | None:
     off words the reader marked. This one is declared, and what keeps that small is this
     function's one rule: **a measured rung outvotes it.** Once `here` exists — by reading,
     or by the claim grid a minute after the first text — this answers None and the
-    declared rung is not consulted. Hebrew only: the arrival asks over the ulpan ladder.
+    declared rung is not consulted.
+
+    Read on the language's own ladder: the arrival asks Hebrew over the ulpan's and, since
+    2026-11-05, French and Russian over the CEFR's, by the ids "a1" to "c2"
+    (targum-internal#631). One column holds the rung last named, so a rung of the other
+    ladder says nothing of this language: an ulpan rung on a Russian reader is nothing
+    said, as `chat.tools.scene_reader` reads it too. Only a language with a words check
+    (`check.LISTS`) keeps the rung asked; Italian, Aramaic and Yiddish answer None.
     """
+    from .check import LISTS
+
     if level.here is not None or not level.declared:
         return None
-    if (level.language or "he").split("-")[0].lower() != "he":
+    code = (level.language or "he").split("-")[0].lower()
+    if code not in LISTS:
         return None
-    name = level.declared.replace("-", " ")
-    for rung in ULPAN:
-        if rung.name == name:
+    ladder = ladder_for(code)
+    if ladder is None:
+        return None
+    name = level.declared.replace("-", " ").lower()
+    for rung in ladder.rungs:
+        if rung.name.lower() == name:
             return rung
     return None
 

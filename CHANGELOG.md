@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- A new French or Russian reader takes the arrival's words check in their language
+  (David, 2026-11-05; targum-internal#631, under #628's parity; design.md §12, "The words
+  check in French and Russian"). `check.py` keeps each language's lists and version
+  (`check.LISTS`: ling-fr's and ling-ru's, #632; **Russian's a draft awaiting David's
+  read**), the page carries all three and draws the language pressed, left to right in the
+  reading face, and `/account/check` names its language. Their level is kept on the CEFR
+  ladder as `a1`, `a2`, `b1` or `c1`, read only on its own ladder by `level.seed` and
+  `charts.seed`, and the check's rung is the CEFR rung the estimate stands at by expected
+  known words among the commonest five thousand. Home now sends a new French or Russian
+  reader to the arrival. Italian, Aramaic and Yiddish are unchanged. No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
