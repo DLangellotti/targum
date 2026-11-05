@@ -166,16 +166,71 @@ def test_pymorphy3_reads_russian_forms_as_ru_local_does() -> None:
     assert held.resolve("кваксыргл")[1] == score.UNRESOLVED, "no guess at an unknown word"
 
 
+class Parse(SimpleNamespace):
+    normal_form: str
+    tag: Any
+
+
+class Analyser:
+    """pymorphy3's two calls `_russian_readings` makes, with its habit of guessing a
+    lemma for any string at all, which is what the `word_is_known` guard is for."""
+
+    def word_is_known(self, word: str) -> bool:
+        return word == "домами"
+
+    def parse(self, word: str) -> list[Parse]:
+        if word == "домами":
+            return [Parse(normal_form="дом", tag=SimpleNamespace(grammemes={"NOUN"}))]
+        return [Parse(normal_form=word[:-1], tag=SimpleNamespace(grammemes={"NOUN"}))]
+
+
+def test_pymorphy3_s_guess_at_an_unknown_word_is_never_taken(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real path, through a stand-in analyser: a word the dictionary does not know
+    is unresolved, not given the lemma pymorphy3 would guess (score.py's guard)."""
+    monkeypatch.setattr(score, "_analyser", lambda: Analyser())
+    score._russian_readings.cache_clear()
+    try:
+        morph = score.morph_for("ru")
+        assert morph is not None
+        held = score.Forms(language="ru", forms={"дом": "дом"}, morph=morph)
+        assert held.resolve("домами") == ("дом", score.MORPH)
+        assert held.resolve("кваксыргл") == ("", score.UNRESOLVED)
+    finally:
+        score._russian_readings.cache_clear()
+
+
+def test_a_russian_sample_freezes_the_map_s_pairs_and_none_of_the_dictionary_s() -> None:
+    """LICENSING.md: OpenCorpora's readings (CC BY-SA 3.0) never enter the repository.
+    A Russian page's reach is the map's own pairs and names, and the map's lemma a
+    dictionary reading is spelled as; read through the dictionary again it scores each
+    token as the whole map does."""
+    held = ru_forms(дом="дом", учёный="учёный", сталь="сталь", стали="сталь")
+    tokens = ["дом", "стали", "домами", "кошки", "ученого", "путин", "москва", "абвгд"]
+    reach, names = score._reach(held, tokens)
+    assert reach == {"дом": "дом", "стали": "сталь", "учёный": "учёный"}
+    assert "домами" not in reach and "кошки" not in reach, "the dictionary's pairs"
+    assert names == ["москва"], "only the map's names; the dictionary's are read again"
+    frozen = score.Forms(language="ru", forms=reach, names=frozenset(names), morph=held.morph)
+    for token in tokens:
+        assert frozen.resolve(token) == held.resolve(token), token
+
+
 def test_the_russian_calibration_holds_its_floor() -> None:
     """targum-internal#629: a frozen sample of 20 held-out public Russian texts (public
     domain and CC BY only), scored with the slice of their fold's map and of pymorphy3's
-    readings their words reach, against ru-local's running-word coverage. Russian is held
+    readings their words reach, against ru-local's running-word coverage. The sample holds
+    the map's own pairs only, never the dictionary's (CC BY-SA), so it is read through
+    pymorphy3 again and runs where the dictionary is (CI's pymorphy3 step). Russian is held
     to its own sample, never to Hebrew's. Measured over the whole laptop shelf on
     2026-11-05: 0.6% of running words unresolved (15.0% before), |error| 1.3–1.4 points
     at every reader (4.3–8.5 before)."""
+    pytest.importorskip("pymorphy3")
     body = json.loads(gzip.decompress((FIXTURES / "finds_calibration_ru.json.gz").read_bytes()))
     assert body["language"] == "ru"
     cases = score.fixture_cases(body)
+    assert all(case.forms.morph is not None for case in cases), "read through pymorphy3"
     assert len(cases) >= 15
     scored = [case.forms.score_counts(case.tokens) for case in cases]
     unresolved = sum(one.unresolved for one in scored) / sum(one.tokens for one in scored)
@@ -211,7 +266,9 @@ def test_a_calibration_becomes_ledger_rows_for_its_own_language() -> None:
 # -- the map: public texts only ----------------------------------------------------------
 
 
-def annotate(folder: Path, words: list[tuple[str, str, str]], source: str) -> None:
+def annotate(
+    folder: Path, words: list[tuple[str, str, str]], source: str, language: str = "he"
+) -> None:
     folder.mkdir(parents=True)
     tokens = [
         {"surface": surface, "lemma": lemma, "pos": pos, "entity": None}
@@ -221,7 +278,7 @@ def annotate(folder: Path, words: list[tuple[str, str, str]], source: str) -> No
         json.dumps(
             {
                 "document_hash": "f" * 16,
-                "language": "he",
+                "language": language,
                 "scripture_share": 0.0,
                 "annotator": "test",
                 "tokens": {"s1": tokens},
@@ -264,10 +321,54 @@ def test_a_shipped_map_is_checked_first(tmp_path: Path) -> None:
     assert score.check(small)
 
 
+def test_each_language_is_checked_on_its_own(tmp_path: Path) -> None:
+    """A thin Russian shelf costs Russian alone: Hebrew still passes its check."""
+    where = tmp_path / "forms.json"
+    big = {f"צורה{n}": "צורה" for n in range(score.CHECK_LEAST_FORMS)}
+    languages = {"he": {"forms": big}, "ru": {"forms": {"дом": "дом"}}}
+    score.write({"version": score.VERSION, "languages": languages}, where)
+    assert score.check(where), "the whole map fails on its short language"
+    assert score.check(where, ["he"]) == []
+    assert score.check(where, ["ru"]) and "ru has 1 forms" in score.check(where, ["ru"])[0]
+    score.write({"version": score.VERSION, "languages": {"he": {"forms": big}}}, where)
+    assert score.check(where, ["ru"]) == ["it holds no ru"]
+
+
+def test_drop_short_leaves_out_a_thin_language_and_writes_the_rest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+
+    from targum.cli import app
+
+    monkeypatch.setattr(score, "CHECK_LEAST_FORMS", 2)
+    library = tmp_path / "out"
+    source = "https://he.wikipedia.org/wiki/x"
+    annotate(library / "public-he", [("הבית", "בית", "NOUN"), ("בית", "בית", "NOUN")], source)
+    annotate(library / "public-ru", [("дом", "дом", "NOUN")], source, language="ru")
+    to = tmp_path / "forms.json"
+    said = CliRunner().invoke(
+        app, ["finds", "forms", "--library", str(library), "--write", str(to), "--drop-short"]
+    )
+    assert said.exit_code == 0, said.output
+    output = " ".join(said.output.split())
+    assert "ru has 1 forms" in output and "Left out of the map" in output
+    body = json.loads(to.read_text(encoding="utf-8"))
+    assert list(body["languages"]) == ["he"]
+    check = ["finds", "forms", "--check", str(to), "--language"]
+    assert CliRunner().invoke(app, [*check, "he"]).exit_code == 0
+    assert CliRunner().invoke(app, [*check, "ru"]).exit_code == 1
+    assert CliRunner().invoke(app, ["finds", "forms", "--check", str(to)]).exit_code == 0
+
+
 def test_deploy_builds_and_checks_the_map_on_the_box() -> None:
     text = (Path(__file__).parent.parent / "deploy" / "deploy.sh").read_text(encoding="utf-8")
     assert "targum finds forms --library /var/lib/targum/targums" in text
+    assert "--write /var/lib/targum/forms.json --drop-short" in text, "a thin language alone"
     assert "targum finds forms --check /var/lib/targum/forms.json" in text
+    loop = text.split("for finds_language in he ru; do")[1].split("done")[0]
+    assert '--language "$finds_language"; then' in loop, "calibrated only where it shipped"
+    assert loop.index("finds forms --check") < loop.index("finds calibrate")
     assert "/etc/targum/forms.json" in text
     assert "for finds_language in he ru; do" in text, "each pooled language calibrated"
     assert 'BOX_EXTRAS="' in text and " russian " in text.split('BOX_EXTRAS="')[1].split("\n")[0]

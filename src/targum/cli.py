@@ -5519,8 +5519,18 @@ def finds_forms(
     ] = None,
     check: Annotated[
         Path | None,
-        typer.Option("--check", help="Check a map before it ships, and build nothing."),
+        typer.Option(
+            "--check",
+            help="Check a map before it ships, and build nothing; with --language, only those.",
+        ),
     ] = None,
+    drop_short: Annotated[
+        bool,
+        typer.Option(
+            "--drop-short",
+            help="Leave out a language whose map would fail its check, and say so.",
+        ),
+    ] = False,
 ) -> None:
     """Build the cheap scorer's form → lemma map from the public shelf (targum-internal#619).
 
@@ -5531,12 +5541,13 @@ def finds_forms(
     from .finds import score
 
     if check is not None:
-        wrong = score.check(check)
+        wrong = score.check(check, language or ())
         for line in wrong:
             console.print(f"[red]{line}[/red]")
         if wrong:
             raise typer.Exit(1)
-        console.print(f"[green]{check} is a {score.VERSION} map[/green]")
+        named = f" holding {', '.join(score.code(one) for one in language)}" if language else ""
+        console.print(f"[green]{check} is a {score.VERSION} map{named}[/green]")
         return
     roots = library or [Path.cwd() / "targum-out"]
     for root in roots:
@@ -5548,6 +5559,14 @@ def finds_forms(
         for text in score.annotated(root, languages):
             merged[text.language].append(text)
     built = {one: score.build_language(texts, one) for one, texts in merged.items()}
+    if drop_short:
+        # A thin shelf in one language costs that language only (deploy.sh): the rest
+        # ship, and a language left out pools nothing until its shelf is fuller.
+        for one in list(built):
+            problem = score.short(one, built[one])
+            if problem:
+                console.print(f"[yellow]{problem} Left out of the map.[/yellow]")
+                del built[one]
     body = {
         "version": score.VERSION,
         "built": datetime.now(UTC).isoformat(timespec="seconds"),

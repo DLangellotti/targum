@@ -24,7 +24,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   maps he and ru by default, deploy calibrates each language, and the back office shows
   the last calibration of each. The figures are in the eval ledger as `finds/ru-shelf`
   with floors, and a frozen sample of 20 public-domain and CC BY texts' counts is in the
-  suite. A box without the `russian` extra pools no Russian. No new strings.
+  suite, holding the shelf map's own pairs only and read through pymorphy3 again, so no
+  dictionary reading is committed. Deploy checks and calibrates each language on its own
+  (`finds forms --drop-short`, `--check --language`), so a thin Russian shelf costs
+  Russian alone. A box without the `russian` extra pools no Russian. No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's

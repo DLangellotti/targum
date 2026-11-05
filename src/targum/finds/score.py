@@ -95,7 +95,8 @@ POOLED = frozenset({"he", "ru"})
 #: The languages whose forms the shelf never showed are read through pymorphy3's
 #: dictionary (`Forms.morph`). pymorphy3 is MIT; its dictionary is OpenCorpora's, CC BY-SA
 #: 3.0, and it is used here as a lookup only, the way `annotate/russian.py` checks with
-#: it: nothing of it is copied into the map, which keeps the shelf's own forms alone.
+#: it: nothing of it is copied into the map, which keeps the shelf's own forms alone, nor
+#: into the suite's frozen sample (`_reach`), which is read through it again.
 MORPHED = frozenset({"ru"})
 
 #: pymorphy3's marks for a name, as `annotate.russian` reads them: such a reading is not a
@@ -602,27 +603,40 @@ def load(language: str, where: Path | None = None) -> Forms | None:
     return _forms(str(file), (stat.st_mtime_ns, stat.st_size), code(language))
 
 
-def check(file: Path) -> list[str]:
+def short(language: str, held: Mapping[str, Any] | None) -> str:
+    """Why one language's map is too small to ship, or "" where it is not: a map so
+    small could only have been built from the wrong folder, or a shelf too thin."""
+    forms = (held or {}).get("forms") or {}
+    if len(forms) < CHECK_LEAST_FORMS:
+        return (
+            f"{language} has {len(forms)} forms, under {CHECK_LEAST_FORMS}: "
+            "built from the wrong folder, or a shelf too thin?"
+        )
+    return ""
+
+
+def check(file: Path, languages: Iterable[str] = ()) -> list[str]:
     """What is wrong with a map before it ships, or nothing: the version, a language
     with no forms, and a map so small it could only have been built from the wrong
-    folder (deploy.sh runs this before it copies the file)."""
+    folder (deploy.sh runs this before it copies the file). Given `languages`, only
+    those are checked, and each must be there: deploy asks after each language on its
+    own, so a thin Russian shelf never holds Hebrew back."""
     try:
         body = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError) as error:
         return [f"{file} is not readable JSON: {error}"]
     if not isinstance(body, dict) or body.get("version") != VERSION:
         return [f"{file} is not a {VERSION} file"]
+    held = body.get("languages") or {}
+    wanted = [code(one) for one in languages]
+    if not held and not wanted:
+        return ["it holds no language"]
     wrong: list[str] = []
-    languages = body.get("languages") or {}
-    if not languages:
-        wrong.append("it holds no language")
-    for language, held in languages.items():
-        forms = (held or {}).get("forms") or {}
-        if len(forms) < CHECK_LEAST_FORMS:
-            wrong.append(
-                f"{language} has {len(forms)} forms, under {CHECK_LEAST_FORMS}: "
-                "built from the wrong folder?"
-            )
+    for language in wanted or list(held):
+        if language not in held:
+            wrong.append(f"it holds no {language}")
+        elif problem := short(language, held[language]):
+            wrong.append(problem)
     return wrong
 
 
@@ -862,15 +876,28 @@ def _reach(forms: Forms, tokens: Iterable[str]) -> tuple[dict[str, str], list[st
     a fixture needs to score the page exactly as the whole map does."""
     reach: dict[str, str] = {}
     names: set[str] = set()
+    filed: dict[str, str] = {}
     for token in tokens:
         if not forms.hebrew:
-            # One form, one lookup: what the map or the dictionary made of it is frozen
-            # as the form itself, so a sample scores the same without pymorphy3.
-            lemma, how = forms.resolve(token)
-            if how == NAME:
+            # Only the map's own pairs are frozen. What the dictionary reads a form as is
+            # OpenCorpora's (CC BY-SA 3.0) and stays out of the repository: the sample is
+            # scored through pymorphy3 again, so all it needs of a dictionary reading is
+            # the map's lemma it is spelled as, filed under a form the map gives it.
+            if token in forms.names:
                 names.add(token)
-            elif lemma:
+                continue
+            lemma = forms._lookup(token)
+            if lemma:
                 reach[token] = lemma
+                continue
+            lemma, how = forms.resolve(token)
+            if how != MORPH or lemma not in forms.lemmas:
+                continue
+            if not filed:
+                filed = {v: k for k, v in sorted(forms.forms.items(), reverse=True)}
+            # A form the map itself files under that lemma, preferring the lemma's own.
+            form = lemma if forms.forms.get(lemma) == lemma else filed[lemma]
+            reach[form] = lemma
             continue
         candidates = level_module._forms_of(level_module._bare(token))
         for form in candidates:
@@ -952,8 +979,12 @@ def fixture(
     return {"version": 2, "language": code(language), "readers": list(readers), "texts": out}
 
 
-def fixture_cases(body: Mapping[str, Any]) -> list[Case]:
-    """A frozen sample read back as cases `table` scores."""
+def fixture_cases(
+    body: Mapping[str, Any], morph: Callable[[str], Sequence[Reading]] | None = None
+) -> list[Case]:
+    """A frozen sample read back as cases `table` scores. A `MORPHED` language's sample
+    holds the map's pairs only and is read through its dictionary again (`morph`, or the
+    installed one), as the whole map is."""
     language = str(body.get("language") or "he")
     readers = [int(n) for n in body.get("readers") or READERS]
     out: list[Case] = []
@@ -963,6 +994,7 @@ def fixture_cases(body: Mapping[str, Any]) -> list[Case]:
             language=language,
             forms={str(k): str(v) for k, v in text["forms"].items()},
             names=frozenset(text.get("names") or ()),
+            morph=morph if morph is not None else morph_for(language),
         )
         out.append(
             Case(

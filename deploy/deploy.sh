@@ -721,11 +721,13 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
       # index above is, for the same reasons. It reads files only. Then the calibration
       # against DICTA on the same shelf, which the back office shows. Neither is fatal:
       # a map that was not written or failed its check leaves the old one, or none, and
-      # a box with none pools no finds.
+      # a box with none pools no finds. Each language is checked on its own
+      # (targum-internal#629): --drop-short leaves out one whose shelf is too thin, said
+      # in a line, so a thin Russian shelf costs Russian alone and Hebrew still ships.
       if systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
           --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
           /usr/local/bin/targum finds forms --library /var/lib/targum/targums \
-            --write /var/lib/targum/forms.json \
+            --write /var/lib/targum/forms.json --drop-short \
         && systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
           --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
           /usr/local/bin/targum finds forms --check /var/lib/targum/forms.json; then
@@ -738,9 +740,16 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
           echo "   the finds map could not be put in place; finds keep the one they had" >&2
         fi
         # One calibration per pooled language, each against its own annotator: DICTA
-        # for Hebrew, ru-local for Russian (targum-internal#629). The back office shows
-        # the last of each.
+        # for Hebrew, ru-local for Russian (targum-internal#629), and only for a language
+        # the map holds in full. The back office shows the last of each.
         for finds_language in he ru; do
+          if ! systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+              --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+              /usr/local/bin/targum finds forms --check /var/lib/targum/forms.json \
+                --language "$finds_language"; then
+            echo "   the $finds_language finds map was left out or is short on this box; $finds_language pools no finds and is not calibrated" >&2
+            continue
+          fi
           systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
             --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
             /usr/local/bin/targum finds calibrate --library /var/lib/targum/targums \
