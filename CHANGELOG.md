@@ -21,6 +21,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and four hundred characters of summary. Every other item is measured as before. Each
   row says `measured_on`, either `article` or `headline`. Nothing is fetched and nothing
   new is stored. No new strings.
+- The estimate of what a reader knows takes a borrowed word as easier than its place in
+  the frequency list says (targum-internal#613; design.md §12, "A borrowed word is easier
+  than its frequency says"). A Hebrew word the root lexicon marks borrowed has 1.6 taken
+  off its difficulty, about five times commoner. On the laptop's held-out marks pooled
+  AUC goes 0.915 → 0.918 and Brier 0.0566 → 0.0560. Part of speech (0.914), a loanword
+  list drawn from the glosses (0.916) and the root family's known share (0.916) were
+  measured the same way and left out. `scripts/eval_difficulty_features.py` runs the
+  comparison, offline. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

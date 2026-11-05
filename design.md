@@ -384,6 +384,38 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A borrowed word is easier than its frequency says — 2026-11-05
+
+David, 2026-11-05 (targum-internal#613): the estimate's difficulty gets part of speech, a
+loanword flag and the root family's known share, each kept only if it beats frequency
+alone on `scripts/eval_estimate.py`'s held-out marks. One did. It amends "The chooser
+estimates the words you have not marked" (2026-11-01, below), whose difficulty was
+frequency alone.
+
+- **A Hebrew word targum's root lexicon marks borrowed** (טלפון, אינטרנט, קפה; the
+  `borrowed` field the lexicon already has, which `deploy.sh` puts on the box) is
+  estimated as if it were about five times commoner: its difficulty is the log of its
+  place less 1.6.
+  Every reader language alike, since the measured readers read in English and an
+  internationalism is one in Russian too. A machine without the lexicon estimates as
+  before. Nothing new is stored and nothing is spent.
+- **Measured** (`scripts/eval_difficulty_features.py`, five folds of the laptop's 3,388
+  marked words, 289 not known): pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, log
+  loss 0.1865 → 0.1848, calibration error 0.027 unchanged. With the weight fitted on the
+  other readers only, AUC 0.917; the paired bootstrap's 95% interval is above nought in
+  both.
+- **Left out, measured the same way.** Part of speech, nouns against verbs, adjectives,
+  adverbs and the closed classes: AUC 0.914, and 0.909 with the weights from the other
+  readers. (With names and words no built text has given their own weight it reads
+  0.923, but that weight measures where a mark came from, not the word.) A loanword list
+  drawn from the glosses, a word whose English gloss its consonants spell (579 lemmas,
+  private, under `~/.targum/research/loanwords/`): 0.916, inside the noise. The share of
+  the word's root family the reader has marked known: 0.916, its weight the wrong way
+  round. None needs spend; each can be tried again when there are more readers' marks.
+- **The simulated half cannot judge it.** Its truth is built on the estimate's own
+  difficulty, so it moves with the change: coverage error 4.0–5.3 points against
+  4.0–4.8, within the run's noise.
+
 ### Today's news is measured on the article where we have read it — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`
@@ -1591,7 +1623,8 @@ on running words" (2026-10-31), whose share was marks only.
   place in the language's frequency list, and each reader a `theta` on the same scale:
   roughly where in the list they know half the words. The chance they know a word they
   have not marked is σ(0.8 × (theta − difficulty)), a one-parameter Rasch model. It
-  says nothing about part of speech, loanwords or root families yet.
+  says nothing about part of speech, loanwords or root families yet. *(A borrowed word
+  since 2026-11-05: "A borrowed word is easier than its frequency says", above.)*
 - **What theta is fitted on.** A word marked known says known. A word at steps 1–3 says
   not known. A word looked up and not since marked known says not known, once. A word met
   in a finished section and neither looked up nor marked says probably known, at a tenth
