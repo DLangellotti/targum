@@ -384,6 +384,27 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Home's one card offers the words to learn first, and a pick moves easier or harder — 2026-11-05
+
+David, approving the mocks of 2026-11-05 (targum-internal#614, #615). This amends "Home's
+one card finds what fits you" (2026-11-01) and "Show me something harder" (2026-11-02).
+Still behind `TARGUM_FIND_BUTTON`.
+
+1. A pick under 93% with at least three unknown words that come up three or more times
+   in it carries "Words to know first n": up to five, most often first, no names, each
+   opening the word's card as Your Words does. Marking is the reader's act, and nothing
+   is marked by showing them.
+2. Every pick carries Easier and Harder on its share line, walking to the next pick above
+   or below its share within the topic and filters chosen, and Harder walks on under the
+   floor. That replaces "Nowhere else: not under a pick" in "Show me something harder".
+3. Topic becomes Filter: Read, Watch and Listen, How long, and the forty topics, in one
+   field, the press naming what is chosen.
+
+A Harder or Easier press is a suggestion set aside under clause 3.6 as it stands, so the
+record needs no new clause. It feeds the learned aim ("The aim moves with what you
+finish", 2026-11-05) exactly as Something else does, as a set-aside and nothing more; a
+pick Harder walks to under the floor carries `harder` and counts for no aim.
+
 ### Today's news is measured on the article where we have read it — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`
