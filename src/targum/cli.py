@@ -424,7 +424,7 @@ def catalogue_lemmas(
     `occurrences.json`. Nothing reads the counts on a page yet.
     """
     from . import catalogue as catalogue_module
-    from .coverage import build_index, lemmas, write_index
+    from .coverage import build_index, lemmas, units_in, write_index
     from .occurrences import text_occurrences
 
     root = out or Path("targum-out")
@@ -434,6 +434,9 @@ def catalogue_lemmas(
     by_source = {entry.source: entry.id for entry in catalogue_module.everything()}
     found: dict[str, list[str]] = {}
     tallies: dict[str, dict[str, int]] = {}
+    # Each counted text's multiword units (design.md §12, "An idiom is one word to know",
+    # 2026-11-05), read off the same annotation as its words.
+    joined: dict[str, dict[str, int]] = {}
     for document in sorted(root.glob("*/*/document.json")):
         try:
             source = str(json.loads(document.read_text(encoding="utf-8")).get("source", ""))
@@ -448,8 +451,9 @@ def catalogue_lemmas(
             counted = text_occurrences(document.parent)
             if counted is not None:
                 tallies[entry_id] = counted.totals()
+                joined[entry_id] = units_in(document.parent)
 
-    index = build_index(found, tallies)
+    index = build_index(found, tallies, joined)
     where = write or (
         (catalogue_module.catalogue_path() or Path.home() / ".targum" / "catalogue.json").parent
         / "lemmas.json"

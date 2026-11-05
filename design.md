@@ -420,6 +420,52 @@ no account of how fast a recording is spoken.
 - **The figure a page prints does not move.** The penalty decides where an item sits and
   how it sorts. The card still says the share of words the reader knows.
 
+### An idiom is one word to know — 2026-11-05
+
+targum-internal#614 (David, 2026-11-05, in chat): count ling-he's hand-picked multiword
+expressions as one unit in running-word coverage. A reader who knows אחר and כך still
+has to learn אחר כך, and a share that counts it as two known words says they know more
+of the page than they do. It amends "The Library's bands count running words"
+(2026-11-01).
+
+- **The list.** ling-he chose 174 keys by hand on 2026-11-05 (about 164 expressions: the
+  rest are DICTA's second spelling of the same lemma). Each was kept because a learner
+  who knows every word in it still would not get its meaning from the parts: idioms
+  (שם לב, מצא חן), fixed connectives (אף על פי, בכל זאת, אחר כך), set phrases (מה
+  נשמע, כל הכבוד) and lexicalised compounds (בית ספר, עורך דין). It ships in the
+  package as `units.tsv`: lemma keys, the written form, ling-he's glosses and notes, and
+  nothing from any text or reader. A line added or taken out there changes the count
+  at the next deploy.
+- **Matched on the text's own words.** A unit is found where its lemmas come one after
+  another in one segment of a Hebrew text's annotation, with nothing but a space or a
+  maqaf between them. The longest is matched first. The `phrases` table is not used:
+  it skips any run of function words, which drops many of the commonest units (אחר כך
+  is there twice and in the library 356 times). Seven keys mean the expression only
+  with a prefix (מכל מקום, בכל זאת, מצד אחד, מצד שני, מפעם לפעם, מעת לעת), and match only
+  where the word carries it. Elsewhere a prefix is allowed and not required, so ובית
+  הספר is still a school.
+- **One key, two meanings, one unit.** A few keys cover two fixed expressions (על יד: על
+  ידי "by" and על יד "next to"; על פה: על פי and בעל פה; על פנים; עם הארץ; יום טוב).
+  Each counts as the unit wherever it occurs. Both readings are fixed expressions, and
+  the lemmas cannot tell them apart.
+- **The mark that counts is the expression's own.** A unit is known where the reader
+  kept it as a phrase and marked the phrase known. The phrase's text is matched to the
+  unit's written form, with or without a prefix. A unit not marked that way is not known
+  in the marked share, even where every word in it is marked known, because the
+  expression is what has to be known. The chooser's estimate gives an unmarked unit the
+  product of its words' chances, a mark on each word winning as usual (known 1, being
+  learned 0). So it is never more likely known than its rarest word. Nothing new is
+  drawn: keeping a phrase and marking it is already on the Words page.
+- **Where it counts.** A catalogue text's running share and the chooser's estimate, from
+  the lemma index `catalogue-lemmas` writes at each deploy, and a text the reader built,
+  from the counts cached beside its annotation. Each counts one running word an
+  occurrence in place of its two or three. Not yet in web finds, whose pool keeps lemma
+  counts and never the words in order, or in the record of finished sections. A word's
+  own counts ("4× in Jonah") are unchanged: an אחר inside אחר כך is still an אחר.
+- **What it costs.** Nothing is annotated, bought or renamed, and `SCHEMA_VERSION` and
+  the annotator are untouched. Each built text's cached counts are read again from its
+  annotation once, and the index is rewritten as every deploy rewrites it.
+
 ### Today's news is measured on the article where we have read it — 2026-11-05
 
 targum-internal#615, Phase 3 of the comprehensible-input epic #617: "`search_sources`

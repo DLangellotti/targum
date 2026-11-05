@@ -1,0 +1,175 @@
+lemmas	surface	gloss_en	register	note	needs
+על יד	עַל יְדֵי	by (agent); next to	modern	key also covers עַל יַד "next to", which is fixed too; most hits are "by"	
+כול כך	כָּל כָּךְ	so, so much	modern	DICTA spells the lemma כול; כל כך below is the same expression	
+כל כך	כָּל כָּךְ	so, so much	modern	second lemma spelling of the same	
+על פה	עַל פִּי / בְּעַל פֶּה	according to; by heart	modern	one key for על פי and בעל פה; DICTA files פִּי under פה	
+על פנים	עַל פְּנֵי	across, over; in preference to	modern	also slang עַל הַפָּנִים "awful"; a few literal "on the face"	
+בן אדם	בֶּן אָדָם	person, human being	modern		
+בית ספר	בֵּית סֵפֶר	school	modern		
+בית חולה	בֵּית חוֹלִים	hospital	modern	DICTA lemmatizes חולים as חולה	
+בית חלה	בֵּית חוֹלִים	hospital	modern	second lemma DICTA gives the same phrase	
+בית דין	בֵּית דִּין	rabbinical court	rabbinic		
+בית משפט	בֵּית מִשְׁפָּט	court of law	modern		
+בית מדרש	בֵּית מִדְרָשׁ	house of study	rabbinic		
+בית כנסת	בֵּית כְּנֶסֶת	synagogue	modern		
+בית מקדש	בֵּית הַמִּקְדָּשׁ	the Temple	rabbinic		
+בית מלון	בֵּית מָלוֹן	hotel	modern		
+בית בד	בֵּית הַבַּד	olive press	rabbinic		
+בית אב	בֵּית אָב	clan, father's house	biblical		
+בעל בית	בַּעַל הַבַּיִת	householder; landlord; the boss	modern		
+בן בית	בֶּן בַּיִת	member of the household; a regular	modern		
+בעל מלאכה	בַּעַל מְלָאכָה	craftsman	modern		
+בעל חי	בַּעַל חַיִּים	animal	modern		
+עורך דין	עוֹרֵךְ דִּין	lawyer	modern		
+אף על פה	אַף עַל פִּי	although	modern		
+על פה כן	(אַף) עַל פִּי כֵן	nevertheless	modern	tail of אף על פי כן; a phrase key stops at three lemmas	
+אף אחד	אַף אֶחָד	nobody (with לא); anyone	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+אף פעם	אַף פַּעַם	never (with לא); ever	modern		
+אי פעם	אֵי פַּעַם	ever	modern		
+אי אפשר	אִי אֶפְשָׁר	impossible; one can't	modern		
+לא משנה	לֹא מְשַׁנֶּה	never mind; it doesn't matter	modern		
+מה שלום	מַה שְּׁלוֹמְךָ	how are you	modern		
+מה נשמע	מַה נִּשְׁמָע	what's up, how's it going	modern		
+סוף סוף	סוֹף סוֹף	finally, at last	modern		
+עוד מעט	עוֹד מְעַט	soon, in a moment	modern		
+כול מקרה	בְּכָל מִקְרֶה	in any case, anyway	modern	literal "every case" is rare	
+כל מקרה	בְּכָל מִקְרֶה	in any case, anyway	modern	second lemma spelling	
+כול אופן	בְּכָל אֹפֶן	anyway, in any case	modern		
+שום אופן	בְּשׁוּם אֹפֶן	by no means	modern		
+שום פנים	בְּשׁוּם פָּנִים (וָאֹפֶן)	under no circumstances	modern		
+מה לעזאזל	מָה לַעֲזָאזֵל	what the hell	modern		
+אלוהים אדיר	אֱלֹהִים אַדִּירִים	good God!	modern	exclamation	
+אין ל מושג	אֵין לִי מֻשָּׂג	I have no idea	modern		
+קדוש ברוך הוא	הַקָּדוֹשׁ בָּרוּךְ הוּא	the Holy One, blessed be He (God)	rabbinic		
+כלל לא	בִּכְלָל לֹא	not at all	modern		
+אין דבר	אֵין דָּבָר	never mind, it's nothing	modern	borderline: also literal "there is nothing"	
+עד עולם	עַד עוֹלָם	forever	biblical		
+דרך כלל	בְּדֶרֶךְ כְּלָל	usually	modern		
+גם כן	גַּם כֵּן	also, too	modern		
+מצא חן	מָצָא חֵן	was liked, pleased (בעיני)	modern		
+מוצא חן	מוֹצֵא חֵן	is liked, pleases (בעיני)	modern	present tense; DICTA keeps its own lemma	
+על חשבון	עַל חֶשְׁבּוֹן	at the expense of; on (someone's) account	modern		
+העמיד פנים	הֶעֱמִיד פָּנִים	pretended	modern		
+רשות רב	רְשׁוּת הָרַבִּים	public domain (halakhic)	rabbinic		
+רשות יחיד	רְשׁוּת הַיָּחִיד	private domain (halakhic)	rabbinic		
+כול כבוד	כָּל הַכָּבוֹד	well done!	modern		
+בת צחוק	בַּת צְחוֹק	a smile	modern	literary	
+עלה יד	עָלָה בְּיָדוֹ	succeeded	modern		
+עבודה זר	עֲבוֹדָה זָרָה	idolatry	rabbinic		
+משא מתן	מַשָּׂא וּמַתָּן	negotiation(s)	modern		
+שם לב	שָׂם לֵב	noticed, paid attention	modern		
+תשומת לב	תְּשׂוּמַת לֵב	attention	modern		
+על מנת	עַל מְנָת	in order to; on condition that	modern		
+ברוך בא	בָּרוּךְ הַבָּא	welcome	modern		
+חג מולד	חַג הַמּוֹלָד	Christmas	modern		
+צר ל	צַר לִי	I'm sorry	modern	borderline: a few literal "too narrow for"	
+זמן מה	זְמַן מָה	a while	modern		
+עד כה	עַד כֹּה	so far, until now	modern		
+עד עתה	עַד עַתָּה	until now	modern		
+עד הנה	עַד הֵנָּה	hitherto	biblical		
+זה עתה	זֶה עַתָּה	just now	modern		
+דרך אגב	דֶּרֶךְ אַגַּב	by the way	modern		
+על שם	עַל שֵׁם	named after; in memory of	modern		
+למען אמת	לְמַעַן הָאֱמֶת	truth be told	modern		
+צד שני	מִצַּד שֵׁנִי	on the other hand	modern	match with the מ prefix; bare צד שני is often "the other side"	מ|
+צד אחד	מִצַּד אֶחָד	on the one hand	modern	match with the מ prefix, as above	מ|
+החזיק מעמד	הֶחֱזִיק מַעֲמָד	held out, endured	modern		
+מערכה יחס	מַעֲרֶכֶת יְחָסִים	relationship	modern		
+עד מאוד	עַד מְאֹד	exceedingly	biblical		
+רע עין	רַע עַיִן	stingy, begrudging	rabbinic		
+טוב עין	טוֹב עַיִן	generous	rabbinic		
+שלח יד	שָׁלַח יָד	laid a hand on, harmed	biblical		
+יום כיפור	יוֹם כִּפּוּר	Yom Kippur	modern		
+ראש שנה	רֹאשׁ הַשָּׁנָה	Rosh Hashanah, the New Year	modern		
+ראש חודש	רֹאשׁ חֹדֶשׁ	new moon, first of the month	rabbinic		
+ראש חדש	רֹאשׁ חֹדֶשׁ	new moon, first of the month	rabbinic	second lemma spelling	
+יום טוב	יוֹם טוֹב	festival, holy day	rabbinic	borderline: also "a good day" in modern talk	
+מזל טוב	מַזָּל טוֹב	congratulations	modern		
+דבר תורה	דְּבַר תּוֹרָה	a short Torah talk	rabbinic	borderline	
+מה דבר אמור	בַּמֶּה דְּבָרִים אֲמוּרִים	when does this apply?	rabbinic		
+מזג אוויר	מֶזֶג אֲוִיר	weather	modern		
+מצב רוח	מַצַּב רוּחַ	mood	modern		
+חוץ מן	חוּץ מִן	except	modern		
+סך כול	סַךְ הַכֹּל	in total; all in all	modern		
+נעים מאוד	נָעִים מְאוֹד	nice to meet you	modern		
+חרה אף	חָרָה אַפּוֹ	became angry	biblical		
+חרון אף	חֲרוֹן אַף	fierce anger	biblical		
+כתב יד	כְּתַב יָד	manuscript; handwriting	modern		
+חוץ ארץ	חוּץ לָאָרֶץ	abroad	modern		
+הוד מעלה	הוֹד מַעֲלָתוֹ	His (Your) Excellency	modern		
+הוד מלכות	הוֹד מַלְכוּתוֹ	His (Your) Majesty	modern		
+על כורח	בְּעַל כָּרְחוֹ	against his will; perforce	rabbinic		
+בסופו של דבר	בְּסוֹפוֹ שֶׁל דָּבָר	in the end, eventually	modern	DICTA leaves בסופו unlemmatized	
+מדינה ים	מְדִינַת הַיָּם	overseas	rabbinic		
+שעה קל	שָׁעָה קַלָּה	a short while	modern	borderline	
+בן בקר	בֶּן בָּקָר	young bull	biblical		
+דרך ארץ	דֶּרֶךְ אֶרֶץ	good manners; earning a living	rabbinic		
+על פה רוב	עַל פִּי רֹב	usually, mostly	modern		
+אין מצב	אֵין מַצָּב	no way	modern	slang	
+ריבון של עולם	רִבּוֹנוֹ שֶׁל עוֹלָם	Master of the Universe	rabbinic		
+היה רצון	יְהִי רָצוֹן	may it be (God's) will	rabbinic		
+בין ערב	בֵּין הָעַרְבַּיִם	at twilight	biblical		
+נו באמת	נוּ בֶּאֱמֶת	oh, come on	modern		
+גן עדן	גַּן עֵדֶן	paradise	modern		
+טבול יום	טְבוּל יוֹם	one who immersed today and waits for nightfall	rabbinic		
+משום מה	מִשּׁוּם מָה	for some reason	modern		
+אחרי כול	אַחֲרֵי הַכֹּל	after all	modern		
+בלי הרף	בְּלִי הֶרֶף	incessantly	modern		
+לפי שעה	לְפִי שָׁעָה	for the time being	modern		
+תלמיד חכם	תַּלְמִיד חָכָם	Torah scholar	rabbinic		
+בלי משים	בְּלִי מֵשִׂים	inadvertently	modern		
+שדה תעופה	שְׂדֵה תְּעוּפָה	airport	modern		
+בדק בית	בֶּדֶק בַּיִת	maintenance, repairs	modern		
+עולם בא	הָעוֹלָם הַבָּא	the world to come	rabbinic		
+כול עוד	כָּל עוֹד	as long as	modern		
+כל עוד	כָּל עוֹד	as long as	modern	second lemma spelling	
+אחר כך	אַחַר כָּךְ	afterwards, later	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+אחרי כן	אַחֲרֵי כֵן	afterwards	biblical	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+אחר כן	אַחַר כֵּן	afterwards	biblical		
+לאחר כן	לְאַחַר מִכֵּן	afterwards	modern		
+לפני כן	לִפְנֵי כֵן	before that	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+על כן	עַל כֵּן	therefore	biblical		
+יתר על כן	יֶתֶר עַל כֵּן	moreover	modern		
+אלא אם כן	אֶלָּא אִם כֵּן	unless	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+כמו כן	כְּמוֹ כֵן	likewise, also	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+על אף	עַל אַף	despite	modern		
+כך או כך	כָּךְ אוֹ כָּךְ	either way	modern		
+בין כה כה	בֵּין כֹּה וָכֹה	anyway; meanwhile	modern		
+מה פתאום	מָה פִּתְאוֹם	no way!, what are you talking about	modern		
+ככה ככה	כָּכָה כָּכָה	so-so	modern		
+בין יתר	בֵּין הַיֶּתֶר	among other things	modern		
+כול פחות	לְכָל הַפָּחוֹת	at least	modern		
+כול יותר	לְכָל הַיּוֹתֵר	at most	modern		
+יחד עם זה	יַחַד עִם זֹאת	nevertheless, at the same time	modern		
+די פעם	מִדֵּי פַּעַם	every so often	modern		
+פעם פעם	מִפַּעַם לְפַעַם	from time to time	modern	match with the מ and ל prefixes; bare פעם פעם is literal repetition	מ|ל
+עת עת	מֵעֵת לְעֵת	from time to time; (rabbinic) a full 24 hours	modern	match with the מ and ל prefixes	מ|ל
+יוצא מן כלל	יוֹצֵא מִן הַכְּלָל	exceptional	modern		
+תוך כדי	תּוֹךְ כְּדֵי	while, in the course of	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+תווך כדי	תּוֹךְ כְּדֵי	while, in the course of	modern	second lemma DICTA gives; mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+בינו בין עצם	בֵּינוֹ לְבֵין עַצְמוֹ	to himself, privately	modern	mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+חבל על זמן	חֲבָל עַל הַזְּמַן	amazing, out of this world	modern	slang	
+בעזרת שם	בְּעֶזְרַת הַשֵּׁם	with God's help	modern	NER sometimes files השם as a name: also ברוך/בעזרת <NAME>; mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+ברוך שם	בָּרוּךְ הַשֵּׁם	thank God	modern	NER sometimes files השם as a name	
+אם רצה שם	אִם יִרְצֶה הַשֵּׁם	God willing	modern		
+אם ירצה שם	אִם יִרְצֶה הַשֵּׁם	God willing	modern	second lemma DICTA gives; mostly absent from `phrases`: DICTA tags it function words only, so match it on the tokens	
+חס שלום	חַס וְשָׁלוֹם	God forbid	rabbinic		
+חס חלילה	חַס וְחָלִילָה	God forbid	modern		
+קל חומר	קַל וָחֹמֶר	a fortiori; all the more so	rabbinic		
+כול כן	כָּל שֶׁכֵּן	all the more so	rabbinic		
+כול מקום	מִכָּל מָקוֹם	in any case, at any rate	rabbinic	match with the מ prefix only; bare כל מקום is "every place"	מ|
+על כול פנים	עַל כָּל פָּנִים	at any rate	rabbinic		
+עם ארץ	עַם הָאָרֶץ	ignoramus	rabbinic	in biblical text it is literal "the people of the land"	
+יצר רע	יֵצֶר הָרַע	the evil inclination	rabbinic		
+לשון רע	לָשׁוֹן הָרַע	gossip, slander	rabbinic		
+עין רע	עַיִן הָרָע	the evil eye	rabbinic		
+קשה עורף	קְשֵׁה עֹרֶף	stiff-necked, stubborn	biblical		
+קשה ערף	קְשֵׁה עֹרֶף	stiff-necked, stubborn	biblical	defective spelling DICTA keeps	
+שם שמיים	לְשֵׁם שָׁמַיִם	for the sake of Heaven, selflessly	rabbinic		
+מוצא שבת	מוֹצָאֵי שַׁבָּת	Saturday night, after Shabbat	modern		
+הכי נמי	הָכִי נַמִּי	so too (Aramaic)	rabbinic		
+אין הכי נמי	אִין הָכִי נַמִּי	indeed so (Aramaic)	rabbinic		
+כול זה	בְּכָל זֹאת	nevertheless, still	modern	function words only, so not in `phrases`; match with the ב prefix, bare כל זה is "all this"	ב|
+כל זאת	בְּכָל זֹאת	nevertheless, still	modern	function words only, as above	ב|
+על גבי	עַל גַּבֵּי	on top of	modern		
+יום הולדת	יוֹם הֻלֶּדֶת	birthday	modern	borderline	
