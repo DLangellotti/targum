@@ -368,6 +368,7 @@ def test_the_shipped_list_reads_whole(language: str) -> None:
     rows = path.read_text(encoding="utf-8").splitlines()
     assert rows[0].split("\t")[0] == "lemmas", "no line above the header"
     found = units.load(language=language)
+
     def key(row: str) -> str:
         cells = row.split("\t")
         return " ".join(units.words(cells[6] if len(cells) > 6 and cells[6] else cells[0]))
@@ -646,3 +647,70 @@ def test_the_lists_hold_their_floor_on_the_linguists_gold(language: str) -> None
     precision, recall = FLOORS[language]
     assert right / hits >= precision, f"{right}/{hits}"
     assert right / truth >= recall, f"{right}/{truth}"
+
+
+@pytest.mark.parametrize(
+    "particle", ["pas", "point", "jamais", "rien", "personne", "guère", "aucun", "nul", "ni"]
+)
+def test_every_negation_stops_a_gap_after_ne(particle: str, lists: Path) -> None:
+    """On the fixture list, where no ne… row but ne… que and ne… plus could take the
+    ne first (plus is pinned by ne… pas plus above)."""
+    other = said(
+        ("il", "il"),
+        ("ne", "ne"),
+        ("mange", "manger"),
+        (particle, particle),
+        ("que", "que"),
+        ("ça", "ça"),
+    )
+    assert [unit.key for _, unit in units.found(other, "fr")] == []
+
+
+def test_que_stops_a_gap_after_ne_too() -> None:
+    other = said(
+        ("il", "il"),
+        ("ne", "ne"),
+        ("dit", "dire"),
+        ("que", "que"),
+        ("tu", "tu"),
+        ("viens", "venir"),
+        ("plus", "plus"),
+    )
+    assert "ne plus" not in keys_in(other, "fr")
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        (
+            ("как", "как"),
+            ("он", "он"),
+            ("сказал", "сказать"),
+            ("так", "так"),
+            ("и", "и"),
+            ("сделал", "сделать"),
+        ),
+        (("либо", "либо"), ("ты", "ты"), ("либо", "либо"), ("я", "я")),
+        (
+            ("не", "не"),
+            ("только", "только"),
+            ("дома", "дом"),
+            ("но", "но"),
+            ("и", "и"),
+            ("здесь", "здесь"),
+        ),
+        (("чем", "чем"), ("больше", "больше"), ("тем", "тем"), ("лучше", "лучше")),
+        (("ни", "ни"), ("он", "он"), ("ни", "ни"), ("я", "я")),
+    ],
+)
+def test_a_shipped_russian_correlative_takes_its_comma(words: tuple[tuple[str, str], ...]) -> None:
+    before = [n for n, w in enumerate(words) if w[0] in ("так", "либо", "но", "тем", "ни")][-1]
+    assert len(keys_in(said(*words, comma_after=before - 1), "ru")) == 1
+
+
+def test_a_gap_is_eight_words_at_most() -> None:
+    assert units._needed("|~12", 2).gaps == (0, units.MOST_BETWEEN) == (0, 8)
+    eight = said(("ни", "ни"), *[("слово", "слово")] * 8, ("ни", "ни"))
+    assert keys_in(eight, "ru") == ["ни ни"]
+    nine = said(("ни", "ни"), *[("слово", "слово")] * 9, ("ни", "ни"))
+    assert keys_in(nine, "ru") == []
