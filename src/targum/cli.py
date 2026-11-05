@@ -5748,21 +5748,42 @@ def finds_shows(
 def finds_web(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
 ) -> None:
-    """One night's round of open-web finds (targum-internal#622): one Anthropic web search
-    for each of the forty topics' Hebrew phrases while the night's allowance lasts (at
-    most $1, inside TARGUM_FINDS_BUDGET_USD), every page read direct where robots.txt
-    allows, screened, scored and pooled. Does nothing unless TARGUM_FINDS_WEB is set: the
-    box's timer runs it every night."""
+    """One night's round of open-web finds (targum-internal#622). First Hebrew Wikipedia
+    and Wikivoyage through the MediaWiki API, free, on the forty topics' Hebrew phrases,
+    where TARGUM_FINDS_WIKI is set. Then one Anthropic web search for each phrase while the
+    night's allowance lasts (at most $1, inside TARGUM_FINDS_BUDGET_USD), where
+    TARGUM_FINDS_WEB is set. Every page read where robots.txt allows, at most five from a
+    host a night across both, screened, scored and pooled. The box's timer runs it every
+    night, and with neither flag set it does nothing."""
+    from collections import Counter
+
     from .accounts import Store
-    from .finds import web
+    from .finds import web, wiki
     from .serve import default_store
 
-    if not web.on():
-        console.print(f"[dim]Open-web finds are off ({web.FLAG} is not set).[/dim]")
+    if not web.on() and not wiki.on():
+        console.print(
+            f"[dim]Open-web finds are off ({web.FLAG} and {wiki.FLAG} are not set).[/dim]"
+        )
         return
     keeping = Store(store or default_store())
+    read: Counter[str] = Counter()
+    if wiki.on():
+        try:
+            wikis = wiki.refresh(keeping)
+        except TargumError as error:
+            fail(error)
+        read = wikis.hosts
+        console.print(f"[green]Wikis[/green]: {wikis}")
+        if wikis.stopped:
+            console.print(f"[yellow]Stopped[/yellow]: {wikis.stopped}.")
+    else:
+        console.print(f"[dim]The wikis are off ({wiki.FLAG} is not set).[/dim]")
+    if not web.on():
+        console.print(f"[dim]The web search is off ({web.FLAG} is not set).[/dim]")
+        return
     try:
-        found = web.refresh(keeping)
+        found = web.refresh(keeping, hosts=read)
     except TargumError as error:
         fail(error)
     console.print(f"[green]Web[/green]: {found}")

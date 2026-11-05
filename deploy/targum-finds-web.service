@@ -9,8 +9,13 @@
 # pool in targum.db keeps the address, title, outlet, day and lemma counts. Each search's
 # cost and each find are written as they happen, so a killed run keeps what it found.
 #
-# It does nothing until TARGUM_FINDS_WEB=1 is in targum.env: the timer runs every night
-# and the command says it is off.
+# Before the search, where TARGUM_FINDS_WIKI=1, Hebrew Wikipedia and Wikivoyage are
+# searched on the same phrases through the MediaWiki API, free and with no key, and their
+# pages are read as text through it (CC BY-SA 4.0, credited to the wikis' contributors).
+# Five pages a host a night is counted across both.
+#
+# It does nothing until TARGUM_FINDS_WEB=1 or TARGUM_FINDS_WIKI=1 is in targum.env: the
+# timer runs every night and the command says what is off.
 #
 #   systemctl start targum-finds-web      # one now, by hand
 #   journalctl -u targum-finds-web -n 20

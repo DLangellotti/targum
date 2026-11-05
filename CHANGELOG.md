@@ -1014,6 +1014,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- Hebrew Wikipedia and Wikivoyage join the nightly open-web finds through the MediaWiki
+  API (David, 2026-11-05; targum-internal#622; design.md §12, "Hebrew Wikipedia and
+  Wikivoyage come back through their own API"). Before the night's search, the forty
+  chips' Hebrew phrases are searched on he.wikipedia.org, and the six travel-shaped ones
+  on he.wikivoyage.org, for free and with no key, and each page is read as plain text
+  through the API under a User-Agent naming targum and hello@targum.page. At most five
+  pages a wiki a night, counted with what the search reads there; robots.txt, the host
+  and word screens and the sixty days hold. Every row carries CC BY-SA 4.0, its deed, the
+  page's address and "Wikipedia contributors" or "Wikivoyage contributors", and a copy
+  that joins the library says targum changed it. No adult-or-graphic model check. Behind
+  a new flag, `TARGUM_FINDS_WIKI`, off by default. No new strings.
 - The aim inside the band moves with what a reader finishes (targum-internal#615;
   design.md §12, "The aim moves with what you finish"). The chooser's 94–97% aim is
   moved two points harder (92–95%) or two points easier (96–99%), or left as it is, by
