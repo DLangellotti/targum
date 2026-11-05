@@ -948,6 +948,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The aim inside the band moves with what a reader finishes (targum-internal#615;
+  design.md §12, "The aim moves with what you finish"). The chooser's 94–97% aim is
+  moved two points harder (92–95%) or two points easier (96–99%), or left as it is, by
+  a draw each day: Thompson sampling over what became of the texts suggested to that
+  reader in the last 90 days, read from the clause 3.6 record (finished counts for the
+  aim its share fell in, set aside and never finished counts against). The draw is
+  seeded by the reader and the day, so Home's card, Something else, More that fit you,
+  Your Progress's "Texts at your level now" and Find me something agree, and a reload
+  never reshuffles. Under six known outcomes, or with the record off or erased, the aim
+  stays as it is. The floor and the too-easy line never move. Nothing is stored, nothing
+  is asked, and there are no new strings.
 - What an edition sets apart is kept beside its words (David, 2026-11-04; design.md §12,
   "A text keeps the shape its edition gives it"). `sefaria/6` reads Torat Emet's
   small-printed citations, a commentary's bold catchwords and a translator's footnotes

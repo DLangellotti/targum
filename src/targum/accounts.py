@@ -2560,6 +2560,42 @@ class Store:
             for row in found
         ]
 
+    def suggest_outcomes(
+        self, person_id: int | None, language: str, *, days: int = 90, at: int | None = None
+    ) -> list[tuple[float | None, str]]:
+        """What became of each text suggested to this reader in a language in the last
+        `days`, as the chooser learns their aim from it (design.md §12, "The aim moves
+        with what you finish", 2026-11-05; clause 3.6's purpose, "choosing the texts the
+        Service suggests"): one pair a text, the share the chooser estimated when it was
+        first suggested, and "finished" where it was finished, else "aside" where it was
+        set aside. A text only shown or opened says nothing yet and is left out, and so
+        is a "Show me something harder" pick, which was asked for under the floor."""
+        if person_id is None:
+            return []
+        code = (language or "").split("-")[0].lower()
+        now = int(time.time() * 1000) if at is None else at
+        since = now - max(0, days) * 86_400_000
+        found = self.db.execute(
+            "SELECT document, act, coverage FROM event WHERE person = ? AND kind = 'suggest'"
+            " AND (language = ? OR language LIKE ?) AND at >= ? AND harder IS NULL"
+            " ORDER BY at, id",
+            (int(person_id), code, f"{code}-%", since),
+        ).fetchall()
+        share: dict[str, float | None] = {}
+        acts: dict[str, set[str]] = {}
+        for row in found:
+            document = str(row["document"])
+            acts.setdefault(document, set()).add(str(row["act"]))
+            if share.get(document) is None and row["coverage"] is not None:
+                share[document] = float(row["coverage"])
+        out: list[tuple[float | None, str]] = []
+        for document, done in acts.items():
+            if "finished" in done:
+                out.append((share.get(document), "finished"))
+            elif "aside" in done:
+                out.append((share.get(document), "aside"))
+        return out
+
     def forget_events(self, person: Person) -> int:
         """Erase the record, at the reader's own press. The switch is left as it was."""
         with self.write() as db:

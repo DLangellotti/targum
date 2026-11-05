@@ -15160,6 +15160,7 @@ class Handler(BaseHTTPRequestHandler):
             chances=chances,
             taught=taught,
             registers=choose_module.opened(self.store.interest(person.id), mine_registers),
+            offset=choose_module.offset_for(self.store, person.id, language),
         )
 
         # The words still being learned that they keep meeting, met the way the card
@@ -15867,6 +15868,7 @@ class Handler(BaseHTTPRequestHandler):
                 credits_left=chat_tools._credits_left(ctx),
                 known=known,
                 started=chat_tools.started_parts(ctx, mine),
+                offset=choose_module.offset_for(self.store, person.id, code),
             )
 
         def under_floor(body: Mapping[str, Any]) -> list[dict[str, Any]]:
