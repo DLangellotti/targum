@@ -6059,6 +6059,35 @@ FILM_KINDS = frozenset({".mp4", ".m4v", ".webm"})
 #: 2026-10-09), `/subscriptions/<id>`.
 SUBSCRIPTION_PAGE = re.compile(r"/subscriptions/(\d+)")
 #: A web find's Open (targum-internal#619): a pasted link's press on a link targum found.
+#: Filter's media and lengths on Home's one card (design.md §12, 2026-11-05).
+FILTER_MEDIA = ("read", "watch", "listen")
+FILTER_LENGTHS = {"short": (0, 4), "mid": (5, 15), "long": (16, 10**6)}
+
+
+def filter_holds(row: Mapping[str, Any], medium: str, length: str) -> bool:
+    """Whether a pick passes Filter's medium and length: Watch is a video, Listen a
+    podcast, Read anything else; a length is the row's minutes, in whole minutes, so
+    "Under 5 min" is up to 4 and "Over 15 min" from 16. A row with no minutes passes no
+    length. An unknown or empty choice is any."""
+    kind = str(row.get("kind") or "")
+    way = (
+        "watch"
+        if row.get("video") or kind in ("video", "talk", "youtube")
+        else "listen"
+        if kind == "podcast"
+        else "read"
+    )
+    if medium in FILTER_MEDIA and way != medium:
+        return False
+    bounds = FILTER_LENGTHS.get(length)
+    if bounds is None:
+        return True
+    minutes = row.get("minutes")
+    if not isinstance(minutes, (int, float)) or minutes <= 0:
+        return False
+    return bounds[0] <= round(minutes) <= bounds[1]
+
+
 FIND_OPEN = re.compile(r"/finds/(\d+)/open")
 
 
@@ -15845,7 +15874,10 @@ class Handler(BaseHTTPRequestHandler):
                             "suggested": suggested,
                         }
                         for chip, suggested in chips_module.ordered(liked)
-                    ]
+                    ],
+                    # Filter draws Listen only once there is something to listen to
+                    # (design.md §12, 2026-11-05).
+                    "listen": self._pool_holds_audio(code),
                 }
             )
         asked_words = payload.get("words")
@@ -15864,6 +15896,21 @@ class Handler(BaseHTTPRequestHandler):
         passed = payload.get("skip")
         skip = tuple(str(one)[:40] for one in passed[:200]) if isinstance(passed, list) else ()
         ask = button.Ask(code, chosen, tuple(liked), skip)
+        # Filter's medium and length (design.md §12, "Home's one card offers the words to
+        # learn first, and a pick moves easier or harder", 2026-11-05): nothing chosen is
+        # any. They hold over everything the card may offer, harder picks included.
+        medium = str(payload.get("medium") or "")
+        medium = medium if medium in FILTER_MEDIA else ""
+        length = str(payload.get("length") or "")
+        length = length if length in FILTER_LENGTHS else ""
+
+        def kept(
+            rows: list[dict[str, Any]], body: Mapping[str, Any] = payload
+        ) -> list[dict[str, Any]]:
+            way = str(body.get("medium") or "")
+            long = str(body.get("length") or "")
+            return [row for row in rows if filter_holds(row, way, long)]
+
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
         rung = chat_tools._rung(ctx.level) if code == "he" else None
 
@@ -15874,17 +15921,19 @@ class Handler(BaseHTTPRequestHandler):
                 for row in mine
                 if str(row.get("source") or "").startswith(("http://", "https://"))
             }
-            return button.ranked(
-                self.store,
-                ask,
-                chat_tools._marked(ctx, code, {}),
-                estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
-                rung=rung,
-                built=built,
-                credits_left=chat_tools._credits_left(ctx),
-                known=known,
-                started=chat_tools.started_parts(ctx, mine),
-                offset=choose_module.offset_for(self.store, person.id, code),
+            return kept(
+                button.ranked(
+                    self.store,
+                    ask,
+                    chat_tools._marked(ctx, code, {}),
+                    estimate=estimate_module.for_reader(self.store, person.id, code, ctx.level),
+                    rung=rung,
+                    built=built,
+                    credits_left=chat_tools._credits_left(ctx),
+                    known=known,
+                    started=chat_tools.started_parts(ctx, mine),
+                    offset=choose_module.offset_for(self.store, person.id, code),
+                )
             )
 
         def under_floor(body: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -15946,7 +15995,7 @@ class Handler(BaseHTTPRequestHandler):
                     harder=True,
                     started=started,
                 )
-                return button.nearest([*button.harder(shelf, asked, known), *found])
+                return kept(button.nearest([*button.harder(shelf, asked, known), *found]), body)
 
             rows = nearest_for(near_ask)
             if rows or not steer:
@@ -16019,13 +16068,23 @@ class Handler(BaseHTTPRequestHandler):
                     ).get("suggestions")
                     or []
                 )
-                found += [
-                    row
-                    for row in shelf
-                    if row.get("fit") == choose_module.BAND and not row.get("held")
-                ]
+                found += kept(
+                    [
+                        row
+                        for row in shelf
+                        if row.get("fit") == choose_module.BAND and not row.get("held")
+                    ]
+                )
             if way == "harder":
-                found += under_floor({"topics": list(chosen), "skip": list(skip), "done": done})
+                found += under_floor(
+                    {
+                        "topics": list(chosen),
+                        "skip": list(skip),
+                        "done": done,
+                        "medium": medium,
+                        "length": length,
+                    }
+                )
             seen: set[str] = set()
             walk: list[tuple[int, dict[str, Any]]] = []
             for row in found:
@@ -16072,10 +16131,40 @@ class Handler(BaseHTTPRequestHandler):
         if step in ("easier", "harder"):
             return answer(stepped(step))
         rows = choose()
+        if (medium or length) and not chosen:
+            # A filter with no topic asks the shelf too, its own best first: what is
+            # finished, under Continue or set aside left out (`done`).
+            given_done = payload.get("done")
+            done_ids = (
+                [str(one)[:200] for one in given_done[: self.SUGGEST_SKIP_MOST]]
+                if isinstance(given_done, list)
+                else []
+            )
+            shelf_rows = (
+                chat_tools.suggest_next(
+                    ctx, {"language": code, "limit": 10, "skip": [*done_ids, *skip]}
+                ).get("suggestions")
+                or []
+            )
+            rows = [
+                *kept(
+                    [
+                        row
+                        for row in shelf_rows
+                        if row.get("fit") == choose_module.BAND and not row.get("held")
+                    ]
+                ),
+                *rows,
+            ]
         if button.fits(rows):
             return answer({"pick": self._find_row(rows[0]), "more": len(rows) - 1})
         asked = live.queries(ask.wanted, code, rung)
-        why = live.refused(self.store, person.id, asked)
+        # A look on the web brings pages to read; it is not run for Watch or Listen.
+        why = (
+            "medium"
+            if medium in ("watch", "listen")
+            else live.refused(self.store, person.id, asked)
+        )
         if not why:
             look = live.LOOKS.start(
                 self.store,
@@ -16163,6 +16252,22 @@ class Handler(BaseHTTPRequestHandler):
             return said
 
         return [word.state() for word in preteach.words(counts, known.p_known, meaning_of, a_word)]
+
+    def _pool_holds_audio(self, code: str) -> bool:
+        """Whether the finds pool holds anything kept to listen to, in one language."""
+        import sqlite3
+
+        from .finds import pool
+
+        try:
+            row = self.store.db.execute(
+                "SELECT 1 FROM find WHERE language = ? AND medium = 'podcast' AND screen = ?"
+                " AND expires > ? LIMIT 1",
+                (code, pool.KEPT, pool.now_ms()),
+            ).fetchone()
+        except sqlite3.Error:
+            return False
+        return row is not None
 
     def _find_row(self, row: dict[str, Any]) -> dict[str, Any]:
         """A pick as the card draws it, its lines in the page's language."""

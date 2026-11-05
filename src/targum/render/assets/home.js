@@ -1251,10 +1251,51 @@
     return { pick: pick, what: what };
   }
 
+  /* Filter (design.md §12, "Home's one card offers the words to learn first, and a pick
+     moves easier or harder", 2026-11-05; targum-internal#615): one press in Topic's
+     place, and one field holding Read · Watch · Listen, How long, and the forty topics,
+     each the same `.tab` pills, the chosen one filled. Nothing pressed means any, and a
+     chosen pill pressed again lets it go. A press picks again at once, as a topic did,
+     and the press then names what is chosen ("Watch · 5–15 min · Science"), in tonal.
+     Listen is drawn only once the pool holds something to listen to. */
+  var MEDIA = [
+    ["read", "home.card.filter.read", "Read"],
+    ["watch", "home.card.filter.watch", "Watch"],
+    ["listen", "home.card.filter.listen", "Listen"],
+  ];
+  var LENGTHS = [
+    ["short", "home.card.filter.short", "Under 5 min"],
+    ["mid", "home.card.filter.mid", "5\u201315 min"],
+    ["long", "home.card.filter.long", "Over 15 min"],
+  ];
+
+  function said(list, value) {
+    for (var n = 0; n < list.length; n++) if (list[n][0] === value) return t(list[n][1], list[n][2]);
+    return "";
+  }
+
+  // What the card asks with: the topic, the medium and the length chosen, where any is.
+  function filters() {
+    var out = {};
+    if (oneCard.chip) out.topics = [oneCard.chip];
+    if (oneCard.medium) out.medium = oneCard.medium;
+    if (oneCard.length) out.length = oneCard.length;
+    return out;
+  }
+
+  function filtered() {
+    return !!(oneCard.chip || oneCard.medium || oneCard.length);
+  }
+
+  function filterLabel() {
+    var parts = [said(MEDIA, oneCard.medium), said(LENGTHS, oneCard.length), oneCard.chipLabel].filter(Boolean);
+    return parts.length ? parts.join(" \u00b7 ") : t("home.card.filter", "Filter");
+  }
+
   function topicPress(tonal) {
-    var press = el("button", "btn " + (tonal ? "tonal" : "ghost") + " rc-topic");
+    var press = el("button", "btn " + (tonal || filtered() ? "tonal" : "ghost") + " rc-topic");
     press.type = "button";
-    press.appendChild(document.createTextNode(oneCard.chipLabel || t("home.card.topic", "Topic")));
+    press.appendChild(document.createTextNode(filterLabel()));
     press.appendChild(chevron());
     press.setAttribute("aria-expanded", oneCard.open ? "true" : "false");
     press.setAttribute("aria-controls", "rc-topics");
@@ -1268,44 +1309,93 @@
     return press;
   }
 
+  function pill(label, on, press) {
+    var item = el("li");
+    var button = el("button", "tab", label);
+    button.type = "button";
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    button.addEventListener("click", press);
+    item.appendChild(button);
+    return item;
+  }
+
+  function chooseFilter(what, value) {
+    oneCard[what] = oneCard[what] === value ? "" : value;
+    oneCard.open = false;
+    askFind(filters());
+  }
+
   function topicsField(body) {
-    var field = el("div", "rc-topics");
+    var field = el("div", "rc-topics rc-filter");
     field.id = "rc-topics";
     field.hidden = !oneCard.open;
-    var list = el("ul", "tabs on-field");
-    list.setAttribute("aria-label", t("home.card.topics", "Topics"));
-    field.appendChild(list);
+    var media = el("ul", "tabs on-field rc-media");
+    media.setAttribute("aria-label", t("home.card.filter.media", "Read, watch or listen"));
+    var group = el("div");
+    group.appendChild(media);
+    field.appendChild(group);
+    var lengths = el("ul", "tabs on-field rc-lengths");
+    group = el("div");
+    var head = el("p", "home-label", t("home.card.filter.how-long", "How long"));
+    head.id = "rc-how-long";
+    lengths.setAttribute("aria-labelledby", "rc-how-long");
+    group.appendChild(head);
+    group.appendChild(lengths);
+    field.appendChild(group);
+    LENGTHS.forEach(function (one) {
+      lengths.appendChild(
+        pill(t(one[1], one[2]), oneCard.length === one[0], function () {
+          chooseFilter("length", one[0]);
+        })
+      );
+    });
+    var list = el("ul", "tabs on-field rc-topic-tabs");
+    group = el("div");
+    head = el("p", "home-label", t("home.card.topic", "Topic"));
+    head.id = "rc-topic-head";
+    list.setAttribute("aria-labelledby", "rc-topic-head");
+    group.appendChild(head);
+    group.appendChild(list);
+    field.appendChild(group);
     body.appendChild(field);
     if (oneCard.open) fillTopics();
   }
 
   // The forty topics, asked once a visit: the server orders them, the reader's likely ones
-  // first, and says each in the page's language.
+  // first, and says each in the page's language. The same answer says whether there is
+  // anything to listen to.
   function fillTopics() {
     var field = document.getElementById("rc-topics");
-    var list = field && field.querySelector("ul");
-    if (!list) return;
-    var draw = function (chips) {
+    var list = field && field.querySelector(".rc-topic-tabs");
+    var media = field && field.querySelector(".rc-media");
+    if (!list || !media) return;
+    var draw = function (answer) {
+      media.textContent = "";
+      MEDIA.forEach(function (one) {
+        if (one[0] === "listen" && !answer.listen && oneCard.medium !== "listen") return;
+        media.appendChild(
+          pill(t(one[1], one[2]), oneCard.medium === one[0], function () {
+            chooseFilter("medium", one[0]);
+          })
+        );
+      });
       list.textContent = "";
-      (chips || []).forEach(function (chip) {
-        var item = el("li");
-        var press = el("button", "tab" + (chip.suggested ? " is-likely" : ""), chip.label);
-        press.type = "button";
-        press.setAttribute("aria-pressed", chip.topic === oneCard.chip ? "true" : "false");
-        press.addEventListener("click", function () {
-          oneCard.chip = chip.topic;
-          oneCard.chipLabel = chip.label;
+      (answer.chips || []).forEach(function (chip) {
+        var item = pill(chip.label, chip.topic === oneCard.chip, function () {
+          var again = oneCard.chip === chip.topic;
+          oneCard.chip = again ? "" : chip.topic;
+          oneCard.chipLabel = again ? "" : chip.label;
           oneCard.open = false;
-          askFind({ topics: [chip.topic] });
+          askFind(filters());
         });
-        item.appendChild(press);
+        if (chip.suggested) item.firstChild.classList.add("is-likely");
         list.appendChild(item);
       });
     };
     if (oneCard.chips) return draw(oneCard.chips);
     askWith("/find", { chips: true, language: cardAsk.code })
       .then(function (got) {
-        oneCard.chips = (got && got.chips) || [];
+        oneCard.chips = { chips: (got && got.chips) || [], listen: !!(got && got.listen) };
         draw(oneCard.chips);
       })
       .catch(function () {});
@@ -1494,6 +1584,8 @@
       skip: id ? [id] : [],
       done: cardAsk.skip.concat(id ? [id] : []),
     };
+    if (oneCard.medium) body.medium = oneCard.medium;
+    if (oneCard.length) body.length = oneCard.length;
     askWith("/find", body)
       .then(function (got) {
         if (oneCard.row !== row) return;
@@ -1620,8 +1712,8 @@
     if (row) suggestNote("aside", row);
     // Something else on a harder pick: the next nearest miss.
     if (row && row.harder) return askHarder();
-    if (oneCard.chip || cardAsk.spent || (row && row.find)) {
-      askFind(oneCard.chip ? { topics: [oneCard.chip] } : {});
+    if (filtered() || cardAsk.spent || (row && row.find)) {
+      askFind(filters());
       return;
     }
     var code = cardAsk.code;
@@ -1650,6 +1742,9 @@
     // Beside every ask, what the harder press would send, so an empty answer can name
     // the text it would open (`nearest`).
     if (!body.harder) body.near = harderBody();
+    // With a filter chosen the shelf's own texts are asked too, less what is finished,
+    // under Continue or set aside.
+    if (!body.done && filtered()) body.done = cardAsk.skip.concat(cardAsk.aside);
     oneCard.lastAsk = body;
     var host = cardBody();
     if (host) {
@@ -1669,11 +1764,14 @@
      chosen or the reader's own, from the shelf and the finds already pooled; never a look
      on the web. Something else on it walks to the next nearest miss. */
   function harderBody() {
-    return {
+    var body = {
       topics: oneCard.chip ? [oneCard.chip] : [],
       skip: oneCard.shown.concat(oneCard.harder).slice(-200),
       done: cardAsk.skip.concat(cardAsk.aside),
     };
+    if (oneCard.medium) body.medium = oneCard.medium;
+    if (oneCard.length) body.length = oneCard.length;
+    return body;
   }
   function askHarder() {
     var body = harderBody();
@@ -2059,6 +2157,8 @@
       oneCard.shown = [];
       oneCard.chip = "";
       oneCard.chipLabel = "";
+      oneCard.medium = "";
+      oneCard.length = "";
       oneCard.chips = null;
       oneCard.open = false;
       oneCard.look = "";

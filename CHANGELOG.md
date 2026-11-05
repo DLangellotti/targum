@@ -65,6 +65,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   pick left is recorded as set aside. With nothing left the pick stays and the card says
   "Nothing easier fits yet." or "No other new text is close yet." New strings: "Easier",
   "Harder", "Nothing easier fits yet.", with Russian drafts.
+- Topic on Home's one card becomes Filter (David, 2026-11-05; targum-internal#615;
+  design.md §12, "Home's one card offers the words to learn first, and a pick moves
+  easier or harder"). Behind `TARGUM_FIND_BUTTON`. One field holds Read · Watch · Listen,
+  How long (under 5, 5–15, over 15 minutes) and the forty topics; a pill picks again at
+  once, pressed again lets go, and the press names what is chosen in tonal. `POST /find`
+  takes `medium` and `length` over every pick it offers, harder ones included; with a
+  filter and no topic it asks the shelf too, and Watch or Listen never starts a look on
+  the web. Listen is drawn only once the pool holds a podcast (`chips` answers `listen`).
+  New strings for Filter and its pills, with Russian drafts.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
