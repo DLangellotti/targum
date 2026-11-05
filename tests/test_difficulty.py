@@ -85,6 +85,36 @@ def test_a_form_two_lemmas_own_is_shared_by_how_common_each_is() -> None:
     assert sums["lui"] == pytest.approx(1e-3 - luire_share)
 
 
+def test_a_name_spelled_as_a_rare_verb_s_form_is_not_the_verb_s() -> None:
+    """luis is luire's, and mostly the name Luis: taken whole it put luire at band 4
+    (qa-claude on #1111). A form far commoner than anything else its lemma is read as is
+    another word's, and is left out; semble, five times semblait, is still sembler's."""
+    from targum.annotate.difficulty import french_sums
+
+    table = TABLE + ";;;;;;;;;luis;10;singular;indicative;-;present;firstPerson;;m\n"
+    sums = french_sums(table.splitlines, {**FREQUENCY, "luis": 1e-5})
+    luire_share = 1e-3 * 1e-7 / (1e-3 + 1e-7)
+    assert sums["luire"] == pytest.approx(1e-7 + luire_share + 1e-7), "no share of Luis"
+    assert sums["sembler"] == pytest.approx(1e-5 + 1e-4 + 3e-5)
+
+
+def test_a_form_owned_only_by_unseen_lemmas_is_split_not_counted_twice() -> None:
+    """Two lemmas wordfreq never saw, both listing one common form, take half each
+    (qa-claude on #1111): whole to each, the form was counted twice."""
+    from targum.annotate.difficulty import french_sums
+
+    head = "\n".join(TABLE.splitlines()[:2])
+    table = (
+        f"{head}\n"
+        "xa;1;Verbe;;;-;;;m;xa;1;-;infinitive;-;-;-;;m\n"
+        ";;;;;;;;;commun;2;singular;indicative;-;present;thirdPerson;;m\n"
+        "xb;2;Verbe;;;-;;;m;xb;3;-;infinitive;-;-;-;;m\n"
+        ";;;;;;;;;commun;4;singular;indicative;-;present;thirdPerson;;m\n"
+    )
+    sums = french_sums(table.splitlines, {"commun": 1e-3})
+    assert sums == {"xa": pytest.approx(5e-4), "xb": pytest.approx(5e-4)}
+
+
 def test_a_french_lemma_is_never_harder_than_its_own_spelling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

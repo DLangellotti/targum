@@ -17,7 +17,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - French reads by all its forms on the difficulty measure, as Russian does
   (targum-internal#562). A French lemma's frequency is the sum of its forms in Morphalou,
   looked up where `targum models fetch morphalou` put it (LGPL-LR, lookup only), and a form
-  two lemmas own is shared by how common each is, so luire does not take the pronoun lui.
+  two lemmas own is shared by how common each is, so luire does not take the pronoun lui,
+  and a form far commoner than the rest of its lemma's is left out as another word's, so
+  luire does not take the name Luis either.
   On the fourteen French texts verbs counted as looked up fell from 23.5% to 11.6% and
   each text measures 1 to 5 points easier; none changes level. The sum never makes a word
   harder, and without Morphalou the measure is as before. The catalogue's French

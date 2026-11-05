@@ -148,7 +148,13 @@ def french_zipf(lemma: str) -> float | None:
     each: Morphalou lists lui under luire and tu under taire, and summed whole those two
     rare verbs came out as common as the pronouns. Each owner takes the form's frequency
     in proportion to its own dictionary form's, so luire keeps almost none of lui and
-    suivre a few percent of suis.
+    suivre a few percent of suis. Where wordfreq saw none of the owners' spellings, they
+    split it evenly.
+
+    **A form one lemma owns can still be another word's**: luis is mostly the name Luis,
+    and taken whole it put luire at band 4. A form more than `ANOTHER_WORDS` times
+    commoner than anything else its lemma is read as is left out, so luire is band 5,
+    from its luit and its share of lui.
 
     A lookup only (LGPL-LR, David 2026-09-14): the table is read where
     `targum models fetch morphalou` put it, nothing is trained on it, and no row of it
@@ -200,25 +206,43 @@ def french_sums(
     more than one word (se taire itself) is left out, wordfreq having no such word.
     """
     owners: dict[str, float] = {}
+    counted: dict[str, int] = {}
     for key, forms in _french_blocks(lines()):
         weight = frequency.get(key, 0.0)
         for form in forms:
             owners[form] = owners.get(form, 0.0) + weight
+            counted[form] = counted.get(form, 0) + 1
     sums: dict[str, float] = {}
     for key, forms in _french_blocks(lines()):
         weight = frequency.get(key, 0.0)
+        alone = {form: frequency.get(form, 0.0) for form in forms if counted[form] == 1}
         share = 0.0
         for form in forms:
             used = frequency.get(form, 0.0)
             if not used:
                 continue
-            # A lemma whose own spelling wordfreq never saw takes no share, unless it is
-            # the only owner of the form.
+            if form != key and form in alone:
+                # A form only this lemma owns, far commoner than anything else the lemma
+                # is read as, is another word's: luis is the name Luis, not luire's, and
+                # minutes the noun's plural, not minuter's. It is left out.
+                rest = max((n for other, n in alone.items() if other != form), default=weight)
+                rest = max(rest, weight)
+                if rest and used > ANOTHER_WORDS * rest:
+                    continue
+            # A form two lemmas own is shared by each one's own frequency; where wordfreq
+            # saw none of their spellings, it is split evenly, never counted whole twice.
             whole = owners[form]
-            share += used * (weight / whole if whole else 1.0)
+            share += used * (weight / whole if whole else 1.0 / counted[form])
         if share:
             sums[key] = sums.get(key, 0.0) + share
     return sums
+
+
+#: How much commoner than the rest of its lemma's own forms a form may be and still be
+#: taken as that lemma's (`french_sums`). semble is 5.4 times semblent, fallait 2.9
+#: times falloir and suffit 13 times suffire's next form; luis is 33 times luit, importe
+#: 53 times importer (n'importe) and minutes 3,000 times minuter (wordfreq, 2026-11-05).
+ANOTHER_WORDS = 20.0
 
 
 def _french_blocks(lines: Iterable[str]) -> Iterable[tuple[str, set[str]]]:
