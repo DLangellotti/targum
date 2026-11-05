@@ -620,9 +620,11 @@
 
   //: The rung, kept the way the subjects are: the account has it, the browser holds a
   //: copy. "" takes an earlier answer back.
-  function rememberLevel(id) {
-    keep(charts.DECLARED, id);
-    post("/account/level", { level: id });
+  //: Each language's on its own (targum-internal#631), so Russian's never replaces Hebrew's.
+  function rememberLevel(id, code) {
+    var language = code || "he";
+    keep(charts.declaredKey(language), id);
+    post("/account/level", language === "he" ? { level: id } : { level: id, language: language });
   }
 
   /* The language they are learning, the way the top bar's menu keeps it: in this browser,
@@ -1435,8 +1437,12 @@
       arrived = theirs.slice();
       keep(ARRIVED, arrived.join(","));
     }
-    var rung = (me && me.signedIn && me.declared) || "";
-    if (rung && rung !== held(charts.DECLARED)) keep(charts.DECLARED, rung);
+    var by = (me && me.signedIn && me.declaredBy) || {};
+    if (me && me.signedIn && me.declared && !by.he) by.he = me.declared;
+    Object.keys(by).forEach(function (code) {
+      var key = charts.declaredKey(code);
+      if (by[code] && by[code] !== held(key)) keep(key, by[code]);
+    });
   }
 
   var opened = stored("targum:opened");
@@ -1502,8 +1508,8 @@
       var reading = readers.concat(shared).some(function (reader) {
         return reader.opened > 0;
       });
-      var answered =
-        !underway() && (arrived.length || held(WELCOMED) || !!(who && who.signedIn && who.declared));
+      var named = !!(who && who.signedIn && (who.declared || Object.keys(who.declaredBy || {}).length));
+      var answered = !underway() && (arrived.length || held(WELCOMED) || named);
       var asking = !answered && !reading && !modern.opened && !biblical.opened;
       var waiting = document.getElementById("arrival-waiting");
       if (waiting) waiting.hidden = true;
@@ -1532,7 +1538,7 @@
         } else {
           // French's and Russian's rung is kept on the CEFR ladder (targum-internal#631),
           // and the rung the check measured places the first text where there is one.
-          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "");
+          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "", code);
           var share = level ? level.share : 0;
           if (level && level.measured) share = charts.seedFraction(level.measured);
           target = firstElsewhere(handed, share);
@@ -1549,7 +1555,7 @@
         // Skip on the words check: the level they said is kept, and home opens.
         function (code, level) {
           keep(WELCOMED, "1");
-          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "");
+          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "", code);
           home(code);
         }
       );

@@ -2236,7 +2236,8 @@
     } catch (e) {
       /* no store: the account's answers below still decide */
     }
-    if (answered || (me && me.signedIn && ((me.interest || []).length || me.declared))) return false;
+    var named = me && (me.declared || Object.keys(me.declaredBy || {}).length);
+    if (answered || (me && me.signedIn && ((me.interest || []).length || named))) return false;
     if (Object.keys(stored("targum:opened")).length || places.length) return false;
     return !readers.some(function (reader) {
       return !reader.shared;

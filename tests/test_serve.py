@@ -856,9 +856,18 @@ def test_a_french_or_russian_check_is_kept_in_its_own_language(
     assert set(rows) == {"ru"} and rows["ru"]["ticked"] == [real[0], made[0]]
     assert rows["ru"]["version"] == lists.version
     status, answer, _ = call(
-        port, "POST", f"/account/level?k={token}", {"level": "a2"}, cookie=cookie
+        port, "POST", f"/account/level?k={token}", {"level": "a2", "language": "ru"}, cookie=cookie
     )
     assert status == 200 and answer["declared"] == "a2"
+    assert answer["declaredBy"] == {"ru": "a2"}
+    # Russian's rung is Russian's: a CEFR rung for Hebrew is refused, and Hebrew's own
+    # is kept beside it (qa-claude on targum#1112).
+    status, _, _ = call(port, "POST", f"/account/level?k={token}", {"level": "a2"}, cookie=cookie)
+    assert status == 400
+    status, answer, _ = call(
+        port, "POST", f"/account/level?k={token}", {"level": "aleph"}, cookie=cookie
+    )
+    assert answer["declaredBy"] == {"he": "aleph", "ru": "a2"}
 
 
 def test_progress_shows_the_words_check_s_level_until_the_marks_reach_one(

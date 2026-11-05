@@ -307,7 +307,9 @@ def test_another_language_opens_a_text_in_it_placed_by_what_they_read() -> None:
     )
     assert "/reader/sergius" in novel["went"], novel["went"]
     sent = [c["body"] for c in novel["sent"] if "/account/level" in c["path"]]
-    assert sent == [{"level": "c1"}] and novel["kept"].get("targum:declared") == "c1"
+    assert sent == [{"level": "c1", "language": "ru"}]
+    assert novel["kept"].get("targum:declared:ru") == "c1"
+    assert "targum:declared" not in novel["kept"], "Hebrew's rung is not Russian's"
     italian = draw(
         [],
         shared=seeded(),

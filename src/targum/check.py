@@ -330,17 +330,41 @@ def common_known(estimate: Estimate) -> float:
     return sum(sigmoid(estimate.slope * (at - math.log(k))) for k in range(1, COMMON_DEPTH + 1))
 
 
+def common_reach(estimate: Estimate) -> float:
+    """Where the estimate stands on the CEFR ladder: the vocabulary theta stands for, as
+    known words among the commonest `COMMON_DEPTH` lemmas, with every lemma below that
+    place known and none past it.
+
+    **Calibrated, 2026-11-05 (David, on qa-claude's review of targum#1112).** The ladder's
+    figures (`level.CEFR`, Milton 2010) are counts of words a learner *knows* among the
+    commonest five thousand, and the check climbed it by `common_known`, the words the
+    estimate *expects* known there. At the Rasch slope of 0.8 that curve is shallow
+    enough to credit a reader with hundreds of words past their own vocabulary: an
+    A1-sized vocabulary of 250 lemmas expected about 950, and A2's 1,350 about 2,170,
+    which is B1. Every band landed about one step high. Read as the vocabulary itself,
+    an A2-sized vocabulary is A2 and each band's own size lands on that band
+    (`tests/test_check.py` pins each one)."""
+    import math
+
+    from .estimate import FORMS_PER_LEMMA
+
+    # Rounded to a millionth first, as `level.words_to` does: exp(log(1350)) is
+    # 1349.9999999999998 in floating point, which is 1,350 lemmas and not one short.
+    vocabulary = round(math.exp(estimate.theta - FORMS_PER_LEMMA), 6)
+    return min(vocabulary, float(COMMON_DEPTH))
+
+
 def rung_after(estimate: Estimate) -> Rung | None:
     """The rung the estimate stands at after a check, on the language's own ladder: the
     highest it reaches. The ulpan ladder is climbed by vocabulary (`Estimate.words`), the
-    CEFR's by known words among the commonest five thousand (`common_known`). None under
+    CEFR's by known words among the commonest five thousand (`common_reach`). None under
     the first rung, and for a language with no ladder."""
     from .level import ladder_for
 
     ladder = ladder_for(estimate.language)
     if ladder is None:
         return None
-    reach = estimate.words() if ladder.measure == "weighted" else common_known(estimate)
+    reach = estimate.words() if ladder.measure == "weighted" else common_reach(estimate)
     reached = [rung for rung in ladder.rungs if rung.at <= reach]
     return reached[-1] if reached else None
 

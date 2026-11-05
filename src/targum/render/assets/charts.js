@@ -774,8 +774,9 @@
    * reader's known words reach the first rung this answers "" and the declared rung is
    * not read. On the language's own ladder: Hebrew's over the ulpan's, and since
    * 2026-11-05 French's and Russian's over the CEFR's, by the ids "a1" to "c2"
-   * (targum-internal#631). One key holds the rung last named, so a rung of the other
-   * ladder says nothing of this language. Italian, Aramaic and Yiddish are not asked.
+   * (targum-internal#631). Each language keeps its own key (`declaredKey`): Hebrew's is
+   * the key it always was, and French's and Russian's are their own, so a Russian rung
+   * never takes the place of a Hebrew one. Italian, Aramaic and Yiddish are not asked.
    *
    * Here rather than in learn.js because the Library reads it too, and two pages with
    * two ideas of when a reader has been measured would disagree about the same reader.
@@ -787,6 +788,15 @@
   var CEFR_RUNGS = ["a1", "a2", "b1", "b2", "c1", "c2"];
   //: The languages whose arrival keeps the rung it asks: those with a words check.
   var SEEDED = { he: DECLARED_RUNGS, fr: CEFR_RUNGS, ru: CEFR_RUNGS };
+
+  //: Where this browser keeps one language's rung: "targum:declared" for Hebrew, as it
+  //: always was, and "targum:declared:ru" for the rest.
+  function declaredKey(code) {
+    var key = String(code || "he")
+      .split("-")[0]
+      .toLowerCase();
+    return key === "he" ? DECLARED : DECLARED + ":" + key;
+  }
 
   function seed(words, code) {
     var key = String(code || "he")
@@ -800,7 +810,7 @@
     }
     var said = "";
     try {
-      said = localStorage.getItem(DECLARED) || "";
+      said = localStorage.getItem(declaredKey(key)) || "";
     } catch (e) {
       return "";
     }
@@ -865,6 +875,7 @@
     seed: seed,
     seedFraction: seedFraction,
     DECLARED: DECLARED,
+    declaredKey: declaredKey,
     DECLARED_RUNGS: DECLARED_RUNGS,
     CEFR_RUNGS: CEFR_RUNGS,
     levelFor: levelFor,

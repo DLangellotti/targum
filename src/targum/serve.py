@@ -13146,15 +13146,26 @@ class Handler(BaseHTTPRequestHandler):
         """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
 
         Kept as a seed: `level.seed` reads it only while nothing about the reader has
-        been measured, and no page prints it back."""
+        been measured, and no page prints it back. One rung per language (`language`,
+        Hebrew where none is said; targum-internal#631), each on its own ladder."""
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
         try:
-            kept = self.store.set_declared(person, str(payload.get("level") or ""))
+            kept = self.store.set_declared(
+                person, str(payload.get("level") or ""), str(payload.get("language") or "he")
+            )
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
-        self._json({"signedIn": True, "declared": kept})
+        # `declared` is the rung just kept, for the language it was kept for; `declaredBy`
+        # every language's (targum-internal#631).
+        self._json(
+            {
+                "signedIn": True,
+                "declared": kept,
+                "declaredBy": self.store.declared_by(person.id),
+            }
+        )
 
     def _checked(self, payload: dict[str, Any]) -> None:
         """The words a new reader ticked on the arrival's words check (design.md §12, "The

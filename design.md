@@ -647,15 +647,24 @@ which kept Hebrew's level alone.
   by ling-fr and ling-ru. One rule is new: no real word is an English cognate or an
   international loan (*famille*, *проблема*), so a tick means the reader knows the
   French or Russian word. **Russian's lists are a draft awaiting David's read.**
-- **The level is kept on the CEFR ladder.** The four sentences stand for A1, A2, B1 and
-  C1, as Hebrew's stand for aleph, bet, gimel and hey, and are kept by the ids `a1` to
-  `c2` in the one column that holds the rung last named (`Store.DECLARED`). A rung is
-  read only on its own ladder (`level.seed`, `charts.seed`), so an ulpan rung says
-  nothing of a reader's Russian. A measured rung still outvotes it.
-- **The rung the check gives** is the CEFR rung the estimate stands at: its expected
-  known words among the commonest five thousand (`check.common_known`), the CEFR ladder's
-  own measure. It places the first text and, labelled "From your words check", Your
-  Progress's level until the marks reach one.
+- **The level is kept on the CEFR ladder, each language its own.** The four sentences
+  stand for A1, A2, B1 and C1, as Hebrew's stand for aleph, bet, gimel and hey, and are
+  kept by the ids `a1` to `c2` (`Store.DECLARED_BY`). Each language keeps its own rung
+  (`Store.declared_map`, "bet,ru:a2" in the one column, Hebrew's bare as it always was;
+  in the browser `targum:declared` for Hebrew and `targum:declared:ru` beside it), so a
+  Hebrew aleph reader who names "I'm just starting" in Russian keeps aleph, Hebrew's seed
+  and the scene card (qa-claude on targum#1112). A rung is read only on its own ladder
+  (`level.seed`, `charts.seed`). A measured rung still outvotes it. The You page has a
+  row for each: Your Hebrew as before, and Your French or Your Russian while that
+  language is learned, on the CEFR ladder in the arrival's sentences and never a code.
+- **The rung the check gives** is the CEFR rung the estimate stands at, read as the
+  vocabulary theta stands for among the commonest five thousand (`check.common_reach`).
+  It places the first text and, labelled "From your words check", Your Progress's level
+  until the marks reach one. **Calibrated, David, 2026-11-05:** it first climbed by the
+  *expected* known words at the Rasch slope of 0.8 (`check.common_known`), which credits
+  hundreds of words past a reader's vocabulary, and every band landed about one step high
+  (A2's 1,350 lemmas came out B1). The ladder's figures count words *known*, so a band's
+  own vocabulary now lands on that band, and an A2-sized vocabulary is A2.
 - **Not yet measured.** Hebrew's bands came from Hebrew readers' answers; French's and
   Russian's come from the frequency list alone. Each language's placement is to be
   scored against its own small gold of known readers or ling-graded profiles, never

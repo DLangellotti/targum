@@ -317,10 +317,10 @@ def seed(level: Level) -> Rung | None:
 
     Read on the language's own ladder: the arrival asks Hebrew over the ulpan's and, since
     2026-11-05, French and Russian over the CEFR's, by the ids "a1" to "c2"
-    (targum-internal#631). One column holds the rung last named, so a rung of the other
-    ladder says nothing of this language: an ulpan rung on a Russian reader is nothing
-    said, as `chat.tools.scene_reader` reads it too. Only a language with a words check
-    (`check.LISTS`) keeps the rung asked; Italian, Aramaic and Yiddish answer None.
+    (targum-internal#631). A rung of the other ladder says nothing of this language. Only
+    a language with a words check (`check.LISTS`) keeps the rung asked; Italian, Aramaic
+    and Yiddish answer None. Each language keeps its own rung (`Store.declared_map`), so
+    a reader's Russian A1 never stands in for the aleph they named for Hebrew.
     """
     from .check import LISTS
 
@@ -376,7 +376,7 @@ def snapshot(
         ladder=ladder.title if ladder else "",
         common=among,
         address=store.address(person_id) if hasattr(store, "address") else "",
-        declared=store.declared(person_id) if hasattr(store, "declared") else "",
+        declared=store.declared(person_id, language) if hasattr(store, "declared") else "",
         per_word=per_word(
             ((status, band, at) for _, status, band, at in words), int(time.time() * 1000)
         ),

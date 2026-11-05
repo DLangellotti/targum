@@ -469,6 +469,31 @@ def test_the_check_s_rung_is_on_the_language_s_own_ladder() -> None:
     assert check.rung_id(level_module.CEFR[1]) == "a2"
 
 
+def test_each_cefr_band_s_own_vocabulary_lands_on_that_band() -> None:
+    """David, 2026-11-05: the check's CEFR rung ran about one step high (qa-claude on
+    targum#1112: a 1,350-lemma vocabulary, A2's size, came out B1), because the expected
+    known words at slope 0.8 credit hundreds past a reader's vocabulary. An A2-sized
+    vocabulary lands on A2 now, and so does every band's own size on that band."""
+    from targum import level as level_module
+
+    def at(code: str, words: float) -> estimate_module.Estimate:
+        theta = math.log(words) + estimate_module.FORMS_PER_LEMMA
+        return estimate_module.Estimate(code, theta, {})
+
+    for code in ("fr", "ru"):
+        for place, rung in enumerate(level_module.CEFR):
+            found = check.rung_after(at(code, rung.at))
+            assert found is rung, f"{code}: {rung.at} lemmas is {rung.name}, not {found}"
+            if place:
+                below = check.rung_after(at(code, rung.at - 1))
+                assert below is level_module.CEFR[place - 1], f"{code}: just under {rung.name}"
+        # The PR's own figures: 250 lemmas expected ~950 and 1,350 ~2,170 (B1).
+        a2 = check.rung_after(at(code, 1350))
+        assert a2 is not None and check.rung_id(a2) == "a2"
+        assert check.rung_after(at(code, 249)) is None, "under A1 is no rung"
+        assert check.common_reach(at(code, 50_000)) == check.COMMON_DEPTH
+
+
 def test_the_estimate_reads_a_check_by_its_own_language_s_lists(tmp_path: Path) -> None:
     """A French check moves the French estimate and says nothing of the Hebrew one; a
     French check held against Hebrew's version says nothing at all."""
@@ -497,8 +522,8 @@ def test_the_estimate_reads_a_check_by_its_own_language_s_lists(tmp_path: Path) 
 
 
 def test_a_declared_rung_seeds_only_its_own_ladder() -> None:
-    """One column holds the rung last named: a CEFR rung seeds French and Russian, an
-    ulpan rung seeds Hebrew, and neither seeds the other or a language with no check."""
+    """A CEFR rung seeds French and Russian, an ulpan rung seeds Hebrew, and neither
+    seeds the other or a language with no check."""
     from dataclasses import replace
 
     from targum import level as level_module
@@ -511,4 +536,5 @@ def test_a_declared_rung_seeds_only_its_own_ladder() -> None:
     assert seeded("he", "bet-plus") == "bet plus"
     assert seeded("ru", "gimel") == "" and seeded("he", "a1") == ""
     assert seeded("it", "a2") == "", "Italian is not asked"
-    assert Store.declared_of("b1") == "b1" and Store.declared_of("z9") == ""
+    assert Store.declared_of("ru:b1", "ru") == "b1" and Store.declared_of("z9") == ""
+    assert Store.declared_of("b1") == "", "a bare rung is Hebrew's, and b1 is not on its ladder"

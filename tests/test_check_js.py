@@ -296,7 +296,9 @@ def test_their_level_is_kept_on_the_cefr_ladder(code: str) -> None:
     account and in the browser. Skip keeps it too; Not sure takes it back."""
     for say, rung in (("I’m just starting", "a1"), ("I read the news", "b1")):
         skipped = other(code, [{"rung": say}, {"press": "arrival-done"}, {"skip": True}])
-        assert {"path": "/account/level?k=k", "body": {"level": rung}} in skipped["sent"]
-        assert skipped["kept"].get("targum:declared") == rung
+        body = {"level": rung, "language": code}
+        assert {"path": "/account/level?k=k", "body": body} in skipped["sent"]
+        assert skipped["kept"].get(f"targum:declared:{code}") == rung
+        assert "targum:declared" not in skipped["kept"], "and never as Hebrew's"
     unsure = other(code, [{"unsure": True}, {"skip": True}])
-    assert {"path": "/account/level?k=k", "body": {"level": ""}} in unsure["sent"]
+    assert {"path": "/account/level?k=k", "body": {"level": "", "language": code}} in unsure["sent"]

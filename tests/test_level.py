@@ -323,6 +323,42 @@ def test_the_rung_a_reader_said_is_a_seed_and_a_measured_one_outvotes_it(tmp_pat
     assert store.set_declared(person, "") == "", "and it can be taken back"
 
 
+def test_each_language_keeps_its_own_declared_rung(tmp_path: Path) -> None:
+    """qa-claude on targum#1112 (targum-internal#631): one rung for every language let a
+    Hebrew aleph reader who then named "I'm just starting" in Russian store a1 in its
+    place, and lose Hebrew's seed and the scene card with it. Each language keeps its own
+    rung now, on its own ladder, in the same column."""
+    from dataclasses import replace
+
+    from targum.chat import tools
+
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed is not None
+    person = signed[0]
+    store.set_declared(person, "aleph")
+    assert store.set_declared(person, "a1", "ru") == "a1"
+    assert store.set_declared(person, "b1", "fr-FR") == "b1"
+    assert store.declared(person.id) == "aleph", "Hebrew's is not replaced"
+    assert store.declared(person.id, "ru") == "a1" and store.declared(person.id, "fr") == "b1"
+    assert store.profile(person)["declaredBy"] == {"he": "aleph", "ru": "a1", "fr": "b1"}
+    hebrew = level.snapshot(store, person.id, "he")
+    assert hebrew.declared == "aleph" and tools.scene_reader(replace(hebrew, here=None))
+    seeded = level.seed(level.snapshot(store, person.id, "ru"))
+    assert seeded is not None and seeded.name == "A1"
+    with pytest.raises(ValueError):
+        store.set_declared(person, "a1")
+    with pytest.raises(ValueError):
+        store.set_declared(person, "gimel", "ru")
+    with pytest.raises(ValueError):
+        store.set_declared(person, "a1", "it")
+    store.set_declared(person, "", "ru")
+    assert store.declared_by(person.id) == {"he": "aleph", "fr": "b1"}
+    store.set_declared(person, "", "fr")
+    row = store.db.execute("SELECT declared FROM person WHERE id = ?", (person.id,)).fetchone()
+    assert row["declared"] == "aleph", "a Hebrew-only column is what it always was"
+
+
 def test_the_chat_grades_to_the_seed_and_never_quotes_it() -> None:
     told = level.describe(
         level.Level("he", 0, 0, 0.0, None, level.ULPAN[0], 0, 0, 0, 0, 0, declared="gimel")

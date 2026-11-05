@@ -20,10 +20,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (`check.LISTS`: ling-fr's and ling-ru's, #632; **Russian's a draft awaiting David's
   read**), the page carries all three and draws the language pressed, left to right in the
   reading face, and `/account/check` names its language. Their level is kept on the CEFR
-  ladder as `a1`, `a2`, `b1` or `c1`, read only on its own ladder by `level.seed` and
-  `charts.seed`, and the check's rung is the CEFR rung the estimate stands at by expected
-  known words among the commonest five thousand. Home now sends a new French or Russian
-  reader to the arrival. Italian, Aramaic and Yiddish are unchanged. No new strings.
+  ladder as `a1`, `a2`, `b1` or `c1`, each language its own (`Store.declared_map`:
+  "bet,ru:a2" in the one column, so a Russian rung never replaces Hebrew's and a Hebrew
+  beginner keeps the scene card; no schema change), and the check's rung is the CEFR rung
+  the vocabulary it estimates reaches among the commonest five thousand (calibrated
+  2026-11-05: by expected known words every band landed a step high). The You page has a
+  Your French and a Your Russian row while that language is learned, on its own ladder,
+  where it said "Not set" of a CEFR rung. Home now sends a new French or Russian reader to
+  the arrival. Italian, Aramaic and Yiddish are unchanged. New strings: `you.page.your-
+  french`, `you.page.your-russian`, `you.page.level-note-cefr`, `you.level.b2`,
+  `you.level.c2` (**Russian drafts awaiting David's read**).
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
