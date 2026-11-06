@@ -396,6 +396,7 @@ def test_russian_has_its_own_prompt_file_and_nothing_shown() -> None:
     assert "Knesset" not in russian and "reserve duty" not in russian
     assert topics.PROMPT_VERSIONS == {"he": "prompt/3", "ru": "ru-prompt/3"}
     assert topics.lexicon_file("ru") != topics.lexicon_file("he") == topics.LEXICON
+    assert topics.lexicon_file("ru") == topics.run_lexicon("ru", topics.RU_RUN)
     assert topics.run_lexicon("ru", "p").name == "topics-ru-p.json"
     assert topics.run_lexicon("he", "p").name == "topics-p.json"
     assert topics.SHOWN_FOR["ru"] == (), "Hebrew's pass is never lent to Russian"

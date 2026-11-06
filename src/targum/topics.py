@@ -85,9 +85,14 @@ RESEARCH = Path.home() / ".targum" / "research" / "topics"
 #: its own prompt and examples, scored on its own gold set (ling-ru's), and kept in a
 #: file of its own: a Hebrew page never reads a Russian lemma, nor the other way round.
 LANGUAGES = ("he", "ru")
+#: The run whose lexicon is Russian's: ru-prompt/3's full run, whose `shown` (family,
+#: money, law, security) was set by ling-ru's round-3 blind sample drawn by the
+#: predicted tag, each topic's Wilson 95% lower bound >= 0.90 (#638, 2026-11-06). Its
+#: file is read by name, so an older run's lexicon is never read in its place.
+RU_RUN = "ru-full3-2026-11-06"
 LEXICONS: dict[str, Path] = {
     "he": LEXICON,
-    "ru": Path.home() / ".targum" / "topics-ru.json",
+    "ru": Path.home() / ".targum" / f"topics-ru-{RU_RUN}.json",
 }
 #: Each language's prompt version. Russian's starts at its own 1: it is a different
 #: prompt, not a fourth Hebrew one.
