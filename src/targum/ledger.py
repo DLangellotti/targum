@@ -894,8 +894,15 @@ def backfill(ledger: Ledger, cache: Cache, stage: str = "vocalize") -> tuple[int
     """Read today's cache into rows: the migration, for one stage. Reads the cache only.
 
     Returns (recorded, refused). A refused entry is one the rows could not give back
-    exactly; it stays in the cache, which is still the read path, and is logged.
+    exactly, or one this cannot classify: a value is recorded only for a text the ledger
+    already holds a `texts` row for, of a kind listed public (`kinds.private_source`).
+    A cache value says nothing of its source, and the withheld set (`withhold`) lasts one
+    process, so a text private by its kind would otherwise be written from the cache
+    (qa-claude on #1122). Run `targum cache ledger-texts` first. A refused entry stays in
+    the cache, which is still the read path, and is logged.
     """
+    from .kinds import private_source
+
     recorded = refused = 0
     folder = cache.root / stage
     if not folder.is_dir():
@@ -903,6 +910,15 @@ def backfill(ledger: Ledger, cache: Cache, stage: str = "vocalize") -> tuple[int
     for file in sorted(folder.glob("*/*.json")):
         try:
             value = json.loads(file.read_text(encoding="utf-8"))
+            held = (
+                ledger.text(str(value.get("document_hash") or ""))
+                if isinstance(value, Mapping)
+                else None
+            )
+            if held is None or private_source(held.source, held.ingester):
+                log.warning("corpus ledger: %s not backfilled: no text of a listed kind", file.name)
+                refused += 1
+                continue
             ledger.record(stage, file.stem, value)
         except (ValueError, TypeError) as error:
             log.warning("corpus ledger: %s not backfilled: %s", file.name, error)

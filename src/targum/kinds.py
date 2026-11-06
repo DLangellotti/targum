@@ -16,12 +16,15 @@ private) and what its licence allows. A link a reader pasted is `https`, a liste
 and is still private because it is in their home. A kind off the list is private
 wherever it sits.
 
-The kind is the source's scheme, `sefaria` of `sefaria:Psalms`. A source that names no
-scheme is a file on this machine (an upload, a photographed page, a recording, a
-curated video's audio), and for that the ingester that read it is the kind: the family
-before the first `/`, so `picture` of `picture/2`. An ingester on `PRIVATE` makes a text
-private whatever its source says, so a source rewritten by hand in `document.json` is
-still caught by what read it.
+The kind is the source's scheme, `sefaria` of `sefaria:Psalms`, read once nothing
+invisible is left in it (NFKC, no zero-width or control characters); something before
+the first `:` that is not a scheme is a kind nobody can list, so private. A scheme is not
+enough on its own: the ingester that read the text must be a family the code has
+(`PUBLIC_SCHEME_INGESTERS`), so a new private fetcher that reads links is withheld even
+though `https` is listed. A source that names no scheme is a file on this machine (an
+upload, a photographed page, a recording, a curated video's audio), and for that the
+ingester alone is the kind (`PUBLIC_INGESTERS`). An ingester on `PRIVATE` makes a text
+private whatever its source says.
 
 No imports: the ledger asks this on every write, and nothing here may load a fetcher.
 """
@@ -30,6 +33,7 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -37,6 +41,8 @@ __all__ = [
     "PRIVATE",
     "PUBLIC_INGESTERS",
     "PUBLIC_KINDS",
+    "PUBLIC_SCHEME_INGESTERS",
+    "UNREADABLE",
     "family",
     "kind_of",
     "label",
@@ -95,49 +101,105 @@ PUBLIC_INGESTERS = frozenset(
     }
 )
 
+#: Every ingester family the code has, for a source that names a scheme: a listed scheme
+#: read by an ingester nobody listed is private too (qa-claude on #1122), so a new private
+#: fetcher that reads links, `https` being listed, is withheld until it is listed here.
+#: The file ingesters are among them, since a link can be a file (a PDF, a recording).
+PUBLIC_SCHEME_INGESTERS = PUBLIC_INGESTERS | frozenset(
+    {
+        "daily",  # the daily cycles (`daily/cut.py`)
+        "dialogue",  # `ingest/fetch/dialogue.py`
+        "globalstorybooks",  # `ingest/fetch/globalstorybooks.py`
+        "gutenberg",  # `ingest/fetch/gutenberg.py`
+        "parasha",  # the parasha and the haftarah (`parasha/cut.py`)
+        "published",  # `ingest/fetch/published.py`
+        "sefaria",  # `sefaria/6`, the siddur's `sefaria/siddur/1`, a daf
+        "storyweaver",  # `ingest/fetch/storyweaver.py`
+        "url",  # a page (`ingest/url.py`)
+        "url-feed",  # a feed's item (`ingest/url.py`)
+        "url-text",  # a plain-text link (`ingest/url.py`)
+        "video",  # `ingest/fetch/video.py`
+        "weekly",  # `ingest/fetch/weekly.py`, and `weekly/measure`
+        "wikisource",  # `ingest/fetch/wikisource.py`
+    }
+)
+
 #: Kinds, and ingester families, that are private whatever else is listed: a fetcher that
 #: reads a reader's own file rather than a public source. Empty today; a course book's
 #: extract (`course`, targum#1121) is the first to come.
 PRIVATE: frozenset[str] = frozenset()
 
-#: A scheme as RFC 3986 spells one. A path has none (a `/` or a non-ASCII letter comes
-#: before any `:`), so `targum-out/x:y/source.mp4` is a file, not the kind `targum-out`.
+#: What `kind_of` answers for a source that names something before a `:` that is not a
+#: scheme (`novel :1`, `ספר:1`): no kind anybody can list, so private.
+UNREADABLE = "?"
+
+#: A scheme as RFC 3986 spells one, and nothing else before the `:`.
 _SCHEME = re.compile(r"([A-Za-z][A-Za-z0-9+.-]*):")
 
 
+def _normal(text: str) -> str:
+    """NFKC, then without control and format characters (a zero-width space, a byte-order
+    mark, a NUL), then stripped: what a source says once nothing invisible is in it."""
+    folded = unicodedata.normalize("NFKC", text)
+    seen = "".join(c for c in folded if unicodedata.category(c) not in {"Cc", "Cf"})
+    return seen.strip()
+
+
 def kind_of(source: str) -> str:
-    """The scheme a source names, lowercased; "" for a file on this machine, or none."""
-    found = _SCHEME.match(source.strip())
-    return found.group(1).lower() if found else ""
+    """The scheme a source names, lowercased; "" for a file on this machine (nothing but a
+    path: a `/` comes before any `:`, or there is no `:`), or `UNREADABLE` where something
+    stands before the first `:` that is not a scheme."""
+    clean = _normal(source)
+    colon = clean.find(":")
+    if colon < 0:
+        return ""
+    slash = clean.find("/")
+    if 0 <= slash < colon:
+        return ""
+    found = _SCHEME.match(clean)
+    if found is None or found.end() != colon + 1:
+        return UNREADABLE
+    return found.group(1).lower()
 
 
 def family(ingester: str) -> str:
     """An ingester's family: `sefaria` of `sefaria/siddur/1`, `url-text` of `url-text/2`."""
-    return ingester.strip().partition("/")[0].lower()
+    return _normal(ingester).partition("/")[0].lower()
 
 
 def private_source(source: str, ingester: str = "") -> bool:
     """Whether a built text is private by what it is, wherever it was built.
 
-    True unless its kind is on `PUBLIC_KINDS` or, for a source that names no scheme, its
-    ingester's family is on `PUBLIC_INGESTERS`; and True whatever is listed where either
-    is on `PRIVATE`. A source with no kind and no ingester is private: every doubt is.
+    A source that names a scheme is public only where the scheme is on `PUBLIC_KINDS`
+    and, where the ingester that read it is known, its family is on
+    `PUBLIC_SCHEME_INGESTERS`. A file (no scheme) is public only where its ingester's
+    family is on `PUBLIC_INGESTERS`. Either is private wherever its kind or its
+    ingester's family is on `PRIVATE`, and a source with no kind and no ingester, or a
+    kind that does not read cleanly, is private: every doubt is.
     """
     kind = kind_of(source)
-    if kind in PRIVATE or family(ingester) in PRIVATE:
+    named = family(ingester)
+    if kind in PRIVATE or named in PRIVATE:
         return True
     if kind:
-        return kind not in PUBLIC_KINDS
-    return family(ingester) not in PUBLIC_INGESTERS
+        if kind not in PUBLIC_KINDS:
+            return True
+        return bool(named) and named not in PUBLIC_SCHEME_INGESTERS
+    return named not in PUBLIC_INGESTERS
 
 
 def label(source: str, ingester: str = "") -> str:
     """What the back office names a withheld text by: its kind, never its source, which
-    can be a path through a reader's home. `course:`, or `a file read by foo`."""
+    can be a path through a reader's home. `course:`, `https: read by foo`, or `a file
+    read by foo`."""
     kind = kind_of(source)
-    if kind:
-        return f"{kind}:"
     named = family(ingester)
+    if kind == UNREADABLE:
+        return "an unreadable kind"
+    if kind:
+        if kind in PUBLIC_KINDS and named and named not in PRIVATE:
+            return f"{kind}: read by {named}"
+        return f"{kind}:"
     return f"a file read by {named}" if named else "a file read by nothing named"
 
 

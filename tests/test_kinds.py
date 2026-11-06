@@ -153,7 +153,7 @@ def test_every_file_ingester_is_listed() -> None:
         ("/srv/p3/uploads/ab12/notes:1.txt", ""),
         ("targum-out/curated-build/a:b/audio/source.mp4", ""),
         ("targum-out/curated-build/האריה/audio/source.mp4", ""),
-        ("ספר:1", ""),
+        ("ספר:1", kinds.UNREADABLE),
         ("", ""),
         ("novel:1", "novel"),
     ],
@@ -230,7 +230,9 @@ def test_the_ledger_never_writes_a_row_of_it(book: Path, library: Path) -> None:
         },
     )
     # A listed text, so the ledger is plainly on: its row is the only one.
-    book_.record_text(ledger.Text("cd" * 32, "gutenberg:1", "Public Domain", frozenset(), "g/3", 4))
+    book_.record_text(
+        ledger.Text("cd" * 32, "gutenberg:1", "Public Domain", frozenset(), "gutenberg/3", 4)
+    )
     rows = _rows(book)
     assert rows.pop("texts") == 1 and set(rows.values()) == {0}
 
@@ -311,6 +313,7 @@ def test_the_shelf_never_proposes_it(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert promote.candidate(object(), object(), job) is None  # type: ignore[arg-type]
     assert joined == []
     job.source = "https://x.test/a"
+    _write(tmp_path / "b-he", job.source, "url/6")
     promote.candidate(object(), object(), job)  # type: ignore[arg-type]
     assert len(joined) == 1, "a listed kind still reaches the shelf's own rules"
 
@@ -362,3 +365,131 @@ def test_nothing_built_today_is_withheld(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(kinds, "PUBLIC_KINDS", kinds.PUBLIC_KINDS - {"test"})
     root = Path(os.environ["TARGUM_AUDIT_LIBRARY"])
     assert kinds.withheld_kinds(root) == Counter()
+
+
+# --- qa-claude on #1122 -----------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("source", "ingester"),
+    [
+        ("https://x.test/a", UNLISTED_INGESTER),
+        ("sefaria:Ruth", UNLISTED_INGESTER),
+        ("video:abc", "nobody/2"),
+    ],
+)
+def test_a_listed_scheme_read_by_an_unlisted_ingester_is_private(
+    source: str, ingester: str
+) -> None:
+    assert kinds.private_source(source, ingester)
+    assert kinds.label(source, ingester).endswith(f"read by {kinds.family(ingester)}")
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "​novel:1",
+        "﻿novel:1",
+        "\x00novel:1",
+        "ｎｏｖｅｌ:1",
+        "\tnovel :1",
+        "novel :1",
+        "nov el:1",
+        "ספר:1",
+    ],
+)
+def test_nothing_invisible_or_unreadable_erases_the_kind(source: str) -> None:
+    """A source that hides its kind is private, whatever file ingester is named."""
+    assert kinds.kind_of(source) != ""
+    assert kinds.private_source(source, "markdown/5")
+
+
+@pytest.mark.parametrize(
+    "source", ["  sefaria:Ruth\n", "​sefaria:Ruth", "﻿SEFARIA:Ruth", "ｓefaria:Ruth"]
+)
+def test_a_listed_kind_still_reads_once_normalised(source: str) -> None:
+    assert kinds.kind_of(source) == "sefaria"
+    assert not kinds.private_source(source, "sefaria/6")
+
+
+def test_the_shelf_asks_the_ingester_its_document_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    joined: list[Any] = []
+    monkeypatch.setattr(promote, "join_find", lambda *args, **kwargs: joined.append(args))
+    monkeypatch.setattr(kinds, "PRIVATE", frozenset({"novel"}))
+    folder = _write(tmp_path / "b-he", "https://x.test/a", UNLISTED_INGESTER)
+    job = SimpleNamespace(
+        kind="build",
+        reader="b-he",
+        home=tmp_path,
+        source="https://x.test/a",
+        options={"via": "find"},
+    )
+    assert promote.candidate(object(), object(), job) is None  # type: ignore[arg-type]
+    assert joined == []
+    _write(folder, "https://x.test/a", "url/6")
+    promote.candidate(object(), object(), job)  # type: ignore[arg-type]
+    assert len(joined) == 1
+
+
+def test_a_recording_s_new_hash_is_withheld_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What was heard is a new text with a new hash; its rows are kept out as well."""
+    from targum.pipeline import Build
+
+    class Stop(Exception):
+        pass
+
+    def plan_of(tag: str) -> Any:
+        document = SimpleNamespace(
+            source="/srv/p3/uploads/a.nov", ingester=UNLISTED_INGESTER, content_hash=f"c-{tag}"
+        )
+        return SimpleNamespace(
+            document=document, segmented=SimpleNamespace(document_hash=f"s-{tag}"), carried=None
+        )
+
+    monkeypatch.setattr(Build, "is_recording_source", property(lambda self: True))
+    monkeypatch.setattr(Build, "_parts_owed", lambda self, chapters, also: [])
+    monkeypatch.setattr(Build, "transcribe_parts", lambda self, parts: True)
+    monkeypatch.setattr(Build, "plan", lambda self, chapters=None: plan_of("heard"))
+
+    def stop(self: Any, *args: Any) -> None:
+        raise Stop
+
+    monkeypatch.setattr(Build, "authored", stop)
+    build = Build(
+        str(tmp_path / "a.nov"), provider_name="null", out=tmp_path / "out", target_language="en"
+    )
+    with pytest.raises(Stop):
+        build.run(plan_of("first"))  # type: ignore[arg-type]
+    assert {"c-first", "s-first", "c-heard", "s-heard"} <= ledger._WITHHELD
+
+
+def test_the_cache_backfill_records_only_a_text_of_a_listed_kind(
+    book: Path, tmp_path: Path
+) -> None:
+    from targum.cache import Cache
+    from targum.models import Vocalization
+
+    value = Vocalization(
+        document_hash=H,
+        language="he",
+        vocalizer="dicta/menaked/1",
+        model="m",
+        segments={"s0": "שָׁלוֹם."},
+        machine=[],
+        rejected=[],
+    ).model_dump(mode="json")
+    cache = Cache(tmp_path / "cache")
+    cache.put("vocalize", "ab" + "0" * 62, value)
+    book_ = ledger.Ledger(book)
+    assert ledger.backfill(book_, cache) == (0, 1), "no text row: nothing to classify it by"
+    book_.record_text(ledger.Text(H, "gutenberg:1", "Public Domain", frozenset(), "gutenberg/3", 4))
+    with sqlite3.connect(book) as db:
+        db.execute("UPDATE texts SET source = ?", (UNLISTED,))
+    assert ledger.backfill(book_, cache) == (0, 1), "a row of a kind nobody listed"
+    with sqlite3.connect(book) as db:
+        db.execute("UPDATE texts SET source = 'gutenberg:1'")
+    assert ledger.backfill(book_, cache) == (1, 0)

@@ -2363,6 +2363,20 @@ class Build:
             )
         return priced
 
+    def _withhold_if_private(self, plan: Plan) -> None:
+        """A source is private unless its kind is listed public (targum-internal#653):
+        such a text is never in the corpus ledger, so before any stage can put a row of it
+        there, every row of it is kept out, by each hash it has. Asked of what
+        `document.json` will say, as every other guard asks it."""
+        from . import ledger as ledger_module
+        from .kinds import private_source
+
+        if not private_source(plan.document.source or str(self.source), plan.document.ingester):
+            return
+        ledger_module.withhold(plan.document.content_hash)
+        if plan.segmented is not None:
+            ledger_module.withhold(plan.segmented.document_hash)
+
     def run(
         self,
         plan: Plan | None = None,
@@ -2381,16 +2395,7 @@ class Build:
         plan = plan or self.plan()
         assert plan.segmented is not None
         segmented = plan.segmented
-        # A source is private unless its kind is listed public (targum-internal#653): such
-        # a text is never in the corpus ledger, so before any stage can put a row of it
-        # there, every row of it is kept out. Asked of what `document.json` will say, as
-        # every other guard asks it.
-        from . import ledger as ledger_module
-        from .kinds import private_source
-
-        if private_source(plan.document.source or str(self.source), plan.document.ingester):
-            ledger_module.withhold(segmented.document_hash)
-            ledger_module.withhold(plan.document.content_hash)
+        self._withhold_if_private(plan)
 
         # An imported recording is heard before anything else happens: the transcript
         # is the text, and every stage below reads the text. What was heard lands on
@@ -2399,6 +2404,9 @@ class Build:
             plan = self.plan(chapters=chapters)
             assert plan.segmented is not None
             segmented = plan.segmented
+            # What was heard is a new text with a new hash: withheld too, or every row
+            # the stages below write of it would reach the ledger (qa-claude on #1122).
+            self._withhold_if_private(plan)
 
         # How much of a book to pay for now. `chapters=1` translates the first section
         # and leaves the rest waiting, which is what stops a reader who opens a novel and

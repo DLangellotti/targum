@@ -326,6 +326,12 @@ class TestRebuildFromRows:
         (tmp_path / "cache" / "vocalize" / "zz").mkdir()
         (tmp_path / "cache" / "vocalize" / "zz" / "torn.json").write_text("{", encoding="utf-8")
         book = ledger.Ledger(tmp_path / "corpus.db")
+        # Recorded only for a text the ledger holds, of a listed kind (qa-claude on #1122).
+        assert ledger.backfill(book, cache) == (0, 3)
+        assert dict(book.entries("vocalize")) == {}
+        book.record_text(
+            ledger.Text("doc123", "gutenberg:1", "Public Domain", ingester="gutenberg/3")
+        )
 
         assert ledger.backfill(book, cache) == (2, 1)
         assert dict(book.entries("vocalize")) == {
