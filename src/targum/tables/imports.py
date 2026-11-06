@@ -56,7 +56,7 @@ from .. import ledger as ledger_module
 from . import roots, spellings
 from .registers import EVERYDAY, IMPORTS, NEWS, PODCASTS, SOCIAL, SORTED, VIDEO, pooled
 from .store import Contribution, Store
-from .words import LANGUAGES, PHRASES, WORDS, count, rule_for
+from .words import PHRASES, WORDS, count, rule_for
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +81,11 @@ LICENCE = "the readers' own material: counts only, no text, no reader, ten reade
 #: has a vocalization beside it, a spelling and its reading behind the same floor; the
 #: privacy notice's clause 3.7 names "each reading given to a word as written".
 TABLES = (WORDS, PHRASES, roots.ROOTS, spellings.READINGS)
+
+#: The languages what readers bring is pooled in: Hebrew only. Its registers carry no
+#: language (`registers.in_language`), so another language here would mix its lemmas
+#: into Hebrew's pool; a second language waits for a card of its own (#637 left it out).
+LANGUAGES = ("he",)
 
 #: Sources a model wrote, which may sit in a home but no reader brought.
 MODEL_WRITTEN = ("dialogue:", "weekly:", "chat:")

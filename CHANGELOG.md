@@ -28,6 +28,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   dictionary reading is committed. Deploy checks and calibrates each language on its own
   (`finds forms --drop-short`, `--check --language`), so a thin Russian shelf costs
   Russian alone. A box without the `russian` extra pools no Russian. No new strings.
+- French's hard spots are each measured on French gold, and the IPA and the false
+  friends are on for every French reader (targum-internal#644, #266, #267; David's D6,
+  2026-11-05). ling-fr read the liaison gold, the false-friends list and every line it
+  says on the shelf, and wrote a gold for the passé composé against the imparfait.
+  Liaison precision is 1.0 with the gold's tags (80 of 80) and with the tagger's (71 of
+  71), floor 0.98. *tous* the determiner now reads /tu/, *six*, *dix* and *huit* before a
+  consonant /si/, /di/, /ɥi/, and *vingt-cinq* says its t. The false-friends list loses
+  *merci*, *notoire*, *agression* and *spectacle*, mends six lines, says *matériel* and
+  *nouvelle* only of the noun and *assister* only before *à*, and gains eleven entries:
+  1.0 in context (91 of 91), floor 0.97, where the drafted list read 0.967. The card's
+  tense names 101 of ling-fr's 102 passé composé and imparfait verbs right and calls none
+  of her 45 traps either (floors 0.97, and 0.045 at most). `TARGUM_FRENCH_IPA` and
+  `TARGUM_FALSE_FRIENDS` are on unless set to 0; a French text carries them from its
+  next rebuild. French's known-issues list is on record. French still wears
+  Experimental: register (ne-drop, on/nous) has no floor and there is no read-through.
+  No new strings.
+- French reads by all its forms on the difficulty measure, as Russian does
+  (targum-internal#562). A French lemma's frequency is the sum of its forms in Morphalou,
+  looked up where `targum models fetch morphalou` put it (LGPL-LR, lookup only), and a form
+  two lemmas own is shared by how common each is, so luire does not take the pronoun lui,
+  and a form far commoner than the rest of its lemma's is left out as another word's, so
+  luire does not take the name Luis either.
+  On the fourteen French texts verbs counted as looked up fell from 23.5% to 11.6% and
+  each text measures 1 to 5 points easier; none changes level. The sum never makes a word
+  harder, and without Morphalou the measure is as before. The catalogue's French
+  `difficulty` needs a `scripts/measure_difficulty.py` sweep from a machine with Morphalou.
 - Russian runs through every finds door (targum-internal#635, under #628): Find me
   something's chips, the live look, the nightly YouTube round, the open-web night and
   Russian Wikipedia and Wikivoyage through the MediaWiki API, as Hebrew's do. The
@@ -124,12 +150,34 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   nothing said in Russian. Home now asks for the scene in the language shown, so a
   signed-out visitor on Russian, whose empty level is Hebrew's, is no longer handed
   Hebrew's first scene. Hebrew is unchanged. No new strings.
+- Russian is counted in the language tables (targum-internal#637, epic #628). The sweep
+  folds public Russian texts beside Hebrew, from the annotations a build already wrote,
+  behind the same `public_text` guard, and the nightly news round counts the Russian
+  outlets in sources.json with the local Russian reader, never the model, on its own caps.
+  Russian rows sit under registers of their own (`ru:news`, `ru:unfiled`;
+  `registers.in_language`), so no Hebrew yardstick, topic run or picker reads a Russian
+  lemma. The root lexicon reads Russian from the ledger, and its private `tables-ru.db`
+  and `build_roots.py --sweep` are gone. What readers bring and the finds pool stay
+  Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
+  on the Hebrew yardsticks. `targum tables news` previews each language's night on a
+  line of its own, under its own caps. Counts only. Spends nothing. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- A word the model tagged without its dictionary form no longer shows a part of speech
+  as its form (targum-internal#562). A line written as the word, its tag and its features
+  was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf
+  had "cconj", "noun" or "verb" as their dictionary form and X as their tag, on the card,
+  in the word list and in the difficulty measure. Such a line is now read as the word
+  standing for its own form, with its tag and grammar, and a reading already bought is
+  mended as it is read from the cache, so nothing is bought again and the annotator keeps
+  its name. Measured on the 21 Russian texts with such words: the share looked up falls by
+  up to 10 points (ovd-buryatia-father 17 to 8, teplitsa-repression-archives 17 to 7,
+  which is what the catalogue already says), and no text changes level. A built text keeps
+  its words until it is annotated again. No new strings.
 - A row too tall for a page is cut between lines in each of its columns (2026-11-04). A
   halakha whose English ran longer than its Hebrew was cut once for both columns, and
   their lines interleave, so there was no gap to cut in and the cut fell through a line:

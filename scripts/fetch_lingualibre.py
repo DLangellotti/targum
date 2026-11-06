@@ -30,15 +30,19 @@ import sys
 from pathlib import Path
 
 from targum import voices
+from targum.tables.registers import language_of
 from targum.tables.store import Store
 from targum.tables.words import WORDS
 
 
-def top_lemmas(ledger: Path, limit: int) -> list[str]:
-    """The commonest weighed lemmas over every register, as the tables count them."""
+def top_lemmas(ledger: Path, limit: int, language: str = "he") -> list[str]:
+    """The commonest weighed lemmas over every register of one language, as the tables
+    count them (each language's registers are its own, `registers.in_language`)."""
     store = Store(ledger)
     totals: dict[str, int] = {}
     for register in store.registers(WORDS):
+        if language_of(register) != language:
+            continue
         for key, n in store.top(WORDS, register, limit=10**7):
             totals[key] = totals.get(key, 0) + n
     ranked = sorted(totals.items(), key=lambda item: (-item[1], item[0]))
@@ -78,7 +82,7 @@ def main() -> int:
         ledger = args.ledger or (
             Path(raw).expanduser() if raw else Path.home() / ".targum" / "corpus.db"
         )
-        lemmas = top_lemmas(ledger, args.top)
+        lemmas = top_lemmas(ledger, args.top, args.language)
         if not lemmas:
             print(f"No lemmas in {ledger}.", file=sys.stderr)
             return 1

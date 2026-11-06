@@ -135,7 +135,8 @@ class HardSpot:
     #: (`annotate.motion`), "grammar:word_order" (read off the stored grammar,
     #: `annotate.word_order`), "pointing:vav_consecutive" (read off the pointed text,
     #: `annotate.vav_consecutive`), "pieces:suffixes" (read off the pieces line and the
-    #: word's letters, `annotate.suffixes`), or "none".
+    #: word's letters, `annotate.suffixes`), "lookup:false_friends"
+    #: (`annotate.false_friends`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -250,6 +251,12 @@ RECORDED: dict[str, Record] = {
     "ru": Record(
         issues_listed=date(2026, 10, 13),
         where="targum-internal 30d9a1e (languages/ru.md)",
+    ),
+    # The list drawn up with the per-language records (targum-internal#445), entered under
+    # targum-internal#644. No read-through yet, and no reading for blockers.
+    "fr": Record(
+        issues_listed=date(2026, 10, 12),
+        where="targum-internal b4c0740 (languages/fr.md)",
     ),
 }
 
@@ -441,14 +448,29 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
             "card",
             ("model-lemma", "ud-fr-gsd", "role_accuracy"),
         ),
-        HardSpot("passé composé against imparfait", "feature:Tense", "card", None),
+        # Scored on ling-fr's hand-read gold of 62 sentences from the French shelf, the
+        # tense the card names against the one she read (targum-internal#644), with the
+        # traps it must call neither beside it in floors.json.
+        HardSpot(
+            "passé composé against imparfait",
+            "feature:Tense",
+            "card",
+            ("model-lemma", "pd-fr-pc-imp", "pc_imp_accuracy"),
+        ),
         HardSpot(
             "liaison and the sound-spelling gap",
             "stage:said",
             "pieces",
             ("morphalou-3.1+gruut-liaison", "pd-fr-drafted", "liaison_precision"),
         ),
-        HardSpot("false friends", "none", "none", None),
+        # targum's own list, read line by line and in context by ling-fr on 2026-11-05
+        # (targum-internal#644, #267).
+        HardSpot(
+            "false friends",
+            "lookup:false_friends",
+            "card",
+            ("false-friends", "pd-fr-friends", "friend_precision"),
+        ),
         HardSpot(
             "subjunctive", "feature:Mood", "card", ("model-lemma", "ud-fr-gsd", "mood_accuracy")
         ),

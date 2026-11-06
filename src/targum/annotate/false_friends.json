@@ -1,7 +1,7 @@
 {
  "made": "Drafted by the model (Claude Opus 5), a slice of the alphabet at a time, from its own knowledge of French and English; no published list was copied, and Wiktionary's appendix (CC BY-SA) is lookup only. Every entry was then judged by the model in a second, separate request, which kept 347 of 549; checked against Grammalecte's lexicon (MPL-2.0) that the French is a headword, which dropped 6 more; and read once more by the coding agent that built it (Claude Code), not a person, which dropped 26 whose lemma is shared by a common word of another meaning or whose English sense is ordinary French too. scripts/false_friends.py, 2026-09-28, targum-internal#267.",
- "reviewed": false,
- "review": "No person has read this list yet. A person reads every line before this says true.",
+ "reviewed": true,
+ "review": "Read line by line by ling-fr, targum's French language owner, on 2026-11-05 (targum-internal#644, which counts as a person's read under #529): 304 of 315 right; 4 dropped (merci, notoire, agression, spectacle), 4 reglossed (susceptible, embrasser, misérable, robe), 2 look-alikes mended (ranger, supplier), truculent spelt British, matériel flagged as a noun only, and 11 added. An entry with `only_pos` is said only where every use of the word in the text has that part of speech, and one with `only_before` only where every use is followed by one of those words.",
  "licence": "AGPL-3.0-or-later, as targum's own work",
  "entries": [
   {
@@ -77,12 +77,6 @@
    "pos": "NOUN"
   },
   {
-   "french": "agression",
-   "looks_like": "aggression",
-   "means": "assault, mugging",
-   "pos": "NOUN"
-  },
-  {
    "french": "allocation",
    "looks_like": "allocation",
    "means": "benefit, allowance",
@@ -141,6 +135,17 @@
    "looks_like": "apparel",
    "means": "device, machine",
    "pos": "NOUN"
+  },
+  {
+   "french": "assister",
+   "looks_like": "to assist",
+   "means": "(assister à) to attend, to witness",
+   "pos": "VERB",
+   "only_before": [
+    "à",
+    "au",
+    "aux"
+   ]
   },
   {
    "french": "assumer",
@@ -339,6 +344,12 @@
    "looks_like": "cabinet",
    "means": "office, (doctor's or lawyer's) practice",
    "pos": "NOUN"
+  },
+  {
+   "french": "candide",
+   "looks_like": "candid",
+   "means": "naive, innocent",
+   "pos": "ADJ"
   },
   {
    "french": "casserole",
@@ -599,6 +610,12 @@
    "pos": "VERB"
   },
   {
+   "french": "déguster",
+   "looks_like": "to disgust",
+   "means": "to taste, to savour",
+   "pos": "VERB"
+  },
+  {
    "french": "délai",
    "looks_like": "delay",
    "means": "time allowed, deadline",
@@ -635,6 +652,12 @@
    "pos": "VERB"
   },
   {
+   "french": "dérober",
+   "looks_like": "to disrobe",
+   "means": "to steal; (se dérober) to slip away, to shirk",
+   "pos": "VERB"
+  },
+  {
    "french": "effectivement",
    "looks_like": "effectively",
    "means": "indeed, that's right",
@@ -643,7 +666,7 @@
   {
    "french": "embrasser",
    "looks_like": "to embrace",
-   "means": "to kiss",
+   "means": "to kiss; (in older texts) to hug",
    "pos": "VERB"
   },
   {
@@ -836,6 +859,12 @@
    "french": "grappe",
    "looks_like": "grape",
    "means": "bunch, cluster",
+   "pos": "NOUN"
+  },
+  {
+   "french": "grief",
+   "looks_like": "grief",
+   "means": "grievance, complaint",
    "pos": "NOUN"
   },
   {
@@ -1124,13 +1153,8 @@
    "french": "matériel",
    "looks_like": "material",
    "means": "equipment, gear",
-   "pos": "NOUN"
-  },
-  {
-   "french": "merci",
-   "looks_like": "mercy",
-   "means": "thank you, thanks",
-   "pos": "NOUN"
+   "pos": "NOUN",
+   "only_pos": "NOUN"
   },
   {
    "french": "messe",
@@ -1153,7 +1177,7 @@
   {
    "french": "misérable",
    "looks_like": "miserable",
-   "means": "destitute, wretchedly poor",
+   "means": "wretched, pitiful; destitute",
    "pos": "ADJ"
   },
   {
@@ -1199,10 +1223,11 @@
    "pos": "NOUN"
   },
   {
-   "french": "notoire",
-   "looks_like": "notorious",
-   "means": "well-known, widely acknowledged",
-   "pos": "ADJ"
+   "french": "nouvelle",
+   "looks_like": "novel",
+   "means": "piece of news; short story",
+   "pos": "NOUN",
+   "only_pos": "NOUN"
   },
   {
    "french": "nul",
@@ -1215,6 +1240,12 @@
    "looks_like": "officious",
    "means": "unofficial, off the record",
    "pos": "ADJ"
+  },
+  {
+   "french": "ostensiblement",
+   "looks_like": "ostensibly",
+   "means": "openly, conspicuously",
+   "pos": "ADV"
   },
   {
    "french": "pain",
@@ -1349,6 +1380,12 @@
    "pos": "NOUN"
   },
   {
+   "french": "pétulant",
+   "looks_like": "petulant",
+   "means": "lively, exuberant",
+   "pos": "ADJ"
+  },
+  {
    "french": "quart",
    "looks_like": "quart",
    "means": "quarter, one fourth",
@@ -1362,7 +1399,7 @@
   },
   {
    "french": "ranger",
-   "looks_like": "to ranger",
+   "looks_like": "ranger",
    "means": "to tidy up, put away",
    "pos": "VERB"
   },
@@ -1389,6 +1426,12 @@
    "looks_like": "rentable",
    "means": "profitable",
    "pos": "ADJ"
+  },
+  {
+   "french": "rente",
+   "looks_like": "rent",
+   "means": "annuity, private income",
+   "pos": "NOUN"
   },
   {
    "french": "renverser",
@@ -1423,7 +1466,7 @@
   {
    "french": "robe",
    "looks_like": "robe",
-   "means": "dress",
+   "means": "dress; (of an animal) coat",
    "pos": "NOUN"
   },
   {
@@ -1541,12 +1584,6 @@
    "pos": "NOUN"
   },
   {
-   "french": "spectacle",
-   "looks_like": "spectacle",
-   "means": "show, performance",
-   "pos": "NOUN"
-  },
-  {
    "french": "square",
    "looks_like": "square",
    "means": "small public garden",
@@ -1572,7 +1609,7 @@
   },
   {
    "french": "supplier",
-   "looks_like": "to supplier",
+   "looks_like": "supplier",
    "means": "to beg, implore",
    "pos": "VERB"
   },
@@ -1603,7 +1640,7 @@
   {
    "french": "susceptible",
    "looks_like": "susceptible",
-   "means": "touchy, oversensitive",
+   "means": "touchy, quick to take offence; (susceptible de) liable to, capable of",
    "pos": "ADJ"
   },
   {
@@ -1747,8 +1784,14 @@
   {
    "french": "truculent",
    "looks_like": "truculent",
-   "means": "colorful, earthy",
+   "means": "colourful, earthy",
    "pos": "ADJ"
+  },
+  {
+   "french": "trépasser",
+   "looks_like": "to trespass",
+   "means": "to die, to pass away (literary)",
+   "pos": "VERB"
   },
   {
    "french": "turbulent",
@@ -1839,6 +1882,12 @@
    "looks_like": "to elaborate",
    "means": "to work out, draw up",
    "pos": "VERB"
+  },
+  {
+   "french": "émérite",
+   "looks_like": "emeritus",
+   "means": "highly skilled, outstanding",
+   "pos": "ADJ"
   },
   {
    "french": "énerver",

@@ -19,6 +19,7 @@ still say so. This is the part that can be had for free.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -2009,3 +2010,93 @@ def test_a_word_known_before_and_marked_again_was_not_learned_here() -> None:
     """Known already — ticked off, or imported from "Words you may already know" — and
     put to another stage keeps no flag on the way down."""
     assert learned_after(KNOWN, 2) == 0
+
+
+def _pc_imparfait_eval() -> Any:
+    import importlib.util
+    import sys
+
+    where = Path(__file__).resolve().parent.parent / "scripts" / "eval_pc_imparfait.py"
+    spec = importlib.util.spec_from_file_location("eval_pc_imparfait", where)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eval_pc_imparfait"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+#: What the card's line opens with, as the eval's label for it.
+_LABELS = {
+    "passé composé": "PC",
+    "pluperfect": "PQP",
+    "past anterior": "PA",
+    "future perfect": "FUTP",
+    "past conditional": "COND",
+    "past subjunctive": "OTHER",
+    "past infinitive": "OTHER",
+    "perfect participle": "OTHER",
+    "passive": "PASSIVE",
+}
+
+
+def test_the_passe_compose_eval_names_compounds_as_reader_js_does() -> None:
+    """`scripts/eval_pc_imparfait.py` scores a Python port of reader.js's compound naming
+    (targum-internal#644). The same participles, auxiliaries and reflexives go through
+    both, and the port must say what the card says, so the floor never measures a copy
+    that has drifted. The port's tables are reader.js's own, read off its source."""
+    from targum.models import Token
+
+    port = _pc_imparfait_eval()
+    source = (
+        Path(__file__).resolve().parent.parent / "src/targum/render/assets/reader.js"
+    ).read_text(encoding="utf-8")
+    opens = source.index("var ETRE_VERBS = {};")
+    block = source[opens : source.index('.split(" ")', opens)]
+    etre = set(" ".join(re.findall(r'"([^"]*)"', block)).split())
+    assert etre == port.ETRE_VERBS
+    reflexives = re.search(r"var REFLEXIVES = \{([^}]*)\}", source)
+    assert reflexives is not None
+    assert set(re.findall(r'"?([a-zé\']+)"?:\s*true', reflexives.group(1))) == port.REFLEXIVES
+    reach = re.search(r"var AUXILIARY_REACH = (\d+);", source)
+    assert reach is not None and int(reach.group(1)) == port.AUXILIARY_REACH
+
+    def aux(**feats: str) -> str:
+        return "|".join(["UPOS=AUX", *(f"{key}={value}" for key, value in feats.items())])
+
+    lines = [
+        aux(Tense="Pres", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Imp", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Past", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Fut", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Pres", VerbForm="Fin", Mood="Cnd"),
+        aux(Tense="Pres", VerbForm="Fin", Mood="Sub"),
+        aux(VerbForm="Inf"),
+        aux(Tense="Past", VerbForm="Part"),
+    ]
+    asks: list[list[Any]] = []
+    expected: list[str] = []
+    for line in lines:
+        for helper in ("avoir", "être"):
+            for verb in ("manger", "arriver", "laver", "naître"):
+                for reflexive in (False, True):
+                    asks.append([PARTICIPLE, verb, line, helper, reflexive])
+                    words = (["se"] if reflexive else []) + [helper, verb]
+                    text = " ".join(words)
+                    tokens, at = [], 0
+                    for one in words:
+                        tokens.append(
+                            Token(
+                                start=at,
+                                end=at + len(one),
+                                surface=one,
+                                lemma=one,
+                                band=0,
+                                feats=line
+                                if one == helper
+                                else (PARTICIPLE if one == verb else ""),
+                            )
+                        )
+                        at += len(one) + 1
+                    expected.append(port.named(text, tokens, len(tokens) - 1))
+    said = run([], language="fr", compoundLines=asks, tensesApart=True)["compounds"]
+    assert [_LABELS[line.split(" · ")[0]] for line in said] == expected

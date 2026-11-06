@@ -13,9 +13,9 @@ gloss cache gave one) or its stressed form (Russian, looked up in OpenRussian), 
 of speech and its cached English gloss. Never a sentence. The lemmas come only from the
 language tables (`tables.Store.top`), which only public texts reach
 (`tables.public_text`); never from `word` rows or the gloss cache, which hold private
-imports. Russian is not folded into the corpus ledger (`tables.words.LANGUAGES`), so the
-generator folds the public Russian texts into a store file of its own
-(`russian_store`), under the same guard, where no Hebrew yardstick reads it.
+imports. Russian is folded into the corpus ledger beside Hebrew since targum-internal#637,
+under registers of its own (`ru:news`, `tables.registers.in_language`), so no Hebrew
+yardstick reads a Russian lemma and the generator reads both from the same ledger.
 
 **What comes back.** Hebrew: the root as letters joined by a maqaf, or none; the pattern
 (the binyan of a verb, the mishkal of a noun or adjective as a ק־ט־ל template, a linear
@@ -61,15 +61,12 @@ PROMPT_VERSION = "prompt/1"
 RESEARCH = Path.home() / ".targum" / "research" / "roots"
 #: The check sources, fetched by hand into the research directory. None is in the repo.
 SOURCES = RESEARCH / "sources"
-#: The private store the public Russian texts are folded into for this generator alone.
-RUSSIAN_TABLES = RESEARCH / "tables-ru.db"
-
 #: The registers each language's lemmas are drawn from, by default: every register the
 #: laptop's tables hold modern text under (`tables.registers`), and for Russian the two
-#: its texts are filed under.
+#: its texts are filed under, in its own name (`tables.registers.in_language`).
 REGISTERS: dict[str, tuple[str, ...]] = {
     "he": ("news", "modern", "unfiled", "scenes", "weekly"),
-    "ru": ("news", "unfiled"),
+    "ru": ("ru:news", "ru:unfiled"),
 }
 
 
@@ -137,19 +134,6 @@ def _openrussian_stress() -> Callable[[str], str]:
     if held is None:
         return lambda lemma: ""
     return held.headword
-
-
-def russian_store(library: Path, file: Path | None = None) -> tuple[Store, Any]:
-    """The public Russian texts under `library` folded into a store file of their own, and
-    the sweep's result. Reads files and writes rows; runs no model and spends nothing. A
-    reader's home is skipped, exactly as in the corpus ledger's own sweep."""
-    from .tables import Store, no_models, sweep
-
-    store = Store(file or RUSSIAN_TABLES)
-    store.file.parent.mkdir(parents=True, exist_ok=True)
-    with no_models():
-        result = sweep(library, store, ("ru",))
-    return store, result
 
 
 # --- Prices -----------------------------------------------------------------------------

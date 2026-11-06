@@ -11,7 +11,11 @@ Two numbers the card's acceptance criteria ask for, against `evals/french-said-g
   there, and for the words the table says two ways, or that the card says by their parts,
   the reading the gold chose. Coverage, the share of words given any reading, beside it.
 
-**The gold is model-drafted and has not been read by a person.** 342 sentences of four
+**The gold was model-drafted and has been read by a person**: ling-fr read every site
+and every chosen reading on 2026-11-05 (targum-internal#644), corrected 14 sites and added
+the readings a word's sentence gives it (*tous* /tu/, *six*/*dix* /si/, /di/), which the
+table alone cannot be scored on. The corpus keeps its name, `pd-fr-drafted`, so the
+ledger reads as one series. 342 sentences of four
 public-domain texts on the French shelf (Perrault, Daudet, Maupassant, Allais), split as
 the tagger splits them. Each word's part of speech was drafted by a model following the
 tagger's own instruction (`model_lemma.SYSTEM`) and placed by the tagger's own parser;
@@ -152,7 +156,7 @@ def main() -> None:
 
     tags = "tagger" if args.tagger else "gold"
     note = evals.pinned(
-        f"sentences={len(rows)} tags={tags}; gold model-drafted, not yet read by a person",
+        f"sentences={len(rows)} tags={tags}; gold model-drafted, read by ling-fr 2026-11-05",
         [args.gold],
     )
     version = f"{morphalou.VERSION}/{tags}"
