@@ -746,15 +746,15 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
           if ! systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
               --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
               /usr/local/bin/targum finds forms --check /var/lib/targum/forms.json \
-                --language "$finds_language"; then
-            echo "   the $finds_language finds map was left out or is short on this box; $finds_language pools no finds and is not calibrated" >&2
+                --language "\$finds_language"; then
+            echo "   the \$finds_language finds map was left out or is short on this box; \$finds_language pools no finds and is not calibrated" >&2
             continue
           fi
           systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
             --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
             /usr/local/bin/targum finds calibrate --library /var/lib/targum/targums \
-              --language "$finds_language" --store /var/lib/targum/targum.db \
-            || echo "   the $finds_language finds calibration did not run; the back office shows the last one" >&2
+              --language "\$finds_language" --store /var/lib/targum/targum.db \
+            || echo "   the \$finds_language finds calibration did not run; the back office shows the last one" >&2
         done
       else
         echo "   the finds map was not written or failed its check; finds keep the one they had" >&2
