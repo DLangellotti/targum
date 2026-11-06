@@ -168,11 +168,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   lemmas on two models for $4.79 (#638 has spent $5.28 in all), and 9,240 of them carry
   an agreed topic in `topics-ru.json`. Scored on v2, the full run's agreed precision is
   99% (95% CI 94-99.8%), but `general` precision is 83%: the models' answers moved
-  between runs, and косица, заспанный and лето came back `general`. So the gate fails,
-  and the lexicon shows no topic. Had it passed, only People & feelings would be shown:
-  it is the one topic with the 15 gold rows a topic needs. `score_topics.py --lexicon` sets a lexicon's `shown`
-  from its gold score (`topics.shown_from`), and sets none if the gate fails. No page
-  reads the Russian lexicon yet. No new strings.
+  between runs, and косица, заспанный and лето came back `general`. On v2 the gate
+  fails. ling-ru's v3 gold keeps v2's 133 rows and adds 537 rows she drew blind with
+  seed 6382, 670 in all, and on v3 the full run passes: agreed precision 91% (95% CI
+  88-94%) and `general` 94%. So `topics-ru.json` shows the eleven topics that pass one by
+  one: Family, Food, Money, Work, School, Health, Culture, Law, Security, Science and
+  Religion. Everyday life, People, Travel, Nature and Politics are tagged but not shown.
+  Law, Security, Science and Religion pass on exactly 15 gold rows each. Some of those
+  rows were kept because ling-ru had labelled them with that topic, so their precision
+  is likely optimistic. `score_topics.py --lexicon` sets a lexicon's `shown` from its
+  gold score (`topics.shown_from`), and sets none if the gate fails. No page reads the
+  Russian lexicon yet. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
