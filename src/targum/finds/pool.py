@@ -537,11 +537,17 @@ def pick(
 # -- runs and spend ---------------------------------------------------------------
 
 
-def start_run(store: Store, source: str, at: int | None = None) -> int:
+def start_run(store: Store, source: str, at: int | None = None, note: Any = "") -> int:
+    """Open a run. A `note` given here (a night's language) is there while it runs, so a
+    run killed before `finish_run` still says it; `finish_run` writes the whole note."""
     with store.write() as db:
         cursor = db.execute(
-            "INSERT INTO find_run (source, started) VALUES (?, ?)",
-            (source, now_ms() if at is None else at),
+            "INSERT INTO find_run (source, started, note) VALUES (?, ?, ?)",
+            (
+                source,
+                now_ms() if at is None else at,
+                note if isinstance(note, str) else json.dumps(note, ensure_ascii=False),
+            ),
         )
     return int(cursor.lastrowid or 0)
 

@@ -1215,6 +1215,13 @@ Behind `TARGUM_FINDS_WEB` until it is switched on.
   sources, shared over the days left in the month. At the default $30 that is about 65¢
   a night; raising the budget lets it reach the dollar. The model is Claude Haiku 4.5,
   the cheapest that takes the search tool, at about 2.5¢ a search.
+- **Russian has its own fifty cents a night** (David, 2026-11-06), on top of Hebrew's
+  dollar, which Hebrew keeps whole: $1.50 a night at most across the two. Neither draws
+  on the other's: a language's night stops at its own cap, a run killed partway counts
+  against its own language, and Hebrew runs first. The month's budget still caps both,
+  and its pace goes to Hebrew first, so at the default $30 Russian gets nothing; it
+  reaches its fifty cents at about $55. The budget is money, not the YouTube quota:
+  Russian's YouTube round still runs on the units Hebrew's leaves.
 - **The pages are read direct and let go.** Each page is fetched once, straight from its
   site and never through the paid proxy, only where its robots.txt allows, never from a
   host that refused us, at most five from one host a night. The host and word screens,

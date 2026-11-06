@@ -62,10 +62,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `holidays` chip in Russian and `army` hidden (David, 2026-11-05), "РКИ" at A1–A2 and
   «простым языком» at B1. A Russian reader's rung is counted on the CEFR, as the pool
   counts it. Each night's rotation is kept per language. Hebrew runs first each night,
-  and Russian runs on what the night has left: the web night's $1 and YouTube's units are
-  still the night's, so nothing new is spent, and a host gives at most five pages a
-  night across both languages. The live look's `security` topic asks «безопасность»
-  without *армия*, so nothing steers a Russian look toward the hidden `army` (ling-ru's,
+  and a host gives at most five pages a night across both languages. Russian has its own
+  $0.50 a night of web search on top of Hebrew's $1, which Hebrew keeps whole (David,
+  2026-11-06; design.md §12): neither draws on the other's, a run killed partway counts
+  against its own language, and the month's budget and its pace (Hebrew's first) still
+  cap both, so at the default $30 Russian gets nothing until the budget is about $55.
+  YouTube's units are not money: Russian's round still runs on what Hebrew's leaves.
+  The live look's `security` topic asks «безопасность» without *армия*, so nothing steers a Russian look toward the hidden `army` (ling-ru's,
   awaiting David's read). The easy YouTube queries for Russian are ling-ru's «РКИ»,
   «сказка для детей» and «простым языком» (awaiting David's read). Hebrew is unchanged.
   No new strings.

@@ -251,25 +251,82 @@ def test_a_russian_web_night_searches_the_russian_phrases_and_pools_russian(
     assert pool.last_next(store, web.RUN_SOURCE, "he") == 0, "Hebrew's rotation untouched"
 
 
-def test_the_nights_dollar_is_shared_so_russian_has_what_hebrew_left(store: Store) -> None:
-    """The $1 is the night's, not each language's: no new spend for Russian."""
-    run = pool.start_run(store, web.RUN_SOURCE, AT)
-    pool.spend(store, run, web.NIGHT_USD)
-    pool.finish_run(store, run, note={"next": 7}, at=AT)
+def _russian_night(store: Store, cost: float = 0.03, at: int = AT) -> tuple[list[str], web.Night]:
     asked: list[str] = []
+
+    def ask(query: str) -> web.Searched:
+        asked.append(query)
+        return web.Searched(searches=1, cost=cost)
+
     found = web.refresh(
         store,
         language="ru",
-        ask=lambda query: asked.append(query) or web.Searched(),
+        ask=ask,
         read=lambda url: ("", 0),
         robots=ALLOW,
         forms_for=lambda language: forms(),
         publishers=[],
         lean={},
-        at=AT,
+        at=at,
     )
-    assert asked == [] and found.stopped.startswith("the night's $")
+    return asked, found
+
+
+def test_russian_has_its_own_fifty_cents_when_hebrew_spent_its_dollar(store: Store) -> None:
+    """David, 2026-11-06: Russian's $0.50 a night is on top of Hebrew's $1."""
+    run = pool.start_run(store, web.RUN_SOURCE, AT)
+    pool.spend(store, run, web.NIGHT_USD)
+    pool.finish_run(store, run, note={"next": 7}, at=AT)
+    assert web.allowance(store, AT, "he") == 0.0
+    asked, found = _russian_night(store, cost=0.1)
+    assert found.allowance == pytest.approx(0.5)
+    # 0.1 each; the next needs 0.15 of room, so four fit inside the fifty cents.
+    assert len(asked) == 4 and found.spent == pytest.approx(0.4)
+    assert found.stopped == "the night's $0.50"
     assert pool.last_next(store, web.RUN_SOURCE, "he") == 7, "an old note is Hebrew's"
+
+
+def test_russian_never_passes_its_fifty_cents(store: Store) -> None:
+    _russian_night(store, cost=0.1)
+    asked, again = _russian_night(store, cost=0.1, at=AT + 60_000)
+    assert again.allowance == pytest.approx(0.1), "a run by hand shares Russian's own cap"
+    assert len(asked) == 1, "one more call fits, and then the cap is spent"
+    assert web.spent_today(store, AT + 60_000, "ru") == pytest.approx(0.5)
+    assert web.allowance(store, AT + 120_000, "ru") == pytest.approx(0.0)
+
+
+def test_hebrew_keeps_its_dollar_whatever_russian_spent(store: Store) -> None:
+    _russian_night(store, cost=0.1)
+    assert web.NIGHT_USD_BY["he"] == web.NIGHT_USD == 1.0
+    assert web.allowance(store, AT + 60_000, "he") == pytest.approx(1.0)
+    assert web.spent_today(store, AT + 60_000, "he") == 0.0
+    assert web.spent_today(store, AT + 60_000) == pytest.approx(0.4)
+
+
+def test_a_killed_russian_night_counts_against_russian(store: Store) -> None:
+    run = pool.start_run(store, web.RUN_SOURCE, AT, note={"language": "ru"})
+    pool.spend(store, run, 0.5)  # never finished
+    assert web.allowance(store, AT, "ru") == 0.0
+    assert web.allowance(store, AT, "he") == pytest.approx(1.0)
+
+
+def test_the_month_s_pace_goes_to_hebrew_first(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    early = int(datetime(2026, 11, 1, 0, 12, tzinfo=UTC).timestamp() * 1000)
+    # $30 less the $10 kept back, over 30 days: Hebrew's 67c and nothing for Russian.
+    assert web.allowance(store, early, "he") == pytest.approx(20 / 30)
+    assert web.allowance(store, early, "ru") == 0.0
+    monkeypatch.setenv(pool.BUDGET_ENV, "40")
+    assert web.allowance(store, early, "he") == pytest.approx(1.0)
+    assert web.allowance(store, early, "ru") == pytest.approx(0.0)
+    monkeypatch.setenv(pool.BUDGET_ENV, "55")
+    assert web.allowance(store, early, "ru") == pytest.approx(0.5)
+    # What Russian spent first is given back to Hebrew's pace, never taken from it.
+    monkeypatch.setenv(pool.BUDGET_ENV, "40")
+    run = pool.start_run(store, web.RUN_SOURCE, early, note={"language": "ru"})
+    pool.spend(store, run, 0.3)
+    assert web.allowance(store, early, "he") == pytest.approx(1.0)
 
 
 # -- the wikis -----------------------------------------------------------------------
