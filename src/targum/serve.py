@@ -1805,6 +1805,31 @@ ANKI_STUCK_MS = 6 * 60 * 60 * 1000
 ANKI_LOCK = threading.Lock()
 
 
+#: How long the back office keeps one count of withheld kinds: it reads every
+#: `document.json` in the library, and a kind forgotten is news by the day, not the minute.
+WITHHELD_FOR = 600.0
+_withheld_seen: dict[Path, tuple[float, dict[str, int]]] = {}
+
+
+def withheld_survey(root: Path, *, now: float | None = None) -> dict[str, int]:
+    """Built texts withheld for a kind not listed public, by kind, for the back office
+    (targum-internal#653): read at most every `WITHHELD_FOR` seconds, and never raising,
+    because the page matters more than the count."""
+    from .kinds import withheld_kinds
+
+    at = time.monotonic() if now is None else now
+    held = _withheld_seen.get(root)
+    if held is not None and at - held[0] < WITHHELD_FOR:
+        return held[1]
+    try:
+        found = dict(withheld_kinds(root))
+    except OSError as error:
+        log.warning("back office: withheld kinds not counted: %s", error)
+        return held[1] if held is not None else {}
+    _withheld_seen[root] = (at, found)
+    return found
+
+
 class Library:
     """Everything built so far, and the jobs building more."""
 
@@ -9019,6 +9044,7 @@ class Handler(BaseHTTPRequestHandler):
             reader=one,
             finds=self._finds_survey(),
             fit=self._fit_survey(),
+            withheld=withheld_survey(self.library.out),
         )
         self._send(200, page.encode("utf-8"), HTML)
 

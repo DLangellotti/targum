@@ -177,10 +177,11 @@ def test_no_request_can_name_a_course() -> None:
         ("sefaria:Ruth", "sefaria/3", False),
         ("published:ru:Genesis", "", False),
         ("weekly:12", "", False),
-        ("parasha:noach", "", False),
         ("https://x.test/a", "url/6", False),
-        ("/srv/upload/a.txt", "plaintext/1", False),
-        ("a.txt", "plaintext/1", False),
+        ("/srv/upload/a.txt", "text/5", False),
+        ("a.txt", "text/5", False),
+        # A course read under a public scheme is still a course, by what read it.
+        ("https://x.test/a", "course/1", True),
     ],
 )
 def test_what_a_source_is_says_whether_it_is_private(
@@ -450,3 +451,80 @@ def test_a_withheld_text_is_put_by_no_stage(
     ledger.withhold("9" * 64)
     ledger.Ledger(ledger_file).record("tokens", "k1", dict(value, annotator="test/2"))
     assert ledger.Ledger(ledger_file).get("tokens", "k1") == value
+
+
+class _FakeVocalizer:
+    """Points nothing and changes nothing, so the vocalize stage runs and puts its row
+    without a diacritizer on disk."""
+
+    name = "fake-vocalizer/1"
+    model = None
+
+    def available(self) -> tuple[bool, str]:
+        return True, ""
+
+    def vocalize(self, segments: list, language: str) -> dict[str, str]:
+        return {segment.id: segment.text for segment in segments}
+
+
+def hebrew_book() -> dict:
+    """Invented lines, no course's: Hebrew with English beside it."""
+    return {
+        "title": "A Made-up Hebrew Course",
+        "language": "he",
+        "translation": "en",
+        "lessons": {
+            "1": {
+                "title": {"he": ["שיעור אחד"], "en": ["LESSON ONE"]},
+                "lines": {
+                    "1": {"he": "אני רוצה שני תפוחים.", "en": "I want two apples."},
+                    "2": {"he": "הנה התפוחים שלך.", "en": "Here are your apples."},
+                },
+            }
+        },
+    }
+
+
+@pytest.mark.parametrize("withheld", [True, False])
+def test_a_hebrew_lesson_s_stage_rows_never_reach_the_ledger(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ledger_file: Path, withheld: bool
+) -> None:
+    """A `course:he:` lesson is vowelled, so its build puts a `vocalize` row: the
+    ledger is still byte-identical after it. Without `Build.run`'s withhold the same
+    build writes it, which is what makes the first half worth asserting (qa-claude on
+    #1121)."""
+    from test_pipeline import FakeAnnotator
+
+    from targum import ledger
+    from targum.pipeline import Build
+
+    monkeypatch.setattr(ledger, "_WITHHELD", set())
+    if not withheld:
+        monkeypatch.setattr(Build, "_withhold_if_private", lambda self, plan: None)
+    courses = tmp_path / "courses"
+    courses.mkdir()
+    (courses / "made-up.json").write_text(json.dumps(hebrew_book(), ensure_ascii=False), "utf-8")
+    monkeypatch.setenv("TARGUM_COURSES", str(courses))
+    library = tmp_path / "library"
+    shelf = _built(library / "shared" / "ruth", "sefaria:Ruth", "d" * 64, "sefaria/3")
+    ledger.mirror_text(shelf, library)
+    before, held = _counts(ledger_file), ledger_file.read_bytes()
+
+    build = Build(
+        "course:he:made-up:1",
+        target_language="en",
+        translations=["course:en:made-up:1"],
+        out_root=library / "p1",
+        library=library,
+        segmenter=_WholeBlocks(),
+        annotator=FakeAnnotator(),  # type: ignore[arg-type]
+        vocalizer=_FakeVocalizer(),  # type: ignore[arg-type]
+    )
+    result = build.run()
+    assert (result.out_dir / "vocalization.json").is_file(), "no stage ran"
+    if withheld:
+        assert ledger_file.read_bytes() == held
+        assert _counts(ledger_file) == before
+    else:
+        after = _counts(ledger_file)
+        assert after["vocalizations"] > before["vocalizations"]

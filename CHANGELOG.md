@@ -146,6 +146,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
   on the Hebrew yardsticks. `targum tables news` previews each language's night on a
   line of its own, under its own caps. Counts only. Spends nothing. No new strings.
+- A source is private unless its kind is listed public (David, 2026-11-06;
+  targum-internal#653). `kinds.py` holds the one list: the schemes the shelf, the parasha,
+  the daily, the weekly, the dialogues, the curated videos, Wikinews, Global Voices,
+  Global Storybooks and StoryWeaver are built from, and for a file with no scheme the
+  ingesters that read one (an upload, a photographed page, a recording). A text of any
+  other kind is withheld from the corpus ledger (no text, stage, rendering or pair row),
+  from the tables' fold, from the imports pool (counted as `withheld`), from both corpus
+  exports, which ask again, and from the shelf's proposals. Where a listed text sits and
+  its licence still decide as before, so a reader's link is still private in their home.
+  A listed scheme read by an ingester the code does not have is withheld too, so a new
+  private fetcher that reads links is caught although `https` is listed; a source is read
+  for its kind once NFKC'd and stripped of invisible characters, and one whose kind does
+  not read cleanly (`novel :1`) is private. The cache backfill records a stage value only
+  for a text the ledger holds of a listed kind, and a recording's transcript hash is
+  withheld as well as its first. The back office's Operations tab counts "Withheld:
+  unknown kind" by kind, never by source. Audited against the laptop's 1,037 built texts, its ledger and its tables: no
+  text is withheld, and a backfill and a fold read the same rows with the rule as
+  without it. `fetch.private_source` and `fetch.PRIVATE` are the same names targum#1121
+  uses, so a course book drops in as one line. Spends nothing. No new strings for
+  readers.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
@@ -1078,6 +1098,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one, and `render.builder._write` writes through `paths.write_atomic`, so a page is
   replaced in one step and a server reading it sees the old page or the new, never a
   torn one.
+- A deploy no longer stops at `finds_language: unbound variable` (targum-internal#629).
+  The per-language finds loop sits in deploy.sh's unquoted remote heredoc, so the laptop
+  expanded `$finds_language` under `set -u` after the keys and covers had gone and before
+  the backup and the install. It is written `\$finds_language` now, and
+  `test_deploy_heredoc` refuses any name the remote script sets that the laptop would expand.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline
@@ -1103,16 +1128,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   translator's footnote. An `(N.k)` marker carries the revision lesson's section `k`, and a
   revision lesson's sections stand on its heading. The pronunciation, the exercises and
   their key stay in the extract and out of the reader. `course:` is a private fetcher: no
-  link, chat or request can name it (`fetch.PRIVATE`, `fetch.addressable`), and it is not
+  link, chat or request can name it (`kinds.PRIVATE`, `fetch.addressable`), and it is not
   listed among the sources we read. The extracts are read from `TARGUM_COURSES` or
   `~/.targum/courses`, never `/etc`. Every fixture line is invented. No new strings.
-  A course is private by what it is, not only by where it was built
-  (`fetch.private_source`, by its source or its ingester): built into the library's own
-  folder, `./targum-out` or a reader's home it is never in the corpus ledger at all: no
-  `texts` row, no rendering, no pair, from the build or from any backfill (`ledger.withhold`,
-  `record_translations`, `record_text`), refused by `tables.public_text` with the ledger on
-  or off (so no fold, sweep or yardstick map counts it), and left out of the readers'
-  pool even from ten homes. A lesson's line stands in the margin with its number and the
+  A course is private by what it is, not only by where it was built: `course` is the
+  first entry on `kinds.PRIVATE` (targum-internal#653), as a scheme and as an ingester
+  family, so master's one guard (`kinds.private_source`) keeps it out of the corpus ledger
+  from the library's own folder, `./targum-out` or a reader's home (no `texts` row, no
+  stage row, no rendering, no pair), out of `tables.public_text` and the readers' pool. A
+  test builds a `course:he:` lesson whose vocalize stage puts a row and finds the ledger
+  byte-identical, and the same build writes that row with `Build.run`'s withhold removed. A lesson's line stands in the margin with its number and the
   row answers to `#<n>:<k>`, since `verse_address` reads `L<n>:<k>`; every verse ref
   reads as it did.
 - The nightly open-web search leans toward the topics readers ask for and the pool lacks

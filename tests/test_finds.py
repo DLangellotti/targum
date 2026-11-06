@@ -367,7 +367,7 @@ def test_deploy_builds_and_checks_the_map_on_the_box() -> None:
     assert "--write /var/lib/targum/forms.json --drop-short" in text, "a thin language alone"
     assert "targum finds forms --check /var/lib/targum/forms.json" in text
     loop = text.split("for finds_language in he ru; do")[1].split("done")[0]
-    assert '--language "$finds_language"; then' in loop, "calibrated only where it shipped"
+    assert '--language "\\$finds_language"; then' in loop, "calibrated only where it shipped"
     assert loop.index("finds forms --check") < loop.index("finds calibrate")
     assert "/etc/targum/forms.json" in text
     assert "for finds_language in he ru; do" in text, "each pooled language calibrated"

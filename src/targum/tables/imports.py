@@ -33,6 +33,10 @@ apart from the public counts of the same name (`registers.pooled`). The rules:
   single spellings with their readings, and counts, as every table does.
 - **Not what a model wrote.** A rewrite, a chat's speech, a scene and the weekly sit in a
   home too, and none of them is something a reader brought.
+- **Not a kind nobody listed.** A source is private unless its kind is listed public
+  (`kinds.private_source`, David 2026-11-06), and one that is not is never read here,
+  not even as counts: a new private kind whose author forgot it would otherwise be
+  pooled, and a count cannot be taken back out of a total.
 
 A text two readers brought is counted once, and both stand behind its keys. The whole
 pool is off unless `TARGUM_IMPORT_COUNTS=1`: turning it on and publishing the privacy
@@ -53,6 +57,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
+from ..kinds import private_source
 from . import roots, spellings
 from .registers import EVERYDAY, IMPORTS, NEWS, PODCASTS, SOCIAL, SORTED, VIDEO, pooled
 from .store import Contribution, Store
@@ -113,8 +118,8 @@ class PoolResult:
     texts: int = 0
     #: Texts in a home that a model wrote (a rewrite, a chat's speech, a scene).
     model_written: int = 0
-    #: Texts in a home that are never counted, even as counts: a course book's lesson,
-    #: somebody's copy of a book in copyright (`fetch.PRIVATE`, qa-claude on #1121).
+    #: Texts in a home never counted, even as counts: a source whose kind is not listed
+    #: public (`kinds.private_source`, targum-internal#653).
     withheld: int = 0
     unreadable: int = 0
     #: Texts read, by the register they were sorted into.
@@ -268,16 +273,6 @@ def _model_written(folder: Path, document: Mapping[str, Any]) -> bool:
     return str(document.get("source") or "").startswith(MODEL_WRITTEN)
 
 
-def _withheld(document: Mapping[str, Any]) -> bool:
-    """Whether a text in a home stays out of the pool by what it is: a private fetcher's
-    (`fetch.private_source`), a course book's lesson today, by its source or by its
-    ingester. Every other text in a home is a reader's private import, which the pool
-    exists to count."""
-    from ..ingest.fetch import private_source
-
-    return private_source(str(document.get("source") or ""), str(document.get("ingester") or ""))
-
-
 def _tallies(
     annotation: Mapping[str, Any], languages: Sequence[str], folder: Path | None = None
 ) -> dict[str, Counter[tuple[str, str]]] | None:
@@ -338,7 +333,9 @@ def pool(
                 if _model_written(folder, document):
                     result.model_written += 1
                     continue
-                if _withheld(document):
+                if private_source(
+                    str(document.get("source") or ""), str(document.get("ingester") or "")
+                ):
                     result.withheld += 1
                     continue
                 annotation = json.loads(file.read_text(encoding="utf-8"))

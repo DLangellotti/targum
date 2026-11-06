@@ -119,6 +119,21 @@ def ledger_off(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def fixture_kind_listed(monkeypatch: pytest.MonkeyPatch):
+    """The fixture catalogue's rows are `test:`, a kind no deployment holds, and a source
+    is private unless its kind is listed public (targum-internal#653). Listed here for
+    the suite, so the fixture shelf stands for the real one; `test_kinds.py` proves an
+    unlisted kind is withheld with a kind nothing lists, and that `test` is not in the
+    module. The fixture's documents are read by `test`, listed the same way. And
+    nothing a test withheld is still withheld in the next one."""
+    from targum import kinds, ledger
+
+    monkeypatch.setattr(kinds, "PUBLIC_KINDS", kinds.PUBLIC_KINDS | {"test"})
+    monkeypatch.setattr(kinds, "PUBLIC_SCHEME_INGESTERS", kinds.PUBLIC_SCHEME_INGESTERS | {"test"})
+    monkeypatch.setattr(ledger, "_WITHHELD", set())
+
+
+@pytest.fixture(autouse=True)
 def no_yardsticks(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
     """The yardstick snapshots are an empty directory unless a test writes one
     (targum-internal#575). Without this a laptop with `~/.targum/tables/` filled would

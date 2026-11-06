@@ -4992,7 +4992,8 @@ def tables_sweep(
     console.print(
         f"[green]Pooled[/green] {pooled.texts} texts from {pooled.readers} readers,"
         f" {pooled.left_out} left out: {rows}"
-        f" [dim]{pooled.model_written} model-written, {pooled.unreadable} unreadable[/dim]"
+        f" [dim]{pooled.model_written} model-written, {pooled.withheld} withheld (unknown kind),"
+        f" {pooled.unreadable} unreadable[/dim]"
     )
     for register, texts in sorted(pooled.by_register.items()):
         console.print(f"  {register}: {texts}")
