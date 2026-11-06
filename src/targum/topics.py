@@ -91,7 +91,7 @@ LEXICONS: dict[str, Path] = {
 }
 #: Each language's prompt version. Russian's starts at its own 1: it is a different
 #: prompt, not a fourth Hebrew one.
-PROMPT_VERSIONS: dict[str, str] = {"he": PROMPT_VERSION, "ru": "ru-prompt/2"}
+PROMPT_VERSIONS: dict[str, str] = {"he": PROMPT_VERSION, "ru": "ru-prompt/3"}
 #: The registers each language's lemmas are drawn from by default: Hebrew's modern
 #: yardsticks, and the two Russian's texts are filed under in its own name
 #: (`tables.registers.in_language`).
@@ -836,7 +836,14 @@ _DEFINITIONS_RU = {
 #: six more, none a gold word either (`tests/test_topics.py` holds the list): a historical
 #: word in its modern counterpart's topic (губерния, городничий), the humanities as
 #: subjects in School (история) and the sciences in Science (физика), and charity and a
-#: small multi-use object kept `general` (нищий, нитка).
+#: small multi-use object kept `general` (нищий, нитка). ru-prompt/3 (2026-11-06) answers
+#: the error patterns of the first predicted-tag sample (#638), never its words: a
+#: nationality, the homeland and the state's abstractions are `general` (немец,
+#: отечество), a material is `general` (стекло), a word used in class but common
+#: everywhere is `general` (вопрос, ответ), what one does online day to day is Everyday
+#: life (браузер, форум), dying is `general` and crying People & feelings (погибнуть,
+#: плакать), and the media are СМИ, never пресс. No example is a gold word or a sampled
+#: one (`tests/test_topics.py`).
 EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("стол", "сто́л", "NOUN", "table", ("family",)),
     ("хлеб", "хле́б", "NOUN", "bread", ("food",)),
@@ -905,6 +912,16 @@ EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("сообщить", "сообщи́ть", "VERB", "to report, to inform", (GENERAL,)),
     ("заявить", "заяви́ть", "VERB", "to state, to declare", (GENERAL,)),
     ("уста", "уста́", "NOUN", "lips, mouth (poetic)", ("health",)),
+    ("немец", "не́мец", "NOUN", "German (man)", (GENERAL,)),
+    ("отечество", "оте́чество", "NOUN", "fatherland", (GENERAL,)),
+    ("стекло", "стекло́", "NOUN", "glass", (GENERAL,)),
+    ("вопрос", "вопро́с", "NOUN", "question", (GENERAL,)),
+    ("ответ", "отве́т", "NOUN", "answer; response", (GENERAL,)),
+    ("браузер", "бра́узер", "NOUN", "web browser", ("everyday",)),
+    ("форум", "фо́рум", "NOUN", "forum (online)", ("everyday",)),
+    ("погибнуть", "поги́бнуть", "VERB", "to perish; to die", (GENERAL,)),
+    ("плакать", "пла́кать", "VERB", "to cry; to weep", ("people",)),
+    ("сми", "СМИ", "NOUN", "mass media", ("culture",)),
 )
 
 
@@ -955,17 +972,24 @@ or `{GENERAL}` where the counterpart is `{GENERAL}`: губерния (today о�
 `{GENERAL}`, городничий is Law & crime. A literary or poetic word (уста, очи) takes the \
 topic of its everyday counterpart.
 7. Science & technology is the natural sciences, research and engineering as fields, and \
-computing as a system. The humanities as subjects of study (history, \
-linguistics, literary theory) are School & study. A device and its everyday use is \
-Everyday life; what the media publish is Free time & culture.
+computing as a system. A device and its everyday use is Everyday life, and so is what \
+one does online day to day: a website, a link, a browser, a forum. A material as such \
+(стекло) is `{GENERAL}`, not Science. School & study is schooling, lessons, subjects \
+and exams; the humanities as subjects of study (history, linguistics, literary theory) \
+are School & study. A word used in class but common everywhere (вопрос, ответ, a word, \
+an activity) is `{GENERAL}`, and sayings, proverbs and tales are Free time & culture.
 8. Words for people as such, by age or sex, are People & feelings; family members are \
-Family & home. The body and its parts are Health & body.
+Family & home. The body and its parts are Health & body, and so are illness and \
+medicine; dying and death are `{GENERAL}` (погибнуть), and crying, groaning and other \
+signs of feeling are People & feelings (плакать). Politics & society is the state's \
+institutions and what they do: a nationality (немец), the homeland (отечество) and \
+adjectives of rank or degree are `{GENERAL}`, and a rank in the civil service is Work.
 9. Time: the units of the clock and the calendar (hour, day, week, month, morning) are \
 Everyday life. Time as such (time, moment, period, occasion, the past, the future) and \
 adverbs of time are `{GENERAL}`.
-10. Media: the press and what it makes (newspaper, article, channel, series) is Free time \
-& culture. Verbs of publishing, reporting, announcing, stating and revealing are \
-`{GENERAL}`, because the news says them about every topic.
+10. Media: the media (СМИ, пресса) and what they make (newspaper, article, channel, \
+series) are Free time & culture. Verbs of publishing, reporting, announcing, stating \
+and revealing are `{GENERAL}`, because the news says them about every topic.
 11. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
 reasonably go either way, or when you are unsure of the Russian. Otherwise `high`.
 
