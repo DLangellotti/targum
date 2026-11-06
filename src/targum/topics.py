@@ -169,6 +169,21 @@ def passes_show(gold: int, precision: float | None, recall: float | None) -> boo
     )
 
 
+def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
+    """The topics a scored run's agreed tags let into `shown` (`passes_show` on each
+    topic's gold row count, precision and recall), in the order of `TOPICS`; none at all
+    unless the run passes the pilot's gate too."""
+    if not scored.get("gate", {}).get("passes"):
+        return ()
+    per_topic = scored.get("per_topic", {})
+    return tuple(
+        code
+        for code in TOPICS
+        if code in per_topic
+        and passes_show(per_topic[code]["gold"], per_topic[code]["P"], per_topic[code]["R"])
+    )
+
+
 def load_shown(file: Path | None = None, language: str = "he") -> tuple[str, ...]:
     """The topics a page may draw for the lexicon at `file` (by default the language's
     own): its `shown` list, in the order of `TOPICS`, or the language's `SHOWN_FOR` where

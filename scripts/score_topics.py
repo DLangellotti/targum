@@ -9,7 +9,9 @@ lenient precision only; the gate reads the strict one.
 
 Each model is scored, and the agreed tags, where a row the two models share nothing on
 counts as `general`: it goes into no bar, exactly as a `general` row does. The score is
-written to `gold-score.json` in the run directory. Spends nothing.
+written to `gold-score.json` in the run directory. `--lexicon` sets that lexicon's
+`shown` to the topics the agreed tags pass one by one (`topics.shown_from`), and to none
+unless the gate passes. Spends nothing.
 
     .venv/bin/python scripts/score_topics.py --run ru-pilot-2026-11-06 --gold GOLD.csv
 """
@@ -78,6 +80,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--run", required=True)
     parser.add_argument("--gold", type=Path, required=True)
+    parser.add_argument(
+        "--lexicon",
+        type=Path,
+        help="A lexicon file (the run's) whose `shown` is set to the topics the agreed tags"
+        " pass topic by topic (`topics.shown_from`): none unless the gate passes.",
+    )
     args = parser.parse_args()
     run = topics.RESEARCH / args.run
     if not (run / "review.tsv").is_file():
@@ -106,6 +114,12 @@ def main() -> int:
     print(f"Gate: {agreed['gate']['rule']}: {'passes' if agreed['gate']['passes'] else 'fails'}")
     for error in agreed["errors"]:
         print(f"  {error['lemma']}: {','.join(error['predicted'])} for {','.join(error['gold'])}")
+    if args.lexicon:
+        held = json.loads(args.lexicon.read_text(encoding="utf-8"))
+        held["shown"] = list(topics.shown_from(agreed))
+        held["shown_scored_on"] = args.gold.name
+        write_atomic(args.lexicon, json.dumps(held, ensure_ascii=False, indent=1))
+        print(f"Shown in {args.lexicon}: {held['shown'] or 'none'}")
     return 0 if agreed["gate"]["passes"] else 4
 
 

@@ -269,6 +269,21 @@ def test_a_topic_joins_shown_only_past_the_gate() -> None:
     assert not topics.passes_show(20, None, 1.0)
 
 
+def test_shown_takes_each_topic_that_passes_and_none_past_a_failed_gate() -> None:
+    held = {
+        "gate": {"passes": True},
+        "per_topic": {
+            "food": {"gold": 15, "P": 0.95, "R": 0.9},
+            "family": {"gold": 14, "P": 1.0, "R": 1.0},
+            "health": {"gold": 20, "P": 0.8, "R": 1.0},
+            "everyday": {"gold": 30, "P": 0.9, "R": 0.85},
+            "general": {"gold": 40, "P": 1.0, "R": 1.0},
+        },
+    }
+    assert topics.shown_from(held) == ("everyday", "food")
+    assert topics.shown_from({**held, "gate": {"passes": False}}) == ()
+
+
 def test_wilson_brackets_the_point_and_narrows_with_more_rows() -> None:
     low, high = topics.wilson(14, 15) or (0.0, 0.0)
     assert low < 14 / 15 < high <= 1.0
@@ -423,9 +438,9 @@ def test_the_score_is_micro_over_topic_labels_and_gates_at_hebrews_bar() -> None
     assert lost["unanswered"] == ["a"] and not lost["gate"]["passes"]
 
 
-#: Every lemma of ling-ru's gold set (`topic-gold-ru-review-2026-11-06.csv`, 133 rows):
-#: no Russian word the prompt shows, in an example or a rule, may be one of them, or the
-#: prompt is taught the test.
+#: Every lemma of ling-ru's gold set (`topic-gold-ru-review-2026-11-06-v2.csv`, 133 rows;
+#: v2 moved only пресс's label, so the lemmas are v1's): no Russian word the prompt shows,
+#: in an example or a rule, may be one of them, or the prompt is taught the test.
 GOLD_RU = frozenset(
     """
     высовывать бай косица служить заспанный кинуть беспредельный перегибаться гнев

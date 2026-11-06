@@ -162,8 +162,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   prompt shows is a gold word, and a test holds it. `--include GOLD.csv` puts every gold
   lemma in a pilot. The second pilot cost $0.26: 573 lemmas, with all 133 gold rows. It
   scored 98% agreed precision (95% CI 92-99%), but `general` precision was 84%, one row
-  under 85%, so the full run was not bought this time either. No page reads the Russian
-  lexicon yet. No new strings.
+  under 85%, so the full run was not bought this time either. On ling-ru's v2 gold, which
+  makes пресс `general` (the machine, the abs and pressure spread over topics), pilot 2
+  passes at 98% and 86%. David bought the full run on that, 2026-11-06. It tagged 10,544
+  lemmas on two models for $4.79 (#638 has spent $5.28 in all), and 9,240 of them carry
+  an agreed topic in `topics-ru.json`. Scored on v2, the full run's agreed precision is
+  99% (95% CI 94-99.8%), but `general` precision is 83%: the models' answers moved
+  between runs, and косица, заспанный and лето came back `general`. So the gate fails,
+  and the lexicon shows no topic. Had it passed, only People & feelings would be shown:
+  it is the one topic with the 15 gold rows a topic needs. `score_topics.py --lexicon` sets a lexicon's `shown`
+  from its gold score (`topics.shown_from`), and sets none if the gate fails. No page
+  reads the Russian lexicon yet. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
