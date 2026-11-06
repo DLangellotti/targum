@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 
 
@@ -64,11 +65,11 @@ def write_atomic(path: Path, text: str) -> Path:
     Anything a second reader or a second process may open while it is being written
     needs this. Writing beside the target and renaming makes every read see one
     complete version or the previous one; rename is atomic within a directory on
-    every platform targum runs on. The pid in the temporary name is what keeps two
-    writers from tearing each other's.
+    every platform targum runs on. The pid and thread in the temporary name are what
+    keep two writers from tearing each other's.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
     try:
         temporary.write_text(text, encoding="utf-8")
         temporary.replace(path)

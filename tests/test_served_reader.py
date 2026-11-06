@@ -20,6 +20,7 @@ from test_offline import TOKEN, book, served  # noqa: F401 - `served` is a fixtu
 
 from targum.render.builder import (
     ASSETS,
+    _write,
     asset_files,
     asset_set,
     carried,
@@ -240,6 +241,43 @@ def test_a_page_is_worked_out_once_while_it_stays_as_it_is(tmp_path: Path) -> No
     assert served_page(page, page.read_bytes()) is first
     page.write_text(page.read_text(encoding="utf-8") + "\n", encoding="utf-8")
     assert served_page(page, page.read_bytes()) is not first
+
+
+def test_a_page_read_while_it_was_written_is_never_kept_for_the_finished_one(
+    tmp_path: Path,
+) -> None:
+    # Beta-found, 2026-11-06: a navigation that read the page mid-write got b"", then
+    # stat'd the finished file and kept the blank page under its name until restart.
+    reader = book(tmp_path / "a-book")
+    page = reader / "sec-0001.html"
+    whole = page.read_bytes()
+    assert served_page(page, b"") == b""
+    torn = whole[: len(whole) // 2]
+    served_page(page, torn)
+    named = served_page(page, whole)
+    assert named and named != served_page(page, torn)
+    assert b"</html>" in named.lower()
+
+
+def test_a_reader_page_is_replaced_in_one_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Truncate-then-write left an empty or half page visible to a server reading it.
+    page = tmp_path / "sec-0001.html"
+    page.write_text("old", encoding="utf-8")
+    written: list[Path] = []
+    real = Path.write_text
+
+    def watched(self: Path, *args: object, **kwargs: object) -> int:
+        written.append(self)
+        assert page.read_text(encoding="utf-8") == "old"
+        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "write_text", watched)
+    assert _write(page, "new") == page
+    assert written and page not in written
+    assert page.read_text(encoding="utf-8") == "new"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["sec-0001.html"]
 
 
 def test_the_worker_never_keeps_a_named_page_as_the_copy_for_the_plane() -> None:

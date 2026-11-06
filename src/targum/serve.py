@@ -17,6 +17,7 @@ import email.utils
 import errno
 import functools
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -5874,9 +5875,12 @@ def _served(text: str) -> str:
     return _CLIP_URI.sub(_clip_address, served_reader(text))
 
 
-#: The last readers handed out named, by file and its state on disk: a book's pages are
-#: opened one after another, and each is worked out once while it stays as it is.
-_SERVED: OrderedDict[tuple[str, int, int, str], bytes] = OrderedDict()
+#: The last readers handed out named, by file and the bytes that were read from it: a
+#: book's pages are opened one after another, and each is worked out once while it stays
+#: as it is. Keyed on what was read, never on a stat taken after it, so a page read while
+#: it was being written is never kept under the finished file's name (beta-found,
+#: 2026-11-06: a reader served blank until restart).
+_SERVED: OrderedDict[tuple[str, bytes, str], bytes] = OrderedDict()
 _SERVED_MOST = 64
 _SERVED_LOCK = threading.Lock()
 
@@ -5902,11 +5906,9 @@ def served_page(path: Path, body: bytes, language: str = "en") -> bytes:
     (`chromed_page`), today's stylesheets, scripts and faces named by address
     (`served_reader`) and its recordings as files of their own, so the browser keeps
     them. The page on disk is untouched, whole, and is what a save keeps."""
-    try:
-        state = path.stat()
-    except OSError:
+    if not body:
         return body
-    key = (str(path), state.st_mtime_ns, state.st_size, language)
+    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language)
     with _SERVED_LOCK:
         found = _SERVED.get(key)
         if found is not None:
