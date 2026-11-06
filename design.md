@@ -384,6 +384,56 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A course lesson is numbered as the book numbers it — 2026-11-06
+
+David, 2026-11-06 (targum-internal#652, targum#1121): approved as proposed. A reader
+moves between the lesson and its translation by the book's own line numbers, so those
+numbers are the refs and the margin.
+
+A lesson of a bilingual course book (Assimil, Colloquial, Teach Yourself) is one reader.
+It is a heading plus the lesson's numbered lines, each a verse with the ref
+`L<lesson>:<line>`, and the margin shows the book's line number. The book's facing
+translation is paired to it by those numbers (`course/` is a declared pairing beside
+`sefaria/` and `published/`) and is never bought. The book's note markers leave the text,
+and each note stands on the translation's line it is keyed to, as a translator's
+footnote. A revision lesson is a reader too, with its sections as notes on its heading.
+The pronunciation respelling and the exercises are not part of the reader; the exercises
+wait for practice cards.
+
+### A book import is always private — 2026-11-06
+
+David, 2026-11-06 (targum-internal#652, targum#1121): approved as proposed. A scanned
+book is someone else's copyright in a reader's hands, so nothing built from it may leave
+that reader.
+
+A course book, or any scanned book a reader brings, is in copyright unless shown
+otherwise. Its extract and the readers built from it are that reader's own. They are held
+only in the reader's home, never on the shelf, never proposed to the catalogue, never in
+the corpus and never trained on (#161). They enter the private language tables only as
+the aggregate counts every import does (2026-11-01). No link, chat or request can name a
+course (`fetch.PRIVATE`). The only way in is a file the reader uploaded. Reusing the work
+for a second reader who brings the same file is a separate decision, with its own entry
+and a check against the privacy notice.
+
+### A source is private unless its kind is listed public — 2026-11-06
+
+David, 2026-11-06 (targum-internal#653, targum#1122): approved as proposed. A private
+import whose author forgets to list it would leak into the corpus and the pools
+irreversibly, whereas a public source left off the list costs only counts and is easy to
+fix.
+
+When the code meets a source kind it doesn't recognise, it treats it as private. One list
+in `kinds.py` names the kinds that are public by what they are: the shelf's fetchers,
+links, the parasha and the daily (`sefaria:`), the weekly, the dialogues, the curated
+videos, and for a file the ingesters that read an upload. A listed kind is still private
+in a reader's home, and its licence still decides what may leave. A text of any other
+kind is withheld everywhere: never in the corpus ledger, the tables, the imports pool, an
+export or the shelf. The back office counts it as "withheld: unknown kind", with the
+kinds named, so a missing listing shows up. A source that names a scheme must also have
+been read by an ingester the code has, so a new fetcher that reads links is withheld until
+it is listed, even though `https` is public by kind for every listed ingester. For a file
+with no scheme, the ingester alone decides.
+
 ### The night's search leans toward the topics readers ask for — 2026-11-05
 
 David, 2026-11-05 (targum-internal#622, in chat): count the Filter presses with no reader

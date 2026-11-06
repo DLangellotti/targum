@@ -1116,6 +1116,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- A lesson of a course book builds as a reader beside the book's own translation, line
+  for line, with nothing bought (targum-internal#652, under #628; draft, waiting on two
+  design.md §12 entries). `course:it:<book>:<n>` and `course:en:<book>:<n>` read one
+  lesson of a course extract (the book's lessons as numbered lines in both languages,
+  with their notes, read off the scan beforehand) and come out as a heading and one verse
+  block per numbered line, refs `L<n>:<k>`. The ingester is `course/1`, which joins the
+  declared pairings in `align/parallel.py`, so `--translation course:en:… --no-machine`
+  pairs by number and refuses a mismatch. The `(1)` markers leave the text, so they are
+  never glossed or voiced, and each note goes onto the English line it is keyed to as a
+  translator's footnote. An `(N.k)` marker carries the revision lesson's section `k`, and a
+  revision lesson's sections stand on its heading. The pronunciation, the exercises and
+  their key stay in the extract and out of the reader. `course:` is a private fetcher: no
+  link, chat or request can name it (`kinds.PRIVATE`, `fetch.addressable`), and it is not
+  listed among the sources we read. The extracts are read from `TARGUM_COURSES` or
+  `~/.targum/courses`, never `/etc`. Every fixture line is invented. No new strings.
+  A course is private by what it is, not only by where it was built: `course` is the
+  first entry on `kinds.PRIVATE` (targum-internal#653), as a scheme and as an ingester
+  family, so master's one guard (`kinds.private_source`) keeps it out of the corpus ledger
+  from the library's own folder, `./targum-out` or a reader's home (no `texts` row, no
+  stage row, no rendering, no pair), out of `tables.public_text` and the readers' pool. A
+  test builds a `course:he:` lesson whose vocalize stage puts a row and finds the ledger
+  byte-identical, and the same build writes that row with `Build.run`'s withhold removed. A lesson's line stands in the margin with its number and the
+  row answers to `#<n>:<k>`, since `verse_address` reads `L<n>:<k>`; every verse ref
+  reads as it did.
 - The nightly open-web search leans toward the topics readers ask for and the pool lacks
   (David, 2026-11-05; targum-internal#622; design.md §12, "The night's search leans
   toward the topics readers ask for"). Each Filter press on Home's one card adds one to a

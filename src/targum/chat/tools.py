@@ -3032,7 +3032,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     url = str(args.get("url") or "").strip()
     if not url:
         return {"error": "Give a link."}
-    if fetchers.is_identifier(url):
+    if fetchers.addressable(url):
         scheme = url.partition(":")[0].lower()
         return {
             "kind": "fetcher",

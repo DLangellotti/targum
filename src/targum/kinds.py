@@ -125,9 +125,12 @@ PUBLIC_SCHEME_INGESTERS = PUBLIC_INGESTERS | frozenset(
 )
 
 #: Kinds, and ingester families, that are private whatever else is listed: a fetcher that
-#: reads a reader's own file rather than a public source. Empty today; a course book's
-#: extract (`course`, targum#1121) is the first to come.
-PRIVATE: frozenset[str] = frozenset()
+#: reads a reader's own file rather than a public source, and is named here both as a
+#: scheme and as its ingester's family. A course book's extract (`course:`, read by
+#: `course/1`, `ingest/fetch/course.py`) is somebody's copy of a book in copyright
+#: (targum-internal#652); nothing made from it is counted, pooled or exported, and no
+#: request may name it (`fetch.addressable`).
+PRIVATE: frozenset[str] = frozenset({"course"})
 
 #: What `kind_of` answers for a source that names something before a `:` that is not a
 #: scheme (`novel :1`, `ספר:1`): no kind anybody can list, so private.
