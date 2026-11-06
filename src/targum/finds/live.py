@@ -123,15 +123,42 @@ TOPIC_WORDS: dict[str, dict[str, str]] = {
         "science": "מדע וטכנולוגיה",
         "religion": "דת ומסורת",
     },
+    # ling-ru, 2026-11-05 (targum-internal#634, #635). DRAFT, awaiting David's read.
+    "ru": {
+        "everyday": "повседневная жизнь",
+        "family": "семья и воспитание детей",
+        "people": "психология и отношения",
+        "food": "кулинарные рецепты",
+        "money": "личные финансы и покупки",
+        "travel": "путешествия и транспорт",
+        "work": "работа и карьера",
+        "school": "школа и образование",
+        "health": "здоровье и медицина",
+        "culture": "культура и досуг",
+        "nature": "природа и погода",
+        "politics": "политика и власть",
+        "law": "криминал и суд",
+        # Not «армия и безопасность» (ling-ru's first draft): `army` is hidden for
+        # Russian to keep war coverage away from beginners (David, 2026-11-05), and
+        # *армия* here would steer a look to it anyway. ling-ru agreed (2026-11-06);
+        # awaiting David's read.
+        "security": "безопасность",
+        "science": "наука и технологии",
+        "religion": "религия и традиции",
+    },
 }
 
 #: What a level adds to the query, by rung index on the language's ladder: an easy page
 #: for the lower rungs, nothing for the rest. In Hebrew "בעברית קלה" is what learner and
 #: olim pages call themselves, so it finds ulpan-style pages: right at aleph to bet
 #: (rungs 0–2), where native press is out of reach, and never past bet (ling-he,
-#: 2026-11-01).
+#: 2026-11-01). Russian has no one phrase learner pages call themselves, so two (David,
+#: 2026-11-05; ling-ru's draft, awaiting his read): "РКИ" (русский как иностранный, what
+#: teachers and learner sites file graded texts under) at A1–A2 (CEFR rungs 0–1), and
+#: "простым языком" (how plain native explainers describe themselves) at B1 (rung 2).
 LEVEL_WORDS: dict[str, tuple[tuple[int, str], ...]] = {
     "he": ((2, "בעברית קלה"), (99, "")),
+    "ru": ((1, "РКИ"), (2, "простым языком"), (99, "")),
 }
 
 # No kind word leads the query. "כתבה על" was dropped (ling-he, 2026-11-01): the engine
@@ -263,7 +290,7 @@ SYSTEM = (
     "done."
 )
 
-LANGUAGE_NAMES = {"he": "Hebrew"}
+LANGUAGE_NAMES = {"he": "Hebrew", "ru": "Russian"}
 
 
 @dataclass(frozen=True)

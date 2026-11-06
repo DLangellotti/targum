@@ -140,9 +140,11 @@ KEEP_DAYS = {"news": 7, "youtube": 30, "podcast": 30, "web": 60}
 #: The most rows Home scores for one reader (plan §3): an index walk, never the pool.
 PICK_MOST = 300
 
-#: targum's own discovery budget, dollars a month, unless the environment says.
+#: targum's own discovery budget, dollars a month, unless the environment says. $55 so a
+#: 30-day month's pace reaches Hebrew's $1 and Russian's $0.50 a night on top of the $10
+#: kept for the other sources (David, 2026-11-06; it was $30).
 BUDGET_ENV = "TARGUM_FINDS_BUDGET_USD"
-BUDGET_DEFAULT = 30.0
+BUDGET_DEFAULT = 55.0
 
 DAY_MS = 24 * 60 * 60 * 1000
 
@@ -152,7 +154,7 @@ def now_ms() -> int:
 
 
 def budget() -> float:
-    """The month's discovery budget in dollars: `TARGUM_FINDS_BUDGET_USD`, or 30."""
+    """The month's discovery budget in dollars: `TARGUM_FINDS_BUDGET_USD`, or 55."""
     raw = os.environ.get(BUDGET_ENV, "").strip()
     try:
         return max(0.0, float(raw)) if raw else BUDGET_DEFAULT
@@ -537,11 +539,17 @@ def pick(
 # -- runs and spend ---------------------------------------------------------------
 
 
-def start_run(store: Store, source: str, at: int | None = None) -> int:
+def start_run(store: Store, source: str, at: int | None = None, note: Any = "") -> int:
+    """Open a run. A `note` given here (a night's language) is there while it runs, so a
+    run killed before `finish_run` still says it; `finish_run` writes the whole note."""
     with store.write() as db:
         cursor = db.execute(
-            "INSERT INTO find_run (source, started) VALUES (?, ?)",
-            (source, now_ms() if at is None else at),
+            "INSERT INTO find_run (source, started, note) VALUES (?, ?, ?)",
+            (
+                source,
+                now_ms() if at is None else at,
+                note if isinstance(note, str) else json.dumps(note, ensure_ascii=False),
+            ),
         )
     return int(cursor.lastrowid or 0)
 
@@ -570,6 +578,34 @@ def finish_run(
                 run,
             ),
         )
+
+
+def last_note(store: Store, source: str, language: str = "he", most: int = 50) -> dict[str, Any]:
+    """The note of a source's last finished run in a language: a night's rotation goes
+    on where that language's last night stopped, whatever ran for another language in
+    between (targum-internal#635). A note that names no language is Hebrew's, written
+    before the rounds ran for more than one."""
+    for (raw,) in store.db.execute(
+        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT ?",
+        (source, most),
+    ):
+        try:
+            said = json.loads(raw or "{}")
+        except ValueError:
+            said = {}
+        if not isinstance(said, dict):
+            said = {}
+        if str(said.get("language") or "he") == language:
+            return said
+    return {}
+
+
+def last_next(store: Store, source: str, language: str = "he") -> int:
+    """Where a source's rotation starts tonight in a language (`last_note`'s `next`)."""
+    try:
+        return int(last_note(store, source, language).get("next") or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def spend(store: Store, run: int, dollars: float) -> None:

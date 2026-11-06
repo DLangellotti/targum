@@ -116,7 +116,8 @@ def test_the_queries_are_the_forty_chips_phrases_and_nothing_else() -> None:
     asked = web.queries("he")
     assert len(asked) == len(chips.CHIPS) == 40
     assert [query for _, query in asked] == [chip.phrases["he"] for chip in chips.CHIPS]
-    assert web.queries("ru") == [], "no phrases, no search"
+    assert web.queries("fr") == [], "no phrases, no search"
+    assert len(web.queries("ru")) == 37, "Russian has no israel, holidays or army"
 
 
 def test_the_search_sends_the_query_alone_and_costs_what_the_api_says() -> None:
@@ -265,6 +266,7 @@ def test_the_night_is_paced_inside_the_month_s_budget(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     early = int(datetime(2026, 11, 1, 0, 12, tzinfo=UTC).timestamp() * 1000)
+    monkeypatch.setenv(pool.BUDGET_ENV, "30")
     assert web.allowance(store, early) == pytest.approx((30 - web.LEAVE_USD) / 30)
     monkeypatch.setenv(pool.BUDGET_ENV, "100")
     assert web.allowance(store, early) == web.NIGHT_USD
