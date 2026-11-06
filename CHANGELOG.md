@@ -1071,6 +1071,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   transient. In `voice_shelf.py` a refused turn marks its scene `failed` with that
   reason and the run goes on to the next scene; every such answer, audio taken out, is
   appended to `refusals.jsonl` beside `progress.json` with its scene, turn and line.
+- A reader opened while it was being written is no longer served blank until restart
+  (targum-internal#651). A navigation that read the page mid-write got an empty body,
+  then stat'd the finished file and kept the blank page under its name. `served_page`
+  now keys its cache on a digest of the bytes it was handed and never keeps an empty
+  one, and `render.builder._write` writes through `paths.write_atomic`, so a page is
+  replaced in one step and a server reading it sees the old page or the new, never a
+  torn one.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline

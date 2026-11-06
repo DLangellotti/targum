@@ -62,6 +62,7 @@ from ..models import (
     direction_for,
     is_biblical,
 )
+from ..paths import write_atomic
 from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 from . import shape
@@ -8535,8 +8536,10 @@ def contents_page(
 
 
 def _write(path: Path, html: str) -> Path:
-    path.write_text(html, encoding="utf-8")
-    return path
+    # Whole or not at all: the server hands this page to whoever opens it, and a page
+    # read while it was being truncated and rewritten was served blank (beta-found,
+    # 2026-11-06).
+    return write_atomic(path, html)
 
 
 def _pointed_word(
