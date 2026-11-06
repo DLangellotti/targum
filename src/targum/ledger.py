@@ -268,6 +268,8 @@ class Ledger:
         """
         if stage not in STAGES:
             raise ValueError(f"the ledger does not record {stage!r} yet")
+        if _withheld_value(value):  # a text private by what it is (`withhold`)
+            return
         stamp = datetime.now(UTC).isoformat(
             timespec="microseconds"
         )  # read-through compares it with a file's mtime
@@ -356,10 +358,13 @@ class Ledger:
         and whether it is private, so nothing can record a verdict the licence does not
         give. Returns False, and writes no row, when the facts and the verdict the rule
         gives now are both what the row already says; a rule that changed supersedes it.
-        The homes are kept current in `text_homes` either way.
+        The homes are kept current in `text_homes` either way. A text private by what it
+        is (`kinds.private_source`) is never written at all, and False is returned.
         """
         if not text.document_hash or not text.source:
             raise ValueError("a text needs its document hash and its source")
+        if _never_recorded(text.source, text.ingester):
+            return False
         with closing(self._connect()) as db, db:
             return _write_text(db, text)
 
@@ -374,6 +379,8 @@ class Ledger:
         """
         if not text.document_hash or not text.source:
             raise ValueError("a text needs its document hash and its source")
+        if _never_recorded(text.source, text.ingester):
+            return False
         with closing(self._connect()) as db, db:
             db.commit()  # what opening left open, so the lock below is taken from the start
             db.execute("BEGIN IMMEDIATE")
@@ -552,6 +559,34 @@ def _add_bits(db: sqlite3.Connection) -> None:
 #: (qa-claude on #943): another process holding it cost a reader's build the full 30 s
 #: before its vowels. The row is lost, not the build; the next backfill writes it.
 MIRROR_TIMEOUT = 2.0
+
+
+#: The texts no stage may record, by document hash: a build of a text private by what it
+#: is (`kinds.private_source`) names its own here before any stage runs. A set rather
+#: than a context variable, because a stage may `Cache.put` from a worker thread.
+_WITHHELD: set[str] = set()
+
+
+def withhold(document_hash: str) -> None:
+    """Keep every row made from this text out of the ledger for the life of the process:
+    a text private by what it is is never in the corpus, not even as a private row, since
+    the corpus is what is exported and trained on (targum-internal#653)."""
+    if document_hash:
+        _WITHHELD.add(document_hash)
+
+
+def _withheld_value(value: Any) -> bool:
+    return isinstance(value, Mapping) and str(value.get("document_hash") or "") in _WITHHELD
+
+
+def _never_recorded(source: str, ingester: str = "") -> bool:
+    """Whether a text stays out of the ledger altogether, whatever folder it is in: no
+    `texts` row, no stage rows, no renderings, no pairs. A source is private unless its
+    kind is listed public (David, 2026-11-06; `kinds.private_source`). A reader's import of
+    a listed kind is a row marked private, as before; an unlisted kind is no row at all."""
+    from .kinds import private_source
+
+    return private_source(source, ingester)
 
 
 def mirror_text(folder: Path, root: Path | None = None) -> None:
@@ -944,6 +979,8 @@ def backfill_texts(
             continue
         hash_ = str(document.get("content_hash") or "")
         if not hash_ or not document.get("source"):
+            continue
+        if _never_recorded(str(document["source"]), str(document.get("ingester") or "")):
             continue
         if home is None:
             public.add(hash_)
@@ -1362,6 +1399,10 @@ def record_translations(
         return 0, 0
     document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
     source = str(document.get("source") or "")
+    # A text private by what it is has no renderings and no pairs here, in a home or out
+    # of one (targum-internal#653).
+    if _never_recorded(source, str(document.get("ingester") or "")):
+        return 0, 0
     # A reader's copy of a text the shelf holds shares the shelf copy's keys, and is often
     # only the chapters they bought: recorded, it would stand in for the whole rendering
     # and add a copy to the history at every build (qa-claude on #945). While a text is

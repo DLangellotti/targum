@@ -508,7 +508,9 @@ class TestTexts:
         book = ledger.Ledger(tmp_path / "corpus.db")
         book.record_text(ledger.Text("a" * 64, "gutenberg:1", "Public Domain"))
         book.record_text(ledger.Text("b" * 64, "https://x.example/a", "CC BY-NC 4.0"))
-        book.record_text(ledger.Text("c" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"})))
+        book.record_text(
+            ledger.Text("c" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"}), "pdf/1")
+        )
         book.record_text(ledger.Text("d" * 64, "https://x.example/b", ""))
         assert book.terms("a" * 64) == (True, True)
         assert book.terms("b" * 64) == (False, True)
@@ -590,8 +592,10 @@ class TestTexts:
     ) -> None:
         monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
         book = ledger.Ledger(tmp_path / "corpus.db")
-        book.record_text(ledger.Text("a" * 64, "upload.pdf", "", frozenset({"p7"})))
-        book.record_text(ledger.Text("a" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"})))
+        book.record_text(ledger.Text("a" * 64, "upload.pdf", "", frozenset({"p7"}), "pdf/1"))
+        book.record_text(
+            ledger.Text("a" * 64, "upload.pdf", "CC BY 4.0", frozenset({"p7"}), "pdf/1")
+        )
         book.record_text(ledger.Text("b" * 64, "gutenberg:1", "Public Domain"))
         ledger.forget({"a" * 64})
         assert book.text("a" * 64) is None
@@ -663,7 +667,7 @@ class TestTexts:
         """The laptop's parasha, Russian shelf and dialogues are the library's own; only
         `p<id>` and `local` are homes. A text built straight into the library is public."""
         out = tmp_path / "out"
-        self._built(out / "parasha" / "noach", "a" * 64, "parasha:noach")
+        self._built(out / "parasha" / "noach", "a" * 64, "sefaria:Genesis 6:9-11:32")
         self._built(out / "russian" / "biryuk", "b" * 64, "wikisource:ru:Бирюк")
         self._built(out / "local" / "mine", "c" * 64, "mine.md")
         self._built(out / "declaration-he", "d" * 64, "declaration.md")
@@ -919,7 +923,9 @@ class TestTranslations:
             "translations", "doc123:ours", _rendering(kind="authored"), licence="Public Domain"
         )
         assert _bits(book.file, "translations")[-1] == (1, 1), "authored follows its licence"
-        book.record_text(ledger.Text("doc123", "upload.pdf", "Public Domain", frozenset({"p4"})))
+        book.record_text(
+            ledger.Text("doc123", "upload.pdf", "Public Domain", frozenset({"p4"}), "pdf/1")
+        )
         assert set(_bits(book.file, "translations")) == {(0, 0)}, "a reader's text: private"
 
     def test_a_corrected_licence_on_the_same_rendering_keeps_the_old_as_history(
@@ -951,7 +957,13 @@ class TestTranslations:
     @staticmethod
     def _folder(folder: Path, source: str, *renderings: tuple[str, dict[str, Any]]) -> None:
         (folder / "translations").mkdir(parents=True)
-        document = {"source": source, "language": "he", "blocks": [], "content_hash": "doc123"}
+        document = {
+            "source": source,
+            "language": "he",
+            "blocks": [],
+            "content_hash": "doc123",
+            "ingester": "pdf/1",
+        }
         (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
         segments = {
             "document_hash": "doc123",
@@ -1049,7 +1061,7 @@ class TestTranslations:
             tmp_path / "out" / "p2" / "x", "upload.pdf", ("claude.natural.en", _rendering())
         )
         ledger.Ledger(tmp_path / "corpus.db").record_text(
-            ledger.Text("doc123", "upload.pdf", "", frozenset({"p2"}))
+            ledger.Text("doc123", "upload.pdf", "", frozenset({"p2"}), "pdf/1")
         )
         result = CliRunner().invoke(
             app, ["cache", "ledger-translations", "--out", str(tmp_path / "out")]
@@ -1315,14 +1327,22 @@ class TestAnyDepth:
     @staticmethod
     def _built(folder: Path, document_hash: str, source: str) -> None:
         folder.mkdir(parents=True)
-        document = {"source": source, "language": "he", "blocks": [], "content_hash": document_hash}
+        document = {
+            "source": source,
+            "language": "he",
+            "blocks": [],
+            "content_hash": document_hash,
+            "ingester": "markdown/5",
+        }
         (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
 
     def test_the_fill_finds_texts_at_any_depth_and_the_top_folder_decides(
         self, tmp_path: Path
     ) -> None:
         out = tmp_path / "out"
-        self._built(out / "parasha" / "read" / "noach" / "print", "a" * 64, "parasha:noach")
+        self._built(
+            out / "parasha" / "read" / "noach" / "print", "a" * 64, "sefaria:Genesis 6:9-11:32"
+        )
         self._built(out / "russian" / "globalvoices" / "story", "b" * 64, "https://gv/1")
         self._built(out / "local" / "videos" / "clip", "c" * 64, "https://yt/1")
         self._built(out / "p3" / "local" / "upload", "d" * 64, "upload.pdf")
@@ -1346,9 +1366,11 @@ class TestAnyDepth:
 
     def test_a_text_found_at_two_depths_is_one_text(self, tmp_path: Path) -> None:
         out = tmp_path / "out"
-        self._built(out / "shared" / "noach", "a" * 64, "parasha:noach")
-        self._built(out / "parasha" / "read" / "noach" / "print", "a" * 64, "parasha:noach")
-        self._built(out / "p1" / "deep" / "noach", "a" * 64, "parasha:noach")
+        self._built(out / "shared" / "noach", "a" * 64, "sefaria:Genesis 6:9-11:32")
+        self._built(
+            out / "parasha" / "read" / "noach" / "print", "a" * 64, "sefaria:Genesis 6:9-11:32"
+        )
+        self._built(out / "p1" / "deep" / "noach", "a" * 64, "sefaria:Genesis 6:9-11:32")
         book = ledger.Ledger(tmp_path / "corpus.db")
         assert ledger.backfill_texts(book, out, licence_of=lambda _f, _s: "Public Domain") == (
             1,
@@ -1434,7 +1456,9 @@ class TestAnyDepth:
             (out / "parasha" / "read" / "x" / "print", whole),
             (out / "shared" / "x", part),
         ):
-            TestTranslations._folder(folder, "parasha:x", ("claude.natural.en", value))
+            TestTranslations._folder(
+                folder, "sefaria:Genesis 6:9-11:32", ("claude.natural.en", value)
+            )
         book = ledger.Ledger(tmp_path / "corpus.db")
         ledger.backfill_texts(book, out)
         for _ in range(3):

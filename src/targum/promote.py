@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any
 from . import catalogue as catalogue_module
 from .accounts import now
 from .errors import TargumError
+from .kinds import private_source
 from .licensing import Standing, verdict
 from .models import Annotation, Document, Translation, is_biblical, read_artifact
 from .paths import write_atomic
@@ -121,6 +122,10 @@ def candidate(library: Library, store: Store | None, job: Job) -> Proposal | Non
     it, and everything here that can be asked without raising is.
     """
     if store is None or job.kind != "build" or not job.reader or job.home is None:
+        return None
+    # A source is private unless its kind is listed public (targum-internal#653), and a
+    # private one is never proposed, nor joins: the shelf is the way out of a home.
+    if private_source(str(job.source)):
         return None
     # A find the reader opened joins the library by itself where its licence clears the
     # bar, and is never a proposal: a proposal row names the reader (design.md §12,

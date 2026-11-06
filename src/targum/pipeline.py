@@ -2381,6 +2381,16 @@ class Build:
         plan = plan or self.plan()
         assert plan.segmented is not None
         segmented = plan.segmented
+        # A source is private unless its kind is listed public (targum-internal#653): such
+        # a text is never in the corpus ledger, so before any stage can put a row of it
+        # there, every row of it is kept out. Asked of what `document.json` will say, as
+        # every other guard asks it.
+        from . import ledger as ledger_module
+        from .kinds import private_source
+
+        if private_source(plan.document.source or str(self.source), plan.document.ingester):
+            ledger_module.withhold(segmented.document_hash)
+            ledger_module.withhold(plan.document.content_hash)
 
         # An imported recording is heard before anything else happens: the transcript
         # is the text, and every stage below reads the text. What was heard lands on

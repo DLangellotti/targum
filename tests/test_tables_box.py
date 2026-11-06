@@ -99,7 +99,7 @@ def test_the_guard_refuses_a_model_package() -> None:
 
 def _built(folder: Path, document_hash: str) -> None:
     folder.mkdir(parents=True)
-    document = {"content_hash": document_hash, "source": f"test:{document_hash[:4]}"}
+    document = {"content_hash": document_hash, "source": f"gutenberg:{document_hash[:4]}"}
     (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
     token = {"start": 0, "end": 1, "surface": "w1", "lemma": "w1", "pos": "NOUN", "band": 1}
     annotation = {

@@ -33,6 +33,10 @@ apart from the public counts of the same name (`registers.pooled`). The rules:
   single spellings with their readings, and counts, as every table does.
 - **Not what a model wrote.** A rewrite, a chat's speech, a scene and the weekly sit in a
   home too, and none of them is something a reader brought.
+- **Not a kind nobody listed.** A source is private unless its kind is listed public
+  (`kinds.private_source`, David 2026-11-06), and one that is not is never read here,
+  not even as counts: a new private kind whose author forgot it would otherwise be
+  pooled, and a count cannot be taken back out of a total.
 
 A text two readers brought is counted once, and both stand behind its keys. The whole
 pool is off unless `TARGUM_IMPORT_COUNTS=1`: turning it on and publishing the privacy
@@ -53,6 +57,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
+from ..kinds import private_source
 from . import roots, spellings
 from .registers import EVERYDAY, IMPORTS, NEWS, PODCASTS, SOCIAL, SORTED, VIDEO, pooled
 from .store import Contribution, Store
@@ -113,6 +118,9 @@ class PoolResult:
     texts: int = 0
     #: Texts in a home that a model wrote (a rewrite, a chat's speech, a scene).
     model_written: int = 0
+    #: Texts in a home never counted, even as counts: a source whose kind is not listed
+    #: public (`kinds.private_source`, targum-internal#653).
+    withheld: int = 0
     unreadable: int = 0
     #: Texts read, by the register they were sorted into.
     by_register: dict[str, int] = field(default_factory=dict)
@@ -324,6 +332,11 @@ def pool(
             try:
                 if _model_written(folder, document):
                     result.model_written += 1
+                    continue
+                if private_source(
+                    str(document.get("source") or ""), str(document.get("ingester") or "")
+                ):
+                    result.withheld += 1
                     continue
                 annotation = json.loads(file.read_text(encoding="utf-8"))
                 if not isinstance(annotation, dict):
