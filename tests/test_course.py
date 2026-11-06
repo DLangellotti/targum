@@ -235,10 +235,10 @@ def test_a_course_built_outside_a_home_never_enters_the_tables(
     lesson = _built(library / "shared" / "lesson", "course:it:made-up:1", "c" * 64)
     shelf = _built(library / "shared" / "ruth", "sefaria:Ruth", "d" * 64, "sefaria/3")
     if ledger_on:
-        assert ledger.backfill_texts(ledger.Ledger(file), library) == (2, 0)
+        assert ledger.backfill_texts(ledger.Ledger(file), library) == (1, 0)
         book = ledger.Ledger(file)
-        assert book.is_private("c" * 64) and book.terms("c" * 64) == (False, False)
-        assert not book.is_private("d" * 64)
+        assert book.text("c" * 64) is None and book.terms("c" * 64) is None
+        assert book.text("d" * 64) is not None and not book.is_private("d" * 64)
     assert tables.public_text(lesson, library) is None
     assert tables.public_text(shelf, library) is not None, "the guard is not a wall"
     store = Store(tmp_path / "tables.db")
@@ -249,21 +249,26 @@ def test_a_course_built_outside_a_home_never_enters_the_tables(
     assert ("vorrei", 1) not in dict(store.top("words", "unfiled", limit=100, weighed=False))
 
 
-def test_a_course_in_the_ledger_is_private_by_a_build_into_a_public_folder(
-    tmp_path: Path, ledger_file: Path
-) -> None:
+@pytest.mark.parametrize("top", ["shared", "p1"])
+def test_a_course_is_never_a_row_in_the_ledger(tmp_path: Path, ledger_file: Path, top: str) -> None:
+    """Not even a private one: the corpus is what trains, and a course book is somebody's
+    copy of a book in copyright (qa-claude on #1121)."""
     from targum import ledger
 
     library = tmp_path / "library"
-    folder = _built(library / "shared" / "lesson", "course:en:made-up:1", "e" * 64)
+    folder = _built(library / top / "lesson", "course:en:made-up:1", "e" * 64)
     ledger.mirror_text(folder, library)
     book = ledger.Ledger(ledger_file)
-    assert book.is_private("e" * 64)
-    # Whatever licence the extract claims, a course is never exportable: the claim is
-    # the reader's, and a reader cannot grant a book's copyright.
-    for source, exportable in (("course:it:made-up:2", False), ("gutenberg:1", True)):
-        book.record_text(ledger.Text(source[-1] * 64, source, "CC0", ingester=""))
-        assert book.terms(source[-1] * 64) == (exportable, exportable)
+    assert book.text("e" * 64) is None
+    assert not book.hold(ledger.Text("e" * 64, "course:en:made-up:1", "CC0"), "p1")
+    # Whatever licence the extract claims, by its source or by what read it.
+    for text in (
+        ledger.Text("2" * 64, "course:it:made-up:2", "CC0"),
+        ledger.Text("3" * 64, "/tmp/made-up.txt", "CC0", ingester="course/1"),
+    ):
+        assert not book.record_text(text) and book.terms(text.document_hash) is None
+    assert book.record_text(ledger.Text("1" * 64, "gutenberg:1", "CC0")), "the test can fail"
+    assert book.terms("1" * 64) == (True, True)
 
 
 def test_ten_readers_bringing_a_course_pool_nothing(tmp_path: Path, ledger_file: Path) -> None:
@@ -348,3 +353,100 @@ def test_a_lesson_builds_beside_its_book_s_translation_and_buys_nothing(
     page = " ".join(one.read_text("utf-8") for one in result.out_dir.rglob("*.html"))
     assert "Vorrei is the polite way" in page
     assert 'class="verse-number"' in page
+
+
+def _counts(file: Path) -> dict[str, int]:
+    import sqlite3
+    from contextlib import closing
+
+    with closing(sqlite3.connect(file)) as db:
+        names = [
+            row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        ]
+        return {
+            name: db.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]  # noqa: S608
+            for name in names
+        }
+
+
+@pytest.mark.parametrize("top", ["shared", "p1"])
+def test_building_a_lesson_leaves_the_ledger_as_it_was(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ledger_file: Path, top: str
+) -> None:
+    """A lesson built into the library's own folder or into a reader's home: no `texts`
+    row, no rendering, no pair, not a byte, whichever writer asks (qa-claude on #1121)."""
+    from targum import ledger
+    from targum.pipeline import Build
+
+    monkeypatch.setattr(ledger, "_WITHHELD", set())
+    courses = tmp_path / "courses"
+    courses.mkdir()
+    (courses / "made-up.json").write_text(json.dumps(book(), ensure_ascii=False), "utf-8")
+    monkeypatch.setenv("TARGUM_COURSES", str(courses))
+    library = tmp_path / "library"
+    shelf = _built(library / "shared" / "ruth", "sefaria:Ruth", "d" * 64, "sefaria/3")
+    ledger.mirror_text(shelf, library)
+    before, held = _counts(ledger_file), ledger_file.read_bytes()
+    assert before["texts"] == 1
+
+    build = Build(
+        "course:it:made-up:1",
+        target_language="en",
+        translations=["course:en:made-up:1"],
+        out_root=library / top,
+        library=library,
+        segmenter=_WholeBlocks(),
+    )
+    result = build.run()
+    folder = result.out_dir
+    document = json.loads((folder / "document.json").read_text("utf-8"))
+    assert document["content_hash"] in ledger._WITHHELD
+    assert list((folder / "translations").glob("*.json")), "nothing to record"
+    assert ledger_file.read_bytes() == held
+
+    # Every writer again, by what the folder is and not by what the build withheld.
+    ledger._WITHHELD.clear()
+    ledger.mirror_text(folder, library)
+    assert ledger.record_translations(ledger.Ledger(ledger_file), folder, root=library) == (0, 0)
+    ledger.backfill_texts(ledger.Ledger(ledger_file), library)
+    ledger.backfill_translations(ledger.Ledger(ledger_file), library)
+    assert _counts(ledger_file) == before
+    assert ledger_file.read_bytes() == held
+    for line in ("Buongiorno", "Ecco le mele", "Good morning", "apples"):
+        assert line.encode() not in ledger_file.read_bytes()
+
+    # The same folder as a link a reader brought is recorded: the test can fail.
+    document.update(source="https://x.test/a", ingester="url/6")
+    (folder / "document.json").write_text(json.dumps(document), "utf-8")
+    ledger.mirror_text(folder, library)
+    ledger.mirror_translations(folder, library)
+    after = _counts(ledger_file)
+    assert after["texts"] == 2 and after["pairs"] > before["pairs"]
+    assert b"Buongiorno" in ledger_file.read_bytes()
+
+
+def test_a_withheld_text_is_put_by_no_stage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ledger_file: Path
+) -> None:
+    """`Cache.put`'s second write and a direct `record` both skip a withheld text."""
+    from targum import ledger
+
+    monkeypatch.setattr(ledger, "_WITHHELD", set())
+    value = {
+        "schema_version": 1,
+        "document_hash": "9" * 64,
+        "language": "it",
+        "annotator": "test/1",
+        "tokens": {},
+    }
+    ledger.withhold("9" * 64)
+    ledger.mirror_put("tokens", "k1", value)
+    ledger.Ledger(ledger_file).record("tokens", "k2", value)
+    assert ledger.Ledger(ledger_file).get("tokens", "k1") is None
+    assert ledger.Ledger(ledger_file).get("tokens", "k2") is None
+    ledger._WITHHELD.clear()
+    ledger.mirror_put("tokens", "k1", value)
+    assert ledger.Ledger(ledger_file).get("tokens", "k1") is not None, "the test can fail"
+    ledger.withhold("9" * 64)
+    ledger.Ledger(ledger_file).record("tokens", "k1", dict(value, annotator="test/2"))
+    assert ledger.Ledger(ledger_file).get("tokens", "k1") == value

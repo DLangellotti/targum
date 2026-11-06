@@ -2381,6 +2381,15 @@ class Build:
         plan = plan or self.plan()
         assert plan.segmented is not None
         segmented = plan.segmented
+        # A course book's lesson is private by what it is: before any stage can put a
+        # row of it in the corpus ledger, every row of it is kept out (qa-claude on #1121).
+        from .ingest.fetch import private_source
+
+        if private_source(str(self.source), plan.document.ingester):
+            from . import ledger as ledger_module
+
+            ledger_module.withhold(segmented.document_hash)
+            ledger_module.withhold(plan.document.content_hash)
 
         # An imported recording is heard before anything else happens: the transcript
         # is the text, and every stage below reads the text. What was heard lands on

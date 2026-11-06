@@ -1108,8 +1108,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `~/.targum/courses`, never `/etc`. Every fixture line is invented. No new strings.
   A course is private by what it is, not only by where it was built
   (`fetch.private_source`, by its source or its ingester): built into the library's own
-  folder or `./targum-out` it is still a private row in the corpus ledger, exportable
-  nowhere whatever licence it claims, refused by `tables.public_text` with the ledger on
+  folder, `./targum-out` or a reader's home it is never in the corpus ledger at all: no
+  `texts` row, no rendering, no pair, from the build or from any backfill (`ledger.withhold`,
+  `record_translations`, `record_text`), refused by `tables.public_text` with the ledger on
   or off (so no fold, sweep or yardstick map counts it), and left out of the readers'
   pool even from ten homes. A lesson's line stands in the margin with its number and the
   row answers to `#<n>:<k>`, since `verse_address` reads `L<n>:<k>`; every verse ref
