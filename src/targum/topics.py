@@ -189,11 +189,25 @@ def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
     )
 
 
+def tags_digest(lemmas: Mapping[str, Sequence[str]]) -> str:
+    """A sha256 of a lexicon's tags, so a `shown` names exactly the tags it was proven on."""
+    import hashlib
+
+    body = json.dumps(
+        {str(k): list(v) for k, v in lemmas.items()},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
 def load_shown(file: Path | None = None, language: str = "he") -> tuple[str, ...]:
     """The topics a page may draw for the lexicon at `file` (by default the language's
     own): its `shown` list, in the order of `TOPICS`, or the language's `SHOWN_FOR` where
     the file has none. Nothing at all where there is no lexicon, since there is nothing
-    to draw."""
+    to draw. Nothing either where the file records the tags `shown` was proven on
+    (`shown_tags_sha256`) and its tags are no longer those."""
     code = language_code(language)
     file = file or lexicon_file(code)
     try:
@@ -203,6 +217,11 @@ def load_shown(file: Path | None = None, language: str = "he") -> tuple[str, ...
     listed = held.get("shown") if isinstance(held, dict) else None
     if not isinstance(listed, list):
         return SHOWN_FOR[code]
+    proven_on = held.get("shown_tags_sha256")
+    if proven_on is not None and proven_on != tags_digest(held.get("lemmas") or {}):
+        # The tags changed after `shown` was proven on them: nothing is shown until a
+        # sample of the tags as they are now proves it again.
+        return ()
     return tuple(code for code in TOPICS if code in {str(one) for one in listed})
 
 

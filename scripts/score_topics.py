@@ -18,23 +18,24 @@ that. Precision for a topic wants rows sampled by the *predicted* tag, labelled 
 
 Each model is scored, and the agreed tags, where a row the two models share nothing on
 counts as `general`: it goes into no bar, exactly as a `general` row does. The score is
-written to `gold-score.json` in the run directory. `--lexicon` sets that lexicon's
-`shown` to the topics the agreed tags pass one by one (`topics.shown_from`), and to none
-unless the gate passes. Spends nothing.
+written to `gold-score.json` in the run directory, with what the gold rule would show
+(`would_show`) as a diagnostic. **A gold set never sets `shown`**: `--lexicon` goes with
+`--sample` only. Spends nothing.
 
-`--sample FILE` scores a blind sample drawn by the predicted tag instead (the honest
-measure of precision): a CSV with `lemma`, `stratum` (the agreed tag it was drawn for),
-`predicted` (the lemma's agreed tags when it was drawn), `lexicon_version` (the version
-of the lexicon it was drawn from) and the gold `topic_1`/`topic_2`. It is refused unless
-it was drawn from the lexicon `--lexicon` names (or the run's own) as that lexicon is
-now: the lexicon's `run` is the run's name exactly, every row names the lexicon's
-version, each lemma is drawn at most once for a topic, and every row's tags are the
-lexicon's, with its stratum among them, so a sample of one round's tags never sets another's
-`shown`. Each topic's precision and Wilson lower bound go to `sample-score.json`, with a
-sha256 of the lexicon's tags, and `--lexicon` then shows the topics whose sample proves
-90%: a Wilson 95% lower bound of 90% or more (David, 2026-11-06), so 35 rows or more;
-and none unless the whole sample's topic precision is 90% or more and its `general` 85%
-(`topics.shown_from_sample`).
+`--sample FILE` scores a blind sample drawn by the predicted tag (the honest measure of
+precision): a CSV with `lemma`, `stratum` (the agreed tag it was drawn for), `predicted`
+(the lemma's agreed tags when it was drawn), `lexicon_version` and `tags_sha256` (the
+version and the tags' digest, `topics.tags_digest`, of the lexicon it was drawn from)
+and the gold `topic_1`/`topic_2`. It is refused unless it was drawn from the lexicon
+`--lexicon` names (or the run's own) as that lexicon is now: its `run` is the run's name
+exactly, every row names its version and its tags' digest (so a tag changed since the
+draw, sampled or not, is caught), each lemma is drawn at most once for a topic, and every
+row's tags are the lexicon's, with its stratum among them. Each topic's precision and
+Wilson lower bound go to `sample-score.json`, and `--lexicon` then shows the topics whose
+sample proves 90%: a Wilson 95% lower bound of 90% or more (David, 2026-11-06), so 35
+rows or more; and none unless the whole sample's topic precision is 90% or more and its
+`general` 85% (`topics.shown_from_sample`). The lexicon keeps the digest, and
+`topics.load_shown` shows nothing once its tags no longer match it.
 
     .venv/bin/python scripts/score_topics.py --run ru-pilot-2026-11-06 --gold GOLD.csv
 """
@@ -43,7 +44,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
 import json
 import re
 import sys
@@ -134,18 +134,19 @@ def read_run(run: Path) -> dict[str, dict[str, set[str]]]:
     return out
 
 
-SAMPLE_COLUMNS = ("lemma", "stratum", "predicted", "lexicon_version", "topic_1")
+SAMPLE_COLUMNS = ("lemma", "stratum", "predicted", "lexicon_version", "tags_sha256", "topic_1")
 
 
 def _codes(cell: str) -> set[str]:
     return {code for code in cell.replace(" ", ",").split(",") if code}
 
 
-def read_sample(file: Path) -> tuple[list[dict[str, Any]], set[str]]:
+def read_sample(file: Path) -> tuple[list[dict[str, Any]], set[str], set[str]]:
     """A predicted-tag sample's rows (lemma, stratum, the tags it was drawn with, and its
-    gold labels), data faults left out, and the lexicon versions it names."""
+    gold labels), data faults left out, and the lexicon versions and tag digests it names."""
     rows: list[dict[str, Any]] = []
     versions: set[str] = set()
+    digests: set[str] = set()
     with file.open(encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         missing = [c for c in SAMPLE_COLUMNS if c not in (reader.fieldnames or ())]
@@ -153,6 +154,7 @@ def read_sample(file: Path) -> tuple[list[dict[str, Any]], set[str]]:
             raise SystemExit(f"{file}: no {', '.join(missing)} column")
         for row in reader:
             versions.add((row["lexicon_version"] or "").strip())
+            digests.add((row["tags_sha256"] or "").strip())
             if "fault" in (row.get("notes") or "").lower():
                 continue
             stratum = (row["stratum"] or "").strip()
@@ -170,17 +172,18 @@ def read_sample(file: Path) -> tuple[list[dict[str, Any]], set[str]]:
                     "labels": labels,
                 }
             )
-    return rows, versions
+    return rows, versions, digests
 
 
-def tags_digest(lemmas: dict[str, list[str]]) -> str:
-    """A sha256 of a lexicon's tags, so a score names exactly the tags it read."""
-    body = json.dumps(lemmas, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+tags_digest = topics.tags_digest
 
 
 def sample_refusal(
-    run: str, held: dict[str, Any], rows: list[dict[str, Any]], versions: set[str]
+    run: str,
+    held: dict[str, Any],
+    rows: list[dict[str, Any]],
+    versions: set[str],
+    digests: set[str] | None = None,
 ) -> str | None:
     """Why a sample may not set this lexicon's `shown`, or None: it must be drawn from
     this run's lexicon, as it is now."""
@@ -189,6 +192,11 @@ def sample_refusal(
         return f"the lexicon is run {held.get('run')!r}'s, not {run}'s"
     if versions != {version}:
         return f"the sample was drawn from {sorted(versions)}, not {version!r}"
+    now = tags_digest(held.get("lemmas") or {})
+    if digests != {now}:
+        # A tag changed since the draw, sampled or not: the sample no longer stands for
+        # the lexicon it would set.
+        return f"the sample was drawn from tags {sorted(digests)}, the lexicon's are {now}"
     drawn = Counter((row["lemma"], row["stratum"]) for row in rows)
     twice = sorted(f"{lemma} ({stratum})" for (lemma, stratum), n in drawn.items() if n > 1)
     if twice:
@@ -210,11 +218,11 @@ def sample_refusal(
 def score_sample(run: Path, sample: Path, lexicon: Path | None) -> int:
     """Score a predicted-tag sample, write `sample-score.json`, and set `shown`: 0 when a
     topic is shown, 4 when none is, 5 when the sample is not this lexicon's."""
-    rows, versions = read_sample(sample)
+    rows, versions, digests = read_sample(sample)
     write = lexicon is not None
     lexicon = lexicon or topics.run_lexicon(_language(run), run.name)
     held = json.loads(lexicon.read_text(encoding="utf-8"))
-    refused = sample_refusal(run.name, held, rows, versions)
+    refused = sample_refusal(run.name, held, rows, versions, digests)
     if refused:
         print(f"Refused: {refused}. Nothing written.", file=sys.stderr)
         return 5
@@ -264,8 +272,7 @@ def main() -> int:
     parser.add_argument(
         "--lexicon",
         type=Path,
-        help="A lexicon file (the run's) whose `shown` is set to the topics the agreed tags"
-        " pass topic by topic (`topics.shown_from`): none unless the gate passes.",
+        help="With --sample only: the run's lexicon, whose `shown` the sample sets.",
     )
     args = parser.parse_args()
     run = topics.RESEARCH / args.run
@@ -273,6 +280,10 @@ def main() -> int:
         return score_sample(run, args.sample, args.lexicon)
     if args.gold is None:
         parser.error("--gold or --sample is required")
+    if args.lexicon:
+        # `shown` is set only by a sample drawn by the predicted tag, under the Wilson
+        # gate (David, 2026-11-06); a gold set is a diagnostic and never writes it.
+        parser.error("--lexicon goes with --sample only: a gold set never sets `shown`")
     if not (run / "review.tsv").is_file():
         print(f"No review.tsv in {run}: the run has not finished.", file=sys.stderr)
         return 1
@@ -288,6 +299,9 @@ def main() -> int:
         "excluded_data_fault": faults,
         "excluded_label_selected": sorted(selected),
         **scores,
+        "would_show": list(topics.shown_from(scores["agreed"])),
+        "would_show_note": "What the gold rule would show: a diagnostic only. `shown` is set"
+        " only by --sample, under the Wilson gate.",
         "label_selected": (
             None
             if diagnostic is None
@@ -313,17 +327,6 @@ def main() -> int:
     print(f"Gate: {agreed['gate']['rule']}: {'passes' if agreed['gate']['passes'] else 'fails'}")
     for error in agreed["errors"]:
         print(f"  {error['lemma']}: {','.join(error['predicted'])} for {','.join(error['gold'])}")
-    if args.lexicon:
-        held = json.loads(args.lexicon.read_text(encoding="utf-8"))
-        if held.get("run") != args.run:
-            print(f"Refused: {args.lexicon} is not run {args.run}'s lexicon.", file=sys.stderr)
-            return 5
-        held["shown"] = list(topics.shown_from(agreed))
-        held["shown_rule"] = topics.shown_rule(str(held.get("language") or "he"))
-        held["shown_scored_on"] = args.gold.name
-        held["shown_tags_sha256"] = tags_digest(held.get("lemmas") or {})
-        write_atomic(args.lexicon, json.dumps(held, ensure_ascii=False, indent=1))
-        print(f"Shown in {args.lexicon}: {held['shown'] or 'none'}")
     return 0 if agreed["gate"]["passes"] else 4
 
 

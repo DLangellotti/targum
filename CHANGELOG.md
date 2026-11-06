@@ -187,7 +187,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the army, each with a Wilson lower bound of 0.92. So Russian shows those four.
   People, Food, Travel, Health and Nature missed by one word each (lower bound 0.88).
   Work (84%) and School (89%) fell short, and Science had only 3 words to sample. The
-  Russian lexicon is now read from that run by name (`topics.RU_RUN`). `score_topics.py
+  Russian lexicon is now read from that run by name (`topics.RU_RUN`). Only a sample sets
+  `shown`, and it must name the lexicon's tags by their sha256. A gold set never sets
+  `shown`. `topics.load_shown` shows nothing once a lexicon's tags differ from the ones its
+  `shown` was proven on. `score_topics.py
   --lexicon` sets a lexicon's `shown` from its gold score (`topics.shown_from`), and sets
   none if the gate fails. No page reads the Russian lexicon yet. No new strings.
 

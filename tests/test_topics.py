@@ -693,7 +693,7 @@ def test_score_leaves_label_selected_rows_out_of_the_gate_and_shown(
 
     monkeypatch.setattr(
         "sys.argv",
-        ["score_topics.py", "--run", "ru-run", "--gold", str(csv_file), "--lexicon", str(lexicon)],
+        ["score_topics.py", "--run", "ru-run", "--gold", str(csv_file)],
     )
     code = script.main()  # type: ignore[attr-defined]
 
@@ -705,7 +705,8 @@ def test_score_leaves_label_selected_rows_out_of_the_gate_and_shown(
     assert agreed["precision"] == round(10 / 15, 3)
     assert not agreed["gate"]["passes"] and code == 4
     assert out["label_selected"]["per_topic"]["food"]["P"] == 1.0
-    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
+    assert out["would_show"] == []
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == ["food"], "never written"
 
 
 def test_label_selected_reads_the_phase_marks() -> None:
@@ -780,14 +781,15 @@ def _sample_case(
         "lemmas": lemmas,
     }
     version = version or held["version"]
-    lines = ["row,lemma,stratum,predicted,lexicon_version,topic_1,topic_2,notes"]
-    lines += [f"{i},f{i},food,food,{version},food,," for i in range(40)]
+    v = f"{version},{topics.tags_digest(lemmas)}"
+    lines = ["row,lemma,stratum,predicted,lexicon_version,tags_sha256,topic_1,topic_2,notes"]
+    lines += [f"{i},f{i},food,food,{v},food,," for i in range(40)]
     lines += [
-        f"{40 + i},h{i},health,health,{version},{'health' if i < health_right else 'general'},,"
+        f"{40 + i},h{i},health,health,{v},{'health' if i < health_right else 'general'},,"
         for i in range(40)
     ]
-    lines += [f"{80 + i},g{i},general,general,{version},general,," for i in range(40)]
-    lines += [f"120,bad,health,health,{version},health,,data fault"]
+    lines += [f"{80 + i},g{i},general,general,{v},general,," for i in range(40)]
+    lines += [f"120,bad,health,health,{v},health,,data fault"]
     sample = tmp_path / "sample.csv"
     sample.write_text("\n".join(lines) + "\n", encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
@@ -797,6 +799,17 @@ def _sample_case(
         ["score_topics.py", "--run", "ru-run", "--sample", str(sample), "--lexicon", str(lexicon)],
     )
     return script, sample, lexicon
+
+
+def _retag(sample: Path, lexicon: Path, lemma: str, tags: list[str]) -> None:
+    """Change one lemma's tags in the lexicon and give the sample the new digest, so
+    only the per-row checks can catch what changed."""
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    old = topics.tags_digest(held["lemmas"])
+    held["lemmas"][lemma] = tags
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    text = sample.read_text(encoding="utf-8").replace(old, topics.tags_digest(held["lemmas"]))
+    sample.write_text(text, encoding="utf-8")
 
 
 def test_score_sample_writes_shown_from_the_predicted_tag_sample(
@@ -839,17 +852,13 @@ def test_score_sample_refuses_a_sample_of_another_lexicon(
 def test_score_sample_refuses_a_row_whose_tags_have_changed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
-    held = json.loads(lexicon.read_text(encoding="utf-8"))
-    held["lemmas"]["h3"] = ["people"]
-    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    script, sample, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    _retag(sample, lexicon, "h3", ["people"])
     assert script.main() == 5  # type: ignore[attr-defined]
     assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
 
 
-def test_score_gold_refuses_another_runs_lexicon(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_score_gold_never_writes_shown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     script: object = _score_script()
     monkeypatch.setattr(topics, "RESEARCH", tmp_path)
     (tmp_path / "ru-run").mkdir()
@@ -859,26 +868,24 @@ def test_score_gold_refuses_another_runs_lexicon(
     gold = tmp_path / "gold.csv"
     gold.write_text(GOLD_HEADER + "1,f,,NOUN,x,food,,,\n", encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
-    # Exactly the run's: "ru-run" is a suffix of "full-ru-run" and is still refused.
-    lexicon.write_text(
-        json.dumps(
-            {"version": "topics/1+ru-prompt/2-full-ru-run", "run": "full-ru-run", "shown": []}
-        )
-    )
+    held = {"version": "v-ru-run", "run": "ru-run", "shown": ["money"], "lemmas": {"f": ["food"]}}
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
     monkeypatch.setattr(
         "sys.argv",
         ["score_topics.py", "--run", "ru-run", "--gold", str(gold), "--lexicon", str(lexicon)],
     )
-    assert script.main() == 5  # type: ignore[attr-defined]
+    with pytest.raises(SystemExit) as refused:
+        script.main()  # type: ignore[attr-defined]
+    assert refused.value.code == 2
+    assert json.loads(lexicon.read_text(encoding="utf-8")) == held
+    assert not (tmp_path / "ru-run" / "gold-score.json").exists()
 
 
 def test_score_sample_refuses_a_row_with_a_second_tag_since(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
-    held = json.loads(lexicon.read_text(encoding="utf-8"))
-    held["lemmas"]["h3"] = ["health", "people"]
-    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    script, sample, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    _retag(sample, lexicon, "h3", ["health", "people"])
     assert script.main() == 5  # type: ignore[attr-defined]
 
 
@@ -915,13 +922,12 @@ def test_score_sample_counts_one_lemma_once_for_each_topic_it_was_drawn_for(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     script, sample, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    _retag(sample, lexicon, "f0", ["food", "health"])
     held = json.loads(lexicon.read_text(encoding="utf-8"))
-    held["lemmas"]["f0"] = ["food", "health"]
-    lexicon.write_text(json.dumps(held), encoding="utf-8")
-    version = held["version"]
+    v = f"{held['version']},{topics.tags_digest(held['lemmas'])}"
     text = sample.read_text(encoding="utf-8")
-    text = text.replace(f"0,f0,food,food,{version},", f'0,f0,food,"food,health",{version},', 1)
-    text += f'121,f0,health,"food,health",{version},health,,\n'
+    text = text.replace(f"0,f0,food,food,{v},", f'0,f0,food,"food,health",{v},', 1)
+    text += f'121,f0,health,"food,health",{v},health,,\n'
     sample.write_text(text, encoding="utf-8")
     assert script.main() == 0  # type: ignore[attr-defined]
 
@@ -938,33 +944,27 @@ def test_score_sample_refuses_a_sample_that_mixes_lexicon_versions(
     assert script.main() == 5  # type: ignore[attr-defined]
 
 
-def test_score_gold_writes_its_own_rule_and_digest_with_shown(
+def test_score_sample_refuses_a_tag_changed_on_a_lemma_it_did_not_sample(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    script: object = _score_script()
-    monkeypatch.setattr(topics, "RESEARCH", tmp_path)
-    (tmp_path / "ru-run").mkdir()
-    (tmp_path / "ru-run" / "review.tsv").write_text(
-        "lemma\tsonnet-5-5\topus-5-5\tagreed\nf\tfood\tfood\tfood\n", encoding="utf-8"
-    )
-    gold = tmp_path / "gold.csv"
-    gold.write_text(GOLD_HEADER + "1,f,,NOUN,x,food,,,\n", encoding="utf-8")
-    lexicon = tmp_path / "topics-ru.json"
-    held = {
-        "version": "topics/1+ru-prompt/3-ru-run",
-        "run": "ru-run",
-        "language": "ru",
-        "shown": [],
-        "shown_rule": topics.SAMPLE_SHOWN_RULE,
-        "shown_tags_sha256": "old",
-        "lemmas": {"f": ["food"]},
-    }
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["lemmas"]["unsampled"] = ["science"]
     lexicon.write_text(json.dumps(held), encoding="utf-8")
-    monkeypatch.setattr(
-        "sys.argv",
-        ["score_topics.py", "--run", "ru-run", "--gold", str(gold), "--lexicon", str(lexicon)],
-    )
-    script.main()  # type: ignore[attr-defined]
-    after = json.loads(lexicon.read_text(encoding="utf-8"))
-    assert after["shown_rule"] == topics.shown_rule("ru")
-    assert after["shown_tags_sha256"] == script.tags_digest({"f": ["food"]})  # type: ignore[attr-defined]
+    assert script.main() == 5  # type: ignore[attr-defined]
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
+
+
+def test_load_shown_drops_shown_once_the_tags_it_was_proven_on_change(tmp_path: Path) -> None:
+    lemmas = {"стол": ["family"], "суд": ["law"]}
+    file = tmp_path / "topics-ru.json"
+    held = {"shown": ["family"], "shown_tags_sha256": topics.tags_digest(lemmas), "lemmas": lemmas}
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    assert topics.load_shown(file, "ru") == ("family",)
+    held["lemmas"] = {**lemmas, "суд": ["politics"]}
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    assert topics.load_shown(file, "ru") == ()
+    # A lexicon that records no digest (Hebrew's) is read as it was.
+    del held["shown_tags_sha256"]
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    assert topics.load_shown(file, "ru") == ("family",)
