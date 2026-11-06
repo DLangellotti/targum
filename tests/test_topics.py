@@ -550,7 +550,7 @@ GOLD_RU = frozenset(
 
 
 #: Every lemma of the first predicted-tag sample (ling-ru, seed 20261106638, 2026-11-06):
-#: ru-prompt/3 answers its error patterns, so none of its words may be in the prompt.
+#: ru-prompt/3 was written after it, so none of its words may be in the prompt.
 SAMPLED_RU = frozenset(
     """
     адъютантский аккорд аккуратный алкоголь аллея анкета аптекарь безопасность
@@ -608,7 +608,13 @@ def test_no_russian_word_in_the_prompt_is_a_gold_word() -> None:
     older = {"солдат", "выборы", "исследование", "церковь"}
     seen = GOLD_RU | SAMPLED_RU
     assert {one[0] for one in topics.EXAMPLES_RU} & seen == older
-    shown = set(re.findall(r"[а-яё-]+", topics.system_prompt("ru").lower()))
+    import unicodedata
+
+    # A stress mark (U+0301) would split a word in two, so stress marks are stripped
+    # first; ё keeps its dots.
+    decomposed = unicodedata.normalize("NFD", topics.system_prompt("ru").lower())
+    bare = unicodedata.normalize("NFC", decomposed.replace("\u0301", "").replace("\u0300", ""))
+    shown = set(re.findall(r"[а-яё-]+", bare))
     assert shown & seen == older
     assert "пресс" not in shown, "the media are СМИ or пресса, never пресс (David, 2026-11-06)"
     assert topics.PROMPT_VERSIONS["ru"] == "ru-prompt/3"
@@ -671,7 +677,10 @@ def test_score_leaves_label_selected_rows_out_of_the_gate_and_shown(
     csv_file = tmp_path / "gold.csv"
     csv_file.write_text("".join(gold), encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
-    lexicon.write_text(json.dumps({"shown": ["food"], "lemmas": {}}), encoding="utf-8")
+    lexicon.write_text(
+        json.dumps({"version": "topics/1+ru-prompt/3-ru-run", "shown": ["food"], "lemmas": {}}),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(
         "sys.argv",
@@ -698,47 +707,168 @@ def test_label_selected_reads_the_phase_marks() -> None:
     assert not picks({"provenance": "new v3, seed 6382 draw 3, phase A"})
     assert not picks({"provenance": "new v3, seed 6382 draw 30, phase B systematic"})
     assert not picks({"provenance": "agree"})
+    # Fails closed: a phase spelled any other way is never scored.
+    assert picks({"provenance": "new v3, seed 6382 draw 12, phase B-topic"})
+    assert picks({"provenance": "phase D"})
 
 
-def test_a_predicted_tag_sample_shows_a_topic_at_fifteen_rows_and_ninety_percent() -> None:
-    sample = [("food", {"food"})] * 18 + [("food", {"general"})] * 2
-    sample += [("law", {"law"})] * 14
-    sample += [("travel", {"travel"})] * 17 + [("travel", {"everyday"})] * 3
+def test_a_topic_shows_only_when_its_sample_proves_ninety_percent() -> None:
+    sample = [("food", {"food"})] * 35
+    sample += [("law", {"law"})] * 34
+    sample += [("travel", {"travel"})] * 18 + [("travel", {"everyday"})] * 2
+    sample += [("health", {"health"})] * 44 + [("health", {"general"})] * 1
     sample += [("general", {"general"})] * 40
     held = topics.sampled_precision(sample)
-    assert held["food"]["P"] == 0.9 and held["food"]["shown"]
-    assert held["food"]["P_lower"] is not None and held["food"]["P_lower"] < 0.9
-    assert held["law"]["P"] == 1.0 and not held["law"]["shown"], "14 rows is too few"
-    assert held["travel"]["P"] == 0.85 and not held["travel"]["shown"]
+    assert held["food"]["P_lower"] == 0.901 and held["food"]["shown"], "35 of 35 proves it"
+    assert held["law"]["P"] == 1.0 and not held["law"]["shown"], "34 of 34 does not"
+    assert held["travel"]["P"] == 0.9 and not held["travel"]["shown"], (
+        "a point estimate is not proof"
+    )
+    assert held["health"]["P_lower"] is not None and held["health"]["P_lower"] < 0.9
+    assert not held["health"]["shown"]
     assert not held["general"]["shown"], "general is never a bar"
     assert topics.shown_from_sample(held) == ("food",)
+
+
+def _general_rows(right: int, of: int = 40) -> list[tuple[str, set[str]]]:
+    return [("general", {"general"})] * right + [("general", {"food"})] * (of - right)
+
+
+def test_a_sample_shows_nothing_past_its_general_or_micro_bar() -> None:
+    topical = [("food", {"food"})] * 40
+    shown = lambda rows: topics.shown_from_sample(topics.sampled_precision(rows))  # noqa: E731
+    assert shown(topical + _general_rows(34)) == ("food",), "general at exactly 85% passes"
+    assert shown(topical + _general_rows(33)) == ()
+    assert shown(topical) == (), "no general stratum"
+    # Food passes alone, but over all topics the sample is under 90%.
+    weak = [("travel", {"general"})] * 20 + [("travel", {"travel"})] * 20
+    assert shown(topical + weak + _general_rows(40)) == ()
+
+
+def _sample_case(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, health_right: int, version: str = ""
+) -> tuple[object, Path, Path]:
+    script: object = _score_script()
+    monkeypatch.setattr(topics, "RESEARCH", tmp_path)
+    (tmp_path / "ru-run").mkdir()
+    (tmp_path / "ru-run" / "lemmas.json").write_text('{"language": "ru"}', encoding="utf-8")
+    lemmas = {f"f{i}": ["food"] for i in range(40)}
+    lemmas |= {f"h{i}": ["health"] for i in range(40)}
+    lemmas |= {f"g{i}": ["general"] for i in range(40)}
+    held = {"version": "topics/1+ru-prompt/3-ru-run", "shown": [], "lemmas": lemmas}
+    version = version or held["version"]
+    lines = ["row,lemma,stratum,predicted,lexicon_version,topic_1,topic_2,notes"]
+    lines += [f"{i},f{i},food,food,{version},food,," for i in range(40)]
+    lines += [
+        f"{40 + i},h{i},health,health,{version},{'health' if i < health_right else 'general'},,"
+        for i in range(40)
+    ]
+    lines += [f"{80 + i},g{i},general,general,{version},general,," for i in range(40)]
+    lines += [f"120,bad,health,health,{version},health,,data fault"]
+    sample = tmp_path / "sample.csv"
+    sample.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lexicon = tmp_path / "topics-ru.json"
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["score_topics.py", "--run", "ru-run", "--sample", str(sample), "--lexicon", str(lexicon)],
+    )
+    return script, sample, lexicon
 
 
 def test_score_sample_writes_shown_from_the_predicted_tag_sample(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=39)
+    assert script.main() == 0  # type: ignore[attr-defined]
+    out = json.loads((tmp_path / "ru-run" / "sample-score.json").read_text(encoding="utf-8"))
+    assert out["per_topic"]["health"]["sampled"] == 40 and out["per_topic"]["health"]["right"] == 39
+    assert out["gate"]["passes"] and len(out["tags_sha256"]) == 64
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    assert held["shown"] == ["food"], "39 of 40 does not prove 90%"
+    assert held["shown_rule"] == topics.SAMPLE_SHOWN_RULE
+    assert held["shown_tags_sha256"] == out["tags_sha256"]
+
+
+def test_score_sample_exits_4_and_shows_nothing_when_no_topic_passes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=0)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["shown"] = ["food"]
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    assert script.main() == 4  # type: ignore[attr-defined]
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
+
+
+def test_score_sample_refuses_a_sample_of_another_lexicon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, _, lexicon = _sample_case(
+        tmp_path, monkeypatch, health_right=40, version="topics/1+ru-prompt/2-ru-old"
+    )
+    before = lexicon.read_text(encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+    assert lexicon.read_text(encoding="utf-8") == before
+    assert not (tmp_path / "ru-run" / "sample-score.json").exists()
+
+
+def test_score_sample_refuses_a_row_whose_tags_have_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["lemmas"]["h3"] = ["people"]
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
+
+
+def test_score_gold_refuses_another_runs_lexicon(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     script: object = _score_script()
     monkeypatch.setattr(topics, "RESEARCH", tmp_path)
     (tmp_path / "ru-run").mkdir()
-    lines = ["row,lemma,stratum,topic_1,topic_2,notes"]
-    lines += [f"{i},f{i},food,food,," for i in range(15)]
-    lines += [f"{15 + i},h{i},health,general,," for i in range(15)]
-    lines += ["30,bad,health,health,,data fault"]
-    sample = tmp_path / "sample.csv"
-    sample.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (tmp_path / "ru-run" / "review.tsv").write_text(
+        "lemma\tsonnet-5-5\topus-5-5\tagreed\nf\tfood\tfood\tfood\n", encoding="utf-8"
+    )
+    gold = tmp_path / "gold.csv"
+    gold.write_text(GOLD_HEADER + "1,f,,NOUN,x,food,,,\n", encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
-    lexicon.write_text(json.dumps({"shown": [], "lemmas": {}}), encoding="utf-8")
+    lexicon.write_text(json.dumps({"version": "topics/1+ru-prompt/2-other", "shown": []}))
     monkeypatch.setattr(
         "sys.argv",
-        ["score_topics.py", "--run", "ru-run", "--sample", str(sample), "--lexicon", str(lexicon)],
+        ["score_topics.py", "--run", "ru-run", "--gold", str(gold), "--lexicon", str(lexicon)],
     )
-    assert script.main() == 0  # type: ignore[attr-defined]
-    out = json.loads((tmp_path / "ru-run" / "sample-score.json").read_text(encoding="utf-8"))
-    assert out["per_topic"]["health"] == {
-        "sampled": 15,
-        "right": 0,
-        "P": 0.0,
-        "P_lower": 0.0,
-        "shown": False,
-    }
-    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == ["food"]
+    assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_sample_refuses_a_row_with_a_second_tag_since(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["lemmas"]["h3"] = ["health", "people"]
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_sample_refuses_a_stratum_the_lexicon_does_not_give(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, sample, _ = _sample_case(tmp_path, monkeypatch, health_right=40)
+    text = sample.read_text(encoding="utf-8").replace(",h3,health,health,", ",h3,food,health,")
+    sample.write_text(text, encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_sample_refuses_a_lexicon_of_another_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    other = "topics/1+ru-prompt/3-ru-other"
+    script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40, version=other)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["version"] = other
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]

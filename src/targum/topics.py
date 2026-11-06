@@ -169,43 +169,6 @@ def passes_show(gold: int, precision: float | None, recall: float | None) -> boo
     )
 
 
-def sampled_precision(
-    sample: Iterable[tuple[str, Iterable[str]]],
-) -> dict[str, dict[str, Any]]:
-    """Each topic's precision on a blind sample drawn by the *predicted* tag: `sample`
-    holds, for each row, the agreed tag it was drawn for (its stratum, a topic or
-    `general`) and its gold labels. A row is right when its gold holds its stratum. This
-    is what measures precision; a gold set drawn by its own labels measures recall only.
-    The Wilson lower bound is reported beside each point estimate (#638, 2026-11-06)."""
-    counts: dict[str, list[int]] = {}
-    for stratum, labels in sample:
-        held = counts.setdefault(stratum, [0, 0])
-        held[0] += 1
-        held[1] += stratum in set(labels)
-    out: dict[str, dict[str, Any]] = {}
-    for code in [*TOPICS, GENERAL]:
-        if code not in counts:
-            continue
-        sampled, right = counts[code]
-        interval = wilson(right, sampled)
-        precision = right / sampled
-        out[code] = {
-            "sampled": sampled,
-            "right": right,
-            "P": round(precision, 3),
-            "P_lower": None if interval is None else round(interval[0], 3),
-            "shown": code != GENERAL and sampled >= SHOW_GOLD and precision >= SHOW_PRECISION,
-        }
-    return out
-
-
-def shown_from_sample(scored: Mapping[str, Mapping[str, Any]]) -> tuple[str, ...]:
-    """The topics a predicted-tag sample lets into `shown` (`sampled_precision`): at
-    least `SHOW_GOLD` rows sampled and precision of `SHOW_PRECISION` or more, in the
-    order of `TOPICS`."""
-    return tuple(code for code in TOPICS if scored.get(code, {}).get("shown"))
-
-
 def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
     """The topics a scored run's agreed tags let into `shown` (`passes_show` on each
     topic's gold row count, precision and recall), in the order of `TOPICS`; none at all
@@ -262,6 +225,77 @@ def wilson(hits: int, total: int, z: float = 1.96) -> tuple[float, float] | None
 #: (`scripts/score_topics.py` leaves such rows out, #1119).
 PILOT_PRECISION = SHOW_PRECISION
 GENERAL_PRECISION = 0.85
+
+
+def sampled_precision(
+    sample: Iterable[tuple[str, Iterable[str]]],
+) -> dict[str, dict[str, Any]]:
+    """Each topic's precision on a blind sample drawn by the *predicted* tag: `sample`
+    holds, for each row, the agreed tag it was drawn for (its stratum, a topic or
+    `general`) and its gold labels. A row is right when its gold holds its stratum. This
+    is what measures precision; a gold set drawn by its own labels measures recall only.
+    A topic passes only when its sample *proves* `SHOW_PRECISION`: the Wilson 95% lower
+    bound is at or above it (David, 2026-11-06), which takes at least 35 rows with no
+    miss."""
+    counts: dict[str, list[int]] = {}
+    for stratum, labels in sample:
+        held = counts.setdefault(stratum, [0, 0])
+        held[0] += 1
+        held[1] += stratum in set(labels)
+    out: dict[str, dict[str, Any]] = {}
+    for code in [*TOPICS, GENERAL]:
+        if code not in counts:
+            continue
+        sampled, right = counts[code]
+        interval = wilson(right, sampled)
+        precision = right / sampled
+        out[code] = {
+            "sampled": sampled,
+            "right": right,
+            "P": round(precision, 3),
+            "P_lower": None if interval is None else round(interval[0], 3),
+            # A lower bound of 90% already needs 35 rows, so no row count is checked.
+            "shown": code != GENERAL and interval is not None and interval[0] >= SHOW_PRECISION,
+        }
+    return out
+
+
+def sample_gate(scored: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """The gold path's bars, read on a predicted-tag sample: micro precision over every
+    topic stratum of `PILOT_PRECISION` or more, and `general`'s at `GENERAL_PRECISION` or
+    more (a sample with no `general` stratum fails). Recall cannot be read off a sample
+    drawn by the predicted tag, so it is not part of this gate."""
+    hits = sum(held["right"] for code, held in scored.items() if code != GENERAL)
+    total = sum(held["sampled"] for code, held in scored.items() if code != GENERAL)
+    precision = hits / total if total else None
+    general = scored.get(GENERAL, {}).get("P")
+    passes = (
+        precision is not None
+        and precision >= PILOT_PRECISION
+        and general is not None
+        and general >= GENERAL_PRECISION
+    )
+    return {"precision": None if precision is None else round(precision, 3), "passes": passes}
+
+
+#: How `shown` is set from a predicted-tag sample (#638, 2026-11-06).
+SAMPLE_SHOWN_RULE = (
+    f"A bar is drawn only for a topic in `shown`. From a blind sample drawn by the predicted"
+    f" tag of this lexicon's own tags, a topic joins `shown` only when the sample proves it:"
+    f" the Wilson 95% lower bound of its precision is >= {SHOW_PRECISION:.0%} (David,"
+    f" 2026-11-06),"
+    f" and only when the whole sample's topic precision is >= {PILOT_PRECISION:.0%} and its"
+    f" `general` precision >= {GENERAL_PRECISION:.0%}."
+)
+
+
+def shown_from_sample(scored: Mapping[str, Mapping[str, Any]]) -> tuple[str, ...]:
+    """The topics a predicted-tag sample lets into `shown` (`sampled_precision`): at
+    least `SHOW_GOLD` rows sampled and a Wilson lower bound of `SHOW_PRECISION`, in the
+    order of `TOPICS`; none at all unless the sample passes `sample_gate`."""
+    if not sample_gate(scored)["passes"]:
+        return ()
+    return tuple(code for code in TOPICS if scored.get(code, {}).get("shown"))
 
 
 def score(
@@ -836,14 +870,14 @@ _DEFINITIONS_RU = {
 #: six more, none a gold word either (`tests/test_topics.py` holds the list): a historical
 #: word in its modern counterpart's topic (губерния, городничий), the humanities as
 #: subjects in School (история) and the sciences in Science (физика), and charity and a
-#: small multi-use object kept `general` (нищий, нитка). ru-prompt/3 (2026-11-06) answers
-#: the error patterns of the first predicted-tag sample (#638), never its words: a
-#: nationality, the homeland and the state's abstractions are `general` (немец,
-#: отечество), a material is `general` (стекло), a word used in class but common
-#: everywhere is `general` (вопрос, ответ), what one does online day to day is Everyday
-#: life (браузер, форум), dying is `general` and crying People & feelings (погибнуть,
-#: плакать), and the media are СМИ, never пресс. No example is a gold word or a sampled
-#: one (`tests/test_topics.py`).
+#: small multi-use object kept `general` (нищий, нитка). ru-prompt/3 (2026-11-06) adds one
+#: general rule, written after the first predicted-tag sample (#638) but naming none of
+#: its senses (qa-claude: a first draft paraphrased 12 of its 18 misses, so it was
+#: rewritten): a field topic takes its institutions, practice and specialists, and a word
+#: as common outside the field stays `general`. It also names the media СМИ and пресса,
+#: never пресс (David, 2026-11-06), with СМИ as an example. Round 3 is judged only on a
+#: fresh sample, which excludes the first. No example is a gold word or a sampled one
+#: (`tests/test_topics.py`).
 EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("стол", "сто́л", "NOUN", "table", ("family",)),
     ("хлеб", "хле́б", "NOUN", "bread", ("food",)),
@@ -912,15 +946,6 @@ EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("сообщить", "сообщи́ть", "VERB", "to report, to inform", (GENERAL,)),
     ("заявить", "заяви́ть", "VERB", "to state, to declare", (GENERAL,)),
     ("уста", "уста́", "NOUN", "lips, mouth (poetic)", ("health",)),
-    ("немец", "не́мец", "NOUN", "German (man)", (GENERAL,)),
-    ("отечество", "оте́чество", "NOUN", "fatherland", (GENERAL,)),
-    ("стекло", "стекло́", "NOUN", "glass", (GENERAL,)),
-    ("вопрос", "вопро́с", "NOUN", "question", (GENERAL,)),
-    ("ответ", "отве́т", "NOUN", "answer; response", (GENERAL,)),
-    ("браузер", "бра́узер", "NOUN", "web browser", ("everyday",)),
-    ("форум", "фо́рум", "NOUN", "forum (online)", ("everyday",)),
-    ("погибнуть", "поги́бнуть", "VERB", "to perish; to die", (GENERAL,)),
-    ("плакать", "пла́кать", "VERB", "to cry; to weep", ("people",)),
     ("сми", "СМИ", "NOUN", "mass media", ("culture",)),
 )
 
@@ -962,7 +987,11 @@ wrong topic puts a word in the wrong bar. Common verbs of motion, speech, though
 possession, adjectives of size, quality and time, and abstract nouns are usually \
 `{GENERAL}`. Money & shopping is prices, paying, the bank and shops: begging and giving \
 to the poor are not, so нищий is `{GENERAL}`. A small tool or object used across several \
-topics (нитка) is `{GENERAL}`, even when one of its uses is a hobby.
+topics (нитка) is `{GENERAL}`, even when one of its uses is a hobby. A field topic \
+(Politics & society, Science & technology, School & study, Health & body) takes the \
+words of its institutions, its practice and its specialists. A word the field uses often \
+but that is as common outside it stays `{GENERAL}`, or takes the topic where it mostly \
+lives: ask where a learner would mostly meet the word, not where it can occur.
 5. Both verbs of an aspect pair (купить and покупать) take the same topic, and a verb \
 takes the topic of the noun it is about only when the verb itself belongs there.
 6. Religion & tradition only where the word's main modern sense is religious. A word \
@@ -972,18 +1001,11 @@ or `{GENERAL}` where the counterpart is `{GENERAL}`: губерния (today о�
 `{GENERAL}`, городничий is Law & crime. A literary or poetic word (уста, очи) takes the \
 topic of its everyday counterpart.
 7. Science & technology is the natural sciences, research and engineering as fields, and \
-computing as a system. A device and its everyday use is Everyday life, and so is what \
-one does online day to day: a website, a link, a browser, a forum. A material as such \
-(стекло) is `{GENERAL}`, not Science. School & study is schooling, lessons, subjects \
-and exams; the humanities as subjects of study (history, linguistics, literary theory) \
-are School & study. A word used in class but common everywhere (вопрос, ответ, a word, \
-an activity) is `{GENERAL}`, and sayings, proverbs and tales are Free time & culture.
+computing as a system. The humanities as subjects of study (history, \
+linguistics, literary theory) are School & study. A device and its everyday use is \
+Everyday life; what the media publish is Free time & culture.
 8. Words for people as such, by age or sex, are People & feelings; family members are \
-Family & home. The body and its parts are Health & body, and so are illness and \
-medicine; dying and death are `{GENERAL}` (погибнуть), and crying, groaning and other \
-signs of feeling are People & feelings (плакать). Politics & society is the state's \
-institutions and what they do: a nationality (немец), the homeland (отечество) and \
-adjectives of rank or degree are `{GENERAL}`, and a rank in the civil service is Work.
+Family & home. The body and its parts are Health & body.
 9. Time: the units of the clock and the calendar (hour, day, week, month, morning) are \
 Everyday life. Time as such (time, moment, period, occasion, the past, the future) and \
 adverbs of time are `{GENERAL}`.

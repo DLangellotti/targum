@@ -23,10 +23,17 @@ written to `gold-score.json` in the run directory. `--lexicon` sets that lexicon
 unless the gate passes. Spends nothing.
 
 `--sample FILE` scores a blind sample drawn by the predicted tag instead (the honest
-measure of precision): a CSV with `lemma`, the stratum it was drawn for (`stratum`,
-`sampled_for` or `predicted`) and the gold `topic_1`/`topic_2`. Each topic's precision
-and Wilson lower bound go to `sample-score.json`, and `--lexicon` then shows the topics
-with at least 15 rows sampled and precision of 90% or more (`topics.shown_from_sample`).
+measure of precision): a CSV with `lemma`, `stratum` (the agreed tag it was drawn for),
+`predicted` (the lemma's agreed tags when it was drawn), `lexicon_version` (the version
+of the lexicon it was drawn from) and the gold `topic_1`/`topic_2`. It is refused unless
+it was drawn from the lexicon `--lexicon` names (or the run's own) as that lexicon is
+now: the same version, ending in the run's name, and every row's tags the lexicon's,
+with its stratum among them, so a sample of one round's tags never sets another's
+`shown`. Each topic's precision and Wilson lower bound go to `sample-score.json`, with a
+sha256 of the lexicon's tags, and `--lexicon` then shows the topics whose sample proves
+90%: a Wilson 95% lower bound of 90% or more (David, 2026-11-06), so 35 rows or more;
+and none unless the whole sample's topic precision is 90% or more and its `general` 85%
+(`topics.shown_from_sample`).
 
     .venv/bin/python scripts/score_topics.py --run ru-pilot-2026-11-06 --gold GOLD.csv
 """
@@ -35,23 +42,28 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import sys
 from pathlib import Path
+from typing import Any
 
 from targum import topics
 from targum.paths import write_atomic
 
-#: How a gold CSV marks a row kept because of its own label, in its notes or its last
-#: column: ling-ru's v3 phases "B topic" and "C" (the uniform draws are "phase A" and
-#: "phase B systematic").
-LABEL_SELECTED = re.compile(r"\bphase (?:B topic|C)\b", re.IGNORECASE)
+#: The draws a gold CSV may mark as uniform, in its notes or its last column: ling-ru's
+#: v3 "phase A" and "phase B systematic". A row that names any other phase was kept for
+#: its label, or is marked in a way this does not know, and is never scored: the check
+#: fails closed. A row naming no phase (v1 and v2) is scored.
+UNIFORM_PHASES = re.compile(r"\bphase (?:A|B systematic)\s*$", re.IGNORECASE)
+PHASE = re.compile(r"\bphase\b", re.IGNORECASE)
 
 
 def label_selected(row: dict[str, str]) -> bool:
-    """Whether a gold row was kept because of its label, and so may not be scored."""
-    return any(LABEL_SELECTED.search(cell or "") for cell in row.values())
+    """Whether a gold row may not be scored: it names a phase other than a uniform one."""
+    marked = [cell for cell in row.values() if cell and PHASE.search(cell)]
+    return any(not UNIFORM_PHASES.search(cell.strip()) for cell in marked)
 
 
 def read_gold(
@@ -109,55 +121,119 @@ def read_run(run: Path) -> dict[str, dict[str, set[str]]]:
     return out
 
 
-STRATUM_COLUMNS = ("stratum", "sampled_for", "predicted")
+SAMPLE_COLUMNS = ("lemma", "stratum", "predicted", "lexicon_version", "topic_1")
 
 
-def read_sample(file: Path) -> list[tuple[str, set[str]]]:
-    """A predicted-tag sample's rows: the stratum each was drawn for and its gold labels,
-    data faults left out."""
-    out: list[tuple[str, set[str]]] = []
+def _codes(cell: str) -> set[str]:
+    return {code for code in cell.replace(" ", ",").split(",") if code}
+
+
+def read_sample(file: Path) -> tuple[list[dict[str, Any]], set[str]]:
+    """A predicted-tag sample's rows (lemma, stratum, the tags it was drawn with, and its
+    gold labels), data faults left out, and the lexicon versions it names."""
+    rows: list[dict[str, Any]] = []
+    versions: set[str] = set()
     with file.open(encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        column = next((c for c in STRATUM_COLUMNS if c in (reader.fieldnames or ())), None)
-        if column is None:
-            raise SystemExit(f"{file}: no stratum column (one of {', '.join(STRATUM_COLUMNS)})")
+        missing = [c for c in SAMPLE_COLUMNS if c not in (reader.fieldnames or ())]
+        if missing:
+            raise SystemExit(f"{file}: no {', '.join(missing)} column")
         for row in reader:
+            versions.add((row["lexicon_version"] or "").strip())
             if "fault" in (row.get("notes") or "").lower():
                 continue
-            stratum = (row[column] or "").strip()
-            labels = {
-                code.strip()
-                for cell in (row.get("topic_1") or "", row.get("topic_2") or "")
-                for code in cell.split(",")
-                if code.strip()
-            }
+            stratum = (row["stratum"] or "").strip()
+            labels = _codes(row.get("topic_1") or "") | _codes(row.get("topic_2") or "")
             if not stratum or not labels:
                 continue
             unknown = ({stratum} | labels) - {*topics.TOPICS, topics.GENERAL}
             if unknown:
                 raise SystemExit(f"Row {row.get('row')} ({row['lemma']}): no such topic {unknown}")
-            out.append((stratum, labels))
-    return out
+            rows.append(
+                {
+                    "lemma": row["lemma"].strip(),
+                    "stratum": stratum,
+                    "predicted": _codes(row["predicted"] or ""),
+                    "labels": labels,
+                }
+            )
+    return rows, versions
+
+
+def tags_digest(lemmas: dict[str, list[str]]) -> str:
+    """A sha256 of a lexicon's tags, so a score names exactly the tags it read."""
+    body = json.dumps(lemmas, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def sample_refusal(
+    run: str, held: dict[str, Any], rows: list[dict[str, Any]], versions: set[str]
+) -> str | None:
+    """Why a sample may not set this lexicon's `shown`, or None: it must be drawn from
+    this run's lexicon, as it is now."""
+    version = str(held.get("version") or "")
+    if not version.endswith(f"-{run}"):
+        return f"the lexicon is {version!r}, not run {run}'s"
+    if versions != {version}:
+        return f"the sample was drawn from {sorted(versions)}, not {version!r}"
+    lemmas = held.get("lemmas") or {}
+    for row in rows:
+        now = set(lemmas.get(row["lemma"], ()))
+        if row["predicted"] != now:
+            drawn = sorted(row["predicted"])
+            return f"{row['lemma']} was drawn as {drawn}, the lexicon has {sorted(now)}"
+        if row["stratum"] not in now:
+            return (
+                f"{row['lemma']} was drawn for {row['stratum']}, which the lexicon does not give it"
+            )
+    return None
 
 
 def score_sample(run: Path, sample: Path, lexicon: Path | None) -> int:
-    """Score a predicted-tag sample, write `sample-score.json`, and set `shown`."""
-    scored = topics.sampled_precision(read_sample(sample))
+    """Score a predicted-tag sample, write `sample-score.json`, and set `shown`: 0 when a
+    topic is shown, 4 when none is, 5 when the sample is not this lexicon's."""
+    rows, versions = read_sample(sample)
+    write = lexicon is not None
+    lexicon = lexicon or topics.run_lexicon(_language(run), run.name)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    refused = sample_refusal(run.name, held, rows, versions)
+    if refused:
+        print(f"Refused: {refused}. Nothing written.", file=sys.stderr)
+        return 5
+    scored = topics.sampled_precision((row["stratum"], row["labels"]) for row in rows)
+    gate = topics.sample_gate(scored)
     shown = topics.shown_from_sample(scored)
-    body = {"sample": str(sample), "per_topic": scored, "shown": list(shown)}
+    digest = tags_digest(held.get("lemmas") or {})
+    body = {
+        "sample": str(sample),
+        "lexicon": str(lexicon),
+        "lexicon_version": held.get("version"),
+        "tags_sha256": digest,
+        "gate": gate,
+        "per_topic": scored,
+        "shown": list(shown),
+        "rule": topics.SAMPLE_SHOWN_RULE,
+    }
     write_atomic(run / "sample-score.json", json.dumps(body, ensure_ascii=False, indent=1))
-    for code, held in scored.items():
+    for code, one in scored.items():
         print(
-            f"{code:10} sampled {held['sampled']:3}  right {held['right']:3}"
-            f"  P {held['P']}  lower {held['P_lower']}  {'shown' if held['shown'] else ''}"
+            f"{code:10} sampled {one['sampled']:3}  right {one['right']:3}"
+            f"  P {one['P']}  lower {one['P_lower']}  {'passes' if one['shown'] else ''}"
         )
-    if lexicon:
-        held_lexicon = json.loads(lexicon.read_text(encoding="utf-8"))
-        held_lexicon["shown"] = list(shown)
-        held_lexicon["shown_scored_on"] = sample.name
-        write_atomic(lexicon, json.dumps(held_lexicon, ensure_ascii=False, indent=1))
+    print(f"Sample gate: topic P {gate['precision']}: {'passes' if gate['passes'] else 'fails'}")
+    if write:
+        held["shown"] = list(shown)
+        held["shown_rule"] = topics.SAMPLE_SHOWN_RULE
+        held["shown_scored_on"] = sample.name
+        held["shown_tags_sha256"] = digest
+        write_atomic(lexicon, json.dumps(held, ensure_ascii=False, indent=1))
         print(f"Shown in {lexicon}: {list(shown) or 'none'}")
     return 0 if shown else 4
+
+
+def _language(run: Path) -> str:
+    held = json.loads((run / "lemmas.json").read_text(encoding="utf-8"))
+    return str(held.get("language", "he"))
 
 
 def main() -> int:
@@ -221,6 +297,9 @@ def main() -> int:
         print(f"  {error['lemma']}: {','.join(error['predicted'])} for {','.join(error['gold'])}")
     if args.lexicon:
         held = json.loads(args.lexicon.read_text(encoding="utf-8"))
+        if not str(held.get("version") or "").endswith(f"-{args.run}"):
+            print(f"Refused: {args.lexicon} is not run {args.run}'s lexicon.", file=sys.stderr)
+            return 5
         held["shown"] = list(topics.shown_from(agreed))
         held["shown_scored_on"] = args.gold.name
         write_atomic(args.lexicon, json.dumps(held, ensure_ascii=False, indent=1))

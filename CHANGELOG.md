@@ -175,7 +175,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   topics. `score_topics.py` now leaves such rows out of the gate and `shown` and scores
   them apart as a diagnostic only. On the 564 rows left the run scores 89% (95% CI
   84-92%), so the gate fails and `topics-ru.json` shows no topic. Measuring precision
-  needs rows sampled by the predicted tag, which is the next step. `score_topics.py
+  needs rows sampled by the predicted tag. `score_topics.py --sample` now scores such a
+  sample, and refuses one drawn from any other lexicon than the one it writes. David
+  decided on 2026-11-06 that a topic shows only when its sample proves 90%, meaning the
+  Wilson 95% lower bound is at least 0.90, which takes 35 rows or more. On ling-ru's first
+  sample (20 a topic) none does: the best is 0.84 at 20 of 20. ru-prompt/3 adds one
+  general rule for field topics and names the media СМИ and пресса, never пресс. It waits
+  on a re-tag and a fresh sample of about 45 a topic. `score_topics.py
   --lexicon` sets a lexicon's `shown` from its gold score (`topics.shown_from`), and sets
   none if the gate fails. No page reads the Russian lexicon yet. No new strings.
 
