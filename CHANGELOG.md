@@ -1078,6 +1078,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one, and `render.builder._write` writes through `paths.write_atomic`, so a page is
   replaced in one step and a server reading it sees the old page or the new, never a
   torn one.
+- A deploy no longer stops at `finds_language: unbound variable` (targum-internal#629).
+  The per-language finds loop sits in deploy.sh's unquoted remote heredoc, so the laptop
+  expanded `$finds_language` under `set -u` after the keys and covers had gone and before
+  the backup and the install. It is written `\$finds_language` now, and
+  `test_deploy_heredoc` refuses any name the remote script sets that the laptop would expand.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline
