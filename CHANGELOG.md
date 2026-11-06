@@ -155,8 +155,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   is 90% micro precision over topic labels and 85% for `general`. The $1 pilot cost $0.23:
   500 lemmas on two models. Against a 60-row draft gold set it scored 78% agreed
   precision (95% CI 58-90%; 100% if the labels the gold notes call defensible are
-  accepted), so the full run was not bought. No page reads the Russian lexicon yet. No
-  new strings.
+  accepted), so the full run was not bought. ling-ru corrected three rows and added 73,
+  which re-scores it at 83%. The prompt became `ru-prompt/2` on her review: a historical
+  word takes its modern counterpart's topic in every topic, the humanities as subjects
+  are School, and charity and small multi-use objects stay `general`. No Russian word the
+  prompt shows is a gold word, and a test holds it. `--include GOLD.csv` puts every gold
+  lemma in a pilot. The second pilot cost $0.26: 573 lemmas, with all 133 gold rows. It
+  scored 98% agreed precision (95% CI 92-99%), but `general` precision was 84%, one row
+  under 85%, so the full run was not bought this time either. No page reads the Russian
+  lexicon yet. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
