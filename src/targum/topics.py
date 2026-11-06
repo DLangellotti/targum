@@ -219,7 +219,10 @@ def wilson(hits: int, total: int, z: float = 1.96) -> tuple[float, float] | None
 #: the full run is bought: Hebrew's, the precision a topic needs to be shown
 #: (`SHOW_PRECISION`), here over every topic label the gold rows hold (micro, `general`
 #: apart), because a pilot's gold set is too small to gate topic by topic; and `general`
-#: kept at the precision Hebrew's pilots held it to.
+#: kept at the precision Hebrew's pilots held it to. Only gold rows drawn without regard
+#: to their label are scored for it, or for `shown`: a row kept because its gold label is
+#: a topic cannot be a false positive for that topic, and lifts precision by construction
+#: (`scripts/score_topics.py` leaves such rows out, #1119).
 PILOT_PRECISION = SHOW_PRECISION
 GENERAL_PRECISION = 0.85
 

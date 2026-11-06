@@ -282,6 +282,28 @@ def test_shown_takes_each_topic_that_passes_and_none_past_a_failed_gate() -> Non
     }
     assert topics.shown_from(held) == ("everyday", "food")
     assert topics.shown_from({**held, "gate": {"passes": False}}) == ()
+    # Recall alone keeps a topic out, at the edge as well (religion sat at exactly 0.80).
+    edge = {"gate": {"passes": True}, "per_topic": {"law": {"gold": 15, "P": 1.0, "R": 0.79}}}
+    assert topics.shown_from(edge) == ()
+    edge["per_topic"]["law"]["R"] = 0.8
+    assert topics.shown_from(edge) == ("law",)
+
+
+def test_the_gate_fails_on_general_alone_and_holds_it_at_85() -> None:
+    # Ten topic rows all right, so topic precision is 1.0; `general` is said on twenty
+    # rows, of which `right` are general in gold and the rest carry a topic.
+    def held(right: int) -> dict[str, object]:
+        gold = {f"t{i}": {"food"} for i in range(10)}
+        predicted: dict[str, set[str]] = {f"t{i}": {"food"} for i in range(10)}
+        for i in range(20):
+            gold[f"g{i}"] = {topics.GENERAL} if i < right else {"travel"}
+            predicted[f"g{i}"] = {topics.GENERAL}
+        return topics.score(gold, predicted)
+
+    assert held(17)["precision"] == 1.0 and held(17)["general_precision"] == 0.85
+    assert held(17)["gate"]["passes"], "general at exactly 85% passes"
+    assert held(16)["precision"] == 1.0 and held(16)["general_precision"] == 0.8
+    assert not held(16)["gate"]["passes"], "general under 85% fails a perfect topic score"
 
 
 def test_wilson_brackets_the_point_and_narrows_with_more_rows() -> None:
@@ -553,3 +575,71 @@ def test_a_pilot_sample_takes_in_every_gold_lemma() -> None:
     held = module.with_included(universe, sample, frozenset({"слово5", "слово0", "нет"}))
     assert [one.lemma for one in held] == ["слово0", "слово3", "слово5", "слово6"]
     assert module.with_included(universe, sample, frozenset()) == sample
+
+
+def _score_script() -> object:
+    import importlib.util
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "score_topics.py"
+    spec = importlib.util.spec_from_file_location("score_topics", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GOLD_HEADER = "row,lemma,pointed,pos,gloss,topic_1,topic_2,notes,provenance\n"
+
+
+def test_score_leaves_label_selected_rows_out_of_the_gate_and_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script: object = _score_script()
+    monkeypatch.setattr(topics, "RESEARCH", tmp_path)
+    run = tmp_path / "ru-run"
+    run.mkdir()
+    rows = ["lemma\tsonnet-5-5\topus-5-5\tagreed"]
+    gold = [GOLD_HEADER]
+    # Twenty drawn rows: food rows the models get right, and general rows half of which
+    # they wrongly call food; then twenty rows kept because their label is food, all right.
+    for i in range(10):
+        rows.append(f"f{i}\tfood\tfood\tfood")
+        gold.append(f"{i},f{i},,NOUN,x,food,,,phase A\n")
+    for i in range(10):
+        rows.append(f"g{i}\tfood\tfood\tfood" if i < 5 else f"g{i}\tgeneral\tgeneral\t")
+        gold.append(f"{10 + i},g{i},,NOUN,x,general,,,phase B systematic\n")
+    for i in range(20):
+        rows.append(f"s{i}\tfood\tfood\tfood")
+        gold.append(f"{20 + i},s{i},,NOUN,x,food,,,phase B topic\n")
+    gold.append("40,bad,,NOUN,x,food,,data fault,phase A\n")
+    (run / "review.tsv").write_text("\n".join(rows) + "\n", encoding="utf-8")
+    csv_file = tmp_path / "gold.csv"
+    csv_file.write_text("".join(gold), encoding="utf-8")
+    lexicon = tmp_path / "topics-ru.json"
+    lexicon.write_text(json.dumps({"shown": ["food"], "lemmas": {}}), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["score_topics.py", "--run", "ru-run", "--gold", str(csv_file), "--lexicon", str(lexicon)],
+    )
+    code = script.main()  # type: ignore[attr-defined]
+
+    out = json.loads((run / "gold-score.json").read_text(encoding="utf-8"))
+    agreed = out["agreed"]
+    assert out["scored_rows"] == 20 and len(out["excluded_label_selected"]) == 20
+    assert out["excluded_data_fault"] == ["bad"]
+    # With the selected rows, food would be 30 of 35 (0.857); without, 10 of 15.
+    assert agreed["precision"] == round(10 / 15, 3)
+    assert not agreed["gate"]["passes"] and code == 4
+    assert out["label_selected"]["per_topic"]["food"]["P"] == 1.0
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == []
+
+
+def test_label_selected_reads_the_phase_marks() -> None:
+    script: object = _score_script()
+    picks = script.label_selected  # type: ignore[attr-defined]
+    assert picks({"provenance": "new v3, seed 6382 draw 12, phase B topic"})
+    assert picks({"notes": "", "x": "new v3, seed 6382 draw 4450, phase C science"})
+    assert not picks({"provenance": "new v3, seed 6382 draw 3, phase A"})
+    assert not picks({"provenance": "new v3, seed 6382 draw 30, phase B systematic"})
+    assert not picks({"provenance": "agree"})

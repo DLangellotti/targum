@@ -169,16 +169,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   an agreed topic in `topics-ru.json`. Scored on v2, the full run's agreed precision is
   99% (95% CI 94-99.8%), but `general` precision is 83%: the models' answers moved
   between runs, and косица, заспанный and лето came back `general`. On v2 the gate
-  fails. ling-ru's v3 gold keeps v2's 133 rows and adds 537 rows she drew blind with
-  seed 6382, 670 in all, and on v3 the full run passes: agreed precision 91% (95% CI
-  88-94%) and `general` 94%. So `topics-ru.json` shows the eleven topics that pass one by
-  one: Family, Food, Money, Work, School, Health, Culture, Law, Security, Science and
-  Religion. Everyday life, People, Travel, Nature and Politics are tagged but not shown.
-  Law, Security, Science and Religion pass on exactly 15 gold rows each. Some of those
-  rows were kept because ling-ru had labelled them with that topic, so their precision
-  is likely optimistic. `score_topics.py --lexicon` sets a lexicon's `shown` from its
-  gold score (`topics.shown_from`), and sets none if the gate fails. No page reads the
-  Russian lexicon yet. No new strings.
+  fails. ling-ru's v3 gold adds 537 rows she drew with seed 6382, but 97 of them were
+  kept because their label was a topic, and a row chosen by its label can hardly be a
+  false positive for that topic. With them the run scored 91% and would have shown eleven
+  topics. `score_topics.py` now leaves such rows out of the gate and `shown` and scores
+  them apart as a diagnostic only. On the 564 rows left the run scores 89% (95% CI
+  84-92%), so the gate fails and `topics-ru.json` shows no topic. Measuring precision
+  needs rows sampled by the predicted tag, which is the next step. `score_topics.py
+  --lexicon` sets a lexicon's `shown` from its gold score (`topics.shown_from`), and sets
+  none if the gate fails. No page reads the Russian lexicon yet. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

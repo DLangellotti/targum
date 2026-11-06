@@ -7,6 +7,15 @@ wrong lemma, part of speech or gloss: the tables' fault, not the tagger's) is le
 ling-he's were. What a note names as defensible (`topics.alternatives`) is excused in the
 lenient precision only; the gate reads the strict one.
 
+**Only rows drawn without regard to their label count.** A row kept *because* its gold
+label is topic X (ling-ru's v3 marks these "phase B topic" and "phase C": she labelled
+draws and kept the ones that carried a short topic) can add a hit for X but almost never
+a false positive, so it pushes precision towards 1 by construction, the micro gate's as
+well as each topic's (qa-claude on #1119, 2026-11-06: 0.914 with them, 0.886 without).
+Such rows (`label_selected`) never reach the gate or `shown`; they are scored apart, as
+a per-topic diagnostic in `gold-score.json` under `label_selected`, and nothing reads
+that. Precision for a topic wants rows sampled by the *predicted* tag, labelled blind.
+
 Each model is scored, and the agreed tags, where a row the two models share nothing on
 counts as `general`: it goes into no bar, exactly as a `general` row does. The score is
 written to `gold-score.json` in the run directory. `--lexicon` sets that lexicon's
@@ -21,19 +30,34 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
 from pathlib import Path
 
 from targum import topics
 from targum.paths import write_atomic
 
+#: How a gold CSV marks a row kept because of its own label, in its notes or its last
+#: column: ling-ru's v3 phases "B topic" and "C" (the uniform draws are "phase A" and
+#: "phase B systematic").
+LABEL_SELECTED = re.compile(r"\bphase (?:B topic|C)\b", re.IGNORECASE)
 
-def read_gold(file: Path) -> tuple[dict[str, set[str]], dict[str, set[str]], list[str]]:
-    """The gold labels by lemma, what each row's note also allows, and the rows left out
-    as data faults."""
+
+def label_selected(row: dict[str, str]) -> bool:
+    """Whether a gold row was kept because of its label, and so may not be scored."""
+    return any(LABEL_SELECTED.search(cell or "") for cell in row.values())
+
+
+def read_gold(
+    file: Path,
+) -> tuple[dict[str, set[str]], dict[str, set[str]], list[str], dict[str, set[str]]]:
+    """The gold labels by lemma, what each row's note also allows, the rows left out as
+    data faults, and apart from the rest the rows kept because of their label
+    (`label_selected`), which only the diagnostic reads."""
     gold: dict[str, set[str]] = {}
     also: dict[str, set[str]] = {}
     faults: list[str] = []
+    selected: dict[str, set[str]] = {}
     with file.open(encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             lemma = row["lemma"].strip()
@@ -52,9 +76,12 @@ def read_gold(file: Path) -> tuple[dict[str, set[str]], dict[str, set[str]], lis
             unknown = labels - {*topics.TOPICS, topics.GENERAL}
             if unknown:
                 raise SystemExit(f"Row {row.get('row')} ({lemma}): no such topic {unknown}")
+            if label_selected(row):
+                selected[lemma] = labels
+                continue
             gold[lemma] = labels
             also[lemma] = set(topics.alternatives(notes)) - labels
-    return gold, also, faults
+    return gold, also, faults, selected
 
 
 def read_run(run: Path) -> dict[str, dict[str, set[str]]]:
@@ -91,15 +118,27 @@ def main() -> int:
     if not (run / "review.tsv").is_file():
         print(f"No review.tsv in {run}: the run has not finished.", file=sys.stderr)
         return 1
-    gold, also, faults = read_gold(args.gold)
+    gold, also, faults, selected = read_gold(args.gold)
     predicted = read_run(run)
     scores = {name: topics.score(gold, tags, also) for name, tags in predicted.items()}
+    diagnostic = topics.score(selected, predicted["agreed"]) if selected else None
     out = {
         "run": args.run,
         "gold": str(args.gold),
-        "gold_rows": len(gold) + len(faults),
+        "gold_rows": len(gold) + len(faults) + len(selected),
+        "scored_rows": len(gold),
         "excluded_data_fault": faults,
+        "excluded_label_selected": sorted(selected),
         **scores,
+        "label_selected": (
+            None
+            if diagnostic is None
+            else {
+                "note": "Rows kept because of their gold label: a per-topic diagnostic"
+                " only, never the gate or shown.",
+                "per_topic": diagnostic["per_topic"],
+            }
+        ),
     }
     write_atomic(run / "gold-score.json", json.dumps(out, ensure_ascii=False, indent=1))
     for name, held in scores.items():
@@ -110,6 +149,8 @@ def main() -> int:
             f"  P lenient {held['precision_lenient']}  R {held['recall']}"
             f"  general P {held['general_precision']}"
         )
+    if selected:
+        print(f"{len(selected)} label-selected rows left out of the gate and shown.")
     agreed = scores["agreed"]
     print(f"Gate: {agreed['gate']['rule']}: {'passes' if agreed['gate']['passes'] else 'fails'}")
     for error in agreed["errors"]:
