@@ -168,17 +168,23 @@ def _language_of(note: str | None) -> str:
     return str(said.get("language") or "he") if isinstance(said, dict) else "he"
 
 
-def spent_today(store: Store, at: int, language: str | None = None) -> float:
-    """What the nights have cost since midnight UTC, a run by hand included: every
+def spent_since(store: Store, since: int, language: str | None = None) -> float:
+    """What the nights have cost since `since`, a run by hand included: every
     language's, or one language's where it is named."""
     total = 0.0
     for spent, note in store.db.execute(
         "SELECT spent, note FROM find_run WHERE source = ? AND started >= ?",
-        (RUN_SOURCE, (at // pool.DAY_MS) * pool.DAY_MS),
+        (RUN_SOURCE, since),
     ):
         if language is None or _language_of(note) == language:
             total += float(spent or 0.0)
     return total
+
+
+def spent_today(store: Store, at: int, language: str | None = None) -> float:
+    """What the nights have cost since midnight UTC, a run by hand included: every
+    language's, or one language's where it is named."""
+    return spent_since(store, (at // pool.DAY_MS) * pool.DAY_MS, language)
 
 
 def night_usd(language: str) -> float:
@@ -194,21 +200,31 @@ def days_left(at: int) -> int:
 
 def allowance(store: Store, at: int, language: str = "he") -> float:
     """What a night in a language starting now may spend, in dollars: what its own cap
-    (`NIGHT_USD_BY`) has left today after any earlier run in it, or less where the
-    month's budget, less `LEAVE_USD` for the other sources and shared over the days
-    left, says so.
+    (`NIGHT_USD_BY`) has left today after any earlier run in it, or less where its share
+    of the month says so.
 
-    The month's pace goes to the languages in `LANGUAGES`' order, Hebrew first: a
-    language's pace is what is left once the languages before it have what they may
-    still spend tonight, and what a later language spent today is given back to it, so
-    no language draws on another's share whichever ran first."""
+    Each language is paced against its own share, in `LANGUAGES`' order (David,
+    2026-11-06: Hebrew keeps all it had, and Russian's $0.50 is on top). A language's
+    room is what the month's budget has left, less `LEAVE_USD` for the other sources,
+    with what the languages after it spent this month given back and the most the
+    languages before it may still spend this month (their caps over the days left,
+    never more than their own room) held for them; its pace is that room over the days
+    left. So Hebrew is paced exactly as it was before Russian ran, whatever Russian
+    spent, and Russian spends only what Hebrew can never reach, so no month passes the
+    budget."""
     order = list(LANGUAGES) if language in LANGUAGES else [*LANGUAGES, language]
-    at_index = order.index(language)
-    later = sum(spent_today(store, at, other) for other in order[at_index + 1 :])
-    paced = max(0.0, pool.left(store, at) + later - LEAVE_USD) / days_left(at)
-    earlier = sum(allowance(store, at, other) for other in order[:at_index])
-    own = night_usd(language) - spent_today(store, at, language)
-    return max(0.0, min(own, paced - earlier))
+    month = pool.month_from(at)
+    days = days_left(at)
+    left = pool.left(store, at)
+    held = 0.0
+    for at_index, code in enumerate(order):
+        given_back = sum(spent_since(store, month, later) for later in order[at_index + 1 :])
+        room = max(0.0, left + given_back - LEAVE_USD - held)
+        today = spent_today(store, at, code)
+        if code == language:
+            return max(0.0, min(night_usd(code) - today, room / days))
+        held += max(0.0, min(night_usd(code) * days - today, room))
+    return 0.0
 
 
 # -- the search ----------------------------------------------------------------------

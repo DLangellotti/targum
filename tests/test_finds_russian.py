@@ -303,11 +303,81 @@ def test_hebrew_keeps_its_dollar_whatever_russian_spent(store: Store) -> None:
     assert web.spent_today(store, AT + 60_000) == pytest.approx(0.4)
 
 
-def test_a_killed_russian_night_counts_against_russian(store: Store) -> None:
-    run = pool.start_run(store, web.RUN_SOURCE, AT, note={"language": "ru"})
-    pool.spend(store, run, 0.5)  # never finished
-    assert web.allowance(store, AT, "ru") == 0.0
+def test_a_killed_russian_night_counts_against_russian(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Russian night killed after its first search, through `refresh`'s own run and
+    before `finish_run` writes its note (a kill skips the `finally`): the language has to
+    be on the run from `start_run`, or the spend reads as Hebrew's."""
+    calls: list[str] = []
+
+    def killed(*args: Any, **kwargs: Any) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(pool, "finish_run", killed)
+
+    def ask(query: str) -> web.Searched:
+        calls.append(query)
+        if len(calls) > 1:
+            raise KeyboardInterrupt  # the box kills the night here
+        return web.Searched(searches=1, cost=0.1)
+
+    with pytest.raises(KeyboardInterrupt):
+        web.refresh(
+            store,
+            language="ru",
+            ask=ask,
+            read=lambda url: ("", 0),
+            robots=ALLOW,
+            forms_for=lambda language: forms(),
+            publishers=[],
+            lean={},
+            at=AT,
+        )
+    assert web.spent_today(store, AT, "ru") == pytest.approx(0.1)
+    assert web.spent_today(store, AT, "he") == 0.0
+    assert web.allowance(store, AT, "ru") == pytest.approx(0.4)
     assert web.allowance(store, AT, "he") == pytest.approx(1.0)
+
+
+#: Hebrew's month before Russian had a night (the PR's base: `min($1, (left − $10) /
+#: days left)` a night, spent in full), by budget and days in the month.
+HEBREW_BEFORE = {(30, 30): 20.0, (30, 31): 20.0, (40, 30): 30.0, (40, 31): 30.0}
+HEBREW_BEFORE |= {(55, 30): 30.0, (55, 31): 31.0}
+
+
+@pytest.mark.parametrize("order", [("he", "ru"), ("ru", "he")])
+@pytest.mark.parametrize(("budget", "days"), sorted(HEBREW_BEFORE))
+def test_a_whole_month_keeps_hebrew_whole_and_stays_inside_the_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    budget: int,
+    days: int,
+    order: tuple[str, str],
+) -> None:
+    """Every night of a month, each language spending all `allowance` gives it, in
+    either order: Hebrew's month is never less than before the PR, Russian never passes
+    its $0.50 a night, and the month never passes the budget less `LEAVE_USD`
+    (David, 2026-11-06)."""
+    monkeypatch.setenv(pool.BUDGET_ENV, str(budget))
+    store = Store(tmp_path / "month.db")
+    month = 11 if days == 30 else 12
+    got = {"he": 0.0, "ru": 0.0}
+    for day in range(1, days + 1):
+        night = int(datetime(2026, month, day, 0, 12, tzinfo=UTC).timestamp() * 1000)
+        for at_index, code in enumerate(order):
+            when = night + at_index * 60_000
+            may = web.allowance(store, when, code)
+            assert may <= web.NIGHT_USD_BY[code] + 1e-9
+            run = pool.start_run(store, web.RUN_SOURCE, when, note={"language": code})
+            pool.spend(store, run, may)
+            pool.finish_run(store, run, note={"language": code}, at=when)
+            got[code] += may
+    assert got["he"] >= HEBREW_BEFORE[(budget, days)] - 1e-9
+    assert got["he"] + got["ru"] <= budget - web.LEAVE_USD + 1e-9
+    # What the room leaves Russian: nothing at $30 or $40, $0.50 a night at $55 over 30
+    # days, and the $14 Hebrew's $31 leaves over 31.
+    assert got["ru"] == pytest.approx({55: 15.0 if days == 30 else 14.0}.get(budget, 0.0))
 
 
 def test_the_month_s_pace_goes_to_hebrew_first(

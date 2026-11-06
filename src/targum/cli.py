@@ -5800,12 +5800,12 @@ def finds_web(
     """One night's round of open-web finds (targum-internal#622). First the language's
     Wikipedia and Wikivoyage through the MediaWiki API, free, on the forty topics'
     phrases, where TARGUM_FINDS_WIKI is set. Then one Anthropic web search for each phrase
-    while the night's allowance lasts (at most $1, inside TARGUM_FINDS_BUDGET_USD), where
-    TARGUM_FINDS_WEB is set. Every page read where robots.txt allows, at most five from a
-    host a night across both, screened, scored and pooled. Hebrew first, then Russian
-    (#635): the $1 is the night's for both, so Russian's searches have what Hebrew's
-    left. The box's timer runs it every night, and with neither flag set it does
-    nothing."""
+    while the night's allowance lasts (Hebrew's $1, Russian's own $0.50, each paced
+    inside TARGUM_FINDS_BUDGET_USD), where TARGUM_FINDS_WEB is set. Every page read
+    where robots.txt allows, at most five from a host a night across both, screened,
+    scored and pooled. Hebrew first, then Russian (#635): Hebrew is paced as it was
+    before, and Russian spends only what Hebrew's pace leaves. The box's timer runs it
+    every night, and with neither flag set it does nothing."""
     from collections import Counter
 
     from .accounts import Store

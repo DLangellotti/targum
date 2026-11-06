@@ -1218,11 +1218,15 @@ Behind `TARGUM_FINDS_WEB` until it is switched on.
 - **Russian has its own fifty cents a night** (David, 2026-11-06), on top of Hebrew's
   dollar, which Hebrew keeps whole: $1.50 a night at most across the two. Neither draws
   on the other's: a language's night stops at its own cap, a run killed partway counts
-  against its own language, and Hebrew runs first. The month's budget still caps both,
-  and its pace goes to Hebrew first. The month's default budget is $55 (David,
-  2026-11-06, up from $30, at which Russian got nothing): less the $10 kept for the
-  other sources and over a thirty-day month, both full nights. The budget is money, not the YouTube quota:
-  Russian's YouTube round still runs on the units Hebrew's leaves.
+  against its own language, and Hebrew runs first. Each is paced against its own share
+  of the month: Hebrew exactly as it was before Russian had a night, whatever Russian
+  spent, and Russian only from what Hebrew's pace can never reach, so Hebrew's month is
+  never less than it was and no month passes the budget. The default budget is $55
+  (David, 2026-11-06, up from $30): less the $10 kept for the other sources, a
+  thirty-day month gives Hebrew $30 and Russian $15, and a thirty-one-day month Hebrew
+  $31 and Russian $14, about 45¢ a night. At $30 or $40, Hebrew's $20 or $30 fills the
+  month and Russian gets nothing. The budget is money, not the YouTube quota: Russian's
+  YouTube round still runs on the units Hebrew's leaves.
 - **The pages are read direct and let go.** Each page is fetched once, straight from its
   site and never through the paid proxy, only where its robots.txt allows, never from a
   host that refused us, at most five from one host a night. The host and word screens,
@@ -1629,8 +1633,8 @@ web find is a pasted link targum found" (2026-10-31) and changes no rail. Behind
   yt-dlp's age limit of 18 drops a video too. Hard news stays.
 - **Only the track crosses the proxy**, never a picture or a sound, and the track is
   read, scored and deleted: the pool keeps the counts. Each run is counted at about
-  1.5 MB at $1 a gigabyte and written on the round as it goes, inside the same $30 a
-  month as the other sources.
+  1.5 MB at $1 a gigabyte and written on the round as it goes, inside the same monthly
+  budget as the other sources (`TARGUM_FINDS_BUDGET_USD`).
 - **The card is a video's.** It says Video, its minutes and the site, and its credits are
   a credit a minute, which is what Watch will quote.
 - **Counted into the `video` register as counts.** Decided the same day: see "Public
@@ -2052,8 +2056,8 @@ to read next is chosen on running words" (2026-10-31) and changes no rail.
   either way, so a find is offered only from 1.5 points above the floor. One with more
   than 8% of its words unplaced is not measured, and one that costs more credits than the
   reader has left is not offered, because a one-tap card cannot be a dead end.
-- **Finding is free to the reader** and is targum's own spend, held to a budget of $30
-  a month (`TARGUM_FINDS_BUDGET_USD`). It is not a job row and never touches the
+- **Finding is free to the reader** and is targum's own spend, held to a budget of $55
+  a month (`TARGUM_FINDS_BUDGET_USD`; David, 2026-11-06, up from $30). It is not a job row and never touches the
   reader's rails, so the one-counter rule is untouched. News costs nothing today: a page
   goes through the residential proxy only after a direct knock was refused, and only
   while the budget lasts.
