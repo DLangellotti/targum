@@ -643,3 +643,47 @@ def test_label_selected_reads_the_phase_marks() -> None:
     assert not picks({"provenance": "new v3, seed 6382 draw 3, phase A"})
     assert not picks({"provenance": "new v3, seed 6382 draw 30, phase B systematic"})
     assert not picks({"provenance": "agree"})
+
+
+def test_a_predicted_tag_sample_shows_a_topic_at_fifteen_rows_and_ninety_percent() -> None:
+    sample = [("food", {"food"})] * 18 + [("food", {"general"})] * 2
+    sample += [("law", {"law"})] * 14
+    sample += [("travel", {"travel"})] * 17 + [("travel", {"everyday"})] * 3
+    sample += [("general", {"general"})] * 40
+    held = topics.sampled_precision(sample)
+    assert held["food"]["P"] == 0.9 and held["food"]["shown"]
+    assert held["food"]["P_lower"] is not None and held["food"]["P_lower"] < 0.9
+    assert held["law"]["P"] == 1.0 and not held["law"]["shown"], "14 rows is too few"
+    assert held["travel"]["P"] == 0.85 and not held["travel"]["shown"]
+    assert not held["general"]["shown"], "general is never a bar"
+    assert topics.shown_from_sample(held) == ("food",)
+
+
+def test_score_sample_writes_shown_from_the_predicted_tag_sample(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script: object = _score_script()
+    monkeypatch.setattr(topics, "RESEARCH", tmp_path)
+    (tmp_path / "ru-run").mkdir()
+    lines = ["row,lemma,stratum,topic_1,topic_2,notes"]
+    lines += [f"{i},f{i},food,food,," for i in range(15)]
+    lines += [f"{15 + i},h{i},health,general,," for i in range(15)]
+    lines += ["30,bad,health,health,,data fault"]
+    sample = tmp_path / "sample.csv"
+    sample.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    lexicon = tmp_path / "topics-ru.json"
+    lexicon.write_text(json.dumps({"shown": [], "lemmas": {}}), encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["score_topics.py", "--run", "ru-run", "--sample", str(sample), "--lexicon", str(lexicon)],
+    )
+    assert script.main() == 0  # type: ignore[attr-defined]
+    out = json.loads((tmp_path / "ru-run" / "sample-score.json").read_text(encoding="utf-8"))
+    assert out["per_topic"]["health"] == {
+        "sampled": 15,
+        "right": 0,
+        "P": 0.0,
+        "P_lower": 0.0,
+        "shown": False,
+    }
+    assert json.loads(lexicon.read_text(encoding="utf-8"))["shown"] == ["food"]

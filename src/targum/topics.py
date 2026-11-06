@@ -169,6 +169,43 @@ def passes_show(gold: int, precision: float | None, recall: float | None) -> boo
     )
 
 
+def sampled_precision(
+    sample: Iterable[tuple[str, Iterable[str]]],
+) -> dict[str, dict[str, Any]]:
+    """Each topic's precision on a blind sample drawn by the *predicted* tag: `sample`
+    holds, for each row, the agreed tag it was drawn for (its stratum, a topic or
+    `general`) and its gold labels. A row is right when its gold holds its stratum. This
+    is what measures precision; a gold set drawn by its own labels measures recall only.
+    The Wilson lower bound is reported beside each point estimate (#638, 2026-11-06)."""
+    counts: dict[str, list[int]] = {}
+    for stratum, labels in sample:
+        held = counts.setdefault(stratum, [0, 0])
+        held[0] += 1
+        held[1] += stratum in set(labels)
+    out: dict[str, dict[str, Any]] = {}
+    for code in [*TOPICS, GENERAL]:
+        if code not in counts:
+            continue
+        sampled, right = counts[code]
+        interval = wilson(right, sampled)
+        precision = right / sampled
+        out[code] = {
+            "sampled": sampled,
+            "right": right,
+            "P": round(precision, 3),
+            "P_lower": None if interval is None else round(interval[0], 3),
+            "shown": code != GENERAL and sampled >= SHOW_GOLD and precision >= SHOW_PRECISION,
+        }
+    return out
+
+
+def shown_from_sample(scored: Mapping[str, Mapping[str, Any]]) -> tuple[str, ...]:
+    """The topics a predicted-tag sample lets into `shown` (`sampled_precision`): at
+    least `SHOW_GOLD` rows sampled and precision of `SHOW_PRECISION` or more, in the
+    order of `TOPICS`."""
+    return tuple(code for code in TOPICS if scored.get(code, {}).get("shown"))
+
+
 def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
     """The topics a scored run's agreed tags let into `shown` (`passes_show` on each
     topic's gold row count, precision and recall), in the order of `TOPICS`; none at all

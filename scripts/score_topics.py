@@ -22,6 +22,12 @@ written to `gold-score.json` in the run directory. `--lexicon` sets that lexicon
 `shown` to the topics the agreed tags pass one by one (`topics.shown_from`), and to none
 unless the gate passes. Spends nothing.
 
+`--sample FILE` scores a blind sample drawn by the predicted tag instead (the honest
+measure of precision): a CSV with `lemma`, the stratum it was drawn for (`stratum`,
+`sampled_for` or `predicted`) and the gold `topic_1`/`topic_2`. Each topic's precision
+and Wilson lower bound go to `sample-score.json`, and `--lexicon` then shows the topics
+with at least 15 rows sampled and precision of 90% or more (`topics.shown_from_sample`).
+
     .venv/bin/python scripts/score_topics.py --run ru-pilot-2026-11-06 --gold GOLD.csv
 """
 
@@ -103,10 +109,64 @@ def read_run(run: Path) -> dict[str, dict[str, set[str]]]:
     return out
 
 
+STRATUM_COLUMNS = ("stratum", "sampled_for", "predicted")
+
+
+def read_sample(file: Path) -> list[tuple[str, set[str]]]:
+    """A predicted-tag sample's rows: the stratum each was drawn for and its gold labels,
+    data faults left out."""
+    out: list[tuple[str, set[str]]] = []
+    with file.open(encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        column = next((c for c in STRATUM_COLUMNS if c in (reader.fieldnames or ())), None)
+        if column is None:
+            raise SystemExit(f"{file}: no stratum column (one of {', '.join(STRATUM_COLUMNS)})")
+        for row in reader:
+            if "fault" in (row.get("notes") or "").lower():
+                continue
+            stratum = (row[column] or "").strip()
+            labels = {
+                code.strip()
+                for cell in (row.get("topic_1") or "", row.get("topic_2") or "")
+                for code in cell.split(",")
+                if code.strip()
+            }
+            if not stratum or not labels:
+                continue
+            unknown = ({stratum} | labels) - {*topics.TOPICS, topics.GENERAL}
+            if unknown:
+                raise SystemExit(f"Row {row.get('row')} ({row['lemma']}): no such topic {unknown}")
+            out.append((stratum, labels))
+    return out
+
+
+def score_sample(run: Path, sample: Path, lexicon: Path | None) -> int:
+    """Score a predicted-tag sample, write `sample-score.json`, and set `shown`."""
+    scored = topics.sampled_precision(read_sample(sample))
+    shown = topics.shown_from_sample(scored)
+    body = {"sample": str(sample), "per_topic": scored, "shown": list(shown)}
+    write_atomic(run / "sample-score.json", json.dumps(body, ensure_ascii=False, indent=1))
+    for code, held in scored.items():
+        print(
+            f"{code:10} sampled {held['sampled']:3}  right {held['right']:3}"
+            f"  P {held['P']}  lower {held['P_lower']}  {'shown' if held['shown'] else ''}"
+        )
+    if lexicon:
+        held_lexicon = json.loads(lexicon.read_text(encoding="utf-8"))
+        held_lexicon["shown"] = list(shown)
+        held_lexicon["shown_scored_on"] = sample.name
+        write_atomic(lexicon, json.dumps(held_lexicon, ensure_ascii=False, indent=1))
+        print(f"Shown in {lexicon}: {list(shown) or 'none'}")
+    return 0 if shown else 4
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--run", required=True)
-    parser.add_argument("--gold", type=Path, required=True)
+    parser.add_argument("--gold", type=Path)
+    parser.add_argument(
+        "--sample", type=Path, help="A blind sample drawn by the predicted tag, labelled."
+    )
     parser.add_argument(
         "--lexicon",
         type=Path,
@@ -115,6 +175,10 @@ def main() -> int:
     )
     args = parser.parse_args()
     run = topics.RESEARCH / args.run
+    if args.sample:
+        return score_sample(run, args.sample, args.lexicon)
+    if args.gold is None:
+        parser.error("--gold or --sample is required")
     if not (run / "review.tsv").is_file():
         print(f"No review.tsv in {run}: the run has not finished.", file=sys.stderr)
         return 1
