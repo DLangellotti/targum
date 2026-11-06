@@ -146,6 +146,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
   on the Hebrew yardsticks. `targum tables news` previews each language's night on a
   line of its own, under its own caps. Counts only. Spends nothing. No new strings.
+- Russian lemmas can be tagged with topics (targum-internal#638, epic #628). They use
+  Hebrew's sixteen topics, with a prompt and worked examples of Russian's own, drawn from
+  Russian's registers, and go into a lexicon of their own (`topics-ru.json`), which shows
+  no topic until ling-ru's gold set passes it. `scripts/tag_topics.py --language ru` runs
+  the draw, and `--sample` spreads a pilot over the whole frequency order.
+  `scripts/score_topics.py` scores a run against a blind gold set at Hebrew's bar, which
+  is 90% micro precision over topic labels and 85% for `general`. The $1 pilot cost $0.23:
+  500 lemmas on two models. Against a 60-row draft gold set it scored 78% agreed
+  precision (95% CI 58-90%; 100% if the labels the gold notes call defensible are
+  accepted), so the full run was not bought. No page reads the Russian lexicon yet. No
+  new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
