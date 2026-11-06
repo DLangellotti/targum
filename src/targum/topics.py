@@ -91,7 +91,7 @@ LEXICONS: dict[str, Path] = {
 }
 #: Each language's prompt version. Russian's starts at its own 1: it is a different
 #: prompt, not a fourth Hebrew one.
-PROMPT_VERSIONS: dict[str, str] = {"he": PROMPT_VERSION, "ru": "ru-prompt/1"}
+PROMPT_VERSIONS: dict[str, str] = {"he": PROMPT_VERSION, "ru": "ru-prompt/2"}
 #: The registers each language's lemmas are drawn from by default: Hebrew's modern
 #: yardsticks, and the two Russian's texts are filed under in its own name
 #: (`tables.registers.in_language`).
@@ -777,7 +777,11 @@ _DEFINITIONS_RU = {
 #: in it, so the prompt is not taught the test. They carry Hebrew's rules over (the main
 #: sense, `general`, two topics only when both are right) and add Russian's own: a
 #: homograph's commonest sense (лук, ключ), both verbs of an aspect pair in one topic, and
-#: a literary word in its modern topic.
+#: a literary word in its modern topic. ru-prompt/2 (ling-ru's review, 2026-11-06) adds
+#: six more, none a gold word either (`tests/test_topics.py` holds the list): a historical
+#: word in its modern counterpart's topic (губерния, городничий), the humanities as
+#: subjects in School (история) and the sciences in Science (физика), and charity and a
+#: small multi-use object kept `general` (нищий, нитка).
 EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("стол", "сто́л", "NOUN", "table", ("family",)),
     ("хлеб", "хле́б", "NOUN", "bread", ("food",)),
@@ -819,6 +823,12 @@ EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
     ("солдат", "солда́т", "NOUN", "soldier", ("security",)),
     ("компьютер", "компью́тер", "NOUN", "computer", ("science",)),
     ("исследование", "иссле́дование", "NOUN", "research, study", ("science",)),
+    ("физика", "фи́зика", "NOUN", "physics", ("science",)),
+    ("история", "исто́рия", "NOUN", "history; story", ("school",)),
+    ("губерния", "губе́рния", "NOUN", "province (tsarist)", (GENERAL,)),
+    ("городничий", "городни́чий", "NOUN", "town governor (tsarist); mayor", ("law",)),
+    ("нищий", "ни́щий", "NOUN", "beggar; destitute", (GENERAL,)),
+    ("нитка", "ни́тка", "NOUN", "thread", (GENERAL,)),
     ("молиться", "моли́ться", "VERB", "to pray", ("religion",)),
     ("церковь", "це́рковь", "NOUN", "church", ("religion",)),
     ("священник", "свяще́нник", "NOUN", "priest", ("religion",)),
@@ -878,15 +888,21 @@ has two senses in different topics and both are common in Russian today. Never m
 4. Prefer `{GENERAL}` to a stretch. A wrong `{GENERAL}` costs one word in no bar; a \
 wrong topic puts a word in the wrong bar. Common verbs of motion, speech, thought and \
 possession, adjectives of size, quality and time, and abstract nouns are usually \
-`{GENERAL}`.
+`{GENERAL}`. Money & shopping is prices, paying, the bank and shops: begging and giving \
+to the poor are not, so нищий is `{GENERAL}`. A small tool or object used across several \
+topics (нитка) is `{GENERAL}`, even when one of its uses is a hobby.
 5. Both verbs of an aspect pair (купить and покупать) take the same topic, and a verb \
 takes the topic of the noun it is about only when the verb itself belongs there.
 6. Religion & tradition only where the word's main modern sense is religious. A word \
-religious only in a secondary or historical sense, or only in the Bible, takes its \
-modern topic or `{GENERAL}`. A literary or poetic word (уста, очи) takes the topic of its \
-everyday counterpart.
-7. Science & technology is the fields and computing as a system. A device and its \
-everyday use is Everyday life; what the media publish is Free time & culture.
+religious only in a secondary sense, or only in the Bible, takes its modern topic or \
+`{GENERAL}`. A historical word, in any topic, takes the topic of its modern counterpart, \
+or `{GENERAL}` where the counterpart is `{GENERAL}`: губерния (today область) is \
+`{GENERAL}`, городничий is Law & crime. A literary or poetic word (уста, очи) takes the \
+topic of its everyday counterpart.
+7. Science & technology is the natural sciences, research and engineering as fields, and \
+computing as a system. The humanities as subjects of study (history, \
+linguistics, literary theory) are School & study. A device and its everyday use is \
+Everyday life; what the media publish is Free time & culture.
 8. Words for people as such, by age or sex, are People & feelings; family members are \
 Family & home. The body and its parts are Health & body.
 9. Time: the units of the clock and the calendar (hour, day, week, month, morning) are \

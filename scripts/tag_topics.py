@@ -40,6 +40,8 @@ than the ledger (the Russian tables swept before #637 keep unprefixed registers,
 `--registers news,unfiled` with them). `--sample N` keeps N of the drawn lemmas spread
 evenly over the frequency order, so a pilot stands for the whole run, and `--blind` with
 `--dry-run` writes the gold rows before anything is spent, so they are drawn blind.
+`--include GOLD.csv` adds every gold lemma the universe holds to the sample, so a second
+pilot scores the whole gold set.
 """
 
 from __future__ import annotations
@@ -84,6 +86,11 @@ def main() -> int:
     parser.add_argument("--tables", type=Path, help="A tables file other than the ledger.")
     parser.add_argument(
         "--sample", type=int, default=0, help="Keep this many drawn lemmas, spread evenly."
+    )
+    parser.add_argument(
+        "--include",
+        type=Path,
+        help="A gold CSV (a `lemma` column): its lemmas join the sample, so all are scored.",
     )
     parser.add_argument("--lemmas", type=int, default=500, help="Modern lemmas to tag.")
     parser.add_argument("--bible", type=int, default=0, help="Bible lemmas to add.")
@@ -133,6 +140,7 @@ def main() -> int:
         language=language,
         tables=args.tables,
         sample=args.sample,
+        include=_included(args.include),
     )
     if not lemmas:
         print("No lemmas: the language tables are empty. Run `targum tables sweep`.")
@@ -210,6 +218,7 @@ def _lemmas(
     language: str = "he",
     tables: Path | None = None,
     sample: int = 0,
+    include: frozenset[str] = frozenset(),
 ) -> list[topics.Lemma]:
     """The run's lemma list: read back where it was written, so a resumed run asks about
     exactly the rows it paid for; otherwise another run's, or drawn from the tables, and
@@ -255,7 +264,8 @@ def _lemmas(
         lemmas = drawn
     universe = len(lemmas)
     if sample and sample < len(lemmas):
-        lemmas = spread(lemmas, sample)
+        lemmas = with_included(lemmas, spread(lemmas, sample), include)
+    absent = sorted(include - {one.lemma for one in lemmas})
     body = {
         "language": language,
         "tables": str(tables) if tables else None,
@@ -264,12 +274,19 @@ def _lemmas(
         "from_run": from_run,
         "universe": universe,
         "sample": sample or None,
+        "included": len(include) or None,
+        "included_absent": absent,
         "lemmas": [asdict(one) for one in lemmas],
         "dropped": dropped,
         "no_gloss": missing,
     }
     write_atomic(file, json.dumps(body, ensure_ascii=False, indent=1))
     reasons = Counter(one["why"] for one in dropped)
+    if include:
+        print(
+            f"{len(include) - len(absent)} of {len(include)} included lemmas drawn;"
+            f" absent: {absent}"
+        )
     print(
         f"{len(lemmas)} lemmas to tag of {universe}; {len(dropped)} screened out"
         f" ({dict(reasons)}); {len(missing)} left out for want of a gloss."
@@ -284,6 +301,25 @@ def spread(lemmas: list[topics.Lemma], size: int) -> list[topics.Lemma]:
         return list(lemmas)
     step = len(lemmas) / size
     return [lemmas[int(i * step)] for i in range(size)]
+
+
+def with_included(
+    universe: list[topics.Lemma], sample: list[topics.Lemma], include: frozenset[str]
+) -> list[topics.Lemma]:
+    """The sample with every lemma of `include` the universe holds added, in the universe's
+    frequency order, so a pilot scores every gold row and not only those the spread met."""
+    if not include:
+        return sample
+    kept = {id(one) for one in sample}
+    return [one for one in universe if id(one) in kept or one.lemma in include]
+
+
+def _included(file: Path | None) -> frozenset[str]:
+    """The lemmas of a gold CSV, or none."""
+    if file is None:
+        return frozenset()
+    with file.open(encoding="utf-8") as handle:
+        return frozenset(row["lemma"].strip() for row in csv.DictReader(handle) if row["lemma"])
 
 
 def _gloss(glosses: Path | None, language: str = "he") -> Any:

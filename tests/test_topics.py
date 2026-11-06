@@ -357,7 +357,7 @@ def test_russian_has_its_own_prompt_file_and_nothing_shown() -> None:
     for code in [*topics.TOPICS, topics.GENERAL]:
         assert f"`{code}`" in russian
     assert "Knesset" not in russian and "reserve duty" not in russian
-    assert topics.PROMPT_VERSIONS == {"he": "prompt/3", "ru": "ru-prompt/1"}
+    assert topics.PROMPT_VERSIONS == {"he": "prompt/3", "ru": "ru-prompt/2"}
     assert topics.lexicon_file("ru") != topics.lexicon_file("he") == topics.LEXICON
     assert topics.run_lexicon("ru", "p").name == "topics-ru-p.json"
     assert topics.run_lexicon("he", "p").name == "topics-p.json"
@@ -421,3 +421,54 @@ def test_the_score_is_micro_over_topic_labels_and_gates_at_hebrews_bar() -> None
     assert topics.score(gold, predicted)["gate"]["passes"]
     lost = topics.score({"a": {"food"}}, {})
     assert lost["unanswered"] == ["a"] and not lost["gate"]["passes"]
+
+
+#: Every lemma of ling-ru's gold set (`topic-gold-ru-review-2026-11-06.csv`, 133 rows):
+#: no Russian word the prompt shows, in an example or a rule, may be one of them, or the
+#: prompt is taught the test.
+GOLD_RU = frozenset(
+    """
+    высовывать бай косица служить заспанный кинуть беспредельный перегибаться гнев
+    переступать неодолимый значит убранство ссылаться закрытый прочитать сокрыть туалет
+    почерневший помаленьку навеки медленно достижение замолчать послышаться сморкаться
+    философия маска культура элемент тщательно двинуть наиболее доскакать ссадить член
+    повязать блюститель спор недосягаемый уездный милостыня выжить рукавица высота
+    глотать выместить отвозить молодо-зелено кисточка майский насмешить сначала
+    великодушный больной прадедовский упрекать мечеть караван-сарай покойник ива нянька
+    курьер рана масло ссора ломоть пресс бытовой лето есть силовой жеребец труд караул
+    горбоносый иезуит настроение детская виновный крыжовник кокошник дрозд кушак вода
+    шейка свинья чемодан вычитать сторож вечерок самонадеянный ротик суп люстра скрипка
+    квартирка мебель воин расцеловать долететь бешмет композиция отравиться орех укроп
+    лёд стадион болтливый ребёнок император помиловать прачечный тратить шайка
+    внимательность кормить цветочный убираться возок рак-отшельник телёнок денежка жар
+    художник куртка стишок выборка скоромное образованный приголубить тест жилье
+    """.split()
+)
+
+
+def test_no_russian_word_in_the_prompt_is_a_gold_word() -> None:
+    import re
+
+    assert len(GOLD_RU) == 133
+    assert not {one[0] for one in topics.EXAMPLES_RU} & GOLD_RU
+    shown = set(re.findall(r"[а-яё-]+", topics.system_prompt("ru").lower()))
+    assert not shown & GOLD_RU
+    assert topics.PROMPT_VERSIONS["ru"] == "ru-prompt/2"
+
+
+def test_a_pilot_sample_takes_in_every_gold_lemma() -> None:
+    import importlib.util
+
+    where = Path(__file__).resolve().parents[1] / "scripts" / "tag_topics.py"
+    spec = importlib.util.spec_from_file_location("tag_topics", where)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    universe = [
+        topics.Lemma(f"слово{i}", "NOUN", f"слово{i}", "word", "", 100 - i, "modern")
+        for i in range(10)
+    ]
+    sample = module.spread(universe, 3)
+    held = module.with_included(universe, sample, frozenset({"слово5", "слово0", "нет"}))
+    assert [one.lemma for one in held] == ["слово0", "слово3", "слово5", "слово6"]
+    assert module.with_included(universe, sample, frozenset()) == sample
