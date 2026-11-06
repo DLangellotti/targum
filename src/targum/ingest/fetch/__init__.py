@@ -6,6 +6,7 @@ from typing import Protocol
 
 from ...errors import UnsupportedSource
 from ...models import Document
+from .course import CourseFetcher
 from .dialogue import DialogueFetcher
 from .globalstorybooks import GlobalStorybooksFetcher
 from .gutenberg import GutenbergFetcher
@@ -17,7 +18,7 @@ from .video import VideoFetcher
 from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
-__all__ = ["FETCHERS", "Fetcher", "is_identifier", "load"]
+__all__ = ["FETCHERS", "PRIVATE", "Fetcher", "addressable", "is_identifier", "load"]
 
 
 class Fetcher(Protocol):
@@ -29,6 +30,7 @@ class Fetcher(Protocol):
 
 
 FETCHERS: dict[str, Fetcher] = {
+    "course": CourseFetcher(),
     "dialogue": DialogueFetcher(),
     "globalstorybooks": GlobalStorybooksFetcher(),
     "gutenberg": GutenbergFetcher(),
@@ -42,9 +44,21 @@ FETCHERS: dict[str, Fetcher] = {
 }
 
 
+#: Fetchers that read a reader's own file rather than a public source, and so answer only
+#: a build that names them: never a link pasted into the Add page, the chat or Telegram,
+#: where an identifier would read whatever the server holds under that name. A course
+#: book's extract is somebody's copy of a book in copyright (targum-internal#652).
+PRIVATE = frozenset({"course"})
+
+
 def is_identifier(source: str) -> bool:
     scheme, sep, rest = source.partition(":")
     return bool(sep) and scheme.lower() in FETCHERS and bool(rest)
+
+
+def addressable(source: str) -> bool:
+    """Whether a request may name this identifier: a fetcher's, and not a private one."""
+    return is_identifier(source) and source.partition(":")[0].lower() not in PRIVATE
 
 
 def load(source: str) -> Document:
