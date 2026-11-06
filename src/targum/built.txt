@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-05
+A Russian beginner is offered texts from a Russian series for beginners, on Home and in Start here.
+On Home, a suggestion can be filtered by medium, length and topic, and moved easier or harder.
+A suggestion a little hard for you offers up to five words to know first, with their meanings.
+
 2026-11-04
 An article you import keeps its pictures, their captions and its dateline.
 A text keeps the shape its edition gives it: chapters, letter numerals, half-lines and footnotes you can tap.
