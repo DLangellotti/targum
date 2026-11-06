@@ -266,6 +266,7 @@ def test_the_night_is_paced_inside_the_month_s_budget(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     early = int(datetime(2026, 11, 1, 0, 12, tzinfo=UTC).timestamp() * 1000)
+    monkeypatch.setenv(pool.BUDGET_ENV, "30")
     assert web.allowance(store, early) == pytest.approx((30 - web.LEAVE_USD) / 30)
     monkeypatch.setenv(pool.BUDGET_ENV, "100")
     assert web.allowance(store, early) == web.NIGHT_USD

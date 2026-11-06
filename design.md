@@ -1212,15 +1212,16 @@ Behind `TARGUM_FINDS_WEB` until it is switched on.
   the night has room for the dearest call yet seen (at least 6¢), so the night stops
   before $1, never after it. The night's dollar is also paced against the month: never
   more than what is left of `TARGUM_FINDS_BUDGET_USD`, less $10 kept for the other
-  sources, shared over the days left in the month. At the default $30 that is about 65¢
-  a night; raising the budget lets it reach the dollar. The model is Claude Haiku 4.5,
-  the cheapest that takes the search tool, at about 2.5¢ a search.
+  sources, shared over the days left in the month. At the default $55 (David,
+  2026-11-06; it was $30, about 65¢ a night) that reaches the dollar. The model is
+  Claude Haiku 4.5, the cheapest that takes the search tool, at about 2.5¢ a search.
 - **Russian has its own fifty cents a night** (David, 2026-11-06), on top of Hebrew's
   dollar, which Hebrew keeps whole: $1.50 a night at most across the two. Neither draws
   on the other's: a language's night stops at its own cap, a run killed partway counts
   against its own language, and Hebrew runs first. The month's budget still caps both,
-  and its pace goes to Hebrew first, so at the default $30 Russian gets nothing; it
-  reaches its fifty cents at about $55. The budget is money, not the YouTube quota:
+  and its pace goes to Hebrew first. The month's default budget is $55 (David,
+  2026-11-06, up from $30, at which Russian got nothing): less the $10 kept for the
+  other sources and over a thirty-day month, both full nights. The budget is money, not the YouTube quota:
   Russian's YouTube round still runs on the units Hebrew's leaves.
 - **The pages are read direct and let go.** Each page is fetched once, straight from its
   site and never through the paid proxy, only where its robots.txt allows, never from a
@@ -1431,7 +1432,8 @@ changes no rail. Behind `TARGUM_FINDS_PODCASTS` until David switches it on.
 - **Otherwise two minutes from the middle.** The middle, because a show's first minutes
   are its jingle and its sponsor. Only that stretch is asked for, by byte range, never the
   episode. whisper hears it at $0.006 a minute, about 1.2¢, at most 10 a day and 300 a
-  month (about $3.60), inside the same $30 a month as the other sources. When a cap or
+  month (about $3.60), inside the same $55 a month as the other sources (it was $30
+  until 2026-11-06). When a cap or
   the budget is reached the round says so and stops sampling. The episodes left over are
   not pooled, so one never measured is never offered, and another night may hear them.
   Only a sample whisper heard counts against a cap. A refusal by the transcriber (on the

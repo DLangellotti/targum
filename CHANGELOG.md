@@ -66,7 +66,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   $0.50 a night of web search on top of Hebrew's $1, which Hebrew keeps whole (David,
   2026-11-06; design.md §12): neither draws on the other's, a run killed partway counts
   against its own language, and the month's budget and its pace (Hebrew's first) still
-  cap both, so at the default $30 Russian gets nothing until the budget is about $55.
+  cap both. The month's default `TARGUM_FINDS_BUDGET_USD` rises from $30 to $55 (David,
+  2026-11-06), so a thirty-day month's pace reaches both full nights; at $30 Russian got
+  nothing. The back office's "Spent this month … of $55.00" reads the same default.
   YouTube's units are not money: Russian's round still runs on what Hebrew's leaves.
   The live look's `security` topic asks «безопасность» without *армия*, so nothing steers a Russian look toward the hidden `army` (ling-ru's,
   awaiting David's read). The easy YouTube queries for Russian are ling-ru's «РКИ»,

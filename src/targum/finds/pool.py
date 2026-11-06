@@ -140,9 +140,11 @@ KEEP_DAYS = {"news": 7, "youtube": 30, "podcast": 30, "web": 60}
 #: The most rows Home scores for one reader (plan §3): an index walk, never the pool.
 PICK_MOST = 300
 
-#: targum's own discovery budget, dollars a month, unless the environment says.
+#: targum's own discovery budget, dollars a month, unless the environment says. $55 so a
+#: 30-day month's pace reaches Hebrew's $1 and Russian's $0.50 a night on top of the $10
+#: kept for the other sources (David, 2026-11-06; it was $30).
 BUDGET_ENV = "TARGUM_FINDS_BUDGET_USD"
-BUDGET_DEFAULT = 30.0
+BUDGET_DEFAULT = 55.0
 
 DAY_MS = 24 * 60 * 60 * 1000
 
@@ -152,7 +154,7 @@ def now_ms() -> int:
 
 
 def budget() -> float:
-    """The month's discovery budget in dollars: `TARGUM_FINDS_BUDGET_USD`, or 30."""
+    """The month's discovery budget in dollars: `TARGUM_FINDS_BUDGET_USD`, or 55."""
     raw = os.environ.get(BUDGET_ENV, "").strip()
     try:
         return max(0.0, float(raw)) if raw else BUDGET_DEFAULT

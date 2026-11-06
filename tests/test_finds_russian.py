@@ -314,7 +314,13 @@ def test_the_month_s_pace_goes_to_hebrew_first(
     store: Store, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     early = int(datetime(2026, 11, 1, 0, 12, tzinfo=UTC).timestamp() * 1000)
-    # $30 less the $10 kept back, over 30 days: Hebrew's 67c and nothing for Russian.
+    # The default, $55 less the $10 kept back over 30 days, is both full nights
+    # (David, 2026-11-06).
+    assert pool.BUDGET_DEFAULT == 55.0
+    assert web.allowance(store, early, "he") == pytest.approx(1.0)
+    assert web.allowance(store, early, "ru") == pytest.approx(0.5)
+    # At the old $30, $20 over 30 days: Hebrew's 67c and nothing for Russian.
+    monkeypatch.setenv(pool.BUDGET_ENV, "30")
     assert web.allowance(store, early, "he") == pytest.approx(20 / 30)
     assert web.allowance(store, early, "ru") == 0.0
     monkeypatch.setenv(pool.BUDGET_ENV, "40")
