@@ -146,6 +146,44 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
   on the Hebrew yardsticks. `targum tables news` previews each language's night on a
   line of its own, under its own caps. Counts only. Spends nothing. No new strings.
+- Russian lemmas can be tagged with topics (targum-internal#638, epic #628). They use
+  Hebrew's sixteen topics, with a prompt and worked examples of Russian's own, drawn from
+  Russian's registers, and go into a lexicon of their own (`topics-ru.json`), which shows
+  no topic until ling-ru's gold set passes it. `scripts/tag_topics.py --language ru` runs
+  the draw, and `--sample` spreads a pilot over the whole frequency order.
+  `scripts/score_topics.py` scores a run against a blind gold set at Hebrew's bar, which
+  is 90% micro precision over topic labels and 85% for `general`. The $1 pilot cost $0.23:
+  500 lemmas on two models. Against a 60-row draft gold set it scored 78% agreed
+  precision (95% CI 58-90%; 100% if the labels the gold notes call defensible are
+  accepted), so the full run was not bought. ling-ru corrected three rows and added 73,
+  which re-scores it at 83%. The prompt became `ru-prompt/2` on her review: a historical
+  word takes its modern counterpart's topic in every topic, the humanities as subjects
+  are School, and charity and small multi-use objects stay `general`. No Russian word the
+  prompt shows is a gold word, and a test holds it. `--include GOLD.csv` puts every gold
+  lemma in a pilot. The second pilot cost $0.26: 573 lemmas, with all 133 gold rows. It
+  scored 98% agreed precision (95% CI 92-99%), but `general` precision was 84%, one row
+  under 85%, so the full run was not bought this time either. On ling-ru's v2 gold, which
+  makes пресс `general` (the machine, the abs and pressure spread over topics), pilot 2
+  passes at 98% and 86%. David bought the full run on that, 2026-11-06. It tagged 10,544
+  lemmas on two models for $4.79 (#638 has spent $5.28 in all), and 9,240 of them carry
+  an agreed topic in `topics-ru.json`. Scored on v2, the full run's agreed precision is
+  99% (95% CI 94-99.8%), but `general` precision is 83%: the models' answers moved
+  between runs, and косица, заспанный and лето came back `general`. On v2 the gate
+  fails. ling-ru's v3 gold adds 537 rows she drew with seed 6382, but 97 of them were
+  kept because their label was a topic, and a row chosen by its label can hardly be a
+  false positive for that topic. With them the run scored 91% and would have shown eleven
+  topics. `score_topics.py` now leaves such rows out of the gate and `shown` and scores
+  them apart as a diagnostic only. On the 564 rows left the run scores 89% (95% CI
+  84-92%), so the gate fails and `topics-ru.json` shows no topic. Measuring precision
+  needs rows sampled by the predicted tag. `score_topics.py --sample` now scores such a
+  sample, and refuses one drawn from any other lexicon than the one it writes. David
+  decided on 2026-11-06 that a topic shows only when its sample proves 90%, meaning the
+  Wilson 95% lower bound is at least 0.90, which takes 35 rows or more. On ling-ru's first
+  sample (20 a topic) none does: the best is 0.84 at 20 of 20. ru-prompt/3 adds one
+  general rule for field topics and names the media СМИ and пресса, never пресс. It waits
+  on a re-tag and a fresh sample of about 45 a topic. `score_topics.py
+  --lexicon` sets a lexicon's `shown` from its gold score (`topics.shown_from`), and sets
+  none if the gate fails. No page reads the Russian lexicon yet. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

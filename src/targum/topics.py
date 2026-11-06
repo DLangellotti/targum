@@ -80,6 +80,45 @@ LEXICON = Path.home() / ".targum" / "topics.json"
 #: Where a run keeps its raw answers and review files. Laptop-only.
 RESEARCH = Path.home() / ".targum" / "research" / "topics"
 
+#: The languages a lexicon is made for. Russian (targum-internal#638, epic #628) is
+#: tagged with the same sixteen topics, so a share is worked out the same way, but from
+#: its own prompt and examples, scored on its own gold set (ling-ru's), and kept in a
+#: file of its own: a Hebrew page never reads a Russian lemma, nor the other way round.
+LANGUAGES = ("he", "ru")
+LEXICONS: dict[str, Path] = {
+    "he": LEXICON,
+    "ru": Path.home() / ".targum" / "topics-ru.json",
+}
+#: Each language's prompt version. Russian's starts at its own 1: it is a different
+#: prompt, not a fourth Hebrew one.
+PROMPT_VERSIONS: dict[str, str] = {"he": PROMPT_VERSION, "ru": "ru-prompt/3"}
+#: The registers each language's lemmas are drawn from by default: Hebrew's modern
+#: yardsticks, and the two Russian's texts are filed under in its own name
+#: (`tables.registers.in_language`).
+REGISTERS: dict[str, tuple[str, ...]] = {"he": MODERN, "ru": ("ru:news", "ru:unfiled")}
+#: Who writes each language's blind gold set.
+GOLD_OWNER: dict[str, str] = {"he": "ling-he", "ru": "ling-ru"}
+
+
+def language_code(language: str | None) -> str:
+    """`he` or `ru` from any spelling of one ("ru-RU", "RU"); Hebrew where none is given."""
+    code = (language or "he").split("-")[0].lower()
+    if code not in LANGUAGES:
+        raise ValueError(f"No topic lexicon for {language!r}; known: {', '.join(LANGUAGES)}")
+    return code
+
+
+def lexicon_file(language: str = "he") -> Path:
+    """Where one language's shipped lexicon lives."""
+    return LEXICONS[language_code(language)]
+
+
+def run_lexicon(language: str, run: str) -> Path:
+    """Where one run's agreed tags are written, beside the shipped lexicon."""
+    code = language_code(language)
+    stem = "topics" if code == "he" else f"topics-{code}"
+    return LEXICON.with_name(f"{stem}-{run}.json")
+
 
 # --- What a page may show ---------------------------------------------------------------
 
@@ -91,6 +130,10 @@ RESEARCH = Path.home() / ".targum" / "research" / "topics"
 #: tags were re-scored can widen the list without a code change, and one without the
 #: field falls back to this.
 SHOWN: tuple[str, ...] = ("food", "security", "school", "family", "law")
+#: Each language's own list. Russian shows nothing until its agreed tags pass ling-ru's
+#: gold set topic by topic, at the same bar as Hebrew's (`passes_show`): Hebrew's pass
+#: is never lent to it.
+SHOWN_FOR: dict[str, tuple[str, ...]] = {"he": SHOWN, "ru": ()}
 
 #: A topic moves into `shown` only when its agreed tags reach this precision and recall
 #: against at least this many gold rows (point estimates; the Wilson interval is reported
@@ -105,6 +148,16 @@ SHOWN_RULE = (
 )
 
 
+def shown_rule(language: str = "he") -> str:
+    """`SHOWN_RULE` with the language's own gold set named."""
+    return SHOWN_RULE.replace("ling-he", GOLD_OWNER[language_code(language)])
+
+
+def examples(language: str = "he") -> tuple[tuple[str, str, str, str, tuple[str, ...]], ...]:
+    """The worked examples a language's prompt carries, which no gold row may be."""
+    return EXAMPLES_RU if language_code(language) == "ru" else EXAMPLES
+
+
 def passes_show(gold: int, precision: float | None, recall: float | None) -> bool:
     """Whether a topic's gold score lets it into `shown`."""
     return (
@@ -116,18 +169,35 @@ def passes_show(gold: int, precision: float | None, recall: float | None) -> boo
     )
 
 
-def load_shown(file: Path | None = None) -> tuple[str, ...]:
-    """The topics a page may draw for the lexicon at `file`: its `shown` list, in the
-    order of `TOPICS`, or `SHOWN` where the file has none. Nothing at all where there is
-    no lexicon, since there is nothing to draw."""
-    file = file or LEXICON
+def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
+    """The topics a scored run's agreed tags let into `shown` (`passes_show` on each
+    topic's gold row count, precision and recall), in the order of `TOPICS`; none at all
+    unless the run passes the pilot's gate too."""
+    if not scored.get("gate", {}).get("passes"):
+        return ()
+    per_topic = scored.get("per_topic", {})
+    return tuple(
+        code
+        for code in TOPICS
+        if code in per_topic
+        and passes_show(per_topic[code]["gold"], per_topic[code]["P"], per_topic[code]["R"])
+    )
+
+
+def load_shown(file: Path | None = None, language: str = "he") -> tuple[str, ...]:
+    """The topics a page may draw for the lexicon at `file` (by default the language's
+    own): its `shown` list, in the order of `TOPICS`, or the language's `SHOWN_FOR` where
+    the file has none. Nothing at all where there is no lexicon, since there is nothing
+    to draw."""
+    code = language_code(language)
+    file = file or lexicon_file(code)
     try:
         held = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return ()
     listed = held.get("shown") if isinstance(held, dict) else None
     if not isinstance(listed, list):
-        return SHOWN
+        return SHOWN_FOR[code]
     return tuple(code for code in TOPICS if code in {str(one) for one in listed})
 
 
@@ -141,6 +211,173 @@ def wilson(hits: int, total: int, z: float = 1.96) -> tuple[float, float] | None
     centre = (p + z * z / (2 * total)) / denominator
     half = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / denominator
     return max(0.0, centre - half), min(1.0, centre + half)
+
+
+# --- The pilot's gate -------------------------------------------------------------------
+
+#: The bar a pilot's agreed tags must reach on its own language's blind gold set before
+#: the full run is bought: Hebrew's, the precision a topic needs to be shown
+#: (`SHOW_PRECISION`), here over every topic label the gold rows hold (micro, `general`
+#: apart), because a pilot's gold set is too small to gate topic by topic; and `general`
+#: kept at the precision Hebrew's pilots held it to. Only gold rows drawn without regard
+#: to their label are scored for it, or for `shown`: a row kept because its gold label is
+#: a topic cannot be a false positive for that topic, and lifts precision by construction
+#: (`scripts/score_topics.py` leaves such rows out, #1119).
+PILOT_PRECISION = SHOW_PRECISION
+GENERAL_PRECISION = 0.85
+
+
+def sampled_precision(
+    sample: Iterable[tuple[str, Iterable[str]]],
+) -> dict[str, dict[str, Any]]:
+    """Each topic's precision on a blind sample drawn by the *predicted* tag: `sample`
+    holds, for each row, the agreed tag it was drawn for (its stratum, a topic or
+    `general`) and its gold labels. A row is right when its gold holds its stratum. This
+    is what measures precision; a gold set drawn by its own labels measures recall only.
+    A topic passes only when its sample *proves* `SHOW_PRECISION`: the Wilson 95% lower
+    bound is at or above it (David, 2026-11-06), which takes at least 35 rows with no
+    miss."""
+    counts: dict[str, list[int]] = {}
+    for stratum, labels in sample:
+        held = counts.setdefault(stratum, [0, 0])
+        held[0] += 1
+        held[1] += stratum in set(labels)
+    out: dict[str, dict[str, Any]] = {}
+    for code in [*TOPICS, GENERAL]:
+        if code not in counts:
+            continue
+        sampled, right = counts[code]
+        interval = wilson(right, sampled)
+        precision = right / sampled
+        out[code] = {
+            "sampled": sampled,
+            "right": right,
+            "P": round(precision, 3),
+            "P_lower": None if interval is None else round(interval[0], 3),
+            # A lower bound of 90% already needs 35 rows, so no row count is checked.
+            "shown": code != GENERAL and interval is not None and interval[0] >= SHOW_PRECISION,
+        }
+    return out
+
+
+def sample_gate(scored: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """The gold path's bars, read on a predicted-tag sample: micro precision over every
+    topic stratum of `PILOT_PRECISION` or more, and `general`'s at `GENERAL_PRECISION` or
+    more (a sample with no `general` stratum fails). Recall cannot be read off a sample
+    drawn by the predicted tag, so it is not part of this gate."""
+    hits = sum(held["right"] for code, held in scored.items() if code != GENERAL)
+    total = sum(held["sampled"] for code, held in scored.items() if code != GENERAL)
+    precision = hits / total if total else None
+    general = scored.get(GENERAL, {}).get("P")
+    passes = (
+        precision is not None
+        and precision >= PILOT_PRECISION
+        and general is not None
+        and general >= GENERAL_PRECISION
+    )
+    return {"precision": None if precision is None else round(precision, 3), "passes": passes}
+
+
+#: How `shown` is set from a predicted-tag sample (#638, 2026-11-06).
+SAMPLE_SHOWN_RULE = (
+    f"A bar is drawn only for a topic in `shown`. From a blind sample drawn by the predicted"
+    f" tag of this lexicon's own tags, a topic joins `shown` only when the sample proves it:"
+    f" the Wilson 95% lower bound of its precision is >= {SHOW_PRECISION:.0%} (David,"
+    f" 2026-11-06),"
+    f" and only when the whole sample's topic precision is >= {PILOT_PRECISION:.0%} and its"
+    f" `general` precision >= {GENERAL_PRECISION:.0%}."
+)
+
+
+def shown_from_sample(scored: Mapping[str, Mapping[str, Any]]) -> tuple[str, ...]:
+    """The topics a predicted-tag sample lets into `shown` (`sampled_precision`): at
+    least `SHOW_GOLD` rows sampled and a Wilson lower bound of `SHOW_PRECISION`, in the
+    order of `TOPICS`; none at all unless the sample passes `sample_gate`."""
+    if not sample_gate(scored)["passes"]:
+        return ()
+    return tuple(code for code in TOPICS if scored.get(code, {}).get("shown"))
+
+
+def score(
+    gold: Mapping[str, Iterable[str]],
+    predicted: Mapping[str, Iterable[str]],
+    also: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, Any]:
+    """The predicted tags scored against a blind gold set, over the lemmas both hold.
+
+    Precision and recall are micro over topic labels, `general` apart, with Wilson
+    intervals; `general` gets its own precision. `also` is what a gold row's notes name
+    as defensible (`alternatives`): a predicted label there is not counted wrong in the
+    lenient precision, and never in the strict one the gate reads."""
+    also = also or {}
+    rows = [lemma for lemma in gold if lemma in predicted]
+    tp: dict[str, int] = {}
+    fp: dict[str, int] = {}
+    fn: dict[str, int] = {}
+    excused = 0
+    errors: list[dict[str, Any]] = []
+    for lemma in rows:
+        truth, guess = set(gold[lemma]), set(predicted[lemma])
+        for code in truth | guess:
+            if code in truth and code in guess:
+                tp[code] = tp.get(code, 0) + 1
+            elif code in guess:
+                fp[code] = fp.get(code, 0) + 1
+                if code != GENERAL and code in set(also.get(lemma, ())):
+                    excused += 1
+            else:
+                fn[code] = fn.get(code, 0) + 1
+        if truth != guess:
+            errors.append({"lemma": lemma, "predicted": sorted(guess), "gold": sorted(truth)})
+
+    def topical(counts: Mapping[str, int]) -> int:
+        return sum(n for code, n in counts.items() if code != GENERAL)
+
+    hits, wrong, missed = topical(tp), topical(fp), topical(fn)
+    precision = hits / (hits + wrong) if hits + wrong else None
+    recall = hits / (hits + missed) if hits + missed else None
+    general_said = tp.get(GENERAL, 0) + fp.get(GENERAL, 0)
+    general_precision = tp.get(GENERAL, 0) / general_said if general_said else None
+    per_topic = {}
+    for code in [*TOPICS, GENERAL]:
+        t, f, n = tp.get(code, 0), fp.get(code, 0), fn.get(code, 0)
+        if t + f + n:
+            per_topic[code] = {
+                "gold": t + n,
+                "predicted": t + f,
+                "P": round(t / (t + f), 3) if t + f else None,
+                "R": round(t / (t + n), 3) if t + n else None,
+            }
+    passes = (
+        precision is not None
+        and precision >= PILOT_PRECISION
+        and (general_precision is None or general_precision >= GENERAL_PRECISION)
+    )
+    return {
+        "scored": len(rows),
+        "unanswered": [lemma for lemma in gold if lemma not in predicted],
+        "exact": sum(set(gold[k]) == set(predicted[k]) for k in rows),
+        "precision": None if precision is None else round(precision, 3),
+        "precision_interval": _rounded(wilson(hits, hits + wrong)),
+        "precision_lenient": (
+            round((hits + excused) / (hits + wrong), 3) if hits + wrong else None
+        ),
+        "recall": None if recall is None else round(recall, 3),
+        "recall_interval": _rounded(wilson(hits, hits + missed)),
+        "tp_fp_fn": [hits, wrong, missed],
+        "general_precision": None if general_precision is None else round(general_precision, 3),
+        "per_topic": per_topic,
+        "errors": errors,
+        "gate": {
+            "rule": f"agreed micro precision >= {PILOT_PRECISION:.0%} over topic labels and"
+            f" general precision >= {GENERAL_PRECISION:.0%}, on the language's own gold set",
+            "passes": passes,
+        },
+    }
+
+
+def _rounded(interval: tuple[float, float] | None) -> list[float] | None:
+    return None if interval is None else [round(interval[0], 3), round(interval[1], 3)]
 
 
 def alternatives(note: str) -> tuple[str, ...]:
@@ -547,8 +784,11 @@ EXAMPLES: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
 )
 
 
-def system_prompt() -> str:
-    """The same on every request, so it is cached: the list, the rules, the examples."""
+def system_prompt(language: str = "he") -> str:
+    """The same on every request, so it is cached: the list, the rules, the examples.
+    Hebrew's unless `language` names Russian, which has its own (`_system_ru`)."""
+    if language_code(language) == "ru":
+        return _system_ru()
     topics = "\n".join(
         f"- `{code}` ({name}): {_DEFINITIONS[code]}." for code, name in TOPICS.items()
     )
@@ -604,6 +844,183 @@ Examples:
 Answer for every id you are given, once each, in the JSON shape required."""
 
 
+# --- Russian (targum-internal#638) ------------------------------------------------------
+
+#: Where Russian's definitions differ from Hebrew's: Hebrew's name the Knesset, reserve
+#: duty and the Temple. Every other topic is defined in the same words for both.
+_DEFINITIONS_RU = {
+    **_DEFINITIONS,
+    "politics": "the state, parliament, the president, government and ministries,"
+    " elections, parties, diplomacy and sanctions, public services, official forms and"
+    " bureaucracy",
+    "security": "the army, soldiers, conscription and military service, war and the front,"
+    " weapons, attacks and terror, defence, security services",
+    "religion": "words whose main modern sense is religious practice, belief or institution"
+    " — God, prayer, the church, the mosque and the synagogue, priests, monks and rabbis,"
+    " saints, scripture, fasts and holidays as observance — not words that are religious"
+    " only in a secondary, historical or biblical sense",
+}
+
+#: Russian's worked examples, in the same shape as Hebrew's, the stressed form where the
+#: pointed one is. Written before ling-ru's blind gold set was drawn, and none of them is
+#: in it, so the prompt is not taught the test. They carry Hebrew's rules over (the main
+#: sense, `general`, two topics only when both are right) and add Russian's own: a
+#: homograph's commonest sense (лук, ключ), both verbs of an aspect pair in one topic, and
+#: a literary word in its modern topic. ru-prompt/2 (ling-ru's review, 2026-11-06) adds
+#: six more, none a gold word either (`tests/test_topics.py` holds the list): a historical
+#: word in its modern counterpart's topic (губерния, городничий), the humanities as
+#: subjects in School (история) and the sciences in Science (физика), and charity and a
+#: small multi-use object kept `general` (нищий, нитка). ru-prompt/3 (2026-11-06) adds one
+#: general rule, written after the first predicted-tag sample (#638) but naming none of
+#: its senses (qa-claude: a first draft paraphrased 12 of its 18 misses, so it was
+#: rewritten): a field topic takes its institutions, practice and specialists, and a word
+#: as common outside the field stays `general`. It also names the media СМИ and пресса,
+#: never пресс (David, 2026-11-06), with СМИ as an example. Round 3 is judged only on a
+#: fresh sample, which excludes the first. No example is a gold word or a sampled one
+#: (`tests/test_topics.py`).
+EXAMPLES_RU: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
+    ("стол", "сто́л", "NOUN", "table", ("family",)),
+    ("хлеб", "хле́б", "NOUN", "bread", ("food",)),
+    ("ресторан", "рестора́н", "NOUN", "restaurant", ("food",)),
+    ("обедать", "обе́дать", "VERB", "to have lunch, to dine", ("food",)),
+    ("вкусный", "вку́сный", "ADJ", "tasty, delicious", ("food",)),
+    ("лук", "лу́к", "NOUN", "onion; bow (weapon)", ("food",)),
+    ("мама", "ма́ма", "NOUN", "mom, mother", ("family",)),
+    ("квартира", "кварти́ра", "NOUN", "apartment, flat", ("family",)),
+    ("аренда", "аре́нда", "NOUN", "rent, lease", ("family", "money")),
+    ("злиться", "зли́ться", "VERB", "to be angry", ("people",)),
+    ("друг", "дру́г", "NOUN", "friend", ("people",)),
+    ("грустный", "гру́стный", "ADJ", "sad", ("people",)),
+    ("деньги", "де́ньги", "NOUN", "money", ("money",)),
+    ("платить", "плати́ть", "VERB", "to pay", ("money",)),
+    ("купить", "купи́ть", "VERB", "to buy (perfective)", ("money",)),
+    ("покупать", "покупа́ть", "VERB", "to buy (imperfective)", ("money",)),
+    ("банк", "ба́нк", "NOUN", "bank", ("money",)),
+    ("автобус", "авто́бус", "NOUN", "bus", ("travel",)),
+    ("улица", "у́лица", "NOUN", "street", ("travel",)),
+    ("рейс", "ре́йс", "NOUN", "flight; scheduled trip", ("travel",)),
+    ("министерство", "министе́рство", "NOUN", "ministry", ("politics",)),
+    ("зарплата", "зарпла́та", "NOUN", "salary, wages", ("work", "money")),
+    ("работать", "рабо́тать", "VERB", "to work", ("work",)),
+    ("учитель", "учи́тель", "NOUN", "teacher", ("school",)),
+    ("экзамен", "экза́мен", "NOUN", "exam", ("school",)),
+    ("врач", "вра́ч", "NOUN", "doctor, physician", ("health",)),
+    ("голова", "голова́", "NOUN", "head", ("health",)),
+    ("боль", "бо́ль", "NOUN", "pain, ache", ("health",)),
+    ("футбол", "футбо́л", "NOUN", "football, soccer", ("culture",)),
+    ("песня", "пе́сня", "NOUN", "song", ("culture",)),
+    ("дождь", "до́ждь", "NOUN", "rain", ("nature",)),
+    ("дерево", "де́рево", "NOUN", "tree; wood", ("nature",)),
+    ("выборы", "вы́боры", "NOUN", "elections", ("politics",)),
+    ("правительство", "прави́тельство", "NOUN", "government", ("politics",)),
+    ("полиция", "поли́ция", "NOUN", "police", ("law",)),
+    ("адвокат", "адвока́т", "NOUN", "lawyer, attorney", ("law",)),
+    ("армия", "а́рмия", "NOUN", "army", ("security",)),
+    ("солдат", "солда́т", "NOUN", "soldier", ("security",)),
+    ("компьютер", "компью́тер", "NOUN", "computer", ("science",)),
+    ("исследование", "иссле́дование", "NOUN", "research, study", ("science",)),
+    ("физика", "фи́зика", "NOUN", "physics", ("science",)),
+    ("история", "исто́рия", "NOUN", "history; story", ("school",)),
+    ("губерния", "губе́рния", "NOUN", "province (tsarist)", (GENERAL,)),
+    ("городничий", "городни́чий", "NOUN", "town governor (tsarist); mayor", ("law",)),
+    ("нищий", "ни́щий", "NOUN", "beggar; destitute", (GENERAL,)),
+    ("нитка", "ни́тка", "NOUN", "thread", (GENERAL,)),
+    ("молиться", "моли́ться", "VERB", "to pray", ("religion",)),
+    ("церковь", "це́рковь", "NOUN", "church", ("religion",)),
+    ("священник", "свяще́нник", "NOUN", "priest", ("religion",)),
+    ("дело", "де́ло", "NOUN", "matter, affair; business; case", (GENERAL,)),
+    ("важный", "ва́жный", "ADJ", "important", (GENERAL,)),
+    ("быть", "бы́ть", "VERB", "to be", (GENERAL,)),
+    ("большой", "большо́й", "ADJ", "big, large", (GENERAL,)),
+    ("проблема", "пробле́ма", "NOUN", "problem", (GENERAL,)),
+    ("сказать", "сказа́ть", "VERB", "to say", (GENERAL,)),
+    ("день", "де́нь", "NOUN", "day", ("everyday",)),
+    ("час", "ча́с", "NOUN", "hour", ("everyday",)),
+    ("месяц", "ме́сяц", "NOUN", "month", ("everyday",)),
+    ("телефон", "телефо́н", "NOUN", "telephone", ("everyday",)),
+    ("ключ", "клю́ч", "NOUN", "key; spring (of water)", ("everyday",)),
+    ("период", "пери́од", "NOUN", "period", (GENERAL,)),
+    ("раз", "ра́з", "NOUN", "time, occasion; once", (GENERAL,)),
+    ("будущее", "бу́дущее", "NOUN", "the future", (GENERAL,)),
+    ("канал", "кана́л", "NOUN", "channel (TV); canal", ("culture",)),
+    ("сообщить", "сообщи́ть", "VERB", "to report, to inform", (GENERAL,)),
+    ("заявить", "заяви́ть", "VERB", "to state, to declare", (GENERAL,)),
+    ("уста", "уста́", "NOUN", "lips, mouth (poetic)", ("health",)),
+    ("сми", "СМИ", "NOUN", "mass media", ("culture",)),
+)
+
+
+def _system_ru() -> str:
+    """Russian's system prompt: Hebrew's rules, in Russian's terms and examples."""
+    topics = "\n".join(
+        f"- `{code}` ({name}): {_DEFINITIONS_RU[code]}." for code, name in TOPICS.items()
+    )
+    examples = "\n".join(
+        f'- {lemma} ({stressed}, {pos}) "{gloss}" -> {", ".join(answer)}'
+        for lemma, stressed, pos, gloss, answer in EXAMPLES_RU
+    )
+    return f"""You tag Russian dictionary words with topics, for a reading app's vocabulary \
+map. A learner sees one bar per topic: the share of that topic's words they know. A bar is \
+only useful if the words in it clearly belong there.
+
+For each word you get an id, the lemma (the dictionary form: the infinitive of a verb, \
+the masculine nominative singular of an adjective), a stressed form when there is one, \
+the part of speech, and an English gloss. Tag the word's commonest sense in Russian today. \
+The gloss is a hint, not the sense: it may give a rarer, older or poetic sense first. лук \
+is commonest "onion", not "bow"; ключ "key"; мир both "world" and "peace". The part of \
+speech can be wrong too.
+
+The topics:
+{topics}
+- `{GENERAL}`: no topic. Abstract and all-purpose words, words used across many topics, \
+and anything whose main sense belongs to no topic above.
+
+Rules:
+1. Tag the commonest modern sense, whatever the gloss gives first. A word is in a topic \
+only when a teacher building that topic's word list would put it there. стол (table) is \
+Family & home, not Food & drink.
+2. Give one topic, or two when the word belongs squarely to both, or when the spelling \
+has two senses in different topics and both are common in Russian today. Never more than two.
+3. `{GENERAL}` stands alone: a word tagged `{GENERAL}` carries no other topic.
+4. Prefer `{GENERAL}` to a stretch. A wrong `{GENERAL}` costs one word in no bar; a \
+wrong topic puts a word in the wrong bar. Common verbs of motion, speech, thought and \
+possession, adjectives of size, quality and time, and abstract nouns are usually \
+`{GENERAL}`. Money & shopping is prices, paying, the bank and shops: begging and giving \
+to the poor are not, so нищий is `{GENERAL}`. A small tool or object used across several \
+topics (нитка) is `{GENERAL}`, even when one of its uses is a hobby. A field topic \
+(Politics & government, Science & technology, School & study, Health & body) takes the \
+words of its institutions, its practice and its specialists. A word the field uses often \
+but that is as common outside it stays `{GENERAL}`, or takes the topic where it mostly \
+lives: ask where a learner would mostly meet the word, not where it can occur.
+5. Both verbs of an aspect pair (купить and покупать) take the same topic, and a verb \
+takes the topic of the noun it is about only when the verb itself belongs there.
+6. Religion & tradition only where the word's main modern sense is religious. A word \
+religious only in a secondary sense, or only in the Bible, takes its modern topic or \
+`{GENERAL}`. A historical word, in any topic, takes the topic of its modern counterpart, \
+or `{GENERAL}` where the counterpart is `{GENERAL}`: губерния (today область) is \
+`{GENERAL}`, городничий is Law & crime. A literary or poetic word (уста, очи) takes the \
+topic of its everyday counterpart.
+7. Science & technology is the natural sciences, research and engineering as fields, and \
+computing as a system. The humanities as subjects of study (history, \
+linguistics, literary theory) are School & study. A device and its everyday use is \
+Everyday life; what the media publish is Free time & culture.
+8. Words for people as such, by age or sex, are People & feelings; family members are \
+Family & home. The body and its parts are Health & body.
+9. Time: the units of the clock and the calendar (hour, day, week, month, morning) are \
+Everyday life. Time as such (time, moment, period, occasion, the past, the future) and \
+adverbs of time are `{GENERAL}`.
+10. Media: the media (СМИ, пресса) and what they make (newspaper, article, channel, \
+series) are Free time & culture. Verbs of publishing, reporting, announcing, stating \
+and revealing are `{GENERAL}`, because the news says them about every topic.
+11. Set `confidence` to `low` when the gloss is ambiguous, when the word could \
+reasonably go either way, or when you are unsure of the Russian. Otherwise `high`.
+
+Examples:
+{examples}
+
+Answer for every id you are given, once each, in the JSON shape required."""
+
+
 def schema() -> dict[str, Any]:
     """The answer's shape, held to by structured outputs (`output_config.format`). The cap
     of two and `general`'s exclusiveness are checked after (`checked`)."""
@@ -632,13 +1049,15 @@ def schema() -> dict[str, Any]:
     }
 
 
-def user_message(lemmas: Sequence[Lemma], start: int) -> str:
-    """One request's words, numbered from `start`. Nothing but the four fields."""
+def user_message(lemmas: Sequence[Lemma], start: int, language: str = "he") -> str:
+    """One request's words, numbered from `start`. Nothing but the four fields. A
+    Russian lemma's second form is its stress, where Hebrew's is its pointing."""
     lines = []
     for offset, one in enumerate(lemmas):
         pointed = f" ({one.pointed})" if one.pointed and one.pointed != one.lemma else ""
         gloss = f"{one.gloss} [{HINT_LABEL}: {one.hint}]" if one.hint else one.gloss
         lines.append(f"{start + offset}\t{one.lemma}{pointed}\t{one.pos or '?'}\t{gloss}")
+    form = "stressed" if language_code(language) == "ru" else "pointed"
     # Said only where a row carries a hint, so a request without one is prompt 3's own.
     note = (
         f" Where a gloss gives a rarer sense first, [{HINT_LABEL}: ...] after it names the"
@@ -647,7 +1066,7 @@ def user_message(lemmas: Sequence[Lemma], start: int) -> str:
         else ""
     )
     return (
-        f"Tag these words. Columns: id, lemma (pointed form), part of speech, gloss.{note}\n\n"
+        f"Tag these words. Columns: id, lemma ({form} form), part of speech, gloss.{note}\n\n"
         + "\n".join(lines)
     )
 
@@ -812,9 +1231,10 @@ def agreed(first: Tag | None, second: Tag | None) -> tuple[str, ...] | None:
 # --- The lexicon and the share ----------------------------------------------------------
 
 
-def load(file: Path | None = None) -> dict[str, tuple[str, ...]] | None:
-    """The lexicon's lemmas and their topics, or None where there is no file."""
-    file = file or LEXICON
+def load(file: Path | None = None, language: str = "he") -> dict[str, tuple[str, ...]] | None:
+    """The lexicon's lemmas and their topics (by default the language's own file), or
+    None where there is no file."""
+    file = file or lexicon_file(language)
     try:
         held = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
