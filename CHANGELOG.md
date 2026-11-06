@@ -1106,6 +1106,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   link, chat or request can name it (`fetch.PRIVATE`, `fetch.addressable`), and it is not
   listed among the sources we read. The extracts are read from `TARGUM_COURSES` or
   `~/.targum/courses`, never `/etc`. Every fixture line is invented. No new strings.
+  A course is private by what it is, not only by where it was built
+  (`fetch.private_source`, by its source or its ingester): built into the library's own
+  folder or `./targum-out` it is still a private row in the corpus ledger, exportable
+  nowhere whatever licence it claims, refused by `tables.public_text` with the ledger on
+  or off (so no fold, sweep or yardstick map counts it), and left out of the readers'
+  pool even from ten homes. A lesson's line stands in the margin with its number and the
+  row answers to `#<n>:<k>`, since `verse_address` reads `L<n>:<k>`; every verse ref
+  reads as it did.
 - The nightly open-web search leans toward the topics readers ask for and the pool lacks
   (David, 2026-11-05; targum-internal#622; design.md §12, "The night's search leans
   toward the topics readers ask for"). Each Filter press on Home's one card adds one to a

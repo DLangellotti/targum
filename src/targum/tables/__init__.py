@@ -96,6 +96,12 @@ def public_text(folder: Path, root: Path | None = None) -> PublicText | None:
     source = str(document.get("source") or "")
     if not document_hash or not source:
         return None
+    # Private by what it is, wherever it sits, and whether or not the ledger is on: a
+    # course book's lesson (`fetch.private_source`, qa-claude on #1121).
+    from ..ingest.fetch import private_source
+
+    if private_source(source, str(document.get("ingester") or "")):
+        return None
     file = ledger_module.path()
     held = None
     if file is not None and file.is_file():

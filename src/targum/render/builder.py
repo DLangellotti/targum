@@ -114,8 +114,10 @@ class Section:
 
 #: The address on the end of a ref: the "2:1" of "Ruth 2:1", the "1:3" of "Mishnah
 #: Berakhot 1:3". Chapter and verse is how every learner of a Biblical text locates a
-#: line, so it is the one part of a ref a link is allowed to name.
-_VERSE_ADDRESS = re.compile(r"(?:^|\s)(\d+):(\d+)$")
+#: line, so it is the one part of a ref a link is allowed to name. A course book's line,
+#: `L3:2`, is lesson and line the same way (`ingest/fetch/course.py`): the `L` is the
+#: whole of what comes before it, so `Ruth L1:2` and `XL1:2` are still no address.
+_VERSE_ADDRESS = re.compile(r"(?:^L?|\s)(\d+):(\d+)$")
 
 
 def verse_address(ref: str) -> str:

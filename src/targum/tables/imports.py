@@ -113,6 +113,9 @@ class PoolResult:
     texts: int = 0
     #: Texts in a home that a model wrote (a rewrite, a chat's speech, a scene).
     model_written: int = 0
+    #: Texts in a home that are never counted, even as counts: a course book's lesson,
+    #: somebody's copy of a book in copyright (`fetch.PRIVATE`, qa-claude on #1121).
+    withheld: int = 0
     unreadable: int = 0
     #: Texts read, by the register they were sorted into.
     by_register: dict[str, int] = field(default_factory=dict)
@@ -265,6 +268,16 @@ def _model_written(folder: Path, document: Mapping[str, Any]) -> bool:
     return str(document.get("source") or "").startswith(MODEL_WRITTEN)
 
 
+def _withheld(document: Mapping[str, Any]) -> bool:
+    """Whether a text in a home stays out of the pool by what it is: a private fetcher's
+    (`fetch.private_source`), a course book's lesson today, by its source or by its
+    ingester. Every other text in a home is a reader's private import, which the pool
+    exists to count."""
+    from ..ingest.fetch import private_source
+
+    return private_source(str(document.get("source") or ""), str(document.get("ingester") or ""))
+
+
 def _tallies(
     annotation: Mapping[str, Any], languages: Sequence[str], folder: Path | None = None
 ) -> dict[str, Counter[tuple[str, str]]] | None:
@@ -324,6 +337,9 @@ def pool(
             try:
                 if _model_written(folder, document):
                     result.model_written += 1
+                    continue
+                if _withheld(document):
+                    result.withheld += 1
                     continue
                 annotation = json.loads(file.read_text(encoding="utf-8"))
                 if not isinstance(annotation, dict):

@@ -18,7 +18,15 @@ from .video import VideoFetcher
 from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
-__all__ = ["FETCHERS", "PRIVATE", "Fetcher", "addressable", "is_identifier", "load"]
+__all__ = [
+    "FETCHERS",
+    "PRIVATE",
+    "Fetcher",
+    "addressable",
+    "is_identifier",
+    "load",
+    "private_source",
+]
 
 
 class Fetcher(Protocol):
@@ -59,6 +67,23 @@ def is_identifier(source: str) -> bool:
 def addressable(source: str) -> bool:
     """Whether a request may name this identifier: a fetcher's, and not a private one."""
     return is_identifier(source) and source.partition(":")[0].lower() not in PRIVATE
+
+
+def private_source(source: str, ingester: str = "") -> bool:
+    """Whether a built text is private by what it is, wherever it was built.
+
+    Where a text sits decides most of it (`ledger.home_of`); this is the rest, so a
+    course book built into the library's own folder, or by `targum build` into
+    `./targum-out`, is still never counted, pooled or exported (qa-claude on #1121).
+    Asked of the source's kind and of the ingester's name both, so a source renamed, or
+    written by hand into `document.json`, is still caught by what read it.
+
+    Not every kind this module does not know: the library's own texts carry kinds no
+    fetcher reads (`parasha:`, a catalogue row's), and calling those private would flip
+    the corpus ledger's rows for the shelf.
+    """
+    kind = source.strip().partition(":")[0].lower() if ":" in source else ""
+    return kind in PRIVATE or ingester.strip().partition("/")[0].lower() in PRIVATE
 
 
 def load(source: str) -> Document:

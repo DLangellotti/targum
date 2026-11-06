@@ -483,7 +483,7 @@ def _write_text(db: sqlite3.Connection, text: Text) -> bool:
             text.document_hash,
             text.source,
             text.licence,
-            int(bool(text.homes)),
+            int(_private(text)),
             *verdict,
             text.ingester,
             None,
@@ -581,15 +581,24 @@ def mirror_text(folder: Path, root: Path | None = None) -> None:
         log.warning("corpus ledger: %s not recorded as a text: %s", folder.name, error)
 
 
+def _private(text: Text) -> bool:
+    """Whether a text's row marks it a reader's private import: held in a home, or private
+    by what it is wherever it was built, a course book's lesson among them
+    (`fetch.private_source`, qa-claude on #1121)."""
+    from .ingest.fetch import private_source
+
+    return bool(text.homes) or private_source(text.source, text.ingester)
+
+
 def _facts(text: Text) -> tuple[str, str, int, str, int]:
-    return (text.source, text.licence, int(bool(text.homes)), text.ingester, text.schema_version)
+    return (text.source, text.licence, int(_private(text)), text.ingester, text.schema_version)
 
 
 def _verdict(text: Text) -> tuple[int, int, int]:
     from .licensing import export_terms
     from .screen import licence_flags
 
-    terms = export_terms(text.licence, private=bool(text.homes))
+    terms = export_terms(text.licence, private=_private(text))
     publishable = licence_flags(text.licence).reader_publishable
     return int(terms.exportable), int(terms.research), int(publishable)
 
