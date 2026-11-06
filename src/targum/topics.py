@@ -988,7 +988,7 @@ possession, adjectives of size, quality and time, and abstract nouns are usually
 `{GENERAL}`. Money & shopping is prices, paying, the bank and shops: begging and giving \
 to the poor are not, so нищий is `{GENERAL}`. A small tool or object used across several \
 topics (нитка) is `{GENERAL}`, even when one of its uses is a hobby. A field topic \
-(Politics & society, Science & technology, School & study, Health & body) takes the \
+(Politics & government, Science & technology, School & study, Health & body) takes the \
 words of its institutions, its practice and its specialists. A word the field uses often \
 but that is as common outside it stays `{GENERAL}`, or takes the topic where it mostly \
 lives: ask where a learner would mostly meet the word, not where it can occur.

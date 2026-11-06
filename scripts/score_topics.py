@@ -27,8 +27,9 @@ measure of precision): a CSV with `lemma`, `stratum` (the agreed tag it was draw
 `predicted` (the lemma's agreed tags when it was drawn), `lexicon_version` (the version
 of the lexicon it was drawn from) and the gold `topic_1`/`topic_2`. It is refused unless
 it was drawn from the lexicon `--lexicon` names (or the run's own) as that lexicon is
-now: the same version, ending in the run's name, and every row's tags the lexicon's,
-with its stratum among them, so a sample of one round's tags never sets another's
+now: the lexicon's `run` is the run's name exactly, every row names the lexicon's
+version, each lemma is drawn at most once for a topic, and every row's tags are the
+lexicon's, with its stratum among them, so a sample of one round's tags never sets another's
 `shown`. Each topic's precision and Wilson lower bound go to `sample-score.json`, with a
 sha256 of the lexicon's tags, and `--lexicon` then shows the topics whose sample proves
 90%: a Wilson 95% lower bound of 90% or more (David, 2026-11-06), so 35 rows or more;
@@ -46,6 +47,7 @@ import hashlib
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -53,17 +55,28 @@ from targum import topics
 from targum.paths import write_atomic
 
 #: The draws a gold CSV may mark as uniform, in its notes or its last column: ling-ru's
-#: v3 "phase A" and "phase B systematic". A row that names any other phase was kept for
-#: its label, or is marked in a way this does not know, and is never scored: the check
-#: fails closed. A row naming no phase (v1 and v2) is scored.
-UNIFORM_PHASES = re.compile(r"\bphase (?:A|B systematic)\s*$", re.IGNORECASE)
+#: v3 "phase A" and "phase B systematic". A row is scored only when every phase any of
+#: its cells names is one of these, each ending there (at the cell's end or at `;`, `,`,
+#: `.` or `)`), and no cell says "B topic" or "label-selected". Anything else was kept
+#: for its label, or is marked in a way this does not know, and is never scored: the
+#: check fails closed. A row naming no phase at all (v1 and v2) is scored.
+UNIFORM_PHASE = re.compile(r"phase (?:A|B systematic)(?=\s*(?:$|[;,.)]))", re.IGNORECASE)
 PHASE = re.compile(r"\bphase\b", re.IGNORECASE)
+SELECTED_MARK = re.compile(r"\bB[- ]topic\b|label[- ]selected", re.IGNORECASE)
 
 
 def label_selected(row: dict[str, str]) -> bool:
-    """Whether a gold row may not be scored: it names a phase other than a uniform one."""
-    marked = [cell for cell in row.values() if cell and PHASE.search(cell)]
-    return any(not UNIFORM_PHASES.search(cell.strip()) for cell in marked)
+    """Whether a gold row may not be scored: one of its cells names a phase that is not
+    a uniform one, or marks the row as selected."""
+    for cell in row.values():
+        if not cell:
+            continue
+        if SELECTED_MARK.search(cell):
+            return True
+        for mention in PHASE.finditer(cell):
+            if not UNIFORM_PHASE.match(cell, mention.start()):
+                return True
+    return False
 
 
 def read_gold(
@@ -172,10 +185,15 @@ def sample_refusal(
     """Why a sample may not set this lexicon's `shown`, or None: it must be drawn from
     this run's lexicon, as it is now."""
     version = str(held.get("version") or "")
-    if not version.endswith(f"-{run}"):
-        return f"the lexicon is {version!r}, not run {run}'s"
+    if held.get("run") != run:
+        return f"the lexicon is run {held.get('run')!r}'s, not {run}'s"
     if versions != {version}:
         return f"the sample was drawn from {sorted(versions)}, not {version!r}"
+    drawn = Counter((row["lemma"], row["stratum"]) for row in rows)
+    twice = sorted(f"{lemma} ({stratum})" for (lemma, stratum), n in drawn.items() if n > 1)
+    if twice:
+        # One word counted twice for a topic would be two rows of evidence from one word.
+        return f"{', '.join(twice)} drawn more than once for the same topic"
     lemmas = held.get("lemmas") or {}
     for row in rows:
         now = set(lemmas.get(row["lemma"], ()))
@@ -297,11 +315,13 @@ def main() -> int:
         print(f"  {error['lemma']}: {','.join(error['predicted'])} for {','.join(error['gold'])}")
     if args.lexicon:
         held = json.loads(args.lexicon.read_text(encoding="utf-8"))
-        if not str(held.get("version") or "").endswith(f"-{args.run}"):
+        if held.get("run") != args.run:
             print(f"Refused: {args.lexicon} is not run {args.run}'s lexicon.", file=sys.stderr)
             return 5
         held["shown"] = list(topics.shown_from(agreed))
+        held["shown_rule"] = topics.shown_rule(str(held.get("language") or "he"))
         held["shown_scored_on"] = args.gold.name
+        held["shown_tags_sha256"] = tags_digest(held.get("lemmas") or {})
         write_atomic(args.lexicon, json.dumps(held, ensure_ascii=False, indent=1))
         print(f"Shown in {args.lexicon}: {held['shown'] or 'none'}")
     return 0 if agreed["gate"]["passes"] else 4

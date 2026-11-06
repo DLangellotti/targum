@@ -678,7 +678,15 @@ def test_score_leaves_label_selected_rows_out_of_the_gate_and_shown(
     csv_file.write_text("".join(gold), encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
     lexicon.write_text(
-        json.dumps({"version": "topics/1+ru-prompt/3-ru-run", "shown": ["food"], "lemmas": {}}),
+        json.dumps(
+            {
+                "version": "topics/1+ru-prompt/3-ru-run",
+                "run": "ru-run",
+                "language": "ru",
+                "shown": ["food"],
+                "lemmas": {},
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -710,6 +718,15 @@ def test_label_selected_reads_the_phase_marks() -> None:
     # Fails closed: a phase spelled any other way is never scored.
     assert picks({"provenance": "new v3, seed 6382 draw 12, phase B-topic"})
     assert picks({"provenance": "phase D"})
+    # Every phase a cell names must be uniform, whatever comes last.
+    assert picks({"provenance": "phase C; phase A"})
+    assert picks({"provenance": "phase A, phase B topic"})
+    assert picks({"provenance": "label-selected (C), then phase A"})
+    assert picks({"provenance": "B topic"})
+    # And each must end where it should: "phase Alpha" is not "phase A".
+    assert picks({"provenance": "phase Alpha"})
+    assert picks({"provenance": "phase A then kept for its label"})
+    assert not picks({"provenance": "seed 6382 draw 3, phase A; phase B systematic"})
 
 
 def test_a_topic_shows_only_when_its_sample_proves_ninety_percent() -> None:
@@ -755,7 +772,12 @@ def _sample_case(
     lemmas = {f"f{i}": ["food"] for i in range(40)}
     lemmas |= {f"h{i}": ["health"] for i in range(40)}
     lemmas |= {f"g{i}": ["general"] for i in range(40)}
-    held = {"version": "topics/1+ru-prompt/3-ru-run", "shown": [], "lemmas": lemmas}
+    held = {
+        "version": "topics/1+ru-prompt/3-ru-run",
+        "run": "ru-run",
+        "shown": [],
+        "lemmas": lemmas,
+    }
     version = version or held["version"]
     lines = ["row,lemma,stratum,predicted,lexicon_version,topic_1,topic_2,notes"]
     lines += [f"{i},f{i},food,food,{version},food,," for i in range(40)]
@@ -836,7 +858,12 @@ def test_score_gold_refuses_another_runs_lexicon(
     gold = tmp_path / "gold.csv"
     gold.write_text(GOLD_HEADER + "1,f,,NOUN,x,food,,,\n", encoding="utf-8")
     lexicon = tmp_path / "topics-ru.json"
-    lexicon.write_text(json.dumps({"version": "topics/1+ru-prompt/2-other", "shown": []}))
+    # Exactly the run's: "ru-run" is a suffix of "full-ru-run" and is still refused.
+    lexicon.write_text(
+        json.dumps(
+            {"version": "topics/1+ru-prompt/2-full-ru-run", "run": "full-ru-run", "shown": []}
+        )
+    )
     monkeypatch.setattr(
         "sys.argv",
         ["score_topics.py", "--run", "ru-run", "--gold", str(gold), "--lexicon", str(lexicon)],
@@ -866,9 +893,77 @@ def test_score_sample_refuses_a_stratum_the_lexicon_does_not_give(
 def test_score_sample_refuses_a_lexicon_of_another_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    other = "topics/1+ru-prompt/3-ru-other"
+    other = "topics/1+ru-prompt/3-full-ru-run"
     script, _, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40, version=other)
     held = json.loads(lexicon.read_text(encoding="utf-8"))
-    held["version"] = other
+    held["version"], held["run"] = other, "full-ru-run"
     lexicon.write_text(json.dumps(held), encoding="utf-8")
     assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_sample_refuses_one_lemma_counted_twice_for_a_topic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, sample, _ = _sample_case(tmp_path, monkeypatch, health_right=40)
+    text = sample.read_text(encoding="utf-8")
+    sample.write_text(text.replace(",f1,food,", ",f0,food,"), encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_sample_counts_one_lemma_once_for_each_topic_it_was_drawn_for(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, sample, lexicon = _sample_case(tmp_path, monkeypatch, health_right=40)
+    held = json.loads(lexicon.read_text(encoding="utf-8"))
+    held["lemmas"]["f0"] = ["food", "health"]
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    version = held["version"]
+    text = sample.read_text(encoding="utf-8")
+    text = text.replace(f"0,f0,food,food,{version},", f'0,f0,food,"food,health",{version},', 1)
+    text += f'121,f0,health,"food,health",{version},health,,\n'
+    sample.write_text(text, encoding="utf-8")
+    assert script.main() == 0  # type: ignore[attr-defined]
+
+
+def test_score_sample_refuses_a_sample_that_mixes_lexicon_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script, sample, _ = _sample_case(tmp_path, monkeypatch, health_right=40)
+    text = sample.read_text(encoding="utf-8")
+    old = "topics/1+ru-prompt/3-ru-run"
+    first = text.index(f",{old},")
+    text = text[:first] + ",topics/1+ru-prompt/2-ru-run," + text[first + len(old) + 2 :]
+    sample.write_text(text, encoding="utf-8")
+    assert script.main() == 5  # type: ignore[attr-defined]
+
+
+def test_score_gold_writes_its_own_rule_and_digest_with_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    script: object = _score_script()
+    monkeypatch.setattr(topics, "RESEARCH", tmp_path)
+    (tmp_path / "ru-run").mkdir()
+    (tmp_path / "ru-run" / "review.tsv").write_text(
+        "lemma\tsonnet-5-5\topus-5-5\tagreed\nf\tfood\tfood\tfood\n", encoding="utf-8"
+    )
+    gold = tmp_path / "gold.csv"
+    gold.write_text(GOLD_HEADER + "1,f,,NOUN,x,food,,,\n", encoding="utf-8")
+    lexicon = tmp_path / "topics-ru.json"
+    held = {
+        "version": "topics/1+ru-prompt/3-ru-run",
+        "run": "ru-run",
+        "language": "ru",
+        "shown": [],
+        "shown_rule": topics.SAMPLE_SHOWN_RULE,
+        "shown_tags_sha256": "old",
+        "lemmas": {"f": ["food"]},
+    }
+    lexicon.write_text(json.dumps(held), encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["score_topics.py", "--run", "ru-run", "--gold", str(gold), "--lexicon", str(lexicon)],
+    )
+    script.main()  # type: ignore[attr-defined]
+    after = json.loads(lexicon.read_text(encoding="utf-8"))
+    assert after["shown_rule"] == topics.shown_rule("ru")
+    assert after["shown_tags_sha256"] == script.tags_digest({"f": ["food"]})  # type: ignore[attr-defined]

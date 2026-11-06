@@ -689,6 +689,8 @@ def _summarise(
         json.dumps(
             {
                 "version": f"{topics.VERSION}+{topics.PROMPT_VERSIONS[language]}-{run.name}",
+                # The run by name, so a score is matched to its lexicon exactly.
+                "run": run.name,
                 "language": language,
                 "topics": list(topics.TOPICS),
                 "shown": list(topics.SHOWN_FOR[language]),
