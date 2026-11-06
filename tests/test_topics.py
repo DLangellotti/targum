@@ -345,3 +345,79 @@ def test_an_old_lemma_list_without_hints_still_loads() -> None:
         "register": "modern",
     }
     assert topics.Lemma(**row).hint == ""
+
+
+# -- Russian (targum-internal#638) ---------------------------------------------------------
+
+
+def test_russian_has_its_own_prompt_file_and_nothing_shown() -> None:
+    hebrew, russian = topics.system_prompt(), topics.system_prompt("ru")
+    assert hebrew == topics.system_prompt("he"), "Hebrew's cached prompt is unchanged"
+    assert russian != hebrew and "Russian dictionary words" in russian
+    for code in [*topics.TOPICS, topics.GENERAL]:
+        assert f"`{code}`" in russian
+    assert "Knesset" not in russian and "reserve duty" not in russian
+    assert topics.PROMPT_VERSIONS == {"he": "prompt/3", "ru": "ru-prompt/1"}
+    assert topics.lexicon_file("ru") != topics.lexicon_file("he") == topics.LEXICON
+    assert topics.run_lexicon("ru", "p").name == "topics-ru-p.json"
+    assert topics.run_lexicon("he", "p").name == "topics-p.json"
+    assert topics.SHOWN_FOR["ru"] == (), "Hebrew's pass is never lent to Russian"
+    assert "ling-ru" in topics.shown_rule("ru") and "ling-he" in topics.shown_rule("he")
+    with pytest.raises(ValueError):
+        topics.language_code("fr")
+
+
+def test_a_russian_request_names_the_stress_and_hebrews_the_pointing() -> None:
+    one = topics.Lemma("хлеб", "NOUN", "хлеб", "bread", "хле́б", 9, "modern")
+    assert "lemma (stressed form)" in topics.user_message([one], 1, "ru")
+    assert topics.user_message([one], 1, "ru").endswith("1\tхлеб (хле́б)\tNOUN\tbread")
+    assert "lemma (pointed form)" in topics.user_message([one], 1)
+
+
+def test_every_russian_example_keeps_the_rules_and_is_russian() -> None:
+    for lemma, _, _, _, answer in topics.EXAMPLES_RU:
+        assert topics.checked(answer) == topics.Tag(answer, "high")
+        assert all("а" <= ch <= "я" or ch == "ё" for ch in lemma), lemma
+    lemmas = [one[0] for one in topics.EXAMPLES_RU]
+    assert len(lemmas) == len(set(lemmas))
+    assert topics.examples("ru") is topics.EXAMPLES_RU and topics.examples() is topics.EXAMPLES
+
+
+def test_a_russian_file_without_a_list_shows_nothing(tmp_path: Path) -> None:
+    file = tmp_path / "topics-ru.json"
+    file.write_text(json.dumps({"lemmas": {"хлеб": ["food"]}}), encoding="utf-8")
+    assert topics.load_shown(file, "ru") == ()
+    assert topics.load_shown(file) == topics.SHOWN
+    assert topics.load(file, "ru") == {"хлеб": ("food",)}
+
+
+def test_the_score_is_micro_over_topic_labels_and_gates_at_hebrews_bar() -> None:
+    gold = {
+        "хлеб": {"food"},
+        "суп": {"food"},
+        "школа": {"school"},
+        "стул": {"family"},
+        "думать": {"general"},
+        "налог": {"money", "politics"},
+    }
+    predicted = {
+        "хлеб": {"food"},
+        "суп": {"food"},
+        "школа": {"school"},
+        "стул": {"family", "everyday"},
+        "думать": {"general"},
+        "налог": {"money"},
+        "extra": {"law"},
+    }
+    held = topics.score(gold, predicted, also={"стул": {"everyday"}})
+    assert held["scored"] == 6 and held["unanswered"] == []
+    assert held["tp_fp_fn"] == [5, 1, 1]
+    assert held["precision"] == round(5 / 6, 3) and held["recall"] == round(5 / 6, 3)
+    assert held["precision_lenient"] == 1.0, "a defensible label is excused, leniently only"
+    assert held["general_precision"] == 1.0
+    assert not held["gate"]["passes"], "83% is under the 90% Hebrew was held to"
+    assert topics.PILOT_PRECISION == topics.SHOW_PRECISION == 0.90
+    predicted["стул"] = {"family"}
+    assert topics.score(gold, predicted)["gate"]["passes"]
+    lost = topics.score({"a": {"food"}}, {})
+    assert lost["unanswered"] == ["a"] and not lost["gate"]["passes"]
