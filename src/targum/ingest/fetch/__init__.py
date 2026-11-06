@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from ...errors import UnsupportedSource
+from ...kinds import PRIVATE, private_source
 from ...models import Document
 from .dialogue import DialogueFetcher
 from .globalstorybooks import GlobalStorybooksFetcher
@@ -17,7 +18,7 @@ from .video import VideoFetcher
 from .weekly import WeeklyFetcher
 from .wikisource import WikisourceFetcher
 
-__all__ = ["FETCHERS", "Fetcher", "is_identifier", "load"]
+__all__ = ["FETCHERS", "PRIVATE", "Fetcher", "is_identifier", "load", "private_source"]
 
 
 class Fetcher(Protocol):

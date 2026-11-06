@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING, Any
 from . import catalogue as catalogue_module
 from .accounts import now
 from .errors import TargumError
+from .kinds import private_source
 from .licensing import Standing, verdict
 from .models import Annotation, Document, Translation, is_biblical, read_artifact
 from .paths import write_atomic
@@ -122,6 +123,12 @@ def candidate(library: Library, store: Store | None, job: Job) -> Proposal | Non
     """
     if store is None or job.kind != "build" or not job.reader or job.home is None:
         return None
+    # A source is private unless its kind is listed public (targum-internal#653), and a
+    # private one is never proposed, nor joins: the shelf is the way out of a home. Asked
+    # of the build's source and of what `document.json` says read it, so a private
+    # ingester behind a link is caught too (qa-claude on #1122).
+    if _private_build(job):
+        return None
     # A find the reader opened joins the library by itself where its licence clears the
     # bar, and is never a proposal: a proposal row names the reader (design.md §12,
     # 2026-11-02).
@@ -177,6 +184,26 @@ def candidate(library: Library, store: Store | None, job: Job) -> Proposal | Non
             # A box with no catalogue file to merge into keeps the proposal for a person.
             pass
     return proposal
+
+
+def _private_build(job: Job) -> bool:
+    """Whether a finished build is private by what it is (`kinds.private_source`): its
+    job's source, or the source and ingester its `document.json` records. Every doubt is
+    private: a folder with no readable document has no ingester to clear it."""
+    document: Any = None
+    if job.home is not None and job.reader:
+        folder = job.home / str(job.reader).split("/")[0]
+        try:
+            document = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            document = None
+    if not isinstance(document, dict):
+        return True
+    ingester = str(document.get("ingester") or "")
+    recorded = str(document.get("source") or "")
+    return private_source(str(job.source), ingester) or private_source(
+        recorded or str(job.source), ingester
+    )
 
 
 def _difficulty(folder: Path, language: str) -> int:

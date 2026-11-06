@@ -173,7 +173,9 @@ def test_sweep_skips_every_home_and_counts_a_text_once_it_is_public(
     _built(library / "shared" / "y", H["b"])
     _built(library / "shared" / "z", H["c"])
     book_ = ledger.Ledger(book)
-    book_.record_text(ledger.Text(H["c"], "test:c", "Public Domain", frozenset({"p1"}), "t", 1))
+    book_.record_text(
+        ledger.Text(H["c"], "test:c", "Public Domain", frozenset({"p1"}), "markdown/5", 1)
+    )
     store = Store(book)
 
     first = tables.sweep(library, store)
@@ -184,7 +186,7 @@ def test_sweep_skips_every_home_and_counts_a_text_once_it_is_public(
     assert units == {H["b"]}
 
     # The private text is later built on the shelf, and the next sweep counts it then.
-    book_.hold(ledger.Text(H["c"], "test:c", "Public Domain", frozenset(), "t", 1), None)
+    book_.hold(ledger.Text(H["c"], "test:c", "Public Domain", frozenset(), "markdown/5", 1), None)
     second = tables.sweep(library, store)
     assert second.folded == 1
     assert second.unchanged == 1
@@ -233,7 +235,7 @@ def test_the_sweep_sees_a_rename_on_disk(book: Path, library: Path) -> None:
 
 def test_corpus_export_writes_no_tally_rows(book: Path, library: Path, tmp_path: Path) -> None:
     book_ = ledger.Ledger(book)
-    book_.record_text(ledger.Text(H["b"], "test:b", "Public Domain", frozenset(), "t", 1))
+    book_.record_text(ledger.Text(H["b"], "test:b", "Public Domain", frozenset(), "markdown/5", 1))
     book_.record("tokens", H["b"], _annotation(H["b"]))
     _built(library / "shared" / "y", H["b"])
     assert tables.sweep(library, Store(book)).folded == 1
@@ -348,7 +350,7 @@ def test_russian_is_folded_under_its_own_registers_behind_the_same_guard(
     _russian(library / "shared" / "ru", H["b"])
     _russian(library / "shared" / "held", H["c"])
     ledger.Ledger(book).record_text(
-        ledger.Text(H["c"], "test:c", "Public Domain", frozenset({"p1"}), "t", 1)
+        ledger.Text(H["c"], "test:c", "Public Domain", frozenset({"p1"}), "markdown/5", 1)
     )
     _built(library / "shared" / "he", H["d"])
     store = Store(book)

@@ -3188,6 +3188,7 @@ def back_office_page(
     reader: object | None = None,
     finds: object | None = None,
     fit: list[Any] | None = None,
+    withheld: Mapping[str, int] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -3286,6 +3287,8 @@ def back_office_page(
             find_rungs=_find_rungs(finds),
             # Looking up against the estimate, pooled (#612, clause 3.7): `backoffice.Fit`.
             fit=fit or [],
+            # Built texts of a kind not listed public, by kind (`kinds.withheld_kinds`).
+            withheld=dict(withheld or {}),
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],

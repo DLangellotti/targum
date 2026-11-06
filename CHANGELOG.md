@@ -146,6 +146,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
   on the Hebrew yardsticks. `targum tables news` previews each language's night on a
   line of its own, under its own caps. Counts only. Spends nothing. No new strings.
+- A source is private unless its kind is listed public (David, 2026-11-06;
+  targum-internal#653). `kinds.py` holds the one list: the schemes the shelf, the parasha,
+  the daily, the weekly, the dialogues, the curated videos, Wikinews, Global Voices,
+  Global Storybooks and StoryWeaver are built from, and for a file with no scheme the
+  ingesters that read one (an upload, a photographed page, a recording). A text of any
+  other kind is withheld from the corpus ledger (no text, stage, rendering or pair row),
+  from the tables' fold, from the imports pool (counted as `withheld`), from both corpus
+  exports, which ask again, and from the shelf's proposals. Where a listed text sits and
+  its licence still decide as before, so a reader's link is still private in their home.
+  A listed scheme read by an ingester the code does not have is withheld too, so a new
+  private fetcher that reads links is caught although `https` is listed; a source is read
+  for its kind once NFKC'd and stripped of invisible characters, and one whose kind does
+  not read cleanly (`novel :1`) is private. The cache backfill records a stage value only
+  for a text the ledger holds of a listed kind, and a recording's transcript hash is
+  withheld as well as its first. The back office's Operations tab counts "Withheld:
+  unknown kind" by kind, never by source. Audited against the laptop's 1,037 built texts, its ledger and its tables: no
+  text is withheld, and a backfill and a fold read the same rows with the rule as
+  without it. `fetch.private_source` and `fetch.PRIVATE` are the same names targum#1121
+  uses, so a course book drops in as one line. Spends nothing. No new strings for
+  readers.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
