@@ -165,6 +165,19 @@ def kind_of(source: str) -> str:
     return found.group(1).lower()
 
 
+def course_book(source: str) -> str:
+    """The book a course lesson's source names — `a-course` of
+    `course:it:a-course:3` — or "" for any source that is not a course lesson.
+    Two lessons are of one course when this is the same for both, whatever their language
+    side (`accounts.playlist_most`)."""
+    if kind_of(source) != "course":
+        return ""
+    parts = _normal(source).split(":")
+    if len(parts) != 4 or not parts[2] or not parts[3].isdigit():
+        return ""
+    return parts[2].lower()
+
+
 def family(ingester: str) -> str:
     """An ingester's family: `sefaria` of `sefaria/siddur/1`, `url-text` of `url-text/2`."""
     return _normal(ingester).partition("/")[0].lower()

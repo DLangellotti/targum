@@ -1107,7 +1107,11 @@
     add.appendChild(drawing(PLUS));
     add.appendChild(document.createTextNode(t("playlists.add-from", "Add from Your targums or the Library")));
     more.appendChild(add);
-    more.appendChild(element("span", "pl-cap", t("playlists.up-to", "Up to 20 texts")));
+    // Twenty is the cap said here; a course's own playlist holds the whole course
+    // (design.md §12, 2026-11-07), so there the line says nothing rather than a wrong number.
+    if (!(one.most > 20)) {
+      more.appendChild(element("span", "pl-cap", t("playlists.up-to", "Up to 20 texts")));
+    }
     body.appendChild(more);
 
     if (refocus) {

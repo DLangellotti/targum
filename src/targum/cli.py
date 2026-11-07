@@ -2486,10 +2486,12 @@ def seeds() -> list[str]:
     # spends nothing, so a member left unbuilt is a member nobody is ever shown. Whole
     # sets, unlike the tracks above, because a playlist is swiped end to end and is
     # capped at a playlist's worth.
-    from .accounts import MOST_IN_PLAYLIST
+    from .accounts import playlist_most
 
+    sources = {entry.id: entry.source for entry in catalogue_module.everything()}
     for group in catalogue_module.swipe_sets():
-        out.extend(group.members[:MOST_IN_PLAYLIST])
+        most = playlist_most(sources[member] for member in group.members if member in sources)
+        out.extend(group.members[:most])
 
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))

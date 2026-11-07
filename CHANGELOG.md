@@ -14,6 +14,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   header to that language. The tab now draws the header's language menu, as Recent does.
   `/playlists.json` says each of targum's sets' language. New strings:
   `playlists.elsewhere` (en, ru).
+- A course's own playlist holds the whole course (David, 2026-11-07; design.md §12, "A
+  course's playlist holds the whole course"; targum-internal#652). A playlist whose every
+  text is a lesson of one and the same course may hold up to 200 (`MOST_IN_COURSE`); every
+  other playlist keeps twenty. One rule, `accounts.playlist_most`, decides it, and the page's
+  add and Play next, the chat and connector tool, targum's own sets and the CLI's swipe-set
+  list all ask it. A text that is not that course's lesson is refused past twenty with the
+  usual words. The set's press is unchanged: a course lesson is never a build waiting for a
+  press, so a course playlist past twenty has nothing to claim. "Up to 20 texts" is not said
+  on a course's playlist. No new strings.
 - On a phone the AI Assistant is an icon in the top bar, beside the bell, and nothing
   floats over the page (David, 2026-11-04; design.md §12, "On a phone the AI Assistant is
   in the bar"). The pill above the four places, and the 4rem band it stood in, took a

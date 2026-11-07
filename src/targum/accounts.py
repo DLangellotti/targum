@@ -113,6 +113,31 @@ MOST_PLAYLISTS = 50
 MOST_IN_PLAYLIST = 20
 PLAYLIST_NAME = 80
 
+#: The most a course's own playlist may hold: every lesson of one book, in order (design.md
+#: §12, "A course's playlist holds the whole course", 2026-11-07). Only a playlist whose
+#: every text is a lesson of the same course is held to this; every other one keeps
+#: `MOST_IN_PLAYLIST`. `playlist_most` is the one place that tells them apart.
+MOST_IN_COURSE = 200
+
+
+def playlist_most(sources: Iterable[str | None]) -> int:
+    """How many texts a playlist may hold, given the source of every text in it (and of
+    one about to join it): `MOST_IN_COURSE` where every one of them is a lesson of one
+    and the same course, `MOST_IN_PLAYLIST` for anything else, an empty list included.
+
+    A text whose source is not known — still being made, or its folder gone — is not a
+    course lesson, so it holds the playlist to twenty. A course lesson is never a build
+    waiting for a press (`course:` is private and no request may name it), so a playlist
+    past twenty holds only texts already made, and its one press has nothing to spend on.
+    """
+    from .kinds import course_book
+
+    books = {course_book(source or "") for source in sources}
+    if len(books) == 1 and "" not in books:
+        return MOST_IN_COURSE
+    return MOST_IN_PLAYLIST
+
+
 #: Who made a playlist. The reader by hand, targum's own chat, a connector on their
 #: behalf, or targum's own set copied onto their account (#368).
 PLAYLIST_MAKERS = ("reader", "chat", "connector", "targum")
@@ -6043,10 +6068,15 @@ class Store:
         title: str,
         reader: str | None = None,
         job: str | None = None,
+        most: int = MOST_IN_PLAYLIST,
     ) -> dict[str, Any] | None:
         """Put a text at the end of a playlist. None if the playlist is not theirs, is
         full, or was given nothing to hold. A text already in it is not added twice: the
-        item already there comes back."""
+        item already there comes back.
+
+        `most` is what `playlist_most` said for this playlist with this text in it; the
+        store knows no sources, so the caller that does asks. Never more than
+        `MOST_IN_COURSE`, whatever it is given."""
         title = " ".join(title.split())[:200] or (reader or "")
         if not (reader or job) or not title:
             return None
@@ -6070,7 +6100,7 @@ class Store:
                     "SELECT COUNT(*) AS n FROM playlist_item WHERE playlist = ?", (playlist_id,)
                 ).fetchone()["n"]
             )
-            if count >= MOST_IN_PLAYLIST:
+            if count >= min(most, MOST_IN_COURSE):
                 return None
             db.execute(
                 "INSERT INTO playlist_item (playlist, position, reader, job, title)"
@@ -6208,12 +6238,17 @@ class Store:
         ]
 
     def play_next(
-        self, person_id: int, playlist_id: int, title: str, reader: str
+        self,
+        person_id: int,
+        playlist_id: int,
+        title: str,
+        reader: str,
+        most: int = MOST_IN_PLAYLIST,
     ) -> dict[str, Any] | None:
         """Put a text straight after the one the reader is on (targum-internal#434): added
         if it is not in the playlist, moved if it is. None where it could not be — not
-        theirs, or full."""
-        added = self.add_to_playlist(person_id, playlist_id, title, reader=reader)
+        theirs, or full (`most`, as `add_to_playlist` takes it)."""
+        added = self.add_to_playlist(person_id, playlist_id, title, reader=reader, most=most)
         if added is None:
             return None
         found = self.playlist(person_id, playlist_id)
