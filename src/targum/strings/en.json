@@ -3255,6 +3255,8 @@
   "playlists.continue-at": "Continue at {at} of {count}",
   "playlists.in-order": "Texts in order",
   "playlists.empty": "Nothing in it yet.",
+  "playlists.elsewhere.one": "{n} playlist in {language}",
+  "playlists.elsewhere.other": "{n} playlists in {language}",
   "playlists.add-from": "Add from Your targums or the Library",
   "playlists.up-to": "Up to 20 texts",
   "playlists.page.back": "Playlists",

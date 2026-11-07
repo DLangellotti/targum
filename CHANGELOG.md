@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The Playlists tab keeps to the language in the header, as Recent and Uploads do
+  (targum-internal#658). It shows the playlists in the language being learned, and
+  targum's own sets the same way; a playlist with nothing in it yet is shown in every
+  language. Under them, one quiet line counts the other languages' playlists exactly
+  ("3 playlists in Hebrew · 1 playlist in Russian"), and pressing a count switches the
+  header to that language. The tab now draws the header's language menu, as Recent does.
+  `/playlists.json` says each of targum's sets' language. New strings:
+  `playlists.elsewhere` (en, ru).
 - On a phone the AI Assistant is an icon in the top bar, beside the bell, and nothing
   floats over the page (David, 2026-11-04; design.md §12, "On a phone the AI Assistant is
   in the bar"). The pill above the four places, and the 4rem band it stood in, took a

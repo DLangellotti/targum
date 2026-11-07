@@ -12280,6 +12280,9 @@ class Handler(BaseHTTPRequestHandler):
                         "nameLanguage": code if collection.named.get(code) else "en",
                         "english": collection.english,
                         "count": len(built),
+                        # The language it is in, so the tab shows it under that language
+                        # only, as it does the reader's own (targum-internal#658).
+                        "language": self.library.playlist_language(home, {"items": members}),
                         **{key: value for key, value in shown.items() if key != "items"},
                     }
                 )
