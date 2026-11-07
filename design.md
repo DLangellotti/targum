@@ -384,6 +384,29 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Marking the rest can stay on the lesson — 2026-11-07
+
+David, 2026-11-07 (targum-internal#657), reading Assimil Italian in a playlist: "an
+option at the end of a lesson to mark all words as known but NOT go to the next lesson."
+This adds a third press to "Done marks nothing; knowing them all is a choice"
+(2026-10-13) and changes nothing it says about the other two.
+
+- **In a playlist only, and only where the press moves on to the next text.** Under Next
+  and "Next, and mark 12 words known": "Mark 12 words known", "Mark 1 word known" for
+  one, as a text link, the quietest of the three. A text on its own keeps its Done pair,
+  and the last item has none, since its Finish already stays to show the end card.
+  With no words left it is not shown, as "and mark" is not.
+- **It does what "Next, and mark" does, by the same path, and stays.** The words left
+  are marked known in one batch and the item is finished: it is on Your Progress and
+  the playlist counts it. The words turn known where they stand.
+- **The ink block says so, with its Undo**: "Finished · #4", then "12 words marked
+  known", and its three figures. Undo takes back the marks and the finish together, as
+  the ink block's Undo always has. Next stays, and pressed later it moves on from a
+  finished item and marks nothing more, so the next page has nothing to say.
+- **No key.** Neither of the other foot presses has a letter, so this one has none
+  either: it is reached by Tab, and once pressed the focus moves to Next.
+- The id says what it does: `#done-stay` finishes, marks and stays.
+
 ### A course lesson is numbered as the book numbers it — 2026-11-06
 
 David, 2026-11-06 (targum-internal#652, targum#1121): approved as proposed. A reader

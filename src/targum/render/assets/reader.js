@@ -1248,6 +1248,8 @@ var targumReader = function () {
   // (design.md §12, "Done marks nothing", 2026-10-13), and the block they stand in.
   var footPress = document.getElementById("foot-press");
   var footMark = document.getElementById("done-mark");
+  // In a playlist, under both: marks the rest, finishes, stays (§12, 2026-11-07).
+  var footStay = document.getElementById("done-stay");
   // The words the press would mark, before it is pressed (design review, 2026-10-09):
   // the ones met most as chips with what each means, and the rest one press away.
   var footWords = document.getElementById("foot-words");
@@ -1260,6 +1262,8 @@ var targumReader = function () {
      marked as well as the finish. Null when the section was finished on another visit:
      the words marked then are not this page's to take back. */
   var footPressed = null;
+  // How many words this visit's staying press marked, for the ink block to say.
+  var footStayed = 0;
   /* Drawn first by the counts, not by the finish: the finish is drawn before the names and
      the counts it needs exist, and the counts draw the foot every time they change. */
   var footDrawn = false;
@@ -1317,7 +1321,7 @@ var targumReader = function () {
      hook in the markup, so a new control is counted the day it is drawn. */
   var PRESSABLE =
     ".bar button, .bar select, .bar a, #player button, #player [role=slider], .video button, " +
-    ".turn button, #list-tab, #list button, #done-go, #done-mark, #done-undo, #arrived-undo, " +
+    ".turn button, #list-tab, #list button, #done-go, #done-mark, #done-stay, #done-undo, #arrived-undo, " +
     "#practice-next, #next-up-else, .say";
   function nameOf(control) {
     var attributes = control.attributes || [];
@@ -1650,6 +1654,17 @@ var targumReader = function () {
       head.className = "finished-head";
       head.textContent = t("reader.finish.head", "Finished · #{n}", { n: finishedCount() });
       finishedSaid.appendChild(head);
+      if (footStayed) {
+        var marked = document.createElement("span");
+        marked.className = "finished-marked";
+        marked.textContent = tn(
+          "reader.rest.done",
+          footStayed,
+          "{n} word marked known",
+          "{n} words marked known"
+        );
+        finishedSaid.appendChild(marked);
+      }
       var tally = footFigures();
       if (tally) {
         var row = document.createElement("span");
@@ -1766,6 +1781,12 @@ var targumReader = function () {
       footMark.hidden = !left;
       footMark.textContent = left ? markSays(verb, left) : "";
     }
+    // Only where the others move on to the next text: the last item's Finish stays.
+    if (footStay) {
+      var stays = !!left && verb === "next";
+      footStay.hidden = !stays;
+      footStay.textContent = stays ? staySays(left) : "";
+    }
     paintFootWords(left);
   }
 
@@ -1854,6 +1875,9 @@ var targumReader = function () {
       return tn("reader.foot.finish-mark", left, "Finish, and mark {n} word known", "Finish, and mark {n} words known");
     }
     return tn("reader.foot.done-mark", left, "Done, and mark {n} word known", "Done, and mark {n} words known");
+  }
+  function staySays(left) {
+    return tn("reader.foot.stay-mark", left, "Mark {n} word known", "Mark {n} words known");
   }
   renderFinished();
 
@@ -2444,6 +2468,18 @@ var targumReader = function () {
     pressFoot(marking);
   }
 
+  /* The third press, in a playlist (design.md §12, "Marking the rest can stay on the
+     lesson", 2026-11-07): "Next, and mark" without the Next. Next stays the way on. */
+  function stayFoot() {
+    if (!footWay || finishedAt()) return null;
+    var pressed = pressFoot(true);
+    if (pressed.already) return pressed;
+    footStayed = pressed.counted;
+    renderFinished();
+    if (finishedGo && finishedGo.focus) finishedGo.focus();
+    return pressed;
+  }
+
   /* The first finish in a language goes home (design.md §12, "The first finish goes
      home", 2026-10-12). A new reader came from the arrival straight into a text, and the
      ink block and the next part told them what to read next and nothing about where
@@ -2743,6 +2779,7 @@ var targumReader = function () {
   function unpress() {
     var pressed = footPressed;
     footPressed = null;
+    footStayed = 0;
     if (pressed && pressed.lemmas.length) takeBack(pressed.lemmas);
     setFinished(false);
     unsayKnownAhead();
@@ -9187,6 +9224,10 @@ var targumReader = function () {
         footGo(true);
         return;
       }
+      if (button.id === "done-stay") {
+        stayFoot();
+        return;
+      }
       if (button.id === "done-undo") {
         unpress();
         return;
@@ -10122,6 +10163,7 @@ var targumReader = function () {
     // finished before they were kept.
     figures: footFigures,
     press: pressFoot,
+    stay: stayFoot,
     unpress: unpress,
     undoLanding: undoLanding,
     footSays: function () {
@@ -10129,6 +10171,7 @@ var targumReader = function () {
         press: finishedGo ? finishedGo.textContent : "",
         pressHidden: footPress ? Boolean(footPress.hidden) : true,
         mark: footMark && !footMark.hidden ? footMark.textContent : "",
+        stay: footStay && !footStay.hidden ? footStay.textContent : "",
         finished: finishedBox ? !finishedBox.hidden : false,
       };
     },

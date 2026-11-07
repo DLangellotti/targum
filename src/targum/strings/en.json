@@ -2311,6 +2311,8 @@
   "reader.foot.next-mark.other": "Next, and mark {n} words known",
   "reader.foot.finish-mark.one": "Finish, and mark {n} word known",
   "reader.foot.finish-mark.other": "Finish, and mark {n} words known",
+  "reader.foot.stay-mark.one": "Mark {n} word known",
+  "reader.foot.stay-mark.other": "Mark {n} words known",
   "reader.foot.end-of-chapter": "End of chapter {n} of {count}",
   "reader.foot.end-of-aliyah": "End of aliyah {n} of {count}",
   "reader.list.back-link": "← Back",

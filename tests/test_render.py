@@ -5786,7 +5786,9 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 #: about 0.35 kB with the rest of them moved to `reader-rest.js`.
 #: 118.4 kB on 2026-11-04 with the edition's shape (design.md §12, "A text keeps the shape
 #: its edition gives it"): the plate, the parashot and half-lines, and the column cut.
-A_WORD_WAITS_GZ = 118_900
+#: 119.1 kB on 2026-11-07 with a playlist's third foot press, "Mark 12 words known"
+#: (targum-internal#657), which is the foot's and so cannot wait in `reader-rest.js`.
+A_WORD_WAITS_GZ = 119_300
 
 
 def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:
