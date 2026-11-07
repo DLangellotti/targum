@@ -48,7 +48,6 @@ from . import mcp_http, oauth, plans, voices
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
-    MOST_IN_PLAYLIST,
     MOST_PLAYLISTS,
     MOST_PROMPTS,
     SUB_BUILDS,
@@ -59,6 +58,7 @@ from .accounts import (
     digest,
     now,
     plausible,
+    playlist_most,
 )
 from .alerts import out_of_credit
 from .audio.manifest import POSTER
@@ -3059,13 +3059,16 @@ class Library:
         entries = {entry.id: entry for entry in catalogue_module.everything()}
         offered: list[tuple[Any, list[tuple[Any, str]]]] = []
         for collection in catalogue_module.swipe_sets():
+            most = playlist_most(
+                entries[member].source for member in collection.members if member in entries
+            )
             built: list[tuple[Any, str]] = []
             for member in collection.members:
                 entry = entries.get(member)
                 folder = self.built_from(self.shared, entry.source) if entry else None
                 if entry is not None and folder:
                     built.append((entry, folder))
-                if len(built) == MOST_IN_PLAYLIST:
+                if len(built) == most:
                     break
             if built:
                 offered.append((collection, built))
@@ -3153,6 +3156,36 @@ class Library:
         mine = self.text_language(home, reader, job)
         theirs = self.playlist_language(home, found)
         return not mine or not theirs or mine == theirs
+
+    def text_source(self, home: Path, reader: str | None = None) -> str:
+        """The source a playlist's built text was made from, from its reader on `home` and
+        then the shared shelf; empty for a text still being made or a folder gone."""
+        if reader and "/" not in reader and not reader.startswith("."):
+            for root in (home, self.shared):
+                document = root / reader / "document.json"
+                if not document.is_file():
+                    continue
+                facts = self.remembered.get(
+                    root / reader, "document", [document], partial(self._document_facts, document)
+                )
+                return str(facts.get("source") or "")
+        return ""
+
+    def playlist_most(
+        self,
+        home: Path,
+        found: Mapping[str, Any],
+        reader: str | None = None,
+        job: str | None = None,
+    ) -> int:
+        """How many texts this playlist may hold with this text in it (`accounts.
+        playlist_most`): the whole course where it and everything already there are
+        lessons of one course (design.md §12, 2026-11-07), twenty otherwise. A text still
+        being made counts as not a lesson, whatever it will be."""
+        sources = [self.text_source(home, item.get("reader")) for item in found.get("items") or []]
+        if reader or job:
+            sources.append(self.text_source(home, reader) if reader else "")
+        return playlist_most(sources)
 
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
@@ -12429,6 +12462,8 @@ class Handler(BaseHTTPRequestHandler):
             "failed": failed,
             "unconfirmed": unconfirmed,
             "credits": credits,
+            # The page's "Up to 20 texts" is said only where twenty is the cap.
+            "most": self.library.playlist_most(home, found),
         }
 
     def _targum_set(self, collection_id: str) -> None:
@@ -12827,10 +12862,22 @@ class Handler(BaseHTTPRequestHandler):
             refused = self._other_language(playlist_id, str(payload.get("reader") or ""))
             if refused is not None:
                 return self._json({"error": refused}, 400)
+        if doing in ("add", "next"):
+            # Twenty, or the whole course for a course's own playlist (design.md §12,
+            # 2026-11-07): asked once, of what is there and the text joining it.
+            most = self.library.playlist_most(
+                self._home(),
+                self.store.playlist(person.id, playlist_id) or {},
+                str(payload.get("reader") or "") or None,
+            )
         if doing == "add":
             reader = str(payload.get("reader") or "")
             added = self.store.add_to_playlist(
-                person.id, playlist_id, str(payload.get("title") or reader), reader=reader or None
+                person.id,
+                playlist_id,
+                str(payload.get("title") or reader),
+                reader=reader or None,
+                most=most,
             )
             if added is None:
                 return self._json(
@@ -12838,7 +12885,7 @@ class Handler(BaseHTTPRequestHandler):
                         "error": self._say(
                             "serve.playlist-full",
                             "A playlist holds up to {most} texts.",
-                            most=MOST_IN_PLAYLIST,
+                            most=most,
                         )
                     },
                     400,
@@ -12861,7 +12908,7 @@ class Handler(BaseHTTPRequestHandler):
             reader = str(payload.get("reader") or "")
             if not reader or (
                 self.store.play_next(
-                    person.id, playlist_id, str(payload.get("title") or reader), reader
+                    person.id, playlist_id, str(payload.get("title") or reader), reader, most=most
                 )
                 is None
             ):
@@ -12870,7 +12917,7 @@ class Handler(BaseHTTPRequestHandler):
                         "error": self._say(
                             "serve.playlist-full",
                             "A playlist holds up to {most} texts.",
-                            most=MOST_IN_PLAYLIST,
+                            most=most,
                         )
                     },
                     400,

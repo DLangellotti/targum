@@ -386,7 +386,7 @@ fallen behind the entries by half; the dates are the index.)
 
 ### Marking the rest can stay on the lesson — 2026-11-07
 
-David, 2026-11-07 (targum-internal#657), reading Assimil Italian in a playlist: "an
+David, 2026-11-07 (targum-internal#657), reading a course book in a playlist: "an
 option at the end of a lesson to mark all words as known but NOT go to the next lesson."
 This adds a third press to "Done marks nothing; knowing them all is a choice"
 (2026-10-13) and changes nothing it says about the other two.
@@ -406,6 +406,25 @@ This adds a third press to "Done marks nothing; knowing them all is a choice"
 - **No key.** Neither of the other foot presses has a letter, so this one has none
   either: it is reached by Tab, and once pressed the focus moves to Next.
 - The id says what it does: `#done-stay` finishes, marks and stays.
+### A course's playlist holds the whole course — 2026-11-07
+
+David, 2026-11-07 (targum-internal#652): one book, one playlist. A course book (the one that
+asked has 105 lessons) is read in its own order from the first lesson to the last. Cut into playlists of twenty, the reader has to find where lesson 21 went.
+
+A playlist whose every text is a lesson of one and the same course, built from the same
+book, may hold the whole course, up to 200 texts (`MOST_IN_COURSE`). Every other set keeps
+the twenty that "A playlist is swiped, and one press takes the set" (2026-09-23) gave it:
+a playlist that mixes a course with anything else, holds two courses, or holds a text
+still being made is a playlist like any other. A text that is not a lesson of that
+course, added past the twentieth, is refused with the usual words. One rule decides it
+(`accounts.playlist_most`), and the page, the chat and the connector, and targum's own
+sets all ask it. The page's "Up to 20 texts" is not said on a course's playlist.
+
+The set's one press is unchanged and still claims only what is waiting. A course lesson
+is never waiting, because `course:` is private and no request can name it ("A book import
+is always private", 2026-11-06), so a course's playlist past twenty holds only texts
+already made and its press has nothing to spend on. Voicing a lesson is still its own
+quote and its own press.
 
 ### A course lesson is numbered as the book numbers it — 2026-11-06
 
@@ -8582,7 +8601,9 @@ of it is built.
   channel or a podcast is subscribed to, never built from its address". Every other door
   still refuses it.)* Every item is still their private import and
   never the catalogue (#126). A set is capped, at twenty to start — the number is the
-  build's to tune, the cap is not.
+  build's to tune, the cap is not. *(Amended 2026-11-07: a course's own playlist holds
+  the whole course, up to 200 — see "A course's playlist holds the whole course". Every
+  other set keeps twenty.)*
 
 - **A swipe is a press.** "Nothing plays until pressed. Autoplay is the arcade's move"
   ("A text that carries media opens as its media", 2026-09-03) was written for a page
