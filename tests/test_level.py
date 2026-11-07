@@ -220,12 +220,16 @@ def test_known_share_answers_a_page_inside_its_budget() -> None:
     page = " ".join(words)
     forms = set(words[:250]) | {word + "ים" for word in words[:100]}
 
-    worst = 0.0
+    # The median of five, not the worst: a shared CI runner once stalled one call for
+    # 774 ms (2026-11-03, targum-internal#649), and a stall is the runner, not the code.
+    # Slow code is slow in every call, so the median still trips on a real regression.
+    took = []
     for _ in range(5):
         started = time.perf_counter()
         level.known_share(page, forms)
-        worst = max(worst, (time.perf_counter() - started) * 1000)
-    assert worst < 50.0, f"known_share took {worst:.1f} ms on a 500-word page"
+        took.append((time.perf_counter() - started) * 1000)
+    middle = sorted(took)[2]
+    assert middle < 50.0, f"known_share took {middle:.1f} ms on a 500-word page: {took}"
 
 
 def test_the_share_is_said_as_an_exact_percentage() -> None:
