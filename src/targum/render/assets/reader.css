@@ -1752,6 +1752,12 @@ body.film-ended:not(.in-list):has(#film-next) .foot-go:hover { filter: none; col
 .foot-plain:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .foot-plain[hidden],
 .foot-next[hidden] { display: none; }
+/* In a playlist, the third and quietest press: a text link (§12, 2026-11-07). */
+.foot-stay {
+  align-self: flex-start;
+  min-block-size: 2rem;
+  font-size: 0.875rem;
+}
 .foot-next p { margin: 0; }
 /* What the press would mark, above it (design review, 2026-10-09): the question and the
    chips the end of a part asks in Theatre, and "+60 more" a text link that shows the
@@ -1934,6 +1940,13 @@ body.has-player .next-up:has(~ .credits) { margin-block-end: 2rem; }
   display: block;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+.finished.is-done .finished-marked {
+  display: block;
+  margin-block-start: 0.2rem;
+  color: color-mix(in srgb, var(--page-max) 72%, transparent);
+  font-family: var(--ui);
+  font-size: 0.875rem;
 }
 .finished.is-done .tiles {
   display: grid;
@@ -2185,7 +2198,7 @@ body.practice-hebrew .src { max-width: none; }
 /* A section kept by the practice is finished once the practice has read it through —
    the third reading of the aliyah, or the last verse — unless it is finished already,
    in which case its record and its Undo stay where they are. */
-body:is(.practice-verse, .practice-section):not(.practice-ended) .foot-press {
+body:is(.practice-verse, .practice-section):not(.practice-ended) :is(.foot-press, .foot-stay) {
   display: none;
 }
 
@@ -4176,7 +4189,7 @@ a.list-rail-tile:focus-visible { outline: 2px solid var(--focus); outline-offset
 .list-rail-step:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .list-rail-down { margin-block-start: auto; background: var(--teal-wash); color: var(--teal); }
 /* Past the last item the end card is the way on, so the press that led to it goes. */
-.list-ended .foot-press { display: none; }
+.list-ended :is(.foot-press, .foot-stay) { display: none; }
 body.has-player.list-ended .list-end {
   margin-block-end: calc(var(--player-foot, 1.25rem) + var(--player-tall, 3.5rem) + 2rem);
 }
@@ -6115,7 +6128,7 @@ body.list-ended .list-end .list-end-over {
   gap: 0.75rem;
 }
 /* The marking finish beside the press, a line press (`.btn.ghost.outline`'s look). */
-.foot .foot-plain:not(.foot-more) {
+.foot .foot-plain:not(.foot-more, .foot-stay) {
   display: inline-flex;
   align-items: center;
   min-block-size: 2.75rem;
@@ -6127,7 +6140,9 @@ body.list-ended .list-end .list-end-over {
   font-weight: 600;
   text-decoration: none;
 }
-.foot .foot-plain:not(.foot-more):hover { border-color: var(--ink-soft); }
+.foot .foot-plain:not(.foot-more, .foot-stay):hover { border-color: var(--ink-soft); }
+/* The line press above outweighs `.foot-plain[hidden]`: hidden showed an empty pill. */
+.foot .foot-plain[hidden] { display: none; }
 .foot-more { color: var(--teal); text-decoration: none; }
 body.film-theatre .film-end { margin-inline: auto; }
 /* On a phone the card is as short as it can be, because the last page holds it whole
@@ -6139,7 +6154,8 @@ body.film-theatre .film-end { margin-inline: auto; }
   .foot-title,
   .film-end-head { font-size: 1.0625rem; }
   .foot-press { flex-direction: column; align-items: stretch; gap: 0; }
-  .foot .foot-plain:not(.foot-more) {
+  .foot-stay { align-self: stretch; min-block-size: 2.75rem; text-align: center; }
+  .foot .foot-plain:not(.foot-more, .foot-stay) {
     justify-content: center;
     min-block-size: 2.75rem;
     border: 0;

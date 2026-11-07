@@ -620,6 +620,75 @@ def test_next_finishes_and_marks_nothing(browser, tmp_path) -> None:  # noqa: F8
         context.close()
 
 
+# Known words in view: a pair out of view is repainted when it scrolls into it.
+KNOWN_HERE = (
+    "Array.from(document.querySelectorAll('.w[data-status=\"9\"]')).filter((w) => {"
+    " const box = w.getBoundingClientRect();"
+    " return box.height > 0 && box.bottom > 0 && box.top < innerHeight; }).length"
+)
+
+
+def test_the_third_press_marks_the_rest_and_stays_on_the_lesson(browser, tmp_path) -> None:  # noqa: F811
+    """targum-internal#657; design.md §12, "Marking the rest can stay on the lesson"
+    (2026-11-07). Under Next and "Next, and mark", "Mark 12 words known" marks the words
+    left and finishes the item, and the reader stays: the words turn known in the text,
+    the ink block says how many with its Undo, and Next is still there."""
+    one = chapter(tmp_path / "one" / "reader")
+    two = other_text(tmp_path / "two" / "reader")
+    context, _ = listed(browser, playlist(one, two))
+    page = context.new_page()
+    try:
+        page.goto(at(one, 0))
+        page.wait_for_selector("#list-nav", state="attached")
+        said = page.inner_text("#done-stay")
+        assert said.startswith("Mark ") and said.endswith(" words known"), said
+        left = int(said.split()[1])
+        document = page.evaluate(DOCUMENT)
+        here = page.url
+        assert page.evaluate("() => " + KNOWN_HERE) == 0
+        page.evaluate("() => document.getElementById('done-stay').click()")
+        page.wait_for_selector("#finished:not([hidden])")
+        assert page.url == here, "the reader stays on the lesson"
+        # The words turn known where they stand, painted a frame at a time.
+        page.wait_for_function(KNOWN_HERE + " > 0")
+        assert f"{left} words marked known" in page.inner_text("#done-said")
+        assert page.is_visible("#done-undo")
+        assert page.is_hidden("#done-stay") and page.is_hidden("#done-mark")
+        assert page.inner_text("#done-go") == "Next" and page.is_visible("#done-go")
+        state = page.evaluate(RECORD, document)
+        assert state["sections"], "the item is finished"
+        assert state["known"] > 0, "and its words are marked"
+
+        page.click("#done-undo")
+        state = page.evaluate(RECORD, document)
+        assert state == {"sections": {}, "known": 0}, "one Undo takes back both"
+        page.wait_for_function(KNOWN_HERE + " === 0")
+        assert page.is_visible("#done-stay")
+
+        # Pressed again and then Next: it moves on, and has nothing more to carry.
+        page.evaluate("() => document.getElementById('done-stay').click()")
+        page.wait_for_selector("#finished:not([hidden])")
+        page.evaluate("() => document.getElementById('done-go').click()")
+        page.wait_for_url("**/two/**go=1")
+        state = page.evaluate(RECORD, document)
+        assert state["sections"] and state["known"] > 0
+        assert page.is_hidden("#arrived"), "the Undo was on the lesson, not here"
+    finally:
+        context.close()
+
+
+def test_a_text_on_its_own_has_no_third_press(browser, tmp_path) -> None:  # noqa: F811
+    one = chapter(tmp_path / "one" / "reader")
+    context = opened(browser)
+    page = context.new_page()
+    try:
+        page.goto(address(one))
+        page.wait_for_selector("#done-mark:not([hidden])", state="attached")
+        assert page.is_hidden("#done-stay")
+    finally:
+        context.close()
+
+
 def test_a_swipe_finishes_without_marking(browser, tmp_path) -> None:  # noqa: F811
     """A swipe is a press, and marking words is never done by a gesture."""
     one = chapter(tmp_path / "one" / "reader")
