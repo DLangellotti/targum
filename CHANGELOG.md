@@ -189,6 +189,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- Two timing tests no longer fail on one stalled call of a shared CI runner
+  (targum-internal#649). Read next's finds scoring is held to its 30 ms p95 as the
+  nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
+  under it; `known_share` is held to its 50 ms by the median of five calls, not the worst.
+  Slow code still fails both. Tests only; nothing a reader sees changes.
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf
