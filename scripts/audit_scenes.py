@@ -16,7 +16,9 @@ is what stops somebody reading the list.
 finding nobody can act on, and one that quotes a word not in the line is a finding that
 was invented; both are dropped here rather than passed on.
 
-It spends. `--dry-run` prices it and calls nothing.
+It spends. `--dry-run` prices it and calls nothing. Whether the scenes bring their words
+back is a different question, answered for free by `scene_recycling.py`
+(targum-internal#656).
 
     .venv/bin/python scripts/audit_scenes.py --from ~/…/dialogues --dry-run
     op run --env-file op.env -- .venv/bin/python scripts/audit_scenes.py \\
