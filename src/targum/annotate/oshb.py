@@ -51,6 +51,15 @@ LEXICON_FILE = "strongs.json"
 #: beside the headwords rather than inside them so a box that fetched before this existed
 #: still reads its headwords and simply has no senses.
 SENSES_FILE = "senses.json"
+#: Which entry each entry is built from, and how often each occurs, from the same file and
+#: the same project's tagging (targum-internal#591). Strong's says "from H…" for most of
+#: its words and "a primitive root" for 1,395 of them; following the links gives every
+#: word's family. Gated on its own file, like the brief glosses, so a box that fetched the
+#: lexicon before this existed gets it at the next `models fetch scripture`.
+DERIVATIONS_FILE = "derivations.json"
+#: The name the roots table's bible register is counted under (`tables.bible.ROOTS`): a
+#: change to which links are followed is a new number, and the next count supersedes.
+FAMILIES = "strongs-families/1"
 
 #: What a lexeme means in a word or two, from STEP Bible's Translators Brief lexicon of
 #: Extended Strongs for Hebrew (targum-internal#510). Strong's own definitions are the
@@ -431,6 +440,134 @@ def filed_as(lexeme: str) -> str:
     return f"{pointed}{NUMBER_MARK.format(number)}"
 
 
+_LINKS: dict[str, list[object]] | None = None
+_FAMILIES: dict[str, tuple[str, ...]] | None = None
+
+
+def _links() -> dict[str, list[object]]:
+    global _LINKS
+    if _LINKS is None:
+        try:
+            _LINKS = json.loads((root() / DERIVATIONS_FILE).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            # A machine that fetched before families were kept: no word has one, and
+            # every card draws what it drew before.
+            _LINKS = {}
+    return _LINKS
+
+
+def _number(lexeme: str) -> str:
+    number = (lexeme or "").strip().split(" ")[0].lstrip("H")
+    return number if number.isdigit() else ""
+
+
+def family_root(lexeme: str) -> str:
+    """The Strong's number of the root a lexeme's derivations reach, or "" for none.
+
+    Followed link by link from the entry the tagging names until an entry says "a
+    primitive root". A chain that ends anywhere else — a name, a loanword, an entry that
+    says neither — has no root, and neither has one that loops. Keyed by the number and
+    never by the letters, so two roots spelled alike (עָנָה answer, עָנָה afflict) are two
+    families, never one (targum-internal#591).
+    """
+    links = _links()
+    number = _number(lexeme)
+    seen: set[str] = set()
+    while number and number not in seen:
+        seen.add(number)
+        held = links.get(number)
+        if not held:
+            return ""
+        if held[2] == PRIMITIVE:
+            return number
+        number = str(held[2] or "")
+    return ""
+
+
+def _named(pos: str) -> bool:
+    """Strong's part of speech says the entry is a person's or a place's name."""
+    return "n-pr" in pos or pos == "np"
+
+
+def _families() -> dict[str, tuple[str, ...]]:
+    """Every root and the Hebrew words built on it, the root first and then the rest by
+    how often the Tanakh uses them. Names are not words a family is learned from, so
+    they are left out; so is the Aramaic, which is its own language's family."""
+    global _FAMILIES
+    if _FAMILIES is None:
+        links = _links()
+        found: dict[str, list[str]] = {}
+        for number, held in links.items():
+            pos, language = str(held[0]), str(held[1])
+            if language != "heb" or _named(pos) or not headword(number):
+                continue
+            reached = family_root(number)
+            if reached:
+                found.setdefault(reached, []).append(number)
+
+        def met(number: str) -> int:
+            said = links.get(number, ["", "", "", 0])[3]
+            return said if isinstance(said, int) else 0
+
+        _FAMILIES = {
+            reached: tuple(sorted(members, key=lambda one: (one != reached, -met(one), int(one))))
+            for reached, members in found.items()
+        }
+    return _FAMILIES
+
+
+def family(lexeme: str) -> tuple[str, ...]:
+    """The other words of this lexeme's family, as Strong's numbers: its root first,
+    then the rest by how often the Tanakh uses them. Empty where it has no root, or is
+    the only word on it. The caller caps the list (`paradigms.SIBLINGS`)."""
+    own = _number(lexeme)
+    held = _links().get(own)
+    # An Aramaic word's family is Aramaic's to give, and Strong's gives it none here. A
+    # preposition or a particle has none either: Strong's takes עַל from עָלָה, which is
+    # etymology, not a word a learner gets by knowing the verb.
+    if not held or str(held[1]) != "heb" or not kind(own):
+        return ()
+    reached = family_root(own)
+    if not reached:
+        return ()
+    return tuple(one for one in _families().get(reached, ()) if one != own and kind(one))
+
+
+#: Strong's parts of speech as Universal POS, by their first word: what the card names a
+#: family member by. Anything else (a particle, an interjection) says nothing.
+_KINDS = {"v": "VERB", "n": "NOUN", "n-m": "NOUN", "n-f": "NOUN", "a": "ADJ", "adv": "ADV"}
+
+
+def kind(lexeme: str) -> str:
+    """A Universal POS for a Strong's entry, from its own part of speech, or ""."""
+    held = _links().get(_number(lexeme))
+    pos = str(held[0]).split(" ")[0] if held else ""
+    if pos.startswith("a-"):
+        pos = "a"
+    return _KINDS.get(pos, "")
+
+
+_SPELT_ALIKE: dict[str, int] | None = None
+
+
+def root_name(number: str) -> str:
+    """A root as the roots table counts it: its letters, as a verb's root is written
+    (`מלך`), with its Strong's number on where another root is spelled the same, so two
+    roots spelled alike are never one row."""
+    global _SPELT_ALIKE
+    written = bare(headword(number)).replace(" ", "")
+    if not written:
+        return ""
+    if _SPELT_ALIKE is None:
+        alike: dict[str, int] = {}
+        for other, held in _links().items():
+            if held[2] == PRIMITIVE and str(held[1]) == "heb":
+                letters = bare(headword(other)).replace(" ", "")
+                alike[letters] = alike.get(letters, 0) + 1
+        _SPELT_ALIKE = alike
+    return f"{written}{NUMBER_MARK.format(number)}" if _SPELT_ALIKE.get(written, 0) > 1 else written
+
+
 def sense_for(form: str) -> str:
     """What a written form means, where the lexicon is not of two minds about it.
 
@@ -466,6 +603,67 @@ def parse_lexicon(xml: str) -> dict[str, str]:
         written = (word.text or "").strip() if word is not None else ""
         if name.isdigit() and written:
             out[name] = unicodedata.normalize("NFC", written)
+    return out
+
+
+#: An entry Strong's says is a root of its own, and nothing is built under.
+_PRIMITIVE = "a primitive root"
+#: An entry's source that says which entry it is built from: the first number it names.
+#: Only where Strong's says so outright. "probably from", "perhaps from" and "apparently
+#: from" are a lexicographer's guess, and a guessed family member is worse than none, so
+#: they are not followed; nor is "of uncertain derivation". `root_lexicon.strongs_roots`
+#: reads a narrower list, as a check on a modern lexicon, and is left as it was.
+_DERIVED = re.compile(
+    r"^\s*(?:\(Aramaic\)\s*)?(?:a\s+|an\s+|properly,\s+)?(?:"
+    r"from|the same as|denominative from|intensive from|causative from|"
+    r"(?:feminine\s+)?(?:active|passive) participle (?:of|from)|"
+    r"active of participle of|feminine participle (?:active|passive) of|"
+    r"feminine(?: plural)? (?:of|from)|by (?:reduplication|contraction) from|"
+    r"variation (?:of|for)|orthographical variation of|(?:another )?form (?:of|for)|"
+    r"collateral form of)\b",
+    re.IGNORECASE,
+)
+#: What `derivations.json` says of an entry that is a root of its own.
+PRIMITIVE = "*"
+
+
+def parse_derivations(xml: str, counts: dict[str, int] | None = None) -> dict[str, list[object]]:
+    """Each entry's part of speech, language, what it is built from and how often it is
+    met, from the lexicon file: `{number: [pos, lang, from, count]}`.
+
+    `from` is the number the entry's source names first where the source says it is
+    derived ("from H4427"), `PRIMITIVE` where it says "a primitive root", and "" where it
+    says neither: a name, a word "of foreign origin", a particle. `pos` is Strong's own
+    (`v`, `n-m`, `a`, `n-pr-loc`), and `count` is the tagging's, summed over the senses a
+    number was split into (`4428 a`, `4428 b`). Public domain, under the compilation's
+    CC BY 4.0, like the headwords beside it.
+    """
+    met: dict[str, int] = {}
+    for written, n in (counts or {}).items():
+        number = written.strip().split(" ")[0].lstrip("H")
+        met[number] = met.get(number, 0) + int(n)
+    out: dict[str, list[object]] = {}
+    for entry in ET.fromstring(xml).iter():
+        if entry.tag.split("}")[-1] != "entry":
+            continue
+        name = (entry.get("id") or "").lstrip("H")
+        if not name.isdigit():
+            continue
+        fields = {child.tag.split("}")[-1]: child for child in entry}
+        word = fields.get("w")
+        source = fields.get("source")
+        if word is None:
+            continue
+        prose = _prose(source)
+        link = ""
+        if _PRIMITIVE in prose:
+            link = PRIMITIVE
+        elif source is not None and _DERIVED.search(prose):
+            first = next((w for w in source.iter() if w.get("src")), None)
+            named = (first.get("src", "") if first is not None else "").lstrip("H")
+            link = named if named.isdigit() else ""
+        language = word.get("{http://www.w3.org/XML/1998/namespace}lang") or ""
+        out[name] = [word.get("pos") or "", language, link, met.get(name, 0)]
     return out
 
 
@@ -800,6 +998,24 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
         # From the same download, parsed a second time rather than fetched again.
         write_atomic(root() / SENSES_FILE, json.dumps(senses, ensure_ascii=False))
 
+    # Gated on its own file too (targum-internal#591): the lexicon once more, for the
+    # links between its entries, which were read past the first time.
+    if not (root() / DERIVATIONS_FILE).exists():
+        say("Fetching the lexicon's word families…")
+        try:
+            answer = httpx.get(LEXICON, timeout=180.0, follow_redirects=True)
+            answer.raise_for_status()
+            links = parse_derivations(answer.text, _counts())
+            if not links:
+                raise ValueError("no entries in the file")
+        except Exception as bad:  # noqa: BLE001 - network, XML and HTTP all land here
+            raise TargumError("Could not fetch the Hebrew word families.", str(bad)) from bad
+        write_atomic(
+            root() / DERIVATIONS_FILE, json.dumps(links, ensure_ascii=False, sort_keys=True)
+        )
+        global _LINKS, _FAMILIES, _SPELT_ALIKE
+        _LINKS = _FAMILIES = _SPELT_ALIKE = None
+
     # Gated on its own file, not on the lexicon's: a box that fetched the lexicon before
     # this existed would otherwise never get it (targum-internal#510).
     if not (root() / TBESH_FILE).exists():
@@ -844,7 +1060,9 @@ def _book(code: str) -> dict[str, list[list[object]]]:
 def forget() -> None:
     """Drop what is held in memory. For a test that swaps the directory underneath."""
     global _HEADWORDS, _SPELLED, _MEANINGS, _BY_FORM, _BRIEFS, _CHANGES
+    global _LINKS, _FAMILIES, _SPELT_ALIKE
     _loaded.clear()
+    _LINKS = _FAMILIES = _SPELT_ALIKE = None
     _BRIEFS = None
     _CHANGES = None
     _HEADWORDS = None

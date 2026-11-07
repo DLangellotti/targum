@@ -3446,13 +3446,38 @@ def _family_at(
     families: list[list[list[str]]],
     family_at: dict[str, int],
 ) -> int:
-    """Where this verb's family sits in the page's own list, or 0 for none.
+    """Where this word's family sits in the page's own list, or 0 for none.
 
-    Keyed on the lemma and its binyan together, which is what the family is worked out
-    from: two verbs spelled alike in different binyanim have different families, and
-    `כתב` is both.
+    A word of the Tanakh, which the tagging names by its Strong's number, has the family
+    Strong's derivations give it, across parts of speech: מֶלֶךְ with מָלַךְ, מַמְלָכָה and
+    מַלְכָּה, each row its headword and its part of speech (`oshb.family`,
+    targum-internal#591). Keyed by the number, so two roots spelled alike are two
+    families. A word Strong's gives no family keeps the verb family below.
+
+    Otherwise a verb's: keyed on the lemma and its binyan together, which is what the
+    family is worked out from: two verbs spelled alike in different binyanim have
+    different families, and `כתב` is both.
     """
-    from ..annotate.paradigms import family_of
+    from ..annotate.paradigms import SIBLINGS, family_of
+
+    lexeme = str(getattr(token, "lexeme", "") or "").strip()
+    if lexeme:
+        from ..annotate import oshb
+
+        key = f"H{lexeme.split(' ')[0]}"
+        if family_at.get(key):
+            return family_at[key]
+        rows: list[list[str]] = []
+        for member in oshb.family(lexeme):
+            written = oshb.headword(member)
+            if written and all(written != row[0] for row in rows):
+                rows.append([written, oshb.kind(member)])
+            if len(rows) == SIBLINGS:
+                break
+        if rows:
+            families.append(rows)
+            family_at[key] = len(families) - 1
+            return family_at[key]
 
     lemma = str(getattr(token, "lemma", "") or "")
     binyan = str(getattr(token, "binyan", "") or "")

@@ -6,6 +6,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- A word of the Tanakh shows its family from Strong's (targum-internal#591, epic #597).
+  Strong's says which entry each word is built from; following those links to "a primitive
+  root" gives each word its family across parts of speech: מֶלֶךְ beside מָלַךְ (verb),
+  מַמְלָכָה and מַלְכָּה (noun). Each family member is named by its part of speech, the ones
+  the reader knows are marked "known", and the line is capped at `SIBLINGS`. A
+  family is keyed by the root's Strong's number, so two roots spelled alike are never one.
+  Only what Strong's states outright is followed: "probably from" and other guesses are
+  not, and neither are names, Aramaic, prepositions or particles. A word Strong's gives no
+  family keeps the verb family it had.
+  - The links come from the lexicon `oshb.py` already fetches (public domain text,
+    compilation CC BY 4.0), stored as `derivations.json` at the next
+    `targum models fetch scripture`, which deploy runs. Page-build time only: no
+    annotator rename, no `SCHEMA_VERSION` change, no spend.
+  - `scripts/count_tanakh.py --roots` writes the roots table's bible register. It counts
+    content words under their root's letters, with the Strong's number added where two
+    roots are spelled alike.
+  - No new strings.
 - The Playlists tab keeps to the language in the header, as Recent and Uploads do
   (targum-internal#658). It shows the playlists in the language being learned, and
   targum's own sets the same way; a playlist with nothing in it yet is shown in every
