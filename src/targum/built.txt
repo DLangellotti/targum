@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-11-06
-A French word's card gives its pronunciation and warns of a false friend, for every French reader.
+Every French reader sees how a word is pronounced, and is warned of a false friend, on its card.
 A Russian or Italian word's card no longer gives a part of speech, such as noun, as its dictionary form.
 A text opened while it is still being written no longer stays a blank page.
 
