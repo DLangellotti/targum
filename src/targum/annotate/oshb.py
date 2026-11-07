@@ -998,24 +998,6 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
         # From the same download, parsed a second time rather than fetched again.
         write_atomic(root() / SENSES_FILE, json.dumps(senses, ensure_ascii=False))
 
-    # Gated on its own file too (targum-internal#591): the lexicon once more, for the
-    # links between its entries, which were read past the first time.
-    if not (root() / DERIVATIONS_FILE).exists():
-        say("Fetching the lexicon's word families…")
-        try:
-            answer = httpx.get(LEXICON, timeout=180.0, follow_redirects=True)
-            answer.raise_for_status()
-            links = parse_derivations(answer.text, _counts())
-            if not links:
-                raise ValueError("no entries in the file")
-        except Exception as bad:  # noqa: BLE001 - network, XML and HTTP all land here
-            raise TargumError("Could not fetch the Hebrew word families.", str(bad)) from bad
-        write_atomic(
-            root() / DERIVATIONS_FILE, json.dumps(links, ensure_ascii=False, sort_keys=True)
-        )
-        global _LINKS, _FAMILIES, _SPELT_ALIKE
-        _LINKS = _FAMILIES = _SPELT_ALIKE = None
-
     # Gated on its own file, not on the lexicon's: a box that fetched the lexicon before
     # this existed would otherwise never get it (targum-internal#510).
     if not (root() / TBESH_FILE).exists():
@@ -1036,6 +1018,24 @@ def fetch(books: list[str] | None = None, notify: Callable[[str], None] | None =
         )
         global _BRIEFS
         _BRIEFS = None
+
+    # Gated on its own file too (targum-internal#591): the lexicon once more, for the
+    # links between its entries, which were read past the first time.
+    if not (root() / DERIVATIONS_FILE).exists():
+        say("Fetching the lexicon's word families…")
+        try:
+            answer = httpx.get(LEXICON, timeout=180.0, follow_redirects=True)
+            answer.raise_for_status()
+            links = parse_derivations(answer.text, _counts())
+            if not links:
+                raise ValueError("no entries in the file")
+        except Exception as bad:  # noqa: BLE001 - network, XML and HTTP all land here
+            raise TargumError("Could not fetch the Hebrew word families.", str(bad)) from bad
+        write_atomic(
+            root() / DERIVATIONS_FILE, json.dumps(links, ensure_ascii=False, sort_keys=True)
+        )
+        global _LINKS, _FAMILIES, _SPELT_ALIKE
+        _LINKS = _FAMILIES = _SPELT_ALIKE = None
     return got
 
 

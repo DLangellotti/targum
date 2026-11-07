@@ -116,6 +116,34 @@ def test_a_machine_without_the_families_draws_what_it_drew(lexicon: Path) -> Non
     assert oshb.family("9004") == () and oshb.family_root("9004") == ""
 
 
+def test_the_fetch_brings_the_families_to_a_box_that_has_the_lexicon(
+    lexicon: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Gated on its own file, like the brief glosses: a box that fetched the lexicon
+    before families were kept gets them at its next `models fetch scripture`, and asks
+    nothing once it has them."""
+    import httpx
+
+    (lexicon / oshb.DERIVATIONS_FILE).unlink()
+    for code in set(oshb.BOOKS.values()):
+        (lexicon / f"{code}.json").write_text("{}")
+    (lexicon / oshb.SENSES_FILE).write_text("{}")
+    (lexicon / oshb.TBESH_FILE).write_text("{}")
+    asked: list[str] = []
+
+    def get(url: str, **_: object) -> httpx.Response:
+        asked.append(url)
+        return httpx.Response(200, text=lexicon_xml(), request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(httpx, "get", get)
+    oshb.forget()
+    oshb.fetch()
+    assert asked == [oshb.LEXICON]
+    assert oshb.family_root("9004") == "9001", "read at once, not after a restart"
+    oshb.fetch()
+    assert asked == [oshb.LEXICON], "idempotent: the file is there"
+
+
 # --- the card -------------------------------------------------------------------------
 
 
