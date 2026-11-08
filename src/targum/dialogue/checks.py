@@ -18,6 +18,11 @@ meaning, and every check below is decidable from the letters and points alone. A
 with defensible exceptions is not in here — `dagesh` on א is always wrong, so it is a
 check; a doubled yod is wrong in שֶׁהִשְׂכַּרְתִּיי and right in הָיִיתִי, so it is not.
 
+The one kind of list it does hold is a closed list of a reader's judgements, each entry a
+word ling-he has already ruled on (`HOMOGRAPHS`, `ARTICLES`, `KNOWN`), decided where it
+must be by the English beside it. Those report a word for reading; they guess at nothing
+the reader did not decide first.
+
 `scripts/score_scene_checks.py` scores these against the 275 judgements, so the claim
 "this catches X" is a measured number and not a hope.
 """
@@ -133,6 +138,30 @@ def hataf_on_non_guttural(line: str, turn: int) -> Iterator[Finding]:
                 yield Finding(
                     turn, "nikkud", word, f"A hataf vowel under {letter}, which is not a guttural."
                 )
+
+
+def two_reduced_vowels(line: str, turn: int) -> Iterator[Finding]:
+    """Two reduced vowels where Hebrew lets one stand (ling-he's B1 review, 2026-10-26;
+    targum-internal#531): a shva on each of a word's first two letters (וְנְמַלֵּא for
+    וּנְמַלֵּא, בְּבְּלָאק for בִּבְּלָאק), a hataf with a shva straight after it (עֲזְבָה for
+    עָזְבָה), and a prefix's shva before a hataf (לְהֲדַסָּה for לַהֲדַסָּה). The first
+    reduced vowel becomes a full one in each, which is what the menaked forgot."""
+    for word in words_of(line):
+        seen = units(word)
+        if len(seen) < 2:
+            continue
+        why = ""
+        if SHVA in seen[0][1] and SHVA in seen[1][1]:
+            why = "A shva on each of the first two letters: the first takes a full vowel."
+        elif SHVA in seen[0][1] and any(h in seen[1][1] for h in HATAFS):
+            why = "A shva before a hataf: the prefix takes the hataf's vowel."
+        else:
+            for (_, marks), (_, after) in zip(seen, seen[1:], strict=False):
+                if any(h in marks for h in HATAFS) and SHVA in after:
+                    why = "A hataf before a shva: the hataf becomes its full vowel."
+                    break
+        if why:
+            yield Finding(turn, "nikkud", word, why)
 
 
 # There was a third points check here and it is gone on purpose. A word whose last
@@ -474,6 +503,161 @@ def bit_without_dagesh(line: str, turn: int) -> Iterator[Finding]:
                 break
 
 
+# ------------------------------------------- the article and the construct (#563, 2026-11-08)
+#
+# Four of the audit's pointing rows that the rules above let through: the article's
+# vowel where the English has none (לַקָּפֶה for "come for coffee"), none where Hebrew
+# always has one (לְצָפוֹן for "drove north"), the article on a floor named by a
+# cardinal (בַּקּוֹמָה שֵׁשׁ), and an absolute where the next word makes a construct
+# (יָפֶה נוֹף). Each is a closed list of what the audit found, as `HOMOGRAPHS` is.
+
+
+def _pairs(line: str) -> Iterator[tuple[str, str]]:
+    """Each word with the one after it, where no punctuation stands between them. A
+    number written in digits counts as a word."""
+    for clause in re.split(r"[.,?!:;()\[\]״“”—]+", unicodedata.normalize("NFC", line or "")):
+        said = [p.strip("\"'׳") for p in re.split(r"[\s־]+", clause)]
+        said = [p for p in said if p and (LETTERS.search(p) or p.isdigit())]
+        yield from zip(said, said[1:], strict=False)
+
+
+def _behind(word: str, noun: str) -> tuple[str, str] | None:
+    """The one prefix letter in front of `noun` (by its letters) and its marks, or None
+    where `word` is not `noun` behind exactly one prefix."""
+    plain = bare(word)
+    if plain[1:] != noun or plain[:1] not in PREFIX_LETTERS:
+        return None
+    return units(word)[0]
+
+
+def _has_article(prefix: tuple[str, str]) -> bool:
+    letter, marks = prefix
+    return letter == "ה" or (letter in "בלכ" and (PATAH in marks or QAMATS in marks))
+
+
+@dataclass(frozen=True)
+class Article:
+    """A noun whose article the English decides. `wanted` says which way: True where the
+    Hebrew says it with the article and the English may not (the north is הַצָּפוֹן),
+    False where the English says it without one and the article is a mistake (come for
+    coffee is לְקָפֶה). Only a prefixed form is judged, ב, ל or כ, where the article is
+    no more than the prefix's vowel; `when` must match the English and `unless` must
+    not."""
+
+    noun: str
+    wanted: bool
+    gloss: str
+    when: str
+    unless: str = ""
+
+
+ARTICLES = (
+    Article(
+        "קפה",
+        False,
+        "Coffee offered or invited to is indefinite: לְקָפֶה, not לַקָּפֶה (the café)",
+        r"\b(for|a|some) coffee\b",
+        r"\bcaf[eé]\b|\bthe coffee\b",
+    ),
+    Article(
+        "צום",
+        False,
+        "Fasting is בְּצוֹם; בַּצּוֹם is during the fast",
+        r"\bfasting\b",
+        r"\bthe fast\b",
+    ),
+    Article(
+        "פרופיל",
+        True,
+        "A profile already named is definite: בַּפְּרוֹפִיל",
+        r"\b(your|the|my|his|her|their|our) profile\b",
+    ),
+    Article(
+        "צפון",
+        True,
+        "The north takes the article: לַצָּפוֹן, בַּצָּפוֹן",
+        r"\bnorth\b",
+        r"\bsouth\b|\bnorth[- ]?(east|west)\b",
+    ),
+    Article(
+        "דרום",
+        True,
+        "The south takes the article: לַדָּרוֹם, בַּדָּרוֹם",
+        r"\bsouth\b",
+        r"\bnorth\b|\bsouth[- ]?(east|west)\b",
+    ),
+)
+
+
+def article_against_english(hebrew: str, english: str, turn: int) -> Iterator[Finding]:
+    said = (english or "").lower()
+    for word in words_of(hebrew):
+        for entry in ARTICLES:
+            prefix = _behind(word, entry.noun)
+            if prefix is None or prefix[0] not in "בלכ" or not POINTS.search(word):
+                continue
+            if _has_article(prefix) == entry.wanted:
+                continue
+            if not re.search(entry.when, said) or (entry.unless and re.search(entry.unless, said)):
+                continue
+            yield Finding(turn, "pointing", word, entry.gloss + ".")
+
+
+#: Nouns a cardinal follows as a name and not as a count: floor six is קוֹמָה שֵׁשׁ, with
+#: no article, and the floor with one takes the ordinal (הַקּוֹמָה הַשִּׁשִּׁית).
+NUMBERED = ("קומה",)
+
+#: The cardinals of both genders, by their letters.
+CARDINALS = frozenset(
+    "אחת אחד שתיים שתים שניים שנים שלוש שלושה ארבע ארבעה חמש חמישה שש שישה שבע שבעה "
+    "שמונה תשע תשעה עשר עשרה".split()
+)
+
+
+def article_before_a_number(line: str, turn: int) -> Iterator[Finding]:
+    """בַּקּוֹמָה שֵׁשׁ: a floor named by a cardinal takes no article (בְּקוֹמָה שֵׁשׁ)."""
+    for word, after in _pairs(line):
+        if not (after.isdigit() or bare(after) in CARDINALS):
+            continue
+        for noun in NUMBERED:
+            prefix = _behind(word, noun)
+            if prefix is not None and _has_article(prefix):
+                yield Finding(
+                    turn,
+                    "pointing",
+                    word,
+                    "A floor named by a cardinal takes no article; the floor with one "
+                    "takes the ordinal.",
+                )
+
+
+@dataclass(frozen=True)
+class Construct:
+    """A word pointed in its absolute form where the word after it makes it a construct:
+    יָפֶה נוֹף is יְפֵה נוֹף, as a phrase and as the street. `then` is the next word's
+    letters."""
+
+    absolute: str
+    then: str
+    construct: str
+
+
+CONSTRUCTS = (Construct("יָפֶה", "נוף", "יְפֵה"),)
+
+
+def absolute_before_its_noun(line: str, turn: int) -> Iterator[Finding]:
+    for word, after in _pairs(line):
+        for entry in CONSTRUCTS:
+            if bare(after) == entry.then and _same_form(word, entry.absolute):
+                yield Finding(
+                    turn,
+                    "pointing",
+                    word,
+                    f"Before {entry.then} this is a construct, {entry.construct}.",
+                    entry.construct,
+                )
+
+
 # ---------------------------------------------------------- homographs (#563, pattern C)
 
 
@@ -494,6 +678,10 @@ class Homograph:
     gloss: str
     when: str = ""
     unless: str = ""
+    #: Whether `spelling.repair` may turn it to `meant` by itself. False for the entries
+    #: added after the measure of 2026-11-08: they are checks, so a line that has one is
+    #: refused and read rather than rewritten, until ling-he says the turn is safe.
+    turned: bool = True
 
 
 HOMOGRAPHS = (
@@ -507,6 +695,22 @@ HOMOGRAPHS = (
     Homograph("נָתְנוּ", "נָתַנּוּ", "נָתְנוּ is they gave; we gave is נָתַנּוּ", r"\bwe\b", r"\bthey\b"),
     Homograph("חוֹדָשַׁיִם", "חׇדְשַׁיִם", "no such word: two months is חׇדְשַׁיִם"),
     Homograph("סָבְתָא", "סַבְתָּא", "grandma is סַבְתָּא"),
+    # 2026-11-08, the last of the audit's rows the list missed.
+    Homograph(
+        "דָּבַר",
+        "דָּבָר",
+        "no such word here: a thing is דָּבָר, of a thing דְּבַר",
+        turned=False,
+    ),
+    Homograph(
+        "חָסַר",
+        "חָסֵר",
+        "חָסַר is was missing; missing, or is missing, is חָסֵר",
+        r"\bmissing\b",
+        r"\b(was|were|had)\b",
+        turned=False,
+    ),
+    Homograph("ג'וֹנְיוֹר", "ג'וּנְיוֹר", "junior is said with u: ג'וּנְיוֹר", turned=False),
 )
 
 
@@ -537,7 +741,9 @@ def homographs(hebrew: str, english: str, turn: int) -> Iterator[Finding]:
                 continue
             if entry.unless and re.search(entry.unless, said):
                 continue
-            yield Finding(turn, "homograph", word, entry.gloss + ".", entry.meant)
+            yield Finding(
+                turn, "homograph", word, entry.gloss + ".", entry.meant if entry.turned else ""
+            )
     # Piel שִׁלַּח is to send away; a message is sent in qal (תִּשְׁלְחִי, שָׁלַחְתִּי).
     if re.search(r"\b(send|sent|sending)\b", said) and re.search(
         r"\b(messages?|texts?|e-?mails?|links?|photos?|pictures?)\b", said
@@ -556,6 +762,98 @@ def homographs(hebrew: str, english: str, turn: int) -> Iterator[Finding]:
                     word,
                     "Piel שִׁלַּח is to send away; a message is sent in qal (שָׁלַח).",
                 )
+
+
+# ------------------------------------------- the menaked's own words (#531, 2026-10-26)
+
+
+def _no_word(written: str, meant: str, gloss: str) -> Homograph:
+    return Homograph(written, meant, gloss, turned=False)
+
+
+#: Words the menaked pointed wrong in the B1 tranche of 2026-10-26, with ling-he's
+#: pointing for each (`~/targum-team/ling-he/keep/he-b1-review-2026-10-26.md`): names,
+#: loanwords, and forms that are no word. The same shape as `HOMOGRAPHS`, and found the
+#: same way (behind prefixes, the first letter's dagesh aside), but reported as
+#: `pointing` for ling-he's read and never turned by `spelling.repair`: a table of right
+#: answers is a lexicon, and `menukad` is where a lexicon that rewrites lives.
+KNOWN = (
+    _no_word("סְבָבָּה", "סַבַּבָּה", "sababa is סַבַּבָּה"),
+    _no_word("סְבַּבָּה", "סַבַּבָּה", "sababa is סַבַּבָּה"),
+    _no_word("וַוַאטְסְאַפּ", "וַואטְסְאַפּ", "WhatsApp is וַואטְסְאַפּ, one patah"),
+    _no_word("בִּקְּטַנָּה", "בִּקְטַנָּה", "bekatana takes no dagesh in its ק"),
+    _no_word("וִיטְל", "וִיטַל", "Vital is וִיטַל"),
+    _no_word("נִרְשַׁמֶת", "נִרְשֶׁמֶת", "the nif'al present is נִרְשֶׁמֶת"),
+    _no_word("נָטְפְּלִיקְס", "נֶטְפְלִיקְס", "Netflix is נֶטְפְלִיקְס"),
+    _no_word("פַסְפֵס", "פַסְפֵּס", "the second פ of פַסְפֵּס takes its dagesh"),
+    _no_word("תַאַשְּׁרִי", "תְאַשְּׁרִי", "confirm is תְּאַשְּׁרִי"),
+    _no_word("אַחָד", "אַחַד", "eleven is אַחַד עָשָׂר; one alone is אֶחָד"),
+    _no_word("שָׂמִיִם", "שָׂמִים", "putting is שָׂמִים"),
+    _no_word("בִּפָּנִים", "בִּפְנִים", "inside is בִּפְנִים"),
+    _no_word("מַנְטוֹר", "מֶנְטוֹר", "mentor is מֶנְטוֹר"),
+    _no_word("מַנְטוֹרִים", "מֶנְטוֹרִים", "mentors is מֶנְטוֹרִים"),
+    _no_word("הֵרְצְל", "הֶרְצְל", "Herzl is הֶרְצְל"),
+    _no_word("שׁוּעַל", "שׁוּעָל", "a fox is שׁוּעָל, as in oat milk's שִׁבֹּלֶת שׁוּעָל"),
+    _no_word("לִפְרוֹיֶקְטִים", "לִפְּרוֹיֶקְטִים", "projects keeps its p: לִפְּרוֹיֶקְטִים"),
+    _no_word("חֵלָק", "חָלָק", "smooth is חָלָק, a part חֵלֶק"),
+    _no_word("בּוּרֵג", "בּוֹרֶג", "a screw is בּוֹרֶג"),
+    # Not unconditional: בּוּרְג is a surname too.
+    Homograph("בּוּרְג", "בּוֹרֶג", "a screw is בּוֹרֶג", r"\bscrews?\b", turned=False),
+    _no_word("קְיָאק", "קַיָּאק", "kayak is קַיָּאק"),
+    _no_word("קְיָּאק", "קַיָּאק", "kayak is קַיָּאק"),
+    _no_word("קִיָּאק", "קַיָּאק", "kayak is קַיָּאק"),
+    _no_word("קַבַּרֵנָה", "קַבֶּרְנֶה", "cabernet is קַבֶּרְנֶה"),
+    _no_word("שַׁרְדּוֹנָה", "שַׁרְדוֹנֶה", "chardonnay is שַׁרְדוֹנֶה"),
+    Homograph(
+        "אִיתִּי",
+        "אִיתַי",
+        "אִיתִּי is with me; the name Itai is אִיתַי",
+        r"\bita[iy]\b",
+        r"\bwith me\b",
+        turned=False,
+    ),
+    Homograph("חָלַב", "חָלָב", "חָלַב is milked; milk is חָלָב", r"\bmilk\b", r"\bmilked\b", turned=False),
+    Homograph(
+        "מַחַק", "מְחַק", "מַחַק is an eraser; delete! is מְחַק", r"\bdelete\b", r"\beraser", turned=False
+    ),
+    Homograph(
+        "רַבִים",
+        "רָבִים",
+        "רַבִּים is many; fighting is רָבִים",
+        r"\b(fight|fighting|argue|arguing|quarrel)",
+        r"\bmany\b",
+        turned=False,
+    ),
+    Homograph(
+        "אוּכַל",
+        "אוֹכֶל",
+        "אוּכַל is I will be able; food is אוֹכֶל",
+        r"\bfood\b",
+        r"\b(able|can)\b",
+        turned=False,
+    ),
+    Homograph(
+        "לָשֶׁבֶת",
+        "לְשַׁבָּת",
+        "לָשֶׁבֶת is to sit; for Shabbat is לְשַׁבָּת",
+        r"\b(shabbat|saturday|sabbath)\b",
+        r"\bsit",
+        turned=False,
+    ),
+)
+
+
+def known_mispointings(hebrew: str, english: str, turn: int) -> Iterator[Finding]:
+    said = (english or "").lower()
+    for word in words_of(hebrew):
+        for entry in KNOWN:
+            if not _same_form(word, entry.written):
+                continue
+            if entry.when and not re.search(entry.when, said):
+                continue
+            if entry.unless and re.search(entry.unless, said):
+                continue
+            yield Finding(turn, "pointing", word, entry.gloss + ".", entry.meant)
 
 
 # ------------------------------------------------- the speaker's gender (#563, pattern D)
@@ -771,13 +1069,18 @@ def check_turn(
     found: list[Finding] = []
     found += impossible_dagesh(hebrew, turn)
     found += hataf_on_non_guttural(hebrew, turn)
+    found += two_reduced_vowels(hebrew, turn)
     found += cast_disagrees(hebrew, turn, addressee, scene)
     found += scales_disagree(hebrew, english, turn)
     found += second_feminine_shva(hebrew, turn)
     found += article_without_dagesh(hebrew, turn)
     found += spurious_dagesh(hebrew, turn)
     found += bit_without_dagesh(hebrew, turn)
+    found += article_against_english(hebrew, english, turn)
+    found += article_before_a_number(hebrew, turn)
+    found += absolute_before_its_noun(hebrew, turn)
     found += homographs(hebrew, english, turn)
+    found += known_mispointings(hebrew, english, turn)
     found += speaker_disagrees(hebrew, english, turn, speaker)
     if (scene, turn) not in GENERIC_YOU:
         found += addressee_disagrees(hebrew, english, turn, addressee)

@@ -1268,6 +1268,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The scene checker catches the last seven of ling-he's 2026-10-29 pointing rows that it
+  let through (targum-internal#563), so it now finds all 63 by the strict measure, the
+  exact word in the cell. `checks.py` gains three closed lists: an article the English
+  decides (לַקָּפֶה beside "for coffee", לְצָפוֹן beside "north"), a floor named by a
+  cardinal with the article on it (בַּקּוֹמָה שֵׁשׁ), and an absolute before the word
+  that makes it a construct (יָפֶה נוֹף); and three homographs (דָּבַר, חָסַר beside
+  "missing", ג'וֹנְיוֹר). For the menaked's artefacts in ling-he's B1 review of 2026-10-26
+  (targum-internal#531) it adds a rule for two reduced vowels in a row (וְנְ, עֲזְ, לְהֲ)
+  and `KNOWN`, her table of names, loanwords and no-words (אִיתַי beside "Itai", הֶרְצְל,
+  סַבַּבָּה, קַיָּאק): 91 of that review's 92 words are now caught, against 13 before.
+  Over the corpus of record the whole change finds one line the audits did not list. No
+  existing rule changed, and no Hebrew does: every new entry reports a word and none is
+  turned by `spelling.repair`.
 - How hard a word is found at each level, pooled across readers (targum-internal#586;
   design.md §12, "How hard a word is, counted across readers"). `targum tables pool`
   counts, per dictionary form and rung, the readers who met it in a finished section,
