@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- `/siddur`: a privacy and support page for the Siddur by targum app. No spend, no new
+  strings.
+- What next's "Texts at your level now" reads each text by the figure "What you can read
+  in our library" counts it by (targum-internal#664; design.md §12, "One chooser, one
+  band"). A copy built on the shared shelf or the reader's own is measured on its own
+  words, as the Library prints it, and a row is on a language's list by any of the
+  languages it is written in, so Daniel and Ezra are on Aramaic's. A text the card calls
+  ready is never left off What next for a lower catalogue measure. Home's card chooses on
+  the same figure, so Home and Your Progress still choose alike: where a shared copy's
+  figure and the catalogue index's differ, both now go by the copy, and Home's candidates
+  are read by `in_language` too. The chooser, its band and its order are unchanged. No
+  new strings, no spend.
 - The waitlist can count sign-ups from our own siddur links. A visit to the front page with
   `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
   somebody joined from, and the back office's "Joined from" line shows it. No schema
@@ -83,6 +95,61 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- An idiom is one word to know in French and Russian too (targum-internal#636, under
+  #628). ling-fr's list of 179 and ling-ru's of 205, `units-fr.tsv` and `units-ru.tsv`
+  beside Hebrew's and in its columns, are matched on the annotator's lemmas, so a Russian
+  unit counts however it is inflected (имею, имели в виду). A French elided or contracted
+  word is folded to its full form on both sides (d'abord, qu', du), a list's `se` is said
+  me, te, nous or vous too, and a hyphenated word matches as one token or as its pieces.
+  ё reads as е. For French and Russian `needs` says what Hebrew's prefixes say for
+  Hebrew: `~6` lets up to six words stand before a word, inside the sentence, for the 14
+  discontinuous units (ne… que, не только… но и, у… есть). The gap stops at punctuation
+  except in a correlative marked `~6,` (ни X, ни Y), and after ne at another negation, so
+  ne… pas que is not ne… que. `=form` holds a word to
+  its written form for the four whose lemmas meet something else (est-ce que, то есть,
+  может быть, на днях). A kept phrase is matched against its own language's list only.
+  The rows also carry the rules ling-fr's and ling-ru's hand-read golds asked for. A
+  word may be held to its written form unfolded (du coup, not des coups), or to a clause
+  start (bien que). It may be refused before or after a word (venir de + an infinitive,
+  même si, ne… que not ce que), or refused as an AUX. У… есть needs a person, может
+  быть must be set off and never negated, and replies (не за что) must start the
+  segment. An expletive ne, before a subjunctive, opens no negation, and ni is a
+  negation a gap stops at. A row may count under another key (est-ce cut in two, к тому
+  же). Candidates are chosen across the sentence: the longest first, then a
+  correlative, then one with no gap. Precision and recall are floored in the suite on
+  the golds, at what was measured less two misses: French 0.938 and 0.968, Russian
+  0.883 and 0.907 on its public-domain lines (0.913 and 0.922 on all of them).
+  The floors now come from held-out golds the rules were never tuned on: French 103
+  new sentences of the same 14 texts (0.986 and 0.959), Russian 104 segments of 19
+  public-domain texts outside the first gold (0.824 and 0.933 as they came, 0.956 and
+  0.956 after six general fixes). Как бы counts only before a gerund, participle,
+  adjective, noun, preposition or finite verb and never after бояться or о том, so
+  "lest" and "how would" are refused; так как is refused before же, the tail в вид
+  needs виду, ни… ни never opens on a concessive бы ни, что такое is held to the form
+  такое (the conjunction что такие is not it, an indirect question is), and в то же
+  время lets самое stand before время. On 23,434 shelf segments outside both golds,
+  как бы keeps 66 of its 75 right hits and refuses 54 of its 60 wrong ones, and что
+  такое keeps all 46 right and refuses 9 of 10 wrong.
+  The first golds stay as a regression check at their earlier floors.
+  The Russian list and both golds await David's read. Hebrew is unchanged; the counts' cache stamp now
+  names the French and Russian lists, so each built text's counts are read again once,
+  locally, with no spend and no re-annotation. No new strings.
+- A new French or Russian reader takes the arrival's words check in their language
+  (David, 2026-11-05; targum-internal#631, under #628's parity; design.md §12, "The words
+  check in French and Russian"). `check.py` keeps each language's lists and version
+  (`check.LISTS`: ling-fr's and ling-ru's, #632; **Russian's a draft awaiting David's
+  read**), the page carries all three and draws the language pressed, left to right in the
+  reading face, and `/account/check` names its language. Their level is kept on the CEFR
+  ladder as `a1`, `a2`, `b1` or `c1`, each language its own (`Store.declared_map`:
+  "bet,ru:a2" in the one column, so a Russian rung never replaces Hebrew's and a Hebrew
+  beginner keeps the scene card; no schema change), and the check's rung is the CEFR rung
+  the vocabulary it estimates reaches among the commonest five thousand (calibrated
+  2026-11-05: by expected known words every band landed a step high). The You page has a
+  Your French and a Your Russian row while that language is learned, on its own ladder,
+  where it said "Not set" of a CEFR rung. Home now sends a new French or Russian reader to
+  the arrival. Italian, Aramaic and Yiddish are unchanged. New strings: `you.page.your-
+  french`, `you.page.your-russian`, `you.page.level-note-cefr`, `you.level.b2`,
+  `you.level.c2` (**Russian drafts awaiting David's read**).
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).
   The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
   dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
@@ -123,6 +190,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   each text measures 1 to 5 points easier; none changes level. The sum never makes a word
   harder, and without Morphalou the measure is as before. The catalogue's French
   `difficulty` needs a `scripts/measure_difficulty.py` sweep from a machine with Morphalou.
+- Russian runs through every finds door (targum-internal#635, under #628): Find me
+  something's chips, the live look, the nightly YouTube round, the open-web night and
+  Russian Wikipedia and Wikivoyage through the MediaWiki API, as Hebrew's do. The
+  languages come from data, not `("he",)` tuples. The Russian chip, topic and level
+  phrases are ling-ru's draft of 2026-11-05, awaiting David's read: no `israel` or
+  `holidays` chip in Russian and `army` hidden (David, 2026-11-05), "РКИ" at A1–A2 and
+  «простым языком» at B1. A Russian reader's rung is counted on the CEFR, as the pool
+  counts it. Each night's rotation is kept per language. Hebrew runs first each night,
+  and a host gives at most five pages a night across both languages. Russian has its own
+  $0.50 a night of web search on top of Hebrew's $1, which Hebrew keeps whole (David,
+  2026-11-06; design.md §12): neither draws on the other's, a run killed partway counts
+  against its own language, and each language is paced against its own share of the
+  month: Hebrew exactly as before, whatever Russian spent, and Russian only from what
+  Hebrew can never reach, so Hebrew's month is never less than it was and no month passes
+  the budget. The month's default `TARGUM_FINDS_BUDGET_USD` rises from $30 to $55 (David,
+  2026-11-06): Hebrew $30 and Russian $15 in a thirty-day month, $31 and $14 in a
+  thirty-one-day one; at $30 or $40 Hebrew's month is $20 or $30, as before, and Russian
+  gets nothing. The back office's "Spent this month … of $55.00" reads the same default.
+  YouTube's units are not money: Russian's round still runs on what Hebrew's leaves.
+  The live look's `security` topic asks «безопасность» without *армия*, so nothing steers a Russian look toward the hidden `army` (ling-ru's,
+  awaiting David's read). The easy YouTube queries for Russian are ling-ru's «РКИ»,
+  «сказка для детей» and «простым языком» (awaiting David's read). Hebrew is unchanged.
+  No new strings.
 - YouTube finds also read the newest uploads of seed channels a curator lists
   (targum-internal#620; plan §1.2; design.md §12, "YouTube finds are scored on the track
   somebody wrote"). A `kind: video` publisher in sources.json with a YouTube channel's
@@ -215,6 +305,53 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew only, and so is How much Hebrew you understand: a Russian list is never scored
   on the Hebrew yardsticks. `targum tables news` previews each language's night on a
   line of its own, under its own caps. Counts only. Spends nothing. No new strings.
+- Russian lemmas can be tagged with topics (targum-internal#638, epic #628). They use
+  Hebrew's sixteen topics, with a prompt and worked examples of Russian's own, drawn from
+  Russian's registers, and go into a lexicon of their own (`topics-ru.json`), which shows
+  no topic until ling-ru's gold set passes it. `scripts/tag_topics.py --language ru` runs
+  the draw, and `--sample` spreads a pilot over the whole frequency order.
+  `scripts/score_topics.py` scores a run against a blind gold set at Hebrew's bar, which
+  is 90% micro precision over topic labels and 85% for `general`. The $1 pilot cost $0.23:
+  500 lemmas on two models. Against a 60-row draft gold set it scored 78% agreed
+  precision (95% CI 58-90%; 100% if the labels the gold notes call defensible are
+  accepted), so the full run was not bought. ling-ru corrected three rows and added 73,
+  which re-scores it at 83%. The prompt became `ru-prompt/2` on her review: a historical
+  word takes its modern counterpart's topic in every topic, the humanities as subjects
+  are School, and charity and small multi-use objects stay `general`. No Russian word the
+  prompt shows is a gold word, and a test holds it. `--include GOLD.csv` puts every gold
+  lemma in a pilot. The second pilot cost $0.26: 573 lemmas, with all 133 gold rows. It
+  scored 98% agreed precision (95% CI 92-99%), but `general` precision was 84%, one row
+  under 85%, so the full run was not bought this time either. On ling-ru's v2 gold, which
+  makes пресс `general` (the machine, the abs and pressure spread over topics), pilot 2
+  passes at 98% and 86%. David bought the full run on that, 2026-11-06. It tagged 10,544
+  lemmas on two models for $4.79 (#638 has spent $5.28 in all), and 9,240 of them carry
+  an agreed topic in `topics-ru.json`. Scored on v2, the full run's agreed precision is
+  99% (95% CI 94-99.8%), but `general` precision is 83%: the models' answers moved
+  between runs, and косица, заспанный and лето came back `general`. On v2 the gate
+  fails. ling-ru's v3 gold adds 537 rows she drew with seed 6382, but 97 of them were
+  kept because their label was a topic, and a row chosen by its label can hardly be a
+  false positive for that topic. With them the run scored 91% and would have shown eleven
+  topics. `score_topics.py` now leaves such rows out of the gate and `shown` and scores
+  them apart as a diagnostic only. On the 564 rows left the run scores 89% (95% CI
+  84-92%), so the gate fails and `topics-ru.json` shows no topic. Measuring precision
+  needs rows sampled by the predicted tag. `score_topics.py --sample` now scores such a
+  sample, and refuses one drawn from any other lexicon than the one it writes. David
+  decided on 2026-11-06 that a topic shows only when its sample proves 90%, meaning the
+  Wilson 95% lower bound is at least 0.90, which takes 35 rows or more. On ling-ru's first
+  sample (20 a topic) none does: the best is 0.84 at 20 of 20. ru-prompt/3 adds one
+  general rule for field topics and names the media СМИ and пресса, never пресс. The
+  re-tag with it cost $4.79, which brings #638 to $10.08 in all. On ling-ru's fresh blind
+  sample of 45 a topic (seed 20261106063803), topic precision is 96% and `general` 91%,
+  and four topics prove 90%: Family & home, Money & shopping, Law & crime, and Security &
+  the army, each with a Wilson lower bound of 0.92. So Russian shows those four.
+  People, Food, Travel, Health and Nature missed by one word each (lower bound 0.88).
+  Work (84%) and School (89%) fell short, and Science had only 3 words to sample. The
+  Russian lexicon is now read from that run by name (`topics.RU_RUN`). Only a sample sets
+  `shown`, and it must name the lexicon's tags by their sha256. A gold set never sets
+  `shown`. `topics.load_shown` shows nothing once a lexicon's tags differ from the ones its
+  `shown` was proven on. `score_topics.py
+  --lexicon` sets a lexicon's `shown` from its gold score (`topics.shown_from`), and sets
+  none if the gate fails. No page reads the Russian lexicon yet. No new strings.
 - A source is private unless its kind is listed public (David, 2026-11-06;
   targum-internal#653). `kinds.py` holds the one list: the schemes the shelf, the parasha,
   the daily, the weekly, the dialogues, the curated videos, Wikinews, Global Voices,
@@ -246,6 +383,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so nothing is re-annotated and the stored bands are left alone. The rank-to-count table
   counts the same lemmas, so a text past every rung reads C2 in Russian too. The
   thresholds are unchanged. Hebrew is unchanged. No new strings.
+- Your Progress in French, Russian and Italian leads with what you can read
+  (targum-internal#659; design.md §12, "Progress leads with what you can read",
+  2026-11-08). "What you can read in our library" takes the place of Texts by level: what
+  the level counts (dictionary words among the language's 5,000 most common), then how many of the language's library texts are ready for you (98% of their
+  running words known, the Library's own figure), a stretch (95 to 98%) and not yet. The
+  ready row opens Read it now. Under them, Home's "Find something to read" where
+  `TARGUM_FIND_BUTTON` is on, and a "How we measure" fold, closed at first, linking Hu and
+  Nation (2000), Laufer and Ravenhorst-Kalovski (2010), Schmitt, Jiang and Grabe (2011)
+  and Milton (2010). The Reading level card says the level once, "About A2", and "310
+  more dictionary words to B1". `/account/story` sends `coverage` for these three languages. Hebrew
+  is unchanged. New strings: `progress.read.*` (en; ru drafted for David's read).
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
@@ -1266,6 +1414,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   out, and warns with the missing lemmas under 95%. That is how an annotator rename that
   respells lemmas shows. Nothing ships until #606 writes `topics.json`: no lexicon is in
   this change. No new strings.
+- The scene checker catches the last seven of ling-he's 2026-10-29 pointing rows that it
+  let through (targum-internal#563), so it now finds all 63 by the strict measure, the
+  exact word in the cell. `checks.py` gains three closed lists: an article the English
+  decides (לַקָּפֶה beside "for coffee", לְצָפוֹן beside "north"), a floor named by a
+  cardinal with the article on it (בַּקּוֹמָה שֵׁשׁ), and an absolute before the word
+  that makes it a construct (יָפֶה נוֹף); and three homographs (דָּבַר, חָסַר beside
+  "missing", ג'וֹנְיוֹר). For the menaked's artefacts in ling-he's B1 review of 2026-10-26
+  (targum-internal#531) it adds a rule for two reduced vowels in a row (וְנְ, עֲזְ, לְהֲ)
+  and `KNOWN`, her table of names, loanwords and no-words (אִיתַי beside "Itai", הֶרְצְל,
+  סַבַּבָּה, קַיָּאק): 91 of that review's 92 words are now caught, against 13 before.
+  Over the corpus of record the whole change finds one line the audits did not list. No
+  existing rule changed, and no Hebrew does: every new entry reports a word and none is
+  turned by `spelling.repair`.
 - How hard a word is found at each level, pooled across readers (targum-internal#586;
   design.md §12, "How hard a word is, counted across readers"). `targum tables pool`
   counts, per dictionary form and rung, the readers who met it in a finished section,
@@ -1434,6 +1595,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - A paid editor's own fixes are gold (David, 2026-11-02; targum-internal#585).
   `targum tables fixes --gold` now exports the author's rows, a paid human editor's rows
   and every accepted row. A refused proposal, and the row that refused it, stay out.
+- A word fixed once is said right after (targum-internal#584; spec §3, acceptances 1
+  and 2). `targum tables pronunciation` writes `pronunciation.json` into the private
+  tables directory (refusing a folder inside the repository): each pointed form a settled
+  pronunciation fix named, and what to say about it. A `voice_shelf.py --hint`, once
+  used, is the author's row, so the same pointed word in any later scene's prompt now
+  carries it, beside the gender hints `dialogue.checks.pronunciation_hints` already
+  gives. An ASR flag still proposed, a model's fix and a refused row never reach it. The
+  dictionary also reads the pronouncer's observations past a floor (10 occurrences, 95%
+  agreeing; David, 2026-11-08) where a spelling has two stresses, and a correction outranks
+  them; the fold that writes those observations is not built yet. Spends nothing.
 - A noun's card names its root and mishkal (David, 2026-11-02; targum-internal#593, #596;
   design.md §12). A Hebrew noun or adjective now has a Root row from targum's own lexicon
   ("כ־ת־ב · write"), a Mishkal row with the pattern's template and, for about 25 productive

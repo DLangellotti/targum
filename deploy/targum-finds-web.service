@@ -3,8 +3,9 @@
 #
 # The nightly round of open-web finds: one Anthropic web search (ANTHROPIC_API_KEY,
 # Claude Haiku 4.5 and the search tool) for each of the forty topics' fixed Hebrew
-# phrases, while the night's allowance lasts: at most $1, counted from the API's own
-# usage and paced inside TARGUM_FINDS_BUDGET_USD. Each page is fetched direct, never
+# phrases, then Russian's, while each language's allowance lasts: at most $1 for Hebrew
+# and its own $0.50 for Russian (David 2026-11-06), counted from the API's own usage and
+# paced inside TARGUM_FINDS_BUDGET_USD, Hebrew first. Each page is fetched direct, never
 # through the proxy, after its robots.txt says yes; its words are scored and let go. The
 # pool in targum.db keeps the address, title, outlet, day and lemma counts. Each search's
 # cost and each find are written as they happen, so a killed run keeps what it found.

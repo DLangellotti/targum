@@ -2212,10 +2212,12 @@
   /* --- the arrival ------------------------------------------------------------------------ */
 
   /* A reader who has opened nothing and answered nothing is asked the arrival's questions
-     first, on their own page (`/welcome`). Only Hebrew asks them; the page there says the
-     last word and sends anybody it has nothing to ask back here. */
+     first, on their own page (`/welcome`). Hebrew, French and Russian ask them, the three
+     with a words check (2026-11-05, targum-internal#631); the page there says the last
+     word and sends anybody it has nothing to ask back here. */
+  var ARRIVES_IN = ["he", "fr", "ru"];
   function arriving(me, readers, places, code) {
-    if (code !== "he") return false;
+    if (ARRIVES_IN.indexOf(code) < 0) return false;
     try {
       if (window.sessionStorage.getItem(ARRIVAL_OVER)) return false;
     } catch (e) {
@@ -2234,7 +2236,8 @@
     } catch (e) {
       /* no store: the account's answers below still decide */
     }
-    if (answered || (me && me.signedIn && ((me.interest || []).length || me.declared))) return false;
+    var named = me && (me.declared || Object.keys(me.declaredBy || {}).length);
+    if (answered || (me && me.signedIn && ((me.interest || []).length || named))) return false;
     if (Object.keys(stored("targum:opened")).length || places.length) return false;
     return !readers.some(function (reader) {
       return !reader.shared;

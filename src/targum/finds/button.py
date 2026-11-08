@@ -48,8 +48,26 @@ from . import interests as interests_module
 if TYPE_CHECKING:
     from ..accounts import Store
     from ..estimate import Estimate
+    from ..level import Level
 
 FLAG = "TARGUM_FIND_BUTTON"
+
+
+def rung_for(level: Level, language: str) -> int | None:
+    """Where a reader of a pooled language other than Hebrew stands, as an index on its
+    own ladder (`level.LADDERS`; the CEFR for Russian), which is what the pool's `rung`
+    counts in (`score.Forms.rung_of`): the measured rung, else the first. None where the
+    language has no ladder or no pool. Hebrew's is `chat.tools._rung`, the ulpan's,
+    which also reads the rung said on arrival (targum-internal#635)."""
+    from .. import level as level_module
+    from . import score
+
+    code = (language or "").split("-")[0].lower()
+    ladder = level_module.ladder_for(code)
+    if ladder is None or code not in score.POOLED:
+        return None
+    here = level.here
+    return ladder.rungs.index(here) if here is not None and here in ladder.rungs else 0
 
 
 def on() -> bool:
