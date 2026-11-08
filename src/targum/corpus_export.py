@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from . import ledger as ledger_module
+from .kinds import private_source
 
 #: The two exports, by the column each one filters on.
 KINDS = ("exportable", "research")
@@ -60,15 +61,16 @@ DATASHEET_VERSION = 1
 def _allow(db: sqlite3.Connection, bit: str) -> None:
     """Fill the temporary `allowed` table with the texts that may leave under one bit.
 
-    A text must be current, marked public and held in no reader's home, its row must
-    carry the bit, *and* the rule asked again now of its licence must give it: a bit
-    written wrong, or by an older rule, is not enough on its own to export anything.
+    A text must be current, marked public, held in no reader's home and of a kind listed
+    public (`kinds.private_source`); its row must carry the bit, *and* the rule asked
+    again now of its licence must give it: a bit written wrong, or by an older rule, is
+    not enough on its own to export anything.
     """
     from .licensing import export_terms
 
     db.execute("CREATE TEMP TABLE allowed (document_hash TEXT PRIMARY KEY)")
     rows = db.execute(
-        f"SELECT document_hash, licence, source FROM texts WHERE superseded_at IS NULL"  # noqa: S608
+        f"SELECT document_hash, licence, source, tool FROM texts WHERE superseded_at IS NULL"  # noqa: S608
         f" AND {bit} = 1 AND private = 0"
         # And held in no reader's home: the private bucket, asked a second way.
         " AND document_hash NOT IN (SELECT document_hash FROM text_homes)"
@@ -77,8 +79,12 @@ def _allow(db: sqlite3.Connection, bit: str) -> None:
         "INSERT INTO allowed (document_hash) VALUES (?)",
         [
             (hash_,)
-            for hash_, licence, source in rows
-            if getattr(export_terms(licence), bit) and not _names_a_home(source)
+            for hash_, licence, source, tool in rows
+            if getattr(export_terms(licence), bit)
+            and not _names_a_home(source)
+            # And of a kind listed public, asked again: a row written before the list,
+            # or by hand, is not enough on its own (targum-internal#653).
+            and not private_source(source, tool)
         ],
     )
     # A rendering leaves when its text does and its own licence, asked again, allows it.

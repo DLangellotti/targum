@@ -62,6 +62,7 @@ from ..models import (
     direction_for,
     is_biblical,
 )
+from ..paths import write_atomic
 from ..translate.prompts import BESIDE, language_name
 from ..vocalize import has_taamim, js_span, map_span, strip_nikkud, strip_taamim
 from . import shape
@@ -113,8 +114,10 @@ class Section:
 
 #: The address on the end of a ref: the "2:1" of "Ruth 2:1", the "1:3" of "Mishnah
 #: Berakhot 1:3". Chapter and verse is how every learner of a Biblical text locates a
-#: line, so it is the one part of a ref a link is allowed to name.
-_VERSE_ADDRESS = re.compile(r"(?:^|\s)(\d+):(\d+)$")
+#: line, so it is the one part of a ref a link is allowed to name. A course book's line,
+#: `L3:2`, is lesson and line the same way (`ingest/fetch/course.py`): the `L` is the
+#: whole of what comes before it, so `Ruth L1:2` and `XL1:2` are still no address.
+_VERSE_ADDRESS = re.compile(r"(?:^L?|\s)(\d+):(\d+)$")
 
 
 def verse_address(ref: str) -> str:
@@ -3070,7 +3073,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "1 November 2026"
+LEGAL_CHANGED = "8 November 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -3187,6 +3190,7 @@ def back_office_page(
     reader: object | None = None,
     finds: object | None = None,
     fit: list[Any] | None = None,
+    withheld: Mapping[str, int] | None = None,
 ) -> str:
     """The operator's own page, at `bo.<domain>`.
 
@@ -3285,6 +3289,8 @@ def back_office_page(
             find_rungs=_find_rungs(finds),
             # Looking up against the estimate, pooled (#612, clause 3.7): `backoffice.Fit`.
             fit=fit or [],
+            # Built texts of a kind not listed public, by kind (`kinds.withheld_kinds`).
+            withheld=dict(withheld or {}),
             # What readers wrote to us, newest first, and what broke in their browsers,
             # counted by message and page (targum-internal#456, #457).
             told=[dict(row, when=_as_of(int(row["at"]))) for row in told or []],
@@ -3440,13 +3446,38 @@ def _family_at(
     families: list[list[list[str]]],
     family_at: dict[str, int],
 ) -> int:
-    """Where this verb's family sits in the page's own list, or 0 for none.
+    """Where this word's family sits in the page's own list, or 0 for none.
 
-    Keyed on the lemma and its binyan together, which is what the family is worked out
-    from: two verbs spelled alike in different binyanim have different families, and
-    `כתב` is both.
+    A word of the Tanakh, which the tagging names by its Strong's number, has the family
+    Strong's derivations give it, across parts of speech: מֶלֶךְ with מָלַךְ, מַמְלָכָה and
+    מַלְכָּה, each row its headword and its part of speech (`oshb.family`,
+    targum-internal#591). Keyed by the number, so two roots spelled alike are two
+    families. A word Strong's gives no family keeps the verb family below.
+
+    Otherwise a verb's: keyed on the lemma and its binyan together, which is what the
+    family is worked out from: two verbs spelled alike in different binyanim have
+    different families, and `כתב` is both.
     """
-    from ..annotate.paradigms import family_of
+    from ..annotate.paradigms import SIBLINGS, family_of
+
+    lexeme = str(getattr(token, "lexeme", "") or "").strip()
+    if lexeme:
+        from ..annotate import oshb
+
+        key = f"H{lexeme.split(' ')[0]}"
+        if family_at.get(key):
+            return family_at[key]
+        rows: list[list[str]] = []
+        for member in oshb.family(lexeme):
+            written = oshb.headword(member)
+            if written and all(written != row[0] for row in rows):
+                rows.append([written, oshb.kind(member)])
+            if len(rows) == SIBLINGS:
+                break
+        if rows:
+            families.append(rows)
+            family_at[key] = len(families) - 1
+            return family_at[key]
 
     lemma = str(getattr(token, "lemma", "") or "")
     binyan = str(getattr(token, "binyan", "") or "")
@@ -7168,8 +7199,11 @@ def render(
         binyanim_here: dict[str, list[list[object]]] = {}
         from ..annotate.base import not_vocabulary
         from ..annotate.root_card import hebrew_shape, russian_shape
-        from ..annotate.verb_roots import root_for
+        from ..annotate.verb_roots import root_for, said_roots
 
+        # How the annotator spelled each verb's root where it gave one on the page, for a
+        # hollow root the CC0 table files under both ו and י (`verb_roots.filled`, #601).
+        said_rows: list[tuple[str, str | None]] = []
         if annotation is not None:
             from ..annotate.paradigms import bare as unpointed
             from ..annotate.paradigms import pointed_form, written_form
@@ -7177,6 +7211,7 @@ def render(
             for sid in section.segment_ids:
                 for token in chips(annotation.tokens.get(sid) or ()):
                     if token.pos == "VERB":
+                        said_rows.append((token.lemma, token.root))
                         form = written_form(token.surface, token.built)
                         # By binyan too: a nif'al's forms have no say in its pi'el's table.
                         verb = (token.lemma, token.head, token.binyan or "")
@@ -7184,6 +7219,7 @@ def render(
                         verb_said.setdefault(verb, []).append(
                             (form, token.feats or "", token.surface)
                         )
+        said = said_roots(said_rows)
         if annotation is not None:
             for sid in section.segment_ids:
                 tokens = annotation.tokens.get(sid)
@@ -7231,7 +7267,15 @@ def render(
                         # Less the roots known to be wrong, and filled from the CC0
                         # table where the annotator gave none (`annotate.verb_roots`).
                         word_language = "he" if hebrew_at.get(sid) else segmented.language
-                        roots.append(root_for(token.lemma, token.root, token.pos, word_language))
+                        roots.append(
+                            root_for(
+                                token.lemma,
+                                token.root,
+                                token.pos,
+                                word_language,
+                                said.get(token.lemma, ""),
+                            )
+                        )
                         word_code = word_language.split("-")[0].lower()
                         shapes.append(
                             hebrew_shape(token.lemma, token.pos, roots[-1])
@@ -8535,8 +8579,10 @@ def contents_page(
 
 
 def _write(path: Path, html: str) -> Path:
-    path.write_text(html, encoding="utf-8")
-    return path
+    # Whole or not at all: the server hands this page to whoever opens it, and a page
+    # read while it was being truncated and rewritten was served blank (beta-found,
+    # 2026-11-06).
+    return write_atomic(path, html)
 
 
 def _pointed_word(

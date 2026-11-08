@@ -20,6 +20,7 @@ from test_offline import TOKEN, book, served  # noqa: F401 - `served` is a fixtu
 
 from targum.render.builder import (
     ASSETS,
+    _write,
     asset_files,
     asset_set,
     carried,
@@ -242,6 +243,43 @@ def test_a_page_is_worked_out_once_while_it_stays_as_it_is(tmp_path: Path) -> No
     assert served_page(page, page.read_bytes()) is not first
 
 
+def test_a_page_read_while_it_was_written_is_never_kept_for_the_finished_one(
+    tmp_path: Path,
+) -> None:
+    # Beta-found, 2026-11-06: a navigation that read the page mid-write got b"", then
+    # stat'd the finished file and kept the blank page under its name until restart.
+    reader = book(tmp_path / "a-book")
+    page = reader / "sec-0001.html"
+    whole = page.read_bytes()
+    assert served_page(page, b"") == b""
+    torn = whole[: len(whole) // 2]
+    served_page(page, torn)
+    named = served_page(page, whole)
+    assert named and named != served_page(page, torn)
+    assert b"</html>" in named.lower()
+
+
+def test_a_reader_page_is_replaced_in_one_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Truncate-then-write left an empty or half page visible to a server reading it.
+    page = tmp_path / "sec-0001.html"
+    page.write_text("old", encoding="utf-8")
+    written: list[Path] = []
+    real = Path.write_text
+
+    def watched(self: Path, *args: object, **kwargs: object) -> int:
+        written.append(self)
+        assert page.read_text(encoding="utf-8") == "old"
+        return real(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "write_text", watched)
+    assert _write(page, "new") == page
+    assert written and page not in written
+    assert page.read_text(encoding="utf-8") == "new"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["sec-0001.html"]
+
+
 def test_the_worker_never_keeps_a_named_page_as_the_copy_for_the_plane() -> None:
     worker = (ASSETS / "sw.js").read_text(encoding="utf-8")
     opening = worker[worker.index("function opening(") : worker.index("function kept(")]
@@ -315,3 +353,51 @@ def test_a_served_reader_asks_nothing_of_another_site(served: tuple[int, Path]) 
                 assert source.startswith("'") or source in ("data:", "blob:"), (
                     f"{page.name}: {directive} names {source!r}, a host"
                 )
+
+
+# -- a portion's and a day's reader, which strangers open (targum-internal#661) ---------
+
+
+def holds_both_forms(port: int, address: str, on_disk: bytes) -> None:
+    """What every served reader holds to, asked of one a stranger opens with no account:
+    a browser opening it is handed its files named and only its own origin, a save or a
+    script the page whole as it stands on disk, a first visit the page whole. Called from
+    `test_parasha_page.py` and `test_daily_audio.py`, where those corpora are built."""
+    status, head, body = _get(port, address, navigate=True)
+    assert status == 200, address
+    assert names_files(body) and len(body) < len(on_disk) / 3, "its files are named"
+    assert set(named_files(body)) <= set(asset_files())
+    assert head[LINKED_HEADER.lower()] == "1"
+    assert _same(carried(body.decode("utf-8")), on_disk.decode("utf-8")), "put back, the page"
+    assert CLIP_ROUTE.encode() not in body, "/clips/ is behind the account"
+    policy = _policy(head)
+    assert policy["script-src"][0] == "'self'" and policy["style-src"][0] == "'self'"
+    assert "'unsafe-inline'" not in head["content-security-policy"]
+    assert "frame-ancestors 'self'" in head["content-security-policy"], "framed as before"
+    bare = _code_out(body.decode("utf-8"))
+    for found in _FETCHED.findall(bare):
+        assert not re.match(r"(https?:)?//", found), found
+    for found in re.findall(r"url\(\s*[\"']?([^\"')]+)", bare):
+        assert not re.match(r"(https?:)?//", found), found
+    for directive, sources in policy.items():
+        if directive in _FETCH_DIRECTIVES:
+            for source in sources:
+                assert source.startswith("'") or source in ("data:", "blob:"), source
+    # Each address it names answers, to a stranger, with no cookie of an account.
+    for named in named_files(body):
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        connection.request("GET", named)
+        answer = connection.getresponse()
+        answer.read()
+        connection.close()
+        assert answer.status == 200, named
+
+    # A save for offline, or any script, asks without navigating: the page as on disk.
+    status, head, body = _get(port, address, navigate=False)
+    assert status == 200 and body == on_disk
+    assert LINKED_HEADER.lower() not in head
+
+    # A browser that has not kept the files is sent it whole, and fetches them after.
+    status, head, body = _get(port, address, navigate=True, kept=False)
+    assert status == 200 and b"data-kept" in body
+    assert head[LINKED_HEADER.lower()] == "1"
