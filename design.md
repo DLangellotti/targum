@@ -2778,6 +2778,9 @@ stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
   way: `/assets/` is open to anybody, and a browser that has not kept the files gets the
   page whole, as any page does. Their recordings were already files beside the pages
   (`reader/audio/`), so nothing of theirs goes to `/clips/`, which is behind the account.
+  A weekly issue's reader (`/weekly/read/…`) followed the same day (targum-internal#662),
+  the same way. Only the earliest issues carry a recording inline, and it stays inline
+  for the same reason.
 - **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
   scene readers served by a local `targum serve`, master against the change. With the
   files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the
