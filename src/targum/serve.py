@@ -15228,14 +15228,38 @@ class Handler(BaseHTTPRequestHandler):
             # The ledger's count, names and numbers left out, so the page says one figure.
             "known": self.store.known_count(person, language),
         }
-        answer.update(
-            touchstones.standing(
-                rungs,
-                self._known_of(rungs, index, marked, self._estimate(person, language)),
+        # French, Russian and Italian lead with what the reader can read in the library:
+        # every text in the language with a measure, ready, a stretch or not yet (design.md
+        # §12, "Progress leads with what you can read", 2026-11-08). Measured by the same
+        # function as the ladder, so one pass over the readers serves both.
+        every = (
+            tuple(str(entry.id) for entry in everything if touchstones.in_language(entry, language))
+            if language in touchstones.COVERAGE_LANGUAGES and index.texts
+            else ()
+        )
+        known_of = (
+            self._known_of(
+                [*rungs, touchstones.Rung(kind="", name="", difficulty=0.0, texts=every)],
+                index,
+                marked,
+                self._estimate(person, language),
             )
-            if rungs and index.texts
+            if (rungs or every) and index.texts
+            else None
+        )
+        answer.update(
+            touchstones.standing(rungs, known_of)
+            if rungs and known_of is not None
             else {"ladder": [], "here": None, "next": None}
         )
+        if every and known_of is not None:
+            from . import level as level_module
+
+            # And how many of the language's commonest words the level counts among.
+            answer["coverage"] = {
+                **touchstones.coverage(every, known_of),
+                "among": level_module.COMMON_TOP,
+            }
         # What the reader's words say of each row: reached, or the words left to it
         # (design.md §12, "Your level, v3", 2026-10-29).
         found = self._snapshot(person, language)

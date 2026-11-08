@@ -247,11 +247,12 @@ STATES: dict[str, dict[str, Any]] = {
                 "toGo": 237,
             },
         ),
-        "says": "237 words to B2",
+        "says": "237 more dictionary words to B2",
         "press": "Show texts you can read now",
         "rows": 7,
-        "mark": ("B1", ""),
-        "togo": "237 words to B2",
+        # Said once, with "about" (design.md §12, "Progress leads with what you can read").
+        "mark": ("About B1", ""),
+        "togo": "237 more dictionary words to B2",
     },
     "russian": {
         "page": "ru",
