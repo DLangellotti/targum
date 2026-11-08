@@ -6,6 +6,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- `/siddur`: a privacy and support page for the Siddur by targum app. No spend, no new
+  strings.
 - The waitlist can count sign-ups from our own siddur links. A visit to the front page with
   `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
   somebody joined from, and the back office's "Joined from" line shows it. No schema

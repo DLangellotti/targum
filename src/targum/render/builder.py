@@ -3094,6 +3094,11 @@ LEGAL = {
         "The period for which each category of personal data is retained, and the "
         "criteria where no fixed period applies.",
     ),
+    "siddur": (
+        "Siddur by targum: Privacy and Support",
+        "What the Siddur by targum app does with data, which is to collect none, "
+        "and how to reach us about it.",
+    ),
     "deletion": (
         "Erasure and Account Closure — targum",
         "The procedure for deleting a targum or closing an account, and the consequences of each.",
