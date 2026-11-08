@@ -226,6 +226,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- In a verse with a ketiv and its qere, every word after them is marked on its own
+  letters again (2026-11-08; scripture annotator `oshb/9`). Sefaria writes `ketiv
+  [qere]`, and the annotator measured its offsets against the verse with the ketiv cut
+  out, so each later mark started the ketiv's length too early: Bereshit 25:23 boxed
+  "ךְ וּשְׁנֵ֣" for לאם. The qere carries the word and the ketiv carries none. 49 verses in
+  the parasha corpus and 820 in the library's Biblical books were affected. The rename
+  re-reads Biblical text only, at no cost, and a portion shows the fix when it is cut
+  again. No new strings.
 - Two timing tests no longer fail on one stalled call of a shared CI runner
   (targum-internal#649). Read next's finds scoring is held to its 30 ms p95 as the
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
