@@ -170,8 +170,8 @@ def test_a_correction_outranks_an_observation(tmp_path: Path) -> None:
         unit="he-96 t0",
     )
     seen = {
-        ZOLPIT: {pron.observed_variant(2, False): 9},
-        ZOLPET: {pron.observed_variant(1, False): 9},
+        ZOLPIT: {pron.observed_variant(2, False): 12},
+        ZOLPET: {pron.observed_variant(1, False): 12},
     }
     forms = pron.build(keep, seen).lexicon["forms"]
     assert forms[ZOLPIT]["source"] == "correction"
@@ -188,6 +188,12 @@ def test_an_observation_counts_only_past_the_floor_and_where_letters_are_ambiguo
 
     split = {ZOLPIT: {v1: 6, v2: 4}, ZOLPET: {v2: 40}}
     assert ZOLPIT not in pron.observed(split), "60% is not agreement"
+    near = {ZOLPIT: {v1: 18, v2: 2}, ZOLPET: {v2: 40}}
+    assert ZOLPIT not in pron.observed(near), "90% is under David's 95%"
+    at = {ZOLPIT: {v1: 19, v2: 1}, ZOLPET: {v2: 40}}
+    assert ZOLPIT in pron.observed(at), "95% is enough"
+
+    assert (pron.FLOOR_SEEN, pron.FLOOR_SHARE) == (10, 0.95), "David, 2026-11-08"
 
     both = {ZOLPIT: {v1: 20}, ZOLPET: {v2: 40}, GORBEN: {v1: 30}}
     seen = pron.observed(both)

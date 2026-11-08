@@ -20,11 +20,11 @@ it, that the hint builder reads beside the gender hints it works out itself.
   with `variant = observed_variant(stress, qatan)`. **The fold that writes these rows is
   not built yet**; until it is, this table is empty and the dictionary is corrections
   only. An observation is used only past `FLOOR_SEEN` occurrences agreeing at
-  `FLOOR_SHARE` (proposed here, 2026-11-08: the spec says "a floor of agreement" and
-  names no number), and it is said only where the spelling is genuinely ambiguous: when
-  another pointed form of the same letters is observed, past the same floor, with a
-  different stress. That is the rule the gender hints already keep: only what the
-  letters leave open gets a hint.
+  `FLOOR_SHARE` (David, 2026-11-08, on targum#1133: ten occurrences, 95% agreeing;
+  the spec said only "a floor of agreement"), and it is said only where the spelling
+  is genuinely ambiguous: when another pointed form of the same letters is observed,
+  past the same floor, with a different stress. That is the rule the gender hints
+  already keep: only what the letters leave open gets a hint.
 
 **A correction outranks an observation**: where both speak of one form, the correction
 is what is said, and the observation is kept only as evidence.
@@ -74,9 +74,9 @@ KINDS = ("stress", "nikkud", "pronunciation")
 SETTLED_HANDS = ("author", "editor")
 
 #: An observation is used only once a form was seen this often…
-FLOOR_SEEN = 5
+FLOOR_SEEN = 10
 #: …and this share of those occurrences agree on its stress and qamats.
-FLOOR_SHARE = 0.9
+FLOOR_SHARE = 0.95
 
 #: The imperative an instruction opens with, dropped where it is said in a list that
 #: already opens "Read …" (`voice_scenes.GUIDE`).

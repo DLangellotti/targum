@@ -1294,8 +1294,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   used, is the author's row, so the same pointed word in any later scene's prompt now
   carries it, beside the gender hints `dialogue.checks.pronunciation_hints` already
   gives. An ASR flag still proposed, a model's fix and a refused row never reach it. The
-  dictionary also reads the pronouncer's observations past a floor (5 occurrences, 90%
-  agreeing, proposed) where a spelling has two stresses, and a correction outranks
+  dictionary also reads the pronouncer's observations past a floor (10 occurrences, 95%
+  agreeing; David, 2026-11-08) where a spelling has two stresses, and a correction outranks
   them; the fold that writes those observations is not built yet. Spends nothing.
 - A noun's card names its root and mishkal (David, 2026-11-02; targum-internal#593, #596;
   design.md §12). A Hebrew noun or adjective now has a Root row from targum's own lexicon
