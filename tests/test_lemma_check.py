@@ -137,3 +137,55 @@ def test_the_count_files_the_word_under_the_lemma_the_page_shows(tmp_path: Path)
     assert counted is not None
     assert counted.count("השתיק") == 1
     assert counted.count("התקין") == 0
+
+
+# -- an inflected verb standing as its own lemma (targum-internal#660) ----------------
+
+FUTURE_PLURAL = "Person=3|Gender=Masc|Number=Plur|Tense=Fut"
+
+
+def test_a_future_with_the_hifil_tsere_takes_its_verb() -> None:
+    # תָּרֵעוּ is תָּרִיעוּ written short, and the table spells only the long form (ling-he
+    # on targum#1131); the shelf's copy is pointed with the tsere alone.
+    for written in ("תָּרֵעוּ", "תרֵעו"):
+        found = checked("תרעו", written, 0, "VERB", FUTURE_PLURAL)
+        assert found is not None and (found.lemma, found.binyan) == ("הריע", "הפעיל")
+
+
+def test_an_inflected_verb_the_table_knows_takes_its_verb() -> None:
+    past = "Person=3|Gender=Fem|Number=Sing|Tense=Past"
+    assert checked("הלכה", "הלכה", 0, "VERB", past) == Mend("הלך", "הלך", "")
+    found = checked("ילכו", "ילכו", 0, "VERB", FUTURE_PLURAL)
+    assert found is not None and found.lemma == "הלך"
+
+
+def test_the_tables_form_must_say_what_dicta_said() -> None:
+    # Mishnaic יבאו, "they will come": the table's יבאו is יבא's past, so it stays a gap.
+    assert checked("יבאו", "יבאו", 0, "VERB", FUTURE_PLURAL) is None
+
+
+def test_a_gap_with_no_tense_a_citation_form_or_another_word_stays() -> None:
+    assert checked("הלכה", "הלכה", 0, "VERB") is None, "no tense said, nothing to match"
+    past = "Person=3|Gender=Masc|Number=Sing|Tense=Past"
+    assert checked("הלך", "הלך", 0, "VERB", past) is None, "already the verb"
+    assert checked("הלכה", "הלכה", 0, "NOUN", "Number=Sing") is None, "only verbs"
+
+
+def test_a_prefixs_own_tsere_is_not_the_hifils() -> None:
+    from targum.annotate.lemma_check import _plene
+
+    assert _plene("תָּרֵעוּ", 0) == "תריעו"
+    assert _plene("וַתָּרֵעוּ", 1) == "תריעו", "cut under its prefixes"
+    assert _plene("תרֵעו", 0) == "תריעו", "as the shelf has it: the tsere alone"
+    # A nif'al: its prefix's tsere, and its own tsere before the last letter, are no
+    # hiriq-yod written short, so it is never האמיר "soared".
+    assert _plene("יֵאָמֵר", 0) is None
+    assert checked("יאמר", "יֵאָמֵר", 0, "VERB", "Number=Sing|Tense=Fut") is None, (
+        "nor אָמַר's: a nif'al future stays a gap"
+    )
+    assert checked("יכנס", "יִכָּנֵס", 0, "VERB", "Number=Sing|Tense=Fut") is None
+
+
+def test_a_stored_inflected_row_is_mended_for_the_counts() -> None:
+    row = {"lemma": "תרעו", "surface": "תָּרֵעוּ", "pos": "VERB", "feats": FUTURE_PLURAL}
+    assert mend_row(row)["lemma"] == "הריע"

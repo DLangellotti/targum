@@ -47,8 +47,9 @@ if TYPE_CHECKING:
     from ..models import Annotation, Token
 
 #: The version of what this module answers. A change to the check or to what a refused
-#: lemma becomes is a new number, carried by every count that reads it.
-VERSION = 1
+#: lemma becomes is a new number, carried by every count that reads it. 2 gives an
+#: inflected verb that stands as its own lemma the table's verb (targum-internal#660).
+VERSION = 2
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -114,19 +115,135 @@ def _table_verb(base: str) -> tuple[str, str] | None:
     return lemmas.pop(), binyan or ""
 
 
-def checked(lemma: str, surface: str, lead: int, pos: str | None) -> Mend | None:
+#: What DICTA's features say, as the CC0 table's form features say it: the tense and the
+#: number. Not the person, which a future's prefix leaves open (תריעו is "you" and "they,
+#: feminine") and DICTA reads as one of them.
+_SAID = {
+    "Tense=Past": "past",
+    "Tense=Fut": "future",
+    "Tense=Pres": "present",
+    "Mood=Imp": "imperative",
+    "VerbForm=Inf": "infinitive",
+    "Number=Sing": "singular",
+    "Number=Plur": "plural",
+}
+
+#: The tsere a hif'il's short future carries where its hiriq-yod was: תָּרֵעוּ is תָּרִיעוּ
+#: written short, and the table spells only the long form.
+TSERE = "\u05b5"
+#: A future's prefixes, and the marks a nif'al future puts on them: a tsere before a
+#: guttural that cannot double (יֵאָמֵר), or a hiriq with the next letter doubled
+#: (יִכָּנֵס). A qal of a first-nun root doubles too (יִפֹּל) and is refused with them: a gap
+#: on the card rather than a guess.
+FUTURE_PREFIXES = frozenset("אתינ")
+HIRIQ = "\u05b4"
+DAGESH = "\u05bc"
+
+
+def _nifal_future(letters: list[tuple[str, str]]) -> bool:
+    """Whether a pointed word's prefix carries a nif'al future's marks."""
+    if len(letters) < 2 or letters[0][0] not in FUTURE_PREFIXES:
+        return False
+    prefix, after = letters[0][1], letters[1][1]
+    return TSERE in prefix or (HIRIQ in prefix and DAGESH in after)
+
+
+def _marked(surface: str) -> list[tuple[str, str]]:
+    """Each letter of a word with the marks on it."""
+    letters: list[tuple[str, str]] = []
+    for char in surface or "":
+        if "\u0591" <= char <= "\u05c7" and letters:
+            letters[-1] = (letters[-1][0], letters[-1][1] + char)
+        elif "א" <= char <= "ת":
+            letters.append((char, ""))
+    return letters
+
+
+def _plene(surface: str, lead: int) -> str | None:
+    """The word under its prefixes with a yod after its first tsere past the prefix,
+    where a letter follows it: the hif'il future's spelling the table holds (תָּרֵעוּ →
+    תריעו). None where there is no such tsere."""
+    letters = _marked(surface)
+    letters = letters[lead:] if 0 < lead < len(letters) else letters
+    # Never where the marks show a nif'al future, whose own tsere before the last letter
+    # (יֵאָמֵר) is no hiriq-yod written short.
+    if not letters or _nifal_future(letters):
+        return None
+    for at, (_letter, marks) in enumerate(letters[:-1]):
+        if at and TSERE in marks and letters[at + 1][0] != "י":
+            spelled = [one for one, _ in letters]
+            return "".join([*spelled[: at + 1], "י", *spelled[at + 1 :]])
+    return None
+
+
+def _inflected_verb(surface: str, base: str, lead: int, feats: str) -> tuple[str, str] | None:
+    """The one verb of the CC0 table an inflected verb is a form of, as (bare lemma,
+    binyan), where the annotator gave the word itself as its lemma (targum-internal#660:
+    תרעו under תרעו rather than הריע). The table's form must say what DICTA said of the
+    word, its tense and number, so a Mishnaic future יבאו is not filed under the
+    past of יבא. None where DICTA said no tense, or the forms find no verb or more than
+    one, or only the word itself."""
+    from .paradigms import bare, table
+
+    marked = _marked(surface)
+    under = marked[lead:] if 0 < lead < len(marked) else marked
+    if "Tense=Fut" in (feats or "") and _nifal_future(under):
+        # A nif'al the table is not asked about: יֵאָמֵר is not אָמַר's.
+        return None
+    said = {_SAID[part] for part in (feats or "").split("|") if part in _SAID}
+    if not said & {"past", "future", "present", "imperative", "infinitive"}:
+        return None
+    book = table()
+    # The long spelling first where the marks show a hif'il's tsere: pointed תָּרֵעוּ is
+    # הריע's, though unpointed תרעו is also רעה's "you will graze".
+    for spelled in dict.fromkeys(one for one in (_plene(surface, lead), base) if one):
+        found = [
+            lid
+            for lid in book.by_form.get(spelled) or ()
+            if lid in book.verbs
+            and any(
+                bare(form.written) == spelled and said <= set(form.features)
+                for form in book.verbs[lid].forms
+            )
+        ]
+        lemmas = {bare(book.verbs[lid].lemma) for lid in found}
+        if len(lemmas) != 1:
+            continue
+        verb = lemmas.pop()
+        if verb == base:
+            return None
+        binyans = {book.binyan_of(lid) for lid in found}
+        binyan = binyans.pop() if len(binyans) == 1 else None
+        return verb, binyan or ""
+    return None
+
+
+def checked(
+    lemma: str, surface: str, lead: int, pos: str | None, feats: str | None = None
+) -> Mend | None:
     """What a token's lemma becomes, or None where it stands.
 
-    `lead` is how many letters of `surface` DICTA cut off as prefixes (`Syntax.lead`).
+    `lead` is how many letters of `surface` DICTA cut off as prefixes (`Syntax.lead`);
+    `feats` the features it read on the word, which an inflected verb standing as its own
+    lemma is matched on (`_inflected_verb`).
     """
     if pos not in GUARDED:
         return None
     word = _POINTS.sub("", surface or "")
     base = word[lead:] if 0 < lead < len(word) else word
     lemma = lemma or ""
-    # A gap already: the annotator gave the word itself.
+    # A gap already: the annotator gave the word itself. A verb whose form the table
+    # knows takes the table's verb; anything else stays the gap it is.
     if lemma in (word, word.lower(), base):
-        return None
+        if pos != "VERB":
+            return None
+        found = _inflected_verb(surface, base, lead, feats or "")
+        if found is None:
+            return None
+        from .verb_roots import root_for
+
+        verb, binyan = found
+        return Mend(verb, root_for(verb, None, "VERB"), binyan)
     if not refused(lemma, base):
         return None
     if pos == "VERB":
@@ -142,7 +259,7 @@ def checked(lemma: str, surface: str, lead: int, pos: str | None) -> Mend | None
 def mend_token(token: Token) -> Token:
     """The token with its lemma checked; the same object where nothing changes."""
     lead = token.syntax.lead if token.syntax is not None else 0
-    mend = checked(token.lemma, token.surface, lead, token.pos)
+    mend = checked(token.lemma, token.surface, lead, token.pos, token.feats)
     if mend is None:
         return token
     return token.model_copy(
@@ -183,6 +300,7 @@ def mend_row(row: dict[str, Any]) -> dict[str, Any]:
         str(row.get("surface") or ""),
         int(syntax.get("lead") or 0),
         row.get("pos"),
+        str(row.get("feats") or ""),
     )
     if mend is None:
         return row

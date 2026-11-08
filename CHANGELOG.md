@@ -194,6 +194,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
   under it; `known_share` is held to its 50 ms by the median of five calls, not the worst.
   Slow code still fails both. Tests only; nothing a reader sees changes.
+- An inflected Hebrew verb that stood as its own dictionary form is filed under its verb
+  (targum-internal#660; draft for ling-he). Where DICTA gave no lemma, the word itself
+  was used, so a future like תרעו had a card, a count and no root of its own, apart from
+  הריע. The page-time check (`annotate.lemma_check`, version 2) now gives such a verb
+  the CC0 table's verb when the word under its prefixes is a form of exactly one verb
+  there and that form has the tense and number DICTA read. A hif'il short future's
+  tsere is read as the hiriq-yod it stands for (תרֵעו is תריעו, הריע's), and a nif'al
+  future the marks show keeps its gap. 4,471 verb tokens on the laptop shelf move.
+  No annotator rename and no SCHEMA_VERSION bump; `annotation.json` is unchanged and the
+  occurrences cache is rebuilt for free (version 9).
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf

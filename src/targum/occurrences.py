@@ -83,8 +83,10 @@ OCCURRENCES = "occurrences.json"
 #: 7 counts a Hebrew noun's or adjective's root and a Russian word's from targum's root
 #: lexicons (`annotate.root_card.family_root`), and the lexicons' own files join the stamp;
 #: 8 adds each Hebrew noun's and adjective's mishkal on the reviewed list (`mishkalim`,
-#: design.md §12, 2026-11-02), read off the same lexicon the card reads.
-VERSION = 8
+#: design.md §12, 2026-11-02), read off the same lexicon the card reads; 9 counts an
+#: inflected verb that stood as its own lemma under its verb (`lemma_check` 2,
+#: targum-internal#660).
+VERSION = 9
 
 
 @dataclass(frozen=True)
