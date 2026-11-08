@@ -35,9 +35,10 @@ def test_every_entry_says_all_three_things_once() -> None:
 
 def test_every_entry_is_a_form_the_lemmatizer_gives() -> None:
     """Lowercase, one word, no *se*: what `model_lemma` writes for a French word, so the
-    card finds it. And the table says how it was made and that nobody has read it yet."""
+    card finds it. And the table says how it was made and who read it (ling-fr,
+    2026-11-05, targum-internal#644)."""
     raw = json.loads(false_friends._TABLE.read_text(encoding="utf-8"))
-    assert raw["reviewed"] is False and "model" in raw["made"]
+    assert raw["reviewed"] is True and "model" in raw["made"] and "ling-fr" in raw["review"]
     for entry in raw["entries"]:
         lemma = entry["french"]
         assert lemma == lemma.lower() and " " not in lemma and "'" not in lemma, lemma
@@ -45,6 +46,29 @@ def test_every_entry_is_a_form_the_lemmatizer_gives() -> None:
     looks, means = false_friends.friend_of("actuellement")
     assert looks == "actually" and "currently" in means
     assert false_friends.friend_of("pomme") == []
+
+
+def test_ling_frs_read_is_in_the_table() -> None:
+    """The 11 corrections and 11 additions of ling-fr's read (targum-internal#644)."""
+    for gone in ("merci", "notoire", "agression", "spectacle"):
+        assert false_friends.friend_of(gone) == [], gone
+    assert false_friends.friend_of("ranger")[0] == "ranger", "the noun, not 'to ranger'"
+    assert false_friends.friend_of("supplier")[0] == "supplier"
+    assert "coat" in false_friends.friend_of("robe")[1]
+    assert false_friends.friend_of("déguster") == ["to disgust", "to taste, to savour"]
+    assert len(false_friends.table()) == 315 - 4 + 11
+
+
+def test_a_word_said_only_in_some_uses_is_said_only_in_those() -> None:
+    """*matériel* the noun is equipment and the adjective is material; *assister à* is to
+    attend and *assister quelqu'un* is to assist. Unknown uses say nothing."""
+    assert false_friends.friend_of("matériel", [("NOUN", "de")])
+    assert false_friends.friend_of("matériel", [("NOUN", ""), ("ADJ", "")]) == []
+    assert false_friends.friend_of("matériel") == [], "a use not known is not said"
+    assert false_friends.friend_of("assister", [("VERB", "à"), ("VERB", "au")])
+    assert false_friends.friend_of("assister", [("VERB", "le")]) == []
+    assert false_friends.friend_of("nouvelle", [("ADJ", "maison")]) == []
+    assert false_friends.friend_of("actuellement", [("ADV", "")]), "an ungated entry is said"
 
 
 # --- behind the switch -------------------------------------------------------------------
@@ -103,10 +127,12 @@ def test_the_switch_off_leaves_the_reader_as_it_was(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Off, a French reader carries neither the table nor the script; on, those two are
-    the whole difference (David, 2026-09-28: off until he has read the list)."""
-    monkeypatch.delenv(false_friends.ENV, raising=False)
+    the whole difference. On unless turned off since ling-fr's read cleared the floor
+    (David's D6, 2026-11-05); off until then (David, 2026-09-28)."""
+    monkeypatch.setenv(false_friends.ENV, "0")
     off = reader(tmp_path / "off", "fr").read_text(encoding="utf-8")
-    monkeypatch.setenv(false_friends.ENV, "1")
+    monkeypatch.delenv(false_friends.ENV, raising=False)
+    assert false_friends.is_on(), "on for every French reader"
     on = reader(tmp_path / "on", "fr").read_text(encoding="utf-8")
     assert "false-friend" not in off and '"friends"' not in off
     assert "false-friend" in on and '"friends"' in on

@@ -2786,6 +2786,14 @@ def tanakh(out: Path, first_chapter: int = 1, verses: int = 3) -> Path:
         ("Song of Songs 1:1", "1:1"),
         ("Mishnah Berakhot 1:3", "1:3"),
         ("Psalms 119:176", "119:176"),
+        # A course book's lesson and line (targum-internal#652): the `L` is all there is
+        # before it, so a ref that merely ends in one is still no address.
+        ("L1:2", "1:2"),
+        ("L12:10", "12:10"),
+        ("Ruth L1:2", ""),
+        ("XL1:2", ""),
+        ("l1:2", ""),
+        ("L1:waiting", ""),
         # Not addresses: an imported recording's part still waiting for its transcript,
         # a chapter with no verse, and the nothing a prose block carries.
         ("Ruth 1:waiting", ""),
@@ -2815,6 +2823,51 @@ def test_a_verse_answers_to_its_address(tmp_path: Path) -> None:
     # The chapter's heading is the chapter's address, not a verse's.
     head = re.search(r'<div class="pair head[^"]*"[^>]*>', second)
     assert head and " id=" not in head.group(0)
+
+
+def test_a_course_line_answers_to_its_lesson_and_line(tmp_path: Path) -> None:
+    """A course book's line stands in the margin with its number as a verse does, and the
+    row answers to `#3:2` (qa-claude on #1121). Every line here is invented."""
+    segments = [heading(0, 2, "Lezione tre")]
+    for number in (1, 2, 3):
+        segments.append(
+            Segment(
+                id=f"{number:04d}.000-cccccc",
+                block_id=f"b{number:04d}",
+                block_index=number,
+                index=0,
+                kind=BlockKind.verse,
+                text=f"Una riga inventata {number}.",
+                ref=f"L3:{number}",
+            )
+        )
+    document = Document(
+        source="course:it:made-up:3",
+        title="Lezione tre",
+        language="it",
+        blocks=[],
+        content_hash="h",
+    )
+    segmented = SegmentedDocument(
+        document_hash="h", language="it", segmenter="fake/1", segments=segments
+    )
+    translation = Translation(
+        name="English",
+        document_hash="h",
+        source_language="it",
+        target_language="en",
+        provider="null",
+        segments={s.id: f"[en] {s.text}" for s in segments},
+    )
+    out = tmp_path / "reader"
+    render(document, segmented, [translation], out)
+    html = "".join(page.read_text(encoding="utf-8") for page in sorted(out.glob("*.html")))
+    row = re.search(r'<div class="pair verse[^"]*"[^>]*\bid="3:2"[^>]*>', html)
+    assert row and 'data-ref="L3:2"' in row.group(0)
+    assert re.search(
+        r'<a class="verse-number" href="#3:2" aria-label="L3:2" title="L3:2">2</a>', html
+    ), "the book's line number stands in the margin"
+    assert html.count('class="verse-number"') == 3
 
 
 def test_prose_has_no_address(rendered: Path) -> None:
@@ -5733,7 +5786,9 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 #: about 0.35 kB with the rest of them moved to `reader-rest.js`.
 #: 118.4 kB on 2026-11-04 with the edition's shape (design.md §12, "A text keeps the shape
 #: its edition gives it"): the plate, the parashot and half-lines, and the column cut.
-A_WORD_WAITS_GZ = 118_900
+#: 119.1 kB on 2026-11-07 with a playlist's third foot press, "Mark 12 words known"
+#: (targum-internal#657), which is the foot's and so cannot wait in `reader-rest.js`.
+A_WORD_WAITS_GZ = 119_300
 
 
 def test_a_word_waits_for_no_more_than_its_budget(tmp_path: Path) -> None:

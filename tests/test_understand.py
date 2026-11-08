@@ -78,3 +78,18 @@ def test_a_word_become_known_since_the_record_began_is_a_days_gain(
     news = said["understand"]["he"]["registers"]["news"]
     assert news["base"] == 0 and len(news["days"]) == 1 and news["days"][0]["gain"] == 0.5
     assert news["percent"] == 50
+
+
+def test_a_russian_list_is_never_measured_on_the_hebrew_yardsticks(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """targum-internal#637: the yardsticks are Hebrew's counts, so a reader's Russian
+    words are never scored against them, and no Russian entry is sent."""
+    port, token, _ = served
+    cookie = sign_in(port, postbox)
+    snapshot("news", {"ספר": 0.5, "бит": 0.5})
+    word = {"language": "ru", "lemma": "бит", "status": KNOWN, "at": 1, "seen": 1}
+    call(port, "POST", f"/sync?k={token}", {"words": [word]}, cookie=cookie)
+    status, said, _ = call(port, "GET", f"/account/reading?k={token}", cookie=cookie)
+    assert status == 200, said
+    assert set(said["understand"]) == {"he"}, said["understand"]

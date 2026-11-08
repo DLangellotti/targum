@@ -191,7 +191,7 @@ def test_a_readers_private_build_of_a_find_is_never_counted(
     folder.mkdir(parents=True)
     document_hash = "ab" * 32
     (folder / "document.json").write_text(
-        json.dumps({"content_hash": document_hash, "source": url, "ingester": "youtube/1"}),
+        json.dumps({"content_hash": document_hash, "source": url, "ingester": "audio/2"}),
         encoding="utf-8",
     )
     token = {"start": 0, "end": 1, "surface": "x", "lemma": "private", "pos": "NOUN"}

@@ -185,13 +185,18 @@
     });
   }
 
-  // Change one index under a lock, so two saves finishing together do not lose one.
+  // Change one index under a lock, so two saves finishing together do not lose one. The
+  // lock is this page's: another page (the next text opened, another tab) writes the same
+  // index, so an edit that changed nothing returns `false` and writes nothing. Written
+  // back, the index read before that page's save landed takes the save away again
+  // (targum-internal#663).
   var queue = Promise.resolve();
   function change(edit) {
     var next = queue.then(function () {
       return readIndex().then(function (index) {
-        var edited = edit(index) || index;
-        return writeIndex(edited);
+        var edited = edit(index);
+        if (edited === false) return index;
+        return writeIndex(edited || index);
       });
     });
     queue = next.catch(function () {});
@@ -605,10 +610,12 @@
     var files = [];
     return change(function (index) {
       var items = index.items;
+      var letGo = false;
       if (!chosen.playlist) {
         Object.keys(items).forEach(function (id) {
           var set = items[id];
           if (set.kind !== "playlist" || set.how !== "auto") return;
+          letGo = true;
           delete items[id];
           Object.keys(items).forEach(function (other) {
             if (items[other].held) {
@@ -631,9 +638,10 @@
         });
       mine.slice(chosen.recent).forEach(function (item) {
         files = files.concat(item.files || []);
+        letGo = true;
         delete items[item.id];
       });
-      return index;
+      return letGo ? index : false;
     }).then(function (index) {
       return forgetFiles(files, index);
     });

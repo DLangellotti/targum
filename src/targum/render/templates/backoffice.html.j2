@@ -763,6 +763,25 @@
   {%- endfor %}
   {%- endif %}
 
+  {#- Texts withheld because their kind is not listed public (targum-internal#653,
+      David 2026-11-06): counted by kind and never named, since a source can be a
+      path through a reader's home. A kind here is in no table, pool, ledger row or export
+      until it is listed in `kinds.py`. -#}
+  <h2 id="withheld">Withheld: unknown kind</h2>
+  {%- if not withheld %}
+  <p class="nothing">Nothing is withheld. Every built text is of a kind we list.</p>
+  {%- else %}
+  <p class="taken">{{ withheld.values()|sum }} built text{{ '' if withheld.values()|sum == 1 else 's' }} of a kind we don't list. We keep them out of the tables, the pool, the corpus ledger and every export until the kind is listed public in <code>kinds.py</code>.</p>
+  <table>
+    <thead><tr><th>Kind</th><th class="n">Texts</th></tr></thead>
+    <tbody>
+      {%- for kind, n in withheld|dictsort %}
+      <tr><td>{{ kind }}</td><td class="n">{{ n }}</td></tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  {%- endif %}
+
   {#- How well targum estimates how hard a text is for a reader (targum-internal#612,
       privacy notice clause 3.7 as amended 2026-11-01): the words looked up per hundred
       read in finished sections, against the words per hundred the estimate said were new,

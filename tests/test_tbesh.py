@@ -262,6 +262,8 @@ def test_the_fetch_brings_the_glosses_to_a_box_that_has_the_lexicon(
     for code in set(oshb.BOOKS.values()):
         (home / f"{code}.json").write_text(json.dumps(verses if code == "Gen" else {}))
     (home / oshb.LEXICON_FILE).write_text("{}")
+    # And the word families (targum-internal#591), so the one file missing is this one.
+    (home / oshb.DERIVATIONS_FILE).write_text("{}")
     asked: list[str] = []
 
     def get(url: str, **_: object) -> httpx.Response:

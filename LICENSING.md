@@ -594,6 +594,45 @@ licence are named in the table itself anyway. The card said to count from Dicoll
 than from Lexique, which is CC BY-SA, and this does. Lefff (LGPL-LR) was kept in reserve
 as a lookup for nouns this lexicon lacks, and was not needed.
 
+### The CEFR's rank-to-count table — counts from three lexicons, no words (2026-11-08)
+
+A French, Russian or Italian text is placed on the CEFR by the frequency rank that covers
+90% of its running words, and the CEFR's thresholds are counts of known lemmas
+(targum-internal#659). `src/targum/rank_counts.json` converts one into the other: at every
+fiftieth rank of wordfreq's list, how many of the lemmas `common_lemmas.json` counts
+(below) have a dictionary form at or below it. It holds integers only, about 400 a language, and
+no word of any lexicon or of wordfreq. That is a statistic about each lexicon, not a copy
+of part of it, the same reading as `french_endings.json` above, and each source and its
+licence are named in the table anyway:
+
+- **French:** Morphalou 3.1, LGPL-LR, from the model directory as above.
+- **Russian:** OpenRussian's tables at `annotate/openrussian.COMMIT`, CC BY-SA 4.0. David's
+  rule of 2026-09-14 (never shipped as a list of their own) holds: no entry is in it.
+- **Italian:** **[Morph-it! 0.48](https://docs.sslmit.unibo.it/doku.php?id=resources:morph-it)**
+  (Zanchetta and Baroni, SSLMIT Bologna), dual-licensed CC BY-SA 2.0 and LGPL. It was
+  downloaded by hand for the count (`scripts/build_rank_counts.py --morph-it`), read as a
+  lookup and deleted. Nothing of it is in this repository, the wheel or the box.
+
+### The CEFR's commonest lemmas — four-byte hashes, no words (2026-11-08)
+
+A French, Russian or Italian reader's CEFR count is their known lemmas among the
+language's 5,000 commonest lemmas (targum-internal#659), each lemma's frequency the sum
+of wordfreq's over the forms one of the three lexicons above gives it.
+`src/targum/common_lemmas.json` holds that set, about 27 KB a language. A plain list of
+the 5,000 would have been a list derived from OpenRussian, which David's rule of
+2026-09-14 does not allow, and a list derived from wordfreq's tables, which the section
+on wordfreq above leaves undecided. So the file holds no word: each lemma is the first
+four bytes of its BLAKE2b hash, sorted, and the server asks it one question, whether a
+reader's lemma is in it.
+
+That is a lookup, not secrecy. Anyone who already has a word list can hash it and see
+which words are in the set, as anyone with wordfreq can work out a band. What the file
+does not carry is a word, a form, a lemmatisation or an order, so nothing of a lexicon
+can be read out of it. The table names each lexicon and its licence, and the same
+three are credited as above. Russian adds targum's own short list of personal-pronoun
+case forms (мне under я), which OpenRussian's "others" table does not inflect; it is a
+closed paradigm written in `scripts/build_rank_counts.py`, not taken from a lexicon.
+
 ### The false friends — targum's own list, drafted by a model and not yet read by a person (2026-09-28)
 
 A French word's card, read into English, says what it looks like and does not mean:

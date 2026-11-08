@@ -1218,6 +1218,10 @@
     <button type="button" class="foot-go" id="done-go">{{ t("reader.page.done", "Done") }}</button>
     {% if words %}<button type="button" class="foot-plain" id="done-mark" hidden></button>{% endif %}
   </div>
+  {#- In a playlist only, under the two: marks the words left and finishes, and the reader
+      stays on the lesson (design.md §12, "Marking the rest can stay on the lesson",
+      2026-11-07). -#}
+  {% if words %}<button type="button" class="foot-plain foot-stay" id="done-stay" hidden></button>{% endif %}
   <p class="foot-next" id="foot-next" hidden></p>
 </div>
 {#- And where to go next. The next section first, by name and by how long it is: a reader
