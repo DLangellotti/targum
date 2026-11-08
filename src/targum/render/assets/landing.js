@@ -24,6 +24,14 @@
   var MARKS = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/g;
   var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+  // A link marked `?from=siddur-…` joins as from the siddur, so the back office can count
+  // them. Only that one word goes on the row; the rest stays in the address.
+  if (/^siddur-/.test(new URLSearchParams(location.search).get("from") || "")) {
+    document.querySelectorAll('form input[name="from"]').forEach(function (field) {
+      field.value = "/siddur";
+    });
+  }
+
 
   /* ---- the words ----
      A verb's head is its dictionary form, the past "he" form (כִּסָּה, he covered), and
