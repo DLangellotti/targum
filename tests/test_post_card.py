@@ -244,7 +244,7 @@ def test_the_level_on_the_shelf_does_not_count_them(
     folder = a_post(tmp_path / "post")
     counted: list[list[int | None]] = []
 
-    def text_rung(running, ladder):  # type: ignore[no-untyped-def]
+    def text_rung(running, ladder, **_):  # type: ignore[no-untyped-def]
         counted.append(list(running))
         return None
 

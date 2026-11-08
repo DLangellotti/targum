@@ -303,7 +303,8 @@ def test_the_names_moved_together() -> None:
 
     assert FEATURES.endswith("grammar/8")
     assert PhonikudPronouncer.name == "phonikud/4"
-    assert ScriptureLemmatizer(Stub()).name == "oshb/8+stub/1"
+    # oshb/9 (2026-11-08) moved on alone: the ketiv/qere offsets, no grammar change.
+    assert ScriptureLemmatizer(Stub()).name == "oshb/9+stub/1"
 
 
 # --- Fixes 6-8: phonikud/4 -------------------------------------------------------------

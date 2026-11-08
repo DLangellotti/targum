@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The waitlist can count sign-ups from our own siddur links. A visit to the front page with
+  `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
+  somebody joined from, and the back office's "Joined from" line shows it. No schema
+  change, no spend, no new strings.
 - The Playlists tab keeps to the language in the header, as Recent and Uploads do
   (targum-internal#658). It shows the playlists in the language being learned, and
   targum's own sets the same way; a playlist with nothing in it yet is shown in every
@@ -14,6 +18,54 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   header to that language. The tab now draws the header's language menu, as Recent does.
   `/playlists.json` says each of targum's sets' language. New strings:
   `playlists.elsewhere` (en, ru).
+- A portion's reader under `/parasha` and a day's under the daily cycles load their files
+  once, like every other served reader since targum#981 (targum-internal#661; design.md
+  §12, "A served reader loads its files once"). A browser opening one is handed it with
+  today's stylesheets, scripts and faces named under `/assets/`, which is open to anybody;
+  a browser that has not kept them gets the page whole, and a save for offline or a
+  download gets the page as it stands on disk. Their recordings were already files beside
+  the pages, so none goes to `/clips/`, which is behind the account. A block that is not
+  exactly one of today's files stays inline, so a portion cut before the last change to
+  `reader.js` or the stylesheet saves only its faces and small scripts until it is cut
+  again. Measured locally on the phone profile with the files kept (corpus cut
+  2026-11-04): Bereshit 1.68 s / 356 kB to 1.65 s / 219 kB, Tehillim 0.83 s / 277 kB to
+  0.82 s / 139 kB. No spend, no re-cut, no new strings.
+- A weekly issue's reader under `/weekly/read/` loads its files once, like a portion's and
+  a day's since targum-internal#661 (targum-internal#662; design.md §12, "A served reader
+  loads its files once"). A browser opening it is handed it with today's stylesheets,
+  scripts and faces named under `/assets/`, which is open to anybody; a browser that has
+  not kept them gets the page whole, and a save for offline or a download gets the page as
+  it stands on disk. Only the earliest issues carry a recording inline, and it stays
+  inline, since `/clips/` is behind the account. Done when the page is served, so an issue
+  published before the last change to `reader.js` or the stylesheet saves only its faces
+  and small scripts. Measured locally on the phone profile with the files kept (the
+  2026-w44 Simplified issue, built 2026-10-22): 0.84 s / 260 kB to 0.81 s / 190 kB. No
+  spend, no rebuild, no new strings.
+- A word of the Tanakh shows its family from Strong's (targum-internal#591, epic #597).
+  Strong's says which entry each word is built from; following those links to "a primitive
+  root" gives each word its family across parts of speech: מֶלֶךְ beside מָלַךְ (verb),
+  מַמְלָכָה and מַלְכָּה (noun). Each family member is named by its part of speech, the ones
+  the reader knows are marked "known", and the line is capped at `SIBLINGS`. A
+  family is keyed by the root's Strong's number, so two roots spelled alike are never one.
+  Only what Strong's states outright is followed: "probably from" and other guesses are
+  not, and neither are names, Aramaic, prepositions or particles. A word Strong's gives no
+  family keeps the verb family it had.
+  - A family shows only words that share one root heading (David, 2026-11-08, on
+    ling-he's read). Where Strong's reaches a root only across a shift of meaning ("in the
+    sense of", "through the meaning", "from the root of") or names a number only to
+    compare it ("from an unused root (compare …)"), the link is not followed and the word
+    heads its own family, as a primitive root does. So אֶבֶן is not under בנה, and
+    מִדְבָּר is not under דבר; בֵּן and דָּבָר, which Strong's derives plainly, still are.
+    193 Hebrew content-word links are dropped. Coverage of the Tanakh's Hebrew
+    content-word tokens goes from 58.7% to 57.4% (115,275 of 200,907).
+  - The links come from the lexicon `oshb.py` already fetches (public domain text,
+    compilation CC BY 4.0), stored as `derivations.json` at the next
+    `targum models fetch scripture`, which deploy runs. Page-build time only: no
+    annotator rename, no `SCHEMA_VERSION` change, no spend.
+  - `scripts/count_tanakh.py --roots` writes the roots table's bible register. It counts
+    content words under their root's letters, with the Strong's number added where two
+    roots are spelled alike.
+  - No new strings.
 - A course's own playlist holds the whole course (David, 2026-11-07; design.md §12, "A
   course's playlist holds the whole course"; targum-internal#652). A playlist whose every
   text is a lesson of one and the same course may hold up to 200 (`MOST_IN_COURSE`); every
@@ -183,17 +235,74 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   without it. `fetch.private_source` and `fetch.PRIVATE` are the same names targum#1121
   uses, so a course book drops in as one line. Spends nothing. No new strings for
   readers.
+- A French, Russian or Italian reader's CEFR count is their known lemmas among the
+  language's 5,000 commonest lemmas, as XLex counts them (targum-internal#659). It was the
+  known lemmas whose dictionary form is in the three commonest bands, and wordfreq ranks
+  forms, so мочь, хотеть, bastare, bisognare, sembler and suffire never counted, and no
+  reader could count more than about 3,970 French, 3,460 Italian or 2,690 Russian words:
+  Russian's C1 and C2 were out of reach. Each lemma's frequency is now the sum over its
+  forms (Morphalou, OpenRussian, Morph-it!), and `common_lemmas.json` holds the top 5,000
+  of each language as four-byte hashes, no words. It is read when the level is counted,
+  so nothing is re-annotated and the stored bands are left alone. The rank-to-count table
+  counts the same lemmas, so a text past every rung reads C2 in Russian too. The
+  thresholds are unchanged. Hebrew is unchanged. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- A French, Russian or Italian text's level holds a count against a count
+  (targum-internal#659). It was the frequency rank covering 90% of the text's running
+  words held against the CEFR's thresholds, which count known common-band lemmas, so a
+  text in the middle of the list read one or two levels too high. `level.text_rung` now
+  puts the rank through `level.count_at`, a table built offline from Morphalou (fr),
+  OpenRussian (ru) and Morph-it! (it) and shipped as `rank_counts.json`, counts only; the
+  thresholds are unchanged, and the shelf and Read next both go through it. Hebrew is
+  unchanged. No new strings.
+- In a verse with a ketiv and its qere, every word after them is marked on its own
+  letters again (2026-11-08; scripture annotator `oshb/9`). Sefaria writes `ketiv
+  [qere]`, and the annotator measured its offsets against the verse with the ketiv cut
+  out, so each later mark started the ketiv's length too early: Bereshit 25:23 boxed
+  "ךְ וּשְׁנֵ֣" for לאם. The qere carries the word and the ketiv carries none. 49 verses in
+  the parasha corpus and 820 in the library's Biblical books were affected. The rename
+  re-reads Biblical text only, at no cost, and a portion shows the fix when it is cut
+  again. No new strings.
+- היה is filed under היה again, not הייה (targum-internal#660, after #1135). The ktiv
+  male #1135 writes a table lemma in doubled the yod of הָיָה, so about 260 verb tokens
+  on the laptop shelf that DICTA had left as היה were filed under a lemma nobody writes.
+  A consonantal yod beside a mater now stays single (היה, החיה, שויך), and a hiriq
+  before a doubled vav takes its yod (ציווה, סיווג, קיווה), as the Academy writes them.
+  `lemma_check` 3, `occurrences` 11; page and count time only, no rename, no spend.
 - Two timing tests no longer fail on one stalled call of a shared CI runner
   (targum-internal#649). Read next's finds scoring is held to its 30 ms p95 as the
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
   under it; `known_share` is held to its 50 ms by the median of five calls, not the worst.
   Slow code still fails both. Tests only; nothing a reader sees changes.
+- A hollow verb the CC0 paradigm table files under both spellings of its root, הבין
+  under בון and בין, takes a root on the word card again (targum-internal#601;
+  `verb_roots.VERSION` 3, `occurrences.VERSION` 9). Two roots that differ only in a
+  medial ו against a י count as one. The spelling is ling-he's where she gave one (הפיק
+  is פ־ו־ק), else the annotator's on other tokens of the lemma, else its reviewed list of
+  weak verbs (הביא is ב־ו־א, הבין is ב־י־ן), else the י. Any other two roots are still
+  refused, and eleven lemmas where the pair is not the root stay gaps (הניק is י־נ־ק,
+  הזיע "sweat" is י־ז־ע, הדיח is two verbs). On the laptop's 544 Hebrew annotations, 80
+  lemmas and 2,906 verb tokens gain a root, הביא alone 699. Page-build and table time
+  only: no annotator rename, no `SCHEMA_VERSION` bump, no spend.
+- An inflected Hebrew verb that stood as its own dictionary form is filed under its verb
+  (targum-internal#660; draft for ling-he). Where DICTA gave no lemma, the word itself
+  was used, so a future like תרעו had a card, a count and no root of its own, apart from
+  הריע. The page-time check (`annotate.lemma_check`, version 2) now gives such a verb
+  the CC0 table's verb when the word under its prefixes is a form of exactly one verb
+  there and that form has the tense and number DICTA read. A hif'il short future's
+  tsere is read as the hiriq-yod it stands for (תרֵעו is תריעו, הריע's), and a nif'al
+  future the marks show keeps its gap. The lemma is written in ktiv male (התכוון, not
+  the table's התכון). After ling-he's read, letters that are also a common noun (עבדה,
+  שאלה, נשמה, ילדה, הלכה, נקבה) move only where the pointing shows the verb, נעשה only
+  as נַעֲשֶׂה, and משנה, מקדש, הוקרן and הוברר keep their gaps. COUNT_PLACEHOLDER verb tokens
+  on the laptop shelf move.
+  No annotator rename and no SCHEMA_VERSION bump; `annotation.json` is unchanged and the
+  occurrences cache is rebuilt for free (version 10).
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf
@@ -1125,6 +1234,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   expanded `$finds_language` under `set -u` after the keys and covers had gone and before
   the backup and the install. It is written `\$finds_language` now, and
   `test_deploy_heredoc` refuses any name the remote script sets that the laptop would expand.
+- A text kept on its own is no longer lost to the page opened before it
+  (targum-internal#663). Each page locks its own edits to the offline index, but the next
+  text opened, or another tab, writes the same index, and `trim` wrote the index back
+  every time even when it let nothing go, so an index read before another page's save
+  landed could take that save away again. `trim` writes nothing now when it lets nothing
+  go. `test_the_last_five_texts_opened_are_kept_on_their_own` waits until each save is
+  in the cache's index, not just in the page's memory, before it opens the next text,
+  and waits for the five texts it expects rather than for any five.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline
@@ -1138,6 +1255,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- How hard a word is found at each level, pooled across readers (targum-internal#586;
+  design.md §12, "How hard a word is, counted across readers"). `targum tables pool`
+  counts, per dictionary form and rung, the readers who met it in a finished section,
+  its lookups, the readers who marked it known and the times it was passed over (in a
+  section marked finished, neither looked up there nor marked known), into the corpus
+  ledger's new `difficulty` table. The rung is the reader's at the time, replayed from
+  when their known words became known. No reader, document or text is in any row; the
+  operator's accounts, admins, test accounts, leavers and anybody with the record off
+  are never read; only public texts whose licence lets them leave count, never a
+  reader's home or a private import such as a course book. Every count hangs off the
+  record of use, so a reader who erases it is out the next night, and each night's pool
+  replaces and deletes the last. A cell under ten readers (`tables.difficulty.FLOOR`) is
+  written and reads as absent, and the one reader, `difficulty.cell`, answers shares and
+  never a count of readers. The privacy notice's clause 3.7 gains the sentence David
+  approved on 2026-10-30, with the floor at ten, and the notice's date moves to 8
+  November 2026. The nightly unit, `targum-difficulty.timer` at 03:15 UTC, reads the
+  notice from the running service first and refuses, deleting any pool, unless it
+  carries that sentence. Push and import never carry the table. Nothing on a page reads
+  it yet.
 - A lesson of a course book builds as a reader beside the book's own translation, line
   for line, with nothing bought (targum-internal#652, under #628; draft, waiting on two
   design.md §12 entries). `course:it:<book>:<n>` and `course:en:<book>:<n>` read one

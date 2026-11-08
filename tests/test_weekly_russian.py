@@ -410,14 +410,20 @@ def russian_server(
         ),
         daemon=True,
     ).start()
-    for _ in range(60):
+    # Up by a deadline rather than a count of tries, and said if it never came up: under
+    # a loaded suite sixty tries of a refused connection were six seconds, and a server
+    # still starting then failed whichever test asked it first, as something else.
+    deadline = time.monotonic() + 60
+    while True:
         try:
-            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe = HTTPConnection("127.0.0.1", port, timeout=5)
             probe.request("GET", "/health")
             probe.getresponse().read()
             probe.close()
             break
         except OSError:
+            if time.monotonic() > deadline:
+                raise
             time.sleep(0.1)
     return port, weekly, store_path
 
@@ -433,8 +439,15 @@ def site(
     return port, Store(store_path)
 
 
+#: How long one request may take before the test gives up on it. Nothing here asserts a
+#: time: the doors are compared by what they say. Five seconds was a timing bar all the
+#: same, and a loaded laptop's full suite once crossed it on the stop door's seven
+#: requests (targum#1136's run). Generous, so only a server that truly hangs fails.
+_PATIENCE = 60
+
+
 def _ask(port: int, path: str, form: str | None = None) -> tuple[int, str, str]:
-    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn = HTTPConnection("127.0.0.1", port, timeout=_PATIENCE)
     conn.putrequest("GET" if form is None else "POST", path, skip_host=True)
     conn.putheader("Host", HOST)
     if form is not None:
