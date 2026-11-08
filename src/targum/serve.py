@@ -13253,27 +13253,40 @@ class Handler(BaseHTTPRequestHandler):
         """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
 
         Kept as a seed: `level.seed` reads it only while nothing about the reader has
-        been measured, and no page prints it back."""
+        been measured, and no page prints it back. One rung per language (`language`,
+        Hebrew where none is said; targum-internal#631), each on its own ladder."""
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
         try:
-            kept = self.store.set_declared(person, str(payload.get("level") or ""))
+            kept = self.store.set_declared(
+                person, str(payload.get("level") or ""), str(payload.get("language") or "he")
+            )
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
-        self._json({"signedIn": True, "declared": kept})
+        # `declared` is the rung just kept, for the language it was kept for; `declaredBy`
+        # every language's (targum-internal#631).
+        self._json(
+            {
+                "signedIn": True,
+                "declared": kept,
+                "declaredBy": self.store.declared_by(person.id),
+            }
+        )
 
     def _checked(self, payload: dict[str, Any]) -> None:
-        """The words a new Hebrew reader ticked on the arrival's words check (design.md
-        §12, "The arrival asks which words you know", 2026-11-01; targum-internal#613).
+        """The words a new reader ticked on the arrival's words check (design.md §12, "The
+        arrival asks which words you know", 2026-11-01; targum-internal#613), in Hebrew,
+        French or Russian (`language`, Hebrew where none is said; "The words check in
+        French and Russian", 2026-11-05, targum-internal#631).
 
         Kept as evidence for the estimate and nowhere else: no word goes on the reader's
         list, and only the ticked words are kept, because what was shown follows from them
         (`check.shown`). A word the rounds could not have shown is dropped. The answer is
-        the rung the estimate now stands nearest, for the arrival's first text; Your
-        Progress prints it, labelled, until the reader's marks reach a rung (design.md
-        §12, "Your level comes from your words check until your marks reach one",
-        2026-11-04).
+        the rung the estimate now stands nearest on the language's own ladder ("bet-plus",
+        "a2"), for the arrival's first text; Your Progress prints it, labelled, until the
+        reader's marks reach a rung (design.md §12, "Your level comes from your words
+        check until your marks reach one", 2026-11-04).
         """
         from . import check as check_module
         from . import level as level_module
@@ -13281,40 +13294,45 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
-        if str(payload.get("version") or "") != check_module.VERSION:
+        lists = check_module.lists_for(str(payload.get("language") or check_module.LANGUAGE))
+        if lists is None:
+            return self._json({"error": "There is no words check in that language."}, 400)
+        if str(payload.get("version") or "") != lists.version:
             return self._json({"error": "That check has changed. Load the page again."}, 409)
         said = payload.get("ticked")
         if not isinstance(said, list):
             return self._json({"error": "No answers."}, 400)
-        ticked = check_module.kept(str(word) for word in said if isinstance(word, str))
-        self.store.set_checked(person, check_module.LANGUAGE, check_module.VERSION, ticked)
-        found = self._snapshot(person, check_module.LANGUAGE)
-        reached = self._check_rung(person, check_module.LANGUAGE, found)
-        rung = (reached or level_module.ULPAN[0]).name.replace(" ", "-")
-        self._json({"signedIn": True, "rung": rung})
+        ticked = check_module.kept(
+            (str(word) for word in said if isinstance(word, str)), lists.language
+        )
+        self.store.set_checked(person, lists.language, lists.version, ticked)
+        found = self._snapshot(person, lists.language)
+        reached = self._check_rung(person, lists.language, found)
+        ladder = level_module.ladder_for(lists.language)
+        first = ladder.rungs[0] if ladder is not None else level_module.ULPAN[0]
+        self._json({"signedIn": True, "rung": check_module.rung_id(reached or first)})
 
     def _check_rung(self, person: Any, language: str, found: Any = None) -> Any:
-        """The ulpan rung the estimate stands at after the arrival's words check: the
-        highest whose words it reaches (`estimate.Estimate.words`). None where the reader
-        took no check in this language, took one against lists this targum no longer has,
-        or stands under aleph. The arrival's first text and Your Progress's level until
-        the reader's marks reach a rung both read it (design.md §12, "Your level comes
-        from your words check until your marks reach one", 2026-11-04)."""
+        """The rung the estimate stands at after the arrival's words check, on the
+        language's own ladder (`check.rung_after`): the ulpan's for Hebrew, the CEFR's for
+        French and Russian. None where the reader took no check in this language, took
+        one against lists this targum no longer has, or stands under the first rung. The
+        arrival's first text and Your Progress's level until the reader's marks reach a
+        rung both read it (design.md §12, "Your level comes from your words check until
+        your marks reach one", 2026-11-04)."""
         from . import check as check_module
         from . import estimate as estimate_module
-        from . import level as level_module
 
-        code = (language or "").split("-")[0].lower()
-        if self.store is None or person is None or code != check_module.LANGUAGE:
+        lists = check_module.lists_for(language)
+        if self.store is None or person is None or lists is None:
             return None
-        taken = self.store.checked(person.id, code)
-        if taken is None or taken[0] != check_module.VERSION:
+        taken = self.store.checked(person.id, lists.language)
+        if taken is None or taken[0] != lists.version:
             return None
         if found is None:
-            found = self._snapshot(person, code)
-        known = estimate_module.for_reader(self.store, person.id, code, found)
-        reached = [rung for rung in level_module.ULPAN if rung.at <= known.words()]
-        return reached[-1] if reached else None
+            found = self._snapshot(person, lists.language)
+        known = estimate_module.for_reader(self.store, person.id, lists.language, found)
+        return check_module.rung_after(known)
 
     def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
         """ "I know this" on a line that came back changed (2026-09-18).
@@ -15228,14 +15246,38 @@ class Handler(BaseHTTPRequestHandler):
             # The ledger's count, names and numbers left out, so the page says one figure.
             "known": self.store.known_count(person, language),
         }
-        answer.update(
-            touchstones.standing(
-                rungs,
-                self._known_of(rungs, index, marked, self._estimate(person, language)),
+        # French, Russian and Italian lead with what the reader can read in the library:
+        # every text in the language with a measure, ready, a stretch or not yet (design.md
+        # §12, "Progress leads with what you can read", 2026-11-08). Measured by the same
+        # function as the ladder, so one pass over the readers serves both.
+        every = (
+            tuple(str(entry.id) for entry in everything if touchstones.in_language(entry, language))
+            if language in touchstones.COVERAGE_LANGUAGES and index.texts
+            else ()
+        )
+        known_of = (
+            self._known_of(
+                [*rungs, touchstones.Rung(kind="", name="", difficulty=0.0, texts=every)],
+                index,
+                marked,
+                self._estimate(person, language),
             )
-            if rungs and index.texts
+            if (rungs or every) and index.texts
+            else None
+        )
+        answer.update(
+            touchstones.standing(rungs, known_of)
+            if rungs and known_of is not None
             else {"ladder": [], "here": None, "next": None}
         )
+        if every and known_of is not None:
+            from . import level as level_module
+
+            # And how many of the language's commonest words the level counts among.
+            answer["coverage"] = {
+                **touchstones.coverage(every, known_of),
+                "among": level_module.COMMON_TOP,
+            }
         # What the reader's words say of each row: reached, or the words left to it
         # (design.md §12, "Your level, v3", 2026-10-29).
         found = self._snapshot(person, language)
@@ -15295,7 +15337,7 @@ class Handler(BaseHTTPRequestHandler):
             index,
             # A multiword unit kept as a phrase and marked known is known under its key
             # (design.md §12, "An idiom is one word to know", 2026-11-05).
-            units_module.with_phrases(marked, self.store.known_phrases(person.id))
+            units_module.with_phrases(marked, self.store.known_phrases(person.id), language)
             if language.split("-")[0] in units_module.LANGUAGES
             else marked,
             language,
@@ -15489,12 +15531,13 @@ class Handler(BaseHTTPRequestHandler):
         if found is not None and found.here is not None:
             return None
         rung = self._check_rung(person, language, found)
-        if rung is None:
+        ladder = level_module.ladder_for(language)
+        if rung is None or ladder is None:
             return None
-        rungs = list(level_module.ULPAN)
+        rungs = list(ladder.rungs)
         after = rungs[rungs.index(rung) + 1] if rung in rungs[:-1] else None
         return {
-            "scale": "ulpan",
+            "scale": "ulpan" if ladder is level_module.ULPAN_LADDER else "cefr",
             "letter": rung.letter,
             "name": rung.name,
             "cefr": rung.cefr,

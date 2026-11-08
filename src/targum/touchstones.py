@@ -199,6 +199,37 @@ def words_to_go(rows: list[dict[str, Any]], found: Any) -> list[dict[str, Any]]:
     return rows
 
 
+#: The languages whose Progress leads with what the reader can read in the library
+#: rather than with texts by level (design.md §12, "Progress leads with what you can
+#: read", 2026-11-08). Hebrew keeps its card.
+COVERAGE_LANGUAGES: frozenset[str] = frozenset({"fr", "ru", "it"})
+
+#: A text is ready for you from this share of its running words known (percent), and a
+#: stretch from `STRETCH` up to it: Hu and Nation (2000) for 98%, Laufer and
+#: Ravenhorst-Kalovski (2010) for 95% as the minimal one (same entry).
+READY = 98
+STRETCH = 95
+
+
+def coverage(texts: Iterable[str], known_of: Callable[[str], float | None]) -> dict[str, int]:
+    """How many of a language's library texts are ready for this reader, a stretch, or
+    not yet, by the share of their running words the reader knows, as the Library reads
+    it (`known_of`, the function `standing` is given). A text with no measure is in none.
+    """
+    ready = stretch = later = 0
+    for entry_id in dict.fromkeys(texts):
+        share = known_of(entry_id)
+        if share is None:
+            continue
+        if share * 100 >= READY:
+            ready += 1
+        elif share * 100 >= STRETCH:
+            stretch += 1
+        else:
+            later += 1
+    return {"ready": ready, "stretch": stretch, "notYet": later}
+
+
 def percent(share: float) -> int:
     """A share as the whole percentage the page prints, never rounded up into a band:
     89.6% is "most of", not "nearly all of"."""

@@ -482,6 +482,66 @@ def test_not_said_takes_the_browsers_copy_back_too() -> None:
     assert page["declaredHere"] is None
 
 
+RUNGS_HE = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"]
+
+
+def test_a_french_or_russian_rung_is_shown_on_its_own_ladder() -> None:
+    """targum-internal#631: the arrival keeps French's and Russian's answer as a CEFR rung,
+    and the picker said "Not set" of it because it offered Hebrew's ladder alone. Each
+    language learned has its own row now, on its own ladder, in sentences and never a
+    code, with the rung they named chosen."""
+    page = run(
+        who={
+            **SIGNED_IN,
+            "learning": ["he", "ru"],
+            "declared": "aleph",
+            "declaredBy": {"he": "aleph", "ru": "b1"},
+        }
+    )
+    ru = page["levels"]["ru"]
+    assert not ru["hidden"] and page["levels"]["fr"]["hidden"], "only what is learned"
+    assert [one["value"] for one in ru["offered"]] == ["", "a1", "a2", "b1", "b2", "c1", "c2"]
+    assert [one["value"] for one in ru["offered"] if one["on"]] == ["b1"]
+    assert ru["offered"][3]["label"] == "I read the news with help"
+    assert not any(one["value"].upper() in one["label"] for one in ru["offered"] if one["value"])
+    assert [one["value"] for one in page["level"] if one["on"]] == ["aleph"], "Hebrew's stays"
+    assert [one["value"] for one in page["level"]][1:] == RUNGS_HE
+
+
+def test_french_is_shown_on_its_own_ladder_too() -> None:
+    """French's row is the CEFR ladder, as Russian's is, and never Hebrew's (qa-claude on
+    targum#1112: nothing pinned it)."""
+    page = run(
+        who={
+            **SIGNED_IN,
+            "learning": ["fr"],
+            "declared": "",
+            "declaredBy": {"fr": "a2"},
+        }
+    )
+    fr = page["levels"]["fr"]
+    assert not fr["hidden"] and page["levels"]["ru"]["hidden"], "only what is learned"
+    assert [one["value"] for one in fr["offered"]] == ["", "a1", "a2", "b1", "b2", "c1", "c2"]
+    assert [one["value"] for one in fr["offered"] if one["on"]] == ["a2"]
+    assert not any(one["value"] in RUNGS_HE for one in fr["offered"])
+
+
+def test_a_cefr_rung_is_changed_for_its_own_language_only() -> None:
+    page = run(
+        who={
+            **SIGNED_IN,
+            "learning": ["he", "fr"],
+            "declared": "bet",
+            "declaredBy": {"he": "bet", "fr": "a1"},
+        },
+        do=[{"type": "pick", "id": "you-level-fr", "value": "b2"}],
+        answers={"/account/level": {"signedIn": True, "declared": "b2"}},
+    )
+    assert {"path": "/account/level", "body": {"level": "b2", "language": "fr"}} in page["posted"]
+    assert page["levels"]["fr"]["here"] == "b2"
+    assert page["declaredHere"] != "b2", "Hebrew's copy is not touched"
+
+
 def test_the_hebrew_form_of_address_is_a_row_while_hebrew_is_learned() -> None:
     """#695 took the setting off the page while the conversation went on reading it. It is
     back as a row of Your languages, marked from what the account keeps, and only where

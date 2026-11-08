@@ -415,7 +415,7 @@ def _marked(ctx: Ctx, language: str, cache: dict[str, dict[str, int]]) -> dict[s
         if language.split("-")[0] in units_module.LANGUAGES:
             known = getattr(ctx.store, "known_phrases", None)
             if known is not None:
-                marked = units_module.with_phrases(marked, known(ctx.person_id))
+                marked = units_module.with_phrases(marked, known(ctx.person_id), language)
         cache[language] = marked
     return cache[language]
 

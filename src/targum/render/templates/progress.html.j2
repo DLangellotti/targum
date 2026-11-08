@@ -86,6 +86,33 @@
         <p class="note level-note" id="where-note" hidden></p>
         <p class="note level-basis" id="level-basis" hidden></p>
       </div>
+      {#- French, Russian and Italian in the ladder's place (design.md §12, "Progress leads
+          with what you can read", 2026-11-08): the reader's level said with "about", how
+          many of the library's texts are ready, a stretch and not yet, by the share of
+          their running words known, Home's find for something else, and How we measure,
+          closed. `progress.js` fills the line and the rows. -#}
+      <section class="card level-ladder can-read" id="can-read" aria-labelledby="can-read-head" hidden>
+        <h3 class="level-ladder-head" id="can-read-head">{{ t("progress.read.title", "What you can read in our library") }}</h3>
+        <p class="can-read-line" id="can-read-line" hidden></p>
+        <ol class="touchstones" id="can-read-rows" aria-labelledby="can-read-head"></ol>
+        {%- if find_button %}
+        <div class="can-read-else">
+          <p>{{ t("progress.read.else", "Want something else? We'll look across the web for a video, article or podcast at your level.") }}</p>
+          <a class="btn tonal" id="can-read-find" href="/#read-card">{{ t("lists.empty.find", "Find something to read") }}</a>
+        </div>
+        {%- endif %}
+        <button type="button" class="btn text small can-read-how-press" id="can-read-how-press" aria-expanded="false" aria-controls="can-read-how">{{ t("progress.read.how", "How we measure") }}</button>
+        <div class="can-read-how" id="can-read-how" hidden>
+          <p>{{ t("progress.read.how.input", "You learn best from texts you almost fully understand, with a few new words on each page. This is called comprehensible input, or i+1.") }}</p>
+          <p>{{ t("progress.read.how.share", "Readers understand a text well when they know about 98% of its words. At 95%, many still follow it, with more effort. The more words you know, the more you understand. We count only the most common words because they make up most of any page.") }}</p>
+          <p>{{ t("progress.read.how.about", "The level is a rough guide. Learners at one level know quite different numbers of words, so we say “about”.") }}</p>
+          <p class="can-read-refs">{{ t("progress.read.research", "Research:") }}
+            <a href="https://nflrc.hawaii.edu/rfl/item/43" target="_blank" rel="noopener noreferrer">{{ t("progress.read.cite.hu", "Hu and Nation, 2000") }}</a> ({{ t("progress.read.cite.hu-shows", "the 98% figure") }}) ·
+            <a href="https://scholarspace.manoa.hawaii.edu/bitstream/10125/66648/1/22_1_10125_66648_laufer.pdf" target="_blank" rel="noopener noreferrer">{{ t("progress.read.cite.laufer", "Laufer and Ravenhorst-Kalovski, 2010") }}</a> ({{ t("progress.read.cite.laufer-shows", "95% and 98%") }}) ·
+            <a href="https://www.lextutor.ca/cover/papers/schmitt_etal_2011.pdf" target="_blank" rel="noopener noreferrer">{{ t("progress.read.cite.schmitt", "Schmitt, Jiang and Grabe, 2011") }}</a> ({{ t("progress.read.cite.schmitt-shows", "no hard cut-off") }}) ·
+            <a href="https://www.eurosla.org/monographs/EM01/211-232Milton.pdf" target="_blank" rel="noopener noreferrer">{{ t("progress.read.cite.milton", "Milton, 2010") }}</a> ({{ t("progress.read.cite.milton-shows", "words known at each level") }})</p>
+        </div>
+      </section>
       <div class="card level-ladder" id="ladder" hidden>
         <p class="level-ladder-head" id="ladder-head">{{ t("progress.ladder.head", "Texts by level") }}</p>
         <ol class="touchstones" id="touchstones" aria-labelledby="ladder-head"></ol>
