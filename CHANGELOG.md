@@ -26,6 +26,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   again. Measured locally on the phone profile with the files kept (corpus cut
   2026-11-04): Bereshit 1.68 s / 356 kB to 1.65 s / 219 kB, Tehillim 0.83 s / 277 kB to
   0.82 s / 139 kB. No spend, no re-cut, no new strings.
+- A weekly issue's reader under `/weekly/read/` loads its files once, like a portion's and
+  a day's since targum-internal#661 (targum-internal#662; design.md §12, "A served reader
+  loads its files once"). A browser opening it is handed it with today's stylesheets,
+  scripts and faces named under `/assets/`, which is open to anybody; a browser that has
+  not kept them gets the page whole, and a save for offline or a download gets the page as
+  it stands on disk. Only the earliest issues carry a recording inline, and it stays
+  inline, since `/clips/` is behind the account. Done when the page is served, so an issue
+  published before the last change to `reader.js` or the stylesheet saves only its faces
+  and small scripts. Measured locally on the phone profile with the files kept (the
+  2026-w44 Simplified issue, built 2026-10-22): 0.84 s / 260 kB to 0.81 s / 190 kB. No
+  spend, no rebuild, no new strings.
 - A word of the Tanakh shows its family from Strong's (targum-internal#591, epic #597).
   Strong's says which entry each word is built from; following those links to "a primitive
   root" gives each word its family across parts of speech: מֶלֶךְ beside מָלַךְ (verb),
