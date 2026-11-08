@@ -184,3 +184,18 @@ def test_a_days_reading_is_served_as_sound(serving: int) -> None:
         conn.request("GET", wrong)
         assert conn.getresponse().status == 404, wrong
         conn.close()
+
+
+def test_a_days_reader_loads_its_files_once_and_a_save_keeps_it_whole(
+    serving: int, built: Path
+) -> None:
+    """Like every other served reader since targum#981 (design.md §12, "A served reader
+    loads its files once"; targum-internal#661). Its recording still comes from beside
+    the page, by the address it was built with."""
+    from test_served_reader import holds_both_forms
+
+    home = reader(built, "tehillim")
+    on_disk = (home / "sec-0001.html").read_bytes()
+    address = f"/tehillim/read/{TODAY.isoformat()}/reader/sec-0001.html"
+    holds_both_forms(serving, address, on_disk)
+    assert b"audio/spoken-0001.mp3" in on_disk
