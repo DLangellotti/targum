@@ -12,7 +12,7 @@ import pytest
 
 from targum.annotate import verb_roots
 from targum.annotate.paradigms import family_of
-from targum.annotate.verb_roots import NEVER, WRONG, denied, filled, root_for
+from targum.annotate.verb_roots import NEVER, WRONG, _one_root, denied, filled, root_for
 from targum.tables import roots as roots_table
 
 
@@ -106,6 +106,37 @@ def test_a_lemma_spelled_like_another_verbs_form_is_not_that_verb() -> None:
     # אישר is also יִשֵּׁר's "I will straighten"; the table's answer is not taken.
     assert filled("אישר") != "ישר"
     assert root_for("אישר", None, "VERB") != "ישר"
+
+
+@pytest.mark.parametrize(("lemma", "root"), [("הבין", "בין"), ("הריק", "ריק"), ("הגיח", "גיח")])
+def test_a_hollow_verb_filed_under_vav_and_yod_is_one_root(lemma: str, root: str) -> None:
+    # The CC0 table files each under both spellings, בון and בין (targum-internal#601).
+    assert filled(lemma) == root
+    assert root_for(lemma, None, "VERB") == root
+
+
+def test_the_spelling_is_the_annotators_where_it_has_one() -> None:
+    # The annotator's reviewed list writes הביא's root with its ו, so the pair gives ב־ו־א.
+    assert filled("הביא") == "בוא"
+    assert _one_root("הביא", {"בוא", "ביא"}) == "בוא"
+    # A lemma the list does not name, its root spelled there for another verb (טס טוס).
+    assert _one_root("הטיס", {"טוס", "טיס"}) == "טוס"
+    # Neither: the י form.
+    assert _one_root("הזיד", {"זוד", "זיד"}) == "זיד"
+
+
+@pytest.mark.parametrize(
+    "roots",
+    [
+        {"זון", "יזן"},  # a different first letter, not a medial ו/י
+        {"בין", "בון", "בנה"},  # three roots
+        {"בין", "בנן"},  # the middle letter, but not ו against י
+        {"בין", "בים"},  # the last letter
+        {"ביין", "בוין"},  # four letters
+    ],
+)
+def test_any_other_two_roots_are_still_refused(roots: set[str]) -> None:
+    assert _one_root("הבין", roots) == ""
 
 
 def test_only_a_hebrew_verb_is_filled() -> None:

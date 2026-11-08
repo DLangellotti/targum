@@ -189,6 +189,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- A hollow verb the CC0 paradigm table files under both spellings of its root, הבין
+  under בון and בין, takes a root on the word card again (targum-internal#601;
+  `verb_roots.VERSION` 3). Two roots that differ only in a medial ו against a י count as
+  one, spelled as the annotator's reviewed list of weak verbs spells it (הביא is ב־ו־א,
+  הבין is ב־י־ן), or with the י where the list has neither; any other two roots are still
+  refused. On the laptop's 544 Hebrew annotations, 91 lemmas and 3,074 verb tokens gain
+  a root, הביא alone 699. Page-build and table time only: no annotator rename, no
+  `SCHEMA_VERSION` bump, no spend.
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf

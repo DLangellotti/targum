@@ -1,6 +1,7 @@
 """A verb's root as the page and the language tables give it: the annotation's, less the
 ones known to be wrong, and filled from the CC0 paradigm table where the annotation had
 none and every verb the table finds agrees (sublexical slice 1, targum-internal#589).
+Two roots that differ only in a medial ו or י are one root and agree (#601).
 
 Page-build and table-count time only, like `hebrew.weak_roots` and the families. The
 annotation keeps what the annotator said; nothing here renames an annotator, moves
@@ -30,16 +31,18 @@ gap.
 from __future__ import annotations
 
 import unicodedata
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from .hebrew import FINALS
+from .hebrew import FINALS, WEAK_ROOTS, weak_root
 
 if TYPE_CHECKING:
     from .paradigms import Table
 
 #: The version of what this module answers. A change to `WRONG`, the ו rule or the fill
-#: is a new number, so the `roots` table counts every text again under it.
-VERSION = 2
+#: is a new number, so the `roots` table counts every text again under it. 3: a hollow
+#: verb the table files under both ו and י is one root (targum-internal#601).
+VERSION = 3
 
 
 def _letters(text: str) -> str:
@@ -207,9 +210,10 @@ def filled(lemma: str) -> str:
     """The root the CC0 paradigm table gives a verb lemma, or "".
 
     Only where every verb the table finds for the lemma is filed under one root and the
-    same one. A verb is found by its citation form, or by a form a lemma can be: the
-    lemma matching only another verb's future or second person (אישר is also "I will
-    straighten") is not that verb.
+    same one, two spellings of a hollow root counting as one (`_one_root`). A verb is
+    found by its citation form, or by a form a lemma can be: the lemma matching only
+    another verb's future or second person (אישר is also "I will straighten") is not
+    that verb.
     """
     from .paradigms import table
 
@@ -236,11 +240,48 @@ def _fill(lemma: str, book: Table, by_verb: dict[str, frozenset[str]]) -> str:
             hits = [form for form in verb.forms if _letters(bare(form.written)) == word]
             if hits and not any(one <= set(form.features) for form in hits for one in _CITED):
                 continue
-        roots = by_verb.get(lid)
-        if not roots or len(roots) != 1:
+        one = _one_root(lemma, by_verb.get(lid) or frozenset())
+        if not one:
             return ""
-        found |= roots
-    return next(iter(found)) if len(found) == 1 else ""
+        found.add(one)
+    return _one_root(lemma, found)
+
+
+#: Every root the annotator's reviewed list of weak verbs spells (`hebrew.WEAK_ROOTS`),
+#: by its letters: how the annotator writes a hollow root, ב־ו־א but ב־י־ן.
+_SPELLED: frozenset[str] = frozenset(_letters(root) for _binyan, root in WEAK_ROOTS.values())
+
+
+def _one_root(lemma: str, roots: Iterable[str]) -> str:
+    """The one root `roots` are, or "".
+
+    One root is itself. Two are one only where they differ in nothing but a medial ו
+    against a י: the CC0 table files a hollow hif'il under both spellings (הבין under
+    בון and בין, #601). The spelling is the annotator's: the lemma's own in its reviewed
+    list, or else the one spelling the list writes that root with for another verb, and
+    the י form where the list has neither. Any other two, or three, are refused.
+    """
+    found = sorted(set(roots))
+    if len(found) == 1:
+        return found[0]
+    if len(found) != 2:
+        return ""
+    first, second = (_letters(root) for root in found)
+    if not (
+        len(first) == len(second) == 3
+        and first[0] == second[0]
+        and first[2] == second[2]
+        and {first[1], second[1]} == {"ו", "י"}
+    ):
+        return ""
+    by_letters = dict(zip((first, second), found, strict=True))
+    listed = weak_root(lemma)
+    if listed and _letters(listed[1]) in by_letters:
+        return by_letters[_letters(listed[1])]
+    spelled = [letters for letters in by_letters if letters in _SPELLED]
+    if len(spelled) == 1:
+        return by_letters[spelled[0]]
+    return by_letters[first if first[1] == "י" else second]
 
 
 def root_for(lemma: str, root: str | None, pos: str | None, language: str = "he") -> str:
