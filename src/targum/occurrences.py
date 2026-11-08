@@ -87,8 +87,8 @@ OCCURRENCES = "occurrences.json"
 #: hollow verb the CC0 table files under both ו and י its root (`verb_roots.VERSION` 3,
 #: targum-internal#601); 10 counts an
 #: inflected verb that stood as its own lemma under its verb (`lemma_check` 2,
-#: targum-internal#660).
-VERSION = 10
+#: targum-internal#660); 11 reads `lemma_check` 3, so היה is counted as היה again.
+VERSION = 11
 
 
 @dataclass(frozen=True)
