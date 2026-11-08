@@ -26,6 +26,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   again. Measured locally on the phone profile with the files kept (corpus cut
   2026-11-04): Bereshit 1.68 s / 356 kB to 1.65 s / 219 kB, Tehillim 0.83 s / 277 kB to
   0.82 s / 139 kB. No spend, no re-cut, no new strings.
+- A word of the Tanakh shows its family from Strong's (targum-internal#591, epic #597).
+  Strong's says which entry each word is built from; following those links to "a primitive
+  root" gives each word its family across parts of speech: מֶלֶךְ beside מָלַךְ (verb),
+  מַמְלָכָה and מַלְכָּה (noun). Each family member is named by its part of speech, the ones
+  the reader knows are marked "known", and the line is capped at `SIBLINGS`. A
+  family is keyed by the root's Strong's number, so two roots spelled alike are never one.
+  Only what Strong's states outright is followed: "probably from" and other guesses are
+  not, and neither are names, Aramaic, prepositions or particles. A word Strong's gives no
+  family keeps the verb family it had.
+  - A family shows only words that share one root heading (David, 2026-11-08, on
+    ling-he's read). Where Strong's reaches a root only across a shift of meaning ("in the
+    sense of", "through the meaning", "from the root of") or names a number only to
+    compare it ("from an unused root (compare …)"), the link is not followed and the word
+    heads its own family, as a primitive root does. So אֶבֶן is not under בנה, and
+    מִדְבָּר is not under דבר; בֵּן and דָּבָר, which Strong's derives plainly, still are.
+    193 Hebrew content-word links are dropped. Coverage of the Tanakh's Hebrew
+    content-word tokens goes from 58.7% to 57.4% (115,275 of 200,907).
+  - The links come from the lexicon `oshb.py` already fetches (public domain text,
+    compilation CC BY 4.0), stored as `derivations.json` at the next
+    `targum models fetch scripture`, which deploy runs. Page-build time only: no
+    annotator rename, no `SCHEMA_VERSION` change, no spend.
+  - `scripts/count_tanakh.py --roots` writes the roots table's bible register. It counts
+    content words under their root's letters, with the Strong's number added where two
+    roots are spelled alike.
+  - No new strings.
 - A course's own playlist holds the whole course (David, 2026-11-07; design.md §12, "A
   course's playlist holds the whole course"; targum-internal#652). A playlist whose every
   text is a lesson of one and the same course may hold up to 200 (`MOST_IN_COURSE`); every
