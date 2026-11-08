@@ -2429,8 +2429,9 @@ def welcome_page(token: str, language: str = "en") -> str:
 
     Which language they are learning, what they like and how much they read, as the
     FirstRun boards draw them (design.md §12, "The arrival is three plain questions",
-    2026-10-09), and for a Hebrew reader which words they know, in two rounds ("The
-    arrival asks which words you know", 2026-11-01). Home sends a reader with nothing of
+    2026-10-09), and for a Hebrew, French or Russian reader which words they know, in
+    two rounds ("The arrival asks which words you know", 2026-11-01; "The words check in
+    French and Russian", 2026-11-05). Home sends a reader with nothing of
     their own here, and `arrival.js` sends anybody it has nothing to ask straight back.
     Nothing about the reader is baked in: the shelf comes from `/readers` and the answers
     from the account, so one page serves everybody; the words check's lists are the same
@@ -2452,8 +2453,9 @@ def welcome_page(token: str, language: str = "en") -> str:
             # Which languages a translation can be in, for the first question
             # (targum-internal#243).
             into=[code for code, _ in INTO],
-            # The words check's fixed lists, for a Hebrew reader (targum-internal#613).
-            check=check_module.page_data(),
+            # The words check's fixed lists, by language: Hebrew's (targum-internal#613),
+            # French's and Russian's (#631). The page picks by the language pressed.
+            checks=check_module.pages(),
         )
     )
 

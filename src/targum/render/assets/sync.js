@@ -990,6 +990,13 @@
         targumKeep("targum:declared", String(me.declared));
       } catch (e) {}
     }
+    // French's and Russian's, each under its own key (targum-internal#631; `charts.declaredKey`).
+    Object.keys(me.declaredBy || {}).forEach(function (code) {
+      if (code === "he" || !me.declaredBy[code]) return;
+      try {
+        targumKeep("targum:declared:" + code, String(me.declaredBy[code]));
+      } catch (e) {}
+    });
     // The language chosen on another device, for the next page this one opens. Not
     // the page already drawn: redrawing under somebody's hand is worse than one
     // page in the language they last saw here.

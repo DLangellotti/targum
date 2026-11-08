@@ -258,24 +258,40 @@
      still outvotes it. Four sentences cover the ladder at aleph, bet, gimel and hey;
      the You page still offers all eight to a reader who wants the finer step.
 
+     **French's and Russian's are kept too** (2026-11-05, targum-internal#631, under
+     #628's parity), as rungs of the CEFR ladder by the ids `Store.DECLARED` keeps for
+     them: A1, A2, B1 and C1, the same four steps up the ladder Hebrew's cover. They are
+     the two other languages with a words check, and `charts.seed` and `level.seed` read
+     a rung on its own ladder only, so a Hebrew rung says nothing of a reader's Russian.
+
      **Every other language's answer picks the first text and is kept nowhere.** Nothing
-     reads a level for Russian, French, Italian, Aramaic or Yiddish yet — `charts.seed` is
-     Hebrew's — and a column for an answer nothing reads would be storage for its own
-     sake. The answer places the first text along that shelf by difficulty: the first
-     sentence the easiest, the last the hardest. */
+     reads a level for Italian, Aramaic or Yiddish yet, and a column for an answer nothing
+     reads would be storage for its own sake. Outside Hebrew the answer places the first
+     text along that shelf by difficulty: the first sentence the easiest, the last the
+     hardest. */
   // The same four in every language (David, 2026-10-09). `code` decides only whether
-  // the answer is kept: Hebrew's stand for four rungs of the ulpan ladder.
+  // the answer is kept, and on which ladder.
+  var KEPT_RUNGS = {
+    he: ["aleph", "bet", "gimel", "hey"],
+    fr: ["a1", "a2", "b1", "c1"],
+    ru: ["a1", "a2", "b1", "c1"],
+  };
   function levelsOf(code) {
-    var hebrew = code === "he" || !code;
-    var L = function (id, say, rung) {
-      return { id: id, say: say, rung: hebrew ? rung : "" };
+    var rungs = KEPT_RUNGS[code || "he"] || null;
+    var L = function (id, say, at) {
+      return { id: id, say: say, rung: rungs ? rungs[at] : "" };
     };
     return [
-      L("starting", t("welcome.level.starting", "I’m just starting"), "aleph"),
-      L("simple", t("welcome.level.simple", "I can read simple things"), "bet"),
-      L("news", t("welcome.level.news", "I read the news with help"), "gimel"),
-      L("anything", t("welcome.level.anything", "I read almost anything"), "hey"),
+      L("starting", t("welcome.level.starting", "I’m just starting"), 0),
+      L("simple", t("welcome.level.simple", "I can read simple things"), 1),
+      L("news", t("welcome.level.news", "I read the news with help"), 2),
+      L("anything", t("welcome.level.anything", "I read almost anything"), 3),
     ];
+  }
+
+  //: Whether a language's answer to the level is kept on the account.
+  function keepsLevel(code) {
+    return Object.prototype.hasOwnProperty.call(KEPT_RUNGS, code);
   }
 
   function levelAsks(code) {
@@ -288,14 +304,24 @@
   }
 
 
-  /* --- 4 and 5. which words they know (Hebrew) ---------------------------------- */
+  /* --- 4 and 5. which words they know (Hebrew, French, Russian) ---------------- */
 
   /* The check's lists and round sizes, from `check.page_data`. Round one is the same for
      everybody, and round two follows from round one's ticks by the rules `check.py`
      keeps, which is why the account keeps the ticks alone: what was shown, and so left
      unticked, is worked out again from them. `tests/test_check.py` holds the two copies
-     of the rules together. Nothing is scored and nothing is said back. */
-  var CHECK = window.TARGUM_CHECK || null;
+     of the rules together. Nothing is scored and nothing is said back.
+
+     One set of lists a language (`check.pages`), and `CHECK` is the set of the language
+     pressed: Hebrew's, French's or Russian's (2026-11-05, targum-internal#631). A page
+     handed a single set (`TARGUM_CHECK`) has Hebrew's. */
+  var CHECKS = window.TARGUM_CHECKS || (window.TARGUM_CHECK ? { he: window.TARGUM_CHECK } : {});
+
+  function checkFor(code) {
+    return Object.prototype.hasOwnProperty.call(CHECKS, code) ? CHECKS[code] : null;
+  }
+
+  var CHECK = checkFor("he");
 
   function checkFirst() {
     var real = [];
@@ -594,9 +620,11 @@
 
   //: The rung, kept the way the subjects are: the account has it, the browser holds a
   //: copy. "" takes an earlier answer back.
-  function rememberLevel(id) {
-    keep(charts.DECLARED, id);
-    post("/account/level", { level: id });
+  //: Each language's on its own (targum-internal#631), so Russian's never replaces Hebrew's.
+  function rememberLevel(id, code) {
+    var language = code || "he";
+    keep(charts.declaredKey(language), id);
+    post("/account/level", language === "he" ? { level: id } : { level: id, language: language });
   }
 
   /* The language they are learning, the way the top bar's menu keeps it: in this browser,
@@ -842,11 +870,13 @@
     var questions = withTongue
       ? ["tongue", "learning", "subjects", "level"]
       : ["learning", "subjects", "level"];
-    /* Hebrew asks which words they know after the level, in two rounds, and thanks them;
-       every other language ends on the level. Worked out again when the language
-       changes, which is only ever on the first or second screen. */
+    /* Hebrew, French and Russian ask which words they know after the level, in two
+       rounds, and thank them; every other language ends on the level. Worked out again
+       when the language changes, which is only ever on the first or second screen, and
+       the lists with it. */
     function stepsFor(code) {
-      return code === "he" && CHECK && wordList && checkScreen
+      CHECK = checkFor(code);
+      return CHECK && wordList && checkScreen
         ? questions.concat(["check1", "check2", "thanks"])
         : questions.slice();
     }
@@ -991,6 +1021,11 @@
     function drawWords(now) {
       var items = now === "check1" ? checkFirst() : checkSecond(ticked);
       wordList.textContent = "";
+      // In the language's own direction, and marked as it, so a screen reader says each
+      // word in a voice for it.
+      var code = CHECK.language || "he";
+      wordList.setAttribute("lang", code);
+      wordList.setAttribute("dir", code === "he" ? "rtl" : "ltr");
       showing = items.map(function (item) {
         return item.word;
       });
@@ -1031,7 +1066,11 @@
        text and nothing else. Signed out there is nowhere to keep it, and nothing waits. */
     function sendCheck() {
       if (!who || !who.signedIn) return;
-      posting = ask("/account/check", { version: CHECK.version, ticked: Object.keys(ticked) })
+      posting = ask("/account/check", {
+        version: CHECK.version,
+        language: CHECK.language || "he",
+        ticked: Object.keys(ticked),
+      })
         .then(function (answer) {
           if (answer && typeof answer.rung === "string") measured = answer.rung;
         })
@@ -1213,9 +1252,10 @@
       leave(now);
       onward();
     };
-    /* Not sure is an answer too, and no level is kept. In Hebrew it leads into the words
-       check, which finds the level for them (David, 2026-11-01); every other language has
-       no check, and the easiest page there is opens. */
+    /* Not sure is an answer too, and no level is kept. In Hebrew, French and Russian it
+       leads into the words check, which finds the level for them (David, 2026-11-01;
+       2026-11-05 for French and Russian); every other language has no check, and the
+       easiest page there is opens. */
     if (unsure) {
       unsure.onclick = function () {
         counted("welcome-unsure");
@@ -1397,8 +1437,12 @@
       arrived = theirs.slice();
       keep(ARRIVED, arrived.join(","));
     }
-    var rung = (me && me.signedIn && me.declared) || "";
-    if (rung && rung !== held(charts.DECLARED)) keep(charts.DECLARED, rung);
+    var by = (me && me.signedIn && me.declaredBy) || {};
+    if (me && me.signedIn && me.declared && !by.he) by.he = me.declared;
+    Object.keys(by).forEach(function (code) {
+      var key = charts.declaredKey(code);
+      if (by[code] && by[code] !== held(key)) keep(key, by[code]);
+    });
   }
 
   var opened = stored("targum:opened");
@@ -1464,8 +1508,8 @@
       var reading = readers.concat(shared).some(function (reader) {
         return reader.opened > 0;
       });
-      var answered =
-        !underway() && (arrived.length || held(WELCOMED) || !!(who && who.signedIn && who.declared));
+      var named = !!(who && who.signedIn && (who.declared || Object.keys(who.declaredBy || {}).length));
+      var answered = !underway() && (arrived.length || held(WELCOMED) || named);
       var asking = !answered && !reading && !modern.opened && !biblical.opened;
       var waiting = document.getElementById("arrival-waiting");
       if (waiting) waiting.hidden = true;
@@ -1492,7 +1536,12 @@
             target = track.reader;
           }
         } else {
-          target = firstElsewhere(handed, level ? level.share : 0);
+          // French's and Russian's rung is kept on the CEFR ladder (targum-internal#631),
+          // and the rung the check measured places the first text where there is one.
+          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "", code);
+          var share = level ? level.share : 0;
+          if (level && level.measured) share = charts.seedFraction(level.measured);
+          target = firstElsewhere(handed, share);
         }
         if (!target) return home(code);
         /* Into the text, not onto its contents page (found by QA, 2026-09-20). The first
@@ -1506,7 +1555,7 @@
         // Skip on the words check: the level they said is kept, and home opens.
         function (code, level) {
           keep(WELCOMED, "1");
-          if (code === "he") rememberLevel(level && level.rung ? level.rung : "");
+          if (keepsLevel(code)) rememberLevel(level && level.rung ? level.rung : "", code);
           home(code);
         }
       );

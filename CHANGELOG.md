@@ -85,6 +85,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   drawn as the bell is, named "AI Assistant" as its label and tooltip, with a 44px reach,
   and it opens the same sheet. A desk keeps the pill unchanged, and the reader, which
   never had it, is unchanged. No new strings.
+- A new French or Russian reader takes the arrival's words check in their language
+  (David, 2026-11-05; targum-internal#631, under #628's parity; design.md §12, "The words
+  check in French and Russian"). `check.py` keeps each language's lists and version
+  (`check.LISTS`: ling-fr's and ling-ru's, #632; **Russian's a draft awaiting David's
+  read**), the page carries all three and draws the language pressed, left to right in the
+  reading face, and `/account/check` names its language. Their level is kept on the CEFR
+  ladder as `a1`, `a2`, `b1` or `c1`, each language its own (`Store.declared_map`:
+  "bet,ru:a2" in the one column, so a Russian rung never replaces Hebrew's and a Hebrew
+  beginner keeps the scene card; no schema change), and the check's rung is the CEFR rung
+  the vocabulary it estimates reaches among the commonest five thousand (calibrated
+  2026-11-05: by expected known words every band landed a step high). The You page has a
+  Your French and a Your Russian row while that language is learned, on its own ladder,
+  where it said "Not set" of a CEFR rung. Home now sends a new French or Russian reader to
+  the arrival. Italian, Aramaic and Yiddish are unchanged. New strings: `you.page.your-
+  french`, `you.page.your-russian`, `you.page.level-note-cefr`, `you.level.b2`,
+  `you.level.c2` (**Russian drafts awaiting David's read**).
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).
   The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
   dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
