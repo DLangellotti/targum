@@ -15234,7 +15234,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "no language"}, 400)
         marked = self.store.marked(person, language)
         everything = catalogue_module.everything()
-        entries = [entry for entry in everything if entry.language == language]
+        # Every row on the language's shelf, by any of the languages it is written in, as
+        # the Library and "What you can read in our library" count them (targum-internal
+        # #664: What next once read only a row's first language).
+        entries = [entry for entry in everything if touchstones.in_language(entry, language)]
         index = coverage_module.read_index(catalogue_module.lemmas_path())
         rungs = touchstones.ladder(everything, language)
         answer: dict[str, Any] = {
@@ -15251,16 +15254,19 @@ class Handler(BaseHTTPRequestHandler):
         # §12, "Progress leads with what you can read", 2026-11-08). Measured by the same
         # function as the ladder, so one pass over the readers serves both.
         every = (
-            tuple(str(entry.id) for entry in everything if touchstones.in_language(entry, language))
+            tuple(str(entry.id) for entry in entries)
             if language in touchstones.COVERAGE_LANGUAGES and index.texts
             else ()
         )
+        # Each built copy's own figure, read once for the card and What next alike.
+        built = self._built_shares({str(entry.id) for entry in entries}) if index.texts else {}
         known_of = (
             self._known_of(
                 [*rungs, touchstones.Rung(kind="", name="", difficulty=0.0, texts=every)],
                 index,
                 marked,
                 self._estimate(person, language),
+                built,
             )
             if (rungs or every) and index.texts
             else None
@@ -15346,6 +15352,8 @@ class Handler(BaseHTTPRequestHandler):
             taught=taught,
             registers=choose_module.opened(self.store.interest(person.id), mine_registers),
             offset=choose_module.offset_for(self.store, person.id, language),
+            # A built copy's own figure, the one the card above counts the text by.
+            built=built,
         )
 
         # The words still being learned that they keep meeting, met the way the card
@@ -15423,22 +15431,13 @@ class Handler(BaseHTTPRequestHandler):
             ]
         self._json(answer)
 
-    def _known_of(
-        self, rungs: list[Any], index: Any, marked: dict[str, int], known: Any = None
-    ) -> Callable[[str], float | None]:
-        """A text's share of words known, read as the Library reads a row (`/readers`): a
-        copy the reader has built, or the shared shelf has, measured on its own words, and
-        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
-        Your Progress opens a shelf holding exactly the texts it counted.
-
-        The figure the Library prints, so our estimate where that is it (`known`, the
-        reader's `estimate.Estimate`; design.md §12, "A text's figure is our estimate
-        until your marks settle it", 2026-11-04)."""
-        from . import coverage as coverage_module
-
-        wanted = {entry_id for rung in rungs for entry_id in rung.texts}
-        built: dict[str, float] = {}
-        # The shared shelf first and the reader's own over it, as `rows()` in library.js.
+    def _built_shares(self, wanted: set[str]) -> dict[str, tuple[float, bool]]:
+        """Each wanted catalogue text a copy is built of, on the shared shelf or the
+        reader's own over it (as `rows()` in library.js), with that copy's own figure and
+        whether it is our estimate: what the Library prints for the row. Both "What you
+        can read in our library" (`_known_of`) and What next (`touchstones.at_level`) read
+        a text this way, so the two cannot disagree about it (targum-internal#664)."""
+        built: dict[str, tuple[float, bool]] = {}
         for home in (self.library.shared, self._home()):
             readers = [
                 reader
@@ -15449,16 +15448,39 @@ class Handler(BaseHTTPRequestHandler):
             for reader in readers:
                 share = reader.get("estimated", reader.get("known"))
                 if isinstance(share, (int, float)) and not isinstance(share, bool):
-                    built[str(reader["entry"])] = float(share)
+                    built[str(reader["entry"])] = (float(share), "estimated" in reader)
                 else:
                     built.pop(str(reader["entry"]), None)
+        return built
+
+    def _known_of(
+        self,
+        rungs: list[Any],
+        index: Any,
+        marked: dict[str, int],
+        known: Any = None,
+        built: dict[str, tuple[float, bool]] | None = None,
+    ) -> Callable[[str], float | None]:
+        """A text's share of words known, read as the Library reads a row (`/readers`): a
+        copy the reader has built, or the shared shelf has, measured on its own words, and
+        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
+        Your Progress opens a shelf holding exactly the texts it counted.
+
+        The figure the Library prints, so our estimate where that is it (`known`, the
+        reader's `estimate.Estimate`; design.md §12, "A text's figure is our estimate
+        until your marks settle it", 2026-11-04). `built` is `_built_shares`'s answer
+        where the caller already has it."""
+        from . import coverage as coverage_module
+
+        if built is None:
+            built = self._built_shares({entry_id for rung in rungs for entry_id in rung.texts})
 
         statuses = index.statuses(marked) if index.counts else {}
         chances = known.chances(index) if known is not None and index.counts else None
 
         def known_of(entry_id: str) -> float | None:
             if entry_id in built:
-                return built[entry_id]
+                return built[entry_id][0]
             # Running words where counted, as `_measure_catalogue` reads it (design.md §12,
             # "The Library's bands count running words", 2026-11-01).
             measured = index.running(entry_id, marked, statuses) or index.against(entry_id, marked)

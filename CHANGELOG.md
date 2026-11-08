@@ -8,6 +8,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ### Changed
 - `/siddur`: a privacy and support page for the Siddur by targum app. No spend, no new
   strings.
+- What next's "Texts at your level now" reads each text by the figure "What you can read
+  in our library" counts it by (targum-internal#664; design.md §12, "One chooser, one
+  band"). A copy built on the shared shelf or the reader's own is measured on its own
+  words, as the Library prints it, and a row is on a language's list by any of the
+  languages it is written in, so Daniel and Ezra are on Aramaic's. A text the card calls
+  ready is never left off What next for a lower catalogue measure. Home's card chooses on
+  the same figure, so Home and Your Progress still choose alike: where a shared copy's
+  figure and the catalogue index's differ, both now go by the copy, and Home's candidates
+  are read by `in_language` too. The chooser, its band and its order are unchanged. No
+  new strings, no spend.
 - The waitlist can count sign-ups from our own siddur links. A visit to the front page with
   `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
   somebody joined from, and the back office's "Joined from" line shows it. No schema
