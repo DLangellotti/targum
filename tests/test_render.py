@@ -243,6 +243,22 @@ STEP_BIBLE = (
     "https://www.STEPBible.org",
     "https://github.com/DLangellotti/targum/blob/master/src/targum/annotate/tbesh_changes.tsv",
 )
+#: The papers Your Progress's How we measure links, each a reader may choose to open
+#: (design.md §12, "Progress leads with what you can read", 2026-11-08). On the desk's
+#: Progress page only, never in a reader, so they are not in `OUTBOUND`.
+RESEARCH = (
+    "https://nflrc.hawaii.edu/rfl/item/43",
+    "https://scholarspace.manoa.hawaii.edu/bitstream/10125/66648/1/22_1_10125_66648_laufer.pdf",
+    "https://www.lextutor.ca/cover/papers/schmitt_etal_2011.pdf",
+    "https://www.eurosla.org/monographs/EM01/211-232Milton.pdf",
+)
+#: targum's own pages elsewhere, which every desk page's foot links.
+SITE_FOOT = (
+    "https://github.com/DLangellotti/targum",
+    "https://www.instagram.com/targum.page/",
+    "https://www.linkedin.com/company/targum-page/",
+    "https://x.com/targum_app",
+)
 OUTBOUND = (
     PEALIM,
     LICENCE,
@@ -256,6 +272,19 @@ OUTBOUND = (
     *MORPHALOU,
     *STEP_BIBLE,
 )
+
+
+def test_progress_links_only_the_pinned_research() -> None:
+    """How we measure links four papers, pinned here as every outbound address is; the
+    page links nothing else outside targum but the foot's own pages, and fetches none of
+    it (design.md §12, "Progress leads with what you can read", 2026-11-08)."""
+    from targum.render.builder import carried, progress_page
+
+    for html in (progress_page("k"), carried(progress_page("k", "ru"))):
+        for link in RESEARCH:
+            assert f'href="{link}" target="_blank" rel="noopener noreferrer"' in html, link
+        for match in re.finditer(r"https?://[^\s\"'\\)<]+", html):
+            assert match.group(0).startswith((*RESEARCH, *SITE_FOOT, SVG_NAMESPACE)), match.group(0)
 
 
 def test_loads_nothing_from_the_network(rendered: Path) -> None:

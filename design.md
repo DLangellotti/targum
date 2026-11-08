@@ -384,6 +384,49 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Progress leads with what you can read — 2026-11-08
+
+David, 2026-11-08 (targum-internal#659), choosing version E of the lemma-disclosure mock
+after ling-it's audit of the level ladders. For French, Russian and Italian the card
+"Texts by level" and its "{n} words to go" rows give way to **"What you can read in our
+library"**. Hebrew keeps its card, and the Reading level card and Words you knew stay as
+they are.
+
+- **Coverage leads.** Three rows count the language's library texts by the share of their
+  running words the reader knows, the Library's own figure for a text (`_known_of`, so a
+  built copy's measure and our estimate where those are what the Library prints): **Ready
+  for you: you know 98% of their words** (98% and up), **A stretch: 95 to 98%**, and
+  **Not yet: under 95%**. Each row starts with the exact count of texts. 98% is Hu and
+  Nation (2000); 95% is the minimal threshold in Laufer and Ravenhorst-Kalovski (2010), and
+  not a cliff (Schmitt, Jiang and Grabe, 2011). A text with no measure is on no row. These
+  are the card's own cut-offs: the Library's bands stay 90% and 80% ("The Library's bands
+  count running words", 2026-11-01).
+- **The ready row opens Read it now** (`#see/now`). No shelf filter stops at 98%, and Read
+  it now holds every ready text, so the row opens the shelf at the reader's level rather
+  than a new filter. With no ready texts it is plain text, not a link.
+- **The level is said with "about"**: "Your level: about A2. Counted in dictionary words,
+  among Italian's 5,000 most common." The rung is the measured one, as everywhere, and the
+  count is the one the counter makes since targum#1141: known lemmas among the language's
+  `COMMON_TOP` commonest. "Lemma" stays off the page. With no rung reached yet, the line
+  is not drawn.
+- **The press is Home's find.** "Want something else? We'll look across the web for a
+  video, article or podcast at your level." and "Find something to read", which opens
+  Home's one card (`/#read-card`). Its search is targum's spend, not the reader's ("Home's
+  one card finds what fits you", 2026-11-01), so no credits note stands beside it. It is
+  tonal, because the Reading level card already holds the view's one filled press, and it
+  is drawn only where `TARGUM_FIND_BUTTON` is on, since without it there is no find to open.
+- **How we measure is a fold, closed at first**, a press as Home's How we choose is: what
+  comprehensible input (i+1) is, that readers understand a text well at about 98% of its
+  words and many still follow it at 95% with more effort, and that the level is a rough
+  guide, so we say "about". Under them a "Research:" line links the four papers, each with
+  what it shows: Hu and Nation, 2000; Laufer and Ravenhorst-Kalovski, 2010; Schmitt, Jiang
+  and Grabe, 2011; Milton, 2010. They are the desk's first outbound links to research, and
+  `test_render.py` pins them as it pins every other outbound address.
+
+What it keeps: every figure is a real count (§6), nothing on the card spends, and the
+percentages are facts about texts and this reader's list, as "How much of a text you know
+is an exact percentage" (2026-10-29) allows. `test_progress_can_read_browser.py` pins it.
+
 ### Scenes bring their words back — 2026-11-07
 
 David, 2026-11-07 (targum-internal#656). A beginner on Home's one card reads the next
