@@ -5929,8 +5929,9 @@ def _clip_address(match: re.Match[str]) -> str:
     return CLIP_ROUTE + name
 
 
-def _served(text: str) -> str:
-    return _CLIP_URI.sub(_clip_address, served_reader(text))
+def _served(text: str, clips: bool = True) -> str:
+    named = served_reader(text)
+    return _CLIP_URI.sub(_clip_address, named) if clips else named
 
 
 #: The last readers handed out named, by file and the bytes that were read from it: a
@@ -5938,7 +5939,7 @@ def _served(text: str) -> str:
 #: as it is. Keyed on what was read, never on a stat taken after it, so a page read while
 #: it was being written is never kept under the finished file's name (beta-found,
 #: 2026-11-06: a reader served blank until restart).
-_SERVED: OrderedDict[tuple[str, bytes, str], bytes] = OrderedDict()
+_SERVED: OrderedDict[tuple[str, bytes, str, bool], bytes] = OrderedDict()
 _SERVED_MOST = 64
 _SERVED_LOCK = threading.Lock()
 
@@ -5958,22 +5959,26 @@ def chromed_page(body: bytes, language: str) -> bytes:
         return body
 
 
-def served_page(path: Path, body: bytes, language: str = "en") -> bytes:
+def served_page(path: Path, body: bytes, language: str = "en", *, clips: bool = True) -> bytes:
     """A reader as a browser opening it is handed it (design.md §12, "A served reader
     loads its files once", 2026-10-29): its chrome in the language of whoever opened it
     (`chromed_page`), today's stylesheets, scripts and faces named by address
     (`served_reader`) and its recordings as files of their own, so the browser keeps
-    them. The page on disk is untouched, whole, and is what a save keeps."""
+    them. The page on disk is untouched, whole, and is what a save keeps.
+
+    `clips=False` for a reader a stranger opens (a portion's, a day's): `/clips/` is
+    behind the account, so a recording carried inline stays inline there. Theirs are
+    files beside the pages already (`reader/audio/`), so it is only ever a guard."""
     if not body:
         return body
-    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language)
+    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language, clips)
     with _SERVED_LOCK:
         found = _SERVED.get(key)
         if found is not None:
             _SERVED.move_to_end(key)
             return found
     try:
-        named = _served(chromed_page(body, language).decode("utf-8")).encode("utf-8")
+        named = _served(chromed_page(body, language).decode("utf-8"), clips).encode("utf-8")
     except UnicodeDecodeError:
         return body
     with _SERVED_LOCK:
@@ -6435,6 +6440,19 @@ class Handler(BaseHTTPRequestHandler):
         if target.suffix != ".html":
             return body
         return chromed_page(body, self._reader_language())
+
+    def _public_reader(self, target: Path) -> bytes:
+        """A portion's or a day's reader, which strangers open under its own address:
+        handed to a browser opening it with today's files named, as every other served
+        reader is (`served_page`; design.md §12, "A served reader loads its files once",
+        2026-10-29; targum-internal#661), and whole to anything else, a save for offline
+        above all. `_send` gives a browser that has not kept the files the page whole.
+        Its recordings are already files beside it, so none goes to `/clips/`, which is
+        behind the account."""
+        body = target.read_bytes()
+        if target.suffix == ".html" and self._navigating():
+            return served_page(target, body, self._reader_language(), clips=False)
+        return self._chromed(target, body)
 
     def _reader_language(self) -> str:
         """The interface language a reader's chrome is put in (design.md §12, "A reader's
@@ -7297,7 +7315,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
@@ -7326,7 +7344,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _parasha_next(self, folder: str) -> None:
         """What a reading leads on to, for the end of its reader (#416, #446).

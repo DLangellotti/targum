@@ -14,6 +14,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   header to that language. The tab now draws the header's language menu, as Recent does.
   `/playlists.json` says each of targum's sets' language. New strings:
   `playlists.elsewhere` (en, ru).
+- A portion's reader under `/parasha` and a day's under the daily cycles load their files
+  once, like every other served reader since targum#981 (targum-internal#661; design.md
+  §12, "A served reader loads its files once"). A browser opening one is handed it with
+  today's stylesheets, scripts and faces named under `/assets/`, which is open to anybody;
+  a browser that has not kept them gets the page whole, and a save for offline or a
+  download gets the page as it stands on disk. Their recordings were already files beside
+  the pages, so none goes to `/clips/`, which is behind the account. A block that is not
+  exactly one of today's files stays inline, so a portion cut before the last change to
+  `reader.js` or the stylesheet saves only its faces and small scripts until it is cut
+  again. Measured locally on the phone profile with the files kept (corpus cut
+  2026-11-04): Bereshit 1.68 s / 356 kB to 1.65 s / 219 kB, Tehillim 0.83 s / 277 kB to
+  0.82 s / 139 kB. No spend, no re-cut, no new strings.
 - A course's own playlist holds the whole course (David, 2026-11-07; design.md §12, "A
   course's playlist holds the whole course"; targum-internal#652). A playlist whose every
   text is a lesson of one and the same course may hold up to 200 (`MOST_IN_COURSE`); every
