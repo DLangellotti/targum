@@ -220,20 +220,24 @@ def evidence(
 
 
 def checked_evidence(
-    taken: tuple[str, list[str]] | None, marked: Mapping[str, int] | None = None
+    taken: tuple[str, list[str]] | None,
+    marked: Mapping[str, int] | None = None,
+    language: str = "he",
 ) -> tuple[list[Evidence], float | None]:
     """What the arrival's words check says, and the guess rate its made-up words measured.
 
-    `taken` is `Store.checked`: the lists' version and the ticked words. A check taken
-    against lists this targum no longer has says nothing, because what was shown can no
-    longer be worked out. A word the reader has marked since is left to the mark. The
-    guess rate is None where there is no check, and the claim grid keeps `CLAIM_GUESS`.
+    `taken` is `Store.checked`: the lists' version and the ticked words, in `language`,
+    whose own lists it is read by (`check.LISTS`). A check taken against lists this
+    targum no longer has says nothing, because what was shown can no longer be worked
+    out. A word the reader has marked since is left to the mark. The guess rate is None
+    where there is no check, and the claim grid keeps `CLAIM_GUESS`.
     """
     from . import check
 
-    if taken is None or taken[0] != check.VERSION:
+    lists = check.lists_for(language)
+    if taken is None or lists is None or taken[0] != lists.version:
         return [], None
-    known, unknown, rate = check.answers(taken[1])
+    known, unknown, rate = check.answers(taken[1], lists.language)
     left = marked or {}
     out = [Evidence(word, True, 1.0, rate) for word in known if word not in left]
     out.extend(Evidence(word, False) for word in unknown if word not in left)
@@ -486,7 +490,7 @@ def for_reader(
         if held is not None and held[0] == stamp:
             return held[1]
     marked = {lemma: status for lemma, status, _ in words if status is not None}
-    from_check, rate = checked_evidence(taken, marked)
+    from_check, rate = checked_evidence(taken, marked, code)
     items = (
         evidence(words, looked_up, met, claim_guess=CLAIM_GUESS if rate is None else rate)
         + from_check

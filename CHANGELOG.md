@@ -6,6 +6,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- `/siddur`: a privacy and support page for the Siddur by targum app. No spend, no new
+  strings.
 - The waitlist can count sign-ups from our own siddur links. A visit to the front page with
   `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
   somebody joined from, and the back office's "Joined from" line shows it. No schema
@@ -122,6 +124,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The Russian list and both golds await David's read. Hebrew is unchanged; the counts' cache stamp now
   names the French and Russian lists, so each built text's counts are read again once,
   locally, with no spend and no re-annotation. No new strings.
+- A new French or Russian reader takes the arrival's words check in their language
+  (David, 2026-11-05; targum-internal#631, under #628's parity; design.md §12, "The words
+  check in French and Russian"). `check.py` keeps each language's lists and version
+  (`check.LISTS`: ling-fr's and ling-ru's, #632; **Russian's a draft awaiting David's
+  read**), the page carries all three and draws the language pressed, left to right in the
+  reading face, and `/account/check` names its language. Their level is kept on the CEFR
+  ladder as `a1`, `a2`, `b1` or `c1`, each language its own (`Store.declared_map`:
+  "bet,ru:a2" in the one column, so a Russian rung never replaces Hebrew's and a Hebrew
+  beginner keeps the scene card; no schema change), and the check's rung is the CEFR rung
+  the vocabulary it estimates reaches among the commonest five thousand (calibrated
+  2026-11-05: by expected known words every band landed a step high). The You page has a
+  Your French and a Your Russian row while that language is learned, on its own ladder,
+  where it said "Not set" of a CEFR rung. Home now sends a new French or Russian reader to
+  the arrival. Italian, Aramaic and Yiddish are unchanged. New strings: `you.page.your-
+  french`, `you.page.your-russian`, `you.page.level-note-cefr`, `you.level.b2`,
+  `you.level.c2` (**Russian drafts awaiting David's read**).
 - Russian news is scored and offered in Read next (targum-internal#629, under #628).
   The cheap finds scorer reads a Russian word the shelf never showed through pymorphy3's
   dictionary (MIT; OpenCorpora CC BY-SA, a lookup only, nothing copied into the map), a
@@ -285,6 +303,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so nothing is re-annotated and the stored bands are left alone. The rank-to-count table
   counts the same lemmas, so a text past every rung reads C2 in Russian too. The
   thresholds are unchanged. Hebrew is unchanged. No new strings.
+- Your Progress in French, Russian and Italian leads with what you can read
+  (targum-internal#659; design.md §12, "Progress leads with what you can read",
+  2026-11-08). "What you can read in our library" takes the place of Texts by level: what
+  the level counts (dictionary words among the language's 5,000 most common), then how many of the language's library texts are ready for you (98% of their
+  running words known, the Library's own figure), a stretch (95 to 98%) and not yet. The
+  ready row opens Read it now. Under them, Home's "Find something to read" where
+  `TARGUM_FIND_BUTTON` is on, and a "How we measure" fold, closed at first, linking Hu and
+  Nation (2000), Laufer and Ravenhorst-Kalovski (2010), Schmitt, Jiang and Grabe (2011)
+  and Milton (2010). The Reading level card says the level once, "About A2", and "310
+  more dictionary words to B1". `/account/story` sends `coverage` for these three languages. Hebrew
+  is unchanged. New strings: `progress.read.*` (en; ru drafted for David's read).
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
@@ -1294,6 +1323,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The scene checker catches the last seven of ling-he's 2026-10-29 pointing rows that it
+  let through (targum-internal#563), so it now finds all 63 by the strict measure, the
+  exact word in the cell. `checks.py` gains three closed lists: an article the English
+  decides (לַקָּפֶה beside "for coffee", לְצָפוֹן beside "north"), a floor named by a
+  cardinal with the article on it (בַּקּוֹמָה שֵׁשׁ), and an absolute before the word
+  that makes it a construct (יָפֶה נוֹף); and three homographs (דָּבַר, חָסַר beside
+  "missing", ג'וֹנְיוֹר). For the menaked's artefacts in ling-he's B1 review of 2026-10-26
+  (targum-internal#531) it adds a rule for two reduced vowels in a row (וְנְ, עֲזְ, לְהֲ)
+  and `KNOWN`, her table of names, loanwords and no-words (אִיתַי beside "Itai", הֶרְצְל,
+  סַבַּבָּה, קַיָּאק): 91 of that review's 92 words are now caught, against 13 before.
+  Over the corpus of record the whole change finds one line the audits did not list. No
+  existing rule changed, and no Hebrew does: every new entry reports a word and none is
+  turned by `spelling.repair`.
 - How hard a word is found at each level, pooled across readers (targum-internal#586;
   design.md §12, "How hard a word is, counted across readers"). `targum tables pool`
   counts, per dictionary form and rung, the readers who met it in a finished section,

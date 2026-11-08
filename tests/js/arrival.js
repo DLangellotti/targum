@@ -41,6 +41,8 @@ install({
   // The words check's lists (`check.page_data`), where a test says (2026-11-01). Without
   // them the arrival ends on the level, as every language but Hebrew does.
   TARGUM_CHECK: payload.check || null,
+  // Every language's lists (`check.pages`), as `/welcome` has them since 2026-11-05.
+  TARGUM_CHECKS: payload.checks || null,
   addEventListener: (type, handler) => {
     (windowListeners[type] = windowListeners[type] || []).push(handler);
   },
@@ -302,6 +304,8 @@ function report() {
       checkUp: !at("arrival").hidden && !at("arrival-check").hidden,
       thanksUp: !at("arrival").hidden && !at("arrival-thanks").hidden,
       words: Array.from(at("arrival-words").children).map((li) => li.children[0].textContent),
+      wordsLang: (at("arrival-words").getAttribute && at("arrival-words").getAttribute("lang")) || "",
+      wordsDir: (at("arrival-words").getAttribute && at("arrival-words").getAttribute("dir")) || "",
       ticked: Array.from(at("arrival-words").children)
         .map((li) => li.children[0])
         .filter((p) => p.getAttribute("aria-pressed") === "true")

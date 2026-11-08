@@ -384,6 +384,53 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Progress leads with what you can read — 2026-11-08
+
+David, 2026-11-08 (targum-internal#659), choosing version E of the lemma-disclosure mock
+after ling-it's audit of the level ladders. For French, Russian and Italian the card
+"Texts by level" and its "{n} words to go" rows give way to **"What you can read in our
+library"**. Hebrew keeps its card, and Words you knew stays as it is.
+
+- **Coverage leads.** Three rows count the language's library texts by the share of their
+  running words the reader knows, the Library's own figure for a text (`_known_of`, so a
+  built copy's measure and our estimate where those are what the Library prints): **Ready
+  for you: you know 98% of their words** (98% and up), **A stretch: 95 to 98%**, and
+  **Not yet: under 95%**. Each row starts with the exact count of texts. 98% is Hu and
+  Nation (2000); 95% is the minimal threshold in Laufer and Ravenhorst-Kalovski (2010), and
+  not a cliff (Schmitt, Jiang and Grabe, 2011). A text with no measure is on no row. These
+  are the card's own cut-offs: the Library's bands stay 90% and 80% ("The Library's bands
+  count running words", 2026-11-01).
+- **The ready row opens Read it now** (`#see/now`). No shelf filter stops at 98%, and Read
+  it now holds every ready text, so the row opens the shelf at the reader's level rather
+  than a new filter. With no ready texts it is plain text, not a link.
+- **The level is said once, with "about", on the Reading level card** (the coordinator's
+  call the same evening, for David's review of the PR): the card reads **"About A2"**, and
+  its words line **"310 more dictionary words to B1"**. Under the new card's heading, one
+  line says what that level counts: "Counted in dictionary words, among Italian's 5,000
+  most common." The rung is the measured one, as everywhere, and the count is the one the
+  counter makes since targum#1141: known lemmas among the language's `COMMON_TOP`
+  commonest. "Lemma" stays off the page. The card's "Show texts you can read now" stays.
+  Hebrew's card is unchanged. For these three languages this amends "Your level, v3"
+  (2026-10-29), where a European level led as itself and the gap read "{n} words to".
+- **The press is Home's find.** "Want something else? We'll look across the web for a
+  video, article or podcast at your level." and "Find something to read", which opens
+  Home's one card (`/#read-card`). Its search is targum's spend, not the reader's ("Home's
+  one card finds what fits you", 2026-11-01), so no credits note stands beside it. It is
+  tonal, because the Reading level card already holds the view's one filled press, and it
+  is drawn only where `TARGUM_FIND_BUTTON` is on, since without it there is no find to open.
+- **How we measure is a fold, closed at first**, a press as Home's How we choose is: what
+  comprehensible input (i+1) is, that readers understand a text well at about 98% of its
+  words and many still follow it at 95% with more effort, that we count only the most
+  common words because they make up most of any page, and that the level is a rough
+  guide, so we say "about". Under them a "Research:" line links the four papers, each with
+  what it shows: Hu and Nation, 2000; Laufer and Ravenhorst-Kalovski, 2010; Schmitt, Jiang
+  and Grabe, 2011; Milton, 2010. They are the desk's first outbound links to research, and
+  `test_render.py` pins them as it pins every other outbound address.
+
+What it keeps: every figure is a real count (§6), nothing on the card spends, and the
+percentages are facts about texts and this reader's list, as "How much of a text you know
+is an exact percentage" (2026-10-29) allows. `test_progress_can_read_browser.py` pins it.
+
 ### Scenes bring their words back — 2026-11-07
 
 David, 2026-11-07 (targum-internal#656). A beginner on Home's one card reads the next
@@ -738,6 +785,48 @@ back" (2026-11-01), whose aim inside the band was the same 94–97% for every re
 - **Not yet:** look-ups. Looking up more than the estimate predicts is the clearer sign
   of "too hard", but #586's pooled calibration is what makes the prediction worth
   comparing against.
+
+### The words check in French and Russian — 2026-11-05
+
+David, 2026-11-05 (targum-internal#628, French and Russian to parity with Hebrew; card
+#631, lists #632): a new French or Russian reader takes the arrival's words check in their
+language, as a Hebrew reader does. It amends "The arrival asks which words you know"
+(2026-11-01), which asked Hebrew alone, and "The arrival is two questions…" (2026-09-19),
+which kept Hebrew's level alone.
+
+- **Where and how, as Hebrew's.** After the level, two rounds counted with the rest ("4
+  of 5", "5 of 5"), then "Thanks.". Not sure leads into round one, Skip goes home, a tick
+  is evidence only, and only the ticked words are kept (`checked`, one row a reader and
+  language). The page, the rules and the round sizes are Hebrew's. The words are in the
+  reading face, left to right, marked with their language. Italian, Aramaic and Yiddish
+  still end on the level.
+- **Each language has its own lists and its own version** (`check.LISTS`): six bands of
+  eight real words in Hebrew's six windows of wordfreq's list, and sixteen made-up words,
+  by ling-fr and ling-ru. One rule is new: no real word is an English cognate or an
+  international loan (*famille*, *проблема*), so a tick means the reader knows the
+  French or Russian word. **Russian's lists are a draft awaiting David's read.**
+- **The level is kept on the CEFR ladder, each language its own.** The four sentences
+  stand for A1, A2, B1 and C1, as Hebrew's stand for aleph, bet, gimel and hey, and are
+  kept by the ids `a1` to `c2` (`Store.DECLARED_BY`). Each language keeps its own rung
+  (`Store.declared_map`, "bet,ru:a2" in the one column, Hebrew's bare as it always was;
+  in the browser `targum:declared` for Hebrew and `targum:declared:ru` beside it), so a
+  Hebrew aleph reader who names "I'm just starting" in Russian keeps aleph, Hebrew's seed
+  and the scene card (qa-claude on targum#1112). A rung is read only on its own ladder
+  (`level.seed`, `charts.seed`). A measured rung still outvotes it. The You page has a
+  row for each: Your Hebrew as before, and Your French or Your Russian while that
+  language is learned, on the CEFR ladder in the arrival's sentences and never a code.
+- **The rung the check gives** is the CEFR rung the estimate stands at, read as the
+  vocabulary theta stands for among the commonest five thousand (`check.common_reach`).
+  It places the first text and, labelled "From your words check", Your Progress's level
+  until the marks reach one. **Calibrated, David, 2026-11-05:** it first climbed by the
+  *expected* known words at the Rasch slope of 0.8 (`check.common_known`), which credits
+  hundreds of words past a reader's vocabulary, and every band landed about one step high
+  (A2's 1,350 lemmas came out B1). The ladder's figures count words *known*, so a band's
+  own vocabulary now lands on that band, and an A2-sized vocabulary is A2.
+- **Not yet measured.** Hebrew's bands came from Hebrew readers' answers; French's and
+  Russian's come from the frequency list alone. Each language's placement is to be
+  scored against its own small gold of known readers or ling-graded profiles, never
+  Hebrew's, once readers have taken it.
 
 ### A text keeps the shape its edition gives it — 2026-11-04
 
@@ -1836,7 +1925,8 @@ of steps, and Skip.
 - **Where.** After the level, for a Hebrew reader only: two screens, counted with the
   rest ("4 of 5", "5 of 5"), then "Thanks." with no count over it and no way back. Every
   other language still ends on the level ("1 of 3"), and the count changes with the
-  language pressed. **Not sure leads into the check** (David, 2026-11-01, the same day):
+  language pressed. *(French and Russian too since 2026-11-05: "The words check in French
+  and Russian", above.)* **Not sure leads into the check** (David, 2026-11-01, the same day):
   in Hebrew the level screen's way past says "I'm not sure, help me find my level", keeps
   no level, and goes to round one, so the reader the check helps most is the one who
   meets it. Every other language has no check, so there it still says "I'm not sure, show
