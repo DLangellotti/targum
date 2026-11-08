@@ -49,8 +49,9 @@ if TYPE_CHECKING:
 #: The version of what this module answers. A change to the check or to what a refused
 #: lemma becomes is a new number, carried by every count that reads it. 2 gives an
 #: inflected verb that stands as its own lemma the table's verb, in ktiv male, past
-#: ling-he's reviewed lists (targum-internal#660).
-VERSION = 2
+#: ling-he's reviewed lists (targum-internal#660); 3 keeps a yod beside a mater single
+#: in that ktiv male (היה, not הייה) and writes ציווה with its yod.
+VERSION = 3
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -225,24 +226,39 @@ _VOWELS = frozenset("\u05b0\u05b1\u05b2\u05b3\u05b4\u05b5\u05b6\u05b7\u05b8\u05b
 
 def male(pointed: str) -> str:
     """A pointed lemma in ktiv male, the spelling the rest of the shelf files lemmas in
-    (ling-he on targum#1135: התכוון, not the table's התכון). Only the rules a verb's
-    citation form needs; anything else keeps its letters."""
+    (ling-he on targum#1135: התכוון, not the table's התכון). The Academy's rules a verb's
+    citation form needs: a consonantal vav inside the word is doubled (הִרְוָה → הרווה); a
+    consonantal yod too, but not beside a mater (הָיָה → היה, שֻׁיַּךְ → שויך); a qubuts is
+    written with a vav (הֻקְדַּשׁ → הוקדש); and a hiriq before a doubled letter with a yod,
+    a doubled vav included (בִּקֵּשׁ → ביקש, צִוָּה → ציווה). Anything else keeps its
+    letters."""
     letters = _marked(pointed)
     out: list[str] = []
+    #: Whether the last letter written is a mater: a vav or yod standing for a vowel.
+    mater = False
     for at, (letter, marks) in enumerate(letters):
         nxt = letters[at + 1] if at + 1 < len(letters) else None
         inner = 0 < at < len(letters) - 1
-        if letter in "וי" and inner and (DAGESH in marks or set(marks) & _VOWELS):
-            if not (letter == "ו" and marks.strip(DAGESH) == "") and out[-1:] != [letter]:
-                # Not a shuruq (a vav with a dagesh and nothing else is a vowel).
+        consonant = bool(set(marks) & _VOWELS) or (letter == "י" and DAGESH in marks)
+        if letter == "ו" and DAGESH in marks and not set(marks) & _VOWELS:
+            consonant = False  # a shuruq
+        if letter in "וי" and inner and consonant and out[-1:] != [letter]:
+            # A yod beside a mater is not doubled: before a last ה or א, or after a vowel
+            # letter.
+            beside = mater or (nxt is not None and at + 1 == len(letters) - 1 and nxt[0] in "הא")
+            if letter == "ו" or not beside:
                 out.append(letter + letter)
+                mater = False
                 continue
         out.append(letter)
+        mater = letter in "וי" and not consonant
         if "\u05bb" in marks:
             out.append("ו")
-        elif HIRIQ in marks and nxt is not None and DAGESH in nxt[1] and nxt[0] not in "וי":
+            mater = True
+        elif HIRIQ in marks and nxt is not None and DAGESH in nxt[1] and nxt[0] != "י":
             if at > 0 or letter not in "הנ":
                 out.append("י")
+                mater = True
     return "".join(out)
 
 

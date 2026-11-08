@@ -234,6 +234,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the parasha corpus and 820 in the library's Biblical books were affected. The rename
   re-reads Biblical text only, at no cost, and a portion shows the fix when it is cut
   again. No new strings.
+- היה is filed under היה again, not הייה (targum-internal#660, after #1135). The ktiv
+  male #1135 writes a table lemma in doubled the yod of הָיָה, so about 260 verb tokens
+  on the laptop shelf that DICTA had left as היה were filed under a lemma nobody writes.
+  A consonantal yod beside a mater now stays single (היה, החיה, שויך), and a hiriq
+  before a doubled vav takes its yod (ציווה, סיווג, קיווה), as the Academy writes them.
+  `lemma_check` 3, `occurrences` 11; page and count time only, no rename, no spend.
 - Two timing tests no longer fail on one stalled call of a shared CI runner
   (targum-internal#649). Read next's finds scoring is held to its 30 ms p95 as the
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
