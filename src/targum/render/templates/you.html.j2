@@ -198,6 +198,22 @@
         </label>
         <select class="acct-pick" id="you-level"></select>
       </li>
+      {#- French's and Russian's rung, each its own and on the CEFR ladder (targum-internal#631,
+          design.md §12). Shown while that language is learned; `you.js` fills the pick. -#}
+      <li class="row" id="you-level-fr-row" hidden>
+        <label class="row-main" for="you-level-fr">
+          <span class="acct-name">{{ t("you.page.your-french", "Your French") }}</span>
+          <span class="acct-says">{{ t("you.page.level-note-cefr", "Where the Library starts you") }}</span>
+        </label>
+        <select class="acct-pick" id="you-level-fr"></select>
+      </li>
+      <li class="row" id="you-level-ru-row" hidden>
+        <label class="row-main" for="you-level-ru">
+          <span class="acct-name">{{ t("you.page.your-russian", "Your Russian") }}</span>
+          <span class="acct-says">{{ t("you.page.level-note-cefr", "Where the Library starts you") }}</span>
+        </label>
+        <select class="acct-pick" id="you-level-ru"></select>
+      </li>
       {#- How the conversation says "you" in Hebrew (2026-09-14; a row again after #695,
           design.md §12). Every second person in Hebrew has a gender, and nikkud makes it
           visible. Shown only while Hebrew is being learned; `you.js` marks the one the

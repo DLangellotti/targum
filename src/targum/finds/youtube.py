@@ -93,10 +93,14 @@ RUN_BYTES = 1_500_000
 #: phrase alone finds mostly native-speed talk.
 EASY: dict[str, tuple[str, ...]] = {
     "he": ("עברית קלה", "עברית למתחילים", "סיפור לילדים", "הסבר פשוט"),
+    # ling-ru, 2026-11-06 (targum-internal#635), awaiting David's read: "РКИ" for graded
+    # videos at A1–A2, "сказка для детей" for children's tales (as Hebrew's "סיפור
+    # לילדים"), "простым языком" for plain native explainers at B1.
+    "ru": ("РКИ", "сказка для детей", "простым языком"),
 }
 
 #: The languages a round runs for: those the scorer has a map for and the chips a phrase.
-LANGUAGES = ("he",)
+LANGUAGES = ("he", "ru")
 
 
 def on() -> bool:
@@ -292,13 +296,20 @@ class Track:
 Fetch = Callable[[str], Track]
 
 
-def track(url: str) -> Track:
-    """One video's Hebrew track somebody wrote, read in a folder that is then deleted."""
+def track(url: str, language: str = "he") -> Track:
+    """One video's track somebody wrote in the language, read in a folder that is then
+    deleted."""
     from ..ingest.subtitles import load_cues
+    from ..video.discover import LANGUAGES as SPOKEN
     from ..video.youtube import subtitles_for_finding
 
+    code = score_module.code(language)
     with tempfile.TemporaryDirectory(prefix="targum-find-") as folder:
-        found, info = subtitles_for_finding(url, Path(folder))
+        found, info = (
+            subtitles_for_finding(url, Path(folder))
+            if code == "he"
+            else subtitles_for_finding(url, Path(folder), SPOKEN.get(code, (code,)))
+        )
         age = int(info.get("age_limit") or 0)
         if found is None:
             return Track(age_limit=age)
@@ -357,17 +368,9 @@ def fetched_today(store: Store, when: int) -> int:
     return total
 
 
-def _start(store: Store) -> int:
-    """Where tonight's queries start: where the last round stopped."""
-    row = store.db.execute(
-        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT 1",
-        (SOURCE,),
-    ).fetchone()
-    try:
-        said = json.loads(row[0] or "{}") if row else {}
-    except ValueError:
-        said = {}
-    return int(said.get("next") or 0) if isinstance(said, dict) else 0
+def _start(store: Store, language: str = "he") -> int:
+    """Where tonight's queries start: where the last round in the language stopped."""
+    return pool.last_next(store, SOURCE, language)
 
 
 def refresh(
@@ -376,7 +379,7 @@ def refresh(
     language: str = "he",
     get: Callable[[str, Mapping[str, str]], dict[str, Any]] | None = None,
     api_key: str | None = None,
-    fetch: Fetch = track,
+    fetch: Fetch | None = None,
     forms_for: Callable[[str], score_module.Forms | None] = score_module.load,
     budget_units: int | None = None,
     channels: Sequence[Seed] | None = None,
@@ -401,8 +404,9 @@ def refresh(
     allowed = units() if budget_units is None else budget_units
     run = pool.start_run(store, SOURCE, when)
     asked = queries(code)
-    start = _start(store)
+    start = _start(store, code)
     order = rotated(asked, start)
+    fetching: Fetch = fetch if fetch is not None else (lambda url: track(url, code))
     after = datetime.fromtimestamp((when - FRESH_DAYS * pool.DAY_MS) / 1000, tz=UTC)
 
     def dropped(url: str, why: str) -> None:
@@ -525,7 +529,11 @@ def refresh(
     if len(queue) > room:
         # Before the units: a night that ran out of searches had more than it could fetch.
         found.stopped = f"the day's {NIGHT_MOST} tracks"
-    note: dict[str, Any] = {"next": (start + done) % max(1, len(asked)), "units": found.units}
+    note: dict[str, Any] = {
+        "next": (start + done) % max(1, len(asked)),
+        "units": found.units,
+        "language": code,
+    }
     if found.channels:
         note["channels"] = found.channels
 
@@ -546,7 +554,7 @@ def refresh(
             found.stopped = "the month's discovery budget"
             break
         try:
-            got = fetch(video.url)
+            got = fetching(video.url)
         except Exception as error:  # noqa: BLE001 - one video never stops a round
             log.info("finds: no track for %s: %s", video.id, error)
             found.fetched += 1

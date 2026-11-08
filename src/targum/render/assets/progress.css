@@ -398,6 +398,43 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
     .progress .touch-go { grid-column: 5; }
   }
 }
+/* What you can read in our library, in the ladder's place for French, Russian and Italian
+   (design.md §12, "Progress leads with what you can read", 2026-11-08): its heading as the
+   ladder's, the level line under it, the three rows as the ladder draws a row, Home's
+   find, and How we measure folded under them. */
+.progress .can-read[hidden] { display: none; }
+.progress .can-read { display: grid; align-content: start; justify-items: stretch; }
+.progress .can-read .level-ladder-head { margin-block: 0 0.25rem; }
+.progress .can-read-line {
+  margin: 0 0 0.625rem;
+  padding-inline: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.progress .can-read-line[hidden] { display: none; }
+.progress .can-read-else {
+  display: grid;
+  gap: 0.625rem;
+  justify-items: start;
+  margin-block-start: 1rem;
+  padding-inline: 0.75rem;
+}
+.progress .can-read-else p { margin: 0; font-size: 0.9375rem; line-height: 1.5; color: var(--ink); max-inline-size: 36rem; }
+.progress .can-read-else .btn { max-inline-size: 100%; white-space: normal; text-align: start; }
+.progress .can-read-how-press { justify-self: start; margin: 0.75rem 0.25rem 0; }
+.progress .can-read-how { padding-inline: 0.75rem; }
+.progress .can-read-how[hidden] { display: none; }
+.progress .can-read-how p { margin: 0.5rem 0 0; max-inline-size: 36rem; font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
+.progress .can-read-how .can-read-refs { font-size: 0.875rem; color: var(--ink-soft); }
+.progress .can-read-refs a { color: var(--teal); }
+.progress .can-read-refs a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+@media (min-width: 64rem) {
+  .progress .can-read-line,
+  .progress .can-read-else,
+  .progress .can-read-how { padding-inline: 1rem; }
+  .progress .can-read-how-press { margin-inline: 0.5rem; }
+}
 /* Words you knew: the title and the switch on one line at a desk; on a phone the switch
    takes its own row at full width in thirds, 44px under a thumb (the `.seg` rule). */
 .progress .level-grid > .reading { grid-area: reading; margin: 0; }

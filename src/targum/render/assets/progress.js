@@ -355,7 +355,12 @@
      bar toward the next rung, then the exact words to it ("637 words to ה׳"), from the
      server's one function, so the C1 row says the same number. At the top rung, no bar
      and no number. Before the first rung (`first`), the bar and the words to it. */
-  function drawToward(scale, share, toGo, nextLetter, nextName) {
+  /* French, Russian and Italian say their level once, on this card, as "About A2", and
+     the words to the next rung as dictionary words (design.md §12, "Progress leads with
+     what you can read", 2026-11-08). */
+  var DICTIONARY = { fr: true, ru: true, it: true };
+
+  function drawToward(scale, share, toGo, nextLetter, nextName, dictionary) {
     var toward = document.getElementById("level-toward");
     var fill = document.getElementById("level-fill");
     var line = document.getElementById("level-togo");
@@ -369,18 +374,24 @@
     fill.style.width = Math.round(amount * 100) + "%";
     var count = el("b", "level-count", grouped(toGo));
     var rung = ulpan ? letterRun(nextLetter) : document.createTextNode(nextName);
+    var fill = { n: "\u0001", next: "\u0000" };
     sentenceWith(
       line,
-      tn("progress.level.to-go", toGo, "{n} word to {next}", "{n} words to {next}", {
-        n: "\u0001",
-        next: "\u0000",
-      }),
+      dictionary
+        ? tn(
+            "progress.level.to-go-dictionary",
+            toGo,
+            "{n} more dictionary word to {next}",
+            "{n} more dictionary words to {next}",
+            fill
+          )
+        : tn("progress.level.to-go", toGo, "{n} word to {next}", "{n} words to {next}", fill),
       { "\u0001": count, "\u0000": rung }
     );
     toward.hidden = false;
   }
 
-  function drawMark(level) {
+  function drawMark(level, dictionary) {
     var mark = document.getElementById("level-mark");
     var spoken = document.getElementById("level-spoken");
     var big = document.getElementById("level-big");
@@ -404,7 +415,11 @@
     }
     // The letter alone with its geresh, in its own right-to-left run and hidden from a
     // screen reader, which hears its name instead; a European level is itself.
-    big.textContent = ulpan ? letterRun(level.letter).textContent : level.name;
+    big.textContent = ulpan
+      ? letterRun(level.letter).textContent
+      : dictionary
+        ? t("progress.level.about", "About {cefr}", { cefr: level.name })
+        : level.name;
     if (ulpan) {
       big.setAttribute("lang", "he");
       big.setAttribute("dir", "rtl");
@@ -432,6 +447,8 @@
     var list = document.getElementById("touchstones");
     list.textContent = "";
     ladderCard.hidden = true;
+    var canRead = document.getElementById("can-read");
+    if (canRead) canRead.hidden = true;
     step.hidden = true;
     step.textContent = "";
     step.className = "level-step";
@@ -462,11 +479,16 @@
     // are said without a link and without a count to check against a shelf; it has no
     // level of words, so its card says what it says today.
     var shelved = code !== "arc";
+    // French, Russian and Italian say what the reader can read in the library in the
+    // ladder's place (design.md §12, "Progress leads with what you can read", 2026-11-08).
+    var reads = drawCanRead(code, said);
 
     if (level) {
       // The card is the level and nothing else (design.md §12, "Your level, v3").
-      drawMark(level);
-      if (level.next) drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name);
+      drawMark(level, !!DICTIONARY[code]);
+      if (level.next) {
+        drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name, !!DICTIONARY[code]);
+      }
       // A level the words check gave, until the reader's marks reach a rung, says where
       // it came from (design.md §12, "Your level comes from your words check until your
       // marks reach one", 2026-11-04).
@@ -480,7 +502,7 @@
       go.hidden = false;
     }
     if (!ladder.length) {
-      if (level) return;
+      if (level || reads) return;
       // Yiddish has no library, and a box without the lemma index (or a catalogue whose
       // Aramaic is not measured yet) has measured nothing: each says so, with the one
       // count it does have.
@@ -504,7 +526,7 @@
       // which opens the first beginner conversation (David, 2026-10-29).
       var start = next || ladder[0];
       head.textContent = rungOf(start).start;
-      drawToward(first.scale, first.toward, first.toGo, first.letter, first.name);
+      drawToward(first.scale, first.toward, first.toGo, first.letter, first.name, !!DICTIONARY[code]);
       if (said.conversations) {
         go.textContent = t("progress.level.start-learning", "Start learning");
         go.href = keyed("/library#see/kind/dialogue");
@@ -554,11 +576,74 @@
       go.hidden = false;
     }
 
+    if (reads) return;
     ladder.forEach(function (rung) {
       list.appendChild(ladderRow(rung, shelved));
     });
     ladderCard.hidden = false;
   }
+
+  /* What you can read in our library (design.md §12, "Progress leads with what you can
+     read", 2026-11-08), for French, Russian and Italian: what the level on the card beside
+     it counts, then how many of the language's library texts are
+     ready (98% of their running words known, the Library's own measure of a text), a
+     stretch (95 to 98%) and not yet. The ready row opens Read it now, which holds every
+     one of them. Hebrew, and a story the server sent no counts with, keep Texts by level.
+     Returns whether it drew. */
+  function drawCanRead(code, said) {
+    var card = document.getElementById("can-read");
+    var counts = said && said.coverage;
+    if (!card || !counts || typeof counts !== "object") return false;
+    var line = document.getElementById("can-read-line");
+    var rows = document.getElementById("can-read-rows");
+    rows.textContent = "";
+    // The level itself is said once, on the Reading level card ("About A2"); here, what
+    // it counts.
+    line.textContent = t("progress.read.counted", "Counted in dictionary words, among {language}'s {n} most common.", {
+      language: named(code),
+      n: grouped(counts.among || 5000),
+    });
+    line.hidden = false;
+    [
+      ["ready", t("progress.read.ready", "Ready for you: you know 98% of their words")],
+      ["stretch", t("progress.read.stretch", "A stretch: 95 to 98%")],
+      ["notYet", t("progress.read.not-yet", "Not yet: under 95%")],
+    ].forEach(function (band) {
+      var n = Math.max(0, Number(counts[band[0]]) || 0);
+      var ready = band[0] === "ready" && n > 0;
+      var item = el("li", "touch can-read-" + band[0]);
+      var row = el(ready ? "a" : "span", "touch-row " + (ready ? "touch-next" : "touch-ahead"));
+      if (ready) row.href = keyed("/library#see/now");
+      var mark = el("span", "touch-mark");
+      mark.innerHTML = ready ? DOT : RING;
+      row.appendChild(mark);
+      var words = el("span", "touch-words");
+      words.appendChild(el("span", "touch-name", tn("progress.read.texts", n, "{n} text", "{n} texts", { n: grouped(n) })));
+      words.appendChild(el("span", "touch-state", band[1]));
+      row.appendChild(words);
+      var chevron = el("span", "touch-go", ready ? "\u203a" : "");
+      chevron.setAttribute("aria-hidden", "true");
+      row.appendChild(chevron);
+      item.appendChild(row);
+      rows.appendChild(item);
+    });
+    var find = document.getElementById("can-read-find");
+    if (find) find.href = keyed("/#read-card");
+    card.hidden = false;
+    return true;
+  }
+
+  // How we measure opens and closes, closed at first, as Home's How we choose does.
+  (function () {
+    var press = document.getElementById("can-read-how-press");
+    var how = document.getElementById("can-read-how");
+    if (!press || !how) return;
+    press.addEventListener("click", function () {
+      var open = press.getAttribute("aria-expanded") !== "true";
+      press.setAttribute("aria-expanded", open ? "true" : "false");
+      how.hidden = !open;
+    });
+  })();
 
   /* One row of Texts by level (design.md §12, "Your level, v3", 2026-10-29). A row the
      reader's words cover says Easy for you or Next, by texts, and how many of its texts

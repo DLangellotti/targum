@@ -153,7 +153,7 @@ def test_the_query_is_topic_words_language_and_level_and_nothing_else() -> None:
     assert live.queries(("food",), "he", 2) == ("אוכל ומסעדות בעברית קלה",)
     assert live.queries(("food",), "he", 3) == ("אוכל ומסעדות",), "bet plus is past bet"
     assert live.queries((), "he", None) == ("חיי היומיום בעברית קלה",)
-    assert live.queries(("food",), "ru", 1) == (), "no words for the language, no look"
+    assert live.queries(("food",), "fr", 1) == (), "no words for the language, no look"
 
 
 class Client:
@@ -340,6 +340,125 @@ def test_one_pick_from_the_pool_and_another_after_it(home: Any, on: None) -> Non
         home.port, "POST", "/find", {"language": "he", "skip": [got["pick"]["id"]]}, cookie=cookie
     )
     assert other["pick"]["url"] == "https://a.example/law"
+
+
+def test_a_russian_reader_is_offered_no_chip_without_a_russian_phrase(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No `israel`, `holidays` or `army` in Russian (David, 2026-11-05; targum-internal
+    #635), and a Hebrew reader keeps all forty."""
+    monkeypatch.setattr(Store, "learning", lambda self, who: {"he", "ru"})
+    cookie = sign_in(home.port, home.postbox)
+    ask = {"chips": True, "language": "ru"}
+    status, offered, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    codes = [one["topic"] for one in offered["chips"]]
+    assert status == 200 and len(codes) == 37
+    assert not {"israel", "holidays", "army"} & set(codes)
+    ask = {"chips": True, "language": "he"}
+    status, offered, _ = call(home.port, "POST", "/find", ask, cookie=cookie)
+    assert [one["topic"] for one in offered["chips"]] == [chip.code for chip in chips.CHIPS]
+
+
+def a_russian_press(monkeypatch: pytest.MonkeyPatch, rung: int) -> dict[str, list[Any]]:
+    """A reader learning Russian, measured at the CEFR's `rung`, whose press finds nothing
+    in the pool, so a look would start: what reached the ranking, the tally and the look."""
+    from dataclasses import replace
+
+    from targum import level as level_module
+    from targum.finds import steer
+
+    seen: dict[str, list[Any]] = {"ranked": [], "tags": [], "asked": []}
+    monkeypatch.setattr(Store, "learning", lambda self, who: {"he", "ru"})
+    monkeypatch.setenv(steer.FLAG, "1")
+    snapshot = level_module.snapshot
+    at = level_module.CEFR_LADDER.rungs[rung]
+
+    def measured(store: Store, person: Any, language: str, today: Any = None) -> Any:
+        level = snapshot(store, person, language, today)
+        return replace(level, here=at) if language.startswith("ru") else level
+
+    monkeypatch.setattr(level_module, "snapshot", measured)
+    ranked = button.ranked
+
+    def ranking(store: Store, ask: button.Ask, marked: Any, **kwargs: Any) -> Any:
+        seen["ranked"].append((ask, kwargs.get("rung")))
+        return ranked(store, ask, marked, **kwargs)
+
+    monkeypatch.setattr(button, "ranked", ranking)
+    monkeypatch.setattr(live, "refused", lambda *args, **kwargs: "")
+
+    def start(store: Store, person: int, code: str, asked: Any, choose: Any, **kwargs: Any) -> Any:
+        seen["asked"].append(tuple(asked))
+        seen["tags"].append(kwargs.get("tags"))
+        return SimpleNamespace(state=lambda: {"stage": "searching", "search": "s"})
+
+    monkeypatch.setattr(live.LOOKS, "start", start)
+    return seen
+
+
+def test_a_russian_press_on_army_steers_nothing_and_is_never_tallied_or_tagged(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`army` is not offered in Russian (David, 2026-11-05; targum-internal#635), so a
+    page that sends it anyway steers no ranking, counts no press for it in
+    `chip_press`, and tags no find a look brings in with it."""
+    seen = a_russian_press(monkeypatch, rung=0)
+    cookie = sign_in(home.port, home.postbox)
+    body = {"language": "ru", "topics": ["army"], "medium": "read", "pressed": True}
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert status == 200 and got["stage"] == "searching"
+    assert [ask.chosen for ask, _ in seen["ranked"]] == [()]
+    assert seen["tags"] == [()], "the look tags its finds with no chip"
+    rows = list(home.store.db.execute("SELECT language, medium, topic FROM chip_press"))
+    assert [tuple(row) for row in rows] == [("ru", "read", "")], "the medium, not army"
+
+
+def test_a_russian_harder_press_on_army_ranks_no_chip_under_the_floor(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Show me something harder keeps to the chips offered too: a Russian `army` sent
+    with the press steers neither the ranking under the floor nor its any-topic retry
+    (targum-internal#635)."""
+    seen = a_russian_press(monkeypatch, rung=0)
+    harder = button.harder
+    shelf_asks: list[tuple[str, ...]] = []
+
+    def under(shelf: Any, ask: button.Ask, known: Any) -> Any:
+        shelf_asks.append(ask.chosen)
+        return harder(shelf, ask, known)
+
+    monkeypatch.setattr(button, "harder", under)
+    cookie = sign_in(home.port, home.postbox)
+    body = {"language": "ru", "harder": True, "topics": ["army"], "skip": [], "done": []}
+    status, got, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert status == 200 and got["why"] == "harder"
+    assert [ask.chosen for ask, _ in seen["ranked"]] == [()], "one ranking, on no chip"
+    assert shelf_asks == [()]
+
+
+def test_a_russian_press_is_ranked_counted_and_looked_for_on_the_cefr_rung(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A Russian reader at B1 is rung 2 on the CEFR (`button.rung_for`), which is what
+    the pool's `rung` counts in: the ranking, the tally and the look's level words all
+    take it (targum-internal#635)."""
+    seen = a_russian_press(monkeypatch, rung=2)
+    cookie = sign_in(home.port, home.postbox)
+    body = {"language": "ru", "topics": ["football"], "pressed": True}
+    status, _, _ = call(home.port, "POST", "/find", body, cookie=cookie)
+    assert status == 200
+    assert [rung for _, rung in seen["ranked"]] == [2]
+    assert seen["asked"] == [("футбол простым языком",)]
+    (rung,) = home.store.db.execute("SELECT rung FROM chip_press").fetchone()
+    assert rung == 2
 
 
 def test_with_nothing_that_fits_a_look_runs_and_the_page_polls_it(

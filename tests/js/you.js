@@ -133,6 +133,22 @@ setTimeout(() => {
           label: option.textContent,
           on: Boolean(option.selected),
         })),
+        /* French's and Russian's rows (targum-internal#631): whether each is drawn, what
+           its picker offers, and each language's own copy in the browser. */
+        levels: Object.fromEntries(
+          ["fr", "ru"].map((code) => [
+            code,
+            {
+              hidden: at("you-level-" + code + "-row").hidden,
+              offered: at("you-level-" + code).children.map((option) => ({
+                value: option.value,
+                label: option.textContent,
+                on: Boolean(option.selected),
+              })),
+              here: localStorage.getItem("targum:declared:" + code),
+            },
+          ])
+        ),
         declaredHere: localStorage.getItem("targum:declared"),
         /* How the conversation says "you" in Hebrew: whether its row is drawn, and which
            of the two forms is marked. */

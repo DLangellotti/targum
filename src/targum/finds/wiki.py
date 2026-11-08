@@ -7,6 +7,8 @@ asks the two wikis themselves, for nothing: each chip's fixed Hebrew phrase (`ch
 goes to `list=search`, and each page it names is read as plain text through
 `prop=extracts`, screened, scored and pooled as a `web` find by the night's own rules
 (`web._keep`'s, and `pool.KEEP_DAYS["web"]`'s sixty days). The text is let go.
+Russian Wikipedia and Wikivoyage the same way, on the chips' Russian phrases, for a night
+in Russian (targum-internal#635).
 
 - **Polite.** Every request carries `USER_AGENT`, which names targum and its contact
   address as Wikimedia's User-Agent policy asks, and waits `PAUSE_S` after the last one.
@@ -76,6 +78,8 @@ class Wiki:
     credit: str
     #: The chips searched on it; empty for all forty.
     chips: tuple[str, ...] = ()
+    #: The language it is written in: a night in a language reads its own wikis.
+    language: str = "he"
 
     @property
     def api(self) -> str:
@@ -83,13 +87,16 @@ class Wiki:
 
 
 #: A travel guide answers few of the forty: those it does are searched there.
+TRAVEL_CHIPS = ("travel", "food", "nature", "history", "israel", "holidays")
+
+#: Russian Wikipedia and Wikivoyage, through the same API under the same licence
+#: (targum-internal#635). Russian has no `israel` or `holidays` chip, so its travel
+#: guide is searched on the other four.
 WIKIS: tuple[Wiki, ...] = (
     Wiki("he.wikipedia.org", "Wikipedia contributors"),
-    Wiki(
-        "he.wikivoyage.org",
-        "Wikivoyage contributors",
-        ("travel", "food", "nature", "history", "israel", "holidays"),
-    ),
+    Wiki("he.wikivoyage.org", "Wikivoyage contributors", TRAVEL_CHIPS),
+    Wiki("ru.wikipedia.org", "Wikipedia contributors", language="ru"),
+    Wiki("ru.wikivoyage.org", "Wikivoyage contributors", TRAVEL_CHIPS, language="ru"),
 )
 
 
@@ -200,16 +207,9 @@ def asked_on(wiki: Wiki, language: str) -> list[tuple[str, str]]:
     return [pair for pair in every if not wiki.chips or pair[0] in wiki.chips]
 
 
-def _starts(store: Store) -> dict[str, int]:
-    """Where tonight starts on each wiki: where the last night stopped."""
-    row = store.db.execute(
-        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT 1",
-        (RUN_SOURCE,),
-    ).fetchone()
-    try:
-        said = json.loads(row[0] or "{}") if row else {}
-    except ValueError:
-        said = {}
+def _starts(store: Store, language: str = "he") -> dict[str, int]:
+    """Where tonight starts on each wiki: where the language's last night stopped."""
+    said = pool.last_note(store, RUN_SOURCE, language)
     nexts = said.get("next") if isinstance(said, dict) else None
     if not isinstance(nexts, dict):
         return {}
@@ -238,7 +238,7 @@ def refresh(
         return found
     pool.expire(store, when)
     run = pool.start_run(store, RUN_SOURCE, when)
-    starts = _starts(store)
+    starts = _starts(store, code)
     nexts: dict[str, int] = {}
     shut = set(store.closed(limit=500))
 
@@ -250,6 +250,8 @@ def refresh(
 
     try:
         for wiki in wikis:
+            if score_module.code(wiki.language) != code:
+                continue
             asked = asked_on(wiki, code)
             start = starts.get(wiki.host, 0)
             done = 0
@@ -289,6 +291,7 @@ def refresh(
                 "next": nexts,
                 "queries": found.queries,
                 "searches": found.searches,
+                "language": code,
                 **({"stopped": found.stopped} if found.stopped else {}),
             },
         )

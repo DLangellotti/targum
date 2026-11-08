@@ -234,7 +234,8 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
 
 /* The words check (design.md §12, "The arrival asks which words you know", 2026-11-01):
    the approved mock's pills, on the card colour with a hairline at rest and filled in
-   the primary when tapped, in the modern Hebrew face, wrapping right to left. */
+   the primary when tapped, in the modern Hebrew face, wrapping right to left; French and
+   Russian in the reading face, left to right. */
 .arrival-words {
   display: flex;
   flex-wrap: wrap;
@@ -257,6 +258,9 @@ body[data-step="learning"] .arrival { max-inline-size: 960px; }
   cursor: pointer;
   transition: border-color 160ms var(--ease), background-color 160ms var(--ease), color 160ms var(--ease);
 }
+/* French and Russian words (2026-11-05, targum-internal#631) are in the reading face
+   those languages read in, left to right. */
+.arrival-words:not(:lang(he)) .arrival-word { font-family: var(--reading); }
 .arrival-word:hover { border-color: var(--well); }
 .arrival-word[aria-pressed="true"] { border-color: var(--teal); background: var(--teal); color: var(--teal-ink); }
 .arrival-word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

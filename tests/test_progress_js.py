@@ -857,8 +857,9 @@ def test_a_plus_rung_keeps_its_plus_after_the_geresh() -> None:
 
 
 def test_the_european_scale_leads_with_itself() -> None:
-    """French, Russian and Italian lead with the CEFR level, no second scale, words to the
-    next CEFR rung."""
+    """French, Russian and Italian lead with the CEFR level, said once with "about" (design.md
+    §12, "Progress leads with what you can read", 2026-11-08), no second scale, and the
+    dictionary words to the next CEFR rung."""
     level = {
         "scale": "cefr",
         "letter": "B1",
@@ -873,7 +874,7 @@ def test_the_european_scale_leads_with_itself() -> None:
     )["where"]
     assert drawn["mark"] == {
         "spoken": "",
-        "big": "B1",
+        "big": "About B1",
         "lang": "",
         "dir": "",
         "hidden": "",
@@ -882,7 +883,7 @@ def test_the_european_scale_leads_with_itself() -> None:
     }
     # The scale it is on, under the card (2026-11-03).
     assert drawn["basis"].startswith("The European scale runs from A1, for beginners, to C2.")
-    assert drawn["toward"]["line"] == "237 words to B2"
+    assert drawn["toward"]["line"] == "237 more dictionary words to B2"
     assert drawn["toward"]["letter"] is None
 
 

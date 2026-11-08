@@ -1946,6 +1946,33 @@ def test_a_measured_suggestion_says_the_share_as_a_percentage(world) -> None:
     assert top["known_line"] == f"You know about {share}% of the words here (our estimate)."
 
 
+def test_a_copy_on_the_shelf_is_chosen_on_its_own_figure(
+    world, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Home's card reads a built copy as Your Progress and the Library read it, by the
+    copy's own words (targum-internal#664): the index says the reader knows all of
+    Esther, the copy on the shared shelf says half, and the card goes by the copy, so a
+    text Progress counts as one thing is never chosen on Home as another."""
+    from targum import catalogue as catalogue_module
+    from targum import choose
+    from targum.coverage import build_index, write_index
+
+    library, store, person, home = world
+    lemmas = tmp_path / "lemmas.json"
+    write_index(lemmas, build_index({"esther": ["שלום"]}, {"esther": {"שלום": 5}}))
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+    ctx = context(library, store, person, home)
+    shelf = {row["id"]: row for row in tools.search_library(ctx, {"register": "biblical"})["texts"]}
+    copy = float(shelf["esther"].get("estimated", shelf["esther"]["known_share"]))
+    assert copy < choose.TOO_EASY, "the copy is not known through and through"
+
+    got = tools.suggest_next(ctx, {"limit": 10})
+    esther = next(row for row in got["suggestions"] if row["id"] == "esther")
+    assert esther["running_share"] == 1.0, "the index alone would call it too easy"
+    assert esther["fit"] == choose.fit(copy)
+    assert esther["reason"]["share"] == level.known_percent(copy)
+
+
 def test_a_bigger_ledger_is_offered_a_text_it_knows_more_of(world) -> None:
     """targum-internal#244, acceptance criterion 1: over three nested ledgers the top
     suggestion's `known_share` is monotone non-decreasing in the size of the ledger.

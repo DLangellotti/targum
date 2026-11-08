@@ -568,3 +568,168 @@ def test_the_foot_level_is_the_measured_rung_and_the_way_to_the_next(
 
     status, said, _ = call(port, "GET", f"/account/story?language=yi&k={token}", cookie=cookie)
     assert said["level"] is None
+
+
+# -- What you can read in our library (design.md §12, 2026-11-08) ------------------------
+
+
+def test_coverage_counts_texts_ready_a_stretch_and_not_yet() -> None:
+    """98% and up is ready, 95 to 98% a stretch, under 95% not yet; a text with no measure
+    is on no row, and a text named twice is counted once."""
+    shares = {"a": 1.0, "b": 0.98, "c": 0.979, "d": 0.95, "e": 0.949, "f": 0.2, "g": None}
+    got = touchstones.coverage(["a", "b", "c", "d", "e", "f", "g", "a"], shares.get)
+    assert got == {"ready": 2, "stretch": 2, "notYet": 2}
+
+
+def test_the_story_counts_what_you_can_read_in_french_and_not_in_hebrew(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """French, Russian and Italian send the three counts over every text in the language
+    the Library measures, by the Library's own share known; Hebrew sends none, and keeps
+    its ladder."""
+    from targum import catalogue as catalogue_module
+    from targum.coverage import write_index
+
+    port, token, _ = served
+    known = [f"m{chr(ord('a') + n)}{chr(ord('a') + m)}" for n in range(5) for m in range(4)]
+    entries = [
+        Entry("f1", "fr", "story", 6, "Tout", sentence=6),
+        Entry("f2", "fr", "story", 8, "Presque", sentence=8),
+        Entry("f3", "fr", "story", 12, "Moitié", sentence=10),
+        Entry("f0", "fr", "story", 0, "Pas mesuré"),
+        Entry("h1", "he", "dialogue", 6, "שיחה", sentence=6),
+    ]
+    lemmas = tmp_path / "lemmas.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                "f1": {word: 1 for word in known},  # 100%
+                "f2": {**{word: 1 for word in known[:19]}, "zzq": 1},  # 95%
+                "f3": {**{word: 1 for word in known[:10]}, **{f"zq{n}": 1 for n in range(10)}},
+                "h1": {word: 1 for word in known},
+            }
+        ),
+    )
+    monkeypatch.setattr(catalogue_module, "everything", lambda: entries)
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+    cookie = sign_in(port, postbox)
+    words = [
+        {"language": lang, "lemma": word, "status": KNOWN, "at": 1, "seen": 1}
+        for lang in ("fr", "he")
+        for word in known
+    ] + [
+        # Every other word marked as still being learned, so each share is the marked one
+        # and no estimate stands in for it.
+        {"language": "fr", "lemma": word, "status": 1, "at": 1, "seen": 1}
+        for word in ("zzq", *(f"zq{n}" for n in range(10)))
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+
+    status, said, _ = call(port, "GET", f"/account/story?language=fr&k={token}", cookie=cookie)
+    assert status == 200, said
+    assert said["coverage"] == {"ready": 1, "stretch": 1, "notYet": 1, "among": 5000}
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    assert "coverage" not in said and said["ladder"]
+
+
+def french(entry_id: str, title: str) -> Any:
+    """A real catalogue row in French (`catalogue.Entry`), with a source a built copy can
+    name, as the shelf links a copy to its row (`Handler._shape`)."""
+    from targum import catalogue as catalogue_module
+
+    return catalogue_module.Entry(
+        id=entry_id,
+        title=title,
+        author="",
+        language="fr",
+        source=f"test:{entry_id}",
+        blurb="",
+        words=1000,
+        kind=catalogue_module.Kind.story,
+        difficulty=8,
+        sentence=8,
+    )
+
+
+def test_a_text_the_card_calls_ready_is_never_missing_from_what_next(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ "What you can read in our library" and What next read a text by one figure
+    (targum-internal#664): a copy on the shared shelf, measured on its own words, counts
+    the text ready on the card, so the text is on What next too, with the same figure,
+    though the catalogue's index measures it under the floor. Before, the card said one
+    text was ready and What next said nothing was at the reader's level."""
+    from targum import catalogue as catalogue_module
+    from targum.coverage import write_index
+
+    port, token, out = served
+    conte = french("fr-conte", "Le conte")
+    chevre = french("fr-chevre", "La chèvre")
+    folle = french("fr-folle", "La folle")
+    known = [f"m{chr(ord('a') + n)}{chr(ord('a') + m)}" for n in range(5) for m in range(4)]
+    unknown = [f"zq{n}" for n in range(20)]
+    lemmas = tmp_path / "lemmas.json"
+    write_index(
+        lemmas,
+        index_of(
+            {
+                # The index read a fuller edition of the tale: half its words known.
+                conte.id: {**{w: 1 for w in known}, **{w: 1 for w in unknown}},
+                chevre.id: {**{w: 1 for w in known[:19]}, unknown[0]: 1},  # 95%
+                folle.id: {**{w: 1 for w in known[:6]}, **{w: 1 for w in unknown}},  # 23%
+            }
+        ),
+    )
+    shelf_rows = [conte, chevre, folle]
+    monkeypatch.setattr(catalogue_module, "everything", lambda: shelf_rows)
+    monkeypatch.setattr(catalogue_module, "CATALOGUE", shelf_rows)
+    monkeypatch.setattr(catalogue_module, "lemmas_path", lambda: lemmas)
+    # The copy on the shared shelf is the edition the reader opens: every word known.
+    folder = built(out / "shared" / "conte", {1: [[word(lemma) for lemma in known]]})
+    facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    facts.update(language="fr", source=conte.source, content_hash="conte")
+    (folder / "document.json").write_text(json.dumps(facts), encoding="utf-8")
+
+    cookie = sign_in(port, postbox)
+    words = [
+        {"language": "fr", "lemma": lemma, "status": KNOWN, "at": 1, "seen": 1} for lemma in known
+    ] + [
+        # Every other word marked as still being learned, so no estimate stands in.
+        {"language": "fr", "lemma": lemma, "status": 1, "at": 1, "seen": 1}
+        for lemma in unknown
+    ]
+    status, _, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200
+
+    status, said, _ = call(port, "GET", f"/account/story?language=fr&k={token}", cookie=cookie)
+    assert status == 200, said
+    assert said["coverage"] == {"ready": 1, "stretch": 1, "notYet": 1, "among": 5000}
+    listed = {row["id"]: row["known"] for row in said["texts"]}
+    # Both texts in the band fit in the list's three; the tale, ready on the card, is on
+    # it at the card's figure. La folle, under the floor, is not.
+    assert len(said["texts"]) <= touchstones.TEXTS
+    assert listed == {chevre.id: 95, conte.id: 100}
+
+
+def test_what_next_lists_a_row_by_any_language_it_is_written_in() -> None:
+    """Daniel is on the Aramaic shelf as well as the Hebrew one (`Entry.languages`), so
+    an Aramaic reader's What next has it, as the card counts it (targum-internal#664)."""
+    from targum import catalogue as catalogue_module
+
+    daniel = catalogue_module.Entry(
+        id="daniel",
+        title="דניאל",
+        author="",
+        language="he",
+        source="sefaria:Daniel",
+        blurb="",
+        words=1000,
+        difficulty=10,
+    )
+    assert daniel.languages == ["he", "arc"]
+    index = index_of({"daniel": {"מלכא": 19, "ספר": 1}})
+    listed = touchstones.at_level([daniel], index, {"מלכא": KNOWN}, "arc")
+    assert [row["id"] for row in listed] == ["daniel"] and listed[0]["known"] == 95

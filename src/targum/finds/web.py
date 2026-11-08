@@ -26,9 +26,10 @@ One round, on a timer on the box (`targum finds web`, `targum-finds-web.timer`):
 usage — the searches it ran at `SEARCH_PRICE`, the tokens at the model's price — and
 written on the run as it is spent (`pool.spend`). A search starts only where the night
 has room for the dearest call yet seen (`WORST_CALL_USD` at least), so a night stops
-before `NIGHT_USD`, never after it; the night's allowance is also paced against the month
-(`allowance`): what `TARGUM_FINDS_BUDGET_USD` has left, less `LEAVE_USD` for the other
-sources, over the days left in the month.
+before its language's cap (`NIGHT_USD_BY`: Hebrew's $1, Russian's own $0.50, neither
+drawing on the other's; David, 2026-11-06), never after it; the night's allowance is also
+paced against the month (`allowance`): what `TARGUM_FINDS_BUDGET_USD` has left, less
+`LEAVE_USD` for the other sources, over the days left in the month, Hebrew's first.
 
 **Off unless the box says so** (`TARGUM_FINDS_WEB`): the timer runs every night and does
 nothing until then.
@@ -76,8 +77,11 @@ MODEL = "claude-haiku-4-5"
 TOOL = "web_search_20250305"
 MAX_TOKENS = 256
 
-#: The night's hard cap in dollars (David, 2026-11-03: "$1 a night").
+#: Hebrew's night's hard cap in dollars (David, 2026-11-03: "$1 a night").
 NIGHT_USD = 1.0
+#: Each language's own cap a night, none drawing on another's (David, 2026-11-06:
+#: Russian gets its own $0.50 on top of Hebrew's $1, and Hebrew keeps all it has).
+NIGHT_USD_BY = {"he": NIGHT_USD, "ru": 0.5}
 #: What a night leaves of the month's discovery budget for the other sources.
 LEAVE_USD = 10.0
 #: The least a call is assumed to cost when the gate asks whether the next one fits: one
@@ -99,7 +103,7 @@ DEADLINE_S = 45 * 60.0
 LATELY_MS = 20 * 60 * 60 * 1000
 
 #: The languages a night runs for: those the scorer has a map for and the chips a phrase.
-LANGUAGES = ("he",)
+LANGUAGES = ("he", "ru")
 
 SYSTEM = (
     "You run web searches for targum, a reading app for language learners, and say "
@@ -129,17 +133,9 @@ def rotated(asked: Sequence[Any], start: int) -> list[Any]:
     return [*asked[at:], *asked[:at]]
 
 
-def _start(store: Store) -> int:
-    """Where tonight's queries start: where the last night stopped."""
-    row = store.db.execute(
-        "SELECT note FROM find_run WHERE source = ? AND finished > 0 ORDER BY id DESC LIMIT 1",
-        (RUN_SOURCE,),
-    ).fetchone()
-    try:
-        said = json.loads(row[0] or "{}") if row else {}
-    except ValueError:
-        said = {}
-    return int(said.get("next") or 0) if isinstance(said, dict) else 0
+def _start(store: Store, language: str = "he") -> int:
+    """Where tonight's queries start: where the last night in the language stopped."""
+    return pool.last_next(store, RUN_SOURCE, language)
 
 
 def bought_lately(store: Store, asked: str, at: int) -> bool:
@@ -163,13 +159,37 @@ def bought_lately(store: Store, asked: str, at: int) -> bool:
 # -- the money -----------------------------------------------------------------------
 
 
-def spent_today(store: Store, at: int) -> float:
-    """What the nights have cost since midnight UTC, a run by hand included."""
-    row = store.db.execute(
-        "SELECT COALESCE(SUM(spent), 0) FROM find_run WHERE source = ? AND started >= ?",
-        (RUN_SOURCE, (at // pool.DAY_MS) * pool.DAY_MS),
-    ).fetchone()
-    return float(row[0] or 0.0)
+def _language_of(note: str | None) -> str:
+    """The language a night's note names; a note that names none is Hebrew's."""
+    try:
+        said = json.loads(note or "{}")
+    except ValueError:
+        said = {}
+    return str(said.get("language") or "he") if isinstance(said, dict) else "he"
+
+
+def spent_since(store: Store, since: int, language: str | None = None) -> float:
+    """What the nights have cost since `since`, a run by hand included: every
+    language's, or one language's where it is named."""
+    total = 0.0
+    for spent, note in store.db.execute(
+        "SELECT spent, note FROM find_run WHERE source = ? AND started >= ?",
+        (RUN_SOURCE, since),
+    ):
+        if language is None or _language_of(note) == language:
+            total += float(spent or 0.0)
+    return total
+
+
+def spent_today(store: Store, at: int, language: str | None = None) -> float:
+    """What the nights have cost since midnight UTC, a run by hand included: every
+    language's, or one language's where it is named."""
+    return spent_since(store, (at // pool.DAY_MS) * pool.DAY_MS, language)
+
+
+def night_usd(language: str) -> float:
+    """A language's own cap a night; nothing for a language without one."""
+    return NIGHT_USD_BY.get(language, 0.0)
 
 
 def days_left(at: int) -> int:
@@ -178,12 +198,33 @@ def days_left(at: int) -> int:
     return calendar.monthrange(day.year, day.month)[1] - day.day + 1
 
 
-def allowance(store: Store, at: int) -> float:
-    """What a night starting now may spend, in dollars: what `NIGHT_USD` has left today
-    after any earlier run, or less where the month's budget, less `LEAVE_USD` for the
-    other sources and shared over the days left, says so."""
-    paced = max(0.0, pool.left(store, at) - LEAVE_USD) / days_left(at)
-    return max(0.0, min(NIGHT_USD - spent_today(store, at), paced))
+def allowance(store: Store, at: int, language: str = "he") -> float:
+    """What a night in a language starting now may spend, in dollars: what its own cap
+    (`NIGHT_USD_BY`) has left today after any earlier run in it, or less where its share
+    of the month says so.
+
+    Each language is paced against its own share, in `LANGUAGES`' order (David,
+    2026-11-06: Hebrew keeps all it had, and Russian's $0.50 is on top). A language's
+    room is what the month's budget has left, less `LEAVE_USD` for the other sources,
+    with what the languages after it spent this month given back and the most the
+    languages before it may still spend this month (their caps over the days left,
+    never more than their own room) held for them; its pace is that room over the days
+    left. So Hebrew is paced exactly as it was before Russian ran, whatever Russian
+    spent, and Russian spends only what Hebrew can never reach, so no month passes the
+    budget."""
+    order = list(LANGUAGES) if language in LANGUAGES else [*LANGUAGES, language]
+    month = pool.month_from(at)
+    days = days_left(at)
+    left = pool.left(store, at)
+    held = 0.0
+    for at_index, code in enumerate(order):
+        given_back = sum(spent_since(store, month, later) for later in order[at_index + 1 :])
+        room = max(0.0, left + given_back - LEAVE_USD - held)
+        today = spent_today(store, at, code)
+        if code == language:
+            return max(0.0, min(night_usd(code) - today, room / days))
+        held += max(0.0, min(night_usd(code) * days - today, room))
+    return 0.0
 
 
 # -- the search ----------------------------------------------------------------------
@@ -333,6 +374,9 @@ class Night(news.Round):
     searches: int = 0
     queries: list[str] = field(default_factory=list)
     allowance: float = 0.0
+    #: What the night has read from each host so far, this round's and what it was
+    #: handed (`refresh(hosts=...)`), so the next language's round counts on from it.
+    hosts: Counter[str] = field(default_factory=Counter)
 
     def __str__(self) -> str:
         return (
@@ -385,7 +429,7 @@ def refresh(
     from ..weekly.feeds import link_key
 
     when = pool.now_ms() if at is None else at
-    found = Night()
+    found = Night(hosts=Counter(dict(hosts or {})))
     code = score_module.code(language)
     forms = forms_for(code) if code in score_module.POOLED else None
     asked = queries(code)
@@ -395,7 +439,7 @@ def refresh(
     pool.expire(store, when)
     listed = outlets(sources_module.load() if publishers is None else publishers)
     asker = ask or (lambda one: search(live.client(), one))
-    start = _start(store)
+    start = _start(store, code)
     base = rotated(asked, start)
     # The topics readers ask for and the pool lacks go first (`steer`); the night's dollar
     # is the same, so the lean moves which topics it buys, never how much.
@@ -404,11 +448,13 @@ def refresh(
     order = steer.leaning(base, lean)
     steered = [pair for pair in order if lean.get(pair[0], 0.0) > 0][: steer.STEER_MOST]
     after = [at for at, pair in enumerate(base) if pair not in steered]
-    run = pool.start_run(store, RUN_SOURCE, when)
-    found.allowance = allowance(store, when)
+    found.allowance = allowance(store, when, code)
+    # The language is on the run from its start, so a night killed partway still counts
+    # its spend against its own language's cap.
+    run = pool.start_run(store, RUN_SOURCE, when, note={"language": code})
     begun = clock()
     shut = set(store.closed(limit=500))
-    per_host: Counter[str] = Counter(dict(hosts or {}))
+    per_host = found.hosts
     tonight = 0.0
     worst = WORST_CALL_USD
     done = 0
@@ -498,6 +544,7 @@ def refresh(
             "queries": found.queries,
             "searches": found.searches,
             "allowance": round(found.allowance, 4),
+            "language": code,
         }
         if steered:
             note["steered"] = [chip for chip, _ in steered]
