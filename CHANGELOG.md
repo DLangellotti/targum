@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The waitlist can count sign-ups from our own siddur links. A visit to the front page with
+  `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
+  somebody joined from, and the back office's "Joined from" line shows it. No schema
+  change, no spend, no new strings.
 - The Playlists tab keeps to the language in the header, as Recent and Uploads do
   (targum-internal#658). It shows the playlists in the language being learned, and
   targum's own sets the same way; a playlist with nothing in it yet is shown in every
@@ -1241,6 +1245,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   expanded `$finds_language` under `set -u` after the keys and covers had gone and before
   the backup and the install. It is written `\$finds_language` now, and
   `test_deploy_heredoc` refuses any name the remote script sets that the laptop would expand.
+- A text kept on its own is no longer lost to the page opened before it
+  (targum-internal#663). Each page locks its own edits to the offline index, but the next
+  text opened, or another tab, writes the same index, and `trim` wrote the index back
+  every time even when it let nothing go, so an index read before another page's save
+  landed could take that save away again. `trim` writes nothing now when it lets nothing
+  go. `test_the_last_five_texts_opened_are_kept_on_their_own` waits until each save is
+  in the cache's index, not just in the page's memory, before it opens the next text,
+  and waits for the five texts it expects rather than for any five.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline

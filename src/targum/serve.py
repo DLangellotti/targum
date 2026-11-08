@@ -947,13 +947,14 @@ def joined_from(said: str) -> str:
     is `/weekly`, a portion `/parasha`, a cycle's day its cycle. Anything not targum's
     is kept as unknown rather than stored as typed, so the column cannot become a place
     to write whatever a request says, and nothing about where somebody was before
-    targum is kept at all.
+    targum is kept at all. `/siddur` is the one family that is not a page: the front page
+    says it for a link of our own marked `?from=siddur-…`.
     """
     path = urlparse(said.strip()).path or ""
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
         return "/"
-    if first in {"aliyah", "connect", "weekly", "parasha"}:
+    if first in {"aliyah", "connect", "weekly", "parasha", "siddur"}:
         return f"/{first}"
     if first and first in {cycle.slug for cycle in daily_cycles()}:
         return f"/{first}"
