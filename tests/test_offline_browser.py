@@ -430,9 +430,21 @@ NONE_ON_ITS_OWN = (
 )
 
 
+#: The index as the cache holds it, not as the page holds it in memory: `saved()` turns
+#: true as the page starts writing the index, before the cache has it, so a test that
+#: navigated on it could leave before the write landed and the next page read the index
+#: without it (targum-internal#663).
+SAVED_IN_CACHE = """async (ids) => {
+  const answer = await (await caches.open('targum-offline')).match('/offline/index');
+  const items = answer ? ((await answer.json()).items || {}) : {};
+  return ids.every((id) => !!items[id]);
+}"""
+
+
 def kept(page, id_: str):
-    # Off the index as this page last wrote it: the saving is this page's own.
+    # Saved by this page, and written where the next page will read it.
     page.wait_for_function("(id) => !!window.TargumOffline.saved(id)", arg=id_, timeout=15000)
+    page.wait_for_function(SAVED_IN_CACHE, arg=[id_], timeout=15000)
 
 
 def test_the_last_five_texts_opened_are_kept_on_their_own(browser, served: Served) -> None:  # noqa: F811
@@ -446,16 +458,22 @@ def test_the_last_five_texts_opened_are_kept_on_their_own(browser, served: Serve
         # The sixth's save and the first's eviction are two writes; on a slow runner the
         # list was read between them (master went red on it, 2026-10-09). Wait for the
         # room to have been made, then say so if it never was.
+        expected = [f"/reader/text-{n}/reader/" for n in range(1, 6)]
         try:
             page.wait_for_function(
-                "async () => (await window.TargumOffline.list()).length === 5", timeout=15000
+                """async (ids) => {
+                     const have = (await window.TargumOffline.list()).map((i) => i.id).sort();
+                     return have.length === ids.length && have.every((id, i) => id === ids[i]);
+                   }""",
+                arg=sorted(expected),
+                timeout=15000,
             )
         except Exception:  # noqa: BLE001 - the assertion below says what is wrong
             pass
         saved = page.evaluate(LIST)
-        assert sorted(item["id"] for item in saved) == [
-            f"/reader/text-{n}/reader/" for n in range(1, 6)
-        ], "the first one opened made room for the sixth"
+        assert sorted(item["id"] for item in saved) == sorted(expected), (
+            "the first one opened made room for the sixth"
+        )
         assert {item["how"] for item in saved} == {"auto"}
         keys = page.evaluate(KEYS)
         assert not any("/text-0/" in url for url in keys), "and its files went with it"

@@ -1234,6 +1234,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   expanded `$finds_language` under `set -u` after the keys and covers had gone and before
   the backup and the install. It is written `\$finds_language` now, and
   `test_deploy_heredoc` refuses any name the remote script sets that the laptop would expand.
+- A text kept on its own is no longer lost to the page opened before it
+  (targum-internal#663). Each page locks its own edits to the offline index, but the next
+  text opened, or another tab, writes the same index, and `trim` wrote the index back
+  every time even when it let nothing go, so an index read before another page's save
+  landed could take that save away again. `trim` writes nothing now when it lets nothing
+  go. `test_the_last_five_texts_opened_are_kept_on_their_own` waits until each save is
+  in the cache's index, not just in the page's memory, before it opens the next text,
+  and waits for the five texts it expects rather than for any five.
 
 ### Added
 - An article imported from now on keeps its pictures, their captions and its dateline
