@@ -50,10 +50,10 @@ def said(markup: str) -> str:
     return " ".join(unescape(re.sub(r"<[^>]+>", " ", markup)).split())
 
 
-def test_there_are_four_of_them() -> None:
+def test_there_are_five_of_them() -> None:
     """A privacy statement, terms, a retention rule and a deletion path, which is the
     list the roadmap asks for by name."""
-    assert set(LEGAL) == {"privacy", "terms", "retention", "deletion"}
+    assert set(LEGAL) == {"privacy", "terms", "retention", "deletion", "siddur"}
 
 
 @pytest.mark.parametrize("which", sorted(LEGAL))
