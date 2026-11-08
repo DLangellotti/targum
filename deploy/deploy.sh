@@ -123,6 +123,19 @@ if [ -f "$BINYANS" ]; then
 else
   echo "   no binyans.json at $BINYANS — fewer verbs will get a conjugation table" >&2
 fi
+# The topics lexicon (targum-internal#607), private and packed the same way. Optional: a
+# wheel without it draws no topic anywhere, and Progress hides the section. A tagging run
+# writes its output beside it under another name (topics-<run>.json); topics/1 is
+# written to this path only once every row has a decision (targum-internal#606), so a
+# run's unreviewed tags never ship. With no file here, a copy an earlier deploy left in
+# the tree is removed, so it cannot ship in its place.
+TOPICS="${TARGUM_TOPICS:-$HOME/.targum/topics.json}"
+if [ -f "$TOPICS" ]; then
+  cp "$TOPICS" src/targum/topics.json
+else
+  rm -f src/targum/topics.json
+  echo "   no topics.json at $TOPICS — no topic is drawn on the box" >&2
+fi
 uv build --wheel >/dev/null
 WHEEL="$(ls -t dist/*.whl | head -1)"
 echo "   $(basename "$WHEEL")"
@@ -836,6 +849,14 @@ for attempt in $(seq 1 30); do
       --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
       /usr/local/bin/targum preflight \
       --store /var/lib/targum/targum.db --out /var/lib/targum/targums" || true
+    # The topics lexicon against the box's own yardsticks (targum-internal#607). A miss
+    # is a warning with the lemmas it lists, not a failed deploy: the code is live and
+    # serving, and the cure is a tagging run on the laptop, not a rollback.
+    if ! ssh "${SSH_OPTS[@]}" "$HOST" "systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+      --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+      /usr/local/bin/targum topics check"; then
+      echo "   targum topics check: the lexicon misses lemmas the readers are measured on (above)" >&2
+    fi
     echo
     echo "Deployed."
     exit 0

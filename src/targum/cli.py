@@ -5505,6 +5505,103 @@ def topics_share(
         )
 
 
+@topics_app.command("check")
+def topics_check(
+    lexicon: Annotated[
+        Path | None,
+        typer.Option(
+            "--lexicon",
+            help="A topics file. Default: TARGUM_TOPICS, ~/.targum/topics.json, or the wheel's.",
+        ),
+    ] = None,
+    registers: Annotated[
+        str,
+        typer.Option("--registers", help="The yardsticks to check, comma-separated."),
+    ] = "news,conversation,literature",
+    top: Annotated[
+        int, typer.Option("--top", help="How many of each yardstick's commonest lemmas.")
+    ] = 5_000,
+    least: Annotated[
+        float, typer.Option("--least", help="The share of them the lexicon must hold.")
+    ] = 0.95,
+    show: Annotated[
+        int, typer.Option("--show", help="How many missing lemmas to list per yardstick.")
+    ] = 40,
+) -> None:
+    """Check the topics lexicon still meets the lemmas readers are measured on
+    (targum-internal#607): at least 95% of each modern yardstick's 5,000 commonest
+    content lemmas must be its keys. A deploy runs it on the box, where a miss is a
+    warning that lists the lemmas, not a stop.
+
+    An annotator rename that respells lemmas orphans the keys silently; this is where
+    that shows. Reads files and the tables' counts; runs no model. Exits 1 on a miss, a
+    lexicon that cannot be read, or one of another version. No lexicon at all is not a
+    miss: the topic section is hidden and nothing is drawn.
+    """
+    import json as json_module
+
+    from . import topics
+    from .tables import Store
+    from .tables import yardstick as yardstick_module
+
+    file = lexicon or topics.where()
+    if file is None:
+        console.print("No topics file here, so no topic is drawn. Nothing to check.")
+        return
+    try:
+        raw = json_module.loads(file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        console.print(f"[red]The topics file cannot be read:[/red] {file} ({error})")
+        raise typer.Exit(1) from None
+    held = topics.load(file)
+    version = raw.get("version") if isinstance(raw, dict) else None
+    # topics/1 itself, or a run's topics/1+prompt/3-... of the same shape.
+    same = isinstance(version, str) and version.split("+")[0] == topics.VERSION
+    if not held or not same:
+        console.print(
+            f"[red]{file} is not a {topics.VERSION} lexicon[/red]"
+            f" (version {version!r}, {len(held or {})} lemmas)."
+        )
+        raise typer.Exit(1)
+    console.print(f"{version}, {len(held):,} lemmas [dim]{file}[/dim]")
+    store = Store.from_env()
+    left_out = topics.screen_names(store) if store is not None else None
+    if left_out is None:
+        console.print("[dim]No tables (TARGUM_LEDGER is off): nothing is screened.[/dim]")
+    checked = 0
+    short = False
+    for register in [one.strip() for one in registers.split(",") if one.strip()]:
+        stick = yardstick_module.load(register)
+        if stick is None:
+            console.print(f"  {register}: no yardstick yet")
+            continue
+        got = topics.coverage(
+            held, register, stick.version, stick.weights, top=top, left_out=left_out
+        )
+        checked += 1
+        missed = got.share < least
+        short = short or missed
+        mark = "[yellow]short[/yellow]" if missed else "[green]ok[/green]"
+        console.print(
+            f"  {register} v{got.version}: {got.share:.1%} of the top {got.asked:,}"
+            f" ({len(got.missing):,} missing) {mark}"
+        )
+        if missed:
+            for lemma in got.missing[:show]:
+                console.print(f"    {lemma}")
+            if len(got.missing) > show:
+                console.print(f"    [dim]and {len(got.missing) - show:,} more (--show)[/dim]")
+    if not checked:
+        console.print("No yardstick to check against yet. Nothing to check.")
+        return
+    if short:
+        console.print(
+            f"[yellow]Under {least:.0%}:[/yellow] the missing lemmas want a tagging run"
+            " (scripts/tag_topics.py), or the annotator respelled them."
+        )
+        raise typer.Exit(1)
+
+
 @finds_app.command("forms")
 def finds_forms(
     library: Annotated[

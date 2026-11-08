@@ -152,6 +152,14 @@ def no_root_lexicons(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pyte
 
 
 @pytest.fixture(autouse=True)
+def no_topics_lexicon(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch):
+    """The private topics lexicon is absent unless a test names one (targum-internal#607).
+    A named path is the path, found or not, so neither `~/.targum/topics.json` nor a copy
+    a deploy left in `src/targum/` draws a topic CI's public checkout never sees."""
+    monkeypatch.setenv("TARGUM_TOPICS", str(tmp_path_factory.mktemp("topics") / "topics.json"))
+
+
+@pytest.fixture(autouse=True)
 def shelves_shut(monkeypatch: pytest.MonkeyPatch) -> None:
     """The public catalogue is off unless a test says otherwise.
 

@@ -22,6 +22,11 @@ src/targum/activity.json
 # lasts is ~/.targum/binyans.json; deploy/deploy.sh puts it here before `uv build`.
 src/targum/annotate/binyans.json
 
+# The topics lexicon (targum-internal#607): model tags and ling-he's decisions on the
+# Hebrew lemmas, private like the readings above and shipped the same way. The copy
+# that lasts is ~/.targum/topics.json; deploy/deploy.sh puts it here before `uv build`.
+src/targum/topics.json
+
 # Runtime output and secrets
 targum-out/
 .env
