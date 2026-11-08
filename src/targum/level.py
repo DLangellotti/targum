@@ -15,11 +15,13 @@ A `Level` carries the rung so the chat can grade the Hebrew it writes; what the 
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from collections.abc import Iterable, Set
 from dataclasses import dataclass
 from datetime import date, timedelta
+from functools import lru_cache
 from math import ceil
 from typing import TYPE_CHECKING, Any
 
@@ -88,6 +90,10 @@ ULPAN: tuple[Rung, ...] = (
 #: in wordfreq sits at Zipf 4.17 in French, 4.30 in Russian and 4.23 in Italian, and the
 #: "moderate" band ends at 4.1 — so a known word in the three commonest bands is, near
 #: enough, a known word among them (`COMMON_BANDS`). Measured 2026-09-13.
+#:
+#: A text's level is a frequency rank, not a count, so `text_rung` puts it through
+#: `count_at` before holding it against these (targum-internal#659). The thresholds are
+#: not changed by that.
 CEFR: tuple[Rung, ...] = (
     Rung(250, "A1", "A1"),
     Rung(1350, "A2", "A2"),
@@ -775,7 +781,11 @@ TEXT_COVERAGE = 0.90
 
 
 def text_rung(
-    ranks: Iterable[int | None], ladder: Ladder, coverage: float = TEXT_COVERAGE
+    ranks: Iterable[int | None],
+    ladder: Ladder,
+    coverage: float = TEXT_COVERAGE,
+    *,
+    language: str = "",
 ) -> Rung | None:
     """The rung a text needs, which is the text's and never the reader's (design.md §12,
     2026-09-24).
@@ -785,15 +795,58 @@ def text_rung(
     covers `coverage` of its running words: the rank at that point in the sorted list. The
     rung is the lowest one whose vocabulary reaches it, and a text that needs more than
     the top rung has the top rung. None for a text with no words to count.
+
+    The ulpan's rungs are vocabulary sizes, so a rank is held against them as it is. The
+    CEFR's are counts of known common-band lemmas (`common`), which is not a rank: the
+    rank goes through `count_at` for `language` first (targum-internal#659), and a
+    language with no table there gets no rung rather than a made-up one. A text past a
+    language's countable ceiling reads as the top rung the count can reach, so a Russian
+    one reads C1: Russian's C1 and C2 sit above everything its count can hold.
     """
     ordered = sorted(RANKED_PAST if one is None else one for one in ranks)
     if not ordered or not ladder.rungs:
         return None
     needed = ordered[max(0, ceil(coverage * len(ordered)) - 1)]
+    if ladder.measure == "common":
+        counted = count_at(needed, language)
+        if counted is None:
+            return None
+        needed = counted
     for rung in ladder.rungs:
         if rung.at >= needed:
             return rung
     return ladder.rungs[-1]
+
+
+@lru_cache(maxsize=1)
+def _rank_counts() -> dict[str, Any]:
+    """`rank_counts.json`: C(R), sampled, per language. Built offline by
+    `scripts/build_rank_counts.py`; a conversion, not evidence (see its `about`)."""
+    from importlib.resources import files
+
+    loaded: dict[str, Any] = json.loads(
+        files(__package__).joinpath("rank_counts.json").read_text(encoding="utf-8")
+    )
+    return loaded
+
+
+def count_at(rank: int, language: str) -> int | None:
+    """C(rank): how many lemmas `common` can count that sit at or below `rank` in the
+    language's frequency list, read off `rank_counts.json` and interpolated between its
+    points. Past its last point it is the language's ceiling. None for a language the
+    table does not cover."""
+    table = _rank_counts()
+    points: list[int] | None = table["counts"].get((language or "").split("-")[0].lower())
+    if not points:
+        return None
+    step: int = table["step"]
+    if rank <= 0:
+        return points[0]
+    below, over = divmod(rank, step)
+    if below >= len(points) - 1:
+        return points[-1]
+    low, high = points[below], points[below + 1]
+    return low + (high - low) * over // step
 
 
 #: What a word the frequency list never reached counts as: past every rung.

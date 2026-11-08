@@ -189,6 +189,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   from, and goes on to the rest (2026-11-04). On the box the first such text, a section of
   Chovot HaLevavot whose "Vocalized Edition" is gone, stopped the whole run before
   anything was marked; it is now listed as left alone, with Sefaria's reason.
+- A French, Russian or Italian text's level holds a count against a count
+  (targum-internal#659). It was the frequency rank covering 90% of the text's running
+  words held against the CEFR's thresholds, which count known common-band lemmas, so a
+  text in the middle of the list read one or two levels too high. `level.text_rung` now
+  puts the rank through `level.count_at`, a table built offline from Morphalou (fr),
+  OpenRussian (ru) and Morph-it! (it) and shipped as `rank_counts.json`, counts only; the
+  thresholds are unchanged, and the shelf and Read next both go through it. A Russian text
+  past everything Russian's count can hold reads C1, the top rung the count reaches, until
+  the ladder is reworked. Hebrew is unchanged. No new strings.
 - Two timing tests no longer fail on one stalled call of a shared CI runner
   (targum-internal#649). Read next's finds scoring is held to its 30 ms p95 as the
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
