@@ -371,6 +371,86 @@ def test_a_text_with_no_words_has_no_rung() -> None:
     assert text_rung([], ULPAN_LADDER) is None
 
 
+# -- a rank is not a count: the CEFR's conversion (targum-internal#659) ---------------
+#
+# The ranks are the ones builder-3 measured on the laptop's built texts (#659); the rung
+# each now reads is the like-for-like one, against the unchanged thresholds.
+
+
+@pytest.mark.parametrize(
+    ("language", "rank", "was", "now"),
+    [
+        ("fr", 1_648, "B1", "A2"),  # gsb-asp-0276
+        ("fr", 3_376, "C2", "C1"),  # gsb-sbc-0315
+        ("fr", 3_898, "C2", "C2"),  # perrault-petit-chaperon-rouge
+        ("fr", 5_898, "C2", "C2"),  # daudet-les-etoiles, past the ceiling
+        ("it", 2_395, "B2", "B1"),  # eu-easy-read
+        ("it", 3_568, "C2", "B2"),  # 55347-un-libro-per-puchku
+        ("it", 4_611, "C2", "C1"),  # ec-solidarity-norcia
+        ("ru", 4_690, "C2", "B1"),  # gsb-lida-0022
+    ],
+)
+def test_a_cefr_text_is_placed_by_count_not_by_rank(
+    language: str, rank: int, was: str, now: str
+) -> None:
+    from targum.level import CEFR, CEFR_LADDER, text_rung
+
+    held_as_rank = next((rung for rung in CEFR if rung.at >= rank), CEFR[-1])
+    assert held_as_rank.name == was, "what it read before #659"
+    assert text_rung([rank] * 20, CEFR_LADDER, language=language).name == now  # type: ignore[union-attr]
+
+
+def test_a_russian_text_past_the_ceiling_reads_c1() -> None:
+    """Russian's C1 and C2 sit above everything its count can hold, so a text that needs
+    more reads as the top rung the count reaches, not as a rung nobody could reach."""
+    from targum.level import CEFR_LADDER, count_at, text_rung
+
+    ceiling = count_at(10**9, "ru")
+    assert ceiling is not None and ceiling < 2_750
+    for ranks in ([9_475] * 20, [None] * 20):
+        assert text_rung(ranks, CEFR_LADDER, language="ru").name == "C1"  # type: ignore[union-attr]
+    assert text_rung([None] * 20, CEFR_LADDER, language="fr").name == "C2"  # type: ignore[union-attr]
+
+
+def test_the_count_rises_with_the_rank_and_stops_at_a_ceiling() -> None:
+    from targum.level import count_at
+
+    for language in ("fr", "ru", "it"):
+        counts = [count_at(rank, language) for rank in range(0, 21_000, 37)]
+        assert counts[0] == 0
+        assert all(a <= b for a, b in zip(counts, counts[1:], strict=False))  # type: ignore[operator]
+        assert counts[-1] == count_at(10**9, language)
+    assert count_at(1_648, "fr") == 1_308, "the table builder-3's figure came from"
+    assert count_at(1_000, "he") is None and count_at(1_000, "yi") is None
+
+
+def test_a_cefr_text_with_no_table_has_no_rung() -> None:
+    """No level is better than a made-up one: a rank held against a count is one."""
+    from targum.level import CEFR_LADDER, text_rung
+
+    assert text_rung([500] * 20, CEFR_LADDER) is None
+    assert text_rung([500] * 20, CEFR_LADDER, language="yi") is None
+
+
+def test_hebrew_is_held_against_ranks_as_before() -> None:
+    """The ulpan's rungs are vocabulary sizes: the language changes nothing there."""
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    for ranks in ([100] * 90 + [8_000] * 10, [100] * 89 + [8_000] * 11, [11_000] * 50):
+        assert text_rung(ranks, ULPAN_LADDER, language="he") == text_rung(ranks, ULPAN_LADDER)
+    assert text_rung([1_000] * 20, ULPAN_LADDER, language="he") == ULPAN[2]
+    assert text_rung([4_000] * 20, ULPAN_LADDER, language="he") == ULPAN[4]
+
+
+def test_the_table_says_it_is_a_conversion() -> None:
+    from targum.level import _rank_counts
+
+    table = _rank_counts()
+    assert table["about"].startswith("A conversion, not evidence.")
+    assert table["wordfreq"] and table["built"]
+    assert set(table["lexicons"]) == set(table["counts"]) == {"fr", "ru", "it"}
+
+
 # -- ktiv haser against known ktiv male (targum-internal#349) ------------------------
 
 

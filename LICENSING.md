@@ -594,6 +594,25 @@ licence are named in the table itself anyway. The card said to count from Dicoll
 than from Lexique, which is CC BY-SA, and this does. Lefff (LGPL-LR) was kept in reserve
 as a lookup for nouns this lexicon lacks, and was not needed.
 
+### The CEFR's rank-to-count table — counts from three lexicons, no words (2026-11-08)
+
+A French, Russian or Italian text is placed on the CEFR by the frequency rank that covers
+90% of its running words, and the CEFR's thresholds are counts of known lemmas
+(targum-internal#659). `src/targum/rank_counts.json` converts one into the other: at every
+fiftieth rank of wordfreq's list, how many of a lexicon's lemmas sit at or below it with
+a dictionary form in the common bands. It holds integers only, about 160 a language, and
+no word of any lexicon or of wordfreq. That is a statistic about each lexicon, not a copy
+of part of it, the same reading as `french_endings.json` above, and each source and its
+licence are named in the table anyway:
+
+- **French:** Morphalou 3.1, LGPL-LR, from the model directory as above.
+- **Russian:** OpenRussian's tables at `annotate/openrussian.COMMIT`, CC BY-SA 4.0. David's
+  rule of 2026-09-14 (never shipped as a list of their own) holds: no entry is in it.
+- **Italian:** **[Morph-it! 0.48](https://docs.sslmit.unibo.it/doku.php?id=resources:morph-it)**
+  (Zanchetta and Baroni, SSLMIT Bologna), dual-licensed CC BY-SA 2.0 and LGPL. It was
+  downloaded by hand for the count (`scripts/build_rank_counts.py --morph-it`), read as a
+  lookup and deleted. Nothing of it is in this repository, the wheel or the box.
+
 ### The false friends — targum's own list, drafted by a model and not yet read by a person (2026-09-28)
 
 A French word's card, read into English, says what it looks like and does not mean:

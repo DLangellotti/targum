@@ -3384,7 +3384,7 @@ class Library:
                 if token.lemma not in seen:
                     seen[token.lemma] = rank(token.lemma, language)
                 running.append(seen[token.lemma])
-        rung = level_module.text_rung(running, ladder)
+        rung = level_module.text_rung(running, ladder, language=language)
         if rung is None:
             return None
         return {"rung": rung.letter, "name": rung.name, "cefr": rung.cefr}
