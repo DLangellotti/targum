@@ -511,6 +511,7 @@ def test_the_lexicon_is_private_packed_into_the_wheel_and_checked_on_the_box() -
     assert check > deploy.index('echo "== verify =="'), "against the box's own yardsticks"
     assert topics.SHIPPED == root / "src" / "targum" / "topics.json"
 
+
 # -- Russian (targum-internal#638) ---------------------------------------------------------
 
 
