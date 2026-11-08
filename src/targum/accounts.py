@@ -2470,6 +2470,29 @@ class Store:
             found.add(int(row["id"]))
         return frozenset(found)
 
+    def pooled_readers(self, operators: Iterable[str] = ()) -> frozenset[int]:
+        """The accounts whose record of use the difficulty pool may read tonight
+        (targum-internal#586, clause 3.7): everybody who keeps the record, less the
+        operator's own addresses (`operators`, compared bare), the admins, the test
+        accounts and anybody who has asked to leave. A reader who has turned the record
+        off is not read, whatever rows they left behind."""
+        from .backoffice import bare
+
+        kept = {bare(one) for one in operators}
+        admins = {str(row[0]).strip().lower() for row in self.db.execute("SELECT email FROM admin")}
+        tests = {
+            str(row[0]).strip().lower() for row in self.db.execute("SELECT email FROM test_account")
+        }
+        found = set()
+        for row in self.db.execute(
+            "SELECT id, email FROM person WHERE COALESCE(events, '') != 'off' AND leaving IS NULL"
+        ):
+            email = str(row["email"]).strip().lower()
+            if email in admins or email in tests or bare(email) in kept:
+                continue
+            found.add(int(row["id"]))
+        return frozenset(found)
+
     def add_events(self, person: Person, events: Iterable[dict[str, Any]]) -> int:
         """Append what happened; answer how many rows were kept.
 

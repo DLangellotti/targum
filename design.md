@@ -2233,6 +2233,30 @@ changes where a person recorded the word.
   recordings (44 files) wait for the bar to be widened, because this card's bar is CC0
   and BY-SA.
 
+### How hard a word is, counted across readers — 2026-10-30
+
+David, 2026-10-30. Lookups, marks-known and skips are pooled per word and level with
+no reader in the row, and a number is used only once ten readers stand behind it.
+Nothing on a page says a word is hard "because readers found it so", and no count of
+readers is ever shown. Where pooled difficulty and frequency disagree, the band a
+reader sees may move by one step, and it never moves on fewer than ten readers.
+
+- **Ten, not twenty** (David, 2026-10-30): the floor is ten distinct readers per word
+  and level, the privacy notice's "at least ten Data Subjects" (`tables.difficulty.FLOOR`).
+- **A skip** is a word in a section the reader marked finished that they neither looked
+  up nor marked known.
+- **The level is the one we gave the reader at the time**, replayed from when each of
+  their known words became known; the rung they named on arrival stands in while
+  nothing is measured, as it does on the card.
+- **Made afresh each night, and only that night is kept**: last night's pool is deleted,
+  not superseded, so a reader who erases their record, turns it off or leaves is out of
+  it by morning. Every count hangs off the record of use, marks known included.
+- **Public, redistributable texts only**, never a reader's home or a private import, and
+  never the operator's own accounts.
+- **Not before the notice.** The nightly job reads the privacy notice the service serves
+  and refuses, deleting any pool, unless clause 3.7 carries its sentence (targum-internal
+  #586). Nothing reads the table yet; the band step waits for a card of its own.
+
 ### What next leads with your biggest grammar gap — 2026-10-30
 
 David, 2026-10-30 (targum-internal#604, board 4B). It amends "3 · What next" in "Your
@@ -2748,9 +2772,12 @@ stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
   (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
   is no longer refreshed by being opened online: it stays as it was saved until it is
   saved again. That is the price of a copy that opens on a plane with nothing else.
-- **Not covered:** the Torah portions' and daily cycles' readers, which strangers open
-  under their own addresses, keep their files inline, like the shared shelf's public
-  pages did before #549.
+- **Not covered at first:** the Torah portions' and daily cycles' readers, which strangers
+  open under their own addresses, kept their files inline, like the shared shelf's public
+  pages did before #549. Since 2026-11-08 (targum-internal#661) they are named the same
+  way: `/assets/` is open to anybody, and a browser that has not kept the files gets the
+  page whole, as any page does. Their recordings were already files beside the pages
+  (`reader/audio/`), so nothing of theirs goes to `/clips/`, which is behind the account.
 - **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
   scene readers served by a local `targum serve`, master against the change. With the
   files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the
