@@ -234,7 +234,7 @@ class _Ladder:
     """One reader's rung in one language at any moment, from when each known word became
     known: the ladder `level.snapshot` climbs, replayed."""
 
-    def __init__(self, language: str, words: Iterable[tuple[str, int]], declared: str) -> None:
+    def __init__(self, language: str, words: Iterable[tuple[str, str, int]], declared: str) -> None:
         from .. import level
 
         self.ladder = level.ladder_for(language)
@@ -245,12 +245,12 @@ class _Ladder:
             return
         weighted = self.ladder.measure == "weighted"
         total = 0.0
-        for band, at in sorted(words, key=lambda one: one[1]):
+        for lemma, band, at in sorted(words, key=lambda one: one[2]):
             if band in level.NOT_VOCABULARY:
                 continue
             if weighted:
                 total += level.BAND_WEIGHT.get(band, level.UNRATED_WEIGHT)
-            elif band in level.COMMON_BANDS:
+            elif level.is_common(lemma, band, language):
                 total += 1
             else:
                 continue
@@ -311,7 +311,7 @@ def pool(
     accounts.row_factory = sqlite3.Row
 
     # Each reader's words, for their ladder and for what they have marked known.
-    timeline: dict[tuple[int, str], list[tuple[str, int]]] = {}
+    timeline: dict[tuple[int, str], list[tuple[str, str, int]]] = {}
     known_now: dict[int, dict[str, set[str]]] = {}
     marks: list[tuple[int, str, str, int]] = []
     for row in accounts.execute(
@@ -321,7 +321,9 @@ def pool(
     ):
         person, language = int(row["person"]), _code(str(row["language"]))
         moment = int(row["known_at"] if row["known_at"] is not None else row["at"] or 0)
-        timeline.setdefault((person, language), []).append((str(row["band"] or ""), moment))
+        timeline.setdefault((person, language), []).append(
+            (str(row["lemma"]), str(row["band"] or ""), moment)
+        )
         known_now.setdefault(person, {}).setdefault(language, set()).add(str(row["lemma"]))
         if str(row["source"] or "") != "claimed":
             marks.append((person, language, str(row["lemma"]), moment))
