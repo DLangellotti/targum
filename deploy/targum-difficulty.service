@@ -1,0 +1,54 @@
+# /etc/systemd/system/targum-difficulty.service — installed by deploy.sh, started by
+# targum-difficulty.timer at 03:15 UTC (targum-internal#586, David approved 2026-10-30).
+#
+# How hard each word is found at each level, pooled across readers: per dictionary form
+# and rung, the lookups, the marks known and the words passed over in a finished section,
+# from the record of use (`event`, `word`) of every reader but the operator's, over the
+# public texts whose licence lets them leave. No reader, document or text in any row; a
+# number is used only once ten readers stand behind it; and the pool is made afresh each
+# night with last night's deleted, so a reader who erases their record is out by morning.
+# Written into the corpus ledger (TARGUM_LEDGER, from targum.env) as `difficulty`.
+#
+# **It will not run before the privacy notice says so.** First it reads /privacy from the
+# running service on this box, and unless that page carries clause 3.7's sentence for
+# the pool word for word (`tables.difficulty.CLAUSE`) it deletes any pool there is and
+# fails, writing nothing. So it waits for the clause to be live — the legal pages open
+# (TARGUM_PUBLIC_LEGAL) and the service restarted on the wheel that carries it, not only
+# installed — and it stops, and takes the pool with it, if the sentence is ever removed.
+#
+# It reads files and the account database (read-only) and runs no annotator: `tables
+# pool` refuses to import a model package (`tables.no_models`). Nothing is spent.
+#
+#   systemctl start targum-difficulty      # one now, by hand
+#   journalctl -u targum-difficulty -n 20
+
+[Unit]
+Description=targum difficulty pool, across readers
+After=targum.service targum-tables.service
+
+[Service]
+Type=oneshot
+# As targum, never as root.
+User=targum
+Group=targum
+Environment=HOME=/srv/targum
+EnvironmentFile=/etc/targum/targum.env
+ExecStart=/usr/local/bin/targum tables pool --library /var/lib/targum/targums --store /var/lib/targum/targum.db --notice http://127.0.0.1:8420/privacy
+Nice=19
+CPUSchedulingPolicy=idle
+IOSchedulingClass=idle
+MemoryHigh=600M
+MemoryMax=1G
+MemorySwapMax=0
+OOMPolicy=kill
+TimeoutStartSec=1h
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/targum
+# It talks to the service on this box, to read the notice, and to nothing else.
+IPAddressDeny=any
+IPAddressAllow=localhost
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
