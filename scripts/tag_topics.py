@@ -31,6 +31,17 @@ rows go to `blind-tags.csv` in the run directory, which ling-he does not open.
 
     op run --env-file op.env -- .venv/bin/python scripts/tag_topics.py \\
         --run pilot-2026-10-30 --lemmas 500 --cap 2 --dry-run
+
+**Russian** (targum-internal#638): `--language ru` draws from Russian's own registers
+(`ru:news`, `ru:unfiled`) with its stress from OpenRussian, asks with Russian's own prompt
+(`topics.system_prompt("ru")`), and writes `~/.targum/topics-ru-<run>.json`, which shows
+no topic until ling-ru's gold set passes it. `--tables FILE` reads another tables file
+than the ledger (the Russian tables swept before #637 keep unprefixed registers, so pass
+`--registers news,unfiled` with them). `--sample N` keeps N of the drawn lemmas spread
+evenly over the frequency order, so a pilot stands for the whole run, and `--blind` with
+`--dry-run` writes the gold rows before anything is spent, so they are drawn blind.
+`--include GOLD.csv` adds every gold lemma the universe holds to the sample, so a second
+pilot scores the whole gold set.
 """
 
 from __future__ import annotations
@@ -44,6 +55,7 @@ import random
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -70,12 +82,22 @@ POLL_SECONDS = 30
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--run", required=True, help="A name for the run's directory.")
+    parser.add_argument("--language", default="he", choices=topics.LANGUAGES)
+    parser.add_argument("--tables", type=Path, help="A tables file other than the ledger.")
+    parser.add_argument(
+        "--sample", type=int, default=0, help="Keep this many drawn lemmas, spread evenly."
+    )
+    parser.add_argument(
+        "--include",
+        type=Path,
+        help="A gold CSV (a `lemma` column): its lemmas join the sample, so all are scored.",
+    )
     parser.add_argument("--lemmas", type=int, default=500, help="Modern lemmas to tag.")
     parser.add_argument("--bible", type=int, default=0, help="Bible lemmas to add.")
     parser.add_argument(
         "--registers",
-        default=",".join(topics.MODERN),
-        help="The registers the modern lemmas are drawn from, all public by construction.",
+        help="The registers the modern lemmas are drawn from, all public by construction."
+        " Default: the language's own (`topics.REGISTERS`).",
     )
     parser.add_argument("--models", default=",".join(topics.MODELS))
     parser.add_argument("--per-request", type=int, default=PER_REQUEST)
@@ -105,8 +127,21 @@ def main() -> int:
     run = topics.RESEARCH / args.run
     run.mkdir(parents=True, exist_ok=True)
 
-    registers = [r.strip() for r in args.registers.split(",") if r.strip()]
-    lemmas = _lemmas(run, args.lemmas, args.bible, registers, args.from_run, args.glosses)
+    language = topics.language_code(args.language)
+    chosen = args.registers or ",".join(topics.REGISTERS[language])
+    registers = [r.strip() for r in chosen.split(",") if r.strip()]
+    lemmas = _lemmas(
+        run,
+        args.lemmas,
+        args.bible,
+        registers,
+        args.from_run,
+        args.glosses,
+        language=language,
+        tables=args.tables,
+        sample=args.sample,
+        include=_included(args.include),
+    )
     if not lemmas:
         print("No lemmas: the language tables are empty. Run `targum tables sweep`.")
         return 1
@@ -116,11 +151,17 @@ def main() -> int:
     ]
     state = _load(run)
     client = _client()
-    system = topics.system_prompt()
+    system = topics.system_prompt(language)
     system_tokens = _count(client, models[0], system) if client else len(system) // 3
 
     _quote(models, lemmas, chunks, system_tokens, args.thinking, state)
     if args.dry_run:
+        if args.blind:
+            if args.blind_out is None:
+                print("--blind needs --blind-out.", file=sys.stderr)
+                return 2
+            # Before anything is sent: the gold rows cannot be chosen by what a model said.
+            _blind(run, {}, lemmas, args.blind, args.blind_out, language)
         print("Dry run: nothing sent.")
         return 0
     if client is None:
@@ -132,7 +173,17 @@ def main() -> int:
         for model in models:
             pending = [i for i, chunk in enumerate(chunks) if not _done(state, model, chunk)]
             if pending and not _submit(
-                client, run, state, model, lemmas, chunks, pending, system, system_tokens, args.cap
+                client,
+                run,
+                state,
+                model,
+                lemmas,
+                chunks,
+                pending,
+                system,
+                system_tokens,
+                args.cap,
+                language,
             ):
                 return 3
         for model in models:
@@ -142,14 +193,14 @@ def main() -> int:
         print(f"Some rows failed; re-sending ({attempt + 1} of {args.retries}).")
 
     _measure_thinking(client, run, state, models)
-    summary = _summarise(run, state, models, lemmas, chunks, system_tokens, args.requote)
+    summary = _summarise(run, state, models, lemmas, chunks, system_tokens, args.requote, language)
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     if args.blind:
         if args.blind_out is None:
             print("--blind needs --blind-out.", file=sys.stderr)
             return 2
         tags = {model: _tags(state, model, chunks) for model in models}
-        _blind(run, tags, lemmas, args.blind, args.blind_out)
+        _blind(run, tags, lemmas, args.blind, args.blind_out, language)
     return 0
 
 
@@ -163,6 +214,11 @@ def _lemmas(
     registers: list[str],
     from_run: str | None = None,
     glosses: Path | None = None,
+    *,
+    language: str = "he",
+    tables: Path | None = None,
+    sample: int = 0,
+    include: frozenset[str] = frozenset(),
 ) -> list[topics.Lemma]:
     """The run's lemma list: read back where it was written, so a resumed run asks about
     exactly the rows it paid for; otherwise another run's, or drawn from the tables, and
@@ -170,10 +226,13 @@ def _lemmas(
     file = run / "lemmas.json"
     if file.is_file():
         held = json.loads(file.read_text(encoding="utf-8"))
+        if held.get("language", "he") != language:
+            print(f"{run.name} is a {held.get('language', 'he')} run, not {language}.")
+            return []
         return [topics.Lemma(**row) for row in held["lemmas"]]
     from targum.tables import Store
 
-    store = Store.from_env()
+    store = Store(tables) if tables else Store.from_env()
     if store is None:
         print("TARGUM_LEDGER is not set: the lemma list comes only from the tables.")
         return []
@@ -183,41 +242,106 @@ def _lemmas(
         )
         drawn = [topics.Lemma(**row) for row in source["lemmas"]]
         registers, missing = source.get("registers", registers), source.get("no_gloss", [])
+    elif language != "he":
+        # Russian's draw is the root lexicon's: the same universe and screen, with each
+        # lemma's stress from OpenRussian where it has one.
+        from targum import root_lexicon
+
+        drawn, dropped, missing = root_lexicon.universe(
+            store,
+            language,
+            modern=modern,
+            registers=registers,
+            gloss=_gloss(glosses, language),
+        )
     else:
         drawn, missing = topics.universe(
             store, modern=modern, bible=bible, registers=registers, gloss=_gloss(glosses)
         )
-    lemmas, dropped = topics.screen(store, drawn)
+    if language == "he" or from_run:
+        lemmas, dropped = topics.screen(store, drawn)
+    else:
+        lemmas = drawn
+    universe = len(lemmas)
+    if sample and sample < len(lemmas):
+        lemmas = with_included(lemmas, spread(lemmas, sample), include)
+    absent = sorted(include - {one.lemma for one in lemmas})
     body = {
+        "language": language,
+        "tables": str(tables) if tables else None,
         "registers": registers,
-        "prompt": topics.PROMPT_VERSION,
+        "prompt": topics.PROMPT_VERSIONS[language],
         "from_run": from_run,
+        "universe": universe,
+        "sample": sample or None,
+        "included": len(include) or None,
+        "included_absent": absent,
         "lemmas": [asdict(one) for one in lemmas],
         "dropped": dropped,
         "no_gloss": missing,
     }
     write_atomic(file, json.dumps(body, ensure_ascii=False, indent=1))
     reasons = Counter(one["why"] for one in dropped)
+    if include:
+        print(
+            f"{len(include) - len(absent)} of {len(include)} included lemmas drawn;"
+            f" absent: {absent}"
+        )
     print(
-        f"{len(lemmas)} lemmas to tag; {len(dropped)} screened out ({dict(reasons)});"
-        f" {len(missing)} left out for want of a gloss."
+        f"{len(lemmas)} lemmas to tag of {universe}; {len(dropped)} screened out"
+        f" ({dict(reasons)}); {len(missing)} left out for want of a gloss."
     )
     return lemmas
 
 
-def _gloss(glosses: Path | None) -> Any:
+def spread(lemmas: list[topics.Lemma], size: int) -> list[topics.Lemma]:
+    """`size` of `lemmas`, evenly spaced over their frequency order and kept in it, so a
+    pilot meets the rare words a full run will as well as the common ones."""
+    if size <= 0 or size >= len(lemmas):
+        return list(lemmas)
+    step = len(lemmas) / size
+    return [lemmas[int(i * step)] for i in range(size)]
+
+
+def with_included(
+    universe: list[topics.Lemma], sample: list[topics.Lemma], include: frozenset[str]
+) -> list[topics.Lemma]:
+    """The sample with every lemma of `include` the universe holds added, in the universe's
+    frequency order, so a pilot scores every gold row and not only those the spread met."""
+    if not include:
+        return sample
+    kept = {id(one) for one in sample}
+    return [one for one in universe if id(one) in kept or one.lemma in include]
+
+
+def _included(file: Path | None) -> frozenset[str]:
+    """The lemmas of a gold CSV, or none."""
+    if file is None:
+        return frozenset()
+    with file.open(encoding="utf-8") as handle:
+        return frozenset(row["lemma"].strip() for row in csv.DictReader(handle) if row["lemma"])
+
+
+def _gloss(glosses: Path | None, language: str = "he") -> Any:
     """The gloss cache, and behind it the glosses another run over the same tables sent:
     the roots run read the box's gloss cache too. Only ever asked about a lemma the tables
     gave, so nothing a reader imported enters through it."""
+    cache: Callable[[str], tuple[str, str] | None]
+    if language == "he":
+        cache = topics.cached_gloss
+    else:
+        from targum import root_lexicon
+
+        cache = root_lexicon.cached_gloss(language)
     if glosses is None:
-        return topics.cached_gloss
+        return cache
     held: dict[str, tuple[str, str]] = {}
     for row in json.loads(glosses.read_text(encoding="utf-8"))["lemmas"]:
         if row.get("gloss"):
             held.setdefault(row["glossed_as"], (row["gloss"], row.get("pointed", "")))
 
     def read(filed: str) -> tuple[str, str] | None:
-        return topics.cached_gloss(filed) or held.get(filed)
+        return cache(filed) or held.get(filed)
 
     return read
 
@@ -291,7 +415,9 @@ def _count(client: Any, model: str, text: str) -> int:
     return max(0, ask(text) - ask("x"))
 
 
-def _params(model: str, system: str, lemmas: list[topics.Lemma], chunk: list[int]) -> Any:
+def _params(
+    model: str, system: str, lemmas: list[topics.Lemma], chunk: list[int], language: str = "he"
+) -> Any:
     from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 
     return MessageCreateParamsNonStreaming(
@@ -301,7 +427,7 @@ def _params(model: str, system: str, lemmas: list[topics.Lemma], chunk: list[int
         messages=[
             {
                 "role": "user",
-                "content": topics.user_message([lemmas[i] for i in chunk], chunk[0]),
+                "content": topics.user_message([lemmas[i] for i in chunk], chunk[0], language),
             }
         ],
         output_config={
@@ -322,6 +448,7 @@ def _submit(
     system: str,
     system_tokens: int,
     cap: float,
+    language: str = "he",
 ) -> bool:
     """One batch for one model, unless one is open already: checked against the cap with
     what is spent and what every open batch could still cost, then created, and its id
@@ -334,7 +461,8 @@ def _submit(
     if open_batch is None:
         requests = [
             Request(
-                custom_id=_custom_id(model, i), params=_params(model, system, lemmas, chunks[i])
+                custom_id=_custom_id(model, i),
+                params=_params(model, system, lemmas, chunks[i], language),
             )
             for i in pending
         ]
@@ -342,7 +470,7 @@ def _submit(
         for i in pending:
             # The counted system prompt, and the rows at a token a character, which
             # no Hebrew line reaches: a ceiling, not an estimate.
-            rows = topics.user_message([lemmas[j] for j in chunks[i]], chunks[i][0])
+            rows = topics.user_message([lemmas[j] for j in chunks[i]], chunks[i][0], language)
             input_tokens = system_tokens + len(rows)
             worst += topics.worst_case(model, input_tokens, MAX_TOKENS, batch=True)
         spent = _spent(state)
@@ -490,6 +618,7 @@ def _summarise(
     chunks: list[list[int]],
     system_tokens: int,
     requote: int,
+    language: str = "he",
 ) -> dict[str, Any]:
     per_model: dict[str, Any] = {}
     thinking_mean: dict[str, float] = {}
@@ -554,15 +683,18 @@ def _summarise(
         )
     write_atomic(run / "review.tsv", review.getvalue())
 
-    lexicon_file = topics.LEXICON.with_name(f"topics-{run.name}.json")
+    lexicon_file = topics.run_lexicon(language, run.name)
     write_atomic(
         lexicon_file,
         json.dumps(
             {
-                "version": f"{topics.VERSION}+{topics.PROMPT_VERSION}-{run.name}",
+                "version": f"{topics.VERSION}+{topics.PROMPT_VERSIONS[language]}-{run.name}",
+                # The run by name, so a score is matched to its lexicon exactly.
+                "run": run.name,
+                "language": language,
                 "topics": list(topics.TOPICS),
-                "shown": list(topics.SHOWN),
-                "shown_rule": topics.SHOWN_RULE,
+                "shown": list(topics.SHOWN_FOR[language]),
+                "shown_rule": topics.shown_rule(language),
                 "lemmas": lexicon,
             },
             ensure_ascii=False,
@@ -598,7 +730,8 @@ def _summarise(
     summary = {
         "run": run.name,
         "version": topics.VERSION,
-        "prompt": topics.PROMPT_VERSION,
+        "language": language,
+        "prompt": topics.PROMPT_VERSIONS[language],
         "lemmas": len(lemmas),
         "requests_per_model": len(chunks),
         "system_prompt_tokens": system_tokens,
@@ -624,15 +757,20 @@ def _blind(
     lemmas: list[topics.Lemma],
     size: int,
     out: Path,
+    language: str = "he",
 ) -> None:
     """`size` rows, stratified over four frequency bands of the run, in a fixed shuffled
-    order, with nothing a model said; the models' tags go to the run directory apart."""
+    order, with nothing a model said and none of the prompt's own examples; the models'
+    tags go to the run directory apart."""
     bands = 4
     edges = [round(len(lemmas) * b / bands) for b in range(bands + 1)]
     picker = random.Random(f"topics-blind-{run.name}")
+    # Russian's examples were written before its gold set was drawn; Hebrew's draw is
+    # left as its pilots made it.
+    taught = {one[0] for one in topics.examples(language)} if language != "he" else set()
     chosen: list[int] = []
     for b in range(bands):
-        pool = list(range(edges[b], edges[b + 1]))
+        pool = [i for i in range(edges[b], edges[b + 1]) if lemmas[i].lemma not in taught]
         want = size // bands + (1 if b < size % bands else 0)
         chosen += picker.sample(pool, min(want, len(pool)))
     picker.shuffle(chosen)
@@ -655,10 +793,12 @@ def _blind(
             [row, i, lemmas[i].lemma]
             + [",".join(tags[m][i].topics) if i in tags[m] else "" for m in models]
         )
-    write_atomic(run / "blind-tags.csv", hidden.getvalue())
+    if models:
+        write_atomic(run / "blind-tags.csv", hidden.getvalue())
     bands_count = Counter(min(bands - 1, i * bands // len(lemmas)) for i in chosen)
     print(f"Blind set: {len(chosen)} rows to {out}; bands {dict(sorted(bands_count.items()))}.")
-    print(f"Model tags for those rows, kept apart: {run / 'blind-tags.csv'}")
+    if models:
+        print(f"Model tags for those rows, kept apart: {run / 'blind-tags.csv'}")
 
 
 if __name__ == "__main__":
