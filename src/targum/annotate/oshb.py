@@ -465,10 +465,11 @@ def family_root(lexeme: str) -> str:
     """The Strong's number of the root a lexeme's derivations reach, or "" for none.
 
     Followed link by link from the entry the tagging names until an entry says "a
-    primitive root". A chain that ends anywhere else — a name, a loanword, an entry that
-    says neither — has no root, and neither has one that loops. Keyed by the number and
-    never by the letters, so two roots spelled alike (עָנָה answer, עָנָה afflict) are two
-    families, never one (targum-internal#591).
+    primitive root", or at one that heads its own family because Strong's reaches its
+    root only across a shift of meaning (`HEADS`). A chain that ends anywhere else — a
+    name, a loanword, an entry that says neither — has no root, and neither has one that
+    loops. Keyed by the number and never by the letters, so two roots spelled alike
+    (עָנָה answer, עָנָה afflict) are two families, never one (targum-internal#591).
     """
     links = _links()
     number = _number(lexeme)
@@ -478,7 +479,7 @@ def family_root(lexeme: str) -> str:
         held = links.get(number)
         if not held:
             return ""
-        if held[2] == PRIMITIVE:
+        if held[2] in (PRIMITIVE, HEADS):
             return number
         number = str(held[2] or "")
     return ""
@@ -561,7 +562,7 @@ def root_name(number: str) -> str:
     if _SPELT_ALIKE is None:
         alike: dict[str, int] = {}
         for other, held in _links().items():
-            if held[2] == PRIMITIVE and str(held[1]) == "heb":
+            if held[2] in (PRIMITIVE, HEADS) and str(held[1]) == "heb":
                 letters = bare(headword(other)).replace(" ", "")
                 alike[letters] = alike.get(letters, 0) + 1
         _SPELT_ALIKE = alike
@@ -625,6 +626,23 @@ _DERIVED = re.compile(
 )
 #: What `derivations.json` says of an entry that is a root of its own.
 PRIMITIVE = "*"
+#: A family shows only words that share one root heading (David, 2026-11-08). Where
+#: Strong's reaches its root only across a shift of meaning, "from 1696 in the sense of
+#: driving" (מִדְבָּר under דבר) or "from the root of 1129 through the meaning to build"
+#: (אֶבֶן under בנה), the link is etymology and not a family, and so is "from an unused
+#: root (compare …)", whose number is a comparison. Such a word heads its own family, as
+#: a primitive root does, and only what is plainly built from it joins it. Read in the
+#: first clause of the source, where Strong's says what the word is from.
+_ACROSS = re.compile(
+    r"\bin (?:the |its )?(?:original |primary |secondary |specific )?sense\b|"
+    r"\bthrough the (?:meaning|idea)\b|"
+    r"\broot (?:of|corresp)|"
+    r"\bunused root\b",
+    re.IGNORECASE,
+)
+#: What `derivations.json` says of an entry that heads its own family although Strong's
+#: derives it from another, across a shift of meaning (`_ACROSS`).
+HEADS = "="
 
 
 def parse_derivations(xml: str, counts: dict[str, int] | None = None) -> dict[str, list[object]]:
@@ -632,8 +650,9 @@ def parse_derivations(xml: str, counts: dict[str, int] | None = None) -> dict[st
     met, from the lexicon file: `{number: [pos, lang, from, count]}`.
 
     `from` is the number the entry's source names first where the source says it is
-    derived ("from H4427"), `PRIMITIVE` where it says "a primitive root", and "" where it
-    says neither: a name, a word "of foreign origin", a particle. `pos` is Strong's own
+    derived ("from H4427"), `PRIMITIVE` where it says "a primitive root", `HEADS` where
+    it is derived only across a shift of meaning (`_ACROSS`), and "" where it says
+    neither: a name, a word "of foreign origin", a particle. `pos` is Strong's own
     (`v`, `n-m`, `a`, `n-pr-loc`), and `count` is the tagging's, summed over the senses a
     number was split into (`4428 a`, `4428 b`). Public domain, under the compilation's
     CC BY 4.0, like the headwords beside it.
@@ -662,6 +681,8 @@ def parse_derivations(xml: str, counts: dict[str, int] | None = None) -> dict[st
             first = next((w for w in source.iter() if w.get("src")), None)
             named = (first.get("src", "") if first is not None else "").lstrip("H")
             link = named if named.isdigit() else ""
+            if link and _ACROSS.search(prose.split(";")[0]):
+                link = HEADS
         language = word.get("{http://www.w3.org/XML/1998/namespace}lang") or ""
         out[name] = [word.get("pos") or "", language, link, met.get(name, 0)]
     return out

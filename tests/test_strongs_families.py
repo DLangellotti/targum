@@ -38,6 +38,31 @@ ENTRIES = (
     ("9011", "n-m", "heb", "כֶּתֶב", 'from <w src="H9012">9012</w>;'),
     ("9012", "n-m", "heb", "כְּתָב", 'from <w src="H9011">9011</w>;'),
     ("9013", "prep", "heb", "שֶׁם", 'from <w src="H9001">9001</w>;'),
+    # Real entries, in Strong's own (public domain) words: the two David named on
+    # 2026-11-08. A family shows only words that share one root heading, so a "from"
+    # Strong's reaches across a shift of meaning is not followed.
+    ("1129", "v", "heb", "בָּנָה", "a primitive root;"),
+    ("1121", "n-m", "heb", "בֵּן", 'from <w src="H1129">1129</w>;'),
+    (
+        "68",
+        "n-f",
+        "heb",
+        "אֶבֶן",
+        'from the root of <w src="H1129">1129</w> through the meaning to <def>build</def>;',
+    ),
+    ("70", "n-m", "heb", "אֹבֶן", 'from the same as <w src="H68">68</w>;'),
+    ("1696", "v", "heb", "דָבַר", "a primitive root;"),
+    ("1697", "n-m", "heb", "דָּבָר", 'from <w src="H1696">1696</w>;'),
+    ("4057", "n-m", "heb", "מִדְבָּר", 'from <w src="H1696">1696</w> in the sense of driving;'),
+    (
+        "5708",
+        "n-f",
+        "heb",
+        "עֵד",
+        "from an unused root meaning to <def>set</def> a period (compare "
+        '<w src="H5710">5710</w>, <w src="H5749">5749</w>);',
+    ),
+    ("5710", "v", "heb", "עָדָה", "a primitive root;"),
 )
 
 
@@ -108,6 +133,25 @@ def test_names_aramaic_guesses_and_loops_have_no_family(lexicon: Path) -> None:
     assert oshb.family("9013") == () and "9013" not in oshb.family("9001"), (
         "a preposition Strong's derives from a verb is etymology, not family"
     )
+
+
+def test_a_family_keeps_to_one_root_heading(lexicon: Path) -> None:
+    """David, 2026-11-08: a noun's "from X" is not followed across to another root."""
+    assert oshb.parse_derivations(lexicon_xml())["68"][2] == oshb.HEADS
+    assert "68" not in oshb.family("1129"), "אֶבֶן is not under בנה"
+    assert oshb.family("1129") == ("1121",), "בֵּן, from it plainly, still is"
+    assert "4057" not in oshb.family("1696"), "מִדְבָּר is not under דבר"
+    assert oshb.family("1697") == ("1696",), "דָּבָר still is"
+    assert oshb.family("4057") == ()
+
+
+def test_a_word_whose_link_is_dropped_heads_its_own_family(lexicon: Path) -> None:
+    assert oshb.family_root("68") == "68" and oshb.family_root("70") == "68"
+    assert oshb.family("68") == ("70",) and oshb.family("70") == ("68",)
+    assert oshb.root_name("68") == "אבן"
+    assert oshb.family_root("4057") == "4057", "where nothing joins it, it stands alone"
+    assert oshb.family_root("5708") == "5708", "a number Strong's compares is not a root"
+    assert "5708" not in oshb.family("5710")
 
 
 def test_a_machine_without_the_families_draws_what_it_drew(lexicon: Path) -> None:
