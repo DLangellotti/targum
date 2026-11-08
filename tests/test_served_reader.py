@@ -353,3 +353,51 @@ def test_a_served_reader_asks_nothing_of_another_site(served: tuple[int, Path]) 
                 assert source.startswith("'") or source in ("data:", "blob:"), (
                     f"{page.name}: {directive} names {source!r}, a host"
                 )
+
+
+# -- a portion's and a day's reader, which strangers open (targum-internal#661) ---------
+
+
+def holds_both_forms(port: int, address: str, on_disk: bytes) -> None:
+    """What every served reader holds to, asked of one a stranger opens with no account:
+    a browser opening it is handed its files named and only its own origin, a save or a
+    script the page whole as it stands on disk, a first visit the page whole. Called from
+    `test_parasha_page.py` and `test_daily_audio.py`, where those corpora are built."""
+    status, head, body = _get(port, address, navigate=True)
+    assert status == 200, address
+    assert names_files(body) and len(body) < len(on_disk) / 3, "its files are named"
+    assert set(named_files(body)) <= set(asset_files())
+    assert head[LINKED_HEADER.lower()] == "1"
+    assert _same(carried(body.decode("utf-8")), on_disk.decode("utf-8")), "put back, the page"
+    assert CLIP_ROUTE.encode() not in body, "/clips/ is behind the account"
+    policy = _policy(head)
+    assert policy["script-src"][0] == "'self'" and policy["style-src"][0] == "'self'"
+    assert "'unsafe-inline'" not in head["content-security-policy"]
+    assert "frame-ancestors 'self'" in head["content-security-policy"], "framed as before"
+    bare = _code_out(body.decode("utf-8"))
+    for found in _FETCHED.findall(bare):
+        assert not re.match(r"(https?:)?//", found), found
+    for found in re.findall(r"url\(\s*[\"']?([^\"')]+)", bare):
+        assert not re.match(r"(https?:)?//", found), found
+    for directive, sources in policy.items():
+        if directive in _FETCH_DIRECTIVES:
+            for source in sources:
+                assert source.startswith("'") or source in ("data:", "blob:"), source
+    # Each address it names answers, to a stranger, with no cookie of an account.
+    for named in named_files(body):
+        connection = HTTPConnection("127.0.0.1", port, timeout=10)
+        connection.request("GET", named)
+        answer = connection.getresponse()
+        answer.read()
+        connection.close()
+        assert answer.status == 200, named
+
+    # A save for offline, or any script, asks without navigating: the page as on disk.
+    status, head, body = _get(port, address, navigate=False)
+    assert status == 200 and body == on_disk
+    assert LINKED_HEADER.lower() not in head
+
+    # A browser that has not kept the files is sent it whole, and fetches them after.
+    status, head, body = _get(port, address, navigate=True, kept=False)
+    assert status == 200 and b"data-kept" in body
+    assert head[LINKED_HEADER.lower()] == "1"

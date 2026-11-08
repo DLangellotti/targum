@@ -2486,10 +2486,12 @@ def seeds() -> list[str]:
     # spends nothing, so a member left unbuilt is a member nobody is ever shown. Whole
     # sets, unlike the tracks above, because a playlist is swiped end to end and is
     # capped at a playlist's worth.
-    from .accounts import MOST_IN_PLAYLIST
+    from .accounts import playlist_most
 
+    sources = {entry.id: entry.source for entry in catalogue_module.everything()}
     for group in catalogue_module.swipe_sets():
-        out.extend(group.members[:MOST_IN_PLAYLIST])
+        most = playlist_most(sources[member] for member in group.members if member in sources)
+        out.extend(group.members[:most])
 
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))
@@ -4997,6 +4999,70 @@ def tables_sweep(
     )
     for register, texts in sorted(pooled.by_register.items()):
         console.print(f"  {register}: {texts}")
+
+
+@tables_app.command("pool")
+def tables_pool(
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+    accounts: Annotated[
+        Path,
+        typer.Option("--store", help="The account database, read-only: whose record counts."),
+    ] = Path("targum.db"),
+    notice: Annotated[
+        str,
+        typer.Option(
+            "--notice",
+            help="Where the running service serves the privacy notice. The pool refuses"
+            " unless that page carries clause 3.7's sentence for it.",
+        ),
+    ] = "http://127.0.0.1:8420/privacy",
+) -> None:
+    """Pool how hard each word is found at each level, across readers
+    (targum-internal#586): lookups, marks known and words passed over, per dictionary
+    form and rung, from the record of use of every reader but the operator's, over public
+    texts whose licence lets them leave. No reader, document or text in any row, a number
+    used only past ten readers, and made afresh each night with last night's deleted.
+
+    Refuses, and deletes any pool there is, unless the privacy notice the service serves
+    carries the sentence clause 3.7 has for it (`tables.difficulty.CLAUSE`): the pool
+    cannot run before the clause is live, nor once it is gone.
+    """
+    from contextlib import closing
+    from time import monotonic
+
+    from .accounts import Store as AccountStore
+    from .backoffice import operators_from_env
+    from .tables import difficulty, no_models
+
+    store = _tables_store()
+    page = difficulty.fetch_notice(notice)
+    if page is None or not difficulty.notice_carries_clause(page):
+        gone = difficulty.clear(store)
+        fail(
+            TargumError(
+                "The privacy notice does not carry clause 3.7's sentence for this pool.",
+                f"Nothing was pooled{', and the last pool was deleted' if gone else ''}."
+                f" Read {notice}: it must be served and carry the sentence first.",
+            )
+        )
+    root = library or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+    if not accounts.is_file():
+        fail(TargumError(f"There is no account database at {accounts}.", "Pass --store FILE."))
+    readers = AccountStore(accounts).pooled_readers(operators_from_env())
+    started = monotonic()
+    with no_models(), closing(difficulty.read_only(accounts)) as db:
+        result = difficulty.pool(root, store, db, readers)
+    took = monotonic() - started
+    console.print(
+        f"[green]Pooled[/green] {result.cells} cells from {result.readers} readers over"
+        f" {result.documents} texts, {result.under_floor} under the floor,"
+        f" {result.withheld} events about texts not counted [dim]{took:.0f} s[/dim]"
+    )
 
 
 #: The box's corpus ledger, where `targum tables push` imports the laptop's rows.

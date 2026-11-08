@@ -229,10 +229,13 @@ if (payload.markRest) reader.markRest();
 if (payload.undoAfter) reader.undo();
 
 /* The press at the foot, and its Undo: [true] is the press that marks, [false] the one
- * that does not, and "undo" the Undo on the ink block. A playlist's way on is set first,
+ * that does not, "stay" the playlist's press that marks and stays, and "undo" the Undo
+ * on the ink block. A playlist's way on is set first,
  * as `list.js` sets it. */
 if (payload.footWay) reader.foot({ verb: payload.footWay, go: function () {} });
-(payload.presses || []).forEach((press) => (press === "undo" ? reader.unpress() : reader.press(press)));
+(payload.presses || []).forEach((press) =>
+  press === "undo" ? reader.unpress() : press === "stay" ? reader.stay() : reader.press(press),
+);
 
 /* The rendering on show, before and after a switch: what every cell says and claims to
  * be, which pairs wear the coarse mark, and what the switch's own buttons say. */

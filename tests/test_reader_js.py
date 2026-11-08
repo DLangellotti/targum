@@ -458,6 +458,7 @@ def test_the_marking_press_says_both_halves_and_does_both() -> None:
         "press": "Done",
         "pressHidden": False,
         "mark": "Done, and mark 2 words known",
+        "stay": "",
         "finished": False,
     }
     after = run(
@@ -581,6 +582,77 @@ def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
     # Finished, the press is still the way on in a playlist, and marks nothing.
     finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
     assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
+
+
+def test_in_a_playlist_a_third_press_marks_the_rest_and_stays() -> None:
+    """targum-internal#657; design.md §12, "Marking the rest can stay on the lesson"
+    (2026-11-07). Under Next and "Next, and mark", in a playlist: "Mark 2 words known".
+    It marks the words left and finishes the item by the same path, the reader stays, the
+    ink block says how many with its Undo, and Next is still the way on."""
+    words, lemmas = chapter(["a", "b"])
+    offered = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
+    assert offered["press"] == "Next"
+    assert offered["mark"] == "Next, and mark 2 words known"
+    assert offered["stay"] == "Mark 2 words known"
+
+    stayed = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=["stay"])
+    assert stayed["finished"]["sections"], "the item is finished"
+    assert {lemma: record["status"] for lemma, record in stayed["stores"]["he"].items()} == {
+        "a": 9,
+        "b": 9,
+    }, "and its words are known"
+    assert stayed["foot"]["press"] == "Next" and stayed["foot"]["pressHidden"] is False
+    assert stayed["foot"]["mark"] == "" and stayed["foot"]["stay"] == "", "nothing left to mark"
+    assert stayed["foot"]["finished"] is True
+    assert "2 words marked known" in stayed["finished"]["said"]
+
+    undone = run(
+        [], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=["stay", "undo"]
+    )
+    assert undone["finished"]["sections"] == {}, "Undo takes back the finish"
+    assert undone["stores"]["he"] == {}, "and the words with it"
+    assert undone["foot"]["stay"] == "Mark 2 words known", "and the press is offered again"
+    assert "marked known" not in undone["finished"]["said"]
+
+
+def test_the_three_presses_in_a_playlist_each_finish() -> None:
+    words, lemmas = chapter(["a", "b"])
+    for press, known in ((False, 0), (True, 2), ("stay", 2)):
+        done = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[press])
+        assert done["finished"]["sections"], press
+        assert len(done["stores"]["he"]) == known, press
+    # Only the staying press says what it marked on the ink block: the other two leave.
+    marked = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[True])
+    assert "marked known" not in marked["finished"]["said"]
+
+
+def test_one_word_left_the_staying_press_says_word() -> None:
+    words, lemmas = chapter(["a", "b"])
+    one = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}}, footWay="next")
+    assert one["foot"]["stay"] == "Mark 1 word known"
+    stayed = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={"a": {"status": 9}},
+        footWay="next",
+        presses=["stay"],
+    )
+    assert "1 word marked known" in stayed["finished"]["said"]
+
+
+def test_no_staying_press_alone_on_the_last_item_or_with_none_left() -> None:
+    words, lemmas = chapter(["a", "b"])
+    alone = run([], chapter=words, lemmas=lemmas, vocab={})["foot"]
+    assert alone["press"] == "Done" and alone["stay"] == "", "a text on its own keeps its pair"
+    last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
+    assert last["stay"] == "", "the last item's press already stays, for the end card"
+    known = {"a": {"status": 9}, "b": {"status": 9}}
+    none = run([], chapter=words, lemmas=lemmas, vocab=known, footWay="next")["foot"]
+    assert none["mark"] == "" and none["stay"] == ""
+    # And on a page that is not in a playlist the press does nothing at all.
+    pressed = run([], chapter=words, lemmas=lemmas, vocab={}, presses=["stay"])
+    assert pressed["finished"]["sections"] == {} and pressed["stores"]["he"] == {}
 
 
 # -- pages, not a scroll ----------------------------------------------------------
