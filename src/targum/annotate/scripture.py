@@ -387,6 +387,12 @@ class ScriptureLemmatizer:
         `oshb/2` (2026-09-03): a token carries its pointed headword where the spelling is
         shared, so a meaning is filed under the word and not the spelling.
 
+        `oshb/9` (2026-11-08): a token's offsets are into the verse as the page has it.
+        Sefaria writes `ketiv [qere]`, and the offsets were into the verse with the ketiv
+        cut out, so every word after one was marked its length too early — 49 parasha
+        verses and 820 more across the library's Biblical books. Re-reads Biblical text
+        only, and costs nothing but the time.
+
         `oshb/8` (2026-10-24, targum-internal#509): Strong's H3212 ילך is read as H1980
         הלך (`LEXEME_ALIASES`), so לֶךְ and וַיֵּלֶךְ are הלך's headword, root and gloss.
         Rides the grammar/8 re-read.
@@ -416,7 +422,7 @@ class ScriptureLemmatizer:
         in Daniel and Ezra (targum-internal#64). Hebrew is untouched: the code keyed on
         never trails a Hebrew word.
         """
-        return f"oshb/8+{self.fallback.name}"
+        return f"oshb/9+{self.fallback.name}"
 
     def reads(self, segment: Segment) -> bool:
         """Whether this block can be looked up here rather than guessed at.
@@ -476,13 +482,25 @@ class ScriptureLemmatizer:
 
         # The text as the annotator sees it: bare, because `Annotator` strips the points
         # before it asks. Offsets below are into this string and are mapped back onto the
-        # pointed source afterwards by the caller, exactly as they are for the model.
-        text = _QERE.sub(lambda found: found.group(1), segment.text)
+        # pointed source afterwards by the caller, exactly as they are for the model — so
+        # they must be into the text as it stands, ketiv and brackets and all. The ketiv
+        # is passed over rather than cut out: cutting it out moved every word after it
+        # back by the ketiv's length, and the reader drew Bereshit 25:23's marks from the
+        # middle of one word to the middle of the next (2026-11-08). The qere's span
+        # leaves its brackets outside, because `_trim` stops at letters.
+        text = segment.text
+        ketiv = [(found.start(), found.start(1) - 1) for found in _QERE.finditer(text)]
         # Trimmed to the letters. A verse ends `הָאָרֶץ׃` and the sof pasuq is punctuation:
         # left in, the token's span covers it and the reader highlights a word plus a
         # colon when it is tapped.
         spans = [
-            span for span in (_trim(found, text) for found in re.finditer(r"[^\s־]+", text)) if span
+            span
+            for span in (
+                _trim(found, text)
+                for found in re.finditer(r"[^\s־]+", text)
+                if not any(start <= found.start() < end for start, end in ketiv)
+            )
+            if span
         ]
         spans = [span for span in spans if span[2] not in _SECTION]
         wanted = [word for word in tagged if not is_section(word)]
