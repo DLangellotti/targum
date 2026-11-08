@@ -384,6 +384,25 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Scenes bring their words back — 2026-11-07
+
+David, 2026-11-07 (targum-internal#656). A beginner on Home's one card reads the next
+scene and little else, so what the scenes themselves bring back is what they keep.
+Measured that day on Hebrew scenes 1–100: 43% of dictionary forms are seen once, 11% ten
+times or more, 55% in one scene only, and 80% of the forms a scene introduces do not come
+back twice in the ten scenes after it. Rosetta Stone, measured the same way in Language
+Jones's 2026 review, has 3–5% seen once; textbooks have 25–33%.
+
+- **The bar, per series:** at most 15% of forms seen once, and every form a scene
+  introduces comes back in at least 2 of the next 10 scenes. `scripts/scene_recycling.py`
+  measures it for free from what the builds already wrote.
+- **A new scene is written against it.** Before writing, run the report and give the
+  author the owed and pending forms from the last ten scenes; the scene uses at least five
+  of them where a person would say them, never at the cost of a line nobody would say.
+  `--strict` passes before it ships.
+- **Existing scenes are not rewritten by this entry.** Rewriting means re-checking and
+  re-voicing; David decides it from the report's numbers for 1–240 and Russian.
+
 ### Marking the rest can stay on the lesson — 2026-11-07
 
 David, 2026-11-07 (targum-internal#657), reading a course book in a playlist: "an
