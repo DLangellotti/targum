@@ -2772,9 +2772,15 @@ stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
   (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
   is no longer refreshed by being opened online: it stays as it was saved until it is
   saved again. That is the price of a copy that opens on a plane with nothing else.
-- **Not covered:** the Torah portions' and daily cycles' readers, which strangers open
-  under their own addresses, keep their files inline, like the shared shelf's public
-  pages did before #549.
+- **Not covered at first:** the Torah portions' and daily cycles' readers, which strangers
+  open under their own addresses, kept their files inline, like the shared shelf's public
+  pages did before #549. Since 2026-11-08 (targum-internal#661) they are named the same
+  way: `/assets/` is open to anybody, and a browser that has not kept the files gets the
+  page whole, as any page does. Their recordings were already files beside the pages
+  (`reader/audio/`), so nothing of theirs goes to `/clips/`, which is behind the account.
+  A weekly issue's reader (`/weekly/read/…`) followed the same day (targum-internal#662),
+  the same way. Only the earliest issues carry a recording inline, and it stays inline
+  for the same reason.
 - **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
   scene readers served by a local `targum serve`, master against the change. With the
   files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the

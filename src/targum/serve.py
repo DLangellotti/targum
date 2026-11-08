@@ -5929,8 +5929,9 @@ def _clip_address(match: re.Match[str]) -> str:
     return CLIP_ROUTE + name
 
 
-def _served(text: str) -> str:
-    return _CLIP_URI.sub(_clip_address, served_reader(text))
+def _served(text: str, clips: bool = True) -> str:
+    named = served_reader(text)
+    return _CLIP_URI.sub(_clip_address, named) if clips else named
 
 
 #: The last readers handed out named, by file and the bytes that were read from it: a
@@ -5938,7 +5939,7 @@ def _served(text: str) -> str:
 #: as it is. Keyed on what was read, never on a stat taken after it, so a page read while
 #: it was being written is never kept under the finished file's name (beta-found,
 #: 2026-11-06: a reader served blank until restart).
-_SERVED: OrderedDict[tuple[str, bytes, str], bytes] = OrderedDict()
+_SERVED: OrderedDict[tuple[str, bytes, str, bool], bytes] = OrderedDict()
 _SERVED_MOST = 64
 _SERVED_LOCK = threading.Lock()
 
@@ -5958,22 +5959,27 @@ def chromed_page(body: bytes, language: str) -> bytes:
         return body
 
 
-def served_page(path: Path, body: bytes, language: str = "en") -> bytes:
+def served_page(path: Path, body: bytes, language: str = "en", *, clips: bool = True) -> bytes:
     """A reader as a browser opening it is handed it (design.md §12, "A served reader
     loads its files once", 2026-10-29): its chrome in the language of whoever opened it
     (`chromed_page`), today's stylesheets, scripts and faces named by address
     (`served_reader`) and its recordings as files of their own, so the browser keeps
-    them. The page on disk is untouched, whole, and is what a save keeps."""
+    them. The page on disk is untouched, whole, and is what a save keeps.
+
+    `clips=False` for a reader a stranger opens (a portion's, a day's, a weekly issue's):
+    `/clips/` is behind the account, so a recording carried inline stays inline there. A
+    portion's and a day's are files beside the pages already (`reader/audio/`); only the
+    earliest weekly issues carry one inline."""
     if not body:
         return body
-    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language)
+    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language, clips)
     with _SERVED_LOCK:
         found = _SERVED.get(key)
         if found is not None:
             _SERVED.move_to_end(key)
             return found
     try:
-        named = _served(chromed_page(body, language).decode("utf-8")).encode("utf-8")
+        named = _served(chromed_page(body, language).decode("utf-8"), clips).encode("utf-8")
     except UnicodeDecodeError:
         return body
     with _SERVED_LOCK:
@@ -6435,6 +6441,19 @@ class Handler(BaseHTTPRequestHandler):
         if target.suffix != ".html":
             return body
         return chromed_page(body, self._reader_language())
+
+    def _public_reader(self, target: Path) -> bytes:
+        """A portion's, a day's or a weekly issue's reader, which strangers open under its
+        own address: handed to a browser opening it with today's files named, as every
+        other served reader is (`served_page`; design.md §12, "A served reader loads its
+        files once", 2026-10-29; targum-internal#661, #662), and whole to anything else, a
+        save for offline above all. `_send` gives a browser that has not kept the files
+        the page whole. `/clips/` is behind the account, so a recording carried inline (an
+        early weekly issue's) stays inline; a portion's and a day's are files beside it."""
+        body = target.read_bytes()
+        if target.suffix == ".html" and self._navigating():
+            return served_page(target, body, self._reader_language(), clips=False)
+        return self._chromed(target, body)
 
     def _reader_language(self) -> str:
         """The interface language a reader's chrome is put in (design.md §12, "A reader's
@@ -7297,7 +7316,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
@@ -7326,7 +7345,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _parasha_next(self, folder: str) -> None:
         """What a reading leads on to, for the end of its reader (#416, #446).
@@ -7446,10 +7465,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), HTML)
 
         # The reader itself, for anybody at all. A published issue is already public at
-        # its own address, and the built reader is a self-contained file that fetches
-        # nothing — its meanings, its vowel points and its word list are all baked in —
-        # so serving it to a stranger hands over exactly what the prose page already
-        # hands over, and the whole of what makes this worth signing up for.
+        # its own address, and the built reader is a self-contained file — its meanings,
+        # its vowel points and its word list are all baked in — so serving it to a
+        # stranger hands over exactly what the prose page already hands over, and the
+        # whole of what makes this worth signing up for. Opened in a browser it names
+        # today's files under `/assets/`, which is open to anybody (targum-internal#662).
         #
         # A route of its own rather than opening `/reader/`, which reaches a person's
         # own home and the shared one. Those must never answer without an account, and
@@ -8074,8 +8094,9 @@ class Handler(BaseHTTPRequestHandler):
         if not target.is_file() or root not in target.parents:
             return self._send(404, b"not found", "text/plain")
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        # Framed by the issue's own page and by nothing else on the web.
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        # Framed by the issue's own page and by nothing else on the web. Opened, its files
+        # are named as a portion's are; saved, it is the page on disk (targum-internal#662).
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _robots(self) -> str:
         """What a crawler may have.

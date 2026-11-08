@@ -47,6 +47,12 @@ re-annotated. It stops if any book's cache is missing rather than read the Tanak
 through the model again. The one read it does make is the Aramaic chapters on their
 own, 269 verses, so the Aramaic can be told apart in a cache that holds whole books;
 that is cached too (`aramaic.json`), and a minute or two.
+
+    TARGUM_LEDGER=~/.targum/corpus.db python scripts/count_tanakh.py --roots
+
+`--roots` writes the roots table's bible register from Strong's word families instead
+(targum-internal#591): from the tagging on disk and the lexicon's families, with no
+model and no cache, in seconds. `tanakh.json` is left alone here too.
 """
 
 from __future__ import annotations
@@ -231,6 +237,32 @@ def counts(cache: Path, table_file: Path, ledger: Path, say: Callable[[str], Non
     return 0
 
 
+def roots(ledger: Path, say: Callable[[str], None]) -> int:
+    """Write the roots table's bible register from Strong's derivations (targum-internal
+    #591): every book from the tagging on disk, in seconds, with no model and no cache.
+    Needs the lexicon's families (`targum models fetch scripture`)."""
+    from targum.tables import bible
+    from targum.tables.store import Store
+
+    if not oshb.family_root("4428"):
+        say(f"No word families at {oshb.root() / oshb.DERIVATIONS_FILE}.")
+        say("Stopped: run `targum models fetch scripture` first.")
+        return 1
+    store = Store(ledger)
+    total: collections.Counter[str] = collections.Counter()
+    keys: set[str] = set()
+    written = 0
+    for code in oshb.BOOKS.values():
+        tally = bible.count_roots(oshb.verses(code))
+        written += bible.write(store, bible.ROOTS, code, oshb.FAMILIES, tally)
+        for (key, variant), n in tally.items():
+            total["aramaic" if variant == bible.ARAMAIC else "hebrew"] += n
+            keys.add(key)
+    say(f"roots: {sum(total.values())} tokens ({total['aramaic']} Aramaic), {len(keys)} roots")
+    say(f"{written} contributions written to {ledger}, register {bible.BIBLE}")
+    return 0
+
+
 def merge(*keyings: dict[str, int]) -> dict[str, int]:
     """One table from several, the easier band standing where a spelling is in more
     than one. Each keying is banded by its own coverage first, so a name the tagging
@@ -256,6 +288,11 @@ def main(argv: list[str] | None = None) -> int:
         help="write the counts into the language tables from the cache; leave the table alone",
     )
     parser.add_argument(
+        "--roots",
+        action="store_true",
+        help="write the roots table's bible register from Strong's word families",
+    )
+    parser.add_argument(
         "--ledger",
         type=Path,
         default=Path(os.environ["TARGUM_LEDGER"]) if os.environ.get("TARGUM_LEDGER") else None,
@@ -273,10 +310,15 @@ def main(argv: list[str] | None = None) -> int:
 
     say = lambda line: print(line, flush=True)  # noqa: E731
 
-    if args.counts:
+    if args.counts or args.roots:
         if args.ledger is None:
-            print("--counts needs a ledger: set TARGUM_LEDGER or pass --ledger.", file=sys.stderr)
+            print(
+                "--counts and --roots need a ledger: set TARGUM_LEDGER or pass --ledger.",
+                file=sys.stderr,
+            )
             return 1
+        if args.roots:
+            return roots(args.ledger, say)
         return counts(args.cache, args.out, args.ledger, say)
 
     tagged, tagged_books = count_tagging()

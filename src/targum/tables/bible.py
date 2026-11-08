@@ -15,6 +15,13 @@ lookup, DICTA where it could not line a verse up). A third count of the same boo
 - **`lexemes`**, the Open Scriptures headwords, through `scripture.headword_of`, the
   function the lookup files a word by. The variant is a Universal POS worked out from the
   tagging's own code, which people made.
+- **`roots`**, the bible register of the table the fold counts verbs' roots in
+  (`tables.roots`, targum-internal#591): every word Strong's derivations take to a root
+  (`oshb.family_root`), under that root's letters as a verb's root is written, with its
+  Strong's number on where two roots are spelled alike (`oshb.root_name`). Across parts
+  of speech, as the family is; the variant is the word's Universal POS. Only content
+  words are counted: a name, a preposition or a particle Strong's derives from a verb
+  (עַל from עָלָה) is not, nor a word whose chain ends anywhere but a root.
 
 The Aramaic chapters (`_ARAMAIC_RANGES`) are counted under the variant `ARAMAIC`, so the
 yardstick can leave them out and the totals still add up to the whole book. The DICTA
@@ -47,7 +54,9 @@ LICENCE = "CC BY 4.0 (morphology); WLC public domain"
 LEMMAS = "lemmas"
 #: The Open Scriptures headwords over the whole book.
 LEXEMES = "lexemes"
-TABLES = (LEMMAS, LEXEMES)
+#: The roots table's bible register, from Strong's derivations.
+ROOTS = "roots"
+TABLES = (LEMMAS, LEXEMES, ROOTS)
 
 #: The variant an Aramaic word is counted under, whichever keying counted it.
 ARAMAIC = "arc"
@@ -133,6 +142,39 @@ def count_lexemes(verses: Iterable[tuple[str, Iterable[Word]]]) -> Counter[tuple
             headword = headword_of(word)
             if headword:
                 counts[(headword, ARAMAIC if aramaic else upos(word.code))] += 1
+    return counts
+
+
+#: The parts of speech the roots table's bible register counts: the ones a family is
+#: shown on (`oshb.family`).
+CONTENT = frozenset({"VERB", "NOUN", "ADJ", "ADV"})
+
+
+def count_roots(verses: Iterable[tuple[str, Iterable[Word]]]) -> Counter[tuple[str, str]]:
+    """One book's roots, keyed (root, variant): each word whose Strong's number reaches a
+    root (`oshb.family_root`), under `oshb.root_name`, its variant its Universal POS.
+    The Aramaic is counted under `ARAMAIC`, as in the other keyings, so the Hebrew rows
+    are the Hebrew alone."""
+    from ..annotate import oshb
+    from ..annotate.scripture import is_section, lexeme_of
+
+    counts: Counter[tuple[str, str]] = Counter()
+    for ref, words in verses:
+        aramaic = is_aramaic(ref)
+        for word in words:
+            if is_section(word):
+                continue
+            code = word.code
+            kind = upos(code)
+            # The content words, as the card's family: a name, a preposition or a
+            # particle Strong's derives from a verb is etymology, not a root a learner
+            # meets in it.
+            if not aramaic and kind not in CONTENT:
+                continue
+            reached = oshb.family_root(lexeme_of(word))
+            name = oshb.root_name(reached) if reached else ""
+            if name:
+                counts[(name, ARAMAIC if aramaic else kind)] += 1
     return counts
 
 

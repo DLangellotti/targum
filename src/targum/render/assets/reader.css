@@ -3966,6 +3966,7 @@ html:fullscreen { background: var(--paper); }
 .card-kin-word { font-family: var(--reading-hebrew); font-size: 0.9375rem; color: var(--ink); }
 .card-kin-binyan { font-size: 0.6875rem; color: var(--ink-soft); }
 .card-kin-meaning { font-size: 0.8125rem; color: var(--ink-soft); }
+.card-kin-known { font-size: 0.6875rem; color: var(--teal); }
 .card-conj { margin-block-start: 0.6rem; }
 .card-conj > summary {
   cursor: pointer;

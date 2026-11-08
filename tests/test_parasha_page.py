@@ -1102,3 +1102,18 @@ def test_the_moves_of_several_books_are_one_table(tmp_path: Path) -> None:
     assert said["lemmas"] == {"נאמר": "אמר", "נעשה": "עשה"}, "the first book's move stands"
     assert said["id"]
     assert gathered([tmp_path / "none"]) is None
+
+
+def test_a_portions_reader_loads_its_files_once_and_a_save_keeps_it_whole(
+    serving: int, built: Index, tmp_path: Path
+) -> None:
+    """Like every other served reader since targum#981 (design.md §12, "A served reader
+    loads its files once"; targum-internal#661): opened, its files are named; saved, it
+    is the page on disk. Its recordings were files beside it already."""
+    from test_served_reader import holds_both_forms
+
+    home = corpus_build.reader_dir("nitzavim-vayeilech")
+    for name in ("index.html", "sec-0001.html"):
+        holds_both_forms(
+            serving, f"/parasha/read/nitzavim-vayeilech/reader/{name}", (home / name).read_bytes()
+        )

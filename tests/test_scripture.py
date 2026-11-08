@@ -145,7 +145,7 @@ def test_the_name_says_both_because_both_ran(tagged: Path) -> None:
     suffixed definite article (targum-internal#64). Each is free to re-run: the lookup
     happens on this machine and `SCHEMA_VERSION` never moves.
     """
-    assert ScriptureLemmatizer(Stub()).name == "oshb/8+stub/1"
+    assert ScriptureLemmatizer(Stub()).name == "oshb/9+stub/1"
 
 
 @pytest.mark.parametrize(
@@ -244,6 +244,33 @@ def test_name_candidates_needs_the_pair_more_than_once() -> None:
 
     assert name_candidates([("Np", "ירושלים", "ירושלם")], least=3) == {}
     assert name_candidates([("Np", "ירושלים", "ירושלם")] * 3, least=3) != {}
+
+
+#: Genesis 8:17 as the shelf holds it: Sefaria writes the ketiv and then the qere in
+#: brackets, `הוצא [היצא]`.
+KETIV_QERE = (
+    "כל־החיה אשר־אתך מכל־בשר בעוף ובבהמה ובכל־הרמש הרמש על־הארץ הוצא [היצא] "
+    "אתך ושרצו בארץ ופרו ורבו על־הארץ׃"
+)
+
+
+def test_every_token_after_a_ketiv_stands_on_its_own_word(tagged: Path) -> None:
+    """The offsets are into the verse as the page has it, ketiv and brackets and all.
+
+    They were into the verse with the ketiv cut out, so every word after one sat its
+    length too early, and the reader drew Bereshit 25:23's marks from the middle of one
+    word to the middle of the next (2026-11-08). The qere carries the token, without its
+    brackets, and the ketiv carries none: the tagging has one word there.
+    """
+    stub = Stub()
+    got = ScriptureLemmatizer(stub).lemmas([verse("Genesis 8:17", KETIV_QERE)], "he")["s1"]
+
+    assert stub.asked == [], "the verse lines up with the tagging"
+    assert all(KETIV_QERE[token.start : token.end] == token.surface for token in got)
+    surfaces = [token.surface for token in got]
+    assert "היצא" in surfaces, "the read form is the word"
+    assert "הוצא" not in surfaces, "the written form is left untouched"
+    assert surfaces[-7:] == ["אתך", "ושרצו", "בארץ", "ופרו", "ורבו", "על", "הארץ"]
 
 
 def test_a_lexeme_written_as_two_words_keeps_its_space(tagged: Path) -> None:
