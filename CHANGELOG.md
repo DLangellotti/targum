@@ -231,6 +231,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   nearest-rank p95 of twenty calls, in up to three rounds, and passes when one round is
   under it; `known_share` is held to its 50 ms by the median of five calls, not the worst.
   Slow code still fails both. Tests only; nothing a reader sees changes.
+- A hollow verb the CC0 paradigm table files under both spellings of its root, הבין
+  under בון and בין, takes a root on the word card again (targum-internal#601;
+  `verb_roots.VERSION` 3, `occurrences.VERSION` 9). Two roots that differ only in a
+  medial ו against a י count as one. The spelling is ling-he's where she gave one (הפיק
+  is פ־ו־ק), else the annotator's on other tokens of the lemma, else its reviewed list of
+  weak verbs (הביא is ב־ו־א, הבין is ב־י־ן), else the י. Any other two roots are still
+  refused, and eleven lemmas where the pair is not the root stay gaps (הניק is י־נ־ק,
+  הזיע "sweat" is י־ז־ע, הדיח is two verbs). On the laptop's 544 Hebrew annotations, 80
+  lemmas and 2,906 verb tokens gain a root, הביא alone 699. Page-build and table time
+  only: no annotator rename, no `SCHEMA_VERSION` bump, no spend.
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf

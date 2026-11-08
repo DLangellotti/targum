@@ -35,8 +35,16 @@ def count(
     """The roots of one annotation's verbs, keyed (root, binyan): never written, only
     counted. A name is no verb, whatever it was tagged."""
     from ..annotate.base import NOT_A_WORD, is_named
-    from ..annotate.verb_roots import root_for
+    from ..annotate.verb_roots import root_for, said_roots
 
+    # How the annotator spelled each lemma's root where it gave one, for a hollow root
+    # the CC0 table files under both ו and י (`verb_roots.filled`, #601).
+    said = said_roots(
+        (str(token.get("lemma") or ""), token.get("root"))
+        for run in tokens.values()
+        for token in run
+        if isinstance(token, Mapping) and token.get("pos") == "VERB"
+    )
     out: Counter[tuple[str, str]] = Counter()
     for run in tokens.values():
         for token in run:
@@ -46,7 +54,7 @@ def count(
             entity = token.get("entity")
             if lemma in NOT_A_WORD or (entity and is_named(entity)):
                 continue
-            root = root_for(lemma, token.get("root"), "VERB", language)
+            root = root_for(lemma, token.get("root"), "VERB", language, said.get(lemma, ""))
             if root:
                 out[(root, str(token.get("binyan") or ""))] += 1
     return out

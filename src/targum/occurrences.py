@@ -83,8 +83,10 @@ OCCURRENCES = "occurrences.json"
 #: 7 counts a Hebrew noun's or adjective's root and a Russian word's from targum's root
 #: lexicons (`annotate.root_card.family_root`), and the lexicons' own files join the stamp;
 #: 8 adds each Hebrew noun's and adjective's mishkal on the reviewed list (`mishkalim`,
-#: design.md §12, 2026-11-02), read off the same lexicon the card reads.
-VERSION = 8
+#: design.md §12, 2026-11-02), read off the same lexicon the card reads; 9 gives a
+#: hollow verb the CC0 table files under both ו and י its root (`verb_roots.VERSION` 3,
+#: targum-internal#601).
+VERSION = 9
 
 
 @dataclass(frozen=True)
@@ -225,7 +227,7 @@ def count_text(folder: Path) -> Occurrences | None:
     from .annotate.lemma_check import applies, mend_row
     from .annotate.mishkal import key_of
     from .annotate.root_card import HEBREW_KINDS, family_root, hebrew_shape
-    from .annotate.verb_roots import root_for
+    from .annotate.verb_roots import root_for, said_roots
     from .gaps import verb_form
     from .ingest import post as post_module
     from .models import SegmentedDocument, read_artifact
@@ -257,6 +259,15 @@ def count_text(folder: Path) -> Occurrences | None:
     pattern_of: dict[tuple[str, str], str] = {}
     # The forms met at least once as an open-class word; the rest are `function`.
     content: set[str] = set()
+    # How the annotator spelled each lemma's root where it gave one, for a hollow root
+    # the CC0 table files under both ו and י (`verb_roots.filled`, #601).
+    said = said_roots(
+        (str(row.get("lemma") or ""), row.get("root"))
+        for run in tokens.values()
+        for token in run
+        if isinstance(token, dict)
+        for row in ((mend_row(token) if checking else token),)
+    )
     for segment in segmented.segments:
         found = tokens.get(segment.id)
         if not found:
@@ -288,7 +299,9 @@ def count_text(folder: Path) -> Occurrences | None:
                     # The pattern the card shows: none where the annotation gave the
                     # noun a root of its own, or the lexicon's is a binyan's name.
                     shape = hebrew_shape(
-                        lemma, pos, root_for(lemma, token.get("root"), pos, language)
+                        lemma,
+                        pos,
+                        root_for(lemma, token.get("root"), pos, language, said.get(lemma, "")),
                     )
                     pattern_of[lemma, pos] = (
                         key_of(shape[1]) if isinstance(shape, list) and shape[1] else ""
@@ -300,7 +313,9 @@ def count_text(folder: Path) -> Occurrences | None:
                 found_root := family_root(
                     lemma,
                     token.get("pos"),
-                    root_for(lemma, token.get("root"), token.get("pos"), language),
+                    root_for(
+                        lemma, token.get("root"), token.get("pos"), language, said.get(lemma, "")
+                    ),
                     language,
                 )
             ):
