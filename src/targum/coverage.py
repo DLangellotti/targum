@@ -144,7 +144,7 @@ def _read(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int], di
         stamp.append(1)
     # And the multiword units, counted under the list they were matched against
     # (design.md §12, "An idiom is one word to know", 2026-11-05).
-    stamp.append(f"units:{units_module.stamp()}")
+    stamp.append(f"units:{units_module.stamps()}")
     cached = folder / LEMMAS
     if cached.is_file():
         try:
@@ -180,7 +180,8 @@ def _read(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int], di
     # Units are matched on the text's words in order, a post's tags left out. A word of
     # one that is not counted — DICTA tags the אחד of אף אחד a numeral — stays out: the
     # unit is recorded with the words that are counted (`units.entry`).
-    joins = str(loaded.get("language") or "").split("-")[0] in units_module.LANGUAGES
+    language = str(loaded.get("language") or "").split("-")[0]
+    joins = language in units_module.LANGUAGES
     for sid, tokens in (loaded.get("tokens") or {}).items():
         here: list[dict[str, Any]] = []
         counted_here: list[bool] = []
@@ -202,8 +203,8 @@ def _read(folder: Path, *, counted: bool) -> tuple[list[str], dict[str, int], di
             if joins:
                 here.append(token)
                 counted_here.append(counted)
-        for at, unit in units_module.match(here):
-            words = [part for n, part in enumerate(unit.parts) if counted_here[at + n]]
+        for at, unit in units_module.found(here, language):
+            words = [part for n, part in enumerate(unit.parts) if counted_here[at[n]]]
             if words:
                 name = units_module.entry(unit.key, words)
                 joined[name] = joined.get(name, 0) + 1

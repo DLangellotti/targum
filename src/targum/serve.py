@@ -15337,7 +15337,7 @@ class Handler(BaseHTTPRequestHandler):
             index,
             # A multiword unit kept as a phrase and marked known is known under its key
             # (design.md §12, "An idiom is one word to know", 2026-11-05).
-            units_module.with_phrases(marked, self.store.known_phrases(person.id))
+            units_module.with_phrases(marked, self.store.known_phrases(person.id), language)
             if language.split("-")[0] in units_module.LANGUAGES
             else marked,
             language,
