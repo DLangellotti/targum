@@ -262,6 +262,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so nothing is re-annotated and the stored bands are left alone. The rank-to-count table
   counts the same lemmas, so a text past every rung reads C2 in Russian too. The
   thresholds are unchanged. Hebrew is unchanged. No new strings.
+- Your Progress in French, Russian and Italian leads with what you can read
+  (targum-internal#659; design.md §12, "Progress leads with what you can read",
+  2026-11-08). "What you can read in our library" takes the place of Texts by level: what
+  the level counts (dictionary words among the language's 5,000 most common), then how many of the language's library texts are ready for you (98% of their
+  running words known, the Library's own figure), a stretch (95 to 98%) and not yet. The
+  ready row opens Read it now. Under them, Home's "Find something to read" where
+  `TARGUM_FIND_BUTTON` is on, and a "How we measure" fold, closed at first, linking Hu and
+  Nation (2000), Laufer and Ravenhorst-Kalovski (2010), Schmitt, Jiang and Grabe (2011)
+  and Milton (2010). The Reading level card says the level once, "About A2", and "310
+  more dictionary words to B1". `/account/story` sends `coverage` for these three languages. Hebrew
+  is unchanged. New strings: `progress.read.*` (en; ru drafted for David's read).
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

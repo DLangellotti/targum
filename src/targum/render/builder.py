@@ -3919,6 +3919,9 @@ def progress_page(token: str, language: str = "en") -> str:
             # `charts.levelFor`. Absent where no issue has been published and built.
             weekly=_this_week(),
             strings=script_strings(language, "progress.", "vocab."),
+            # What you can read offers Home's find, which exists only behind its switch
+            # (design.md §12, "Progress leads with what you can read", 2026-11-08).
+            find_button=_find_button(),
         )
     )
 
