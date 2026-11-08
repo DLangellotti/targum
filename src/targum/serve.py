@@ -5966,9 +5966,10 @@ def served_page(path: Path, body: bytes, language: str = "en", *, clips: bool = 
     (`served_reader`) and its recordings as files of their own, so the browser keeps
     them. The page on disk is untouched, whole, and is what a save keeps.
 
-    `clips=False` for a reader a stranger opens (a portion's, a day's): `/clips/` is
-    behind the account, so a recording carried inline stays inline there. Theirs are
-    files beside the pages already (`reader/audio/`), so it is only ever a guard."""
+    `clips=False` for a reader a stranger opens (a portion's, a day's, a weekly issue's):
+    `/clips/` is behind the account, so a recording carried inline stays inline there. A
+    portion's and a day's are files beside the pages already (`reader/audio/`); only the
+    earliest weekly issues carry one inline."""
     if not body:
         return body
     key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language, clips)
@@ -6442,13 +6443,13 @@ class Handler(BaseHTTPRequestHandler):
         return chromed_page(body, self._reader_language())
 
     def _public_reader(self, target: Path) -> bytes:
-        """A portion's or a day's reader, which strangers open under its own address:
-        handed to a browser opening it with today's files named, as every other served
-        reader is (`served_page`; design.md §12, "A served reader loads its files once",
-        2026-10-29; targum-internal#661), and whole to anything else, a save for offline
-        above all. `_send` gives a browser that has not kept the files the page whole.
-        Its recordings are already files beside it, so none goes to `/clips/`, which is
-        behind the account."""
+        """A portion's, a day's or a weekly issue's reader, which strangers open under its
+        own address: handed to a browser opening it with today's files named, as every
+        other served reader is (`served_page`; design.md §12, "A served reader loads its
+        files once", 2026-10-29; targum-internal#661, #662), and whole to anything else, a
+        save for offline above all. `_send` gives a browser that has not kept the files
+        the page whole. `/clips/` is behind the account, so a recording carried inline (an
+        early weekly issue's) stays inline; a portion's and a day's are files beside it."""
         body = target.read_bytes()
         if target.suffix == ".html" and self._navigating():
             return served_page(target, body, self._reader_language(), clips=False)
@@ -7464,10 +7465,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), HTML)
 
         # The reader itself, for anybody at all. A published issue is already public at
-        # its own address, and the built reader is a self-contained file that fetches
-        # nothing — its meanings, its vowel points and its word list are all baked in —
-        # so serving it to a stranger hands over exactly what the prose page already
-        # hands over, and the whole of what makes this worth signing up for.
+        # its own address, and the built reader is a self-contained file — its meanings,
+        # its vowel points and its word list are all baked in — so serving it to a
+        # stranger hands over exactly what the prose page already hands over, and the
+        # whole of what makes this worth signing up for. Opened in a browser it names
+        # today's files under `/assets/`, which is open to anybody (targum-internal#662).
         #
         # A route of its own rather than opening `/reader/`, which reaches a person's
         # own home and the shared one. Those must never answer without an account, and
@@ -8092,8 +8094,9 @@ class Handler(BaseHTTPRequestHandler):
         if not target.is_file() or root not in target.parents:
             return self._send(404, b"not found", "text/plain")
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        # Framed by the issue's own page and by nothing else on the web.
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        # Framed by the issue's own page and by nothing else on the web. Opened, its files
+        # are named as a portion's are; saved, it is the page on disk (targum-internal#662).
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _robots(self) -> str:
         """What a crawler may have.
