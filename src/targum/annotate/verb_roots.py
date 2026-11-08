@@ -146,6 +146,19 @@ WRONG: dict[str, frozenset[str]] = _table(
         "אלה": "אלה",
         # An adjective given itself, its root's ר־ג־ן behind a נ.
         "נרגן": "נרגן",  # ר־ג־ן
+        # A hollow pair the CC0 table agrees on and that is not the root (ling-he's read
+        # of #601, 2026-11-08): a פ"י or פ"נ verb, or a spelling that is two verbs.
+        "מניק": "נוק ניק",  # י־נ־ק
+        "מטיב": "טוב טיב",  # י־ט־ב
+        "הסיח": "סוח סיח",  # נ־ס־ח
+        "מסיח": "סוח סיח",  # נ־ס־ח
+        "הזיע": "זוע זיע",  # י־ז־ע, to sweat
+        "מזיע": "זוע זיע",  # י־ז־ע
+        "הדיח": "דוח דיח",  # נ־ד־ח or ד־ו־ח: two verbs
+        "מדיח": "דוח דיח",  # נ־ד־ח or ד־ו־ח
+        "שח": "שוח שיח",  # שׂ־י־ח or שׁ־ח־ח
+        "הסיט": "סוט סיט",  # ס־ו־ט or נ־ס־ט
+        "מסיט": "סוט סיט",  # ס־ו־ט or נ־ס־ט
     }
 )
 
@@ -187,11 +200,12 @@ _CITED = (
 
 #: Every root the CC0 table files each of its verbs under (`Table._root_index`), and
 #: the fills worked out from it, kept for the one table they were worked out from: a
-#: table swapped in (a test's, a rebuilt one) is never answered from another's.
-_HELD: dict[int, tuple[object, dict[str, frozenset[str]], dict[str, str]]] = {}
+#: table swapped in (a test's, a rebuilt one) is never answered from another's. A fill
+#: is the roots the table agrees on: one, or the two spellings of a hollow root.
+_HELD: dict[int, tuple[object, dict[str, frozenset[str]], dict[str, frozenset[str]]]] = {}
 
 
-def _held(book: Table) -> tuple[dict[str, frozenset[str]], dict[str, str]]:
+def _held(book: Table) -> tuple[dict[str, frozenset[str]], dict[str, frozenset[str]]]:
     found = _HELD.get(id(book))
     if found is not None and found[0] is book:
         return found[1], found[2]
@@ -200,20 +214,21 @@ def _held(book: Table) -> tuple[dict[str, frozenset[str]], dict[str, str]]:
         for lid in verbs:
             by_verb.setdefault(lid, set()).add(root)
     roots = {lid: frozenset(found) for lid, found in by_verb.items()}
-    fills: dict[str, str] = {}
+    fills: dict[str, frozenset[str]] = {}
     _HELD.clear()
     _HELD[id(book)] = (book, roots, fills)
     return roots, fills
 
 
-def filled(lemma: str) -> str:
+def filled(lemma: str, said: str = "") -> str:
     """The root the CC0 paradigm table gives a verb lemma, or "".
 
     Only where every verb the table finds for the lemma is filed under one root and the
-    same one, two spellings of a hollow root counting as one (`_one_root`). A verb is
-    found by its citation form, or by a form a lemma can be: the lemma matching only
-    another verb's future or second person (אישר is also "I will straighten") is not
-    that verb.
+    same one, two spellings of a hollow root counting as one (`_one_root`), spelled as
+    `said` where it is one of them: the root the annotator gave other tokens of the
+    lemma. A verb is found by its citation form, or by a form a lemma can be: the lemma
+    matching only another verb's future or second person (אישר is also "I will
+    straighten") is not that verb.
     """
     from .paradigms import table
 
@@ -221,45 +236,61 @@ def filled(lemma: str) -> str:
     by_verb, fills = _held(book)
     if lemma not in fills:
         fills[lemma] = _fill(lemma, book, by_verb)
-    return fills[lemma]
+    return _one_root(lemma, fills[lemma], said)
 
 
-def _fill(lemma: str, book: Table, by_verb: dict[str, frozenset[str]]) -> str:
+def _fill(lemma: str, book: Table, by_verb: dict[str, frozenset[str]]) -> frozenset[str]:
     from .paradigms import bare
 
     word = _letters(lemma)
     if not word:
-        return ""
+        return frozenset()
     found: set[str] = set()
     # The table is keyed on the letters as written, final forms and all.
     for lid in book.candidates(bare(lemma)):
         verb = book.verbs.get(lid)
         if verb is None:
-            return ""
+            return frozenset()
         if _letters(verb.lemma) != word:
             hits = [form for form in verb.forms if _letters(bare(form.written)) == word]
             if hits and not any(one <= set(form.features) for form in hits for one in _CITED):
                 continue
-        one = _one_root(lemma, by_verb.get(lid) or frozenset())
-        if not one:
-            return ""
-        found.add(one)
-    return _one_root(lemma, found)
+        roots = by_verb.get(lid) or frozenset()
+        if not _one_root(lemma, roots):
+            return frozenset()
+        found |= roots
+    return frozenset(found) if _one_root(lemma, found) else frozenset()
 
 
 #: Every root the annotator's reviewed list of weak verbs spells (`hebrew.WEAK_ROOTS`),
 #: by its letters: how the annotator writes a hollow root, ב־ו־א but ב־י־ן.
 _SPELLED: frozenset[str] = frozenset(_letters(root) for _binyan, root in WEAK_ROOTS.values())
 
+#: {lemma: the spelling of its hollow root}, where neither the annotator nor its list
+#: says and the י form would be wrong. ling-he's read of #601, 2026-11-08.
+SPELLING: dict[str, str] = {
+    _letters(lemma): _letters(root)
+    for lemma, root in {
+        "הפיק": "פוק",
+        "מפיק": "פוק",
+        "הטיל": "טול",
+        "מטיל": "טול",
+        "הניב": "נוב",
+        "הביס": "בוס",
+        "מגיף": "גוף",
+    }.items()
+}
 
-def _one_root(lemma: str, roots: Iterable[str]) -> str:
+
+def _one_root(lemma: str, roots: Iterable[str], said: str = "") -> str:
     """The one root `roots` are, or "".
 
     One root is itself. Two are one only where they differ in nothing but a medial ו
     against a י: the CC0 table files a hollow hif'il under both spellings (הבין under
-    בון and בין, #601). The spelling is the annotator's: the lemma's own in its reviewed
-    list, or else the one spelling the list writes that root with for another verb, and
-    the י form where the list has neither. Any other two, or three, are refused.
+    בון and בין, #601). The spelling, the first of these that names one of the two:
+    `SPELLING`; the annotator's own on other tokens of the lemma (`said`); the lemma's
+    in the annotator's reviewed list; the one spelling the list writes that root with
+    for another verb; and else the י form. Any other two, or three, are refused.
     """
     found = sorted(set(roots))
     if len(found) == 1:
@@ -276,23 +307,42 @@ def _one_root(lemma: str, roots: Iterable[str]) -> str:
         return ""
     by_letters = dict(zip((first, second), found, strict=True))
     listed = weak_root(lemma)
-    if listed and _letters(listed[1]) in by_letters:
-        return by_letters[_letters(listed[1])]
+    for choice in (
+        SPELLING.get(_letters(lemma), ""),
+        _letters(said),
+        _letters(listed[1]) if listed else "",
+    ):
+        if choice in by_letters:
+            return by_letters[choice]
     spelled = [letters for letters in by_letters if letters in _SPELLED]
     if len(spelled) == 1:
         return by_letters[spelled[0]]
     return by_letters[first if first[1] == "י" else second]
 
 
-def root_for(lemma: str, root: str | None, pos: str | None, language: str = "he") -> str:
+def said_roots(rows: Iterable[tuple[str, str | None]]) -> dict[str, str]:
+    """{lemma: the root the annotator gave it most often} over (lemma, root) rows, the
+    roots known to be wrong left out: what `filled` spells a hollow root by."""
+    counts: dict[str, dict[str, int]] = {}
+    for lemma, root in rows:
+        if lemma and root and not denied(lemma, root):
+            mine = counts.setdefault(lemma, {})
+            mine[root] = mine.get(root, 0) + 1
+    return {lemma: max(mine, key=lambda r: (mine[r], r)) for lemma, mine in counts.items()}
+
+
+def root_for(
+    lemma: str, root: str | None, pos: str | None, language: str = "he", said: str = ""
+) -> str:
     """The root the page draws and the tables count for one token, or "".
 
     The annotation's root where it is not known to be wrong. Where it gave none, a
-    Hebrew verb's root from the CC0 table (`filled`), under the same guard.
+    Hebrew verb's root from the CC0 table (`filled`), under the same guard, spelled by
+    `said`, the root the annotator gave other tokens of the lemma (`said_roots`).
     """
     if root:
         return "" if denied(lemma, root) else root
     if pos != "VERB" or language.split("-")[0].lower() != "he":
         return ""
-    found = filled(lemma)
+    found = filled(lemma, said)
     return "" if not found or denied(lemma, found) else found

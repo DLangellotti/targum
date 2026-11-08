@@ -12,7 +12,16 @@ import pytest
 
 from targum.annotate import verb_roots
 from targum.annotate.paradigms import family_of
-from targum.annotate.verb_roots import NEVER, WRONG, _one_root, denied, filled, root_for
+from targum.annotate.verb_roots import (
+    NEVER,
+    SPELLING,
+    WRONG,
+    _one_root,
+    denied,
+    filled,
+    root_for,
+    said_roots,
+)
 from targum.tables import roots as roots_table
 
 
@@ -123,6 +132,38 @@ def test_the_spelling_is_the_annotators_where_it_has_one() -> None:
     assert _one_root("הטיס", {"טוס", "טיס"}) == "טוס"
     # Neither: the י form.
     assert _one_root("הזיד", {"זוד", "זיד"}) == "זיד"
+
+
+def test_the_annotators_spelling_on_other_tokens_comes_before_the_yod() -> None:
+    assert _one_root("הזיד", {"זוד", "זיד"}, said="זוד") == "זוד"
+    assert filled("מבין", said="בון") == "בון"
+    assert root_for("מבין", None, "VERB", said="בון") == "בון"
+    # A root that is not one of the two says nothing.
+    assert filled("הבין", said="בנה") == "בין"
+
+
+def test_said_roots_is_the_commonest_root_not_known_wrong() -> None:
+    rows = [("הבין", "בין"), ("הבין", "בין"), ("הבין", "בון"), ("הקל", "הקל"), ("הלך", None)]
+    assert said_roots(rows) == {"הבין": "בין"}
+
+
+@pytest.mark.parametrize(
+    ("lemma", "root"),
+    [("הפיק", "פוק"), ("מפיק", "פוק"), ("הטיל", "טול"), ("הביס", "בוס"), ("מגיף", "גוף")],
+)
+def test_ling_he_spells_these_with_the_vav(lemma: str, root: str) -> None:
+    # ling-he's read of #601: the י default is the wrong spelling for these.
+    assert SPELLING
+    assert _one_root(lemma, {root, root[0] + "י" + root[2]}) == root
+    # Ahead of what the annotator said on other tokens, too.
+    assert _one_root(lemma, {root, root[0] + "י" + root[2]}, said=root[0] + "י" + root[2]) == root
+
+
+@pytest.mark.parametrize("lemma", ["מניק", "מטיב", "הסיח", "מזיע", "הדיח", "שח", "הסיט"])
+def test_a_hollow_pair_that_is_not_the_root_is_a_gap(lemma: str) -> None:
+    # A פ"י or פ"נ verb (הניק is י־נ־ק, הסיח נ־ס־ח), or a spelling that is two verbs.
+    assert root_for(lemma, None, "VERB") == ""
+    assert root_for(lemma, None, "VERB", said=filled(lemma) or "") == ""
 
 
 @pytest.mark.parametrize(
