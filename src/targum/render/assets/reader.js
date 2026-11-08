@@ -5662,11 +5662,17 @@ var targumReader = function () {
       written.className = "card-kin-word";
       written.textContent = one[0];
       row.appendChild(written);
-      var pattern = document.createElement("bdi");
-      pattern.setAttribute("lang", language);
-      pattern.className = "card-kin-binyan";
-      pattern.textContent = POINTED_BINYANIM[one[1]] || one[1];
-      row.appendChild(pattern);
+      // A verb's kin say their binyan; a Tanakh word's say their part of speech, since
+      // Strong's family runs across them (targum-internal#591): מֶלֶךְ beside מָלַךְ, verb.
+      var binyanName = POINTED_BINYANIM[one[1]];
+      var kindName = binyanName ? "" : posLabel("UPOS=" + (one[1] || ""));
+      if (binyanName || kindName) {
+        var pattern = document.createElement(binyanName ? "bdi" : "span");
+        if (binyanName) pattern.setAttribute("lang", language);
+        pattern.className = "card-kin-binyan";
+        pattern.textContent = binyanName || kindName;
+        row.appendChild(pattern);
+      }
       // What it means, where this reader already has it: their own ledger first, then
       // whatever the page was built with. Nothing is asked of the network here — a
       // family is up to five words, and five lookups to draw one card is a bill the
@@ -5681,6 +5687,14 @@ var targumReader = function () {
         said.className = "card-kin-meaning";
         said.textContent = meaning;
         row.appendChild(said);
+      }
+      // The ones this reader already knows, marked as their own words are: what a family
+      // is for is seeing the new word beside the ones you have.
+      if (statusOf(one[0]) === KNOWN || statusOf(bareOf(one[0])) === KNOWN) {
+        var known = document.createElement("span");
+        known.className = "card-kin-known";
+        known.textContent = SAID[KNOWN];
+        row.appendChild(known);
       }
       box.appendChild(row);
     });
@@ -6562,6 +6576,13 @@ var targumReader = function () {
     } else if (shape || morpheme) {
       // A noun's or a Russian word's rows (#593, #596), drawn by `reader-rest.js`.
       passOn("lexiconRows", [facts, index, shape, morpheme, redrawCard]);
+    }
+    // A word of the Tanakh carries its family from Strong's whatever its part of speech
+    // (targum-internal#591): a noun there has no root or binyan of its own to show, and
+    // still has its family.
+    if (!(root || binyan)) {
+      var lexemeKin = siblingLine(index);
+      if (lexemeKin) card.appendChild(lexemeKin);
     }
 
     var ownRoot = root ? "" : shape ? shape[0] : morpheme && morpheme[0].length ? morpheme[0][0][0] : "";

@@ -105,3 +105,29 @@ def test_every_hebrew_run_the_demos_draw_says_its_language(browser, language: st
     assert not thrown, thrown
     assert got["words"] > 20, "the film drew its words"
     assert not got["loose"], "§14: Hebrew with no lang or no dir:\n" + "\n".join(got["loose"])
+
+
+@pytest.mark.parametrize(
+    ("address", "said"),
+    [("/?from=siddur-card#join", "/siddur"), ("/", "/"), ("/?from=elsewhere", "/")],
+)
+def test_the_form_says_siddur_only_for_a_siddur_link(browser, address: str, said: str) -> None:
+    html = front_page("en", "https://targum.page")
+
+    def answer(route, request):
+        if urlparse(request.url).path == "/":
+            route.fulfill(status=200, content_type="text/html", body=html)
+        else:
+            route.fulfill(status=200, content_type="application/json", body="{}")
+
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    page.route("http://door.test/**", answer)
+    page.goto("http://door.test" + address)
+    page.wait_for_selector("#lines .w")
+    values = page.evaluate(
+        "() => [...document.querySelectorAll('form input[name=from]')].map((f) => f.value)"
+    )
+    context.close()
+
+    assert values and set(values) == {said}, values

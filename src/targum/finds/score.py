@@ -407,7 +407,7 @@ class Forms:
         for lemma, n in score.bag.items():
             ranks.extend([self.ranks.get(lemma)] * n)
         ranks.extend([None] * score.unresolved)
-        rung = level_module.text_rung(ranks, ladder)
+        rung = level_module.text_rung(ranks, ladder, language=self.language)
         return None if rung is None else ladder.rungs.index(rung)
 
 

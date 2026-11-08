@@ -479,6 +479,7 @@ def test_no_join_form_drops_the_language_that_was_pressed() -> None:
         ("/aliyah", "/aliyah"),
         ("https://targum.page/aliyah?lang=ru", "/aliyah"),
         ("/connect", "/connect"),
+        ("/siddur", "/siddur"),
         ("/weekly/2026-w39/simplified", "/weekly"),
         ("https://targum.page/parasha/bereshit", "/parasha"),
         ("/mishna-yomi", "/mishna-yomi"),
