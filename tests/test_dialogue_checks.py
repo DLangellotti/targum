@@ -223,15 +223,20 @@ def test_the_impersonal_you_is_not_a_disagreement() -> None:
 # the scenes themselves is measured outside this repository and reported on the card.
 
 from targum.dialogue.checks import (  # noqa: E402
+    absolute_before_its_noun,
     addressee_disagrees,
+    article_against_english,
+    article_before_a_number,
     article_without_dagesh,
     bit_without_dagesh,
     check_turn,
     homographs,
+    known_mispointings,
     present_gender,
     second_feminine_shva,
     speaker_disagrees,
     spurious_dagesh,
+    two_reduced_vowels,
 )
 
 
@@ -265,6 +270,89 @@ def test_a_homograph_is_flagged_only_where_the_english_asks_for_the_other_word()
     assert len(list(homographs("לִפְנֵי חוֹדָשַׁיִם", "", 0))) == 1  # no such word
     assert len(list(homographs("תְּשַׁלְּחִי הוֹדָעָה", "Send a message.", 0))) == 1
     assert list(homographs("תִּשְׁלְחִי הוֹדָעָה", "Send a message.", 0)) == []
+
+
+def test_the_english_decides_an_article_the_points_alone_cannot() -> None:
+    """The audit's last two misses (#563): לַקָּפֶה in an invitation, לְצָפוֹן for "north"."""
+    assert len(list(article_against_english("נֵלֵךְ לַקָּפֶה?", "Shall we go for coffee?", 0))) == 1
+    assert len(list(article_against_english("נֵלֵךְ לַקָּפֶה?", "Fancy a coffee?", 0))) == 1
+    assert list(article_against_english("נֵלֵךְ לְקָפֶה?", "Shall we go for coffee?", 0)) == []
+    assert list(article_against_english("נֵלֵךְ לַקָּפֶה?", "Shall we go to the café?", 0)) == []
+    assert list(article_against_english("הַקָּפֶה קַר", "The coffee is cold.", 0)) == []
+    assert len(list(article_against_english("גָּרוּ בְּצָפוֹן", "They lived up north.", 0))) == 1
+    assert len(list(article_against_english("טָסוּ לְדָרוֹם", "They flew south.", 0))) == 1
+    assert list(article_against_english("גָּרוּ בַּצָּפוֹן", "They lived up north.", 0)) == []
+    assert list(article_against_english("מִצָּפוֹן לְדָרוֹם", "From north to south.", 0)) == []
+    assert list(article_against_english("צָפוֹן", "North.", 0)) == []  # no prefix to judge
+
+
+def test_a_floor_named_by_a_cardinal_takes_no_article() -> None:
+    assert len(list(article_before_a_number("הִיא בַּקּוֹמָה שָׁלוֹשׁ", 0))) == 1
+    assert len(list(article_before_a_number("הִיא בַּקּוֹמָה 3", 0))) == 1
+    assert len(list(article_before_a_number("הַקּוֹמָה אַרְבַּע", 0))) == 1
+    for fine in (
+        "הִיא בְּקוֹמָה שָׁלוֹשׁ",
+        "הִיא בַּקּוֹמָה הַשְּׁלִישִׁית",
+        "הִיא בַּקּוֹמָה. שָׁלוֹשׁ דַּקּוֹת",
+        "שָׁלוֹשׁ קוֹמוֹת",
+    ):
+        assert list(article_before_a_number(fine, 0)) == [], fine
+
+
+def test_an_absolute_before_its_noun_is_a_construct() -> None:
+    assert [f.fix for f in absolute_before_its_noun("בִּרְחוֹב יָפֶה נוֹף", 0)] == ["יְפֵה"]
+    assert list(absolute_before_its_noun("בִּרְחוֹב יְפֵה נוֹף", 0)) == []
+    assert list(absolute_before_its_noun("יָפֶה. נוֹף יָפֶה", 0)) == []
+
+
+def test_the_homographs_added_after_the_measure() -> None:
+    assert len(list(homographs("עָשִׂינוּ כָּל דָּבַר", "", 0))) == 1
+    assert list(homographs("עָשִׂינוּ כָּל דָּבָר", "", 0)) == []
+    assert len(list(homographs("הַמִּלָּה חָסַר", "The word for missing.", 0))) == 1
+    assert list(homographs("חָסַר לִי כֶּסֶף", "I was missing money.", 0)) == []
+    assert list(homographs("חָסֵר לִי כֶּסֶף", "I'm missing money.", 0)) == []
+    assert len(list(homographs("הוּא ג'וֹנְיוֹר", "He's junior.", 0))) == 1
+    assert list(homographs("הוּא ג'וּנְיוֹר", "He's junior.", 0)) == []
+
+
+def test_the_added_homographs_are_read_not_rewritten() -> None:
+    """They are checks: `spelling.repair` leaves the line as it is and reports it."""
+    from targum.dialogue import spelling
+
+    line = "עָשִׂינוּ כָּל דָּבַר"
+    fixed, left = spelling.repair(line, "We did everything.", [])
+    assert "דָּבַר" in fixed
+    assert [f.kind for f in left] == ["homograph"]
+
+
+def test_two_reduced_vowels_in_a_row() -> None:
+    """The menaked's artefacts in the B1 tranche of 2026-10-26 (#531), on made-up words."""
+    for wrong in ("וְנְסַדֵּר", "בְּבְּלוֹג", "עֲזְבוּ", "לְהֲדָרָה", "בְּעֲבוֹדָה"):
+        assert len(list(two_reduced_vowels(wrong, 0))) == 1, wrong
+    for fine in ("וּנְסַדֵּר", "בִּבְּלוֹג", "עָזְבוּ", "לַהֲדָרָה", "נִשְׁאֲרוּ", "יַעַזְבוּ", "שְׁתַּיִם"):
+        assert list(two_reduced_vowels(fine, 0)) == [], fine
+
+
+def test_known_mispointings_are_reported_not_rewritten() -> None:
+    assert [f.fix for f in known_mispointings("הַכֹּל סְבָבָּה", "", 0)] == ["סַבַּבָּה"]
+    assert len(list(known_mispointings("שָׁלַחְתִּי בְּוַוַאטְסְאַפּ", "", 0))) == 1
+    assert len(list(known_mispointings("גָּרִים לְיַד הֵרְצְל", "", 0))) == 1
+    assert list(known_mispointings("הַכֹּל סַבַּבָּה", "", 0)) == []
+    # A name, where the English names him, and "with me" where it says so.
+    assert len(list(known_mispointings("שָׁלוֹם אִיתִּי", "Hi Itai.", 0))) == 1
+    assert list(known_mispointings("בּוֹא אִיתִּי", "Come with me.", 0)) == []
+    assert len(list(known_mispointings("קְנֵה חָלַב", "Buy milk.", 0))) == 1
+    assert list(known_mispointings("הוּא חָלַב פָּרָה", "He milked a cow.", 0)) == []
+    # בּוּרְג is a surname as well as a mispointed screw.
+    assert list(known_mispointings("מִשְׁפַּחַת בּוּרְג", "The Burg family.", 0)) == []
+    assert len(list(known_mispointings("חָסֵר בּוּרְג", "A screw is missing.", 0))) == 1
+
+
+def test_the_english_decides_two_more_articles() -> None:
+    assert len(list(article_against_english("אֲנִי בַּצּוֹם", "I'm fasting.", 0))) == 1
+    assert list(article_against_english("אֲנִי בְּצוֹם", "I'm fasting.", 0)) == []
+    assert len(list(article_against_english("כָּתַבְתָּ בִּפְּרוֹפִיל", "You wrote in your profile.", 0))) == 1
+    assert list(article_against_english("כָּתַבְתָּ בַּפְּרוֹפִיל", "You wrote in your profile.", 0)) == []
 
 
 def test_present_gender_reads_the_points() -> None:

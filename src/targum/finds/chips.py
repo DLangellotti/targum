@@ -22,6 +22,13 @@ reader asks for football, and the lexicon knows only Free time & culture. Each c
   text could match the chip, and the press vanished for a reader who chose it with the
   Tanakh, the Mishnah and the siddur all on the shelf under the floor.
 
+**Russian** (targum-internal#635; ling-ru's draft of 2026-11-05,
+`~/targum-team/ling-ru/keep/arrival-and-chips-ru-2026-11-05.md`, awaiting David's read)
+has a phrase for every chip but three: `israel` and `holidays` have no Russian
+equivalent and are dropped, and `army` is hidden, since *армия* in Russian today pulls
+mostly the war (David, 2026-11-05). A chip with no phrase in a language that has phrases
+is not offered in it (`ordered`, `offered`).
+
 There is no free-text box (David, 2026-11-01): a reader steers by these chips or not at
 all, which is also what keeps a reader's own words off a search provider.
 """
@@ -45,8 +52,56 @@ class Chip:
     registers: frozenset[str] = frozenset()
 
 
+#: The Russian phrase per chip code (ling-ru, 2026-11-05; targum-internal#634, #635).
+#: DRAFT, awaiting David's read. No `israel` or `holidays` (no Russian equivalent) and
+#: no `army` (hidden for Russian): David, 2026-11-05. No ё: engines fold it, and the
+#: queries then stay equal to what `live.ran_lately` compares.
+PHRASES_RU: dict[str, str] = {
+    "sport": "спорт",
+    "football": "футбол",
+    "basketball": "баскетбол",
+    "music": "музыка",
+    "film": "фильмы и сериалы",
+    "tech": "технологии",
+    "gaming": "видеоигры",
+    "cooking": "кулинарные рецепты",
+    "food": "еда и рестораны",
+    "travel": "путешествия и отдых",
+    "fashion": "мода и стиль",
+    "health": "здоровье",
+    "fitness": "фитнес и тренировки",
+    "science": "наука",
+    "space": "космос и астрономия",
+    "history": "история",
+    "politics": "политика",
+    "world": "международные новости",
+    "religion": "религия и традиции",
+    "nature": "природа",
+    "animals": "животные",
+    "cars": "автомобили",
+    "business": "бизнес и экономика",
+    "money": "личные финансы",
+    "work": "работа и карьера",
+    "art": "искусство",
+    "books": "книги и литература",
+    "comedy": "стендап и юмор",
+    "celebrities": "шоу-бизнес и знаменитости",
+    "parenting": "воспитание детей",
+    "school": "школа и образование",
+    "relationships": "отношения и любовь",
+    "home": "дизайн интерьера",
+    "gardening": "сад и огород",
+    "crime": "криминал и происшествия",
+    "weather": "погода",
+    "language": "русский язык",
+}
+
+
 def _chip(code: str, label: str, lexicon: str, he: str, registers: Iterable[str] = ()) -> Chip:
-    return Chip(code, label, lexicon, {"he": he}, frozenset(registers))
+    phrases = {"he": he}
+    if code in PHRASES_RU:
+        phrases["ru"] = PHRASES_RU[code]
+    return Chip(code, label, lexicon, phrases, frozenset(registers))
 
 
 #: In the order a page lists them after the reader's likely ones.
@@ -125,13 +180,29 @@ def on_shelf(code: str, shown: Iterable[str], about: Iterable[str], register: st
     return bool(topic) and topic in set(about)
 
 
-def ordered(liked: Sequence[str]) -> list[tuple[Chip, bool]]:
-    """Every chip, the reader's likely ones first (those whose lexicon topic their reading
-    suggests, in the order of `liked`), each with whether it is suggested."""
+#: The languages the chips carry phrases for: Hebrew, and Russian since #635.
+LANGUAGES: tuple[str, ...] = tuple(dict.fromkeys(one for chip in CHIPS for one in chip.phrases))
+
+
+def offered(code: str, language: str = "") -> bool:
+    """Whether a chip is offered in a language: every chip where the language has no
+    phrases at all, as before; otherwise only a chip with a phrase in it."""
+    chip = BY_CODE.get(code)
+    if chip is None:
+        return False
+    lang = (language or "").split("-")[0].lower()
+    return lang not in LANGUAGES or bool(chip.phrases.get(lang))
+
+
+def ordered(liked: Sequence[str], language: str = "") -> list[tuple[Chip, bool]]:
+    """Every chip offered in the language (`offered`), the reader's likely ones first
+    (those whose lexicon topic their reading suggests, in the order of `liked`), each
+    with whether it is suggested."""
+    shown = [chip for chip in CHIPS if offered(chip.code, language)]
     first: list[Chip] = []
     for topic in liked:
-        first.extend(chip for chip in CHIPS if chip.lexicon == topic and chip not in first)
-    return [(chip, True) for chip in first] + [(chip, False) for chip in CHIPS if chip not in first]
+        first.extend(chip for chip in shown if chip.lexicon == topic and chip not in first)
+    return [(chip, True) for chip in first] + [(chip, False) for chip in shown if chip not in first]
 
 
 def phrase(code: str, language: str) -> str:

@@ -13253,27 +13253,40 @@ class Handler(BaseHTTPRequestHandler):
         """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
 
         Kept as a seed: `level.seed` reads it only while nothing about the reader has
-        been measured, and no page prints it back."""
+        been measured, and no page prints it back. One rung per language (`language`,
+        Hebrew where none is said; targum-internal#631), each on its own ladder."""
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
         try:
-            kept = self.store.set_declared(person, str(payload.get("level") or ""))
+            kept = self.store.set_declared(
+                person, str(payload.get("level") or ""), str(payload.get("language") or "he")
+            )
         except ValueError as error:
             return self._json({"error": str(error)}, 400)
-        self._json({"signedIn": True, "declared": kept})
+        # `declared` is the rung just kept, for the language it was kept for; `declaredBy`
+        # every language's (targum-internal#631).
+        self._json(
+            {
+                "signedIn": True,
+                "declared": kept,
+                "declaredBy": self.store.declared_by(person.id),
+            }
+        )
 
     def _checked(self, payload: dict[str, Any]) -> None:
-        """The words a new Hebrew reader ticked on the arrival's words check (design.md
-        §12, "The arrival asks which words you know", 2026-11-01; targum-internal#613).
+        """The words a new reader ticked on the arrival's words check (design.md §12, "The
+        arrival asks which words you know", 2026-11-01; targum-internal#613), in Hebrew,
+        French or Russian (`language`, Hebrew where none is said; "The words check in
+        French and Russian", 2026-11-05, targum-internal#631).
 
         Kept as evidence for the estimate and nowhere else: no word goes on the reader's
         list, and only the ticked words are kept, because what was shown follows from them
         (`check.shown`). A word the rounds could not have shown is dropped. The answer is
-        the rung the estimate now stands nearest, for the arrival's first text; Your
-        Progress prints it, labelled, until the reader's marks reach a rung (design.md
-        §12, "Your level comes from your words check until your marks reach one",
-        2026-11-04).
+        the rung the estimate now stands nearest on the language's own ladder ("bet-plus",
+        "a2"), for the arrival's first text; Your Progress prints it, labelled, until the
+        reader's marks reach a rung (design.md §12, "Your level comes from your words
+        check until your marks reach one", 2026-11-04).
         """
         from . import check as check_module
         from . import level as level_module
@@ -13281,40 +13294,45 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._json({"signedIn": False}, 401)
-        if str(payload.get("version") or "") != check_module.VERSION:
+        lists = check_module.lists_for(str(payload.get("language") or check_module.LANGUAGE))
+        if lists is None:
+            return self._json({"error": "There is no words check in that language."}, 400)
+        if str(payload.get("version") or "") != lists.version:
             return self._json({"error": "That check has changed. Load the page again."}, 409)
         said = payload.get("ticked")
         if not isinstance(said, list):
             return self._json({"error": "No answers."}, 400)
-        ticked = check_module.kept(str(word) for word in said if isinstance(word, str))
-        self.store.set_checked(person, check_module.LANGUAGE, check_module.VERSION, ticked)
-        found = self._snapshot(person, check_module.LANGUAGE)
-        reached = self._check_rung(person, check_module.LANGUAGE, found)
-        rung = (reached or level_module.ULPAN[0]).name.replace(" ", "-")
-        self._json({"signedIn": True, "rung": rung})
+        ticked = check_module.kept(
+            (str(word) for word in said if isinstance(word, str)), lists.language
+        )
+        self.store.set_checked(person, lists.language, lists.version, ticked)
+        found = self._snapshot(person, lists.language)
+        reached = self._check_rung(person, lists.language, found)
+        ladder = level_module.ladder_for(lists.language)
+        first = ladder.rungs[0] if ladder is not None else level_module.ULPAN[0]
+        self._json({"signedIn": True, "rung": check_module.rung_id(reached or first)})
 
     def _check_rung(self, person: Any, language: str, found: Any = None) -> Any:
-        """The ulpan rung the estimate stands at after the arrival's words check: the
-        highest whose words it reaches (`estimate.Estimate.words`). None where the reader
-        took no check in this language, took one against lists this targum no longer has,
-        or stands under aleph. The arrival's first text and Your Progress's level until
-        the reader's marks reach a rung both read it (design.md §12, "Your level comes
-        from your words check until your marks reach one", 2026-11-04)."""
+        """The rung the estimate stands at after the arrival's words check, on the
+        language's own ladder (`check.rung_after`): the ulpan's for Hebrew, the CEFR's for
+        French and Russian. None where the reader took no check in this language, took
+        one against lists this targum no longer has, or stands under the first rung. The
+        arrival's first text and Your Progress's level until the reader's marks reach a
+        rung both read it (design.md §12, "Your level comes from your words check until
+        your marks reach one", 2026-11-04)."""
         from . import check as check_module
         from . import estimate as estimate_module
-        from . import level as level_module
 
-        code = (language or "").split("-")[0].lower()
-        if self.store is None or person is None or code != check_module.LANGUAGE:
+        lists = check_module.lists_for(language)
+        if self.store is None or person is None or lists is None:
             return None
-        taken = self.store.checked(person.id, code)
-        if taken is None or taken[0] != check_module.VERSION:
+        taken = self.store.checked(person.id, lists.language)
+        if taken is None or taken[0] != lists.version:
             return None
         if found is None:
-            found = self._snapshot(person, code)
-        known = estimate_module.for_reader(self.store, person.id, code, found)
-        reached = [rung for rung in level_module.ULPAN if rung.at <= known.words()]
-        return reached[-1] if reached else None
+            found = self._snapshot(person, lists.language)
+        known = estimate_module.for_reader(self.store, person.id, lists.language, found)
+        return check_module.rung_after(known)
 
     def _know_slip(self, rest: str, payload: dict[str, Any]) -> None:
         """ "I know this" on a line that came back changed (2026-09-18).
@@ -15216,7 +15234,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "no language"}, 400)
         marked = self.store.marked(person, language)
         everything = catalogue_module.everything()
-        entries = [entry for entry in everything if entry.language == language]
+        # Every row on the language's shelf, by any of the languages it is written in, as
+        # the Library and "What you can read in our library" count them (targum-internal
+        # #664: What next once read only a row's first language).
+        entries = [entry for entry in everything if touchstones.in_language(entry, language)]
         index = coverage_module.read_index(catalogue_module.lemmas_path())
         rungs = touchstones.ladder(everything, language)
         answer: dict[str, Any] = {
@@ -15228,14 +15249,41 @@ class Handler(BaseHTTPRequestHandler):
             # The ledger's count, names and numbers left out, so the page says one figure.
             "known": self.store.known_count(person, language),
         }
-        answer.update(
-            touchstones.standing(
-                rungs,
-                self._known_of(rungs, index, marked, self._estimate(person, language)),
+        # French, Russian and Italian lead with what the reader can read in the library:
+        # every text in the language with a measure, ready, a stretch or not yet (design.md
+        # §12, "Progress leads with what you can read", 2026-11-08). Measured by the same
+        # function as the ladder, so one pass over the readers serves both.
+        every = (
+            tuple(str(entry.id) for entry in entries)
+            if language in touchstones.COVERAGE_LANGUAGES and index.texts
+            else ()
+        )
+        # Each built copy's own figure, read once for the card and What next alike.
+        built = self._built_shares({str(entry.id) for entry in entries}) if index.texts else {}
+        known_of = (
+            self._known_of(
+                [*rungs, touchstones.Rung(kind="", name="", difficulty=0.0, texts=every)],
+                index,
+                marked,
+                self._estimate(person, language),
+                built,
             )
-            if rungs and index.texts
+            if (rungs or every) and index.texts
+            else None
+        )
+        answer.update(
+            touchstones.standing(rungs, known_of)
+            if rungs and known_of is not None
             else {"ladder": [], "here": None, "next": None}
         )
+        if every and known_of is not None:
+            from . import level as level_module
+
+            # And how many of the language's commonest words the level counts among.
+            answer["coverage"] = {
+                **touchstones.coverage(every, known_of),
+                "among": level_module.COMMON_TOP,
+            }
         # What the reader's words say of each row: reached, or the words left to it
         # (design.md §12, "Your level, v3", 2026-10-29).
         found = self._snapshot(person, language)
@@ -15295,7 +15343,7 @@ class Handler(BaseHTTPRequestHandler):
             index,
             # A multiword unit kept as a phrase and marked known is known under its key
             # (design.md §12, "An idiom is one word to know", 2026-11-05).
-            units_module.with_phrases(marked, self.store.known_phrases(person.id))
+            units_module.with_phrases(marked, self.store.known_phrases(person.id), language)
             if language.split("-")[0] in units_module.LANGUAGES
             else marked,
             language,
@@ -15304,6 +15352,8 @@ class Handler(BaseHTTPRequestHandler):
             taught=taught,
             registers=choose_module.opened(self.store.interest(person.id), mine_registers),
             offset=choose_module.offset_for(self.store, person.id, language),
+            # A built copy's own figure, the one the card above counts the text by.
+            built=built,
         )
 
         # The words still being learned that they keep meeting, met the way the card
@@ -15381,22 +15431,13 @@ class Handler(BaseHTTPRequestHandler):
             ]
         self._json(answer)
 
-    def _known_of(
-        self, rungs: list[Any], index: Any, marked: dict[str, int], known: Any = None
-    ) -> Callable[[str], float | None]:
-        """A text's share of words known, read as the Library reads a row (`/readers`): a
-        copy the reader has built, or the shared shelf has, measured on its own words, and
-        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
-        Your Progress opens a shelf holding exactly the texts it counted.
-
-        The figure the Library prints, so our estimate where that is it (`known`, the
-        reader's `estimate.Estimate`; design.md §12, "A text's figure is our estimate
-        until your marks settle it", 2026-11-04)."""
-        from . import coverage as coverage_module
-
-        wanted = {entry_id for rung in rungs for entry_id in rung.texts}
-        built: dict[str, float] = {}
-        # The shared shelf first and the reader's own over it, as `rows()` in library.js.
+    def _built_shares(self, wanted: set[str]) -> dict[str, tuple[float, bool]]:
+        """Each wanted catalogue text a copy is built of, on the shared shelf or the
+        reader's own over it (as `rows()` in library.js), with that copy's own figure and
+        whether it is our estimate: what the Library prints for the row. Both "What you
+        can read in our library" (`_known_of`) and What next (`touchstones.at_level`) read
+        a text this way, so the two cannot disagree about it (targum-internal#664)."""
+        built: dict[str, tuple[float, bool]] = {}
         for home in (self.library.shared, self._home()):
             readers = [
                 reader
@@ -15407,16 +15448,39 @@ class Handler(BaseHTTPRequestHandler):
             for reader in readers:
                 share = reader.get("estimated", reader.get("known"))
                 if isinstance(share, (int, float)) and not isinstance(share, bool):
-                    built[str(reader["entry"])] = float(share)
+                    built[str(reader["entry"])] = (float(share), "estimated" in reader)
                 else:
                     built.pop(str(reader["entry"]), None)
+        return built
+
+    def _known_of(
+        self,
+        rungs: list[Any],
+        index: Any,
+        marked: dict[str, int],
+        known: Any = None,
+        built: dict[str, tuple[float, bool]] | None = None,
+    ) -> Callable[[str], float | None]:
+        """A text's share of words known, read as the Library reads a row (`/readers`): a
+        copy the reader has built, or the shared shelf has, measured on its own words, and
+        otherwise the catalogue's measure, rounded where `state()` rounds it. So a row on
+        Your Progress opens a shelf holding exactly the texts it counted.
+
+        The figure the Library prints, so our estimate where that is it (`known`, the
+        reader's `estimate.Estimate`; design.md §12, "A text's figure is our estimate
+        until your marks settle it", 2026-11-04). `built` is `_built_shares`'s answer
+        where the caller already has it."""
+        from . import coverage as coverage_module
+
+        if built is None:
+            built = self._built_shares({entry_id for rung in rungs for entry_id in rung.texts})
 
         statuses = index.statuses(marked) if index.counts else {}
         chances = known.chances(index) if known is not None and index.counts else None
 
         def known_of(entry_id: str) -> float | None:
             if entry_id in built:
-                return built[entry_id]
+                return built[entry_id][0]
             # Running words where counted, as `_measure_catalogue` reads it (design.md §12,
             # "The Library's bands count running words", 2026-11-01).
             measured = index.running(entry_id, marked, statuses) or index.against(entry_id, marked)
@@ -15489,12 +15553,13 @@ class Handler(BaseHTTPRequestHandler):
         if found is not None and found.here is not None:
             return None
         rung = self._check_rung(person, language, found)
-        if rung is None:
+        ladder = level_module.ladder_for(language)
+        if rung is None or ladder is None:
             return None
-        rungs = list(level_module.ULPAN)
+        rungs = list(ladder.rungs)
         after = rungs[rungs.index(rung) + 1] if rung in rungs[:-1] else None
         return {
-            "scale": "ulpan",
+            "scale": "ulpan" if ladder is level_module.ULPAN_LADDER else "cefr",
             "letter": rung.letter,
             "name": rung.name,
             "cefr": rung.cefr,
@@ -15981,7 +16046,7 @@ class Handler(BaseHTTPRequestHandler):
                             "label": self._say(f"find.chip.{chip.code}", chip.label),
                             "suggested": suggested,
                         }
-                        for chip, suggested in chips_module.ordered(liked)
+                        for chip, suggested in chips_module.ordered(liked, code)
                     ],
                     # Filter draws Listen only once there is something to listen to
                     # (design.md §12, 2026-11-05).
@@ -16000,7 +16065,9 @@ class Handler(BaseHTTPRequestHandler):
             )
         given = payload.get("topics")
         picked = [str(one) for one in given[:40]] if isinstance(given, list) else []
-        chosen = tuple(dict.fromkeys(code for code in picked if code in chips_module.BY_CODE))
+        # A chip not offered in the language (Russian has no `israel`, `holidays` or
+        # `army`; targum-internal#635) steers nothing.
+        chosen = tuple(dict.fromkeys(one for one in picked if chips_module.offered(one, code)))
         passed = payload.get("skip")
         skip = tuple(str(one)[:40] for one in passed[:200]) if isinstance(passed, list) else ()
         ask = button.Ask(code, chosen, tuple(liked), skip)
@@ -16020,7 +16087,9 @@ class Handler(BaseHTTPRequestHandler):
             return [row for row in rows if filter_holds(row, way, long)]
 
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
-        rung = chat_tools._rung(ctx.level) if code == "he" else None
+        # Each language's rung on its own ladder: the ulpan's for Hebrew, the CEFR's for
+        # Russian (targum-internal#635), as the pool counts it.
+        rung = chat_tools._rung(ctx.level) if code == "he" else button.rung_for(ctx.level, code)
         if payload.get("pressed") is True and (chosen or medium or length):
             # A Filter press, tallied by its cell with no reader (design.md §12, "The
             # night's search leans toward the topics readers ask for", 2026-11-05). Only
@@ -16068,7 +16137,7 @@ class Handler(BaseHTTPRequestHandler):
             named = (
                 [str(one) for one in given_topics[:40]] if isinstance(given_topics, list) else []
             )
-            steer = tuple(dict.fromkeys(one for one in named if one in chips_module.BY_CODE))
+            steer = tuple(dict.fromkeys(one for one in named if chips_module.offered(one, code)))
             given_skip = body.get("skip")
             passed_over = (
                 tuple(str(one)[:40] for one in given_skip[:200])

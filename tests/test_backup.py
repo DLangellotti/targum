@@ -443,9 +443,11 @@ def test_the_export_carries_what_the_reader_set(tmp_path: Path) -> None:
     store.set_address(person, "f")
     store.set_interest(person, ["news", "history"])
     rung = store.set_declared(person, "bet")
+    store.set_declared(person, "a2", "ru")
     settings = store.everything(person)["settings"]
     assert settings["address"] == "f"
     assert settings["interest"] == ["news", "history"]
-    assert settings["declared"] == rung
+    # A rung per language, never the packed column (qa-claude on targum#1112).
+    assert settings["declared"] == {"he": rung, "ru": "a2"}
     assert settings["record"] == "kept"
     assert "token" not in json.dumps(settings)

@@ -5812,11 +5812,17 @@ def finds_youtube(
         int | None,
         typer.Option("--units", help="Data API units this round may spend (default 3,000)."),
     ] = None,
+    language: Annotated[
+        list[str] | None,
+        typer.Option("--language", help="Only this language (default: Hebrew, then Russian)."),
+    ] = None,
 ) -> None:
-    """One night's round of YouTube finds (targum-internal#620): Hebrew videos with a
-    Hebrew track somebody wrote, found through the Data API, their tracks fetched through
-    the proxy (at most 120 a day), screened, scored and pooled. Does nothing unless
-    TARGUM_FINDS_YOUTUBE is set: the box's timer runs it every night."""
+    """One night's round of YouTube finds (targum-internal#620): videos with a track
+    somebody wrote in the language, found through the Data API, their tracks fetched
+    through the proxy (at most 120 a day), screened, scored and pooled. Hebrew first, then
+    Russian (#635) on the units and tracks the night has left, so Hebrew's night is as it
+    was. Does nothing unless TARGUM_FINDS_YOUTUBE is set: the box's timer runs it every
+    night."""
     from .accounts import Store
     from .finds import youtube
     from .serve import default_store
@@ -5825,11 +5831,14 @@ def finds_youtube(
         console.print(f"[dim]YouTube finds are off ({youtube.FLAG} is not set).[/dim]")
         return
     keeping = Store(store or default_store())
-    try:
-        found = youtube.refresh(keeping, budget_units=units)
-    except TargumError as error:
-        fail(error)
-    console.print(f"[green]YouTube[/green]: {found}")
+    left = youtube.units() if units is None else units
+    for code in language or youtube.LANGUAGES:
+        try:
+            found = youtube.refresh(keeping, language=code, budget_units=left)
+        except TargumError as error:
+            fail(error)
+        console.print(f"[green]YouTube[/green] ({code}): {found}")
+        left = max(0, left - found.units)
 
 
 @finds_app.command("podcasts")
@@ -5892,14 +5901,20 @@ def finds_shows(
 @finds_app.command("web")
 def finds_web(
     store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+    language: Annotated[
+        list[str] | None,
+        typer.Option("--language", help="Only this language (default: Hebrew, then Russian)."),
+    ] = None,
 ) -> None:
-    """One night's round of open-web finds (targum-internal#622). First Hebrew Wikipedia
-    and Wikivoyage through the MediaWiki API, free, on the forty topics' Hebrew phrases,
-    where TARGUM_FINDS_WIKI is set. Then one Anthropic web search for each phrase while the
-    night's allowance lasts (at most $1, inside TARGUM_FINDS_BUDGET_USD), where
-    TARGUM_FINDS_WEB is set. Every page read where robots.txt allows, at most five from a
-    host a night across both, screened, scored and pooled. The box's timer runs it every
-    night, and with neither flag set it does nothing."""
+    """One night's round of open-web finds (targum-internal#622). First the language's
+    Wikipedia and Wikivoyage through the MediaWiki API, free, on the forty topics'
+    phrases, where TARGUM_FINDS_WIKI is set. Then one Anthropic web search for each phrase
+    while the night's allowance lasts (Hebrew's $1, Russian's own $0.50, each paced
+    inside TARGUM_FINDS_BUDGET_USD), where TARGUM_FINDS_WEB is set. Every page read
+    where robots.txt allows, at most five from a host a night across both, screened,
+    scored and pooled. Hebrew first, then Russian (#635): Hebrew is paced as it was
+    before, and Russian spends only what Hebrew's pace leaves. The box's timer runs it
+    every night, and with neither flag set it does nothing."""
     from collections import Counter
 
     from .accounts import Store
@@ -5912,28 +5927,35 @@ def finds_web(
         )
         return
     keeping = Store(store or default_store())
-    read: Counter[str] = Counter()
-    if wiki.on():
-        try:
-            wikis = wiki.refresh(keeping)
-        except TargumError as error:
-            fail(error)
-        read = wikis.hosts
-        console.print(f"[green]Wikis[/green]: {wikis}")
-        if wikis.stopped:
-            console.print(f"[yellow]Stopped[/yellow]: {wikis.stopped}.")
-    else:
+    if not wiki.on():
         console.print(f"[dim]The wikis are off ({wiki.FLAG} is not set).[/dim]")
     if not web.on():
         console.print(f"[dim]The web search is off ({web.FLAG} is not set).[/dim]")
-        return
-    try:
-        found = web.refresh(keeping, hosts=read)
-    except TargumError as error:
-        fail(error)
-    console.print(f"[green]Web[/green]: {found}")
-    if found.stopped:
-        console.print(f"[yellow]Stopped[/yellow]: {found.stopped}.")
+    # At most five pages from a host a night, across both languages: each round counts
+    # on from what the rounds before it read.
+    night: Counter[str] = Counter()
+    for code in language or web.LANGUAGES:
+        read: Counter[str] = Counter(night)
+        if wiki.on():
+            try:
+                wikis = wiki.refresh(keeping, language=code)
+            except TargumError as error:
+                fail(error)
+            read.update(wikis.hosts)
+            console.print(f"[green]Wikis[/green] ({code}): {wikis}")
+            if wikis.stopped:
+                console.print(f"[yellow]Stopped[/yellow]: {wikis.stopped}.")
+        night = read
+        if not web.on():
+            continue
+        try:
+            found = web.refresh(keeping, language=code, hosts=read)
+        except TargumError as error:
+            fail(error)
+        night = found.hosts
+        console.print(f"[green]Web[/green] ({code}): {found}")
+        if found.stopped:
+            console.print(f"[yellow]Stopped[/yellow]: {found.stopped}.")
 
 
 @finds_app.command("pool")

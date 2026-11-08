@@ -243,6 +243,7 @@
     drawLearning();
     drawReads();
     drawAddress();
+    drawLevelRows();
   }
 
   /* How the conversation says "you" in Hebrew: 'm', 'f', or '' where they have not said.
@@ -759,6 +760,14 @@
      the browser holds a copy — so a change here reaches the next page opened at once. */
   var RUNGS = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"];
 
+  /* French's and Russian's rung is kept on the CEFR ladder (targum-internal#631), each
+     language its own, so naming one never takes the place of Hebrew's. Each has a row of
+     its own, drawn while that language is learned, on its own ladder: the arrival's own
+     sentences where it has one, and never a code. */
+  var CEFR = ["a1", "a2", "b1", "b2", "c1", "c2"];
+  var LADDERS = { he: RUNGS, fr: CEFR, ru: CEFR };
+  var PICKS = { he: "you-level", fr: "you-level-fr", ru: "you-level-ru" };
+
   function rungLabels() {
     return {
       "": t("you.level.none", "Not set"),
@@ -770,23 +779,54 @@
       dalet: t("learn.level.dalet", "I follow most things comfortably"),
       hey: t("learn.level.hey", "I follow almost anything"),
       vav: t("learn.level.vav", "Hebrew is a language I live in"),
+      a1: t("welcome.level.starting", "I’m just starting"),
+      a2: t("welcome.level.simple", "I can read simple things"),
+      b1: t("welcome.level.news", "I read the news with help"),
+      b2: t("you.level.b2", "I read most things comfortably"),
+      c1: t("welcome.level.anything", "I read almost anything"),
+      c2: t("you.level.c2", "I read anything a native reader does"),
     };
   }
 
-  function keepRung(rung) {
+  //: Where this browser keeps one language's rung (`charts.declaredKey`).
+  function rungKey(code) {
+    return code === "he" ? "targum:declared" : "targum:declared:" + code;
+  }
+
+  function keepRung(rung, code) {
     try {
-      if (rung) window.targumKeep("targum:declared", rung);
-      else window.targumForget("targum:declared");
+      if (rung) window.targumKeep(rungKey(code), rung);
+      else window.targumForget(rungKey(code));
     } catch (e) {}
   }
 
+  var declaredBy = {};
+
   function drawLevel(who) {
-    var pick = at("you-level");
+    declaredBy = Object.assign({}, who.declaredBy || {});
+    if (who.declared && !declaredBy.he) declaredBy.he = who.declared;
+    Object.keys(LADDERS).forEach(function (code) {
+      drawLadder(code, declaredBy[code] || "");
+    });
+    drawLevelRows();
+  }
+
+  //: The French and Russian rows are there while that language is learned.
+  function drawLevelRows() {
+    ["fr", "ru"].forEach(function (code) {
+      var row = at("you-level-" + code + "-row");
+      if (row) row.hidden = learning.indexOf(code) < 0;
+    });
+  }
+
+  function drawLadder(code, declared) {
+    var pick = at(PICKS[code]);
     if (!pick) return;
     var labels = rungLabels();
-    var said = RUNGS.indexOf(who.declared || "") >= 0 ? who.declared : "";
+    var rungs = LADDERS[code];
+    var said = rungs.indexOf(declared) >= 0 ? declared : "";
     pick.textContent = "";
-    [""].concat(RUNGS).forEach(function (rung) {
+    [""].concat(rungs).forEach(function (rung) {
       var option = document.createElement("option");
       option.value = rung;
       option.textContent = labels[rung];
@@ -794,13 +834,15 @@
       pick.appendChild(option);
     });
     pick.onchange = function () {
-      ask("/account/level", { level: pick.value }).then(function (answer) {
+      var body = code === "he" ? { level: pick.value } : { level: pick.value, language: code };
+      ask("/account/level", body).then(function (answer) {
         if (answer.error || answer.signedIn === false) {
-          drawLevel({ declared: said });
+          drawLadder(code, said);
           return say("you-languages-said", answer.error || SIGNED_OUT);
         }
         said = answer.declared || "";
-        keepRung(said);
+        declaredBy[code] = said;
+        keepRung(said, code);
         say("you-languages-said", SAVED);
       });
     };

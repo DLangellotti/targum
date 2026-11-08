@@ -772,35 +772,56 @@
    *
    * `level.seed` in Python is the same rule and says why: every other level is counted
    * off marked words, this one is declared, and **a measured rung outvotes it**. Once the
-   * reader's known words reach aleph this answers "" and the declared rung is not read.
-   * Hebrew only, because the arrival asks over the ulpan ladder.
+   * reader's known words reach the first rung this answers "" and the declared rung is
+   * not read. On the language's own ladder: Hebrew's over the ulpan's, and since
+   * 2026-11-05 French's and Russian's over the CEFR's, by the ids "a1" to "c2"
+   * (targum-internal#631). Each language keeps its own key (`declaredKey`): Hebrew's is
+   * the key it always was, and French's and Russian's are their own, so a Russian rung
+   * never takes the place of a Hebrew one. Italian, Aramaic and Yiddish are not asked.
    *
    * Here rather than in learn.js because the Library reads it too, and two pages with
    * two ideas of when a reader has been measured would disagree about the same reader.
-   * It answers with the arrival's id ("bet-plus") and `seedFraction` with where that sits
-   * on the ladder, 0 at aleph and 1 at vav. Nothing prints either.
+   * It answers with the arrival's id ("bet-plus", "a2") and `seedFraction` with where
+   * that sits on its ladder, 0 at the first rung and 1 at the last. Nothing prints either.
    */
   var DECLARED = "targum:declared";
   var DECLARED_RUNGS = ["aleph", "aleph-plus", "bet", "bet-plus", "gimel", "dalet", "hey", "vav"];
+  var CEFR_RUNGS = ["a1", "a2", "b1", "b2", "c1", "c2"];
+  //: The languages whose arrival keeps the rung it asks: those with a words check.
+  var SEEDED = { he: DECLARED_RUNGS, fr: CEFR_RUNGS, ru: CEFR_RUNGS };
+
+  //: Where this browser keeps one language's rung: "targum:declared" for Hebrew, as it
+  //: always was, and "targum:declared:ru" for the rest.
+  function declaredKey(code) {
+    var key = String(code || "he")
+      .split("-")[0]
+      .toLowerCase();
+    return key === "he" ? DECLARED : DECLARED + ":" + key;
+  }
 
   function seed(words, code) {
     var key = String(code || "he")
       .split("-")[0]
       .toLowerCase();
-    if (key !== "he") return "";
-    if (standingIn(reach(words).weighted, ULPAN).here) return "";
+    if (!Object.prototype.hasOwnProperty.call(SEEDED, key)) return "";
+    if (key === "he") {
+      if (standingIn(reach(words).weighted, ULPAN).here) return "";
+    } else if (standingIn(common(words), CEFR).here) {
+      return "";
+    }
     var said = "";
     try {
-      said = localStorage.getItem(DECLARED) || "";
+      said = localStorage.getItem(declaredKey(key)) || "";
     } catch (e) {
       return "";
     }
-    return DECLARED_RUNGS.indexOf(said) === -1 ? "" : said;
+    return SEEDED[key].indexOf(said) === -1 ? "" : said;
   }
 
   function seedFraction(id) {
-    var at = DECLARED_RUNGS.indexOf(id);
-    return at === -1 ? 0 : at / (DECLARED_RUNGS.length - 1);
+    var rungs = CEFR_RUNGS.indexOf(id) >= 0 ? CEFR_RUNGS : DECLARED_RUNGS;
+    var at = rungs.indexOf(id);
+    return at === -1 ? 0 : at / (rungs.length - 1);
   }
 
   /* A month's name as a date says it: the genitive in Russian («октября», as in «С начала
@@ -855,7 +876,9 @@
     seed: seed,
     seedFraction: seedFraction,
     DECLARED: DECLARED,
+    declaredKey: declaredKey,
     DECLARED_RUNGS: DECLARED_RUNGS,
+    CEFR_RUNGS: CEFR_RUNGS,
     levelFor: levelFor,
   };
 })();
