@@ -15,6 +15,8 @@ A `Level` carries the rung so the chat can grade the Hebrew it writes; what the 
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 import time
@@ -91,9 +93,17 @@ ULPAN: tuple[Rung, ...] = (
 #: "moderate" band ends at 4.1 — so a known word in the three commonest bands is, near
 #: enough, a known word among them (`COMMON_BANDS`). Measured 2026-09-13.
 #:
+#: That held for forms and not for lemmas looked up by their dictionary form (ling-it,
+#: 2026-11-08): wordfreq ranks written forms, so мочь is Zipf 2.63, bastare 3.85 and
+#: sembler 3.74, and the band count could never reach more than about 3,970 French,
+#: 3,460 Italian or 2,690 Russian lemmas — Russian's C1 and C2 were out of reach. So for
+#: French, Russian and Italian `common` counts a known lemma among the language's
+#: `COMMON_TOP` commonest *lemmas*, each lemma's frequency the sum of its forms'
+#: (`common_lemmas.json`), which is what XLex samples (targum-internal#659). The
+#: thresholds are not changed by that.
+#:
 #: A text's level is a frequency rank, not a count, so `text_rung` puts it through
-#: `count_at` before holding it against these (targum-internal#659). The thresholds are
-#: not changed by that.
+#: `count_at` before holding it against these (targum-internal#659).
 CEFR: tuple[Rung, ...] = (
     Rung(250, "A1", "A1"),
     Rung(1350, "A2", "A2"),
@@ -103,8 +113,13 @@ CEFR: tuple[Rung, ...] = (
     Rung(3300, "C2", "C2"),
 )
 
-#: The bands inside a language's commonest five thousand or so words. See `CEFR`.
+#: The bands inside a language's commonest five thousand or so words: what `common`
+#: counts in a language with no lemma table (`common_lemmas.json`). See `CEFR`.
 COMMON_BANDS = frozenset({"easy", "fairly easy", "moderate"})
+
+#: How many lemmas are a language's commonest, as XLex counts them (Milton 2009): the
+#: top of `common_lemmas.json`, ranked by the summed frequency of each lemma's forms.
+COMMON_TOP = 5000
 
 
 @dataclass(frozen=True)
@@ -134,13 +149,81 @@ def ladder_for(language: str) -> Ladder | None:
     return LADDERS.get((language or "").split("-")[0].lower())
 
 
-def common(words: Iterable[tuple[int | None, str]]) -> int:
-    """How many known words sit among the language's commonest: the CEFR's measure."""
+def common(words: Iterable[tuple[str, int | None, str]], language: str) -> int:
+    """How many known words sit among the language's commonest: the CEFR's measure.
+
+    `words` is (lemma, status, band). For French, Russian and Italian a word counts when
+    its lemma is among the language's `COMMON_TOP` commonest lemmas (`is_common`), read
+    here and now, so the band the annotation stored is not consulted and nothing is
+    re-annotated (targum-internal#659). A name or a number never counts."""
     return sum(
-        1
-        for status, band in words
-        if status == KNOWN and band not in NOT_VOCABULARY and band in COMMON_BANDS
+        1 for lemma, status, band in words if status == KNOWN and is_common(lemma, band, language)
     )
+
+
+def is_common(lemma: str, band: str, language: str) -> bool:
+    """Whether a word is among its language's commonest, as `common` counts them.
+
+    A language `common_lemmas.json` covers asks it of the lemma; any other (Hebrew) asks
+    it of the band, as before. A name or a number is never vocabulary."""
+    if band in NOT_VOCABULARY:
+        return False
+    table = _common_lemmas().get(_code(language))
+    if table is None:
+        return band in COMMON_BANDS
+    return _digest(lemma_key(lemma, language)) in table
+
+
+def _code(language: str) -> str:
+    return (language or "").split("-")[0].lower()
+
+
+_APOSTROPHES = str.maketrans({"\u2019": "'", "\u02bc": "'"})
+
+
+def lemma_key(lemma: str, language: str) -> str:
+    """The spelling a lemma is looked up by in `common_lemmas.json`, and was built under
+    by `scripts/build_rank_counts.py`: lower case, no stress mark, the apostrophe plain;
+    a French verb without its reflexive (se taire is taire, as `french_zipf` counts it);
+    Russian ё as е, since running text mostly writes it so."""
+    key = lemma.strip().lower().translate(_APOSTROPHES).replace("\u0301", "")
+    code = _code(language)
+    if code == "fr":
+        for prefix in ("s'", "se "):
+            if key.startswith(prefix):
+                key = key[len(prefix) :]
+                break
+    elif code == "ru":
+        key = key.replace("ё", "е")
+    return key
+
+
+def _digest(key: str) -> int:
+    """Four bytes of BLAKE2b of a lemma's key: what `common_lemmas.json` holds in place of
+    the word, so no word of a lexicon is in it (LICENSING.md)."""
+    return int.from_bytes(hashlib.blake2b(key.encode("utf-8"), digest_size=4).digest(), "big")
+
+
+@lru_cache(maxsize=1)
+def _common_lemmas() -> dict[str, frozenset[int]]:
+    """`common_lemmas.json`, decoded: each language's commonest lemmas as digests."""
+    out: dict[str, frozenset[int]] = {}
+    for code, packed in _common_table()["lemmas"].items():
+        raw = base64.b64decode(packed)
+        out[code] = frozenset(
+            int.from_bytes(raw[at : at + 4], "big") for at in range(0, len(raw), 4)
+        )
+    return out
+
+
+@lru_cache(maxsize=1)
+def _common_table() -> dict[str, Any]:
+    from importlib.resources import files
+
+    loaded: dict[str, Any] = json.loads(
+        files(__package__).joinpath("common_lemmas.json").read_text(encoding="utf-8")
+    )
+    return loaded
 
 
 def reach(words: Iterable[tuple[int | None, str]]) -> tuple[float, int]:
@@ -343,7 +426,7 @@ def snapshot(
     learning = sum(
         1 for _, status, band, _ in words if status in (1, 2, 3) and band not in NOT_VOCABULARY
     )
-    among = common((status, band) for _, status, band, _ in words)
+    among = common(((lemma, status, band) for lemma, status, band, _ in words), language)
     ladder = ladder_for(language)
     if ladder is None:
         here, following = None, None
@@ -797,11 +880,11 @@ def text_rung(
     the top rung has the top rung. None for a text with no words to count.
 
     The ulpan's rungs are vocabulary sizes, so a rank is held against them as it is. The
-    CEFR's are counts of known common-band lemmas (`common`), which is not a rank: the
-    rank goes through `count_at` for `language` first (targum-internal#659), and a
-    language with no table there gets no rung rather than a made-up one. A text past a
-    language's countable ceiling reads as the top rung the count can reach, so a Russian
-    one reads C1: Russian's C1 and C2 sit above everything its count can hold.
+    CEFR's are counts of known lemmas among the language's commonest (`common`), which is
+    not a rank: the rank goes through `count_at` for `language` first
+    (targum-internal#659), and a language with no table there gets no rung rather than a
+    made-up one. Every language's count reaches past C2, so a text past every rung reads
+    C2, Russian included.
     """
     ordered = sorted(RANKED_PAST if one is None else one for one in ranks)
     if not ordered or not ladder.rungs:
@@ -831,10 +914,10 @@ def _rank_counts() -> dict[str, Any]:
 
 
 def count_at(rank: int, language: str) -> int | None:
-    """C(rank): how many lemmas `common` can count that sit at or below `rank` in the
-    language's frequency list, read off `rank_counts.json` and interpolated between its
-    points. Past its last point it is the language's ceiling. None for a language the
-    table does not cover."""
+    """C(rank): how many of the lemmas `common` counts (`common_lemmas.json`) have a
+    dictionary form at or below `rank` in the language's frequency list, read off
+    `rank_counts.json` and interpolated between its points. Past its last point it is
+    the language's ceiling. None for a language the table does not cover."""
     table = _rank_counts()
     points: list[int] | None = table["counts"].get((language or "").split("-")[0].lower())
     if not points:

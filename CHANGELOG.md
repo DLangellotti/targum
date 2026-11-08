@@ -231,6 +231,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   without it. `fetch.private_source` and `fetch.PRIVATE` are the same names targum#1121
   uses, so a course book drops in as one line. Spends nothing. No new strings for
   readers.
+- A French, Russian or Italian reader's CEFR count is their known lemmas among the
+  language's 5,000 commonest lemmas, as XLex counts them (targum-internal#659). It was the
+  known lemmas whose dictionary form is in the three commonest bands, and wordfreq ranks
+  forms, so мочь, хотеть, bastare, bisognare, sembler and suffire never counted, and no
+  reader could count more than about 3,970 French, 3,460 Italian or 2,690 Russian words:
+  Russian's C1 and C2 were out of reach. Each lemma's frequency is now the sum over its
+  forms (Morphalou, OpenRussian, Morph-it!), and `common_lemmas.json` holds the top 5,000
+  of each language as four-byte hashes, no words. It is read when the level is counted,
+  so nothing is re-annotated and the stored bands are left alone. The rank-to-count table
+  counts the same lemmas, so a text past every rung reads C2 in Russian too. The
+  thresholds are unchanged. Hebrew is unchanged. No new strings.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built
@@ -243,9 +254,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   text in the middle of the list read one or two levels too high. `level.text_rung` now
   puts the rank through `level.count_at`, a table built offline from Morphalou (fr),
   OpenRussian (ru) and Morph-it! (it) and shipped as `rank_counts.json`, counts only; the
-  thresholds are unchanged, and the shelf and Read next both go through it. A Russian text
-  past everything Russian's count can hold reads C1, the top rung the count reaches, until
-  the ladder is reworked. Hebrew is unchanged. No new strings.
+  thresholds are unchanged, and the shelf and Read next both go through it. Hebrew is
+  unchanged. No new strings.
 - In a verse with a ketiv and its qere, every word after them is marked on its own
   letters again (2026-11-08; scripture annotator `oshb/9`). Sefaria writes `ketiv
   [qere]`, and the annotator measured its offsets against the verse with the ketiv cut
