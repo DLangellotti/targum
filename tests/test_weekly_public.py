@@ -514,6 +514,31 @@ def test_a_stranger_gets_the_whole_reader(open_shelves: tuple[int, Path]) -> Non
     assert _reader(port, "weekly-2026-w36-bet-he", "sec-0002.html")[0] == 200
 
 
+def test_an_issues_reader_loads_its_files_once_and_a_save_keeps_it_whole(
+    open_shelves: tuple[int, Path], tmp_path: Path
+) -> None:
+    """Like a portion's and a day's since #661 (design.md §12, "A served reader loads its
+    files once"; targum-internal#662): opened, its files are named under `/assets/`, which
+    a stranger can load; saved, it is the page on disk. Built the way a reader is, under
+    names of its own so the stubs the tests around it write are left alone."""
+    from test_offline import book
+    from test_served_reader import holds_both_forms
+
+    port, weekly_dir = open_shelves
+    built = book(tmp_path / "an-issue")
+    reader = weekly_dir / "weekly-2026-w36-bet-he" / "reader"
+    reader.mkdir(parents=True, exist_ok=True)
+    for name in ("index.html", "sec-0001.html"):
+        page = reader / f"built-{name}"
+        page.write_bytes((built / name).read_bytes())
+        try:
+            holds_both_forms(
+                port, f"/weekly/read/weekly-2026-w36-bet-he/reader/{page.name}", page.read_bytes()
+            )
+        finally:
+            page.unlink()
+
+
 def test_only_a_published_edition_is_served(open_shelves: tuple[int, Path]) -> None:
     """A draft is on disk and is not published, which from out here is the same thing as
     not existing."""

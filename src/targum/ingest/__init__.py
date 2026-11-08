@@ -67,7 +67,7 @@ def sources() -> list[str]:
             *AUDIO_SUFFIXES,
             *VIDEO_SUFFIXES,
             "http(s)://",
-            *(f"{name}:" for name in fetch.FETCHERS),
+            *(f"{name}:" for name in fetch.FETCHERS if name not in fetch.PRIVATE),
         }
     )
 
@@ -86,7 +86,8 @@ def fetchable(source: str) -> bool:
     refuses private addresses on every hop.
     """
     if fetch.is_identifier(source):
-        return True
+        # A private fetcher reads a reader's own file, so no request may name it.
+        return fetch.addressable(source)
     parsed = urlparse(source)
     return parsed.scheme in {"http", "https"} and bool(parsed.hostname)
 

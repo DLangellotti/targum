@@ -384,6 +384,117 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Scenes bring their words back — 2026-11-07
+
+David, 2026-11-07 (targum-internal#656). A beginner on Home's one card reads the next
+scene and little else, so what the scenes themselves bring back is what they keep.
+Measured that day on Hebrew scenes 1–100: 43% of dictionary forms are seen once, 11% ten
+times or more, 55% in one scene only, and 80% of the forms a scene introduces do not come
+back twice in the ten scenes after it. Rosetta Stone, measured the same way in Language
+Jones's 2026 review, has 3–5% seen once; textbooks have 25–33%.
+
+- **The bar, per series:** at most 15% of forms seen once, and every form a scene
+  introduces comes back in at least 2 of the next 10 scenes. `scripts/scene_recycling.py`
+  measures it for free from what the builds already wrote.
+- **A new scene is written against it.** Before writing, run the report and give the
+  author the owed and pending forms from the last ten scenes; the scene uses at least five
+  of them where a person would say them, never at the cost of a line nobody would say.
+  `--strict` passes before it ships.
+- **Existing scenes are not rewritten by this entry.** Rewriting means re-checking and
+  re-voicing; David decides it from the report's numbers for 1–240 and Russian.
+
+### Marking the rest can stay on the lesson — 2026-11-07
+
+David, 2026-11-07 (targum-internal#657), reading a course book in a playlist: "an
+option at the end of a lesson to mark all words as known but NOT go to the next lesson."
+This adds a third press to "Done marks nothing; knowing them all is a choice"
+(2026-10-13) and changes nothing it says about the other two.
+
+- **In a playlist only, and only where the press moves on to the next text.** Under Next
+  and "Next, and mark 12 words known": "Mark 12 words known", "Mark 1 word known" for
+  one, as a text link, the quietest of the three. A text on its own keeps its Done pair,
+  and the last item has none, since its Finish already stays to show the end card.
+  With no words left it is not shown, as "and mark" is not.
+- **It does what "Next, and mark" does, by the same path, and stays.** The words left
+  are marked known in one batch and the item is finished: it is on Your Progress and
+  the playlist counts it. The words turn known where they stand.
+- **The ink block says so, with its Undo**: "Finished · #4", then "12 words marked
+  known", and its three figures. Undo takes back the marks and the finish together, as
+  the ink block's Undo always has. Next stays, and pressed later it moves on from a
+  finished item and marks nothing more, so the next page has nothing to say.
+- **No key.** Neither of the other foot presses has a letter, so this one has none
+  either: it is reached by Tab, and once pressed the focus moves to Next.
+- The id says what it does: `#done-stay` finishes, marks and stays.
+### A course's playlist holds the whole course — 2026-11-07
+
+David, 2026-11-07 (targum-internal#652): one book, one playlist. A course book (the one that
+asked has 105 lessons) is read in its own order from the first lesson to the last. Cut into playlists of twenty, the reader has to find where lesson 21 went.
+
+A playlist whose every text is a lesson of one and the same course, built from the same
+book, may hold the whole course, up to 200 texts (`MOST_IN_COURSE`). Every other set keeps
+the twenty that "A playlist is swiped, and one press takes the set" (2026-09-23) gave it:
+a playlist that mixes a course with anything else, holds two courses, or holds a text
+still being made is a playlist like any other. A text that is not a lesson of that
+course, added past the twentieth, is refused with the usual words. One rule decides it
+(`accounts.playlist_most`), and the page, the chat and the connector, and targum's own
+sets all ask it. The page's "Up to 20 texts" is not said on a course's playlist.
+
+The set's one press is unchanged and still claims only what is waiting. A course lesson
+is never waiting, because `course:` is private and no request can name it ("A book import
+is always private", 2026-11-06), so a course's playlist past twenty holds only texts
+already made and its press has nothing to spend on. Voicing a lesson is still its own
+quote and its own press.
+
+### A course lesson is numbered as the book numbers it — 2026-11-06
+
+David, 2026-11-06 (targum-internal#652, targum#1121): approved as proposed. A reader
+moves between the lesson and its translation by the book's own line numbers, so those
+numbers are the refs and the margin.
+
+A lesson of a bilingual course book (Assimil, Colloquial, Teach Yourself) is one reader.
+It is a heading plus the lesson's numbered lines, each a verse with the ref
+`L<lesson>:<line>`, and the margin shows the book's line number. The book's facing
+translation is paired to it by those numbers (`course/` is a declared pairing beside
+`sefaria/` and `published/`) and is never bought. The book's note markers leave the text,
+and each note stands on the translation's line it is keyed to, as a translator's
+footnote. A revision lesson is a reader too, with its sections as notes on its heading.
+The pronunciation respelling and the exercises are not part of the reader; the exercises
+wait for practice cards.
+
+### A book import is always private — 2026-11-06
+
+David, 2026-11-06 (targum-internal#652, targum#1121): approved as proposed. A scanned
+book is someone else's copyright in a reader's hands, so nothing built from it may leave
+that reader.
+
+A course book, or any scanned book a reader brings, is in copyright unless shown
+otherwise. Its extract and the readers built from it are that reader's own. They are held
+only in the reader's home, never on the shelf, never proposed to the catalogue, never in
+the corpus and never trained on (#161). They enter the private language tables only as
+the aggregate counts every import does (2026-11-01). No link, chat or request can name a
+course (`fetch.PRIVATE`). The only way in is a file the reader uploaded. Reusing the work
+for a second reader who brings the same file is a separate decision, with its own entry
+and a check against the privacy notice.
+
+### A source is private unless its kind is listed public — 2026-11-06
+
+David, 2026-11-06 (targum-internal#653, targum#1122): approved as proposed. A private
+import whose author forgets to list it would leak into the corpus and the pools
+irreversibly, whereas a public source left off the list costs only counts and is easy to
+fix.
+
+When the code meets a source kind it doesn't recognise, it treats it as private. One list
+in `kinds.py` names the kinds that are public by what they are: the shelf's fetchers,
+links, the parasha and the daily (`sefaria:`), the weekly, the dialogues, the curated
+videos, and for a file the ingesters that read an upload. A listed kind is still private
+in a reader's home, and its licence still decides what may leave. A text of any other
+kind is withheld everywhere: never in the corpus ledger, the tables, the imports pool, an
+export or the shelf. The back office counts it as "withheld: unknown kind", with the
+kinds named, so a missing listing shows up. A source that names a scheme must also have
+been read by an ingester the code has, so a new fetcher that reads links is withheld until
+it is listed, even though `https` is public by kind for every listed ingester. For a file
+with no scheme, the ingester alone decides.
+
 ### The night's search leans toward the topics readers ask for — 2026-11-05
 
 David, 2026-11-05 (targum-internal#622, in chat): count the Filter presses with no reader
@@ -2154,6 +2265,30 @@ changes where a person recorded the word.
   recordings (44 files) wait for the bar to be widened, because this card's bar is CC0
   and BY-SA.
 
+### How hard a word is, counted across readers — 2026-10-30
+
+David, 2026-10-30. Lookups, marks-known and skips are pooled per word and level with
+no reader in the row, and a number is used only once ten readers stand behind it.
+Nothing on a page says a word is hard "because readers found it so", and no count of
+readers is ever shown. Where pooled difficulty and frequency disagree, the band a
+reader sees may move by one step, and it never moves on fewer than ten readers.
+
+- **Ten, not twenty** (David, 2026-10-30): the floor is ten distinct readers per word
+  and level, the privacy notice's "at least ten Data Subjects" (`tables.difficulty.FLOOR`).
+- **A skip** is a word in a section the reader marked finished that they neither looked
+  up nor marked known.
+- **The level is the one we gave the reader at the time**, replayed from when each of
+  their known words became known; the rung they named on arrival stands in while
+  nothing is measured, as it does on the card.
+- **Made afresh each night, and only that night is kept**: last night's pool is deleted,
+  not superseded, so a reader who erases their record, turns it off or leaves is out of
+  it by morning. Every count hangs off the record of use, marks known included.
+- **Public, redistributable texts only**, never a reader's home or a private import, and
+  never the operator's own accounts.
+- **Not before the notice.** The nightly job reads the privacy notice the service serves
+  and refuses, deleting any pool, unless clause 3.7 carries its sentence (targum-internal
+  #586). Nothing reads the table yet; the band step waits for a card of its own.
+
 ### What next leads with your biggest grammar gap — 2026-10-30
 
 David, 2026-10-30 (targum-internal#604, board 4B). It amends "3 · What next" in "Your
@@ -2669,9 +2804,15 @@ stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
   (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
   is no longer refreshed by being opened online: it stays as it was saved until it is
   saved again. That is the price of a copy that opens on a plane with nothing else.
-- **Not covered:** the Torah portions' and daily cycles' readers, which strangers open
-  under their own addresses, keep their files inline, like the shared shelf's public
-  pages did before #549.
+- **Not covered at first:** the Torah portions' and daily cycles' readers, which strangers
+  open under their own addresses, kept their files inline, like the shared shelf's public
+  pages did before #549. Since 2026-11-08 (targum-internal#661) they are named the same
+  way: `/assets/` is open to anybody, and a browser that has not kept the files gets the
+  page whole, as any page does. Their recordings were already files beside the pages
+  (`reader/audio/`), so nothing of theirs goes to `/clips/`, which is behind the account.
+  A weekly issue's reader (`/weekly/read/…`) followed the same day (targum-internal#662),
+  the same way. Only the earliest issues carry a recording inline, and it stays inline
+  for the same reason.
 - **Measured** locally on §14's phone profile (4× CPU, Slow 4G), on the live Ruth and
   scene readers served by a local `targum serve`, master against the change. With the
   files kept, Ruth's LCP went from 1.34 s and 159 kB to 0.69 s and 14 kB, and the
@@ -8522,7 +8663,9 @@ of it is built.
   channel or a podcast is subscribed to, never built from its address". Every other door
   still refuses it.)* Every item is still their private import and
   never the catalogue (#126). A set is capped, at twenty to start — the number is the
-  build's to tune, the cap is not.
+  build's to tune, the cap is not. *(Amended 2026-11-07: a course's own playlist holds
+  the whole course, up to 200 — see "A course's playlist holds the whole course". Every
+  other set keeps twenty.)*
 
 - **A swipe is a press.** "Nothing plays until pressed. Autoplay is the arcade's move"
   ("A text that carries media opens as its media", 2026-09-03) was written for a page

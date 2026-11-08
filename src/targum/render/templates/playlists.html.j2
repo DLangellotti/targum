@@ -67,6 +67,9 @@
   <section class="pl-lists" id="lists" hidden aria-label="{{ t("playlists.page.title", "Your playlists") }}">
     <p class="note" id="none" hidden>{{ t("playlists.page.none-yet", "No playlists yet. Use Add to playlist on any text to start one.") }}</p>
     <div class="pl-grid" id="playlists"></div>
+    {#- The other languages' playlists, counted, each a press that switches the header to
+        it (targum-internal#658). -#}
+    <p class="note pl-elsewhere-line" id="lists-elsewhere" hidden></p>
     <p class="said" id="lists-said" role="status" hidden></p>
   </section>
 

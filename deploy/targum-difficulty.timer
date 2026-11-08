@@ -1,0 +1,16 @@
+# /etc/systemd/system/targum-difficulty.timer — installed and enabled by deploy.sh.
+#
+# 03:15 UTC: after the tables sweep at 02:30 and before the backup at 04:00, which carries
+# what it wrote. Enabled on every deploy; the job itself refuses until the served privacy
+# notice carries its clause (see targum-difficulty.service).
+
+[Unit]
+Description=targum difficulty pool, nightly
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

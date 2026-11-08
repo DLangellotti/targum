@@ -2777,6 +2777,14 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
                 "error": f"{existing['name']} is in {language}, and a playlist holds texts "
                 "in one language. Add it to a playlist in its own language, or start one."
             }
+    from ..accounts import MOST_IN_PLAYLIST
+
+    # Twenty, or the whole course for a course's own playlist (design.md §12, 2026-11-07):
+    # the one rule the page and targum's own sets use. A new playlist's first text is
+    # under either.
+    most = MOST_IN_PLAYLIST
+    if existing is not None:
+        most = ctx.library.playlist_most(ctx.home, found, one.get("reader"), one.get("job"))
     if existing is None:
         existing = ctx.store.make_playlist(
             person, wanted, made_by="connector" if ctx.press_at else "chat"
@@ -2784,15 +2792,15 @@ def add_to_playlist(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         if existing is None:
             return {"error": _too_many_playlists(ctx)}
     added = ctx.store.add_to_playlist(
-        person, int(existing["id"]), one["title"], reader=one.get("reader"), job=one.get("job")
+        person,
+        int(existing["id"]),
+        one["title"],
+        reader=one.get("reader"),
+        job=one.get("job"),
+        most=most,
     )
     if added is None:
-        from ..accounts import MOST_IN_PLAYLIST
-
-        return {
-            "error": f"That playlist holds {MOST_IN_PLAYLIST} texts, the most it can. "
-            "Start another."
-        }
+        return {"error": f"That playlist holds {most} texts, the most it can. Start another."}
     if one.get("job"):
         return {
             "playlist": existing["name"],
@@ -3032,7 +3040,7 @@ def _describe(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     url = str(args.get("url") or "").strip()
     if not url:
         return {"error": "Give a link."}
-    if fetchers.is_identifier(url):
+    if fetchers.addressable(url):
         scheme = url.partition(":")[0].lower()
         return {
             "kind": "fetcher",

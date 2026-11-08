@@ -17,6 +17,7 @@ import email.utils
 import errno
 import functools
 import gzip
+import hashlib
 import io
 import json
 import logging
@@ -47,7 +48,6 @@ from . import mcp_http, oauth, plans, voices
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
-    MOST_IN_PLAYLIST,
     MOST_PLAYLISTS,
     MOST_PROMPTS,
     SUB_BUILDS,
@@ -58,6 +58,7 @@ from .accounts import (
     digest,
     now,
     plausible,
+    playlist_most,
 )
 from .alerts import out_of_credit
 from .audio.manifest import POSTER
@@ -946,13 +947,14 @@ def joined_from(said: str) -> str:
     is `/weekly`, a portion `/parasha`, a cycle's day its cycle. Anything not targum's
     is kept as unknown rather than stored as typed, so the column cannot become a place
     to write whatever a request says, and nothing about where somebody was before
-    targum is kept at all.
+    targum is kept at all. `/siddur` is the one family that is not a page: the front page
+    says it for a link of our own marked `?from=siddur-…`.
     """
     path = urlparse(said.strip()).path or ""
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
         return "/"
-    if first in {"aliyah", "connect", "weekly", "parasha"}:
+    if first in {"aliyah", "connect", "weekly", "parasha", "siddur"}:
         return f"/{first}"
     if first and first in {cycle.slug for cycle in daily_cycles()}:
         return f"/{first}"
@@ -1802,6 +1804,31 @@ ANKI_KEPT_MS = 60 * 60 * 1000
 ANKI_STUCK_MS = 6 * 60 * 60 * 1000
 #: One deck at a time a person: the check and the start are one step under this lock.
 ANKI_LOCK = threading.Lock()
+
+
+#: How long the back office keeps one count of withheld kinds: it reads every
+#: `document.json` in the library, and a kind forgotten is news by the day, not the minute.
+WITHHELD_FOR = 600.0
+_withheld_seen: dict[Path, tuple[float, dict[str, int]]] = {}
+
+
+def withheld_survey(root: Path, *, now: float | None = None) -> dict[str, int]:
+    """Built texts withheld for a kind not listed public, by kind, for the back office
+    (targum-internal#653): read at most every `WITHHELD_FOR` seconds, and never raising,
+    because the page matters more than the count."""
+    from .kinds import withheld_kinds
+
+    at = time.monotonic() if now is None else now
+    held = _withheld_seen.get(root)
+    if held is not None and at - held[0] < WITHHELD_FOR:
+        return held[1]
+    try:
+        found = dict(withheld_kinds(root))
+    except OSError as error:
+        log.warning("back office: withheld kinds not counted: %s", error)
+        return held[1] if held is not None else {}
+    _withheld_seen[root] = (at, found)
+    return found
 
 
 class Library:
@@ -3033,13 +3060,16 @@ class Library:
         entries = {entry.id: entry for entry in catalogue_module.everything()}
         offered: list[tuple[Any, list[tuple[Any, str]]]] = []
         for collection in catalogue_module.swipe_sets():
+            most = playlist_most(
+                entries[member].source for member in collection.members if member in entries
+            )
             built: list[tuple[Any, str]] = []
             for member in collection.members:
                 entry = entries.get(member)
                 folder = self.built_from(self.shared, entry.source) if entry else None
                 if entry is not None and folder:
                     built.append((entry, folder))
-                if len(built) == MOST_IN_PLAYLIST:
+                if len(built) == most:
                     break
             if built:
                 offered.append((collection, built))
@@ -3127,6 +3157,36 @@ class Library:
         mine = self.text_language(home, reader, job)
         theirs = self.playlist_language(home, found)
         return not mine or not theirs or mine == theirs
+
+    def text_source(self, home: Path, reader: str | None = None) -> str:
+        """The source a playlist's built text was made from, from its reader on `home` and
+        then the shared shelf; empty for a text still being made or a folder gone."""
+        if reader and "/" not in reader and not reader.startswith("."):
+            for root in (home, self.shared):
+                document = root / reader / "document.json"
+                if not document.is_file():
+                    continue
+                facts = self.remembered.get(
+                    root / reader, "document", [document], partial(self._document_facts, document)
+                )
+                return str(facts.get("source") or "")
+        return ""
+
+    def playlist_most(
+        self,
+        home: Path,
+        found: Mapping[str, Any],
+        reader: str | None = None,
+        job: str | None = None,
+    ) -> int:
+        """How many texts this playlist may hold with this text in it (`accounts.
+        playlist_most`): the whole course where it and everything already there are
+        lessons of one course (design.md §12, 2026-11-07), twenty otherwise. A text still
+        being made counts as not a lesson, whatever it will be."""
+        sources = [self.text_source(home, item.get("reader")) for item in found.get("items") or []]
+        if reader or job:
+            sources.append(self.text_source(home, reader) if reader else "")
+        return playlist_most(sources)
 
     def readers(self, home: Path, trashed: bool = False) -> list[dict[str, Any]]:
         """Everything built, newest first, with what the page needs to show progress."""
@@ -3325,7 +3385,7 @@ class Library:
                 if token.lemma not in seen:
                     seen[token.lemma] = rank(token.lemma, language)
                 running.append(seen[token.lemma])
-        rung = level_module.text_rung(running, ladder)
+        rung = level_module.text_rung(running, ladder, language=language)
         if rung is None:
             return None
         return {"rung": rung.letter, "name": rung.name, "cefr": rung.cefr}
@@ -5870,13 +5930,17 @@ def _clip_address(match: re.Match[str]) -> str:
     return CLIP_ROUTE + name
 
 
-def _served(text: str) -> str:
-    return _CLIP_URI.sub(_clip_address, served_reader(text))
+def _served(text: str, clips: bool = True) -> str:
+    named = served_reader(text)
+    return _CLIP_URI.sub(_clip_address, named) if clips else named
 
 
-#: The last readers handed out named, by file and its state on disk: a book's pages are
-#: opened one after another, and each is worked out once while it stays as it is.
-_SERVED: OrderedDict[tuple[str, int, int, str], bytes] = OrderedDict()
+#: The last readers handed out named, by file and the bytes that were read from it: a
+#: book's pages are opened one after another, and each is worked out once while it stays
+#: as it is. Keyed on what was read, never on a stat taken after it, so a page read while
+#: it was being written is never kept under the finished file's name (beta-found,
+#: 2026-11-06: a reader served blank until restart).
+_SERVED: OrderedDict[tuple[str, bytes, str, bool], bytes] = OrderedDict()
 _SERVED_MOST = 64
 _SERVED_LOCK = threading.Lock()
 
@@ -5896,24 +5960,27 @@ def chromed_page(body: bytes, language: str) -> bytes:
         return body
 
 
-def served_page(path: Path, body: bytes, language: str = "en") -> bytes:
+def served_page(path: Path, body: bytes, language: str = "en", *, clips: bool = True) -> bytes:
     """A reader as a browser opening it is handed it (design.md §12, "A served reader
     loads its files once", 2026-10-29): its chrome in the language of whoever opened it
     (`chromed_page`), today's stylesheets, scripts and faces named by address
     (`served_reader`) and its recordings as files of their own, so the browser keeps
-    them. The page on disk is untouched, whole, and is what a save keeps."""
-    try:
-        state = path.stat()
-    except OSError:
+    them. The page on disk is untouched, whole, and is what a save keeps.
+
+    `clips=False` for a reader a stranger opens (a portion's, a day's, a weekly issue's):
+    `/clips/` is behind the account, so a recording carried inline stays inline there. A
+    portion's and a day's are files beside the pages already (`reader/audio/`); only the
+    earliest weekly issues carry one inline."""
+    if not body:
         return body
-    key = (str(path), state.st_mtime_ns, state.st_size, language)
+    key = (str(path), hashlib.blake2b(body, digest_size=16).digest(), language, clips)
     with _SERVED_LOCK:
         found = _SERVED.get(key)
         if found is not None:
             _SERVED.move_to_end(key)
             return found
     try:
-        named = _served(chromed_page(body, language).decode("utf-8")).encode("utf-8")
+        named = _served(chromed_page(body, language).decode("utf-8"), clips).encode("utf-8")
     except UnicodeDecodeError:
         return body
     with _SERVED_LOCK:
@@ -6375,6 +6442,19 @@ class Handler(BaseHTTPRequestHandler):
         if target.suffix != ".html":
             return body
         return chromed_page(body, self._reader_language())
+
+    def _public_reader(self, target: Path) -> bytes:
+        """A portion's, a day's or a weekly issue's reader, which strangers open under its
+        own address: handed to a browser opening it with today's files named, as every
+        other served reader is (`served_page`; design.md §12, "A served reader loads its
+        files once", 2026-10-29; targum-internal#661, #662), and whole to anything else, a
+        save for offline above all. `_send` gives a browser that has not kept the files
+        the page whole. `/clips/` is behind the account, so a recording carried inline (an
+        early weekly issue's) stays inline; a portion's and a day's are files beside it."""
+        body = target.read_bytes()
+        if target.suffix == ".html" and self._navigating():
+            return served_page(target, body, self._reader_language(), clips=False)
+        return self._chromed(target, body)
 
     def _reader_language(self) -> str:
         """The interface language a reader's chrome is put in (design.md §12, "A reader's
@@ -7237,7 +7317,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
@@ -7266,7 +7346,7 @@ class Handler(BaseHTTPRequestHandler):
         if moving:
             return self._send_file(target, moving)
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _parasha_next(self, folder: str) -> None:
         """What a reading leads on to, for the end of its reader (#416, #446).
@@ -7386,10 +7466,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, page.encode("utf-8"), HTML)
 
         # The reader itself, for anybody at all. A published issue is already public at
-        # its own address, and the built reader is a self-contained file that fetches
-        # nothing — its meanings, its vowel points and its word list are all baked in —
-        # so serving it to a stranger hands over exactly what the prose page already
-        # hands over, and the whole of what makes this worth signing up for.
+        # its own address, and the built reader is a self-contained file — its meanings,
+        # its vowel points and its word list are all baked in — so serving it to a
+        # stranger hands over exactly what the prose page already hands over, and the
+        # whole of what makes this worth signing up for. Opened in a browser it names
+        # today's files under `/assets/`, which is open to anybody (targum-internal#662).
         #
         # A route of its own rather than opening `/reader/`, which reaches a person's
         # own home and the shared one. Those must never answer without an account, and
@@ -8014,8 +8095,9 @@ class Handler(BaseHTTPRequestHandler):
         if not target.is_file() or root not in target.parents:
             return self._send(404, b"not found", "text/plain")
         kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        # Framed by the issue's own page and by nothing else on the web.
-        return self._send(200, self._chromed(target, target.read_bytes()), kind, frames="out")
+        # Framed by the issue's own page and by nothing else on the web. Opened, its files
+        # are named as a portion's are; saved, it is the page on disk (targum-internal#662).
+        return self._send(200, self._public_reader(target), kind, frames="out")
 
     def _robots(self) -> str:
         """What a crawler may have.
@@ -9017,6 +9099,7 @@ class Handler(BaseHTTPRequestHandler):
             reader=one,
             finds=self._finds_survey(),
             fit=self._fit_survey(),
+            withheld=withheld_survey(self.library.out),
         )
         self._send(200, page.encode("utf-8"), HTML)
 
@@ -12252,6 +12335,9 @@ class Handler(BaseHTTPRequestHandler):
                         "nameLanguage": code if collection.named.get(code) else "en",
                         "english": collection.english,
                         "count": len(built),
+                        # The language it is in, so the tab shows it under that language
+                        # only, as it does the reader's own (targum-internal#658).
+                        "language": self.library.playlist_language(home, {"items": members}),
                         **{key: value for key, value in shown.items() if key != "items"},
                     }
                 )
@@ -12398,6 +12484,8 @@ class Handler(BaseHTTPRequestHandler):
             "failed": failed,
             "unconfirmed": unconfirmed,
             "credits": credits,
+            # The page's "Up to 20 texts" is said only where twenty is the cap.
+            "most": self.library.playlist_most(home, found),
         }
 
     def _targum_set(self, collection_id: str) -> None:
@@ -12796,10 +12884,22 @@ class Handler(BaseHTTPRequestHandler):
             refused = self._other_language(playlist_id, str(payload.get("reader") or ""))
             if refused is not None:
                 return self._json({"error": refused}, 400)
+        if doing in ("add", "next"):
+            # Twenty, or the whole course for a course's own playlist (design.md §12,
+            # 2026-11-07): asked once, of what is there and the text joining it.
+            most = self.library.playlist_most(
+                self._home(),
+                self.store.playlist(person.id, playlist_id) or {},
+                str(payload.get("reader") or "") or None,
+            )
         if doing == "add":
             reader = str(payload.get("reader") or "")
             added = self.store.add_to_playlist(
-                person.id, playlist_id, str(payload.get("title") or reader), reader=reader or None
+                person.id,
+                playlist_id,
+                str(payload.get("title") or reader),
+                reader=reader or None,
+                most=most,
             )
             if added is None:
                 return self._json(
@@ -12807,7 +12907,7 @@ class Handler(BaseHTTPRequestHandler):
                         "error": self._say(
                             "serve.playlist-full",
                             "A playlist holds up to {most} texts.",
-                            most=MOST_IN_PLAYLIST,
+                            most=most,
                         )
                     },
                     400,
@@ -12830,7 +12930,7 @@ class Handler(BaseHTTPRequestHandler):
             reader = str(payload.get("reader") or "")
             if not reader or (
                 self.store.play_next(
-                    person.id, playlist_id, str(payload.get("title") or reader), reader
+                    person.id, playlist_id, str(payload.get("title") or reader), reader, most=most
                 )
                 is None
             ):
@@ -12839,7 +12939,7 @@ class Handler(BaseHTTPRequestHandler):
                         "error": self._say(
                             "serve.playlist-full",
                             "A playlist holds up to {most} texts.",
-                            most=MOST_IN_PLAYLIST,
+                            most=most,
                         )
                     },
                     400,

@@ -579,16 +579,89 @@
     return press;
   }
 
+  /* The tab keeps to the language in the header, as Recent and Uploads do
+     (targum-internal#658): a playlist keeps to one language (2026-10-12), so the tab shows
+     the ones in the language being learned, and targum's own sets the same. One quiet
+     line under them says, exactly, how many the other languages hold, and pressing one
+     switches the header to it. A playlist with nothing in it yet says no language, and
+     is shown in every one. */
+  var lang = window.TargumLang;
+  var names = window.TARGUM_LANGUAGES || {};
+  var tabLanguage = "";
+
+  function base(code) {
+    return String(code || "").split("-")[0].toLowerCase();
+  }
+
+  function inLanguage(code) {
+    return function (one) {
+      var said = base(one.language);
+      return !said || said === code;
+    };
+  }
+
+  function elsewhere(playlists, code) {
+    var counts = {};
+    var order = [];
+    playlists.forEach(function (one) {
+      var said = base(one.language);
+      if (!said || said === code) return;
+      if (!counts[said]) order.push(said);
+      counts[said] = (counts[said] || 0) + 1;
+    });
+    return order.map(function (said) {
+      return { code: said, count: counts[said] };
+    });
+  }
+
+  function drawElsewhere(others, show) {
+    var line = at("lists-elsewhere");
+    if (!line) return;
+    line.textContent = "";
+    line.hidden = !others.length;
+    others.forEach(function (other, n) {
+      if (n) line.appendChild(document.createTextNode(" · "));
+      var press = element(
+        "button",
+        "pl-elsewhere",
+        tn("playlists.elsewhere", other.count, "{n} playlist in {language}", "{n} playlists in {language}", {
+          language: names[other.code] || other.code,
+        })
+      );
+      press.type = "button";
+      press.addEventListener("click", function () {
+        show(other.code);
+      });
+      line.appendChild(press);
+    });
+  }
+
   function drawTab(answer) {
-    var playlists = answer.playlists || [];
+    var all = answer.playlists || [];
+    var sets = answer.targum || [];
     // The sheet offers only the playlists the text may go into: a playlist keeps to one
-    // language (2026-10-12), and the server knows the text's. The tab still shows all.
+    // language (2026-10-12), and the server knows the text's.
     if (adding) {
       ask("/playlists.json?reader=" + encodeURIComponent(adding)).then(function (fitting) {
         drawSheet(fitting.playlists || []);
       });
     }
-    drawTargum(answer.targum || []);
+    var codes = [lang.HOME].concat(lang.learning());
+    all.concat(sets).forEach(function (one) {
+      var said = base(one.language);
+      if (said && codes.indexOf(said) < 0) codes.push(said);
+    });
+    codes = lang.order(codes, names);
+    var code = tabLanguage || lang.current(codes);
+    function show(chosen) {
+      tabLanguage = chosen;
+      lang.set(chosen);
+      drawTab(answer);
+    }
+    lang.switcher(at("langs"), codes, names, code, show);
+    var playlists = all.filter(inLanguage(code));
+    drawTargum(sets.filter(inLanguage(code)));
+    drawElsewhere(elsewhere(all, code), show);
     at("new-press").hidden = false;
     at("lists").hidden = false;
     at("none").hidden = playlists.length > 0;
@@ -1034,7 +1107,11 @@
     add.appendChild(drawing(PLUS));
     add.appendChild(document.createTextNode(t("playlists.add-from", "Add from Your targums or the Library")));
     more.appendChild(add);
-    more.appendChild(element("span", "pl-cap", t("playlists.up-to", "Up to 20 texts")));
+    // Twenty is the cap said here; a course's own playlist holds the whole course
+    // (design.md §12, 2026-11-07), so there the line says nothing rather than a wrong number.
+    if (!(one.most > 20)) {
+      more.appendChild(element("span", "pl-cap", t("playlists.up-to", "Up to 20 texts")));
+    }
     body.appendChild(more);
 
     if (refocus) {

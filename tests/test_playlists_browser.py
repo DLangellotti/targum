@@ -911,3 +911,64 @@ def test_offline_the_tab_says_where_saved_playlists_are_once(browser, tmp_path: 
     assert href.startswith("/you/saved")
     assert lined == "underline", lined
     assert gone
+
+
+# --- the tab keeps to the header's language (targum-internal#658) --------------------
+
+
+def test_the_tab_shows_the_header_language_and_counts_the_rest(browser, tmp_path: Path) -> None:
+    """Hebrew playlists stood under Italian beside "Italian With Ease" (David,
+    2026-11-07). The tab shows the header's language only, targum's own sets too; one line
+    counts the others exactly, and pressing a count switches the header to it."""
+
+    def one(n: int, name: str, language: str) -> dict:
+        return {**CARD, "id": n, "name": name, "language": language}
+
+    mine = [
+        one(1, "Italian With Ease", "it"),
+        one(2, "Psalms", "he"),
+        one(3, "Reels", "he"),
+        one(4, "Prophets", "he"),
+        one(5, "News", "ru"),
+        one(6, "Nothing yet", ""),
+    ]
+    sets = [
+        {"id": "kitchen", "name": "In the kitchen", "count": 3, "covers": [], "language": "he"},
+        {"id": "cucina", "name": "In cucina", "count": 2, "covers": [], "language": "it"},
+    ]
+    extra = (
+        "localStorage.setItem('targum:learning', JSON.stringify(['he', 'it', 'ru']));"
+        "localStorage.setItem('targum:language', 'it');"
+        f"const MINE = {json.dumps(mine)}; const SETS = {json.dumps(sets)};"
+        "const plain = window.fetch; window.fetch = (url, opts) =>"
+        " String(url).indexOf('/playlists.json') >= 0"
+        " ? Promise.resolve(new Response(JSON.stringify({playlists: MINE, targum: SETS,"
+        " current: null}))) : plain(url, opts);"
+    )
+    context, page, thrown = opened_with(browser, tmp_path, extra)
+
+    def shown() -> dict:
+        return page.evaluate(
+            """() => ({
+              cards: [...document.querySelectorAll('.pl-card:not(.pl-new-card) .pl-card-name')]
+                .map(n => n.textContent.replace(/[\\u2068\\u2069]/g, '')),
+              sets: [...document.querySelectorAll('.pl-targum-name')].map(n => n.textContent
+                .replace(/[\\u2068\\u2069]/g, '')),
+              line: document.getElementById('lists-elsewhere').hidden
+                ? null : document.getElementById('lists-elsewhere').textContent,
+              header: localStorage.getItem('targum:language'),
+            })"""
+        )
+
+    italian = shown()
+    page.locator(".pl-elsewhere", has_text="Hebrew").click()
+    hebrew = shown()
+    context.close()
+    assert not thrown, thrown
+    assert italian["cards"] == ["Italian With Ease", "Nothing yet"]
+    assert italian["sets"] == ["In cucina"]
+    assert italian["line"] == "3 playlists in Hebrew · 1 playlist in Russian"
+    assert hebrew["cards"] == ["Psalms", "Reels", "Prophets", "Nothing yet"]
+    assert hebrew["sets"] == ["In the kitchen"]
+    assert hebrew["line"] == "1 playlist in Italian · 1 playlist in Russian"
+    assert hebrew["header"] == "he"
