@@ -85,8 +85,10 @@ OCCURRENCES = "occurrences.json"
 #: 8 adds each Hebrew noun's and adjective's mishkal on the reviewed list (`mishkalim`,
 #: design.md §12, 2026-11-02), read off the same lexicon the card reads; 9 gives a
 #: hollow verb the CC0 table files under both ו and י its root (`verb_roots.VERSION` 3,
-#: targum-internal#601).
-VERSION = 9
+#: targum-internal#601); 10 counts an
+#: inflected verb that stood as its own lemma under its verb (`lemma_check` 2,
+#: targum-internal#660).
+VERSION = 10
 
 
 @dataclass(frozen=True)

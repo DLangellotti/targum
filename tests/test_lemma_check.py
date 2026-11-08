@@ -137,3 +137,129 @@ def test_the_count_files_the_word_under_the_lemma_the_page_shows(tmp_path: Path)
     assert counted is not None
     assert counted.count("השתיק") == 1
     assert counted.count("התקין") == 0
+
+
+# -- an inflected verb standing as its own lemma (targum-internal#660) ----------------
+
+FUTURE_PLURAL = "Person=3|Gender=Masc|Number=Plur|Tense=Fut"
+
+
+def test_a_future_with_the_hifil_tsere_takes_its_verb() -> None:
+    # תָּרֵעוּ is תָּרִיעוּ written short, and the table spells only the long form (ling-he
+    # on targum#1131); the shelf's copy is pointed with the tsere alone.
+    for written in ("תָּרֵעוּ", "תרֵעו"):
+        found = checked("תרעו", written, 0, "VERB", FUTURE_PLURAL)
+        assert found is not None and (found.lemma, found.binyan) == ("הריע", "הפעיל")
+
+
+def test_an_inflected_verb_the_table_knows_takes_its_verb() -> None:
+    past = "Person=3|Gender=Fem|Number=Sing|Tense=Past"
+    # Not הלכה, which unpointed is halakha (ling-he): הלכו is only the verb.
+    plural = "Person=3|Number=Plur|Tense=Past"
+    assert checked("הלכו", "הלכו", 0, "VERB", plural) == Mend("הלך", "הלך", "")
+    found = checked("אמרה", "אמרה", 0, "VERB", past)
+    assert found is not None and found.lemma == "אמר"
+    found = checked("ילכו", "ילכו", 0, "VERB", FUTURE_PLURAL)
+    assert found is not None and found.lemma == "הלך"
+
+
+def test_the_tables_form_must_say_what_dicta_said() -> None:
+    # Mishnaic יבאו, "they will come": the table's יבאו is יבא's past, so it stays a gap.
+    assert checked("יבאו", "יבאו", 0, "VERB", FUTURE_PLURAL) is None
+
+
+def test_a_gap_with_no_tense_a_citation_form_or_another_word_stays() -> None:
+    assert checked("הלכה", "הלכה", 0, "VERB") is None, "no tense said, nothing to match"
+    past = "Person=3|Gender=Masc|Number=Sing|Tense=Past"
+    assert checked("הלך", "הלך", 0, "VERB", past) is None, "already the verb"
+    assert checked("הלכה", "הלכה", 0, "NOUN", "Number=Sing") is None, "only verbs"
+
+
+def test_a_prefixs_own_tsere_is_not_the_hifils() -> None:
+    from targum.annotate.lemma_check import _plene
+
+    assert _plene("תָּרֵעוּ", 0) == "תריעו"
+    assert _plene("וַתָּרֵעוּ", 1) == "תריעו", "cut under its prefixes"
+    assert _plene("תרֵעו", 0) == "תריעו", "as the shelf has it: the tsere alone"
+    # A nif'al: its prefix's tsere, and its own tsere before the last letter, are no
+    # hiriq-yod written short, so it is never האמיר "soared".
+    assert _plene("יֵאָמֵר", 0) is None
+    assert checked("יאמר", "יֵאָמֵר", 0, "VERB", "Number=Sing|Tense=Fut") is None, (
+        "nor אָמַר's: a nif'al future stays a gap"
+    )
+    assert checked("יכנס", "יִכָּנֵס", 0, "VERB", "Number=Sing|Tense=Fut") is None
+
+
+def test_a_stored_inflected_row_is_mended_for_the_counts() -> None:
+    row = {"lemma": "תרעו", "surface": "תָּרֵעוּ", "pos": "VERB", "feats": FUTURE_PLURAL}
+    assert mend_row(row)["lemma"] == "הריע"
+
+
+# -- ling-he's read of targum#1135 (2026-11-08) -----------------------------------------
+
+PAST_FEM = "Person=3|Gender=Fem|Number=Sing|Tense=Past"
+
+
+@pytest.mark.parametrize("letters", ["עבדה", "שאלה", "נשמה", "ילדה", "הלכה", "נקבה"])
+def test_a_noun_homograph_unpointed_keeps_its_gap(letters: str) -> None:
+    assert checked(letters, letters, 0, "VERB", PAST_FEM) is None
+
+
+@pytest.mark.parametrize("pointed", ["עֻבְדָּה", "שְׁאֵלָה", "נְשָׁמָה", "יַלְדָּה", "הֲלָכָה", "נְקֵבָה"])
+def test_a_noun_homograph_pointed_as_the_noun_keeps_its_gap(pointed: str) -> None:
+    bare = "".join(char for char in pointed if "א" <= char <= "ת")
+    assert checked(bare, pointed, 0, "VERB", PAST_FEM) is None
+
+
+def test_a_noun_homograph_pointed_as_the_verb_moves() -> None:
+    assert checked("ילדה", "יָלְדָה", 0, "VERB", PAST_FEM) == Mend("ילד", "ילד", "")
+    found = checked("הלכה", "וְהָלְכָה", 1, "VERB", PAST_FEM)
+    assert found is not None and found.lemma == "הלך"
+    found = checked("שאלה", "שָׁאֲלָה", 0, "VERB", PAST_FEM)
+    assert found is not None and found.lemma == "שאל"
+
+
+@pytest.mark.parametrize(
+    ("letters", "written", "feats"),
+    [
+        ("משנה", "מְשַׁנֶּה", "Number=Sing|Tense=Pres"),
+        ("משנה", "משנה", "Number=Sing|Tense=Pres"),
+        ("מקדש", "הַמְקַדֵּשׁ", "Number=Sing|Tense=Pres"),
+        ("הוקרן", "הוקרן", "Person=3|Number=Sing|Tense=Past"),
+        ("הוברר", "הוברר", "Person=3|Number=Sing|Tense=Past"),
+    ],
+)
+def test_the_reviewed_gaps_stay_gaps(letters: str, written: str, feats: str) -> None:
+    lead = 1 if written.startswith("הַ") else 0
+    assert checked(letters, written, lead, "VERB", feats) is None
+
+
+def test_naase_moves_only_pointed_as_we_will_do() -> None:
+    plural = "Person=1|Number=Plur|Tense=Fut"
+    assert checked("נעשה", "נעשה", 0, "VERB", plural) is None
+    assert checked("נעשה", "נַעֲשָׂה", 0, "VERB", plural) is None
+    found = checked("נעשה", "נַעֲשֶׂה", 0, "VERB", plural)
+    assert found is not None and found.lemma == "עשה"
+
+
+@pytest.mark.parametrize(
+    ("pointed", "written"),
+    [
+        ("הִתְכַּוֵּן", "התכוון"),
+        ("קִיֵּם", "קיים"),
+        ("בִּקֵּשׁ", "ביקש"),
+        ("דִּבֵּר", "דיבר"),
+        ("הֻקְדַּשׁ", "הוקדש"),
+        ("צִוָּה", "צווה"),
+        ("הִתְקַיֵּם", "התקיים"),
+        ("הֵרִיעַ", "הריע"),
+        ("הִגִּיעַ", "הגיע"),
+        ("הִשְׁתִּיק", "השתיק"),
+        ("הָלַךְ", "הלך"),
+        ("שׁוּב", "שוב"),
+    ],
+)
+def test_a_lemma_is_written_in_ktiv_male(pointed: str, written: str) -> None:
+    from targum.annotate.lemma_check import male
+
+    assert male(pointed) == written

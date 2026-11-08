@@ -249,6 +249,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   הזיע "sweat" is י־ז־ע, הדיח is two verbs). On the laptop's 544 Hebrew annotations, 80
   lemmas and 2,906 verb tokens gain a root, הביא alone 699. Page-build and table time
   only: no annotator rename, no `SCHEMA_VERSION` bump, no spend.
+- An inflected Hebrew verb that stood as its own dictionary form is filed under its verb
+  (targum-internal#660; draft for ling-he). Where DICTA gave no lemma, the word itself
+  was used, so a future like תרעו had a card, a count and no root of its own, apart from
+  הריע. The page-time check (`annotate.lemma_check`, version 2) now gives such a verb
+  the CC0 table's verb when the word under its prefixes is a form of exactly one verb
+  there and that form has the tense and number DICTA read. A hif'il short future's
+  tsere is read as the hiriq-yod it stands for (תרֵעו is תריעו, הריע's), and a nif'al
+  future the marks show keeps its gap. The lemma is written in ktiv male (התכוון, not
+  the table's התכון). After ling-he's read, letters that are also a common noun (עבדה,
+  שאלה, נשמה, ילדה, הלכה, נקבה) move only where the pointing shows the verb, נעשה only
+  as נַעֲשֶׂה, and משנה, מקדש, הוקרן and הוברר keep their gaps. COUNT_PLACEHOLDER verb tokens
+  on the laptop shelf move.
+  No annotator rename and no SCHEMA_VERSION bump; `annotation.json` is unchanged and the
+  occurrences cache is rebuilt for free (version 10).
 - A word the model tagged without its dictionary form no longer shows a part of speech
   as its form (targum-internal#562). A line written as the word, its tag and its features
   was read one column off, so 1,581 Russian and 1,304 Italian words on the laptop's shelf
