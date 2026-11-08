@@ -31,8 +31,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from typing import Any
 
 #: Every Hebrew point, including cantillation.
 POINTS = re.compile(r"[֑-ׇ]")
@@ -1169,7 +1170,9 @@ def cast_voices_disagree(cast: dict[str, dict[str, str]]) -> list[str]:
 # ----------------------------------------------------------- telling the engine how
 
 
-def pronunciation_hints(text: str, addressee: str = "") -> list[str]:
+def pronunciation_hints(
+    text: str, addressee: str = "", lexicon: Mapping[str, Any] | None = None
+) -> list[str]:
     """What a speech engine cannot work out from the letters, said in words.
 
     Gemini ignores nikkud — a pointed line and the same line stripped of every vowel
@@ -1187,13 +1190,31 @@ def pronunciation_hints(text: str, addressee: str = "") -> list[str]:
     Only the genuinely ambiguous forms get a hint — the ones whose *letters* are the
     same either way. `אתה` is never `את`, so it is left alone; `את` is `at` or `et`,
     and the ending of `עזבת` is `-ta` or `-t`, and those are said.
+
+    **And a word fixed once is said right after** (targum-internal#584): the
+    pronunciation dictionary (`tables.pronunciation`, `pronunciation.json` in the
+    private tables directory) is read beside these, so a hint the author gave one line
+    reaches the same pointed word in every later scene. Where the dictionary speaks of
+    a word, it is said instead of the gender rule: a settled fix is about that word.
+    `lexicon` is the dictionary itself, for a caller that has one; by default it is
+    read from the tables directory, and is empty where none was written.
     """
+    from ..tables import pronunciation as dictionary
+
+    if lexicon is None:
+        lexicon = dictionary.load()
+    known = dictionary.says(words_of(text), lexicon) if lexicon else {}
     # Grouped by what is said about them, not one line per word. Two words can want
     # the identical instruction — אמרת and ואמרת differ by a conjunction and end the
     # same way — and prompt length is the thing that makes this API fail: a 497
     # character prompt was rejected four times in five, a 109 character one never.
     grouped: dict[str, list[str]] = {}
+    fixed: list[str] = []
     for word in words_of(text):
+        if word in known:
+            if known[word] not in fixed:
+                fixed.append(known[word])
+            continue
         says = addressed_gender(word)
         if not says:
             continue
@@ -1219,4 +1240,4 @@ def pronunciation_hints(text: str, addressee: str = "") -> list[str]:
             said += " (as written, though the cast says otherwise)"
         if plain not in grouped.setdefault(said, []):
             grouped[said].append(plain)
-    return [f"{', '.join(words)}: {said}" for said, words in grouped.items()]
+    return [f"{', '.join(words)}: {said}" for said, words in grouped.items()] + fixed

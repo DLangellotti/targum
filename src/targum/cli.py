@@ -5290,6 +5290,48 @@ def tables_fixes(
             )
 
 
+@tables_app.command("pronunciation")
+def tables_pronunciation(
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out",
+            help="The tables directory. Default: TARGUM_TABLES_DIR, /var/lib/targum/tables on"
+            " the box, ~/.targum/tables elsewhere. Never inside the repository.",
+        ),
+    ] = None,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Write the pronunciation dictionary the speech hints read (targum-internal#584):
+    each pointed word a settled fix spoke of, and what to say about it, over what the
+    pronouncer observed past its floor.
+
+    A fix counts once the author or an editor made it, or a person accepted it; an ASR
+    flag still proposed does not. Reads the account database and, where the ledger is
+    on, the language tables; writes pronunciation.json; runs no model.
+    """
+    from .accounts import Store
+    from .serve import default_store
+    from .tables import Store as TablesStore
+    from .tables import pronunciation, yardstick
+
+    made = pronunciation.build(
+        Store(store or default_store()), pronunciation.observations(TablesStore.from_env())
+    )
+    try:
+        file = pronunciation.write(made.lexicon, out or yardstick.directory())
+    except ValueError as error:
+        fail(TargumError(str(error), "Write it to the tables directory instead."))
+    console.print(
+        f"[green]Wrote[/green] {len(made.lexicon['forms'])} forms to {file}:"
+        f" {made.corrections} from fixes, {made.observations} observed"
+    )
+    if made.unplaced:
+        console.print(f"[dim]{made.unplaced} fixes name no word of their line; left out.[/dim]")
+    if made.unsettled:
+        console.print(f"[dim]{made.unsettled} fixes wait for a person to settle them.[/dim]")
+
+
 @tables_app.command("top")
 def tables_top(
     register: Annotated[str, typer.Option("--register", help="news, bible, literature…")],

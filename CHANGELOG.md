@@ -1584,6 +1584,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - A paid editor's own fixes are gold (David, 2026-11-02; targum-internal#585).
   `targum tables fixes --gold` now exports the author's rows, a paid human editor's rows
   and every accepted row. A refused proposal, and the row that refused it, stay out.
+- A word fixed once is said right after (targum-internal#584; spec §3, acceptances 1
+  and 2). `targum tables pronunciation` writes `pronunciation.json` into the private
+  tables directory (refusing a folder inside the repository): each pointed form a settled
+  pronunciation fix named, and what to say about it. A `voice_shelf.py --hint`, once
+  used, is the author's row, so the same pointed word in any later scene's prompt now
+  carries it, beside the gender hints `dialogue.checks.pronunciation_hints` already
+  gives. An ASR flag still proposed, a model's fix and a refused row never reach it. The
+  dictionary also reads the pronouncer's observations past a floor (10 occurrences, 95%
+  agreeing; David, 2026-11-08) where a spelling has two stresses, and a correction outranks
+  them; the fold that writes those observations is not built yet. Spends nothing.
 - A noun's card names its root and mishkal (David, 2026-11-02; targum-internal#593, #596;
   design.md §12). A Hebrew noun or adjective now has a Root row from targum's own lexicon
   ("כ־ת־ב · write"), a Mishkal row with the pattern's template and, for about 25 productive
