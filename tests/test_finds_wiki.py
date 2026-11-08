@@ -364,8 +364,8 @@ def test_off_unless_the_box_says_so(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     assert said.exit_code == 0 and "off" in said.output
     ran: list[Any] = []
 
-    def wikis(store: Store) -> wiki.Night:
-        ran.append(store)
+    def wikis(store: Store, language: str = "he") -> wiki.Night:
+        ran.append(language)
         return wiki.Night(hosts=Counter({WP: 2}))
 
     monkeypatch.setattr(wiki, "refresh", wikis)
@@ -373,4 +373,5 @@ def test_off_unless_the_box_says_so(monkeypatch: pytest.MonkeyPatch, tmp_path: P
     monkeypatch.setenv(wiki.FLAG, "1")
     said = CliRunner().invoke(app, ["finds", "web", "--store", str(tmp_path / "t.db")])
     assert said.exit_code == 0, said.output
-    assert len(ran) == 1 and "The web search is off" in said.output
+    # Hebrew's wikis, then Russian's (targum-internal#635), and no search.
+    assert ran == ["he", "ru"] and "The web search is off" in said.output

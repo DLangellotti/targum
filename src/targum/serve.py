@@ -16046,7 +16046,7 @@ class Handler(BaseHTTPRequestHandler):
                             "label": self._say(f"find.chip.{chip.code}", chip.label),
                             "suggested": suggested,
                         }
-                        for chip, suggested in chips_module.ordered(liked)
+                        for chip, suggested in chips_module.ordered(liked, code)
                     ],
                     # Filter draws Listen only once there is something to listen to
                     # (design.md §12, 2026-11-05).
@@ -16065,7 +16065,9 @@ class Handler(BaseHTTPRequestHandler):
             )
         given = payload.get("topics")
         picked = [str(one) for one in given[:40]] if isinstance(given, list) else []
-        chosen = tuple(dict.fromkeys(code for code in picked if code in chips_module.BY_CODE))
+        # A chip not offered in the language (Russian has no `israel`, `holidays` or
+        # `army`; targum-internal#635) steers nothing.
+        chosen = tuple(dict.fromkeys(one for one in picked if chips_module.offered(one, code)))
         passed = payload.get("skip")
         skip = tuple(str(one)[:40] for one in passed[:200]) if isinstance(passed, list) else ()
         ask = button.Ask(code, chosen, tuple(liked), skip)
@@ -16085,7 +16087,9 @@ class Handler(BaseHTTPRequestHandler):
             return [row for row in rows if filter_holds(row, way, long)]
 
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
-        rung = chat_tools._rung(ctx.level) if code == "he" else None
+        # Each language's rung on its own ladder: the ulpan's for Hebrew, the CEFR's for
+        # Russian (targum-internal#635), as the pool counts it.
+        rung = chat_tools._rung(ctx.level) if code == "he" else button.rung_for(ctx.level, code)
         if payload.get("pressed") is True and (chosen or medium or length):
             # A Filter press, tallied by its cell with no reader (design.md §12, "The
             # night's search leans toward the topics readers ask for", 2026-11-05). Only
@@ -16133,7 +16137,7 @@ class Handler(BaseHTTPRequestHandler):
             named = (
                 [str(one) for one in given_topics[:40]] if isinstance(given_topics, list) else []
             )
-            steer = tuple(dict.fromkeys(one for one in named if one in chips_module.BY_CODE))
+            steer = tuple(dict.fromkeys(one for one in named if chips_module.offered(one, code)))
             given_skip = body.get("skip")
             passed_over = (
                 tuple(str(one)[:40] for one in given_skip[:200])
