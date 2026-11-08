@@ -2,11 +2,13 @@
 (design.md §12, "Progress leads with what you can read", 2026-11-08).
 
 Each loads the page the server renders, with the account's answers stubbed, at a desk and
-as a touch phone: the heading, the level line said with "about", the three rows with their
-exact counts, the ready row opening Read it now, Home's find under them, and How we
-measure closed until pressed, with its four papers. Hebrew, sent no counts, keeps Texts by
-level. With `TARGUM_SHOTS` set to a folder, before and after are saved there at 390 and
-1440, in English and Russian, light and dark, as `can-read-<when>-<page>-<width>-<scheme>.png`.
+as a touch phone: the heading, the line saying what the level counts, the three rows with
+their exact counts, the ready row opening Read it now, Home's find under them, and How we
+measure closed until pressed, with its four papers. The level itself is said once, on the
+Reading level card: "About A2", and "310 more dictionary words to B1". Hebrew, sent no
+counts, keeps Texts by level and its card. With `TARGUM_SHOTS` set to a folder, before
+and after are saved there at 390 and 1440, in English and Russian, light and dark, as
+`can-read-<when>-<page>-<width>-<scheme>.png`.
 
 Skips itself without Playwright.
 """
@@ -152,9 +154,11 @@ def test_the_three_rows_the_find_and_the_fold(
         assert seen["card"] and not seen["ladder"], "the card stands in the ladder's place"
         assert seen["head"] == "What you can read in our library"
         assert seen["line"] == (
-            "Your level: about A2. Counted in dictionary words, among "
-            f"{NAMES[language]}'s 5,000 most common."
+            f"Counted in dictionary words, among {NAMES[language]}'s 5,000 most common."
         )
+        # The level is said once, on the Reading level card.
+        assert page.locator("#level-big").text_content() == "About A2"
+        assert page.locator("#level-togo").text_content() == "310 more dictionary words to B1"
         assert [(row["name"], row["state"]) for row in seen["rows"]] == [
             ("14 texts", "Ready for you: you know 98% of their words"),
             ("37 texts", "A stretch: 95 to 98%"),
@@ -181,7 +185,8 @@ def test_the_three_rows_the_find_and_the_fold(
             "each page. This is called comprehensible input, or i+1.",
             "Readers understand a text well when they know about 98% of its words. At 95%, "
             "many still follow it, with more effort. The more words you know, the more you "
-            "understand.",
+            "understand. We count only the most common words because they make up most of "
+            "any page.",
             "The level is a rough guide. Learners at one level know quite different numbers "
             "of words, so we say “about”.",
         ):
@@ -211,7 +216,7 @@ def test_the_three_rows_the_find_and_the_fold(
         context.close()
 
 
-def test_no_ready_text_is_no_link_and_no_level_is_no_line(
+def test_no_ready_text_is_no_link_and_the_line_stands_without_a_level(
     chromium: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     said = told({"ready": 0, "stretch": 1, "notYet": 1}, level=None)
@@ -219,7 +224,7 @@ def test_no_ready_text_is_no_link_and_no_level_is_no_line(
     try:
         page.locator("#can-read").wait_for(state="visible", timeout=10_000)
         seen = page.evaluate(SEEN)
-        assert seen["line"] is None
+        assert seen["line"] == "Counted in dictionary words, among Italian's 5,000 most common."
         assert [(row["name"], row["link"]) for row in seen["rows"]] == [
             ("0 texts", None),
             ("1 text", None),
@@ -251,9 +256,10 @@ def test_russian_says_it_in_russian(chromium: Any, monkeypatch: pytest.MonkeyPat
         seen = page.evaluate(SEEN)
         assert seen["head"] == "Что вы можете читать в нашей библиотеке"
         assert seen["line"] == (
-            "Ваш уровень: примерно A2. Считаем словарные слова среди 5 000 самых частых "
-            "слов на итальянском."
+            "Считаем словарные слова среди 5\u00a0000 самых частых слов на итальянском."
         )
+        assert page.locator("#level-big").text_content() == "Примерно A2"
+        assert page.locator("#level-togo").text_content() == "ещё 310 словарных слов до уровня B1"
         assert [row["name"] for row in seen["rows"]] == ["14 текстов", "37 текстов", "201 текст"]
         assert seen["find"] is not None and seen["find"]["text"] == "Найти, что почитать"
         assert seen["scroll"] <= seen["client"], "nothing sideways"
@@ -270,6 +276,8 @@ def test_hebrew_keeps_texts_by_level(chromium: Any, monkeypatch: pytest.MonkeyPa
         seen = page.evaluate(SEEN)
         assert seen["ladder"] and not seen["card"]
         assert page.locator("#touchstones .touch-row").count() == 7
+        assert page.locator("#level-big").text_content() == "A2"
+        assert page.locator("#level-togo").text_content() == "310 words to B1"
         assert not thrown, thrown
     finally:
         context.close()

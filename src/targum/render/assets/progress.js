@@ -355,7 +355,12 @@
      bar toward the next rung, then the exact words to it ("637 words to ה׳"), from the
      server's one function, so the C1 row says the same number. At the top rung, no bar
      and no number. Before the first rung (`first`), the bar and the words to it. */
-  function drawToward(scale, share, toGo, nextLetter, nextName) {
+  /* French, Russian and Italian say their level once, on this card, as "About A2", and
+     the words to the next rung as dictionary words (design.md §12, "Progress leads with
+     what you can read", 2026-11-08). */
+  var DICTIONARY = { fr: true, ru: true, it: true };
+
+  function drawToward(scale, share, toGo, nextLetter, nextName, dictionary) {
     var toward = document.getElementById("level-toward");
     var fill = document.getElementById("level-fill");
     var line = document.getElementById("level-togo");
@@ -369,18 +374,24 @@
     fill.style.width = Math.round(amount * 100) + "%";
     var count = el("b", "level-count", grouped(toGo));
     var rung = ulpan ? letterRun(nextLetter) : document.createTextNode(nextName);
+    var fill = { n: "\u0001", next: "\u0000" };
     sentenceWith(
       line,
-      tn("progress.level.to-go", toGo, "{n} word to {next}", "{n} words to {next}", {
-        n: "\u0001",
-        next: "\u0000",
-      }),
+      dictionary
+        ? tn(
+            "progress.level.to-go-dictionary",
+            toGo,
+            "{n} more dictionary word to {next}",
+            "{n} more dictionary words to {next}",
+            fill
+          )
+        : tn("progress.level.to-go", toGo, "{n} word to {next}", "{n} words to {next}", fill),
       { "\u0001": count, "\u0000": rung }
     );
     toward.hidden = false;
   }
 
-  function drawMark(level) {
+  function drawMark(level, dictionary) {
     var mark = document.getElementById("level-mark");
     var spoken = document.getElementById("level-spoken");
     var big = document.getElementById("level-big");
@@ -404,7 +415,11 @@
     }
     // The letter alone with its geresh, in its own right-to-left run and hidden from a
     // screen reader, which hears its name instead; a European level is itself.
-    big.textContent = ulpan ? letterRun(level.letter).textContent : level.name;
+    big.textContent = ulpan
+      ? letterRun(level.letter).textContent
+      : dictionary
+        ? t("progress.level.about", "About {cefr}", { cefr: level.name })
+        : level.name;
     if (ulpan) {
       big.setAttribute("lang", "he");
       big.setAttribute("dir", "rtl");
@@ -470,8 +485,10 @@
 
     if (level) {
       // The card is the level and nothing else (design.md §12, "Your level, v3").
-      drawMark(level);
-      if (level.next) drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name);
+      drawMark(level, !!DICTIONARY[code]);
+      if (level.next) {
+        drawToward(level.scale, level.toward, level.toGo, level.next.letter, level.next.name, !!DICTIONARY[code]);
+      }
       // A level the words check gave, until the reader's marks reach a rung, says where
       // it came from (design.md §12, "Your level comes from your words check until your
       // marks reach one", 2026-11-04).
@@ -509,7 +526,7 @@
       // which opens the first beginner conversation (David, 2026-10-29).
       var start = next || ladder[0];
       head.textContent = rungOf(start).start;
-      drawToward(first.scale, first.toward, first.toGo, first.letter, first.name);
+      drawToward(first.scale, first.toward, first.toGo, first.letter, first.name, !!DICTIONARY[code]);
       if (said.conversations) {
         go.textContent = t("progress.level.start-learning", "Start learning");
         go.href = keyed("/library#see/kind/dialogue");
@@ -567,8 +584,8 @@
   }
 
   /* What you can read in our library (design.md §12, "Progress leads with what you can
-     read", 2026-11-08), for French, Russian and Italian: the reader's measured level said
-     with "about" and what it counts, then how many of the language's library texts are
+     read", 2026-11-08), for French, Russian and Italian: what the level on the card beside
+     it counts, then how many of the language's library texts are
      ready (98% of their running words known, the Library's own measure of a text), a
      stretch (95 to 98%) and not yet. The ready row opens Read it now, which holds every
      one of them. Hebrew, and a story the server sent no counts with, keep Texts by level.
@@ -580,19 +597,13 @@
     var line = document.getElementById("can-read-line");
     var rows = document.getElementById("can-read-rows");
     rows.textContent = "";
-    var level = said.level && said.level.scale === "cefr" ? said.level : null;
-    if (level) {
-      line.textContent =
-        t("progress.read.level", "Your level: about {level}.", { level: level.name }) +
-        " " +
-        t("progress.read.counted", "Counted in dictionary words, among {language}'s {n} most common.", {
-          language: named(code),
-          n: grouped(counts.among || 5000),
-        });
-    } else {
-      line.textContent = "";
-    }
-    line.hidden = !line.textContent;
+    // The level itself is said once, on the Reading level card ("About A2"); here, what
+    // it counts.
+    line.textContent = t("progress.read.counted", "Counted in dictionary words, among {language}'s {n} most common.", {
+      language: named(code),
+      n: grouped(counts.among || 5000),
+    });
+    line.hidden = false;
     [
       ["ready", t("progress.read.ready", "Ready for you: you know 98% of their words")],
       ["stretch", t("progress.read.stretch", "A stretch: 95 to 98%")],
