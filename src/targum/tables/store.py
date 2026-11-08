@@ -29,6 +29,10 @@ from .. import ledger as ledger_module
 from . import weights
 from .registers import IMPORTS, is_pooled
 
+#: The table only the nightly difficulty pool writes (targum-internal#586): made from the
+#: box's readers, remade every night, never carried by a push nor taken in by an import.
+DIFFICULTY = "difficulty"
+
 #: The tables' own schema, independent of the ledger's and of `models.SCHEMA_VERSION`.
 TABLES_SCHEMA = 1
 
@@ -240,6 +244,8 @@ class Store:
         """
         if is_pooled(contribution.register):
             raise ValueError("the imports registers are written by tables.imports.pool alone")
+        if contribution.table == DIFFICULTY:
+            raise ValueError("the difficulty table is written by tables.difficulty.pool alone")
         stamp = datetime.now(UTC).isoformat(timespec="seconds")
         with closing(self._connect()) as db, db:
             db.execute("BEGIN IMMEDIATE")
@@ -339,6 +345,60 @@ class Store:
             db.execute("PRAGMA secure_delete = ON")
             db.execute("BEGIN IMMEDIATE")
             return _drop_pool(db) > 0
+
+    def replace_difficulty(
+        self,
+        made: Iterable[Contribution],
+        counts: Mapping[str, Mapping[tuple[str, str], int]],
+    ) -> int:
+        """Put the night's difficulty pool (targum-internal#586) in place of every row the
+        table held, in one transaction. Returns the tally rows written.
+
+        Deletes rather than supersedes, as `replace_pool` does and for its reason: a night
+        kept beside the next is a diff, and the diff between two nights is what one reader
+        who erased their record had been counted for. `counts` is keyed by contribution id.
+        """
+        made = list(made)
+        if any(one.table != DIFFICULTY for one in made):
+            raise ValueError("replace_difficulty writes the difficulty table and nothing else")
+        stamp = datetime.now(UTC).isoformat(timespec="seconds")
+        rows = 0
+        with closing(self._connect()) as db, db:
+            db.execute("PRAGMA secure_delete = ON")
+            db.execute("BEGIN IMMEDIATE")
+            _drop_table(db, DIFFICULTY)
+            for one in made:
+                db.execute(
+                    "INSERT INTO contribution (id, tbl, register, unit, source, licence, tool,"
+                    " origin, written_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        one.id,
+                        one.table,
+                        one.register,
+                        one.unit,
+                        one.source,
+                        one.licence,
+                        one.tool,
+                        self.origin(),
+                        stamp,
+                    ),
+                )
+                tallies = counts.get(one.id, {})
+                db.executemany(
+                    "INSERT INTO tally (contribution_id, key, variant, n) VALUES (?, ?, ?, ?)",
+                    [(one.id, key, variant, n) for (key, variant), n in tallies.items()],
+                )
+                rows += len(tallies)
+        return rows
+
+    def clear_difficulty(self) -> bool:
+        """Delete the difficulty pool, every row of it. True when there was one."""
+        if not self.file.is_file():
+            return False
+        with closing(self._connect()) as db, db:
+            db.execute("PRAGMA secure_delete = ON")
+            db.execute("BEGIN IMMEDIATE")
+            return _drop_table(db, DIFFICULTY) > 0
 
     def counted(self, contribution: str) -> dict[str, int]:
         """What one contribution counted, key by key over its variants."""
@@ -464,8 +524,8 @@ class Store:
                 row[0]
                 for row in db.execute(
                     "SELECT id FROM contribution WHERE origin = ? AND register != ?"
-                    " AND register NOT LIKE ? ORDER BY written_at, id",
-                    (origin, IMPORTS, f"{IMPORTS}:%"),
+                    " AND register NOT LIKE ? AND tbl != ? ORDER BY written_at, id",
+                    (origin, IMPORTS, f"{IMPORTS}:%", DIFFICULTY),
                 )
             ]
             for one in ids:
@@ -510,6 +570,7 @@ class Store:
                 if (
                     row["origin"] != "laptop"
                     or is_pooled(str(row["register"]))
+                    or row["tbl"] == DIFFICULTY
                     or book.is_private(str(row["unit"]))
                 ):
                     result.refused += 1
@@ -532,6 +593,15 @@ def _drop_register(db: sqlite3.Connection, register: str) -> int:
         (register,),
     )
     return int(db.execute("DELETE FROM contribution WHERE register = ?", (register,)).rowcount)
+
+
+def _drop_table(db: sqlite3.Connection, table: str) -> int:
+    """Delete every contribution of one table, current or not, and its tallies."""
+    db.execute(
+        "DELETE FROM tally WHERE contribution_id IN (SELECT id FROM contribution WHERE tbl = ?)",
+        (table,),
+    )
+    return int(db.execute("DELETE FROM contribution WHERE tbl = ?", (table,)).rowcount)
 
 
 def _drop_pool(db: sqlite3.Connection) -> int:
