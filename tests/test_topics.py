@@ -451,7 +451,8 @@ def test_topics_check_passes_warns_and_says_why(
 
     _lexicon(file, {"לחם": ["food"]}, version="topics/0")
     done = runner.invoke(app, ["topics", "check"])
-    assert done.exit_code == 1 and "is not a topics/1 lexicon" in done.output
+    # Rich wraps a long tmp path at the runner's width, so read it unwrapped.
+    assert done.exit_code == 1 and "is not a topics/1 lexicon" in " ".join(done.output.split())
 
 
 def test_the_lexicon_is_private_packed_into_the_wheel_and_checked_on_the_box() -> None:
