@@ -412,6 +412,22 @@ class Store:
                     out.setdefault(str(key), {})[str(variant)] = int(n)
         return out
 
+    def keyed(self, table: str) -> dict[str, dict[str, int]]:
+        """Every key of one table with its count under each variant, over every register
+        now: what a dictionary built from the whole table reads (`pronunciation`)."""
+        if not self.file.is_file():
+            return {}
+        out: dict[str, dict[str, int]] = {}
+        with closing(self._connect()) as db:
+            for key, variant, n in db.execute(
+                "SELECT t.key, t.variant, SUM(t.n) FROM tally t JOIN contribution c"
+                " ON c.id = t.contribution_id WHERE c.superseded_at IS NULL"
+                " AND c.tbl = ? GROUP BY t.key, t.variant",
+                (table,),
+            ):
+                out.setdefault(str(key), {})[str(variant)] = int(n)
+        return out
+
     def counts(self, table: str, key: str, register: str | None = None) -> dict[str, int]:
         """How often one key was counted under each variant now, in one register, or in
         every register but the imports pool's where `register` is None."""
