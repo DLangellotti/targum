@@ -297,6 +297,7 @@ def at_level(
     taught: Any = None,
     registers: frozenset[str] | None = None,
     offset: float = 0.0,
+    built: Mapping[str, tuple[float, bool]] | None = None,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
@@ -324,6 +325,14 @@ def at_level(
     `offset` is the reader's learned offset on the aim (`choose.offset_for`), the same
     one Home's card is chosen with (design.md §12, "The aim moves with what you finish",
     2026-11-05).
+
+    `built`, by entry id, is a copy's own figure and whether it is our estimate, where
+    the reader or the shared shelf has one built (`Handler._built_shares`): the figure
+    "What you can read in our library" counts the text by (`_known_of`), so a text that
+    card calls ready is never left off this list for a lower catalogue measure, and Home's
+    card chooses it on the same figure (targum-internal#664). A row is on this list when
+    it is on its language's shelf by any of the languages it is written in (`in_language`),
+    as the card counts it.
     """
     from . import catalogue as catalogue_module
     from . import choose, estimate
@@ -332,19 +341,28 @@ def at_level(
     held = dict(marked)
     statuses = index.statuses(held)
     found: list[tuple[tuple[Any, ...], tuple[float | None, bool], Any]] = []
+    copies = built or {}
     for entry in entries:
-        if str(getattr(entry, "language", "")) != language:
+        if not in_language(entry, language):
             continue
         entry_id = str(entry.id)
         register = getattr(entry, "register", "")
         register = str(getattr(register, "value", register) or "")
         if registers is not None and choose.held(register, registers):
             continue
+        copy = copies.get(entry_id)
         measured = index.running(entry_id, held, statuses) or index.against(entry_id, held)
-        if measured is None:
+        figure: tuple[float | None, bool]
+        if copy is not None:
+            # A built copy is measured on its own words, as the Library and the card
+            # read it (`_known_of`), and chosen on that.
+            chosen_on, figure = copy[0], (copy[0], copy[1])
+        elif measured is not None:
+            expected = index.expected(entry_id, statuses, chances) if chances is not None else None
+            chosen_on = measured.known if expected is None else expected
+            figure = estimate.shown(measured.known, expected)
+        else:
             continue
-        expected = index.expected(entry_id, statuses, chances) if chances is not None else None
-        chosen_on = measured.known if expected is None else expected
         medium = choose.medium_of(
             str(getattr(entry, "kind", "")), source=str(getattr(entry, "source", ""))
         )
@@ -364,7 +382,7 @@ def at_level(
             interest=interest,
             offset=offset,
         )
-        found.append((rank, estimate.shown(measured.known, expected), entry))
+        found.append((rank, figure, entry))
     found.sort(key=lambda one: one[0])
     out = []
     for _, (share, estimated), entry in found[:limit]:

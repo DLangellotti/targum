@@ -40,6 +40,17 @@ A2 = {
 }
 
 
+#: What next's texts, as the server would choose them for a reader with the counts
+#: below: in the band, the nearest the 94–97% aim first (`touchstones.at_level`). Sent with
+#: the counts, so a stub never shows texts ready on the card and "Nothing is quite at your
+#: level yet" under it (targum-internal#664). Made-up titles: the catalogue is private.
+AT_LEVEL = [
+    {"id": "it-mercato", "title": "Al mercato", "kind": "story", "known": 96, "estimated": True},
+    {"id": "it-treno", "title": "Il treno", "kind": "story", "known": 95, "estimated": True},
+    {"id": "it-lettera", "title": "Una lettera", "kind": "story", "known": 98, "estimated": False},
+]
+
+
 def told(coverage: dict[str, int] | None = None, level: Any = A2) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "known": 1400,
@@ -47,9 +58,12 @@ def told(coverage: dict[str, int] | None = None, level: Any = A2) -> dict[str, A
         "here": 1,
         "next": 2,
         "level": level,
+        "texts": AT_LEVEL,
     }
     if coverage is not None:
         fields["coverage"] = {**coverage, "among": 5000}
+        # A text in the band for every ready or stretch text the card counts, up to three.
+        fields["texts"] = AT_LEVEL[: min(len(AT_LEVEL), coverage["ready"] + coverage["stretch"])]
     return story(**fields)
 
 
@@ -210,6 +224,10 @@ def test_the_three_rows_the_find_and_the_fold(
         assert not page.locator("#can-read-how").is_visible()
         if width < 600:
             assert seen["pressHeight"] >= 44 and seen["find"]["height"] >= 44
+        # What next agrees with the card: texts ready or a stretch, so texts listed.
+        listed = page.locator("#level-rows .next-term").all_text_contents()
+        assert listed == [one["title"] for one in AT_LEVEL], listed
+        assert not page.locator("#level-empty").is_visible()
         assert seen["scroll"] <= seen["client"], "nothing sideways"
         assert not thrown, thrown
     finally:

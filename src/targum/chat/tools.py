@@ -67,7 +67,7 @@ from .. import learning as learning_module
 from .. import level as level_module
 from .. import parts as parts_module
 from .. import remembered as remembered_module
-from .. import sentence_level
+from .. import sentence_level, touchstones
 from .. import units as units_module
 from ..level import Level
 from ..translate.prompts import INTO, language_name
@@ -542,6 +542,16 @@ def _collections() -> dict[str, str]:
         for collection in catalogue_module.collections()
         for member in collection.members
     }
+
+
+def _copy_figure(row: dict[str, Any]) -> tuple[float, bool] | None:
+    """A built copy's own figure, from the row `_entry_row` made of it, and whether it is
+    our estimate: what `Handler._built_shares` reads off the same copy. None where no
+    copy is on the shelf, or it was not measured."""
+    share = row.get("estimated", row.get("known_share"))
+    if isinstance(share, (int, float)) and not isinstance(share, bool):
+        return float(share), "estimated" in row
+    return None
 
 
 def _entry_row(
@@ -1483,7 +1493,9 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     shown_topic = ""
     for origin, entry in _candidates(ctx):
         key = catalogue_module._key(entry.source)
-        if entry.language.split("-")[0] != language.split("-")[0]:
+        # On the language's shelf by any of the languages it is written in, as Your
+        # Progress lists it (`touchstones.in_language`; targum-internal#664).
+        if not touchstones.in_language(entry, language.split("-")[0]):
             continue
         if instead_of and entry.id == instead_of:
             shown = choose.cluster(_entry_row(entry, None, collections))
@@ -1512,26 +1524,26 @@ def suggest_next(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             row[parts_module.FIELD] = part.row()
         tilt = entry.register.value in liked
         running = index.running(entry.id, marked, statuses)
-        # Running words where the index counted the text; otherwise the distinct-form share
-        # a built copy measured, as before, rather than nothing.
         share: float | None = running.known if running is not None else None
         expected: float | None = None
         if running is not None:
             row["running_share"] = round(running.known, 4)
             if chances is not None:
                 expected = index.expected(entry.id, statuses, chances)
-        elif row.get("known_share") is not None:
-            share = float(row["known_share"])
         if expected is not None:
             row["expected_share"] = round(expected, 4)
         chosen_on = share if expected is None else expected
         # The one figure every page prints for this text (design.md §12, "A text's figure
         # is our estimate until your marks settle it", 2026-11-04): what the reader marked
-        # where that settles it, else our estimate, labelled. A built copy measured
-        # without the index carries its own (`_measure`).
+        # where that settles it, else our estimate, labelled.
         figure, estimated = estimate_module.shown(share, expected)
-        if expected is None and isinstance(row.get("estimated"), (int, float)):
-            figure, estimated = float(row["estimated"]), True
+        # A copy on the shelf is measured on its own words (`_measure`), and that is the
+        # figure the Library prints and Your Progress counts and lists the text by
+        # (`Handler._built_shares`; targum-internal#664), so it is the one chosen on here.
+        copy = _copy_figure(row)
+        if copy is not None:
+            chosen_on = figure = copy[0]
+            estimated = copy[1]
         medium = choose.medium_of(entry.kind.value, source=entry.source)
         row["fit"] = choose.fit(chosen_on, medium)
         learn, interest = taught.of(index, entry.id, running is not None and row["fit"])
