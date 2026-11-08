@@ -661,7 +661,31 @@
     "metric": "liaison_precision",
     "system": "morphalou-3.1+gruut-liaison",
     "at_least": 0.98,
-    "why": "the card's own floor (targum-internal#266); 1.0 on 2026-09-28, 80 of 80, against a model-drafted gold with its own tags"
+    "why": "the card's own floor (targum-internal#266); 1.0 on 2026-11-05, 80 of 80 with the gold's tags and 71 of 71 with the tagger's, against the gold as ling-fr read it (14 sites corrected, none of them an always made weaker; targum-internal#644). 1.0 on 2026-09-28 against the drafted gold"
+  },
+  {
+    "stage": "friends",
+    "corpus": "pd-fr-friends",
+    "metric": "friend_precision",
+    "system": "false-friends",
+    "at_least": 0.97,
+    "why": "the card's own floor (targum-internal#267, #644); 1.0 on 2026-11-05, 91 of 91 lines true in their sentence as ling-fr read them, after her 11 corrections and 11 additions; 0.967 on the list as drafted, which would not have cleared"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "pd-fr-pc-imp",
+    "metric": "pc_imp_accuracy",
+    "system": "model-lemma",
+    "at_least": 0.97,
+    "why": "0.9902 on 2026-11-05, 101 of 102 passé composé and imparfait verbs named right on ling-fr's hand-read French-shelf gold, Haiku 4.5, prompt 3 (targum-internal#644). Two misses below, as role_accuracy's"
+  },
+  {
+    "stage": "lemma",
+    "corpus": "pd-fr-pc-imp",
+    "metric": "trap_false_alarm",
+    "system": "model-lemma",
+    "at_most": 0.045,
+    "why": "0 of 45 on 2026-11-05: no pluperfect, passé simple, present, conditional or subjunctive called a passé composé or an imparfait (targum-internal#644). Two misses above, an upper bound"
   },
   {
     "stage": "align",
@@ -926,5 +950,37 @@
     "system": "aspect-partners/1",
     "at_least": 0.99,
     "why": "1.0000 on 2026-10-30, by construction: the card draws the reviewed list on the verbs it covers, and a fall means the list stopped winning"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "unresolved_share",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_most": 0.02,
+    "why": "0.0061 on 2026-11-05 (0.150 with the shelf's map alone, 2026-10-31); news.py drops a page past 8% (targum-internal#629)"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "mean_abs_worst",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_most": 0.025,
+    "why": "0.0136 on 2026-11-05 (0.085 with the map alone); the bound the Hebrew sample is held to, set on Russian's own"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "same_side_least",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_least": 0.9,
+    "why": "0.962 on 2026-11-05 (0.89 with the map alone)"
+  },
+  {
+    "stage": "finds",
+    "corpus": "ru-shelf",
+    "metric": "agree",
+    "system": "cheap-scorer/1+pymorphy3",
+    "at_least": 0.9,
+    "why": "0.9316 on 2026-11-05, against ru-local's own lemma"
   }
 ]

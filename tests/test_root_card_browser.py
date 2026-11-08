@@ -315,3 +315,102 @@ def test_the_russian_interface_leaves_the_english_meaning_off(
         _shot(page, f"noun-ru-{width}")
     finally:
         context.close()
+
+
+# --- a Tanakh word's family, from Strong's (targum-internal#591) -------------------------
+
+
+def test_a_tanakh_word_shows_its_family_by_part_of_speech_with_known_marked(
+    browser: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The family runs across parts of speech, each member named by its part of speech,
+    and the members this reader knows say so. The lexicon is the made-up one of
+    `test_strongs_families.py`."""
+    import test_strongs_families as made_up
+
+    from targum.annotate import oshb
+
+    model = tmp_path / "models"
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(model))
+    oshb.forget()
+    (model / "oshb").mkdir(parents=True)
+    xml = made_up.lexicon_xml()
+    (model / "oshb" / oshb.LEXICON_FILE).write_text(
+        json.dumps(oshb.parse_lexicon(xml), ensure_ascii=False), encoding="utf-8"
+    )
+    (model / "oshb" / oshb.DERIVATIONS_FILE).write_text(
+        json.dumps(oshb.parse_derivations(xml, {"9003": 40, "9005": 3}), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    text = "שמרה"
+    segment = Segment(id="0000.000-aaaaaa", block_id="b0", block_index=0, index=0, text=text)
+    try:
+        page_file = render(
+            Document(
+                source="memory",
+                title="A page",
+                language="he",
+                blocks=[Block(id="b0", kind=BlockKind.paragraph, text=text)],
+                content_hash="h",
+            ),
+            SegmentedDocument(
+                document_hash="h", language="he", segmenter="t/1", segments=[segment]
+            ),
+            [
+                Translation(
+                    name="Rendering",
+                    document_hash="h",
+                    source_language="he",
+                    target_language="en",
+                    provider="null",
+                    segments={segment.id: "A line."},
+                )
+            ],
+            tmp_path / "reader",
+            annotation=Annotation(
+                document_hash="h",
+                language="he",
+                annotator="t/1",
+                method="frequency",
+                method_note="a test",
+                tokens={
+                    segment.id: [
+                        Token(
+                            start=0,
+                            end=4,
+                            surface=text,
+                            lemma=text,
+                            band=2,
+                            pos="NOUN",
+                            lexeme="9004",
+                        )
+                    ]
+                },
+            ),
+        )[0]
+    finally:
+        oshb.forget()
+    context = test_reader_browser.opened(browser, viewport={"width": 390, "height": 860})
+    context.add_init_script(
+        "localStorage.setItem('targum:vocab:he', JSON.stringify({'משמר': "
+        "{status: 9, surface: 'משמר', meaning: '', band: '', at: 1}}));"
+        "localStorage.setItem('targum:migrated', JSON.stringify({vocab: 1, meanings: 1}));"
+    )
+    page = context.new_page()
+    try:
+        page.goto(test_reader_browser.address(page_file))
+        page.wait_for_selector(".pair")
+        page.evaluate(
+            "() => [...document.querySelectorAll('.w')].find((w) => w.textContent === "
+            f"'{text}').click()"
+        )
+        page.wait_for_selector(".gloss-card .card-kin")
+        rows = page.evaluate(
+            "() => [...document.querySelectorAll('.gloss-card .card-kin-verb')].map((r) => "
+            "[...r.children].map((c) => c.textContent))"
+        )
+        head = page.text_content(".gloss-card .card-kin-head")
+    finally:
+        context.close()
+    assert head == "From the same root"
+    assert rows == [["שָׁמַר", "verb"], ["מִשְׁמָר", "noun", "known"], ["שָׁמוּר", "adjective"]]

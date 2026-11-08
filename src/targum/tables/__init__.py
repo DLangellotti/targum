@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import ledger as ledger_module
+from ..kinds import private_source
 from . import spellings
 from .registers import register_of
 from .store import ImportResult, Store
@@ -71,7 +72,8 @@ def public_text(folder: Path, root: Path | None = None) -> PublicText | None:
     nor passed as `root`), when the folder is in a reader's home (`p<id>` or `local`, as
     `ledger.home_of` decides it), when the ledger's row for the document says it is a
     private import, when `document.json` is a link out of the library, and when the
-    folder has no readable `document.json`. Every doubt is a None: a text left uncounted
+    folder has no readable `document.json`, and when the source's kind is not listed
+    public (`kinds.private_source`). Every doubt is a None: a text left uncounted
     costs a count, and a private one counted cannot be taken back out of a total.
     """
     library = ledger_module._registered_for(folder) or root
@@ -95,6 +97,10 @@ def public_text(folder: Path, root: Path | None = None) -> PublicText | None:
     document_hash = str(document.get("content_hash") or "")
     source = str(document.get("source") or "")
     if not document_hash or not source:
+        return None
+    # A source is private unless its kind is listed public, wherever it sits and whether
+    # or not the ledger is on (targum-internal#653).
+    if private_source(source, str(document.get("ingester") or "")):
         return None
     file = ledger_module.path()
     held = None

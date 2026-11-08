@@ -682,9 +682,10 @@
     { at: 3300, letter: "C2", name: "C2" },
   ];
 
-  // The bands inside a language's commonest five thousand words, near enough: the
-  // 5,000th form sits just above the Zipf cut where "moderate" ends, in French, Russian
-  // and Italian alike.
+  // The bands inside a language's commonest five thousand words, near enough. Hebrew's
+  // rule only: French, Russian and Italian count a known lemma among their 5,000
+  // commonest lemmas, which the server reads off `common_lemmas.json` and no page
+  // carries (`level.common`, targum-internal#659), so their CEFR count is the server's.
   var COMMON_BANDS = { easy: true, "fairly easy": true, moderate: true };
 
   // Which languages have a ladder. Yiddish and Aramaic have none: no frequency table to
@@ -703,7 +704,7 @@
     return Object.prototype.hasOwnProperty.call(LADDERS, key) ? LADDERS[key] : null;
   }
 
-  /** Known words among the language's commonest: what the CEFR ladder is climbed by. */
+  /** Known words in the commonest bands: Hebrew's rule (see COMMON_BANDS). */
   function common(words) {
     var counted = 0;
     vocabulary(words).forEach(function (word) {

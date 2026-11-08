@@ -618,6 +618,8 @@ class Survey:
     last: dict[str, dict[str, Any]] = field(default_factory=dict)
     #: The last calibration's table (`score.Calibration.state`), or None.
     calibration: dict[str, Any] | None = None
+    #: The last calibration of each language, by language.
+    calibrations: dict[str, dict[str, Any]] = field(default_factory=dict)
     calibrated: int = 0
     #: Finds readers opened in the last thirty days, and of those built: off the job
     #: rows, which say `via: find` themselves, so there is no counter of its own.
@@ -677,16 +679,18 @@ def survey(db: sqlite3.Connection, at: int | None = None) -> Survey:
             out.opened += int(n)
             if stage == "done":
                 out.built += int(n)
-        row = db.execute(
+        for finished, note in db.execute(
             "SELECT finished, note FROM find_run WHERE source = 'calibrate' AND finished > 0"
-            " ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-        if row is not None:
-            out.calibrated = int(row[0])
+            " ORDER BY id"
+        ):
             try:
-                out.calibration = json.loads(row[1] or "null")
+                table = json.loads(note or "null")
             except ValueError:
-                out.calibration = None
+                table = None
+            out.calibrated = int(finished)
+            out.calibration = table if isinstance(table, dict) else None
+            if out.calibration is not None:
+                out.calibrations[str(out.calibration.get("language") or "he")] = out.calibration
     except sqlite3.Error:
         return Survey(budget=budget())
     return out

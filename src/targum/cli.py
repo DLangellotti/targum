@@ -2486,10 +2486,12 @@ def seeds() -> list[str]:
     # spends nothing, so a member left unbuilt is a member nobody is ever shown. Whole
     # sets, unlike the tracks above, because a playlist is swiped end to end and is
     # capped at a playlist's worth.
-    from .accounts import MOST_IN_PLAYLIST
+    from .accounts import playlist_most
 
+    sources = {entry.id: entry.source for entry in catalogue_module.everything()}
     for group in catalogue_module.swipe_sets():
-        out.extend(group.members[:MOST_IN_PLAYLIST])
+        most = playlist_most(sources[member] for member in group.members if member in sources)
+        out.extend(group.members[:most])
 
     # Stable, and each id once: a collection's head may be one of the two above.
     return list(dict.fromkeys(out))
@@ -4992,10 +4994,75 @@ def tables_sweep(
     console.print(
         f"[green]Pooled[/green] {pooled.texts} texts from {pooled.readers} readers,"
         f" {pooled.left_out} left out: {rows}"
-        f" [dim]{pooled.model_written} model-written, {pooled.unreadable} unreadable[/dim]"
+        f" [dim]{pooled.model_written} model-written, {pooled.withheld} withheld (unknown kind),"
+        f" {pooled.unreadable} unreadable[/dim]"
     )
     for register, texts in sorted(pooled.by_register.items()):
         console.print(f"  {register}: {texts}")
+
+
+@tables_app.command("pool")
+def tables_pool(
+    library: Annotated[
+        Path | None,
+        typer.Option("--library", help="Where the built targums are. Default: ./targum-out"),
+    ] = None,
+    accounts: Annotated[
+        Path,
+        typer.Option("--store", help="The account database, read-only: whose record counts."),
+    ] = Path("targum.db"),
+    notice: Annotated[
+        str,
+        typer.Option(
+            "--notice",
+            help="Where the running service serves the privacy notice. The pool refuses"
+            " unless that page carries clause 3.7's sentence for it.",
+        ),
+    ] = "http://127.0.0.1:8420/privacy",
+) -> None:
+    """Pool how hard each word is found at each level, across readers
+    (targum-internal#586): lookups, marks known and words passed over, per dictionary
+    form and rung, from the record of use of every reader but the operator's, over public
+    texts whose licence lets them leave. No reader, document or text in any row, a number
+    used only past ten readers, and made afresh each night with last night's deleted.
+
+    Refuses, and deletes any pool there is, unless the privacy notice the service serves
+    carries the sentence clause 3.7 has for it (`tables.difficulty.CLAUSE`): the pool
+    cannot run before the clause is live, nor once it is gone.
+    """
+    from contextlib import closing
+    from time import monotonic
+
+    from .accounts import Store as AccountStore
+    from .backoffice import operators_from_env
+    from .tables import difficulty, no_models
+
+    store = _tables_store()
+    page = difficulty.fetch_notice(notice)
+    if page is None or not difficulty.notice_carries_clause(page):
+        gone = difficulty.clear(store)
+        fail(
+            TargumError(
+                "The privacy notice does not carry clause 3.7's sentence for this pool.",
+                f"Nothing was pooled{', and the last pool was deleted' if gone else ''}."
+                f" Read {notice}: it must be served and carry the sentence first.",
+            )
+        )
+    root = library or Path.cwd() / "targum-out"
+    if not root.is_dir():
+        fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
+    if not accounts.is_file():
+        fail(TargumError(f"There is no account database at {accounts}.", "Pass --store FILE."))
+    readers = AccountStore(accounts).pooled_readers(operators_from_env())
+    started = monotonic()
+    with no_models(), closing(difficulty.read_only(accounts)) as db:
+        result = difficulty.pool(root, store, db, readers)
+    took = monotonic() - started
+    console.print(
+        f"[green]Pooled[/green] {result.cells} cells from {result.readers} readers over"
+        f" {result.documents} texts, {result.under_floor} under the floor,"
+        f" {result.withheld} events about texts not counted [dim]{took:.0f} s[/dim]"
+    )
 
 
 #: The box's corpus ledger, where `targum tables push` imports the laptop's rows.
@@ -5325,7 +5392,8 @@ def tables_snapshot(
 @tables_app.command("news")
 def tables_news() -> None:
     """Say what tonight's news count would take (targum-internal#582): the items the
-    followed Hebrew news feeds carry now, which are new, and how many words.
+    followed Hebrew and Russian news feeds carry now, which are new, and how many words,
+    a line a language, each under its own night's caps (targum-internal#637).
 
     Pulls each feed once, as the server does every few minutes, and fetches no page.
     Counts nothing and runs no model: the box counts at night inside the service, with
@@ -5336,7 +5404,7 @@ def tables_news() -> None:
     from .tables import news as news_module
     from .tables import no_models
     from .tables import yardstick as yardstick_module
-    from .tables.registers import NEWS
+    from .tables.registers import NEWS, in_language
     from .tables.words import WORDS
 
     store = _tables_store()
@@ -5348,15 +5416,9 @@ def tables_news() -> None:
         items = news_module.feed_items(kept, publishers)
         done = store.current_units(WORDS, (item.unit for item in items))
         fresh = [item for item in items if item.unit not in done]
-        night: list[news_module.FeedItem] = []
-        words = 0
-        for item in news_module.in_turn(fresh):
-            if len(night) >= news_module.NIGHT_ITEMS or (
-                night and words + item.words > news_module.NIGHT_WORDS
-            ):
-                break
-            night.append(item)
-            words += item.words
+        nights = news_module.nights(
+            fresh, words=news_module.NIGHT_WORDS, most=news_module.NIGHT_ITEMS
+        )
         by_outlet: dict[str, list[int]] = {}
         for item in items:
             row = by_outlet.setdefault(item.outlet, [0, 0, 0, 0])
@@ -5365,19 +5427,27 @@ def tables_news() -> None:
             if item.unit not in done:
                 row[2] += 1
                 row[3] += item.words
-        content = sum(n for _, n in store.top(WORDS, NEWS, limit=10**6))
+        # Each language has its own night and its own register (targum-internal#637).
+        languages = list(dict.fromkeys([*news_module.LANGUAGES[:1], *nights]))
+        held: dict[str, tuple[int, int]] = {}
+        for language in languages:
+            register = in_language(NEWS, language)
+            content = sum(n for _, n in store.top(WORDS, register, limit=10**6))
+            held[language] = (store.total(WORDS, register), content)
     console.print(f"{'outlet':<16}{'items':>7}{'words':>8}{'new':>6}{'new words':>11}")
     for outlet, (n, w, new, new_words) in sorted(by_outlet.items()):
         console.print(f"{outlet:<16}{n:>7}{w:>8}{new:>6}{new_words:>11}")
-    console.print(
-        f"Tonight would count {len(night)} of {len(fresh)} new items, {words:,} words"
-        f" (caps: {news_module.NIGHT_ITEMS} items, {news_module.NIGHT_WORDS:,} words)."
-    )
-    console.print(
-        f"News holds {store.total(WORDS, NEWS):,} words now,"
-        f" {content:,} of them content words; its first list needs"
-        f" {yardstick_module.FLOOR:,}."
-    )
+    for language in languages:
+        night = nights.get(language, [])
+        waiting = sum(1 for item in fresh if item.language == language)
+        total, content = held[language]
+        console.print(
+            f"{language}: tonight would count {len(night)} of {waiting} new items,"
+            f" {sum(item.words for item in night):,} words"
+            f" (caps: {news_module.NIGHT_ITEMS} items, {news_module.NIGHT_WORDS:,} words)."
+            f" News holds {total:,} words now, {content:,} of them content words;"
+            f" its first list needs {yardstick_module.FLOOR:,}."
+        )
 
 
 @tables_app.command("count-corpus")
@@ -5512,12 +5582,25 @@ def finds_forms(
         typer.Option("--write", help="Where to write the map. Default: ~/.targum/forms.json."),
     ] = None,
     language: Annotated[
-        list[str] | None, typer.Option("--language", help="A language to map; repeat. Default: he.")
+        list[str] | None,
+        typer.Option(
+            "--language", help="A language to map; repeat. Default: every pooled one (he, ru)."
+        ),
     ] = None,
     check: Annotated[
         Path | None,
-        typer.Option("--check", help="Check a map before it ships, and build nothing."),
+        typer.Option(
+            "--check",
+            help="Check a map before it ships, and build nothing; with --language, only those.",
+        ),
     ] = None,
+    drop_short: Annotated[
+        bool,
+        typer.Option(
+            "--drop-short",
+            help="Leave out a language whose map would fail its check, and say so.",
+        ),
+    ] = False,
 ) -> None:
     """Build the cheap scorer's form → lemma map from the public shelf (targum-internal#619).
 
@@ -5528,23 +5611,32 @@ def finds_forms(
     from .finds import score
 
     if check is not None:
-        wrong = score.check(check)
+        wrong = score.check(check, language or ())
         for line in wrong:
             console.print(f"[red]{line}[/red]")
         if wrong:
             raise typer.Exit(1)
-        console.print(f"[green]{check} is a {score.VERSION} map[/green]")
+        named = f" holding {', '.join(score.code(one) for one in language)}" if language else ""
+        console.print(f"[green]{check} is a {score.VERSION} map{named}[/green]")
         return
     roots = library or [Path.cwd() / "targum-out"]
     for root in roots:
         if not root.is_dir():
             fail(TargumError(f"There is no library at {root}.", "Pass --library DIR."))
-    languages = language or ["he"]
+    languages = language or sorted(score.POOLED)
     merged: dict[str, list[score.Annotated]] = {score.code(one): [] for one in languages}
     for root in roots:
         for text in score.annotated(root, languages):
             merged[text.language].append(text)
     built = {one: score.build_language(texts, one) for one, texts in merged.items()}
+    if drop_short:
+        # A thin shelf in one language costs that language only (deploy.sh): the rest
+        # ship, and a language left out pools nothing until its shelf is fuller.
+        for one in list(built):
+            problem = score.short(one, built[one])
+            if problem:
+                console.print(f"[yellow]{problem} Left out of the map.[/yellow]")
+                del built[one]
     body = {
         "version": score.VERSION,
         "built": datetime.now(UTC).isoformat(timespec="seconds"),
@@ -5589,12 +5681,17 @@ def finds_calibrate(
         list[str] | None,
         typer.Option("--also", help="A register a fixture may draw from beyond the tested."),
     ] = None,
+    ledger: Annotated[
+        Path | None,
+        typer.Option("--ledger", help="Also append the figures to this eval ledger."),
+    ] = None,
 ) -> None:
-    """The cheap scorer against DICTA on the shelf's own texts (plan §2.3).
+    """The cheap scorer against the annotator on the shelf's own texts (plan §2.3).
 
     Every modern public text is scored with a map built from the other four fifths of the
     shelf, split by series, for readers who know exactly the commonest 2,000 to 6,500
-    lemmas. Reads files only; nothing is fetched or spent.
+    lemmas: DICTA's lemmas for Hebrew, ru-local's for Russian. Reads files only; nothing
+    is fetched or spent.
     """
     from .finds import pool, score
 
@@ -5607,7 +5704,7 @@ def finds_calibrate(
     found = score.calibrate(texts, language)
     console.print(
         f"{found.test} of {found.texts} texts tested, {found.test_tokens} running words;"
-        f" agree with DICTA on {found.agree:.1%} of resolved words"
+        f" agree with the annotator on {found.agree:.1%} of resolved words"
     )
     console.print(
         "  found: " + ", ".join(f"{how} {share:.1%}" for how, share in found.found.items())
@@ -5636,6 +5733,12 @@ def finds_calibrate(
             data = gzip.compress(data, mtime=0)
         fixture.write_bytes(data)
         console.print(f"[dim]{len(body['texts'])} texts in the sample, {fixture}[/dim]")
+    if ledger is not None:
+        from . import evals
+
+        at = datetime.now(UTC).date().isoformat()
+        written = evals.append(found.ledger_rows(at), ledger)
+        console.print(f"[dim]{written} rows appended to {ledger}[/dim]")
 
 
 @finds_app.command("run")

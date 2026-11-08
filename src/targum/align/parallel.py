@@ -31,7 +31,8 @@ NAME = "parallel/1"
 
 # Sources whose two sides are numbered the same way by whoever published them. A new one
 # joins this by adding a prefix here and nowhere else.
-DECLARED = ("sefaria/", "published/")
+#: A course book numbers each lesson's lines on both facing pages (`ingest/fetch/course.py`).
+DECLARED = ("sefaria/", "published/", "course/")
 
 #: A published translation held as a file is numbered as Sefaria numbers the Hebrew it sits
 #: beside (`ingest/fetch/published.py`), so it keys as Sefaria does.

@@ -479,6 +479,25 @@ a.item-title:hover { text-decoration: underline; }
 }
 .pl-cap { color: var(--ink-soft); font-size: 0.875rem; }
 
+/* The other languages' playlists, counted (targum-internal#658): one quiet line under the
+   grid, each count a press that switches the header to its language. */
+.pl-elsewhere-line {
+  margin: 1rem 0 0;
+  font-family: var(--chrome);
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+.pl-elsewhere {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--teal);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+  cursor: pointer;
+}
+
 /* --- the sheet --------------------------------------------------------------------- */
 
 .playlists .choose {
@@ -681,10 +700,12 @@ a.item-title:hover { text-decoration: underline; }
   a.item-title,
   .pl-back,
   .pl-add-link,
+  .pl-elsewhere,
   .pl-away a { position: relative; }
   a.item-title::after,
   .pl-back::after,
   .pl-add-link::after,
+  .pl-elsewhere::after,
   .pl-away a::after {
     content: "";
     position: absolute;

@@ -19,8 +19,10 @@ stops is resumed rather than paid for twice. The first run, on 2026-09-28, asked
 in a longer prompt; Opus 5 refused that prompt for four of the twelve slices, and those
 four were drafted with `DRAFT` as it stands.
 
-The table is `src/targum/annotate/false_friends.json`. Its `reviewed` stays false until a
-person has read every line.
+The table is `src/targum/annotate/false_friends.json`. ling-fr read every line on
+2026-11-05 (targum-internal#644) and its `reviewed` is true, so `write` refuses it: the
+corrections are in the table and nowhere in the cache, and a rewrite would undo them. Edit
+the table by hand from here.
 """
 
 from __future__ import annotations
@@ -239,7 +241,10 @@ def check(client: Any, usage: Usage) -> None:
 
 
 def write(client: Any, usage: Usage) -> None:
-    """The table, from what survived both checks and the read. Spends nothing."""
+    """The table, from what survived both checks and the read. Spends nothing. Refused
+    once a person has read the table, whose corrections the cache does not hold."""
+    if OUT.exists() and json.loads(OUT.read_text()).get("reviewed"):
+        raise SystemExit(f"{OUT.name} has been read by a person; edit it by hand.")
     kept = json.loads((WORK / "checked.json").read_text())["keep"]
     entries = []
     for entry in kept:

@@ -78,18 +78,22 @@ def test_the_browser_s_ladder_gives_the_same_answer() -> None:
     assert theirs["ladders"] == {
         code: [ladder.title, ladder.measure] for code, ladder in level.LADDERS.items()
     }
-    words = [(int(w["status"]), str(w["band"])) for w in given["words"]]  # type: ignore[index]
-    assert theirs["common"] == level.common(words), "the same count of common words"
+    words = [("", int(w["status"]), str(w["band"])) for w in given["words"]]  # type: ignore[index]
+    # The browser counts by band, which is Hebrew's rule; French, Russian and Italian are
+    # counted by lemma on the server (`common_lemmas.json`), which no page carries.
+    assert theirs["common"] == level.common(words, "he"), "the same count of common words"
 
 
 def test_the_cefr_is_climbed_by_known_words_among_the_commonest() -> None:
     """Measured for French (Milton and Alexiou 2009), borrowed for Russian and Italian. A
     hard word is not among the commonest five thousand, so it does not count here, and a
-    name or a number never counts anywhere."""
-    words = [(level.KNOWN, "easy")] * 1500 + [(level.KNOWN, "moderate")] * 499
-    words += [(level.KNOWN, "hard")] * 800 + [(level.KNOWN, "name")] * 50 + [(2, "easy")] * 40
-    assert level.common(words) == 1999
-    here, following = level.standing(level.common(words), level.CEFR)
+    name or a number never counts anywhere. By band where a language has no lemma
+    table, as Hebrew has none."""
+    words = [("", level.KNOWN, "easy")] * 1500 + [("", level.KNOWN, "moderate")] * 499
+    words += [("", level.KNOWN, "hard")] * 800 + [("", level.KNOWN, "name")] * 50
+    words += [("", 2, "easy")] * 40
+    assert level.common(words, "he") == 1999
+    here, following = level.standing(level.common(words, "he"), level.CEFR)
     assert here is not None and here.name == "A2" and following is not None
     assert following.name == "B1" and following.at == 2000
     here, _ = level.standing(2000, level.CEFR)
@@ -220,12 +224,16 @@ def test_known_share_answers_a_page_inside_its_budget() -> None:
     page = " ".join(words)
     forms = set(words[:250]) | {word + "ים" for word in words[:100]}
 
-    worst = 0.0
+    # The median of five, not the worst: a shared CI runner once stalled one call for
+    # 774 ms (2026-11-03, targum-internal#649), and a stall is the runner, not the code.
+    # Slow code is slow in every call, so the median still trips on a real regression.
+    took = []
     for _ in range(5):
         started = time.perf_counter()
         level.known_share(page, forms)
-        worst = max(worst, (time.perf_counter() - started) * 1000)
-    assert worst < 50.0, f"known_share took {worst:.1f} ms on a 500-word page"
+        took.append((time.perf_counter() - started) * 1000)
+    middle = sorted(took)[2]
+    assert middle < 50.0, f"known_share took {middle:.1f} ms on a 500-word page: {took}"
 
 
 def test_the_share_is_said_as_an_exact_percentage() -> None:
@@ -401,6 +409,185 @@ def test_a_text_with_no_words_has_no_rung() -> None:
     from targum.level import ULPAN_LADDER, text_rung
 
     assert text_rung([], ULPAN_LADDER) is None
+
+
+# -- a rank is not a count: the CEFR's conversion (targum-internal#659) ---------------
+#
+# The ranks are the ones builder-3 measured on the laptop's built texts (#659). "was" is
+# what each read held as a rank against the thresholds; "now" what its count reads,
+# C(R) counting the lemmas `common` counts (the commonest 5,000 by summed form
+# frequency), against the unchanged thresholds.
+
+
+@pytest.mark.parametrize(
+    ("language", "rank", "was", "now"),
+    [
+        ("fr", 1_648, "B1", "A2"),  # gsb-asp-0276
+        ("fr", 3_376, "C2", "B2"),  # gsb-sbc-0315, C1 under the band count
+        ("fr", 5_898, "C2", "C2"),  # daudet-les-etoiles
+        ("it", 2_395, "B2", "B1"),  # eu-easy-read
+        ("it", 3_568, "C2", "B2"),  # 55347-un-libro-per-puchku
+        ("it", 4_611, "C2", "C1"),  # ec-solidarity-norcia
+        ("ru", 4_690, "C2", "B1"),  # gsb-lida-0022
+    ],
+)
+def test_a_cefr_text_is_placed_by_count_not_by_rank(
+    language: str, rank: int, was: str, now: str
+) -> None:
+    from targum.level import CEFR, CEFR_LADDER, text_rung
+
+    held_as_rank = next((rung for rung in CEFR if rung.at >= rank), CEFR[-1])
+    assert held_as_rank.name == was, "what it read before #659"
+    assert text_rung([rank] * 20, CEFR_LADDER, language=language).name == now  # type: ignore[union-attr]
+
+
+def test_every_cefr_level_can_be_reached_in_every_language() -> None:
+    """Counted by lemma, every language's count reaches past C2: Russian's C1 and C2 sat
+    above everything the band count could hold (2,663), and no longer do. A text past
+    every rung reads C2."""
+    from targum.level import CEFR, CEFR_LADDER, count_at, text_rung
+
+    for language in ("fr", "ru", "it"):
+        ceiling = count_at(10**9, language)
+        assert ceiling is not None and ceiling > CEFR[-1].at
+        for ranks in ([19_000] * 20, [None] * 20):
+            assert text_rung(ranks, CEFR_LADDER, language=language).name == "C2"  # type: ignore[union-attr]
+
+
+def test_the_count_rises_with_the_rank_and_stops_at_a_ceiling() -> None:
+    from targum.level import COMMON_TOP, count_at
+
+    for language in ("fr", "ru", "it"):
+        counts = [count_at(rank, language) for rank in range(0, 21_000, 37)]
+        assert counts[0] == 0
+        assert all(a <= b for a, b in zip(counts, counts[1:], strict=False))  # type: ignore[operator]
+        assert counts[-1] == count_at(10**9, language)
+        assert counts[-1] <= COMMON_TOP  # type: ignore[operator]
+        # a lemma ranked R in the form list is at worst one of the commonest R lemmas
+        assert all(count_at(r, language) <= r for r in range(0, 21_000, 37))  # type: ignore[operator]
+    assert count_at(1_000, "he") is None and count_at(1_000, "yi") is None
+
+
+def test_a_cefr_text_with_no_table_has_no_rung() -> None:
+    """No level is better than a made-up one: a rank held against a count is one."""
+    from targum.level import CEFR_LADDER, text_rung
+
+    assert text_rung([500] * 20, CEFR_LADDER) is None
+    assert text_rung([500] * 20, CEFR_LADDER, language="yi") is None
+
+
+def test_hebrew_is_held_against_ranks_as_before() -> None:
+    """The ulpan's rungs are vocabulary sizes: the language changes nothing there."""
+    from targum.level import ULPAN, ULPAN_LADDER, text_rung
+
+    for ranks in ([100] * 90 + [8_000] * 10, [100] * 89 + [8_000] * 11, [11_000] * 50):
+        assert text_rung(ranks, ULPAN_LADDER, language="he") == text_rung(ranks, ULPAN_LADDER)
+    assert text_rung([1_000] * 20, ULPAN_LADDER, language="he") == ULPAN[2]
+    assert text_rung([4_000] * 20, ULPAN_LADDER, language="he") == ULPAN[4]
+
+
+def test_the_tables_say_they_are_a_conversion() -> None:
+    from targum.level import COMMON_TOP, _common_lemmas, _common_table, _rank_counts
+
+    for table in (_rank_counts(), _common_table()):
+        assert table["about"].startswith("A conversion, not evidence.")
+        assert table["wordfreq"] and table["built"]
+        assert set(table["lexicons"]) == {"fr", "ru", "it"}
+    assert _common_table()["built"] == _rank_counts()["built"], "built together, agreeing"
+    assert set(_rank_counts()["counts"]) == set(_common_lemmas()) == {"fr", "ru", "it"}
+    assert _common_table()["top"] == COMMON_TOP
+    for language, digests in _common_lemmas().items():
+        assert len(digests) >= COMMON_TOP - 2, language  # four bytes: a collision or two
+
+
+# -- which lemmas are common: the commonest 5,000 by summed form frequency (#659) ------
+#
+# The words ling-it found the band count missing (2026-11-08), each with its dictionary
+# form's Zipf: a lemma's use is spread over its forms, and wordfreq ranks forms.
+
+MISSED_BY_THE_BAND = {
+    "fr": ["sembler", "suffire", "préférer", "habiter", "falloir"],  # 3.74 3.63 3.80 3.90
+    "it": ["bastare", "riguardare", "significare", "bisognare", "preferire", "abitare"],
+    "ru": ["мочь", "хотеть", "должный", "являться", "нравиться"],  # 2.63 3.80 2.87 3.76 4.02
+}
+
+
+@pytest.mark.parametrize("language", ["fr", "it", "ru"])
+def test_a_common_lemma_counts_whatever_its_dictionary_form_s_band(language: str) -> None:
+    from targum.level import KNOWN, common, is_common
+
+    for lemma in MISSED_BY_THE_BAND[language]:
+        assert is_common(lemma, "hard", language), lemma
+    words = [(lemma, KNOWN, "hard") for lemma in MISSED_BY_THE_BAND[language]]
+    assert common(words, language) == len(words)
+
+
+@pytest.mark.parametrize(
+    ("language", "lemma"),
+    [
+        ("fr", "être"),
+        ("fr", "avoir"),
+        ("it", "essere"),
+        ("it", "uno"),
+        ("ru", "быть"),
+        ("ru", "я"),
+        ("ru", "он"),
+    ],
+)
+def test_the_commonest_lemmas_are_common(language: str, lemma: str) -> None:
+    assert level.is_common(lemma, "easy", language)
+
+
+def test_a_rare_lemma_is_not_common_whatever_its_band() -> None:
+    """The band stored at annotation no longer decides it: a form that is common as a
+    form does not make a rare lemma common."""
+    for language, lemma in (("fr", "abader"), ("it", "burattino"), ("ru", "барыня")):
+        assert not level.is_common(lemma, "easy", language), lemma
+
+
+def test_a_name_or_a_number_is_never_common() -> None:
+    for band in ("name", "number"):
+        assert not level.is_common("être", band, "fr")
+        assert not level.is_common("שלום", band, "he")
+
+
+def test_the_lemma_is_looked_up_as_the_table_was_built() -> None:
+    """The case, a stress mark, ё, a French reflexive and a curly apostrophe are
+    spellings of one key."""
+    assert level.lemma_key("Мочь", "ru") == "мочь"
+    assert level.lemma_key("ещё", "ru") == level.lemma_key("еще", "ru")
+    assert level.lemma_key("хоте\u0301ть", "ru") == "хотеть"
+    assert level.lemma_key("se taire", "fr") == level.lemma_key("taire", "fr") == "taire"
+    assert level.lemma_key("s\u2019en aller", "fr") == "en aller"
+    assert level.lemma_key("aujourd\u2019hui", "fr") == "aujourd'hui"
+    assert level.is_common("Хотеть", "hard", "ru") and level.is_common("ещё", "hard", "ru")
+
+
+def test_hebrew_is_still_counted_by_band() -> None:
+    words = [("שלום", level.KNOWN, "easy"), ("מילה", level.KNOWN, "hard")]
+    assert level.common(words, "he") == 1
+    assert level.is_common("anything", "moderate", "he")
+
+
+def test_a_reader_s_count_is_read_off_the_lemma(tmp_path: Path) -> None:
+    """The account's band is left as it was stored: `snapshot` asks the lemma, so a
+    reader's French count moves without re-annotating anything."""
+    store = Store(tmp_path / "words.db")
+    signed = store.finish_sign_in(store.start_sign_in("reader@example.com"))
+    assert signed is not None
+    person = signed[0]
+    marked = [("sembler", "hard"), ("suffire", "hard"), ("abader", "easy"), ("être", "easy")]
+    store.push(
+        person,
+        {
+            "words": [
+                {"language": "fr", "lemma": lemma, "status": 9, "band": band, "at": 5, "seen": 5}
+                for lemma, band in marked
+            ]
+        },
+    )
+    found = level.snapshot(store, person.id, "fr")
+    assert found.known == 4 and found.common == 3
 
 
 # -- ktiv haser against known ktiv male (targum-internal#349) ------------------------

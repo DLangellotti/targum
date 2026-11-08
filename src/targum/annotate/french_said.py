@@ -23,6 +23,19 @@ measurement on the French shelf:
   correction targum makes to its data is published under LGPL-LR") can be published as.
   The table itself is never altered and never shipped.
 
+**And a word's sentence can say it otherwise than the table does** (targum-internal#644,
+ling-fr's read of 2026-11-05). The table says a word alone, and three readings change with
+the word after it. They are rules of French, applied in `sentence` where the next word is
+known, and no correction to the table's data:
+
+- *tous* as a determiner is /tu/ (*tous les loups*); the pronoun keeps /tus/ (*ils sont
+  tous là*).
+- *six*, *dix* and *huit* before a word that opens on a consonant drop their own (*six
+  chèvres* /si/, *dix fois* /di/, *huit jours* /ɥi/). Before a vowel, or with nothing
+  after them, they say it.
+- *vingt* at the head of a compound says its t (*vingt-cinq* /vɛ̃tsɛ̃k/), and not after
+  *quatre* (*quatre-vingt-deux*).
+
 **What is shown is the everyday reading.** The table's first variant, in IPA, with the
 final schwa it writes after a consonant (`femme` `f a m @`) left off, as a dictionary
 does: a word's last `e` is not said in ordinary speech. A one-syllable word keeps its
@@ -59,13 +72,14 @@ from typing import Protocol
 
 from . import morphalou
 
-#: The switch, read when a reader is written (targum-internal#266). Off until the gold set
-#: the liaisons are scored against has been read by a person.
+#: The switch, read when a reader is written (targum-internal#266). On for every French
+#: reader since ling-fr read the gold set the liaisons are scored against and the floor
+#: held (David's D6, 2026-11-05, targum-internal#644); `TARGUM_FRENCH_IPA=0` turns it off.
 FLAG = "TARGUM_FRENCH_IPA"
 
 
 def is_on() -> bool:
-    return os.environ.get(FLAG, "").strip().lower() in {"1", "true", "yes"}
+    return os.environ.get(FLAG, "").strip().lower() not in {"0", "false", "no", "off"}
 
 
 #: Morphalou's notation, symbol by symbol, in IPA. `E/` and `O/` are the mid vowels where
@@ -180,6 +194,9 @@ _APOSTROPHES = str.maketrans({"’": "'", "ʼ": "'"})
 _MISREAD = {"un": frozenset({"y n @"})}
 
 CORRECTIONS_FILE = Path(__file__).with_name("morphalou_corrections.tsv")
+
+#: The numerals that drop their final consonant before a consonant (module docstring).
+_NUMERAL_CLIPPED = {"six": "si", "dix": "di", "huit": "ɥi"}
 
 
 class Word(Protocol):
@@ -305,7 +322,10 @@ def _by_parts(lexicon: morphalou.Lexicon, form: str) -> str:
     for at in range(1, len(parts)):
         letter = parts[at - 1][-1].lower()
         consonant = LIAISON.get(letter, "")
-        if (
+        if at == 1 and parts[0].lower() == "vingt":
+            # *vingt-cinq*: the t is said at the head of a compound (module docstring).
+            out += "t"
+        elif (
             consonant
             and _silent_consonant(letter, _phones(out)[-1])
             and _opens(parts[at], said[at])
@@ -458,6 +478,11 @@ def sentence(text: str, words: list[Word], lexicon: morphalou.Lexicon) -> list[S
         reading(lexicon, word.surface, word.lemma or "", word.pos or "", word.feats or "")
         for word in words
     ]
+    for at, word in enumerate(words):
+        following = words[at + 1] if at + 1 < len(words) else None
+        context = _in_context(text, word, following, full[at], full[at + 1] if following else "")
+        if context:
+            full[at] = context
     ipas = [everyday(one) for one in full]
     out: list[Said] = []
     for at, word in enumerate(words):
@@ -484,6 +509,30 @@ def sentence(text: str, words: list[Word], lexicon: morphalou.Lexicon) -> list[S
             )
         )
     return out
+
+
+def _in_context(text: str, word: Word, following: Word | None, ipa: str, next_ipa: str) -> str:
+    """The reading a word's next word gives it, where that is not the table's; "" where
+    the table's stands (the module docstring's three rules)."""
+    written = word.surface.translate(_APOSTROPHES).lower()
+    if written == "tous" and (word.pos or "") == "DET" and ipa.endswith("s"):
+        return ipa[:-1]
+    clipped = _NUMERAL_CLIPPED.get(written)
+    if clipped and following is not None and text[word.end : following.start].strip() == "":
+        if text[word.end : following.start] and _opens_on_consonant(following, next_ipa):
+            return clipped
+    return ""
+
+
+def _opens_on_consonant(word: Word, ipa: str) -> bool:
+    """Whether a word begins with a consonant sound: an h aspiré does (*six héros*
+    /si eʁo/), and a glide written with a vowel letter does not (*six yeux* /siz‿jø/)."""
+    if _aspirated(word):
+        return True
+    if ipa:
+        return not _opens(word.surface, ipa)
+    first = word.surface.translate(_APOSTROPHES).lower()[:1]
+    return first.isalpha() and first not in _VOWEL_LETTERS and first != "h"
 
 
 #: The kinds of mark the "as said" switch draws, as the page receives them.

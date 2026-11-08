@@ -107,6 +107,12 @@ jobs:
       # Provider calls run against recorded fakes; tests needing a downloaded
       # language model, the network, or the aligner benchmark skip themselves.
       - run: uv run pytest -q
+      # pymorphy3 alone, not the whole `russian` extra (640 MB of spaCy, and installing it
+      # renames every Russian annotation): the finds scorer's real dictionary path and the
+      # frozen Russian sample, which holds no dictionary readings and so needs it to run
+      # (targum-internal#629). A few MB, on one leg.
+      - if: matrix.python == '3.12'
+        run: uv run --with "pymorphy3>=2.0" pytest -q tests/test_finds.py
 
   # Its own job, and not in the matrix above: the reader in a browser is the same reader
   # on both Pythons, and Chromium is ~100 MB that neither leg should pay for twice. The

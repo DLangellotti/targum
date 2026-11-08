@@ -45,7 +45,10 @@ found one, and is not read as free.
 | Stored reader lines | no reference | private store | eval, never committed | `grading/stored-38` |
 | Scratch shelf of six | no reference | per text on the shelf | eval | `suggest/shelf-6` |
 | Morphalou 3.1, over the French shelf | no reference (coverage of a lexicon) | LGPL-LR | lookup; the French card reads it | none: no stage fits, so the number is in targum-internal#266 |
-| French liaisons and readings, drafted | **model-drafted, not yet read by a person** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
+| The Russian shelf, ru-local's lemmas | the annotator's own reading, not a person's | per text on the shelf; public texts only | eval; a frozen sample of open-licence texts' counts is in the suite | `finds/ru-shelf` |
+| French liaisons and readings, drafted | model-drafted, **read by ling-fr 2026-11-05** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
+| French false friends in context | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `friends/pd-fr-friends` |
+| French passé composé and imparfait | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `lemma/pd-fr-pc-imp` |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
 default branch of a repository or a live dump, so the files can change under the same
@@ -79,6 +82,8 @@ different set, and the two numbers are not measured on the same thing.
 | `recast/tatoeba*` | the pool named by `--pool` |
 | `chat/tatoeba-correct` | the pool read (`--pool`, else `chat/exemplars.pool_path()`) |
 | `said/pd-fr-drafted` | `evals/french-said-gold.jsonl` (in the repository) |
+| `friends/pd-fr-friends` | `evals/french-false-friends-gold.jsonl` (in the repository) |
+| `lemma/pd-fr-pc-imp` | `evals/french-pc-imparfait-gold.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
 `suggest/shelf-*` and `align/tts-*` have no reference file, so their rows carry no pin.
@@ -404,9 +409,12 @@ Chaperon rouge* (1826 edition), Daudet's *La Chèvre de monsieur Seguin*, Maupas
 Folle* and Allais's *Un philosophe* — as Wikisource gives them (`ingest.load`), split
 into sentences.
 
-- **Kind: model-drafted, and not yet read by a person.** The issue asks for a set written
-  by hand; this one was drafted by three model passes, on 2026-09-28, and says so on every
-  row (`"drafted"`). Each sentence's words, dictionary forms, parts of speech and features
+- **Kind: model-drafted, then read by a person.** The issue asks for a set written by
+  hand; this one was drafted by three model passes, on 2026-09-28, and **ling-fr read
+  every site and every chosen reading on 2026-11-05** (targum-internal#644): 375 of 389
+  sites right, the 14 others corrected (none an `always` made weaker), and 11 readings
+  added that a word's sentence gives it (*tous* /tu/ as a determiner, *six* and *dix*
+  before a consonant). Every row says so (`"drafted"`). Each sentence's words, dictionary forms, parts of speech and features
   were drafted following the tagger's own instruction (`model_lemma.SYSTEM`) and placed
   by the tagger's own parser. Each place a liaison could be made — a word ending in a
   consonant letter before a word beginning with a vowel, h or y, with nothing but a
@@ -422,6 +430,37 @@ into sentences.
   drafted; `--tagger` runs the tagger instead, which spends.
 - **Scored by:** `scripts/eval_liaison.py`.
 - **Ledger:** `said/pd-fr-drafted`.
+
+## French false friends in context
+
+The false friend line on the French card, read where it is said (targum-internal#644,
+#267): every word targum's list (`annotate/false_friends.json`) flags in the 342
+sentences above, with the gold's tags, 92 places from 38 lemmas.
+
+- **Kind: hand-read.** ling-fr read each line in its sentence on 2026-11-05: 88 of 91
+  true under the list as drafted (*spectacle*, *misérable* and *robe* not), and the
+  dropped or reglossed lines read again. Each row keeps every line it was read against
+  with its verdict, so a gloss nobody has read in context is scored as unread. The one
+  place an addition flags, *déguster* in Daudet, is the sentence ling-fr cited for it.
+- **Licence:** the texts are public domain; the labels are targum's own.
+- **Where:** `evals/french-false-friends-gold.jsonl`, in the repository.
+- **Scored by:** `scripts/eval_false_friends.py`. **Ledger:** `friends/pd-fr-friends`.
+
+## French passé composé and imparfait
+
+The tense the French card names, against a reading (targum-internal#644): 62 sentences
+from 14 public-domain texts on the French shelf (Maupassant, Daudet, Allais, Perrault),
+each checked verbatim against the shelf text, with its catalogue id, Wikisource edition
+and licence on the row.
+
+- **Kind: hand-read.** ling-fr chose and labelled every verb on 2026-11-05: 45 passé
+  composé, 57 imparfait, and 45 traps a card must call neither (13 pluperfect, 15 passé
+  simple, 11 present, 2 conditional, 4 other), each with its offsets, its form and a
+  line saying why. Unlisted verbs are not scored.
+- **Licence:** the texts are public domain; the labels are targum's own.
+- **Where:** `evals/french-pc-imparfait-gold.jsonl`, in the repository.
+- **Use:** evaluation only. The tags are the tagger's, so a run may spend a few cents.
+- **Scored by:** `scripts/eval_pc_imparfait.py`. **Ledger:** `lemma/pd-fr-pc-imp`.
 
 ## Sets with no reference
 
@@ -440,6 +479,14 @@ These are measured without gold. The number is a property of the output.
   laptop had on 2026-09-22. Measures the `known_share` of what `suggest_next` offers a
   reader who knows the 500 commonest words. Calls no model. Scored by
   `scripts/eval_suggest.py`; the corpus name records the shelf size.
+- **`finds/ru-shelf`.** The cheap finds scorer (`finds/score.py`) against ru-local's
+  lemmas on the laptop's public modern Russian texts, five folds by series, each scored
+  with a map built from the other four (targum-internal#629). The reference is the
+  annotator the shelf runs, not a person's reading: it measures how far the cheap figure
+  is from the one a built text would show. Reads files only. Written by `targum finds
+  calibrate --language ru --ledger evals/ledger.jsonl`; the corpus is whatever shelf it
+  is pointed at, so the note gives the text count. `tests/fixtures/finds_calibration_ru.json.gz`
+  is 20 of its public-domain and CC BY texts as counts of words, never the text.
 - **`eval_align.py --on tts`.** Each word synthesised as its own clip and joined, so every
   boundary is known by construction. An upper bound, not a hand-marked truth. No rows yet.
 - **`eval_align.py --on clips`.** Built for Common Voice's layout; no set fetched and no

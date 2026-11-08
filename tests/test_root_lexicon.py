@@ -497,7 +497,7 @@ def test_the_universe_draws_from_the_tables_and_gives_russian_its_stress(tmp_pat
     assert all(set(one) == {"lemma", "pos", "gloss", "why"} for one in dropped)
 
 
-def test_russian_is_folded_into_its_own_store_and_never_from_a_home(
+def test_russian_is_folded_into_its_own_registers_and_never_from_a_home(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("TARGUM_LEDGER", str(tmp_path / "corpus.db"))
@@ -516,17 +516,19 @@ def test_russian_is_folded_into_its_own_store_and_never_from_a_home(
         }
         (folder / "annotation.json").write_text(json.dumps(annotation), encoding="utf-8")
 
-    built(library / "p1" / "mine", "a" * 64, "ru")
+    built(library / "p1" / "mine", "a" * 64, "ru", "моё")
     built(library / "shared" / "theirs", "b" * 64, "ru")
     built(library / "shared" / "hebrew", "c" * 64, "he", "w1")
 
-    store, result = rl.russian_store(library, tmp_path / "ru.db")
-    assert result.private == 1 and result.folded == 1
-    assert store.top(WORDS, "unfiled") == [("слово", 1)]
-    # The corpus ledger's own sweep still counts Hebrew only.
     corpus = Store(tmp_path / "corpus.db")
-    assert tables.sweep(library, corpus).folded == 1
+    result = tables.sweep(library, corpus)
+    assert result.private == 1 and result.folded == 2
+    # One ledger, two languages, and neither in the other's registers (#637).
+    assert corpus.top(WORDS, "ru:unfiled") == [("слово", 1)]
     assert corpus.top(WORDS, "unfiled") == [("w1", 1)]
+    assert set(rl.REGISTERS["ru"]) == {"ru:news", "ru:unfiled"}
+    # A reader's own Russian text is never counted, in any register.
+    assert corpus.variants(WORDS, ["моё"]) == {}
 
 
 def test_prompts_and_schemas_are_stable_and_name_every_field() -> None:

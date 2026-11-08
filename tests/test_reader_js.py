@@ -19,6 +19,7 @@ still say so. This is the part that can be had for free.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -457,6 +458,7 @@ def test_the_marking_press_says_both_halves_and_does_both() -> None:
         "press": "Done",
         "pressHidden": False,
         "mark": "Done, and mark 2 words known",
+        "stay": "",
         "finished": False,
     }
     after = run(
@@ -580,6 +582,77 @@ def test_in_a_playlist_the_press_is_next_and_on_the_last_item_finish() -> None:
     # Finished, the press is still the way on in a playlist, and marks nothing.
     finished = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[False])
     assert finished["foot"]["press"] == "Next" and finished["foot"]["pressHidden"] is False
+
+
+def test_in_a_playlist_a_third_press_marks_the_rest_and_stays() -> None:
+    """targum-internal#657; design.md §12, "Marking the rest can stay on the lesson"
+    (2026-11-07). Under Next and "Next, and mark", in a playlist: "Mark 2 words known".
+    It marks the words left and finishes the item by the same path, the reader stays, the
+    ink block says how many with its Undo, and Next is still the way on."""
+    words, lemmas = chapter(["a", "b"])
+    offered = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next")["foot"]
+    assert offered["press"] == "Next"
+    assert offered["mark"] == "Next, and mark 2 words known"
+    assert offered["stay"] == "Mark 2 words known"
+
+    stayed = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=["stay"])
+    assert stayed["finished"]["sections"], "the item is finished"
+    assert {lemma: record["status"] for lemma, record in stayed["stores"]["he"].items()} == {
+        "a": 9,
+        "b": 9,
+    }, "and its words are known"
+    assert stayed["foot"]["press"] == "Next" and stayed["foot"]["pressHidden"] is False
+    assert stayed["foot"]["mark"] == "" and stayed["foot"]["stay"] == "", "nothing left to mark"
+    assert stayed["foot"]["finished"] is True
+    assert "2 words marked known" in stayed["finished"]["said"]
+
+    undone = run(
+        [], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=["stay", "undo"]
+    )
+    assert undone["finished"]["sections"] == {}, "Undo takes back the finish"
+    assert undone["stores"]["he"] == {}, "and the words with it"
+    assert undone["foot"]["stay"] == "Mark 2 words known", "and the press is offered again"
+    assert "marked known" not in undone["finished"]["said"]
+
+
+def test_the_three_presses_in_a_playlist_each_finish() -> None:
+    words, lemmas = chapter(["a", "b"])
+    for press, known in ((False, 0), (True, 2), ("stay", 2)):
+        done = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[press])
+        assert done["finished"]["sections"], press
+        assert len(done["stores"]["he"]) == known, press
+    # Only the staying press says what it marked on the ink block: the other two leave.
+    marked = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="next", presses=[True])
+    assert "marked known" not in marked["finished"]["said"]
+
+
+def test_one_word_left_the_staying_press_says_word() -> None:
+    words, lemmas = chapter(["a", "b"])
+    one = run([], chapter=words, lemmas=lemmas, vocab={"a": {"status": 9}}, footWay="next")
+    assert one["foot"]["stay"] == "Mark 1 word known"
+    stayed = run(
+        [],
+        chapter=words,
+        lemmas=lemmas,
+        vocab={"a": {"status": 9}},
+        footWay="next",
+        presses=["stay"],
+    )
+    assert "1 word marked known" in stayed["finished"]["said"]
+
+
+def test_no_staying_press_alone_on_the_last_item_or_with_none_left() -> None:
+    words, lemmas = chapter(["a", "b"])
+    alone = run([], chapter=words, lemmas=lemmas, vocab={})["foot"]
+    assert alone["press"] == "Done" and alone["stay"] == "", "a text on its own keeps its pair"
+    last = run([], chapter=words, lemmas=lemmas, vocab={}, footWay="finish")["foot"]
+    assert last["stay"] == "", "the last item's press already stays, for the end card"
+    known = {"a": {"status": 9}, "b": {"status": 9}}
+    none = run([], chapter=words, lemmas=lemmas, vocab=known, footWay="next")["foot"]
+    assert none["mark"] == "" and none["stay"] == ""
+    # And on a page that is not in a playlist the press does nothing at all.
+    pressed = run([], chapter=words, lemmas=lemmas, vocab={}, presses=["stay"])
+    assert pressed["finished"]["sections"] == {} and pressed["stores"]["he"] == {}
 
 
 # -- pages, not a scroll ----------------------------------------------------------
@@ -2009,3 +2082,93 @@ def test_a_word_known_before_and_marked_again_was_not_learned_here() -> None:
     """Known already — ticked off, or imported from "Words you may already know" — and
     put to another stage keeps no flag on the way down."""
     assert learned_after(KNOWN, 2) == 0
+
+
+def _pc_imparfait_eval() -> Any:
+    import importlib.util
+    import sys
+
+    where = Path(__file__).resolve().parent.parent / "scripts" / "eval_pc_imparfait.py"
+    spec = importlib.util.spec_from_file_location("eval_pc_imparfait", where)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["eval_pc_imparfait"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+#: What the card's line opens with, as the eval's label for it.
+_LABELS = {
+    "passé composé": "PC",
+    "pluperfect": "PQP",
+    "past anterior": "PA",
+    "future perfect": "FUTP",
+    "past conditional": "COND",
+    "past subjunctive": "OTHER",
+    "past infinitive": "OTHER",
+    "perfect participle": "OTHER",
+    "passive": "PASSIVE",
+}
+
+
+def test_the_passe_compose_eval_names_compounds_as_reader_js_does() -> None:
+    """`scripts/eval_pc_imparfait.py` scores a Python port of reader.js's compound naming
+    (targum-internal#644). The same participles, auxiliaries and reflexives go through
+    both, and the port must say what the card says, so the floor never measures a copy
+    that has drifted. The port's tables are reader.js's own, read off its source."""
+    from targum.models import Token
+
+    port = _pc_imparfait_eval()
+    source = (
+        Path(__file__).resolve().parent.parent / "src/targum/render/assets/reader.js"
+    ).read_text(encoding="utf-8")
+    opens = source.index("var ETRE_VERBS = {};")
+    block = source[opens : source.index('.split(" ")', opens)]
+    etre = set(" ".join(re.findall(r'"([^"]*)"', block)).split())
+    assert etre == port.ETRE_VERBS
+    reflexives = re.search(r"var REFLEXIVES = \{([^}]*)\}", source)
+    assert reflexives is not None
+    assert set(re.findall(r'"?([a-zé\']+)"?:\s*true', reflexives.group(1))) == port.REFLEXIVES
+    reach = re.search(r"var AUXILIARY_REACH = (\d+);", source)
+    assert reach is not None and int(reach.group(1)) == port.AUXILIARY_REACH
+
+    def aux(**feats: str) -> str:
+        return "|".join(["UPOS=AUX", *(f"{key}={value}" for key, value in feats.items())])
+
+    lines = [
+        aux(Tense="Pres", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Imp", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Past", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Fut", VerbForm="Fin", Mood="Ind"),
+        aux(Tense="Pres", VerbForm="Fin", Mood="Cnd"),
+        aux(Tense="Pres", VerbForm="Fin", Mood="Sub"),
+        aux(VerbForm="Inf"),
+        aux(Tense="Past", VerbForm="Part"),
+    ]
+    asks: list[list[Any]] = []
+    expected: list[str] = []
+    for line in lines:
+        for helper in ("avoir", "être"):
+            for verb in ("manger", "arriver", "laver", "naître"):
+                for reflexive in (False, True):
+                    asks.append([PARTICIPLE, verb, line, helper, reflexive])
+                    words = (["se"] if reflexive else []) + [helper, verb]
+                    text = " ".join(words)
+                    tokens, at = [], 0
+                    for one in words:
+                        tokens.append(
+                            Token(
+                                start=at,
+                                end=at + len(one),
+                                surface=one,
+                                lemma=one,
+                                band=0,
+                                feats=line
+                                if one == helper
+                                else (PARTICIPLE if one == verb else ""),
+                            )
+                        )
+                        at += len(one) + 1
+                    expected.append(port.named(text, tokens, len(tokens) - 1))
+    said = run([], language="fr", compoundLines=asks, tensesApart=True)["compounds"]
+    assert [_LABELS[line.split(" · ")[0]] for line in said] == expected
