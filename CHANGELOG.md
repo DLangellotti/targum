@@ -6,6 +6,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The waitlist can count sign-ups from our own siddur links. A visit to the front page with
+  `?from=siddur-…` joins as `/siddur` in the `page` column that already says which page
+  somebody joined from, and the back office's "Joined from" line shows it. No schema
+  change, no spend, no new strings.
 - The Playlists tab keeps to the language in the header, as Recent and Uploads do
   (targum-internal#658). It shows the playlists in the language being learned, and
   targum's own sets the same way; a playlist with nothing in it yet is shown in every
