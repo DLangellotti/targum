@@ -1138,6 +1138,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- How hard a word is found at each level, pooled across readers (targum-internal#586;
+  design.md §12, "How hard a word is, counted across readers"). `targum tables pool`
+  counts, per dictionary form and rung, the readers who met it in a finished section,
+  its lookups, the readers who marked it known and the times it was passed over (in a
+  section marked finished, neither looked up there nor marked known), into the corpus
+  ledger's new `difficulty` table. The rung is the reader's at the time, replayed from
+  when their known words became known. No reader, document or text is in any row; the
+  operator's accounts, admins, test accounts, leavers and anybody with the record off
+  are never read; only public texts whose licence lets them leave count, never a
+  reader's home or a private import such as a course book. Every count hangs off the
+  record of use, so a reader who erases it is out the next night, and each night's pool
+  replaces and deletes the last. A cell under ten readers (`tables.difficulty.FLOOR`) is
+  written and reads as absent, and the one reader, `difficulty.cell`, answers shares and
+  never a count of readers. The privacy notice's clause 3.7 gains the sentence David
+  approved on 2026-10-30, with the floor at ten, and the notice's date moves to 8
+  November 2026. The nightly unit, `targum-difficulty.timer` at 03:15 UTC, reads the
+  notice from the running service first and refuses, deleting any pool, unless it
+  carries that sentence. Push and import never carry the table. Nothing on a page reads
+  it yet.
 - A lesson of a course book builds as a reader beside the book's own translation, line
   for line, with nothing bought (targum-internal#652, under #628; draft, waiting on two
   design.md §12 entries). `course:it:<book>:<n>` and `course:en:<book>:<n>` read one
