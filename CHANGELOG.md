@@ -16,6 +16,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   No spend, no new strings.
 
 ### Changed
+- Russian subscription and news-topic lines read as written Russian (targum-internal#475,
+  cleared by ling-ru 2026-11-09): channel and podcast names and the waiting title sit in
+  «», "не тратят баллов" for "не расходуют баллы", the cap label and the paused, capped,
+  unsubscribed and subscribe-again lines tightened. The балл/мин split is unchanged. No
+  spend, no new strings.
 - The Global Storybooks fetcher refuses a story whose folder names a language other than
   English but whose pages read as English (targum-internal#666). African Storybook's
   `fr/0211_le-faux-roi-bouc.md` is the English story under a French title, and it reached
