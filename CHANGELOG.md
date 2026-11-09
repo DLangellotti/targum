@@ -6,6 +6,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- The front page's film draws in Safari before 16 and Chrome before 99, where
+  `ctx.roundRect` is missing and threw on every frame (targum-internal#668): the spoon's
+  handle is drawn from `arcTo` there, and by `roundRect` unchanged where it exists. And
+  the browser-fault reports no longer count what is not ours (targum-internal#669): the
+  ResizeObserver loop notice, MetaMask's and other wallets' disconnect errors, and any
+  fault from a `chrome-extension://`, `moz-extension://` or `safari-web-extension://`
+  script are dropped by `report.js` before sending and by `/errors` before storing.
 - `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
   first news round's six workers ran trafilatura side by side, and its one lxml parser,
   shared across threads, corrupted libxml2's memory: `free(): invalid pointer`, `double

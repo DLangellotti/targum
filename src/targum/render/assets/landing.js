@@ -240,6 +240,20 @@
     if (moved) drawLines();
   }
 
+  // A rounded rectangle on the current path. `roundRect` where the browser has it, and
+  // the same shape out of `arcTo` where it does not: Safari before 16 and Chrome before
+  // 99 threw here on every frame (targum-internal#668).
+  function rounded(x, y, w, h, r) {
+    if (typeof ctx.roundRect === "function") { ctx.roundRect(x, y, w, h, r); return; }
+    r = Math.max(0, Math.min(r, w / 2, h / 2));
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
   function film(time) {
     var w = canvas.width, h = canvas.height, cx = w * 0.5, cy = h * 0.5, R = h * 0.43;
     function ease(a, b) { var k = Math.max(0, Math.min(1, (time - a) / (b - a))); return k * k * (3 - 2 * k); }
@@ -252,7 +266,7 @@
       ctx.stroke();
     }
     ctx.fillStyle = "#191614";
-    ctx.beginPath(); ctx.roundRect(cx + R * 0.9, cy - R * 0.1, R * 1.05, R * 0.2, R * 0.1); ctx.fill();
+    ctx.beginPath(); rounded(cx + R * 0.9, cy - R * 0.1, R * 1.05, R * 0.2, R * 0.1); ctx.fill();
     ctx.fillStyle = "rgba(0, 0, 0, 0.35)"; ctx.beginPath(); ctx.arc(cx + 8, cy + 10, R * 1.02, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#2a2624"; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = "#1a1715"; ctx.beginPath(); ctx.arc(cx, cy, R * 0.9, 0, Math.PI * 2); ctx.fill();
