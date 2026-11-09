@@ -1403,6 +1403,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- `scripts/merge_topics.py` merges the Hebrew topic runs into one `topics/1` lexicon
+  (targum-internal#606): the full run's agreed rows, ling-he's decisions on its top 5,000,
+  the card's rule below them (the shared topic, otherwise `general`), and an incremental
+  run's agreed rows, with that run's disagreements filed `general` for now and listed for
+  ling-he. Each decision is written into its run's review.tsv after a backup copy, and a
+  person's decision there outranks the decisions file and the rule on every later merge.
+  It writes `~/.targum/topics.json` only when every measurable yardstick holds 95% of its
+  top 5,000, and `topics.candidate.json` otherwise. `scripts/tag_topics.py --only` tags
+  the lemmas a gap list names (only those the tables count), `--screen-also` names more
+  function words, the run's lexicon is written after every batch, and a re-run keeps
+  review.tsv's decisions. Laptop-only research tools; no spend, nothing deployed.
 - The topics lexicon can ship with a deploy, the way the verb readings do
   (targum-internal#607). `deploy.sh` copies `~/.targum/topics.json` (or `TARGUM_TOPICS`)
   into `src/targum/topics.json` before the wheel is built. `pyproject.toml` packs it,
