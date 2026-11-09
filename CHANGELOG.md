@@ -16,6 +16,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   No spend, no new strings.
 
 ### Changed
+- Russian says every amount of credits in баллы, and «мин» only for a duration (David,
+  2026-11-09; design.md §12, superseding the 2026-11-03 split). ling-ru found the
+  subscriptions page saying one cap in two units. Costs, set totals, estimates, monthly
+  caps and what is used now read «Займёт 12 баллов», «около 8 баллов на новое», «Баллов
+  потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
+  each in the form its number takes. A video's length and a build's wait stay in minutes.
+  No spend, no new strings.
 - Russian subscription and news-topic lines read as written Russian (targum-internal#475,
   cleared by ling-ru 2026-11-09): channel and podcast names and the waiting title sit in
   «», "не тратят баллов" for "не расходуют баллы", the cap label and the paused, capped,
