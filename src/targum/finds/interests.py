@@ -22,7 +22,6 @@ live search (`live.py`) is sent topic words, a language and a level, never this.
 
 from __future__ import annotations
 
-import os
 import threading
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -30,9 +29,10 @@ from pathlib import Path
 
 from .. import topics as topics_module
 
-#: Where the lexicon is read from when the environment names one; otherwise
-#: `topics.LEXICON`. A box with neither infers nothing and shows no chips.
-ENV = "TARGUM_TOPICS"
+#: Where the lexicon is read from when the environment names one; otherwise the laptop's
+#: `topics.LEXICON` or the wheel's `topics.SHIPPED` (`topics.where`). A box with none
+#: infers nothing and shows no chips.
+ENV = topics_module.ENV
 
 #: How much a saved word counts against a word met in a finished section.
 SAVED_WEIGHT = 3.0
@@ -67,10 +67,7 @@ class Lexicon:
 
 
 def path() -> Path | None:
-    named = os.environ.get(ENV, "").strip()
-    if named:
-        return Path(named) if Path(named).is_file() else None
-    return topics_module.LEXICON if topics_module.LEXICON.is_file() else None
+    return topics_module.where()
 
 
 _KEPT: dict[tuple[str, float], Lexicon] = {}

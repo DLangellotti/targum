@@ -1403,6 +1403,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The topics lexicon can ship with a deploy, the way the verb readings do
+  (targum-internal#607). `deploy.sh` copies `~/.targum/topics.json` (or `TARGUM_TOPICS`)
+  into `src/targum/topics.json` before the wheel is built. `pyproject.toml` packs it,
+  `.gitignore` keeps it out of git, and with no file there the deploy removes any copy
+  an earlier deploy left behind. `topics.where` reads the named file, then the laptop's,
+  then the wheel's. With none, no topic is drawn, as before. `targum topics check` runs
+  on the box after the deploy. It says what share of each modern yardstick's 5,000
+  commonest content lemmas the lexicon holds, leaving out the ones a tagging run screens
+  out, and warns with the missing lemmas under 95%. That is how an annotator rename that
+  respells lemmas shows. Nothing ships until #606 writes `topics.json`: no lexicon is in
+  this change. No new strings.
 - The scene checker catches the last seven of ling-he's 2026-10-29 pointing rows that it
   let through (targum-internal#563), so it now finds all 63 by the strict measure, the
   exact word in the cell. `checks.py` gains three closed lists: an article the English

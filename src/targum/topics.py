@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -75,8 +76,15 @@ PROMPT_VERSION = "prompt/3"
 MODERN = ("news", "conversation", "literature")
 BIBLE = "bible"
 
-#: The lexicon that ships, once it exists (targum-internal#607).
+#: The copy of the lexicon that lasts, on the laptop (targum-internal#607).
 LEXICON = Path.home() / ".targum" / "topics.json"
+#: The copy the wheel carries to the box: `deploy/deploy.sh` copies `LEXICON` here before
+#: `uv build`, `pyproject.toml` packs it as an artifact, and `.gitignore` keeps it out of
+#: the repository, as `binyans.json` is shipped. Absent in a checkout, so CI's public
+#: tree has no lexicon and draws no topic.
+SHIPPED = Path(__file__).parent / "topics.json"
+#: A lexicon named in the environment is the lexicon, found or not.
+ENV = "TARGUM_TOPICS"
 #: Where a run keeps its raw answers and review files. Laptop-only.
 RESEARCH = Path.home() / ".targum" / "research" / "topics"
 
@@ -174,6 +182,28 @@ def passes_show(gold: int, precision: float | None, recall: float | None) -> boo
     )
 
 
+def where() -> Path | None:
+    """The lexicon this process reads, or None where there is none: the file `ENV` names
+    (found or not), else the laptop's `LEXICON`, else the copy the wheel carries
+    (`SHIPPED`). The laptop's comes first, so a copy left in a checkout by an earlier
+    deploy never stands in front of a newer one."""
+    named = os.environ.get(ENV, "").strip()
+    if named:
+        return Path(named) if Path(named).is_file() else None
+    for file in (LEXICON, SHIPPED):
+        if file.is_file():
+            return file
+    return None
+
+
+def default_file(language: str = "he") -> Path | None:
+    """The lexicon a language reads when none is named: Hebrew's is `where()` (the
+    environment, the laptop's, the wheel's), and every other language's is its own file
+    (`lexicon_file`), found or not."""
+    code = language_code(language)
+    return where() if code == "he" else lexicon_file(code)
+
+
 def shown_from(scored: Mapping[str, Any]) -> tuple[str, ...]:
     """The topics a scored run's agreed tags let into `shown` (`passes_show` on each
     topic's gold row count, precision and recall), in the order of `TOPICS`; none at all
@@ -209,7 +239,9 @@ def load_shown(file: Path | None = None, language: str = "he") -> tuple[str, ...
     to draw. Nothing either where the file records the tags `shown` was proven on
     (`shown_tags_sha256`) and its tags are no longer those."""
     code = language_code(language)
-    file = file or lexicon_file(code)
+    file = file or default_file(code)
+    if file is None:
+        return ()
     try:
         held = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1258,7 +1290,9 @@ def agreed(first: Tag | None, second: Tag | None) -> tuple[str, ...] | None:
 def load(file: Path | None = None, language: str = "he") -> dict[str, tuple[str, ...]] | None:
     """The lexicon's lemmas and their topics (by default the language's own file), or
     None where there is no file."""
-    file = file or lexicon_file(language)
+    file = file or default_file(language)
+    if file is None:
+        return None
     try:
         held = json.loads(file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1271,6 +1305,78 @@ def load(file: Path | None = None, language: str = "he") -> dict[str, tuple[str,
         for lemma, codes in lemmas.items()
         if isinstance(codes, list)
     }
+
+
+# --- The check a deploy runs -------------------------------------------------------------
+
+#: `targum topics check` (targum-internal#607): at least `CHECK_LEAST` of each modern
+#: yardstick's `CHECK_TOP` commonest content lemmas must be keys of the lexicon. The
+#: lexicon is keyed by DICTA's unpointed lemma, so an annotator rename that respells
+#: lemmas orphans its keys without a sound: a word known under the new spelling meets no
+#: topic. A deploy runs the check on the box and warns with the lemmas that miss, which
+#: then want an incremental tagging run.
+CHECK_TOP = 5_000
+CHECK_LEAST = 0.95
+
+
+@dataclass(frozen=True)
+class Coverage:
+    """How much of one yardstick's top the lexicon holds."""
+
+    register: str
+    version: int
+    #: The yardstick's commonest content lemmas asked, at most `CHECK_TOP`.
+    asked: int
+    #: Those the lexicon has no key for, commonest first.
+    missing: tuple[str, ...]
+
+    @property
+    def share(self) -> float:
+        return (self.asked - len(self.missing)) / self.asked if self.asked else 1.0
+
+
+def coverage(
+    lexicon: Iterable[str],
+    register: str,
+    version: int,
+    weights: Mapping[str, float],
+    *,
+    top: int = CHECK_TOP,
+    left_out: Callable[[Sequence[str]], set[str]] | None = None,
+) -> Coverage:
+    """How many of the `top` commonest lemmas of one yardstick's `weights` are keys of
+    `lexicon`. `left_out` names the lemmas of a list that are never tagged (`screened`:
+    one letter, a function word, a number, a name, a clitic error), so a lemma nobody
+    meant to tag is not counted as one the lexicon lost."""
+    from .tables.yardstick import bare
+
+    keys = {bare(lemma) for lemma in lexicon}
+    ordered = [key for key, _ in sorted(weights.items(), key=lambda item: (-item[1], item[0]))]
+    # Deep enough that the screen leaves `top` behind it; the screen drops a few percent.
+    pool = ordered[: top * 2]
+    dropped = left_out(pool) if left_out is not None else set()
+    asked = [lemma for lemma in pool if lemma not in dropped][:top]
+    missing = tuple(lemma for lemma in asked if lemma not in keys)
+    return Coverage(register, version, len(asked), missing)
+
+
+def screen_names(store: Store) -> Callable[[Sequence[str]], set[str]]:
+    """`left_out` for `coverage`, read from the tables' counts: the lemmas `screened`
+    leaves out, exactly as a tagging run leaves them out before anything is sent."""
+    from .tables.words import WORDS
+
+    def left_out(lemmas: Sequence[str]) -> set[str]:
+        variants = store.variants(WORDS, list(lemmas))
+        bares = store.variants(
+            WORDS, [one[1:] for one in lemmas if one[:1] in CLITICS and len(one) >= 4]
+        )
+        return {
+            one
+            for one in lemmas
+            if screened(one, variants.get(one, {}), bares.get(one[1:])) is not None
+        }
+
+    return left_out
 
 
 #: A bar is drawn only for a topic with this many lemmas in the yardstick's top 20k, and

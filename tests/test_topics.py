@@ -384,6 +384,134 @@ def test_an_old_lemma_list_without_hints_still_loads() -> None:
     assert topics.Lemma(**row).hint == ""
 
 
+# -- shipping the lexicon (targum-internal#607) -------------------------------------------
+
+
+def _lexicon(file: Path, lemmas: dict[str, list[str]], version: str = topics.VERSION) -> Path:
+    held = {"version": version, "topics": list(topics.TOPICS), "lemmas": lemmas}
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    return file
+
+
+def _yardstick(folder: Path, register: str, weights: dict[str, float]) -> None:
+    folder.mkdir(parents=True, exist_ok=True)
+    held = {"register": register, "made_at": "2026-11-01", "weights": weights}
+    (folder / f"yardstick-{register}-v1.json").write_text(
+        json.dumps(held, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def test_the_lexicon_is_named_then_the_laptops_then_the_wheels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    laptop, wheel = tmp_path / "laptop.json", tmp_path / "wheel.json"
+    monkeypatch.setattr(topics, "LEXICON", laptop)
+    monkeypatch.setattr(topics, "SHIPPED", wheel)
+    monkeypatch.delenv(topics.ENV, raising=False)
+    assert topics.where() is None and topics.load() is None and topics.load_shown() == ()
+    _lexicon(wheel, {"לחם": ["food"]})
+    assert topics.where() == wheel, "the box has only the wheel's copy"
+    assert topics.load() == {"לחם": ("food",)}
+    _lexicon(laptop, {"ספר": ["school"]})
+    assert topics.where() == laptop, "a copy an old deploy left in the tree never wins"
+    named = _lexicon(tmp_path / "named.json", {"חוק": ["law"]})
+    monkeypatch.setenv(topics.ENV, str(named))
+    assert topics.where() == named
+    monkeypatch.setenv(topics.ENV, str(tmp_path / "absent.json"))
+    assert topics.where() is None, "a named path is the path, found or not"
+
+
+def test_the_suite_never_reads_a_private_lexicon() -> None:
+    assert topics.where() is None, "conftest names an absent file, as CI's checkout has none"
+
+
+def test_coverage_counts_the_top_and_lists_the_missing_commonest_first() -> None:
+    weights = {f"w{n}": 1.0 / (n + 1) for n in range(10)}
+    lexicon = [f"w{n}" for n in range(10) if n not in (3, 7)]
+    got = topics.coverage(lexicon, "news", 2, weights, top=8)
+    assert (got.register, got.version, got.asked) == ("news", 2, 8)
+    assert got.missing == ("w3", "w7") and got.share == 0.75
+    assert topics.coverage(lexicon, "news", 2, weights, top=5).missing == ("w3",)
+    # A lemma no run ever meant to tag is not one the lexicon lost, and the top stays full.
+    left = topics.coverage(lexicon, "news", 2, weights, top=8, left_out=lambda pool: {"w3"})
+    assert left.asked == 8 and left.missing == ("w7",)
+    assert topics.coverage([], "news", 1, {}).share == 1.0
+
+
+def test_coverage_meets_a_pointed_key_by_its_bare_spelling() -> None:
+    assert topics.coverage(["לֶחֶם"], "news", 1, {"לחם": 1.0}).missing == ()
+
+
+def test_the_screen_names_what_a_run_never_tags(tmp_path: Path) -> None:
+    store = _store(
+        tmp_path,
+        {"news": {("לחם", "NOUN"): 9, ("אל", "ADP"): 90, ("אל", "NOUN"): 3, ("עיר", "NOUN"): 50}},
+    )
+    store.write(
+        Contribution("words", "news", "unit-b", "src", "CC0", "tool", "words/1"),
+        {("בעיר", "NOUN"): 4},
+    )
+    left_out = topics.screen_names(store)
+    assert left_out(["לחם", "אל", "בעיר", "עיר", "כ"]) == {"אל", "בעיר", "כ"}
+
+
+def test_topics_check_passes_warns_and_says_why(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runner = CliRunner()
+    folder = tmp_path / "tables"
+    monkeypatch.setenv("TARGUM_TABLES_DIR", str(folder))
+    monkeypatch.delenv("TARGUM_LEDGER", raising=False)
+    file = tmp_path / "topics.json"
+    monkeypatch.setenv(topics.ENV, str(file))
+
+    done = runner.invoke(app, ["topics", "check"])
+    assert done.exit_code == 0 and "No topics file" in done.output, done.output
+
+    weights = {f"מילה{n}": 1.0 / (n + 1) for n in range(100)}
+    _yardstick(folder, "news", weights)
+    _lexicon(file, {f"מילה{n}": ["general"] for n in range(100) if n != 50})
+    done = runner.invoke(app, ["topics", "check", "--top", "100"])
+    assert done.exit_code == 0, done.output
+    assert "news v1: 99.0% of the top 100 (1 missing) ok" in done.output
+    assert "conversation: no yardstick yet" in done.output
+
+    _lexicon(file, {f"מילה{n}": ["general"] for n in range(90)})
+    done = runner.invoke(app, ["topics", "check", "--top", "100", "--show", "3"])
+    assert done.exit_code == 1, "a respelled lexicon is said, so deploy.sh can warn"
+    assert "90.0% of the top 100 (10 missing) short" in done.output
+    assert "מילה90" in done.output and "מילה93" not in done.output
+    assert "and 7 more" in done.output
+
+    _lexicon(file, {f"מילה{n}": ["general"] for n in range(100)}, "topics/1+prompt/3-full")
+    assert runner.invoke(app, ["topics", "check", "--top", "100"]).exit_code == 0, "a run's own"
+
+    _lexicon(file, {"לחם": ["food"]}, version="topics/0")
+    done = runner.invoke(app, ["topics", "check"])
+    # Rich wraps a long tmp path at the runner's width, so read it unwrapped.
+    assert done.exit_code == 1 and "is not a topics/1 lexicon" in " ".join(done.output.split())
+
+
+def test_the_lexicon_is_private_packed_into_the_wheel_and_checked_on_the_box() -> None:
+    """targum-internal#607: shipped the way `binyans.json` is. Out of git, packed as an
+    artifact, put in place by the deploy before the build, and checked on the box."""
+    import re
+
+    root = Path(__file__).resolve().parents[1]
+    assert "src/targum/topics.json" in (root / ".gitignore").read_text(encoding="utf-8")
+    packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
+    artifacts = re.search(r"^artifacts = \[(.*)\]$", packaging, re.M)
+    assert artifacts is not None and '"/src/targum/topics.json"' in artifacts.group(1)
+    deploy = (root / "deploy" / "deploy.sh").read_text(encoding="utf-8")
+    copy = deploy.index('cp "$TOPICS" src/targum/topics.json')
+    assert copy < deploy.index("uv build --wheel"), "in place before the wheel is built"
+    assert 'TOPICS="${TARGUM_TOPICS:-$HOME/.targum/topics.json}"' in deploy
+    assert "rm -f src/targum/topics.json" in deploy, "no stale copy ships in its place"
+    check = deploy.index("/usr/local/bin/targum topics check")
+    assert check > deploy.index('echo "== verify =="'), "against the box's own yardsticks"
+    assert topics.SHIPPED == root / "src" / "targum" / "topics.json"
+
+
 # -- Russian (targum-internal#638) ---------------------------------------------------------
 
 
