@@ -42,6 +42,19 @@ evenly over the frequency order, so a pilot stands for the whole run, and `--bli
 `--dry-run` writes the gold rows before anything is spent, so they are drawn blind.
 `--include GOLD.csv` adds every gold lemma the universe holds to the sample, so a second
 pilot scores the whole gold set.
+
+**An incremental run** (targum-internal#606): `--only FILE` tags the lemmas a list names
+instead of the commonest, for the ones a lexicon misses: a JSON list of lemmas, or a
+yardstick gap file (`{"missing": {register: [{"lemma": ...}, ...]}}`), taken commonest
+first across its registers. Only a lemma the tables count is kept, so the list cannot
+bring in anything a reader imported; the screen runs as for a draw, `--screen-also` names
+more function words for it to leave out, and `--lemmas` keeps the commonest that many.
+The run's lexicon is written after every batch ends, and a re-run keeps the decision,
+who, at and why that review.tsv already holds.
+
+    op run --env-file op.env -- .venv/bin/python scripts/tag_topics.py --run 2026-11-09-gap \\
+        --only gap.json --tables ~/.targum/corpus.db --screen-also גם,כך --lemmas 3000 \\
+        --glosses ~/.targum/research/roots/full-he-2026-10-31/lemmas.json --cap 3
 """
 
 from __future__ import annotations
@@ -117,6 +130,17 @@ def main() -> int:
         help="Another run's lemmas.json (a topic or root run over the same tables) to read a"
         " gloss from where the laptop's gloss cache has none.",
     )
+    parser.add_argument(
+        "--only",
+        type=Path,
+        help="Tag the lemmas this JSON names (a list, or a gap file's `missing`) instead of"
+        " drawing the commonest.",
+    )
+    parser.add_argument(
+        "--screen-also",
+        default="",
+        help="Comma-separated lemmas the screen leaves out as function words too.",
+    )
     args = parser.parse_args()
 
     models = [m.strip() for m in args.models.split(",") if m.strip()]
@@ -141,6 +165,8 @@ def main() -> int:
         tables=args.tables,
         sample=args.sample,
         include=_included(args.include),
+        only=read_only(args.only) if args.only else None,
+        also=frozenset(one.strip() for one in args.screen_also.split(",") if one.strip()),
     )
     if not lemmas:
         print("No lemmas: the language tables are empty. Run `targum tables sweep`.")
@@ -188,6 +214,8 @@ def main() -> int:
                 return 3
         for model in models:
             _collect(client, run, state, model, chunks)
+            # A checkpoint after every batch: the rows both models have answered so far.
+            _write_lexicon(run, state, models, lemmas, chunks, language)
         if all(_done(state, m, c) for m in models for c in chunks):
             break
         print(f"Some rows failed; re-sending ({attempt + 1} of {args.retries}).")
@@ -219,6 +247,8 @@ def _lemmas(
     tables: Path | None = None,
     sample: int = 0,
     include: frozenset[str] = frozenset(),
+    only: list[str] | None = None,
+    also: frozenset[str] = frozenset(),
 ) -> list[topics.Lemma]:
     """The run's lemma list: read back where it was written, so a resumed run asks about
     exactly the rows it paid for; otherwise another run's, or drawn from the tables, and
@@ -242,6 +272,8 @@ def _lemmas(
         )
         drawn = [topics.Lemma(**row) for row in source["lemmas"]]
         registers, missing = source.get("registers", registers), source.get("no_gloss", [])
+    elif only is not None:
+        drawn, missing = listed(store, only, _gloss(glosses))
     elif language != "he":
         # Russian's draw is the root lexicon's: the same universe and screen, with each
         # lemma's stress from OpenRussian where it has one.
@@ -262,6 +294,15 @@ def _lemmas(
         lemmas, dropped = topics.screen(store, drawn)
     else:
         lemmas = drawn
+    if also:
+        dropped += [
+            {"lemma": one.lemma, "pos": one.pos, "gloss": one.gloss, "why": "function word"}
+            for one in lemmas
+            if one.lemma in also
+        ]
+        lemmas = [one for one in lemmas if one.lemma not in also]
+    if only is not None:
+        lemmas = lemmas[:modern]
     universe = len(lemmas)
     if sample and sample < len(lemmas):
         lemmas = with_included(lemmas, spread(lemmas, sample), include)
@@ -272,6 +313,7 @@ def _lemmas(
         "registers": registers,
         "prompt": topics.PROMPT_VERSIONS[language],
         "from_run": from_run,
+        "only": len(only) if only is not None else None,
         "universe": universe,
         "sample": sample or None,
         "included": len(include) or None,
@@ -292,6 +334,42 @@ def _lemmas(
         f" ({dict(reasons)}); {len(missing)} left out for want of a gloss."
     )
     return lemmas
+
+
+def read_only(file: Path) -> list[str]:
+    """The lemmas `--only` names, each once, commonest first: a plain list as it stands,
+    or a gap file's registers taken in turn, rank by rank, so the commonest of every
+    register comes before the rarer of any."""
+    held = json.loads(file.read_text(encoding="utf-8"))
+    if isinstance(held, dict):
+        held = held.get("missing", {})
+    lists = list(held.values()) if isinstance(held, dict) else [held]
+    out: list[str] = []
+    seen: set[str] = set()
+    for rank in range(max((len(one) for one in lists), default=0)):
+        for one in lists:
+            if rank >= len(one):
+                continue
+            row = one[rank]
+            lemma = str(row["lemma"] if isinstance(row, dict) else row).strip()
+            if lemma and lemma not in seen:
+                seen.add(lemma)
+                out.append(lemma)
+    return out
+
+
+def listed(store: Any, wanted: list[str], gloss: Any) -> tuple[list[topics.Lemma], list[str]]:
+    """`wanted` as lemmas to tag, in its order, with the main part of speech and the count
+    the tables give and the cached gloss; a lemma the tables never counted is dropped
+    unasked, so only the tables' lemmas reach the gloss cache or a model, and one with no
+    gloss is listed apart, as a draw lists it."""
+    from targum.tables.words import WORDS
+
+    variants = store.variants(WORDS, wanted)
+    candidates = [(key, sum(variants[key].values())) for key in wanted if variants.get(key)]
+    missing: list[str] = []
+    lemmas = topics._glossed(store, candidates, "modern", len(candidates), gloss, missing)
+    return lemmas, missing
 
 
 def spread(lemmas: list[topics.Lemma], size: int) -> list[topics.Lemma]:
@@ -641,7 +719,7 @@ def _summarise(
         }
 
     agreement: dict[str, Any] = {}
-    lexicon: dict[str, list[str]] = {}
+    kept = _decided(run / "review.tsv")
     review = io.StringIO()
     writer = csv.writer(review, delimiter="\t", lineterminator="\n")
     writer.writerow(
@@ -674,33 +752,15 @@ def _summarise(
         settled = None
         if len(models) == 2:
             settled = topics.agreed(tags[models[0]].get(i), tags[models[1]].get(i))
-        if settled:
-            lexicon[one.lemma] = list(settled)
         writer.writerow(
             [i, one.lemma, one.glossed_as, one.pos, one.gloss, one.count, one.register]
             + cells
-            + [",".join(settled) if settled else "", "", "", "", ""]
+            + [",".join(settled) if settled else ""]
+            # A decision already made is never overwritten by a re-run (#606).
+            + list(kept.get((str(i), one.lemma), ("", "", "", "")))
         )
     write_atomic(run / "review.tsv", review.getvalue())
-
-    lexicon_file = topics.run_lexicon(language, run.name)
-    write_atomic(
-        lexicon_file,
-        json.dumps(
-            {
-                "version": f"{topics.VERSION}+{topics.PROMPT_VERSIONS[language]}-{run.name}",
-                # The run by name, so a score is matched to its lexicon exactly.
-                "run": run.name,
-                "language": language,
-                "topics": list(topics.TOPICS),
-                "shown": list(topics.SHOWN_FOR[language]),
-                "shown_rule": topics.shown_rule(language),
-                "lemmas": lexicon,
-            },
-            ensure_ascii=False,
-            indent=1,
-        ),
-    )
+    lexicon_file, lexicon = _write_lexicon(run, state, models, lemmas, chunks, language)
 
     per_lemma = len(lemmas) / max(1, len(chunks))
     requests = math.ceil(requote / per_lemma) if per_lemma else 0
@@ -749,6 +809,61 @@ def _summarise(
     }
     write_atomic(run / "summary.json", json.dumps(summary, ensure_ascii=False, indent=1))
     return summary
+
+
+REVIEW_DECISION = ("decision", "who", "at", "why")
+
+
+def _decided(file: Path) -> dict[tuple[str, str], tuple[str, str, str, str]]:
+    """The decision, who, at and why review.tsv holds for each row (by id and lemma) that
+    has any, so rewriting the file keeps them."""
+    if not file.is_file():
+        return {}
+    out: dict[tuple[str, str], tuple[str, str, str, str]] = {}
+    with file.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            cells = tuple(row.get(name) or "" for name in REVIEW_DECISION)
+            if any(cells):
+                out[(row["id"], row["lemma"])] = (cells[0], cells[1], cells[2], cells[3])
+    return out
+
+
+def _write_lexicon(
+    run: Path,
+    state: dict[str, Any],
+    models: list[str],
+    lemmas: list[topics.Lemma],
+    chunks: list[list[int]],
+    language: str = "he",
+) -> tuple[Path, dict[str, list[str]]]:
+    """The run's agreed tags so far as a lexicon, written whole: after every batch, and
+    once more at the end."""
+    lexicon: dict[str, list[str]] = {}
+    if len(models) == 2:
+        first, second = (_tags(state, model, chunks) for model in models)
+        for i, one in enumerate(lemmas):
+            settled = topics.agreed(first.get(i), second.get(i))
+            if settled:
+                lexicon[one.lemma] = list(settled)
+    lexicon_file = topics.run_lexicon(language, run.name)
+    write_atomic(
+        lexicon_file,
+        json.dumps(
+            {
+                "version": f"{topics.VERSION}+{topics.PROMPT_VERSIONS[language]}-{run.name}",
+                # The run by name, so a score is matched to its lexicon exactly.
+                "run": run.name,
+                "language": language,
+                "topics": list(topics.TOPICS),
+                "shown": list(topics.SHOWN_FOR[language]),
+                "shown_rule": topics.shown_rule(language),
+                "lemmas": lexicon,
+            },
+            ensure_ascii=False,
+            indent=1,
+        ),
+    )
+    return lexicon_file, lexicon
 
 
 def _blind(
