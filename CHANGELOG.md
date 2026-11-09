@@ -394,6 +394,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   and Milton (2010). The Reading level card says the level once, "About A2", and "310
   more dictionary words to B1". `/account/story` sends `coverage` for these three languages. Hebrew
   is unchanged. New strings: `progress.read.*` (en; ru drafted for David's read).
+- Russian grammar on Your Progress (targum-internal#639; design.md §12, "Russian grammar
+  on Your Progress", 2026-11-09). A Russian reader's What next has Aspect | Cases under
+  "Grammar": aspect × tense with aspect pairs, case × number with an animate accusative
+  row and where and where to, and More holding verbs of motion, nouns in -ь and
+  participles and gerunds. Read off the feats the free Russian annotator already stored;
+  `occurrences.VERSION` 12 re-reads every text's occurrences once, free. Hebrew is
+  unchanged. New `progress.ru.*` strings in English and Russian (ling-ru first pass). No
+  spend.
 
 ### Fixed
 - `targum marks` leaves alone a text Sefaria no longer offers in the edition it was built

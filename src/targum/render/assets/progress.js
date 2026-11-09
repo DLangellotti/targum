@@ -1638,9 +1638,646 @@
     topics.hidden = !topicRows.length;
   }
 
+  /* --- 3 · what next: Russian's Grammar -------------------------------------------
+   *
+   * design.md §12, "Russian grammar on Your Progress" (2026-11-09, targum-internal#639).
+   * The account sends `russian` (`gaps_ru.progress`): the aspect × tense grid and the
+   * case × number grid, each with its gap or null; aspect pairs and where and where to,
+   * each its tab's companion; and More's three, verbs of motion, nouns in -ь and
+   * participles and gerunds. Hebrew's floors, fill, outline and tap, and one list of
+   * words open at a time across all of it, Hebrew's own `openSquare`. A row names
+   * itself in the reader's language, and in English with the Russian term under it. A
+   * square's words are the forms met, beside their dictionary form and meaning.
+   */
+  function russian(text, className) {
+    var run = el("bdi", className || "", text);
+    run.setAttribute("lang", "ru");
+    return run;
+  }
+
+  // The Russian term beside a name, where the page is not already in Russian.
+  function showTerms() {
+    return pageLanguage().split("-")[0] === "ru" ? false : true;
+  }
+
+  // A name in the page's words, with the Russian term under it where the page is not
+  // already saying it in Russian.
+  function ruName(name, term, className) {
+    var holder = el("span", "");
+    holder.appendChild(el("span", "grammar-en", name));
+    if (term && showTerms()) {
+      holder.appendChild(document.createTextNode(" "));
+      holder.appendChild(russian(term, className || "grammar-ru"));
+    }
+    return holder;
+  }
+
+  var RU_ASPECTS = [
+    { key: "imperfective", name: t("progress.ru.aspect.imperfective", "Imperfective"), term: "несовершенный", short: t("progress.ru.aspect.imperfective-short", "Impf.") },
+    { key: "perfective", name: t("progress.ru.aspect.perfective", "Perfective"), term: "совершенный", short: t("progress.ru.aspect.perfective-short", "Pf.") },
+  ];
+  var RU_CASES = [
+    { key: "nom", name: t("progress.ru.case.nom", "Nominative"), term: "именительный" },
+    { key: "gen", name: t("progress.ru.case.gen", "Genitive"), term: "родительный" },
+    { key: "dat", name: t("progress.ru.case.dat", "Dative"), term: "дательный" },
+    { key: "acc", name: t("progress.ru.case.acc", "Accusative, inanimate"), term: "винительный, неодушевлённые" },
+    { key: "acca", name: t("progress.ru.case.acca", "Accusative, animate"), term: "винительный, одушевлённые" },
+    { key: "ins", name: t("progress.ru.case.ins", "Instrumental"), term: "творительный" },
+    { key: "loc", name: t("progress.ru.case.loc", "Prepositional"), term: "предложный" },
+  ];
+  // What What next says a case does when it is the gap, and its name in the headline.
+  var RU_CASE_GAP = {
+    nom: {
+      name: t("progress.ru.gap-case.nom", "the nominative"),
+      does: t("progress.ru.does-case.nom", "The nominative names who or what does the action, and it is the form in the dictionary."),
+    },
+    gen: {
+      name: t("progress.ru.gap-case.gen", "the genitive"),
+      does: t("progress.ru.does-case.gen", "The genitive says whose and of what, and follows numbers, {a} and many prepositions."),
+      fill: ["нет"],
+    },
+    dat: {
+      name: t("progress.ru.gap-case.dat", "the dative"),
+      does: t("progress.ru.does-case.dat", "The dative names who something is given or said to."),
+    },
+    acc: {
+      name: t("progress.ru.gap-case.acc", "the inanimate accusative"),
+      does: t("progress.ru.does-case.acc", "The accusative names what the action is done to, and says where to after {a} and {b}."),
+      fill: ["в", "на"],
+    },
+    acca: {
+      name: t("progress.ru.gap-case.acca", "the animate accusative"),
+      does: t("progress.ru.does-case.acca", "For a person or an animal the accusative takes the genitive’s ending, {f}."),
+    },
+    ins: {
+      name: t("progress.ru.gap-case.ins", "the instrumental"),
+      does: t("progress.ru.does-case.ins", "The instrumental says with what or with whom, and says where after {a} and {b}."),
+      fill: ["за", "под"],
+    },
+    loc: {
+      name: t("progress.ru.gap-case.loc", "the prepositional"),
+      does: t("progress.ru.does-case.loc", "The prepositional says where after {a} and {b}, and what about after {c}."),
+      fill: ["в", "на", "о"],
+    },
+  };
+  var RU_NUMBERS = [
+    { key: "sing", name: t("progress.ru.sing", "Singular"), short: t("progress.ru.sing-short", "Sing.") },
+    { key: "plur", name: t("progress.ru.plur", "Plural"), short: t("progress.ru.plur-short", "Plur.") },
+  ];
+  var RU_TENSES = TENSES.map(function (tense) {
+    return {
+      key: tense,
+      name: TENSE_NAMES[tense],
+      short: t("progress.gap." + tense + "-short", { past: "Past", present: "Pres.", future: "Fut.", imperative: "Imp.", infinitive: "Inf." }[tense]),
+    };
+  });
+  var RU_PREPOSITIONS = [
+    { key: "v", term: "в", gloss: t("progress.ru.prep.v", "in") },
+    { key: "na", term: "на", gloss: t("progress.ru.prep.na", "on, at") },
+    { key: "za", term: "за", gloss: t("progress.ru.prep.za", "behind") },
+    { key: "pod", term: "под", gloss: t("progress.ru.prep.pod", "under") },
+  ];
+  var RU_PLACES = [
+    { key: "where", name: t("progress.ru.where", "Where"), term: "где?", short: t("progress.ru.where-short", "Where") },
+    { key: "whereto", name: t("progress.ru.whereto", "Where to"), term: "куда?", short: t("progress.ru.whereto-short", "To") },
+  ];
+  var RU_WAYS = [
+    { key: "one", name: t("progress.ru.one-way", "One way"), short: t("progress.ru.one-way-short", "One way") },
+    { key: "back", name: t("progress.ru.there-and-back", "There and back"), short: t("progress.ru.there-and-back-short", "And back") },
+  ];
+  var RU_GENDERS = [
+    { key: "fem", name: t("progress.ru.soft.fem", "Feminine") },
+    { key: "masc", name: t("progress.ru.soft.masc", "Masculine") },
+  ];
+  var RU_FORMS = [
+    { key: "partact", name: t("progress.ru.form.partact", "Participle, active"), term: "действительное причастие", example: "читающий, прочитавший" },
+    { key: "partpass", name: t("progress.ru.form.partpass", "Participle, passive"), term: "страдательное причастие", example: "читаемый, прочитанный" },
+    { key: "short", name: t("progress.ru.form.short", "Short participle"), term: "краткое причастие", example: "прочитан, сделано" },
+    { key: "gerund", name: t("progress.ru.form.gerund", "Gerund"), term: "деепричастие", example: "читая, прочитав" },
+  ];
+  var RU_TITLES = {
+    pairs: { name: t("progress.ru.pairs-title", "Aspect pairs"), term: "видовые пары" },
+    place: { name: t("progress.ru.place-title", "Where and where to"), term: "где и куда" },
+    motion: { name: t("progress.ru.motion-title", "Verbs of motion"), term: "глаголы движения" },
+    soft: { name: t("progress.ru.soft-title", "Nouns in -ь"), term: "существительные на -ь" },
+    forms: { name: t("progress.ru.forms-title", "Participles and gerunds"), term: "причастия и деепричастия" },
+  };
+
+  // A word's meaning: the reader's own where it is on their list, else the glossary's
+  // the account sent; never invented.
+  function ruMeaning(code, one) {
+    var word = meaningOf(code, one.lemma);
+    return (word && (word.note || word.meaning)) || one.meaning || "";
+  }
+
+  // The words under a square: each form met, its dictionary form where that differs,
+  // and its meaning; "known" in leaf, or how often it was met.
+  function showRuWords(code, button, where, title, words) {
+    if (openSquare === button) {
+      shutWords();
+      return;
+    }
+    shutWords();
+    var box = document.getElementById(where + "-words");
+    var list = document.getElementById(where + "-word-rows");
+    if (!box || !list) return;
+    document.getElementById(where + "-words-title").textContent = title;
+    list.textContent = "";
+    (words || []).forEach(function (one) {
+      var meaning = ruMeaning(code, one);
+      var form = one.form || one.lemma;
+      var same = form === one.lemma;
+      var said = meaning ? t("progress.gap.meaning", "“{meaning}”", { meaning: meaning }) : "";
+      var aside = same ? said : one.lemma + (said ? " " + said : "");
+      row(
+        list,
+        form,
+        "ru",
+        aside,
+        one.known
+          ? t("progress.gap.word-known", "known")
+          : tn("progress.gap.word-met", one.count, "met once", "met {n} times"),
+        null,
+        one.known
+      );
+    });
+    box.hidden = false;
+    button.setAttribute("aria-expanded", "true");
+    openSquare = button;
+    openBox = box;
+  }
+
+  function wordsBox(where) {
+    var box = el("div", "grammar-words");
+    box.id = where + "-words";
+    box.hidden = true;
+    var title = el("h4", "grammar-words-title");
+    title.id = where + "-words-title";
+    box.appendChild(title);
+    var list = el("ul", "next-rows");
+    list.id = where + "-word-rows";
+    list.setAttribute("aria-labelledby", title.id);
+    box.appendChild(list);
+    return box;
+  }
+
+  function columnHead(column) {
+    var th = el("th", "");
+    th.setAttribute("scope", "col");
+    var long = el("span", "tense-long");
+    long.appendChild(document.createTextNode(column.name));
+    if (column.term && showTerms()) {
+      long.appendChild(document.createTextNode(" · "));
+      long.appendChild(russian(column.term));
+    }
+    th.appendChild(long);
+    var short = el("span", "tense-short", column.short || column.name);
+    short.setAttribute("aria-hidden", "true");
+    th.appendChild(short);
+    return th;
+  }
+
+  // A grid: a real table, its headers scoped, a square a button that opens its words in
+  // the box under its own table. `none` names the squares that are no such form.
+  function ruGrid(code, where, kind, view, rows, columns, labelled, none) {
+    var table = el("table", "grammar " + kind + (columns.length === 2 ? " two" : ""));
+    table.id = where;
+    table.setAttribute("aria-labelledby", labelled);
+    var head = el("thead");
+    var headRow = el("tr");
+    headRow.appendChild(el("td"));
+    columns.forEach(function (column) {
+      headRow.appendChild(columnHead(column));
+    });
+    head.appendChild(headRow);
+    table.appendChild(head);
+    var body = el("tbody");
+    var weakest = view.gap ? view.gap.row : null;
+    rows.forEach(function (named) {
+      var line = null;
+      (view.rows || []).forEach(function (one) {
+        if (one.row === named.key) line = one;
+      });
+      if (!line) return;
+      var tr = el("tr", "grammar-row" + (weakest === named.key ? " weakest" : ""));
+      var th = el("th", "grammar-binyan");
+      th.setAttribute("scope", "row");
+      th.appendChild(named.label ? named.label() : ruName(named.name, named.term));
+      tr.appendChild(th);
+      columns.forEach(function (column) {
+        if (none && none(named.key, column.key)) {
+          var blank = el("td", "grammar-square none");
+          var hatch = el("span", "");
+          hatch.appendChild(el("span", "sr", t("progress.ru.none", "No such form")));
+          blank.appendChild(hatch);
+          tr.appendChild(blank);
+          return;
+        }
+        var cell = (line.cells || {})[column.key];
+        tr.appendChild(
+          squareFor(cell ? cell.known : null, where, function (square) {
+            showRuWords(
+              code,
+              square,
+              where,
+              t("progress.gap.words-title", "{pattern}, {tense}: the words you met", {
+                pattern: named.title || named.name,
+                tense: String(column.name).toLowerCase(),
+              }),
+              cell.words
+            );
+          })
+        );
+      });
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    return table;
+  }
+
+  function note(host, text, nodes) {
+    var p = el("p", "gap-note");
+    if (nodes) sentenceWith(p, text, nodes);
+    else p.textContent = text;
+    host.appendChild(p);
+    return p;
+  }
+
+  function part(host, which, id) {
+    var holder = el("div", "gap-part");
+    holder.id = "ru-part-" + id;
+    var title = el("h4", "gap-part-title");
+    title.id = "ru-" + id + "-title";
+    var named = RU_TITLES[which];
+    title.appendChild(document.createTextNode(named.name));
+    if (showTerms()) {
+      title.appendChild(document.createTextNode(" "));
+      title.appendChild(russian("· " + named.term, "grammar-name"));
+    }
+    holder.appendChild(title);
+    host.appendChild(holder);
+    return holder;
+  }
+
+  function floorLine(said) {
+    return t("progress.gap.mishkal-floor", "A dash means you met these fewer than {n} times, too few to say.", { n: said.cellFloor });
+  }
+
+  // A pair of verbs as a row: "спрашивать · спросить", its meaning, and which are known.
+  function pairRow(host, code, first, second, meaning, known, names) {
+    var own = meaningOf(code, first) || meaningOf(code, second);
+    var said = (own && (own.note || own.meaning)) || meaning || "";
+    var end;
+    if (known === "both") end = t("progress.ru.pairs-both", "both known");
+    else if (known === "neither") end = t("progress.ru.not-yet", "not yet");
+    else end = t("progress.ru.pairs-known", "{w} known", { w: known === names[0] ? first : second });
+    var item = row(host, first + " · " + second, "ru", said ? t("progress.gap.meaning", "“{meaning}”", { meaning: said }) : "", end, null, known === "both");
+    item.className += " next-stack";
+    return item;
+  }
+
+  function drawAspect(code, said, panel) {
+    var aspect = said.aspect;
+    var label = el("span", "sr", t("progress.ru.tab-aspect", "Aspect"));
+    label.id = "ru-aspect-title";
+    panel.appendChild(label);
+    panel.appendChild(
+      ruGrid(code, "ru-aspect-grid", "aspect", aspect, RU_ASPECTS.map(function (one) {
+        return { key: one.key, name: one.name, term: one.term };
+      }), RU_TENSES, "ru-aspect-title", function (row, column) {
+        // A perfective has no present: always drawn, whatever the counts.
+        return row === "perfective" && column === "present";
+      })
+    );
+    note(panel, t("progress.ru.aspect-note", "Share of the verb forms you met that you know. Participles and gerunds are under More. Tap a square to see its words."));
+    var none = el("p", "gap-note");
+    sentenceWith(none, t("progress.ru.aspect-none", "A perfective verb has no present: what looks like one is its future, {f} “I’ll read”."), { "{f}": russian("прочитаю") });
+    none.appendChild(document.createTextNode(" " + t("progress.gap.floor", "A dash means fewer than {n} forms met, too few to say.", { n: said.cellFloor })));
+    panel.appendChild(none);
+    panel.appendChild(wordsBox("ru-aspect-grid"));
+
+    var pairs = said.pairs;
+    if (!pairs || !(pairs.rows || []).length) return;
+    var holder = part(panel, "pairs", "pairs");
+    var line = el("p", "gap-part-said", tn("progress.ru.pairs-said", pairs.met, "You know both verbs of {both} of the {n} pair you’ve met.", "You know both verbs of {both} of the {n} pairs you’ve met.", { both: pairs.both }));
+    holder.appendChild(line);
+    var list = el("ul", "next-rows next-stack");
+    list.setAttribute("aria-labelledby", "ru-pairs-title");
+    pairs.rows.forEach(function (one) {
+      pairRow(list, code, one.imperfective, one.perfective, one.meaning, one.known, ["imperfective", "perfective"]);
+    });
+    holder.appendChild(list);
+    note(holder, t("progress.ru.pairs-note", "Pairs where you know one verb come first, the most met at the top. Imperfective first, then perfective."));
+  }
+
+  function drawCases(code, said, panel) {
+    var label = el("span", "sr", t("progress.ru.tab-cases", "Cases"));
+    label.id = "ru-cases-title";
+    panel.appendChild(label);
+    panel.appendChild(ruGrid(code, "ru-cases-grid", "cases", said.cases, RU_CASES, RU_NUMBERS, "ru-cases-title"));
+    note(panel, t("progress.ru.cases-note", "Share of the nouns and adjectives you met in each case that you know. Tap a square to see its words."));
+    var animate = el("p", "gap-note");
+    sentenceWith(animate, t("progress.ru.cases-animate", "For a person or an animal the accusative takes the genitive’s ending, {f}. The animate row counts nouns only."), { "{f}": russian("вижу брата") });
+    animate.appendChild(document.createTextNode(" " + floorLine(said)));
+    panel.appendChild(animate);
+    panel.appendChild(wordsBox("ru-cases-grid"));
+
+    var place = said.place;
+    if (!place) return;
+    var holder = part(panel, "place", "place");
+    var rows = RU_PREPOSITIONS.map(function (one) {
+      return {
+        key: one.key,
+        name: one.term,
+        title: one.term,
+        label: function () {
+          var span = el("span", "");
+          span.appendChild(russian(one.term, "grammar-prep"));
+          // A gloss for a reader who does not read the page in Russian.
+          var gloss = showTerms() ? one.gloss : "";
+          if (gloss) {
+            span.appendChild(document.createTextNode(" "));
+            span.appendChild(el("span", "grammar-name", gloss));
+          }
+          return span;
+        },
+      };
+    });
+    holder.appendChild(ruGrid(code, "ru-place-grid", "place", place, rows, RU_PLACES, "ru-place-title"));
+    note(holder, t("progress.ru.place-note", "Share of the words you met after each preposition that you know. {v} and {na} say where with the prepositional, {e1}; {za} and {pod} with the instrumental, {e2}. All four say where to with the accusative, {e3}."), {
+      "{v}": russian("в"),
+      "{na}": russian("на"),
+      "{za}": russian("за"),
+      "{pod}": russian("под"),
+      "{e1}": russian("в школе"),
+      "{e2}": russian("под столом"),
+      "{e3}": russian("в школу"),
+    });
+    note(holder, floorLine(said));
+    holder.appendChild(wordsBox("ru-place-grid"));
+  }
+
+  function drawMotion(code, said, host) {
+    var motion = said.motion;
+    var holder = part(host, "motion", "motion");
+    var one = motion.cells.one;
+    var back = motion.cells.back;
+    if (one && back) {
+      holder.appendChild(el("p", "gap-part-said", t("progress.ru.motion-said", "You know {n}% of the one-way forms you meet, and {m}% of the there-and-back ones.", { n: one.known, m: back.known })));
+    }
+    var allName = t("progress.ru.motion-all", "All the pairs you met");
+    holder.appendChild(
+      ruGrid(code, "ru-motion-grid", "motion", { rows: [{ row: "all", cells: motion.cells }] }, [{ key: "all", name: allName, title: t("progress.ru.motion-title", "Verbs of motion") }], RU_WAYS, "ru-motion-title")
+    );
+    holder.appendChild(wordsBox("ru-motion-grid"));
+    var list = el("ul", "next-rows next-stack motion-pairs");
+    list.setAttribute("aria-labelledby", "ru-motion-title");
+    (motion.pairs || []).forEach(function (pair) {
+      pairRow(list, code, pair.one, pair.back, pair.meaning, pair.known, ["one", "back"]);
+    });
+    holder.appendChild(list);
+    note(holder, t("progress.ru.motion-note", "Both verbs of a pair are imperfective: {a} is one way, now; {b} is there and back, or often. A pair is one dictionary word each way, so the pairs are listed as known or not, never as a share."), {
+      "{a}": russian("идти"),
+      "{b}": russian("ходить"),
+    });
+  }
+
+  function drawSoft(code, said, host) {
+    var soft = said.soft;
+    var holder = part(host, "soft", "soft");
+    var wrap = el("div", "gap-mishkal soft");
+    var table = el("table", "mishkal");
+    table.id = "ru-soft-grid";
+    table.setAttribute("aria-labelledby", "ru-soft-title");
+    var widths = el("colgroup");
+    widths.appendChild(el("col"));
+    widths.appendChild(el("col", "mishkal-share"));
+    table.appendChild(widths);
+    var head = el("thead");
+    var headRow = el("tr");
+    [t("progress.ru.soft-head", "Nouns"), t("progress.gap.mishkal-head-known", "Known")].forEach(function (name) {
+      var th = el("th", "", name);
+      th.setAttribute("scope", "col");
+      headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+    table.appendChild(head);
+    var body = el("tbody");
+    RU_GENDERS.forEach(function (gender) {
+      var line = null;
+      (soft.rows || []).forEach(function (one) {
+        if (one.row === gender.key) line = one;
+      });
+      if (!line) return;
+      var tr = el("tr", "mishkal-row");
+      var th = el("th", "mishkal-pattern");
+      th.setAttribute("scope", "row");
+      var said2 = el("span", "mishkal-line");
+      said2.appendChild(el("span", "grammar-en", gender.name));
+      if ((line.examples || []).length) said2.appendChild(russian(line.examples.join(", "), "mishkal-means"));
+      th.appendChild(said2);
+      tr.appendChild(th);
+      var cell = line.cells.all;
+      tr.appendChild(
+        squareFor(cell ? cell.known : null, "ru-soft-grid", function (square) {
+          showRuWords(
+            code,
+            square,
+            "ru-soft-grid",
+            t("progress.gap.mishkal-words-title", "{pattern}: the words you met", {
+              pattern: gender.name + ", -ь",
+            }),
+            cell.words
+          );
+        })
+      );
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    wrap.appendChild(table);
+    holder.appendChild(wrap);
+    note(holder, t("progress.ru.soft-note", "A noun in -ь can be either, and the ending gives no clue. What agrees with it does: {a}, {b}."), {
+      "{a}": russian("эта дверь"),
+      "{b}": russian("этот день"),
+    });
+    holder.appendChild(wordsBox("ru-soft-grid"));
+  }
+
+  function drawForms(code, said, host) {
+    var holder = part(host, "forms", "forms");
+    var rows = RU_FORMS.map(function (one) {
+      return {
+        key: one.key,
+        name: one.name,
+        label: function () {
+          var span = el("span", "");
+          span.appendChild(el("span", "grammar-en", one.name));
+          span.appendChild(document.createTextNode(" "));
+          span.appendChild(russian(one.example, "grammar-ru"));
+          return span;
+        },
+      };
+    });
+    var columns = RU_ASPECTS.map(function (one) {
+      return { key: one.key, name: one.name, short: one.short };
+    });
+    holder.appendChild(ruGrid(code, "ru-forms-grid", "forms", said.forms, rows, columns, "ru-forms-title"));
+    note(holder, t("progress.ru.forms-note", "Share of the participles and gerunds you met that you know. Courses usually teach them at B1, for reading. A participle we can’t sort as active or passive is left out."));
+    note(holder, floorLine(said));
+    holder.appendChild(wordsBox("ru-forms-grid"));
+  }
+
+  function showRuTab(which, focus) {
+    var tabs = document.querySelectorAll("#ru-tabs [role=tab]");
+    for (var n = 0; n < tabs.length; n++) {
+      var on = tabs[n].getAttribute("data-tab") === which;
+      tabs[n].setAttribute("aria-selected", on ? "true" : "false");
+      tabs[n].classList.toggle("on", on);
+      tabs[n].tabIndex = on ? 0 : -1;
+      if (on && focus) tabs[n].focus();
+    }
+    document.getElementById("ru-aspect").hidden = which !== "aspect";
+    document.getElementById("ru-cases").hidden = which !== "cases";
+  }
+
+  (function wireRuTabs() {
+    var strip = document.getElementById("ru-tabs");
+    if (!strip) return;
+    strip.addEventListener("click", function (event) {
+      var tab = event.target.closest("[role=tab]");
+      if (!tab || tab.getAttribute("aria-selected") === "true") return;
+      shutWords();
+      showRuTab(tab.getAttribute("data-tab"), false);
+    });
+    strip.addEventListener("keydown", function (event) {
+      var keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
+      if (!(event.key in keys)) return;
+      var tabs = Array.prototype.slice.call(strip.querySelectorAll("[role=tab]"));
+      var at = tabs.indexOf(document.activeElement);
+      var step = keys[event.key];
+      var next = step === "first" ? 0 : step === "last" ? tabs.length - 1 : (at + step + tabs.length) % tabs.length;
+      event.preventDefault();
+      shutWords();
+      showRuTab(tabs[next].getAttribute("data-tab"), true);
+    });
+    var more = document.getElementById("ru-more");
+    // Shutting More shuts a list open inside it.
+    if (more) more.addEventListener("toggle", function () {
+      if (!more.open && openBox && more.contains(openBox)) shutWords();
+    });
+  })();
+
+  // A word met, as the headline's sentence names it: the form, and its meaning where
+  // there is one.
+  function ruExample(code, one) {
+    var holder = el("span", "gap-example");
+    holder.appendChild(russian(one.form || one.lemma));
+    var meaning = ruMeaning(code, one);
+    if (meaning) holder.appendChild(document.createTextNode(" " + t("progress.gap.meaning", "“{meaning}”", { meaning: meaning })));
+    return holder;
+  }
+
+  function ruExamples(lead, code, met) {
+    var mine = (met || []).filter(function (one) {
+      return !!ruMeaning(code, one);
+    });
+    var two = mine.concat((met || []).filter(function (one) { return mine.indexOf(one) < 0; })).slice(0, 2);
+    if (two.length === 2) {
+      lead.appendChild(document.createTextNode(" "));
+      sentenceWith(lead, t("progress.gap.examples", "You've met {first} and {second}."), {
+        "{first}": ruExample(code, two[0]),
+        "{second}": ruExample(code, two[1]),
+      });
+    } else if (two.length === 1) {
+      lead.appendChild(document.createTextNode(" "));
+      sentenceWith(lead, t("progress.gap.example", "You've met {first}."), { "{first}": ruExample(code, two[0]) });
+    }
+  }
+
+  function drawRussian(code) {
+    var box = document.getElementById("gap-ru");
+    if (!box) return;
+    var said = story[code];
+    var ru = code === "ru" && said ? said.russian || null : null;
+    var aspectPanel = document.getElementById("ru-aspect");
+    var casesPanel = document.getElementById("ru-cases");
+    var more = document.getElementById("ru-more");
+    var parts = document.getElementById("ru-more-parts");
+    aspectPanel.textContent = "";
+    casesPanel.textContent = "";
+    parts.textContent = "";
+    more.open = false;
+    box.hidden = !ru;
+    if (!ru) return;
+    shutWords();
+    if (ru.aspect) drawAspect(code, ru, aspectPanel);
+    if (ru.cases) drawCases(code, ru, casesPanel);
+    var both = !!ru.aspect && !!ru.cases;
+    document.getElementById("ru-tabs").hidden = !both;
+    showRuTab(both ? (ru.lead === "cases" ? "cases" : "aspect") : ru.aspect ? "aspect" : "cases", false);
+
+    // More: in a course's order, each part only where it has enough; shut on every load.
+    var which = [];
+    if (ru.motion) {
+      drawMotion(code, ru, parts);
+      which.push(RU_TITLES.motion.name);
+    }
+    if (ru.soft) {
+      drawSoft(code, ru, parts);
+      which.push(RU_TITLES.soft.name);
+    }
+    if (ru.forms) {
+      drawForms(code, ru, parts);
+      which.push(RU_TITLES.forms.name);
+    }
+    more.hidden = !which.length;
+    document.getElementById("ru-more-which").textContent = which.join(" · ");
+
+    // The headline: an aspect or a case, whichever sits further under its own kind.
+    var title = document.getElementById("next-title");
+    var lead = document.getElementById("gap-said");
+    var gap = ru.lead === "aspect" && ru.aspect ? ru.aspect.gap : ru.lead === "cases" && ru.cases ? ru.cases.gap : null;
+    if (!gap) return;
+    lead.textContent = "";
+    lead.hidden = false;
+    if (ru.lead === "aspect") {
+      var perfective = gap.row === "perfective";
+      title.textContent = perfective
+        ? t("progress.ru.title-perfective", "Your biggest gap: perfective verbs")
+        : t("progress.ru.title-imperfective", "Your biggest gap: imperfective verbs");
+      lead.appendChild(
+        document.createTextNode(
+          (perfective
+            ? t("progress.ru.said-perfective", "You know {n}% of the perfective forms you meet, against {m}% for imperfective ones.", { n: gap.known, m: gap.others })
+            : t("progress.ru.said-imperfective", "You know {n}% of the imperfective forms you meet, against {m}% for perfective ones.", { n: gap.known, m: gap.others })) +
+            " " +
+            (perfective
+              ? t("progress.ru.does-perfective", "A perfective verb says a thing was done, or will be, once and to the end.")
+              : t("progress.ru.does-imperfective", "An imperfective verb says a thing goes on, comes round, or is simply named."))
+        )
+      );
+    } else {
+      var named = RU_CASE_GAP[gap.row];
+      if (!named) return;
+      title.textContent = t("progress.ru.title-case", "Your biggest gap: {case}", { case: named.name });
+      lead.appendChild(
+        document.createTextNode(
+          t("progress.ru.said-case", "You know {n}% of the forms you meet in this case, against {m}% in the other cases.", { n: gap.known, m: gap.others }) + " "
+        )
+      );
+      var fills = { "{f}": russian("вижу брата") };
+      (named.fill || []).forEach(function (word, n) {
+        fills["{" + "abc".charAt(n) + "}"] = russian(word);
+      });
+      sentenceWith(lead, named.does, fills);
+    }
+    ruExamples(lead, code, gap.examples);
+  }
+
   function drawNext(code) {
     var said = story[code];
     drawGap(code);
+    drawRussian(code);
     var met = document.getElementById("met-rows");
     var metEmpty = document.getElementById("met-empty");
     var level = document.getElementById("level-rows");

@@ -13508,6 +13508,23 @@ class Handler(BaseHTTPRequestHandler):
             return None
         return self.store.reads(person.id)
 
+    def _held_meaning(self, language: str) -> Callable[[str], str]:
+        """A word's meaning as the glossary already holds it, in the reader's meaning
+        language, or "": what a list of words met on Your Progress says beside each one.
+        Never spends."""
+        from .annotate.gloss import cached_gloss, gloss_provider_name
+        from .cache import Cache
+
+        target = self._reading_language()
+        provider = gloss_provider_name()
+        cache = Cache()
+
+        def meaning_of(lemma: str) -> str:
+            held = cached_gloss(lemma, language, target, provider, cache)
+            return held.gloss if held else ""
+
+        return meaning_of
+
     def _reading_language(self) -> str:
         """The language this reader's meanings and `= ` lines are in: `_ui_language`
         without the desk gate, since a meaning is bought rather than written here."""
@@ -15222,6 +15239,7 @@ class Handler(BaseHTTPRequestHandler):
         from . import choose as choose_module
         from . import coverage as coverage_module
         from . import gaps as gaps_module
+        from . import gaps_ru as gaps_ru_module
         from . import occurrences as occurrences_module
         from . import touchstones
         from .annotate import root_card
@@ -15395,6 +15413,19 @@ class Handler(BaseHTTPRequestHandler):
             else None
         )
         answer["lead"] = gaps_module.lead(answer["grammar"], answer["mishkal"])
+        # Russian's Grammar (design.md §12, "Russian grammar on Your Progress",
+        # 2026-11-09): Aspect | Cases and More, met the same way, read off the stored
+        # feats. A listed word's meaning is the glossary's where it already holds one,
+        # in the reader's meaning language; nothing is bought for it.
+        answer["russian"] = (
+            gaps_ru_module.progress(
+                occurrences_module.grammar_forms(finished, folder_for, language),
+                marked,
+                self._held_meaning(language),
+            )
+            if language == "ru"
+            else None
+        )
         # "words from N roots" (design.md §12, 2026-11-02): the distinct roots among the
         # words the reader knows, counted live off their own rows as the family line
         # counts a root. One quiet line; it feeds no headline, the level, the ledger or a

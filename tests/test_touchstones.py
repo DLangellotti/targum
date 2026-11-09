@@ -425,6 +425,61 @@ def test_the_story_draws_the_mishkal_list_where_there_is_a_lexicon(
     assert said["roots"] is None
 
 
+def test_the_story_draws_russian_grammar_and_hebrew_is_unchanged(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Russian's Grammar on What next (design.md §12, "Russian grammar on Your Progress",
+    2026-11-09): read off the feats each Russian token already carries, met inside a
+    finished section; Russian only, so Hebrew's story carries none and keeps its own."""
+    from targum import catalogue as catalogue_module
+
+    port, token, out = served
+    monkeypatch.setattr(catalogue_module, "everything", list)
+
+    def verb(surface: str, lemma: str, aspect: str) -> dict[str, str]:
+        feats = f"UPOS=VERB|Aspect={aspect}|Tense=Past|VerbForm=Fin"
+        return {"surface": surface, "lemma": lemma, "pos": "VERB", "feats": feats}
+
+    folder = built(
+        out / "shared" / "glagoly",
+        {
+            1: [
+                [verb("говорил", "говорить", "Imp")] * 30 + [verb("сказал", "сказать", "Perf")] * 30
+            ],
+            2: [[verb("шёл", "идти", "Imp")] * 40],
+        },
+    )
+    for name in ("document.json", "segments.json"):
+        facts = json.loads((folder / name).read_text(encoding="utf-8"))
+        facts["language"] = "ru"
+        if name == "document.json":
+            facts["content_hash"] = "glagoly"
+        (folder / name).write_text(json.dumps(facts), encoding="utf-8")
+
+    cookie = sign_in(port, postbox)
+    words = [{"language": "ru", "lemma": "говорить", "status": KNOWN, "at": 1, "seen": 1}]
+    sections = [{"hash": "glagoly", "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"words": words, "sections": sections}, cookie=cookie
+    )
+    assert status == 200, answer
+
+    status, said, _ = call(port, "GET", f"/account/story?language=ru&k={token}", cookie=cookie)
+    assert status == 200, said
+    russian = said["russian"]
+    rows = {row["row"]: row for row in russian["aspect"]["rows"]}
+    assert rows["imperfective"]["cells"]["past"]["known"] == 100
+    assert rows["perfective"]["cells"]["past"]["known"] == 0
+    assert rows["perfective"]["cells"]["past"]["words"][0]["form"] == "сказал"
+    assert russian["aspect"]["gap"]["row"] == "perfective"
+    assert russian["lead"] == "aspect"
+    assert russian["motion"] is None, "a section not finished is not met"
+    assert said["grammar"] is None and said["mishkal"] is None
+
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert said["russian"] is None
+
+
 def test_each_ladder_count_is_its_library_shelf_count(
     served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

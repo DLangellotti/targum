@@ -87,8 +87,10 @@ OCCURRENCES = "occurrences.json"
 #: hollow verb the CC0 table files under both ו and י its root (`verb_roots.VERSION` 3,
 #: targum-internal#601); 10 counts an
 #: inflected verb that stood as its own lemma under its verb (`lemma_check` 2,
-#: targum-internal#660); 11 reads `lemma_check` 3, so היה is counted as היה again.
-VERSION = 11
+#: targum-internal#660); 11 reads `lemma_check` 3, so היה is counted as היה again; 12
+#: adds each Russian token's squares on Your Progress's Russian grammar (`grammar`,
+#: `gaps_ru.classify`, targum-internal#639), with the form met, read off the stored feats.
+VERSION = 12
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,10 @@ class Occurrences:
     verbs: dict[str, tuple[int, ...]] = field(default_factory=dict)
     function: frozenset[str] = frozenset()
     mishkalim: dict[str, tuple[int, ...]] = field(default_factory=dict)
+    #: Russian only: "square|form|met" to the same flat run, for each token counted on
+    #: Your Progress's Russian grammar (`gaps_ru.classify`): the square, the dictionary
+    #: form and the form met ("aspect:perfective:past|сказать|сказал").
+    grammar: dict[str, tuple[int, ...]] = field(default_factory=dict)
 
     def count(self, lemma: str) -> int:
         """How many running words in the text have this dictionary form."""
@@ -207,6 +213,11 @@ def _from(loaded: object) -> Occurrences | None:
         for form, flat in (loaded.get("mishkalim") or {}).items()
         if isinstance(flat, list) and len(flat) % 2 == 0
     }
+    grammar = {
+        str(form): tuple(int(n) for n in flat)
+        for form, flat in (loaded.get("grammar") or {}).items()
+        if isinstance(flat, list) and len(flat) % 2 == 0
+    }
     return Occurrences(
         places=places,
         lemmas=lemmas,
@@ -214,6 +225,7 @@ def _from(loaded: object) -> Occurrences | None:
         verbs=verbs,
         function=function,
         mishkalim=mishkalim,
+        grammar=grammar,
     )
 
 
@@ -231,6 +243,7 @@ def count_text(folder: Path) -> Occurrences | None:
     from .annotate.root_card import HEBREW_KINDS, family_root, hebrew_shape
     from .annotate.verb_roots import root_for, said_roots
     from .gaps import verb_form
+    from .gaps_ru import classify
     from .ingest import post as post_module
     from .models import SegmentedDocument, read_artifact
     from .tables.weights import EXCLUDED
@@ -257,6 +270,7 @@ def count_text(folder: Path) -> Occurrences | None:
     roots: dict[str, str] = {}
     verbs: dict[str, dict[int, int]] = {}
     mishkalim: dict[str, dict[int, int]] = {}
+    grammar: dict[str, dict[int, int]] = {}
     # A noun's mishkal, worked out once a form and part of speech in each text.
     pattern_of: dict[tuple[str, str], str] = {}
     # The forms met at least once as an open-class word; the rest are `function`.
@@ -277,9 +291,12 @@ def count_text(folder: Path) -> Occurrences | None:
         spans = unwordly.get(segment.id)
         key = (section_of.get(segment.id, 1), segment.ref or "")
         language = segment.language_in(segmented.language)
-        for token in found:
-            if checking:
-                token = mend_row(token)
+        if checking:
+            found = [mend_row(token) for token in found]
+        # Russian's squares are read off the segment whole: a compound future and a
+        # preposition's word need their neighbours (`gaps_ru.classify`).
+        squares = classify(found) if language.split("-")[0] == "ru" else None
+        for index, token in enumerate(found):
             lemma = str(token.get("lemma") or "")
             if lemma in NOT_A_WORD or not_vocabulary(token.get("pos"), token.get("entity")):
                 continue
@@ -295,6 +312,9 @@ def count_text(folder: Path) -> Occurrences | None:
             if form := verb_form(token):
                 verb = verbs.setdefault(f"{form[0]}|{form[1]}|{lemma}", {})
                 verb[at] = verb.get(at, 0) + 1
+            for square, met_as in squares[index] if squares else ():
+                held_square = grammar.setdefault(f"{square}|{lemma}|{met_as}", {})
+                held_square[at] = held_square.get(at, 0) + 1
             pos = str(token.get("pos") or "")
             if language.split("-")[0] == "he" and pos in HEBREW_KINDS:
                 if (lemma, pos) not in pattern_of:
@@ -341,6 +361,10 @@ def count_text(folder: Path) -> Occurrences | None:
             form: tuple(n for at, count in row.items() for n in (at, count))
             for form, row in mishkalim.items()
         },
+        grammar={
+            form: tuple(n for at, count in row.items() for n in (at, count))
+            for form, row in grammar.items()
+        },
     )
 
 
@@ -386,6 +410,7 @@ def _cached(folder: Path, stamp: tuple[int, ...]) -> Occurrences | None:
                     "verbs": {form: list(flat) for form, flat in counted.verbs.items()},
                     "function": sorted(counted.function),
                     "mishkalim": {form: list(flat) for form, flat in counted.mishkalim.items()},
+                    "grammar": {form: list(flat) for form, flat in counted.grammar.items()},
                 },
                 ensure_ascii=False,
                 separators=(",", ":"),
@@ -666,6 +691,32 @@ def mishkal_forms(
             if n:
                 row = out.setdefault(pattern, {})
                 row[lemma] = row.get(lemma, 0) + n
+    return out
+
+
+def grammar_forms(
+    finished: Iterable[tuple[str, str, int]],
+    folder_for: FolderFor,
+    language: str = "ru",
+) -> dict[str, dict[tuple[str, str], int]]:
+    """The Russian tokens a reader met, by square, dictionary form and form met: what
+    Your Progress's Russian grammar is drawn from (`gaps_ru.progress`,
+    targum-internal#639). Met as `verb_forms` means it, and every token counts."""
+    out: dict[str, dict[tuple[str, str], int]] = {}
+    for _document, sections, counted in _finished_texts(finished, folder_for, language):
+        if not counted.grammar:
+            continue
+        inside = [section in sections for section, _ref in counted.places]
+        for key, flat in counted.grammar.items():
+            square, lemma, form = key.split("|", 2)
+            n = sum(
+                count
+                for at, count in zip(flat[0::2], flat[1::2], strict=True)
+                if at < len(inside) and inside[at]
+            )
+            if n:
+                cell = out.setdefault(square, {})
+                cell[lemma, form] = cell.get((lemma, form), 0) + n
     return out
 
 
