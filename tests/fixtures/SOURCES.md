@@ -23,6 +23,8 @@ with their own provenance, kept here solely as test data.
 | `globalstorybooks/sbc/ru/0002.md` | Written for this project in the shape of a story file, with a NonCommercial licence line, so the refusal is tested without keeping a NonCommercial text here | AGPL-3.0-or-later, part of this repository. |
 | `globalstorybooks/sbc/en/0087.md` | Same repository, `en/0087_i-like-to-read.md` | CC BY. Text and translation by Letta Machoga, illustrations by Wiehan de Jager. |
 | `globalstorybooks/lida/ru/0001.md` | github.com/global-asp/lida-source, `ru/0001_поиск-работы.md`, recorded 2026-09-15 | CC BY. Text by Espen Stranger-Johannessen, illustrations by Sunniva Høiby-Øiset, Russian translation by Liubov Denoi. Via LIDA Stories, Global Storybooks. |
+| `globalstorybooks/asp/fr/0211.md` | github.com/global-asp/asp-source, `fr/0211_le-faux-roi-bouc.md`, recorded 2026-11-09: a French title over the English story, kept as the misfiling it is (targum-internal#666) | CC BY. Text by Alice Nakasango, illustrations by Marleen Visser, translation credited to Fanny Caudron and Translators without Borders. Via African Storybook, Global Storybooks. |
+| `globalstorybooks/asp/fr/0213.md` | Same repository, `fr/0213_coq-et-lievre.md`, recorded 2026-11-09 | CC BY. Text by Geoffrey Thiiru, illustrations by Duane Arthur, French translation by Gilles, Translators without Borders. Via African Storybook, Global Storybooks. |
 | `globalstorybooks/*/*.json` | GitHub contents API answers for those folders, trimmed to four entries and to `name`, `path` and `type` | File names only. |
 
 Nothing else in `tests/fixtures/` is quoted from elsewhere. The tool itself never

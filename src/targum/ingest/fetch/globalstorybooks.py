@@ -30,6 +30,13 @@ LIDA are NonCommercial, written in the same folder in the same format. A story w
 file does not state terms this shelf may serve is refused, with its terms named. The file
 names the licence's family and not its version (`[CC-BY]`, `CC BY-NC-SA`), and the
 version is not filled in from the site's badge: the credit says what the file says.
+
+**And the folder is checked against the words in it.** A file in a folder other than
+English that reads as English is refused (targum-internal#666): `asp-source/fr/
+0211_le-faux-roi-bouc.md` has a French title over the English story, and went on the
+French shelf as French. The check is a count of English function words, read here with
+no model and no network, because a story the site misfiled costs nothing to catch and a
+week on the shelf to find.
 """
 
 from __future__ import annotations
@@ -192,6 +199,50 @@ def credit(story: Story, site: str) -> str:
     return ", ".join(parts) + f". Via {SITES.get(site, site)}, Global Storybooks."
 
 
+#: Words an English page cannot go a sentence without, and that the shelf's other
+#: languages do not write as words of their own. `in`, `is`, `was`, `for`, `her`, `on`,
+#: `a` and `to` are left out: Dutch, German, Norwegian, French and Polish write those too.
+_ENGLISH_WORDS = frozenset(
+    "the and of that with said they she his you are were this what when from there "
+    "their them then have had would could not but into very because".split()
+)
+#: What share of a story's words those are, at which it reads as English. Measured on
+#: 2026-11-09 over every story of forty words or more in seven folders: English runs 9%
+#: (*I like to read!*, which repeats itself) to 37%, and the misfiled French one 28%; the
+#: French, German, Norwegian and Russian folders' own stories never reach 2%, the little
+#: there is being names and a borrowed word. Five per cent sits between the two.
+ENGLISH_SHARE = 0.05
+#: Fewer words than this and a share is one stray word, so nothing is said.
+_ENOUGH_WORDS = 40
+
+
+def english_share(story: Story) -> float:
+    """How much of a story's pages are English function words, from 0 to 1."""
+    words = [
+        word.strip(".,;:!?\"'()[]«»“”‘’—–-…").lower()
+        for page in story.pages
+        for word in page.split()
+    ]
+    words = [word for word in words if word]
+    if len(words) < _ENOUGH_WORDS:
+        return 0.0
+    return sum(word in _ENGLISH_WORDS for word in words) / len(words)
+
+
+def refuse_misfiled(where: Address, story: Story) -> None:
+    """A story in a folder other than English whose pages read as English."""
+    if where.language.split("-")[0] == "en":
+        return
+    share = english_share(story)
+    if share >= ENGLISH_SHARE:
+        raise TargumError(
+            f"Global Storybooks story {where.site}/{where.story}/{where.language} is in the "
+            f"'{where.language}' folder, but its pages are in English.",
+            f"{share:.0%} of its words are English ones. The site filed the English story "
+            "under that language, so there is no translation here to read yet.",
+        )
+
+
 def refuse_unservable(where: Address, story: Story) -> None:
     found = verdict(story.licence)
     if found.standing not in _SERVABLE:
@@ -269,6 +320,7 @@ def _read(where: Address) -> tuple[str, Story]:
 def document_from(where: Address, story: Story, ingester: str) -> Document:
     """A read story, as a document: title, byline, and a paragraph a page."""
     refuse_unservable(where, story)
+    refuse_misfiled(where, story)
     if not story.pages:
         raise TargumError(f"Global Storybooks story {where.key} has no words in it.")
     paragraphs: list[Paragraph] = [(BlockKind.paragraph, None, page) for page in story.pages]

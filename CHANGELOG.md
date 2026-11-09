@@ -6,6 +6,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Changed
+- The Global Storybooks fetcher refuses a story whose folder names a language other than
+  English but whose pages read as English (targum-internal#666). African Storybook's
+  `fr/0211_le-faux-roi-bouc.md` is the English story under a French title, and it reached
+  the French shelf as French. The check counts English function words, locally, with no
+  model and no network: English stories measured 9–37% of their words, the French, German,
+  Norwegian and Russian folders under 2%, and the line is 5%. The row itself
+  (`gsb-asp-0211-fr`) is in the private catalogue, not this repository. No spend, no new
+  strings.
 - `/siddur`: a privacy and support page for the Siddur by targum app. No spend, no new
   strings.
 - What next's "Texts at your level now" reads each text by the figure "What you can read
