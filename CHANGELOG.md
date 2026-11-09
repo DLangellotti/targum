@@ -5,6 +5,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Fixed
+- `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
+  first news round's six workers ran trafilatura side by side, and its one lxml parser,
+  shared across threads, corrupted libxml2's memory: `free(): invalid pointer`, `double
+  free or corruption` or a segfault, seven times in fourteen days, each a ~17 s outage.
+  pymorphy3's dictionary load only preceded it in the log. trafilatura is now entered one
+  thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
+  6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
+  No spend, no new strings.
+
 ### Changed
 - The Global Storybooks fetcher refuses a story whose folder names a language other than
   English but whose pages read as English (targum-internal#666). African Storybook's
