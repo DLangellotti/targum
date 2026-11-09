@@ -2,7 +2,9 @@
 
 Everything here runs against recorded files from the `global-asp` source repositories —
 Storybooks Canada's *A very tall man* in Russian and English and *I like to read!* in
-English, and LIDA's *Finding a job* in Russian — against GitHub's folder listings for
+English, LIDA's *Finding a job* in Russian, and African Storybook's *Coq et Lièvre* in
+French beside *Le Faux Roi Bouc*, which the site's French folder holds in English (kept
+as the misfiling it is, targum-internal#666) — against GitHub's folder listings for
 those folders, trimmed to four stories, and against one file written here in the same
 shape under a NonCommercial line, so the network is never asked.
 """
@@ -204,3 +206,43 @@ def test_a_github_that_stops_answering_says_to_wait(monkeypatch: pytest.MonkeyPa
     with pytest.raises(TargumError, match="GitHub stopped listing") as refused:
         ingest.load("globalstorybooks:sbc/0001/ru")
     assert refused.value.hint is not None and "Wait an hour" in refused.value.hint
+
+
+# -- the folder against the words ------------------------------------------------------------
+
+
+def test_a_french_folder_holding_the_english_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """targum-internal#666: `asp-source/fr/0211_le-faux-roi-bouc.md` is the English story
+    under a French title, and went on the French shelf as French."""
+    answering(monkeypatch)
+    with pytest.raises(TargumError, match=r"asp/0211/fr is in the 'fr' folder.*in English") as no:
+        ingest.load("globalstorybooks:asp/0211/fr")
+    assert no.value.hint is not None and "no translation here to read" in no.value.hint
+
+
+def test_the_french_beside_it_is_read_as_french(monkeypatch: pytest.MonkeyPatch) -> None:
+    answering(monkeypatch)
+    document = ingest.load("globalstorybooks:asp/0213/fr")
+    assert document.language == "fr" and document.title == "Coq et Lièvre"
+    assert globalstorybooks.english_share(parse(saved("asp/fr/0213.md"))) < 0.02
+
+
+def test_the_english_folder_is_english_and_never_refused_for_it() -> None:
+    misfiled = parse(saved("asp/fr/0211.md"))
+    assert globalstorybooks.english_share(misfiled) > 0.2
+    # The same pages are fine where the folder says English, and the plainest English
+    # story recorded, which says "I like to read" over and over, still reads as English.
+    globalstorybooks.document_from(address("asp/0211/en"), misfiled, "globalstorybooks/1")
+    plain = parse(saved("sbc/en/0087.md"))
+    assert globalstorybooks.english_share(plain) >= globalstorybooks.ENGLISH_SHARE
+
+
+def test_the_check_is_by_words_and_keeps_out_of_other_alphabets() -> None:
+    russian = parse(saved("sbc/ru/0001.md"))
+    lida = parse(saved("lida/ru/0001.md"))
+    assert globalstorybooks.english_share(russian) == 0.0
+    assert globalstorybooks.english_share(lida) == 0.0
+    # Too few words to say: a page that borrows one English word is not an English story.
+    short = parse("# Court\n\n##\nThe end, dit le chat.\n\n##\n* License: [CC-BY]\n")
+    assert globalstorybooks.english_share(short) == 0.0
+    globalstorybooks.document_from(address("asp/0001/fr"), short, "globalstorybooks/1")
