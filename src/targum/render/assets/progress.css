@@ -745,3 +745,67 @@ section.panel.nothing p { margin: 0 0 0.75rem; color: var(--ink); }
 .progress .next-end.is-estimate { flex: 0 1 auto; text-align: end; }
 .progress .next-end .estimate-ours { font-weight: 400; color: var(--ink-soft); }
 .progress .level-step.level-from { font-size: 0.875rem; color: var(--ink-soft); }
+
+/* Russian's Grammar on What next (design.md §12, "Russian grammar on Your Progress",
+   2026-11-09, targum-internal#639): Aspect | Cases, a companion under each grid, and
+   More, one fold under both. Existing tokens only, as design's v3 mock drew it. */
+.progress .gap-ru[hidden], .progress .gap-more[hidden] { display: none; }
+.progress .gap-ru { margin-block-start: 1.5rem; }
+.progress .grammar-en { font-size: 0.9375rem; color: var(--ink); }
+.progress .grammar-ru { display: block; font-family: var(--reading); font-size: 0.8125rem; line-height: 1.2; color: var(--ink-soft); white-space: normal; }
+.progress .grammar.aspect thead td { inline-size: 8rem; }
+.progress .gap-ru .grammar-binyan { line-height: 1.25; }
+.progress .grammar-prep { font-family: var(--reading); font-size: 1.0625rem; color: var(--ink); }
+.progress .gap-said bdi[lang="ru"], .progress .gap-note bdi[lang="ru"], .progress .gap-part-said bdi[lang="ru"],
+.progress .gap-ru .next-term:lang(ru), .progress .gap-ru .tense-long bdi[lang="ru"], .progress .gap-part-title bdi[lang="ru"],
+.progress .gap-ru .mishkal-means:lang(ru) { font-family: var(--reading); }
+/* A square with no such form (a perfective has no present), spoken "No such form": an
+   outlined square struck through once. Not the mock's hatching: no surface here is a
+   gradient (test_brand, §9), so the strike is a hairline of its own. */
+.progress .grammar-square.none > span {
+  position: relative; display: block; min-block-size: 2.125rem; overflow: hidden;
+  border-radius: var(--radius-control); box-shadow: inset 0 0 0 1px var(--rule);
+}
+.progress .grammar-square.none > span::after {
+  content: ""; position: absolute; inset-block-start: 50%; inset-inline-start: -10%;
+  inline-size: 120%; block-size: 1px; background: var(--rule); transform: rotate(-17deg);
+}
+.progress .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+/* Two-column grids keep a narrower table than the verbs' 36rem. */
+.progress .grammar.two { max-inline-size: 26rem; }
+.progress .grammar.two .grammar-binyan { white-space: normal; }
+.progress .grammar.two thead td { inline-size: 11rem; }
+.progress .grammar.motion thead td { inline-size: 9rem; }
+/* A second view in a tab: the panel's own hairline and a sub-heading, never a card. */
+.progress .gap-part { margin-block-start: 1.5rem; padding-block-start: 1.25rem; border-block-start: 1px solid var(--rule); max-inline-size: 36rem; }
+.progress .gap-part-title { margin: 0 0 0.25rem; font-family: var(--chrome); font-size: 0.9375rem; font-weight: 600; color: var(--ink); }
+.progress .gap-part-said { margin: 0 0 0.5rem; font-size: 0.9375rem; color: var(--ink); max-inline-size: 60ch; }
+.progress .gap-part .gap-mishkal { max-inline-size: 26rem; }
+.progress .gap-ru .mishkal-means { flex-basis: 100%; font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .motion-pairs { margin-block-start: 0.75rem; }
+/* More: one fold under both tabs, shut on every load, opening with no script. */
+.progress .gap-more { margin-block-start: 1.5rem; border-block-start: 1px solid var(--rule); max-inline-size: 36rem; }
+.progress .gap-more > summary {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.5rem; min-block-size: 2.75rem; padding-block: 0.625rem; cursor: pointer;
+  font-family: var(--chrome); font-size: 0.9375rem; font-weight: 600; color: var(--ink); list-style: none;
+}
+.progress .gap-more > summary::-webkit-details-marker { display: none; }
+.progress .gap-more > summary::before {
+  content: ""; inline-size: 0.5rem; block-size: 0.5rem; flex: none; align-self: center;
+  border-inline-end: 2px solid var(--ink); border-block-end: 2px solid var(--ink);
+  transform: rotate(-45deg); transition: transform var(--out) var(--ease);
+}
+.progress .gap-more[open] > summary::before { transform: rotate(45deg); }
+.progress .gap-more-which { font-weight: 400; color: var(--ink-soft); font-size: 0.8125rem; }
+.progress .gap-more .gap-part:first-of-type { margin-block-start: 0.25rem; border-block-start: 0; padding-block-start: 0.5rem; }
+@media (prefers-reduced-motion: reduce) { .progress .gap-more > summary::before { transition: none; } }
+@media (max-width: 40rem) {
+  .progress .grammar.aspect thead td { inline-size: 6.5rem; }
+  /* "Несовершенный" is wider than the row's head at 390: it breaks, never over a square. */
+  .progress .gap-ru .grammar-binyan .grammar-en { hyphens: auto; overflow-wrap: anywhere; }
+  .progress .grammar.two thead td { inline-size: 8.5rem; }
+  .progress .gap-more-which { flex-basis: 100%; padding-inline-start: 1rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .progress .grammar-square.none > span { min-block-size: 44px; }
+}

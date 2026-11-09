@@ -288,6 +288,27 @@
         <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
       </div>
     </div>
+    {#- Russian's Grammar (design.md §12, "Russian grammar on Your Progress", 2026-11-09;
+        targum-internal#639): Aspect | Cases as the `.seg`, the tab of the headline's gap
+        open on every load and no tabs with one grid only, as Hebrew's. Each tab is its
+        grid and one companion: aspect pairs under Aspect, where and where to under
+        Cases. Under both, More: verbs of motion, nouns in -ь, and participles and
+        gerunds, a `<details>` shut on every load. progress.js draws the tables. -#}
+    <div class="gap gap-ru" id="gap-ru" hidden>
+      <div class="gap-head">
+        <h3 class="gap-sub" id="ru-grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
+        <div class="seg gap-tabs" id="ru-tabs" role="tablist" aria-labelledby="ru-grammar-title" hidden>
+          <button type="button" role="tab" id="ru-tab-aspect" data-tab="aspect" aria-controls="ru-aspect" aria-selected="true">{{ t("progress.ru.tab-aspect", "Aspect") }}</button>
+          <button type="button" role="tab" id="ru-tab-cases" data-tab="cases" aria-controls="ru-cases" aria-selected="false" tabindex="-1">{{ t("progress.ru.tab-cases", "Cases") }}</button>
+        </div>
+      </div>
+      <div class="gap-grammar" id="ru-aspect" role="tabpanel" aria-labelledby="ru-tab-aspect"></div>
+      <div class="gap-grammar" id="ru-cases" role="tabpanel" aria-labelledby="ru-tab-cases" hidden></div>
+      <details class="gap-more" id="ru-more" hidden>
+        <summary>{{ t("progress.ru.more", "More") }} <span class="gap-more-which" id="ru-more-which"></span></summary>
+        <div id="ru-more-parts"></div>
+      </details>
+    </div>
   </section>
 </main>
 

@@ -384,6 +384,47 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian grammar on Your Progress: Aspect | Cases, and More — 2026-11-09
+
+David, 2026-11-09, passing design's v3 mock of targum-internal#639 ("looks good"), after
+choosing all six of ling-ru's additions on 2026-11-06. It extends "What next leads with
+your biggest grammar gap" (2026-10-30), "The Mishkal list beside the Grammar grid"
+(2026-11-02) and "What next is quick to take in" (2026-11-03), which were Hebrew's only,
+to Russian. Hebrew's What next is unchanged.
+
+- **The tabs are Aspect | Cases**, under "Grammar", where Hebrew has Binyanim |
+  Mishkalim, with the headline's gap above them and its tab open on every load. With one
+  grid only there are no tabs, and with neither the two lists stand alone.
+- **The Aspect tab** is aspect × tense on Hebrew's five columns. The perfective present
+  is a hatched square spoken "No such form", drawn whatever the counts, never "—". The
+  future is read from буд- (the tagger stores будет as present), and a perfective stored
+  as present is its future. Participles and gerunds leave Past and Present for More.
+  Under the grid, **aspect pairs** from ling-ru's reviewed list, once both halves are
+  met: one known first, then neither, then both, four rows and a line counting all.
+- **The Cases tab** is case × number, with its own row **"Accusative, animate", which
+  counts nouns only**: no head is stored, so an adjective agreeing with an animate noun
+  is in neither accusative row. Under the grid, **where and where to** (в, на, за, под by
+  где? and куда?), read by the first cased word within three after the preposition.
+  **Where and where to is never named the biggest gap**: it is adjacency, not a parse.
+  Only an aspect row or a case row can be.
+- **More is a fold**, a `<details>` under both tabs, shut on every load, rather than a
+  third tab that would never be the gap's and so never open. In a course's order:
+  **verbs of motion** as **two pooled squares**, one way and there and back, because a
+  square a pair could only ever be 0% or 100%, then a list of each pair met, known or
+  not; **nouns in -ь**, feminine and masculine; **participles and gerunds** by aspect,
+  noted as taught at B1. Voice is not stored, so a participle is sorted by its suffix and
+  one the rule cannot sort is left out, as a biaspectual verb, a vocative and a neuter -ь
+  noun are.
+- **Every square with a figure opens the forms met**, each with its dictionary form, its
+  meaning and "known" or how often it was met, **one list open at a time** across the
+  tabs and More. **Meanings are in the reader's meaning language** (English for most),
+  the reader's own first, then the glossary's where it already holds one; nothing is
+  bought for it.
+- A row names itself in the page's language, and in English with the Russian term under
+  it. Same floors (10 a square, 30 a row), fill, outline and tap as Hebrew. Nothing here
+  feeds the level, the ledger or a headline count. The Russian lines are ling-ru's first
+  pass, for David's read.
+
 ### Progress leads with what you can read — 2026-11-08
 
 David, 2026-11-08 (targum-internal#659), choosing version E of the lemma-disclosure mock
