@@ -980,6 +980,36 @@ def stated_body(html: str) -> str:
     return max(found, key=len, default="")
 
 
+#: One thread in trafilatura at a time (targum-internal#667). trafilatura parses every
+#: page with one `lxml.html.HTMLParser` made when it is imported (`trafilatura.utils
+#: .HTML_PARSER`, and htmldate's beside it for the metadata), and that parser shared
+#: across threads corrupts libxml2's memory. The news round's six workers extracting
+#: side by side aborted `targum serve` seven times in two weeks (`free(): invalid
+#: pointer`, `double free or corruption`, once a segfault), each two seconds into the
+#: round after a start. Six threads extracting the same pages on a laptop, lxml 6.1.2
+#: and libxml2 2.14.6 as on the box: 14 and 17 runs in 20 crashed or hung, cold and
+#: warm; with this lock, or with a parser of each thread's own, none of 20 did. The lock
+#: is the one that needs nothing of trafilatura's insides, and costs little: a page is
+#: read in a fraction of a second, against the seconds a round waits on the hosts.
+TRAFILATURA = threading.Lock()
+
+
+def extract(html: str, **options: Any) -> Any:
+    """`trafilatura.extract`, one thread at a time (`TRAFILATURA`)."""
+    import trafilatura
+
+    with TRAFILATURA:
+        return trafilatura.extract(html, **options)
+
+
+def extract_metadata(html: str) -> Any:
+    """`trafilatura.extract_metadata`, one thread at a time (`TRAFILATURA`)."""
+    import trafilatura
+
+    with TRAFILATURA:
+        return trafilatura.extract_metadata(html)
+
+
 def article_paragraphs(html: str) -> list[Paragraph]:
     """The article on a page: trafilatura's reading of it, unless the page says otherwise.
 
@@ -989,9 +1019,7 @@ def article_paragraphs(html: str) -> list[Paragraph]:
     the statement is read instead. Nothing compared the two before, and a reader opened
     "Apple's new technology" on five unrelated headlines (2026-10-14).
     """
-    import trafilatura
-
-    extracted: Any = trafilatura.extract(
+    extracted: Any = extract(
         html,
         output_format="html",
         include_comments=False,
@@ -1215,8 +1243,6 @@ class UrlIngester:
         )
 
     def load(self, source: str) -> Document:
-        import trafilatura
-
         # Through `page`, so the quote that follows a `describe_source` reads the page
         # that was described rather than fetching it again (2026-10-06).
         got = page(source)
@@ -1245,7 +1271,7 @@ class UrlIngester:
                 if (kept := drop_link_languages(text))
             ]
 
-        metadata = trafilatura.extract_metadata(html)
+        metadata = extract_metadata(html)
         headline = next(
             (text for kind, level, text in paragraphs if kind is BlockKind.heading and level == 1),
             None,
