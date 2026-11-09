@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-08
+A new French or Russian reader can tick the words they know on arrival, and starts at the level they reach.
+In French, Russian and Italian, Your Progress leads with how many Library texts you can read now.
+A word of the Tanakh shows its family on its card, across nouns and verbs, such as king beside kingdom.
+
 2026-11-07
 The playlist of a course can hold the whole course, up to 200 lessons; other playlists keep twenty.
 The Playlists tab shows the playlists in the language you are learning, and counts the others.
