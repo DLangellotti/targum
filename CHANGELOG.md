@@ -11,8 +11,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   handle is drawn from `arcTo` there, and by `roundRect` unchanged where it exists. And
   the browser-fault reports no longer count what is not ours (targum-internal#669): the
   ResizeObserver loop notice and any fault from a `chrome-extension://`,
-  `moz-extension://` or `safari-web-extension://` script are dropped by `report.js`
-  before sending, and those plus MetaMask's and other wallets' disconnect errors by
+  `moz-extension://` or `safari-web-extension://` script with no frame of ours in it are
+  dropped by `report.js` before sending, and those plus MetaMask's and other wallets' disconnect errors by
   `/errors` before storing. The reader's byte budget is unchanged.
 - `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
   first news round's six workers ran trafilatura side by side, and its one lxml parser,

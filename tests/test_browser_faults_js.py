@@ -179,3 +179,50 @@ def test_a_fault_of_ours_is_still_sent() -> None:
         ]
     )
     assert sent == ["TypeError: ctx.roundRect is not a function"]
+
+
+@pytest.mark.parametrize(
+    "message",
+    [
+        "ReferenceError: Can't find variable: ResizeObserver",
+        "ReferenceError: ResizeObserver is not defined",
+        "TypeError: Failed to execute 'observe' on 'ResizeObserver': "
+        "parameter 1 is not of type 'Element'.",
+    ],
+)
+def test_a_resize_observer_fault_that_is_not_the_loop_notice_is_sent(message: str) -> None:
+    """Only the loop notice is noise. A browser without ResizeObserver, or our observing
+    nothing, is a fault of ours like any other (qa-claude on targum#1155)."""
+    sent = sent_for(
+        [
+            {
+                "kind": "error",
+                "message": message,
+                "filename": "https://targum.test/",
+                "stack": "Error\n    " + OURS,
+            }
+        ]
+    )
+    assert sent == [message]
+
+
+def test_a_rejection_of_ours_through_an_extension_frame_is_sent() -> None:
+    """An extension that wraps `fetch` puts its frame in our stack; the rejection is still
+    ours, because a frame of ours is in it."""
+    sent = sent_for(
+        [
+            {
+                "kind": "rejection",
+                "message": "x is undefined",
+                "stack": "TypeError: x is undefined\n    at load (https://targum.test/:900:3)"
+                "\n    at async chrome-extension://abc/wrap.js:1:1",
+            },
+            {
+                "kind": "rejection",
+                "message": "wrapped",
+                "stack": "TypeError: wrapped\n    at chrome-extension://abc/wrap.js:1:1"
+                "\n    at load (https://targum.test/:900:3)",
+            },
+        ]
+    )
+    assert sent == ["Error: x is undefined", "Error: wrapped"]
