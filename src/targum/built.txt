@@ -6,7 +6,7 @@
 # deploy/built.md is the brief these are written to.
 
 2026-11-09
-A Russian reader's Your Progress shows grammar: aspect by tense, case by number, and verbs of motion.
+For a Russian reader, Your Progress shows grammar: aspect by tense, case by number, and verbs of motion.
 A word whose pronunciation is corrected once is said right in every recording made after.
 In Russian, the lines for subscriptions and news topics read as written Russian.
 
