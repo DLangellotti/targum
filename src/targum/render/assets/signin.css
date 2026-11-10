@@ -74,6 +74,20 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
   font-size: 0.9375rem;
   line-height: 1.5;
 }
+/* A way on inside a line, in the primary at the desk's link weight (§13), as the
+   crumbs and the bell's links are: "New here? Join the waitlist" over the form, and the
+   refusal's "Join the waitlist" under the field. Signed out the door carries no
+   `chrome.css`, and both drew the browser's own blue (design's #477 pass, 2026-11-10). */
+.gate .said a,
+.gate .join-link {
+  color: var(--teal);
+  font-weight: 600;
+  text-decoration: none;
+}
+.gate .said a:hover,
+.gate .join-link:hover { text-decoration: underline; }
+.gate .said a:focus-visible,
+.gate .join-link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
 /* The desk's label (§13): 0.6875rem, uppercase, at 0.08em. */
 .gate label {
@@ -168,6 +182,22 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
 @media (hover: none) and (pointer: coarse) {
   .gate .sent-again { min-block-size: 44px; }
   .gate .brand { min-block-size: 44px; }
+  /* The links inside a line were 99 × 21 (RU 173 × 21; #477 pass, 2026-11-10). The words
+     stay their size; a centred reach of at least 44 × 44 answers the tap, and the line
+     over the form stands far enough under the heading that the reach crosses only the
+     margin between them (§8). */
+  /* One line, so the reach is one box: a link broken over two lines is two fragments,
+     and the reach centred on both stood between them, over neither. */
+  .gate .said a,
+  .gate .join-link { position: relative; white-space: nowrap; }
+  .gate .said a::after,
+  .gate .join-link::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+  }
+  .gate .said.new-here { margin-block-start: 0.875rem; }
 }
 
 
