@@ -410,7 +410,16 @@ def a_word(lemma: str) -> bool:
     first of "Words you keep meeting" on 2026-10-30. A form met only as a closed-class
     word is the other half, which only its tokens can tell (`occurrences.Occurrences`'s
     `function`, asked by `texts_met(words_only=True)`)."""
-    return sum(1 for c in lemma if unicodedata.category(c).startswith("L")) >= 2
+    # Stops at the second letter: every shelf measure asks this of every form of every
+    # text, and counting all of a long word's letters was a sixth of Home's time
+    # (targum-internal#484, 2026-11-10).
+    letters = 0
+    for c in lemma:
+        if unicodedata.category(c)[0] == "L":
+            letters += 1
+            if letters == 2:
+                return True
+    return False
 
 
 def learning(marked: Mapping[str, int]) -> list[str]:
