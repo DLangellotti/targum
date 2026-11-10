@@ -402,6 +402,30 @@ Supersedes the split in "Russian says a cost in minutes and a balance in points"
   its own goes after a colon or in brackets («Лимит баллов в месяц: 60», «лимит баллов
   на «…» (60) исчерпан») so it cannot take the wrong form. English still says credits.
 
+### The box's line is measured, not cut — 2026-11-09
+
+David, 2026-11-09 (targum-internal#472), answering the §14 re-audit of the chat drawer,
+which asked whether the fallback merged on 2026-10-28 (targum#966) belongs here. It
+amends "Talk is a sheet over a dimmed page" (2026-10-09), which gave a reader's box one
+line.
+
+- **In a reader the box has two lines, and the field's width picks.** "Ask about it or
+  write in {language}" («Вопрос о тексте {language:adv}») where it fits on one line,
+  "Ask about it" («Спросите…») where it does not.
+- **Not an ellipsis**, because a textarea's placeholder takes none in Chromium, whatever
+  chat.css asks: the old line was cut mid-letter, "Ask about the text, or wri", on a
+  390px phone.
+- **Measured, not set by a breakpoint.** `placeholder()` in chat.js measures each line
+  in the field's own font against its width less padding, takes the first that fits or
+  else the last, and measures again when the field's width changes, so a phone turned on
+  its side gets the long line back. At a desk the field is about 235px and shows the long
+  line; a phone's sheet leaves about 158px at 390 and 88px at 320, and shows the short.
+- **Only a reader's box has a second line.** "{language} or English" and "The word, and
+  the sentence it was in" pass through the same chooser with one line each.
+
+Pinned by `test_in_a_reader_the_box_s_line_fits_the_drawer` and
+`test_the_long_line_fits_for_every_language_read`.
+
 ### Russian grammar on Your Progress: Aspect | Cases, and More — 2026-11-09
 
 David, 2026-11-09, passing design's v3 mock of targum-internal#639 ("looks good"), after
@@ -4916,13 +4940,9 @@ ink (#684); this is what it opens.
   nothing there: there is nothing in front of the reader to be about.
 - **The suggestions and the Reading line stand only while the conversation is empty.**
   Once there is a turn the thread has the room, and the chip says what it is about.
-  In a reader the box says "Ask about it or write in {language}" («Вопрос о тексте
-  {language:adv}»), and "Ask about it" («Спросите…») where the field is too narrow for
-  that, measured (David, 2026-10-28, targum-internal#472). It said "Ask about the text,
-  or write in {language}", which the drawer's field cut mid-letter, because a
-  placeholder takes no ellipsis. At a desk the field is about 235px and the long line
-  shows; a phone's sheet leaves it about 158px at 390 and 88px at 320, so a phone
-  shows the short line.
+  In a reader the box says "Ask about it or write in {language}", or "Ask about it"
+  where that does not fit (David, 2026-10-28, targum-internal#472; "The box's line is
+  measured, not cut", 2026-11-09).
 - **The conversation's own look**: the reader's lines in the teal wash at the end edge,
   sized to what was said, targum's on the page; a door to a text ("Open …") is the
   primary, a pill at its words' width, where it was an ink block — "A door's one press is
