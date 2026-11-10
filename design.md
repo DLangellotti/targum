@@ -384,6 +384,33 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### One page may carry the Meta pixel, and only after a yes — 2026-11-10
+
+David, 2026-11-10 (targum-internal#676), to test whether people who have finished
+Duolingo Hebrew or a course like it are targum's first readers, with a Meta ad landing on
+a page written for them. It narrows "A reader fetches nothing from any other site"
+(2026-10-30), whose "on any page, ever" it would otherwise break, and it changes the
+privacy notice, which said the Service employs no third-party script (clauses 3.13,
+3.15, 4.4 and 5.3).
+
+- **One page only: `/after-duolingo`.** The Meta pixel may load there and nowhere else:
+  never on a reader, the front page, the app, the back office or a mail.
+  `test_meta_pixel.py` pins the one file that may name Meta's hosts, so a second page
+  needs a new entry here first.
+- **Nothing loads before a yes.** The page asks once, in plain words, whether Meta may
+  count the visit for our ads. Until the visitor says yes, the page fetches nothing from
+  Meta and sets no Meta cookie. A no is remembered for that page, and the page works the
+  same either way.
+- **What it sends is the visit and a signup, nothing else.** A page view and, when the
+  visitor goes on to sign up, one signup event. Never an address, a name, a text, a
+  word or anything typed into the try-it box.
+- **The readers' rule is untouched.** Every reader still fetches nothing from any other
+  site, and `test_render.py`, `test_served_reader.py` and `test_offline_browser.py`
+  still hold it.
+- **Why:** a $100 Meta test is the cheapest way to learn whether this group exists and
+  reads. The pixel counts what the ad brings; UTM tags and the signup source field count
+  it too, so the evidence does not rest on Meta.
+
 ### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
 
 Supersedes the split in "Russian says a cost in minutes and a balance in points"
@@ -2617,6 +2644,8 @@ nothing, read it as this.
 
 - **A reader fetches nothing from any other site.** No script, stylesheet, font, image
   or recording comes from anybody else's origin, on any page, ever.
+  *(Narrowed 2026-11-10 for one page that is not a reader: see "One page may carry the
+  Meta pixel, and only after a yes".)*
 - **Opened in the browser from targum.page,** a reader may load its own stylesheets,
   scripts and recordings from targum's own origin, and the browser keeps them.
 - **A reader saved for offline, or opened from disk, loads no files from anywhere.** The
