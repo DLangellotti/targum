@@ -733,6 +733,17 @@ body.public {
     inset-inline: min(0px, calc(50% - 22px));
     inset-block: min(0px, calc(50% - 22px));
   }
+  /* And "Sign in to read it" under the waitlist's press, 88 × 18 (#477 pass, 2026-11-10):
+     the same centred reach, with the line far enough under the press that the reach
+     crosses only the margin, never the press over it (§8). */
+  .public .door-in { margin-block-start: 1rem; }
+  .public .door-in a { position: relative; }
+  .public .door-in a::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+  }
 }
 
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no

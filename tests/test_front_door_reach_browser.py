@@ -9,6 +9,11 @@ Polish 8: under a coarse pointer, four presses answered under 44px: the landing 
 page's way back to the Library (38 × 18). A tap 20px above or below the middle of a link
 must still land on it.
 
+And the door itself (targum-internal#672): signed out, sign-in carries no `chrome.css`, so
+its links inside a line drew the browser's blue; under a thumb "Join the waitlist" was
+99 × 21 and a text page's "Sign in to read it" 88 × 18; and a 502 from the proxy was told
+as the connection ("We can't reach targum") when targum had been reached.
+
 Skips itself unless Playwright and its Chromium are installed.
 """
 
@@ -18,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from targum.render.builder import front_page, text_page
+from targum.render.builder import front_page, signin_page, text_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -43,10 +48,16 @@ def browser():
     driver.stop()
 
 
-def opened(browser: Any, html: str, width: int, phone: bool) -> tuple[Any, Any, list[str]]:
+def opened(
+    browser: Any, html: str, width: int, phone: bool, sign_in: Any = None
+) -> tuple[Any, Any, list[str]]:
+    """`html` as every page, and `sign_in(route)` as what POST /account/sign-in answers."""
+
     def answer(route: Any, request: Any) -> None:
         if request.resource_type == "document":
             route.fulfill(status=200, content_type="text/html", body=html)
+        elif sign_in and request.url.endswith("/account/sign-in"):
+            sign_in(route)
         else:
             route.fulfill(status=200, content_type="application/json", body="{}")
 
@@ -142,6 +153,151 @@ def test_a_text_page_s_way_back_answers_a_thumb(browser: Any) -> None:
         back = page.evaluate(TAPPED, [".where a", 20])
         assert back["h"] < 44, "the word itself stays small; the reach is what grows"
         assert back["up"] and back["down"], back
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+TEAL = "rgb(31, 111, 107)"
+
+#: The refusal an address not on the guest list gets while the front door takes one, as
+#: `serve.py` sends it: the sentence, the words it wraps as a link, and where they go.
+REFUSED = (
+    '{"error": "Thanks for asking. targum isn\'t open yet. Join the waitlist and we\'ll'
+    " email you when it's your turn.\","
+    ' "join": "/#join", "join_link": "Join the waitlist"}'
+)
+
+
+def refused(route: Any) -> None:
+    route.fulfill(status=403, content_type="application/json", body=REFUSED)
+
+
+#: Each link's colour and weight, and whether anything is still the browser's blue.
+LINKS = """() => [...document.querySelectorAll('.gate .said a, .gate .join-link')].map(a => {
+  const style = getComputedStyle(a);
+  return {text: a.textContent, color: style.color, weight: style.fontWeight};
+})"""
+
+
+def test_the_door_s_links_are_the_primary(browser: Any) -> None:
+    """§4, §13: a link on the desk is teal at the desk's link weight, never `#0000EE`."""
+    context, page, thrown = opened(
+        browser, signin_page(join="/#join"), 1440, False, sign_in=refused
+    )
+    try:
+        page.goto(SITE + "/account/signin")
+        page.fill("#email", "stranger@example.com")
+        page.click("#ask button")
+        page.wait_for_selector(".gate .join-link")
+        links = page.evaluate(LINKS)
+        assert [one["text"] for one in links] == ["Join the waitlist", "Join the waitlist"]
+        for one in links:
+            assert one["color"] == TEAL and one["weight"] == "600", one
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+#: The top of a link's reach, and the bottom of what stands over it.
+OVER = """([selector, over]) => {
+  const one = document.querySelector(selector);
+  const r = one.getBoundingClientRect();
+  const reach = getComputedStyle(one, '::after');
+  return {
+    top: r.top + parseFloat(reach.top),
+    above: document.querySelector(over).getBoundingClientRect().bottom,
+  };
+}"""
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_door_s_links_answer_a_thumb(browser: Any, language: str) -> None:
+    """§8: 44px under a coarse pointer, by a centred reach that crosses only a margin."""
+    context, page, thrown = opened(
+        browser, signin_page(join="/#join", language=language), 390, True, sign_in=refused
+    )
+    try:
+        page.goto(SITE + "/account/signin")
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+        join = page.evaluate(TAPPED, [".gate .new-here a", 20])
+        assert join["h"] < 44, "the words stay their size; the reach is what grows"
+        assert join["up"] and join["down"], join
+        over = page.evaluate(OVER, [".gate .new-here a", ".gate h1"])
+        assert over["top"] >= over["above"], f"the reach crosses the heading: {over}"
+        page.fill("#email", "stranger@example.com")
+        page.click("#ask button")
+        page.wait_for_selector(".gate .join-link")
+        refusal = page.evaluate(TAPPED, [".gate .join-link", 20])
+        assert refusal["up"] and refusal["down"], refusal
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_a_text_page_s_way_in_answers_a_thumb(browser: Any, monkeypatch: Any) -> None:
+    from targum.catalogue import Entry
+
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    ruth = Entry(
+        id="ruth",
+        title="רות",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="sefaria:he:Ruth",
+        blurb="Four chapters, the shortest way in.",
+        words=100,
+        english="Ruth",
+    )
+    html = text_page(ruth, "https://targum.page")
+    assert 'class="door-in"' in html, "the way in is drawn only while the door takes an address"
+    context, page, thrown = opened(browser, html, 390, True)
+    try:
+        page.goto(SITE + "/library/ruth")
+        page.wait_for_selector(".door-in a")
+        way_in = page.evaluate(TAPPED, [".door-in a", 20])
+        assert way_in["h"] < 44, "the words stay their size; the reach is what grows"
+        assert way_in["up"] and way_in["down"], way_in
+        over = page.evaluate(OVER, [".door-in a", ".door .go"])
+        assert over["top"] >= over["above"], f"the reach crosses the waitlist's press: {over}"
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("language", "line"),
+    [
+        ("en", "We couldn't send a link just now. Try again."),
+        ("ru", "Сейчас не получилось отправить ссылку. Попробуйте ещё раз."),
+    ],
+)
+def test_a_sign_in_the_server_could_not_send_is_not_told_as_the_connection(
+    browser: Any, language: str, line: str
+) -> None:
+    """A 502 is a page of the proxy's HTML: targum was reached, and could not send."""
+
+    def bad_gateway(route: Any) -> None:
+        route.fulfill(status=502, content_type="text/html", body="<html>502 Bad Gateway</html>")
+
+    context, page, thrown = opened(
+        browser, signin_page(language=language), 1440, False, sign_in=bad_gateway
+    )
+    try:
+        page.goto(SITE + "/account/signin")
+        page.fill("#email", "reader@example.com")
+        page.click("#ask button")
+        page.wait_for_selector("#sent:not([hidden])")
+        got = page.evaluate(
+            """() => ({
+              said: document.querySelector('#sent').textContent,
+              marked: document.querySelector('#sent').classList.contains('fault-marked'),
+              banner: !!document.querySelector('#fault-banner:not([hidden])'),
+              again: !document.querySelector('#ask button').disabled,
+              form: !document.querySelector('#ask').hidden,
+            })"""
+        )
+        assert got == {"said": line, "marked": True, "banner": False, "again": True, "form": True}
         assert not thrown, thrown
     finally:
         context.close()

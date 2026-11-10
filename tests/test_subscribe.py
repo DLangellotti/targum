@@ -5,6 +5,7 @@ and "A monthly cap is the second press that lasts", 2026-10-09)."""
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -19,11 +20,13 @@ import pytest
 from targum import serve
 from targum import subscriptions as subs
 from targum.accounts import Store
-from targum.errors import TargumError
+from targum.errors import TargumError, Unreachable
 from targum.render.builder import subscribe_page
 from targum.video import channels
 
 HOST = "targum.page"
+#: `describe` as it is, for the tests that monkeypatch it and those that need it whole.
+_REAL_DESCRIBE = subs.describe
 NOW = int(datetime(2026, 10, 9, tzinfo=UTC).timestamp() * 1000)
 DAY = 24 * 3600 * 1000
 
@@ -474,6 +477,211 @@ def test_a_source_that_cannot_be_read_is_said_plainly(
     monkeypatch.setattr(subs, "describe", lambda *a, **k: 1 / 0)
     status, page, _ = send(port, "GET", "/subscribe?kind=channel&source=x", session=mine)
     assert "couldn" in page and "Try again in a moment" in page
+
+
+# --- a refusal of a channel or a podcast is the subscription's (targum-internal#673) -----
+
+
+def _upload_lines() -> list[re.Pattern[str]]:
+    """Every sentence the Upload page's doors say: none of them belongs on /subscribe. A
+    placeholder is an address or a host, so one word. A sentence the subscription says too
+    ("Check the address and try again.") is the subscription's as well, and is left out."""
+    from targum.strings import catalogue
+
+    english = catalogue("en")
+    ours = {
+        said for key, said in english.items() if key.startswith(("subscribe.", "serve.subscribe"))
+    }
+    return [
+        re.compile(r"\S+".join(re.escape(part) for part in re.split(r"\{[^}]*\}", said)))
+        for key, said in english.items()
+        if key.startswith(("job.unreadable.", "fetch.")) and said not in ours
+    ]
+
+
+def _confirm_says(page: str, line: str) -> None:
+    """The page says `line`, offers Try again back to itself, and says nothing of Upload's."""
+    from html import unescape
+
+    shown = unescape(page)
+    assert line in shown
+    assert '<a class="btn filled" href="/subscribe?kind=' in page and ">Try again</a>" in page
+    leaked = [one.pattern for one in _upload_lines() if one.search(shown)]
+    assert not leaked, leaked
+    assert "Paste its text" not in shown and "paste it here" not in shown
+
+
+def _data_api_refuses(code: int) -> Callable[..., dict[str, Any]]:
+    """`discover.fetch` as it refuses: a keyless TargumError, the HTTP error its cause."""
+    from urllib.error import HTTPError
+
+    def fetch(address: str, query: Mapping[str, str], **_: Any) -> dict[str, Any]:
+        try:
+            raise HTTPError(address, code, "no", None, None)  # type: ignore[arg-type]
+        except HTTPError as error:
+            raise TargumError(
+                "YouTube's Data API did not answer.",
+                "Check the key, and the day's quota in the Google Cloud console.",
+            ) from error
+
+    return fetch
+
+
+def test_a_channel_youtube_does_not_know_is_missing_with_try_again(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, mine, _, _ = box
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.setattr(channels.discover, "key", lambda: "k")
+    monkeypatch.setattr(channels.discover, "fetch", _data_api_refuses(404))
+    status, page, _ = send(
+        port,
+        "GET",
+        "/subscribe?kind=channel&source=https%3A%2F%2Fyoutube.com%2F%40gone",
+        session=mine,
+    )
+    assert status == 200
+    _confirm_says(page, "We couldn't find that channel. Check the address and try again.")
+    assert "Data API" not in page and "quota" not in page
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        TargumError("We couldn't find nowhere.example.", "gaierror", key="fetch.no-such-site"),
+        Unreachable(
+            "We couldn't open it.", "HTTP 404", status=404, key="fetch.would-not-open", url="u"
+        ),
+    ],
+)
+def test_a_podcast_that_is_not_there_is_missing_with_try_again(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch, refusal: TargumError
+) -> None:
+    from targum.audio import episode
+
+    port, mine, _, _ = box
+
+    def feed_of(url: str) -> str:
+        raise refusal
+
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.setattr(episode, "feed_of", feed_of)
+    status, page, _ = send(
+        port, "GET", "/subscribe?kind=podcast&source=https%3A%2F%2Fp.example", session=mine
+    )
+    assert status == 200
+    _confirm_says(page, "We couldn't find that podcast. Check the address and try again.")
+
+
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        Unreachable(
+            "We couldn't open it.", "HTTP 403", status=403, key="fetch.would-not-open", url="u"
+        ),
+        Unreachable(
+            "p.example asks for a sign-in, so we can't open it.",
+            "Copy the text and paste it here.",
+            status=401,
+            key="fetch.needs-a-sign-in",
+            site="p.example",
+        ),
+    ],
+)
+def test_a_private_podcast_is_said_so_with_try_again(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch, refusal: TargumError
+) -> None:
+    from targum.audio import episode
+
+    port, mine, _, _ = box
+
+    def episodes(feed: str) -> tuple[str, list[Any]]:
+        raise refusal
+
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.setattr(episode, "feed_of", lambda url: "https://p.example/feed.xml")
+    monkeypatch.setattr(episode, "episodes", episodes)
+    status, page, _ = send(
+        port, "GET", "/subscribe?kind=podcast&source=https%3A%2F%2Fp.example", session=mine
+    )
+    assert status == 200
+    _confirm_says(page, "That podcast's site won't let us read its feed. Try again later.")
+
+
+def test_a_channel_on_a_box_without_a_youtube_key_is_out_of_reach_not_upload_s(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The screenshot on the card: `discover.key` refuses with `OffHere`, and `told` said
+    it as `job.unreadable.other`, "Paste its text here instead", on a page with no field."""
+    port, mine, _, _ = box
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.delenv(channels.discover.KEY_ENV, raising=False)
+    for source in ("https://youtube.com/@kan", "https://youtube.com/channel/UCkan"):
+        status, page, _ = send(
+            port,
+            "GET",
+            "/subscribe?" + urlencode({"kind": "channel", "source": source}),
+            session=mine,
+        )
+        assert status == 200
+        _confirm_says(page, "We couldn't reach it just now. Try again in a moment.")
+        assert "1Password" not in page and "API key" not in page
+    # A quota spent, or a key refused, is ours to fix, never the channel's being private.
+    monkeypatch.setattr(channels.discover, "key", lambda: "k")
+    monkeypatch.setattr(channels.discover, "fetch", _data_api_refuses(403))
+    status, page, _ = send(
+        port,
+        "GET",
+        "/subscribe?kind=channel&source=https%3A%2F%2Fyoutube.com%2F%40kan",
+        session=mine,
+    )
+    _confirm_says(page, "We couldn't reach it just now. Try again in a moment.")
+
+
+def test_a_channel_youtube_has_no_record_of_offers_try_again(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`subscribe.no-channel` was already the subscription's; it gains the press."""
+    port, mine, _, _ = box
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.setattr(channels.discover, "key", lambda: "k")
+    monkeypatch.setattr(channels.discover, "fetch", lambda address, query, **_: {"items": []})
+    status, page, _ = send(
+        port,
+        "GET",
+        "/subscribe?kind=channel&source=https%3A%2F%2Fyoutube.com%2F%40gone",
+        session=mine,
+    )
+    _confirm_says(page, "We couldn't find that channel on YouTube.")
+    # An address that is no channel's is not tried again: the same address says the same.
+    status, page, _ = send(port, "GET", "/subscribe?kind=channel&source=nothing", session=mine)
+    assert (
+        "That isn't a YouTube channel" in page.replace("&#39;", "'") and "Try again</a>" not in page
+    )
+
+
+def test_a_refusal_at_the_press_is_the_subscription_s_too(
+    box: tuple[int, str, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from targum.audio import episode
+
+    port, mine, _, _ = box
+
+    def feed_of(url: str) -> str:
+        raise Unreachable("x", "HTTP 410", status=410, key="fetch.would-not-open", url="u")
+
+    monkeypatch.setattr(subs, "describe", _REAL_DESCRIBE)
+    monkeypatch.setattr(episode, "feed_of", feed_of)
+    status, page, _ = send(
+        port,
+        "POST",
+        "/subscribe",
+        {"kind": "podcast", "source": "https://p.example", "cap": "60"},
+        mine,
+        form=True,
+    )
+    assert status == 200
+    _confirm_says(page, "We couldn't find that podcast. Check the address and try again.")
 
 
 # --- the finish (targum-internal#475) ---------------------------------------------------
