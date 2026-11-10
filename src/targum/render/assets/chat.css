@@ -486,6 +486,41 @@ body.embed > .chat-main {
     "said";
   gap: 0.6rem;
 }
+/* Nothing can be asked (targum-internal#674): the fault leads the conversation, above the
+   thread rather than under a box that looked live, and the chips and the words check are
+   not offered. The box stays in its place, disabled, its line saying why (chat.js). */
+.chat-main.cannot {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "side said"
+    "side thread"
+    "side hours"
+    "side compose";
+}
+@media (max-width: 48rem) {
+  .chat-main.cannot {
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "side"
+      "said"
+      "thread"
+      "hours"
+      "compose";
+  }
+}
+body.embed > .chat-main.cannot {
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "side"
+    "said"
+    "thread"
+    "hours"
+    "compose";
+}
+.chat-main.cannot > .chat-said { margin: 0; }
+.chat-main.cannot .chat-chips,
+.chat-main.cannot .chat-empty,
+.chat-main.cannot .chat-turn:has(> .chat-claim) { display: none; }
 body.embed .chat-open-list { display: inline-block; }
 body.embed .chat-list { display: none; }
 body.embed .chat-list.open { display: block; }

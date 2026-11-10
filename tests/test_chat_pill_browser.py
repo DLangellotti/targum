@@ -503,3 +503,245 @@ def test_the_sentence_being_read_says_its_language(browser) -> None:
     got = page.evaluate(FITS)
     context.close()
     assert got["lang"] == "he" and got["dir"] == "rtl", got
+
+
+def test_a_line_that_starts_in_hebrew_reads_right_to_left(browser) -> None:
+    """#674 (design's `failed-ru-390`): "שלום, מה נשמע?" was a Hebrew run in a line with no
+    direction, so its ? stood outside the run, on the right, at the Hebrew's start. A line
+    that starts in Hebrew reads right to left, and its closing mark is inside its run, on
+    the left. A line that starts in English, or is English opening on a Hebrew word,
+    keeps its own direction."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    chat = {
+        "chat": {"id": "abc", "language": "he"},
+        "turns": [
+            {"n": 1, "role": "user", "said": "שלום, מה נשמע?", "stage": "done"},
+            {"n": 2, "role": "assistant", "said": "The word is שלום.", "stage": "done"},
+            {"n": 3, "role": "user", "said": "שלום means hello.", "stage": "done"},
+            {"n": 4, "role": "assistant", "said": "שלום (hello)", "stage": "done"},
+        ],
+        "seconds": 0,
+    }
+    page.route(
+        f"{SITE}/**",
+        answer_with(
+            {
+                "/chat/list": {"chats": [{"id": "abc", "title": "hi", "seen": 1}], "usable": True},
+                "/chat/abc": chat,
+            }
+        ),
+    )
+    page.goto(f"{SITE}/chat?embed=1&k={TOKEN}#abc")
+    page.wait_for_selector(".chat-turn.them .chat-line")
+    got = page.evaluate(
+        """() => {
+          const lines = [...document.querySelectorAll('.chat-line')];
+          const where = (line, at) => {
+            // The glyph at `at` in the line's text, wherever the runs split it.
+            const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+            let node, seen = 0;
+            while ((node = walk.nextNode())) {
+              if (at < seen + node.length) {
+                const range = document.createRange();
+                range.setStart(node, at - seen);
+                range.setEnd(node, at - seen + 1);
+                return range.getBoundingClientRect().left;
+              }
+              seen += node.length;
+            }
+            return null;
+          };
+          return lines.map((line) => {
+            const text = line.textContent;
+            const run = line.querySelector('span[lang="he"]');
+            return {
+              text,
+              dir: line.getAttribute('dir'),
+              base: getComputedStyle(line).direction,
+              run: run && run.textContent,
+              // The closing mark against the line's first letter.
+              markLeft: where(line, text.length - 1),
+              firstLeft: where(line, 0),
+            };
+          });
+        }"""
+    )
+    context.close()
+    hebrew, english, explained, glossed = got
+    assert hebrew["text"] == "שלום, מה נשמע?", got
+    assert hebrew["dir"] in ("rtl", "auto") and hebrew["base"] == "rtl", hebrew
+    assert hebrew["run"] == "שלום, מה נשמע?", "the ? is inside the run"
+    assert hebrew["markLeft"] < hebrew["firstLeft"], "the ? stands at the Hebrew's end, on the left"
+    assert english["dir"] is None and english["base"] == "ltr", english
+    assert english["run"] == "שלום" and english["markLeft"] > english["firstLeft"], english
+    # An English line that opens on the Hebrew word it explains is English (qa-claude on
+    # #1165): set right to left it read backwards, "hello means שלום." on the left.
+    for line in (explained, glossed):
+        assert line["dir"] is None and line["base"] == "ltr", line
+        assert line["run"] == "שלום" and line["markLeft"] > line["firstLeft"], line
+
+
+#: The words check's list, so the first exchange has something to ask.
+COMMON = {
+    "words": [
+        {"form": form, "meaning": "a word"}
+        for form in "את של לא על זה הוא אני כל גם יש מה עם".split()
+    ],
+    "offset": 0,
+    "next": None,
+    "into": "en",
+}
+
+CHIPS = [{"id": "read", "line": "Find me something to read"}]
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_when_nothing_can_be_asked_the_fault_leads_and_the_box_is_shut(browser, width: int) -> None:
+    """#674 (design's `empty-*`, `real-turn-nokey-*`): with `usable: false` the fault sat
+    under the box while the chips, the words check and the field all stayed live. Now the
+    fault leads, nothing is offered that cannot be answered, and the field is disabled
+    with its reason."""
+    context = browser.new_context(viewport={"width": width, "height": 844})
+    page = context.new_page()
+    page.route(
+        f"{SITE}/**",
+        answer_with(
+            {
+                "/chat/list": {"chats": [], "usable": False, "talk": True, "chips": CHIPS},
+                "/words/common": COMMON,
+            }
+        ),
+    )
+    page.goto(f"{SITE}/chat?embed=1&k={TOKEN}")
+    page.wait_for_selector("#chat-said:not([hidden])")
+    page.wait_for_timeout(400)
+    got = page.evaluate(
+        """() => {
+          const box = (el) => el.getBoundingClientRect();
+          const seen = (el) => !!el && el.getClientRects().length > 0
+            && getComputedStyle(el).visibility !== 'hidden';
+          const said = document.getElementById('chat-said');
+          const field = document.getElementById('say');
+          const style = getComputedStyle(field);
+          const ctx = document.createElement('canvas').getContext('2d');
+          ctx.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily]
+            .join(' ');
+          const room = field.clientWidth - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight);
+          return {
+            said: said.textContent,
+            saidBottom: box(said).bottom,
+            threadTop: box(document.getElementById('chat-thread')).top,
+            composerTop: box(document.getElementById('composer')).top,
+            chips: [...document.querySelectorAll('.chat-chip, #chat-chips button')].some(seen),
+            claim: [...document.querySelectorAll('.chat-claim, .chat-claim input')].some(seen),
+            disabled: field.disabled,
+            send: document.getElementById('chat-send').disabled,
+            line: field.placeholder,
+            fits: ctx.measureText(field.placeholder).width <= room,
+            describedBy: field.getAttribute('aria-describedby'),
+          };
+        }"""
+    )
+    context.close()
+    assert got["said"].startswith("We can't answer right now."), got
+    assert got["saidBottom"] <= got["threadTop"] + 1, "the fault leads"
+    assert got["saidBottom"] <= got["composerTop"], got
+    assert not got["chips"] and not got["claim"], got
+    assert got["disabled"] and got["send"], got
+    assert got["line"] in ("We can't answer right now", "Not right now") and got["fits"], got
+    assert got["describedBy"] == "chat-said", got
+
+
+def test_a_conversation_opened_when_nothing_can_be_asked_keeps_the_fault(browser) -> None:
+    """#674: opening a conversation cleared the line under the box, so the fault went and
+    the box looked as if it would answer."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    page.route(
+        f"{SITE}/**",
+        answer_with(
+            {
+                "/chat/list": {"chats": [{"id": "abc", "title": "hi", "seen": 1}], "usable": False},
+                "/chat/abc": THREAD,
+            }
+        ),
+    )
+    page.goto(f"{SITE}/chat?embed=1&k={TOKEN}#abc")
+    page.wait_for_selector(".chat-door")
+    page.wait_for_timeout(200)
+    got = page.evaluate(
+        """() => ({
+          said: document.getElementById('chat-said').textContent,
+          shown: !document.getElementById('chat-said').hidden,
+          disabled: document.getElementById('say').disabled,
+        })"""
+    )
+    context.close()
+    assert got["shown"] and got["said"].startswith("We can't answer right now."), got
+    assert got["disabled"], got
+
+
+#: What a press reaches on a page: the controls the pill's reason must never cover.
+CONTROLS = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])"
+
+
+@pytest.mark.parametrize("width", [1024, 1280, 1440, 1920])
+def test_offline_the_pill_s_reason_covers_no_control(browser, width: int) -> None:
+    """#674 (design's `offline-en-1440`): "Chat needs a connection." stood on one line over
+    the pill and reached into the page's column, over home's "How we choose". It is no
+    wider than the pill now, so it stays in the room the page keeps clear at its end edge,
+    and no control in the page passes under it at any scroll."""
+    context = browser.new_context(viewport={"width": width, "height": 900})
+    page = context.new_page()
+    page.route(f"{SITE}/**", answer_with({}))
+    page.goto(f"{SITE}/library?k={TOKEN}")
+    page.wait_for_selector("#talk-open")
+    page.wait_for_timeout(300)
+    context.set_offline(True)
+    page.evaluate("() => window.dispatchEvent(new Event('offline'))")
+    page.wait_for_selector("#talk-open.offline-off")
+    page.wait_for_timeout(200)
+    got = page.evaluate(
+        """(controls) => {
+          const pill = document.getElementById('talk-open');
+          const before = getComputedStyle(pill, '::before');
+          const p = pill.getBoundingClientRect();
+          const w = parseFloat(before.width), h = parseFloat(before.height);
+          const reason = { left: p.right - w, right: p.right, top: p.top - h - 6, bottom: p.top };
+          const fixed = (el) => {
+            for (let at = el; at && at !== document.body; at = at.parentElement) {
+              const pos = getComputedStyle(at).position;
+              if (pos === 'fixed' || pos === 'sticky') return true;
+            }
+            return false;
+          };
+          const under = [];
+          const scrollY = window.scrollY;
+          for (const el of document.querySelectorAll(controls)) {
+            if (el === pill || pill.contains(el) || fixed(el)) continue;
+            if (el.closest('#talk-drawer')) continue;
+            const r = el.getBoundingClientRect();
+            if (!r.width || !r.height) continue;
+            // Across, the page scrolls only up and down: a control whose columns meet the
+            // reason's passes under it at some scroll.
+            if (r.left < reason.right && r.right > reason.left) {
+              under.push((el.id || el.className || el.tagName) + ' ' + Math.round(r.left));
+            }
+          }
+          return {
+            content: before.content,
+            width: w,
+            pill: p.width,
+            room: getComputedStyle(document.documentElement).getPropertyValue('--talk-room'),
+            reason,
+            under,
+          };
+        }""",
+        CONTROLS,
+    )
+    context.close()
+    assert got["content"] != "none" and got["width"] > 0, got
+    assert got["width"] <= got["pill"] + 0.5, got
+    assert not got["under"], got

@@ -71,12 +71,20 @@
     measuring.font = style.fontStyle + " " + style.fontWeight + " " + style.fontSize + " " + style.fontFamily;
     return measuring.measureText(line).width <= room;
   }
+  // While nothing can be asked the field is disabled and says why in its own line
+  // (targum-internal#674), whatever line the page would otherwise give it; the line it
+  // would give is kept for when it can be asked again.
+  var CANNOT_LINES = [
+    t("chat.cannot-answer.box", "We can't answer right now"),
+    t("chat.cannot-answer.box-short", "Not right now"),
+  ];
   function placeholder(lines) {
     placeholderLines = lines;
-    var chosen = lines[lines.length - 1];
-    for (var i = 0; i < lines.length; i++) {
-      if (fits(lines[i])) {
-        chosen = lines[i];
+    var shown = usable !== false ? lines : CANNOT_LINES;
+    var chosen = shown[shown.length - 1];
+    for (var i = 0; i < shown.length; i++) {
+      if (fits(shown[i])) {
+        chosen = shown[i];
         break;
       }
     }
@@ -250,6 +258,13 @@
   // sentence in clay.
   function tell(text, fact, act) {
     if (!said) return;
+    // Nothing can be asked: clearing the line puts the fault back, so a conversation
+    // opened, or a new one started, does not leave a live-looking box with no reason.
+    if (!text && !usable) {
+      text = CANNOT_ANSWER;
+      fact = STILL_OPEN;
+      act = "yours";
+    }
     said.textContent = "";
     said.hidden = !text;
     if (!text) return;
@@ -588,6 +603,7 @@
   var whyCount = 0;
   function render(target, text, words, asked) {
     target.textContent = "";
+    target.removeAttribute("dir");
     var found = pairs(text);
     // A turn written by the contract is drawn as pairs; anything else as a line.
     if (found.length && found.some(function (p) { return p.en; })) {
@@ -679,6 +695,12 @@
       drawEnglishToggle();
       return;
     }
+    // A line that starts in Hebrew reads right to left as a whole (targum-internal#674):
+    // "שלום, מה נשמע?" was a Hebrew run in an English-direction line, with its ? left
+    // outside the run on the line's right. `dir="rtl"` and not `auto`: auto looks past
+    // the runs, which carry a `dir` of their own, and finds only the punctuation.
+    var first = hebrewFirst(text);
+    if (first) target.setAttribute("dir", "rtl");
     var pieces = String(text || "").split(PATH);
     // split with two groups yields [before, sep, path, before, sep, path, ...]
     for (var i = 0; i < pieces.length; i++) {
@@ -687,23 +709,50 @@
       if (i % 3 === 2) {
         target.appendChild(door(piece));
       } else {
-        hebrewed(target, piece);
+        hebrewed(target, piece, first);
       }
     }
   }
 
-  function hebrewed(target, text) {
+  // Whether a line is a Hebrew one: it starts in Hebrew and its Hebrew letters outnumber
+  // its Latin and Cyrillic ones. An English line that opens on the word it explains,
+  // "שלום means hello." or "שלום (hello)", is English, and keeps its own direction
+  // (qa-claude on #1165).
+  function hebrewFirst(text) {
+    var line = String(text || "");
+    var letter = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF]/.exec(line);
+    if (!letter || !/[\u0590-\u05FF]/.test(letter[0])) return false;
+    var hebrew = (line.match(/[\u05D0-\u05EA]/g) || []).length;
+    var other = (line.match(/[A-Za-z\u00C0-\u024F\u0400-\u04FF]/g) || []).length;
+    return hebrew > other;
+  }
+
+  // The marks that close a Hebrew sentence. In a line that starts in Hebrew they ride
+  // inside the run they close, so they stand at its end, on the left.
+  var CLOSING = /^[.,:;!?\u2026)"'\u05f4\u05f3]+/;
+
+  function hebrewed(target, text, closing) {
     var at = 0;
     var found;
     HEBREW.lastIndex = 0;
     while ((found = HEBREW.exec(text)) !== null) {
       if (found.index > at) target.appendChild(document.createTextNode(text.slice(at, found.index)));
+      var run = found[0];
+      var end = found.index + run.length;
+      if (closing) {
+        var mark = CLOSING.exec(text.slice(end));
+        if (mark) {
+          run += mark[0];
+          end += mark[0].length;
+          HEBREW.lastIndex = end;
+        }
+      }
       var span = document.createElement("span");
       span.setAttribute("lang", "he");
       span.setAttribute("dir", "rtl");
-      span.textContent = found[0];
+      span.textContent = run;
       target.appendChild(span);
-      at = found.index + found[0].length;
+      at = end;
     }
     if (at < text.length) target.appendChild(document.createTextNode(text.slice(at)));
   }
@@ -1277,7 +1326,7 @@
       drawChips(answer.chips || []);
       usable = answer.usable !== false;
       drawHours(answer.hours);
-      if (!usable) tell(CANNOT_ANSWER, STILL_OPEN, "yours");
+      drawUsable();
       drawList();
       showFresh();
       // Arrived from the front door with a conversation named in the hash: that one,
@@ -1323,6 +1372,28 @@
     });
   }
 
+  /* Unusable means unusable (targum-internal#674). With no model to answer, the fault
+   * leads the conversation, the chips and the words check are not offered, and the box
+   * is disabled with its reason in its line: the fault used to sit under a box, chips
+   * and checklist that all still looked live. A conversation already had still opens
+   * and reads. Only a change is drawn, so a list answered while a line is on its way
+   * leaves Send as that line left it. */
+  var drewCannot = false;
+  function drawUsable() {
+    if (usable === !drewCannot) return;
+    drewCannot = !usable;
+    var main = document.querySelector(".chat-main");
+    if (main && main.classList) main.classList.toggle("cannot", !usable);
+    [field, send, mic, bring].forEach(function (control) {
+      if (control) control.disabled = !usable;
+    });
+    if (usable) field.removeAttribute("aria-describedby");
+    else field.setAttribute("aria-describedby", "chat-said");
+    placeholder(placeholderLines || [field.placeholder]);
+    if (chips && !usable) chips.show(false);
+    tell(usable ? "" : CANNOT_ANSWER, STILL_OPEN, "yours");
+  }
+
   var RECENT_MS = 60 * 60 * 1000;
   function recentlySeen(chat) {
     var last = Math.max(Number(chat.opened) || 0, Number(chat.seen) || 0);
@@ -1345,7 +1416,7 @@
   var marked = 0;
   function firstExchange() {
     var claim = window.TargumClaim;
-    if (welcomed || current || !claim || !claim.hebrew() || !claim.untouched()) return;
+    if (!usable || welcomed || current || !claim || !claim.hebrew() || !claim.untouched()) return;
     welcomed = true;
     var li = turn(
       "assistant",

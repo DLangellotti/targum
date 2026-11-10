@@ -1340,7 +1340,14 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   color: var(--ink);
   font-size: 0.8125rem;
   font-weight: 400;
-  white-space: nowrap;
+  /* No wider than the pill, so it stands in the room the page keeps clear for the pill
+     at its end edge (`--talk-room`): on one line it reached into the column, over
+     home's "How we choose" (targum-internal#674). */
+  box-sizing: border-box;
+  inline-size: max-content;
+  max-inline-size: 100%;
+  white-space: normal;
+  text-align: end;
 }
 .bar-more .talk-cta.offline-off,
 .bar-more .talk-cta.offline-off::before { position: static; }

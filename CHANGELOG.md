@@ -23,6 +23,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   each with Try again, and logs the door's own words. A quota or key refusal from the Data API
   is said as out of reach, never as a private channel. `subscribe.no-channel`, `no-uploads`,
   `no-feed` and `no-episodes` also get Try again now. Three new keys with Russian. No spend.
+- The AI Assistant's drawer reads right and says what it cannot do (targum-internal#674,
+  from design's #472 finish pass). A line that starts in Hebrew is set right to left,
+  with its closing mark inside its run, so "שלום, מה נשמע?" ends with its ? on the left; a
+  line that starts in English, or is English opening on the Hebrew word it explains
+  ("שלום means hello."), keeps its direction. With no model to answer (`usable:
+  false`) the fault leads the conversation, the chips and the words check are not
+  offered, and the box, Send, Speak and `+` are disabled, the field saying why ("We can't
+  answer right now", "Not right now" where that does not fit); opening a conversation no
+  longer clears the fault. Offline at a desk, the pill's "Chat needs a connection." is no
+  wider than the pill, so it stays in the room the page keeps clear at its end edge and
+  covers nothing at 1024–1920 (it stood over home's "How we choose"). Two new strings,
+  each with its Russian. No spend.
 - Home and Your Progress open quickly again for a signed-in reader (targum-internal#484,
   David 2026-11-10). On the box, Home's `/readers` had gone from 0.6 s to 3–6 s since
   2026-11-04 and Progress's `/account/story` from 0.1 s on 2026-10-21 to 6.6 s, growing
