@@ -889,6 +889,12 @@ def _strip(name: str, text: str) -> str:
 
     Trailing comments are left alone. Telling `//` in code from `//` inside a string or
     a regular expression needs a parser, and there are 78 bytes of them in the whole set.
+
+    Each kept line loses its indentation too (targum-internal#670). The indentation is for
+    whoever reads the source, like the comments, and it was 5.8 kB gzipped of what a word
+    waits for on a portion page. It is safe for the reason above: leading space only means
+    something inside a string that spans a line, and the same test holds that none does,
+    nor any string continued with a backslash.
     """
     js = name.endswith(".js")
     kept: list[str] = []
@@ -901,7 +907,7 @@ def _strip(name: str, text: str) -> str:
             inside = False
             rest = line.split("*/", 1)[1]
             if rest.strip():
-                kept.append(rest)
+                kept.append(rest.lstrip())
             continue
         if not bare:
             continue
@@ -914,9 +920,9 @@ def _strip(name: str, text: str) -> str:
                 continue
             rest = head.split("*/", 1)[1]
             if rest.strip():
-                kept.append(rest)
+                kept.append(rest.lstrip())
             continue
-        kept.append(line)
+        kept.append(line.lstrip())
     if inside:
         # Loud, because the alternative is a page missing the second half of its script.
         raise ValueError(f"{name}: a block comment is never closed")

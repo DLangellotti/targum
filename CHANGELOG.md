@@ -23,6 +23,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- A reader's baked stylesheets and scripts lose their indentation as well as their
+  comments (targum-internal#670). What a word waits for on a portion page fell from
+  119.3 kB gzipped, 3 bytes under its 119.3 kB budget, to 113.4 kB; the budget stays where
+  it was, so the 5.8 kB is room for the next reader change. Every line stays a line, and a
+  test holds that no asset has a string that runs onto the next one. No behaviour change,
+  no spend, no new strings.
 - Russian subscription and news-topic lines read as written Russian (targum-internal#475,
   cleared by ling-ru 2026-11-09): channel and podcast names and the waiting title sit in
   «», "не тратят баллов" for "не расходуют баллы", the cap label and the paused, capped,
