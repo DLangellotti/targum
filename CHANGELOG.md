@@ -14,6 +14,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A channel or a podcast the subscribe confirm page can't read says so in the
+  subscription's words, with Try again (targum-internal#673). Any refusal from a door
+  `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a
+  YouTube key) was said as Upload's line, "We couldn't read that page. Paste its text here
+  instead.", on a page with no field. `_subscribe_refused` now says `subscribe.missing.channel`,
+  `subscribe.missing.podcast`, `subscribe.private.podcast` or `serve.subscribe-unreachable`,
+  each with Try again, and logs the door's own words. A quota or key refusal from the Data API
+  is said as out of reach, never as a private channel. `subscribe.no-channel`, `no-uploads`,
+  `no-feed` and `no-episodes` also get Try again now. Three new keys with Russian. No spend.
 - Home and Your Progress open quickly again for a signed-in reader (targum-internal#484,
   David 2026-11-10). On the box, Home's `/readers` had gone from 0.6 s to 3–6 s since
   2026-11-04 and Progress's `/account/story` from 0.1 s on 2026-10-21 to 6.6 s, growing

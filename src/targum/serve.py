@@ -12254,7 +12254,8 @@ class Handler(BaseHTTPRequestHandler):
     #: `source` (an address) or `key` (a series, a topic, an outlet) — and where it was
     #: asked for, which the page says ("Asked for in a conversation").
     SUBSCRIBE_VIA = frozenset({"chat", "connector", "library", "series"})
-    #: Whether the last offer failed because its source didn't answer (#475 polish 5).
+    #: Whether the last offer's refusal offers Try again: a source that didn't answer
+    #: (#475 polish 5), or a channel or a podcast that was missing or refused (#673).
     _source_unreached: bool = False
 
     def _subscribe_offer(self, asked: Mapping[str, str]) -> tuple[dict[str, Any] | None, str]:
@@ -12269,7 +12270,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             offer = subs.describe(kind, given, language=learning, ui=self._ui_language())
         except TargumError as refusal:
-            return None, told(self._ui_language(), refusal, hosted=self.require_account)
+            said, self._source_unreached = self._subscribe_refused(kind, refusal)
+            return None, said
         except Exception as error:  # noqa: BLE001 - a source that would not answer
             log.warning("subscribe: describing %s %s failed: %s", kind, given, error)
             # Said with Try again on the page (#475 polish 5).
@@ -12279,6 +12281,64 @@ class Handler(BaseHTTPRequestHandler):
                 "We couldn't reach it just now. Try again in a moment.",
             )
         return offer, ""
+
+    #: The subscription's own refusals of a channel or a podcast that was read and found
+    #: wanting: a press of Try again reads it afresh (targum-internal#673).
+    SUBSCRIBE_SOURCE_REFUSALS = frozenset(
+        {
+            "subscribe.no-channel",
+            "subscribe.no-uploads",
+            "subscribe.no-feed",
+            "subscribe.no-episodes",
+        }
+    )
+
+    def _subscribe_refused(self, kind: str, refusal: TargumError) -> tuple[str, bool]:
+        """What the confirm page says when `describe` refused, and whether it offers Try
+        again.
+
+        A `subscribe.*` refusal is the subscription's own sentence and is said as it is.
+        Anything else came from a door the subscription shares with Upload — the fetch
+        door, YouTube's Data API, a machine without a key — and its sentence is Upload's:
+        "Paste its text here instead" on a page with no field (targum-internal#673). So it
+        is said here as the subscription's: missing, refusing or out of reach, by what the
+        refusal carries, with Try again; the door's own words go to the log.
+        """
+        ui = self._ui_language()
+        key = refusal.key or ""
+        if key.startswith("subscribe."):
+            said = told(ui, refusal, hosted=self.require_account)
+            return said, key in self.SUBSCRIBE_SOURCE_REFUSALS
+        log.warning("subscribe: %s refused: %s (%s)", kind, refusal.message, refusal.hint or "")
+        status = getattr(refusal, "status", None)
+        if status is None:
+            # YouTube's Data API refuses with the HTTP error as its cause (`discover.fetch`).
+            status = getattr(refusal.__cause__, "code", None)
+        missing = key in ("fetch.no-such-site", "fetch.no-site-name", "fetch.not-a-web-page")
+        if kind == "channel" and (missing or status in (404, 410)):
+            return self._say(
+                "subscribe.missing.channel",
+                "We couldn't find that channel. Check the address and try again.",
+            ), True
+        if kind == "podcast" and (missing or status in (404, 410)):
+            return self._say(
+                "subscribe.missing.podcast",
+                "We couldn't find that podcast. Check the address and try again.",
+            ), True
+        # Only the fetch door's status says a site shut us out: the Data API's 403 is our
+        # key or its quota, not the channel's.
+        refused = key == "fetch.needs-a-sign-in" or (
+            key == "fetch.would-not-open" and status in (401, 403, 451)
+        )
+        if kind == "podcast" and refused:
+            return self._say(
+                "subscribe.private.podcast",
+                "That podcast's site won't let us read its feed. Try again later.",
+            ), True
+        return self._say(
+            "serve.subscribe-unreachable",
+            "We couldn't reach it just now. Try again in a moment.",
+        ), True
 
     def _learning_language(self) -> str:
         """The language the reader is learning here, for a topic: its outlets are theirs."""
