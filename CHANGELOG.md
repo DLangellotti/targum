@@ -1471,6 +1471,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- Open signup behind a switch, off by default (targum-internal#485). With
+  `TARGUM_OPEN_SIGNUP=1` a stranger who was never let in may open an account by the
+  mailed link or Google, and the safety moves from the guest list to limits: a throwaway
+  domain (the vendored list the back office flags with) is refused, and new accounts are
+  counted per visitor (3 an hour, under a digest of their address), per mail domain (20)
+  and for everybody (60), on the `asked` table the sign-in links use. An address that
+  already has an account is not counted. Once the link is pressed, the address goes on the
+  guest list, so shutting the door again locks nobody out. Spend is unchanged: every build
+  still goes through `Library.claim` and its box ceiling. The beta stays invitation-only
+  (David, 2026-11-03), and the switch stays off. New strings `serve.signup.throwaway` and
+  `serve.signup.too-many` (en; ru drafted for David's read). No spend.
+  Reworked after qa-claude's check so nobody can spend what real readers need: the
+  visitor is counted when a link is asked for, the mail domain only when it is pressed
+  (or Google vouches), by registrable domain so made-up subdomains are one, and never at
+  the big consumer providers (`backoffice.WEBMAIL`). Everybody together (60) is an alarm
+  to the log and `TARGUM_ALERT_TO`, once an hour, and refuses nobody. The switch needs
+  `TARGUM_PLANS=1`, or it stays shut and the start-up log says why. `uninvite` now bars
+  the inbox at the open door until an invitation lifts it (a `barred` table, schema 62),
+  another Gmail spelling of a proved inbox (dots, `+tag`, googlemail) is mailed that
+  account's link at its own address, and the throwaway check reads full-width spellings
+  (NFKC). Google's door never folds: it opens exactly the address Google proved, since
+  `john+other@` may be another person's mailbox. `WEBMAIL` covers the free providers
+  readers use (Russian ones included), and `registrable` keeps shared suffixes such as
+  `eu.org`, `nhs.uk` and the Canadian provinces apart.
 - `scripts/merge_topics.py` merges the Hebrew topic runs into one `topics/1` lexicon
   (targum-internal#606): the full run's agreed rows, ling-he's decisions on its top 5,000,
   the card's rule below them (the shared topic, otherwise `general`), and an incremental
