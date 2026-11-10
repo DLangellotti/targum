@@ -4,7 +4,10 @@ The landing film drew its spoon's handle with `ctx.roundRect`, which Safari befo
 Chrome before 99 do not have, so the film threw on every frame there; it now draws the
 same shape from `arcTo` where `roundRect` is missing. And `report.js` sent what is not a
 fault of ours — the ResizeObserver notice, a wallet extension's complaints, an extension's
-own script — which it now drops before sending. Both are run in node against stubs.
+own script. The browser drops the ResizeObserver notice and extensions' errors and
+promises before sending, in as few bytes as it can, since `report.js` counts against the
+reader's `A_WORD_WAITS_GZ`; the wallets' wording is left to the server's `FAULT_NOISE`
+(`test_tell_us.py`). Both are run in node against stubs.
 """
 
 from __future__ import annotations
@@ -146,8 +149,6 @@ OURS = "at paint (https://targum.test/:1457:5)"
             "kind": "error",
             "message": "ResizeObserver loop completed with undelivered notifications.",
         },
-        {"kind": "rejection", "message": "Failed to connect to MetaMask"},
-        {"kind": "rejection", "message": "The provider is disconnected from all chains."},
         {
             "kind": "rejection",
             "message": "Cannot read properties of undefined",
@@ -156,8 +157,8 @@ OURS = "at paint (https://targum.test/:1457:5)"
         {
             "kind": "error",
             "message": "Uncaught TypeError: boom",
-            "filename": "https://targum.test/",
-            "stack": "TypeError: boom\n    at y (moz-extension://1234/content.js:3:4)\n    " + OURS,
+            "filename": "moz-extension://1234/content.js",
+            "stack": "TypeError: boom\n    at y (moz-extension://1234/content.js:3:4)",
         },
     ],
 )

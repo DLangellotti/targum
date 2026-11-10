@@ -52,29 +52,11 @@
 
   function offline(message) {
     if (navigator.onLine === false) return true;
-    return /failed to fetch|networkerror|load failed|network request failed/i.test(message);
-  }
-
-  // What a browser says that is not a fault of ours (targum-internal#669): the
-  // ResizeObserver notice, which breaks nothing, a wallet extension's complaints, and
-  // anything an extension's own script threw. The server drops the same (`FAULT_NOISE`).
-  var NOISE = new RegExp(
-    "ResizeObserver loop (?:completed with undelivered notifications|limit exceeded)" +
-      "|Failed to connect to MetaMask" +
-      "|The provider is disconnected from all chains" +
-      "|(?:chrome|moz|safari(?:-web)?)-extension://",
-    "i"
-  );
-
-  function noise() {
-    for (var i = 0; i < arguments.length; i++) {
-      if (NOISE.test(String(arguments[i] || ""))) return true;
-    }
-    return false;
+    // Nor is the ResizeObserver loop notice, which breaks nothing (targum-internal#669).
+    return /failed to fetch|networkerror|load failed|network request failed|resizeobserver/i.test(message);
   }
 
   function report(message, place) {
-    if (noise(message, place)) return;
     message = plain(message).slice(0, 300);
     if (!message || sent >= MOST_A_PAGE || said[message] || offline(message)) return;
     said[message] = true;
@@ -106,7 +88,6 @@
     var file = event.filename || "";
     // Another origin's script, a browser extension's: "Script error." and nothing else.
     if (file && file.indexOf(location.origin) !== 0) return;
-    if (noise(event.message, event.error && event.error.stack)) return;
     var place = (event.error && frames(event.error.stack)) || "";
     if (!place && file) place = plain(file) + ":" + (event.lineno || 0) + ":" + (event.colno || 0);
     report(event.message, place);
@@ -115,8 +96,9 @@
   window.addEventListener("unhandledrejection", function (event) {
     var reason = event && event.reason;
     if (reason === undefined || reason === null) return;
+    // An extension's own promise (#669). Its wallets' wording is the server's to drop.
+    if (/-extension:/.test(reason.stack)) return;
     var message = reason && reason.message ? reason.name + ": " + reason.message : String(reason);
-    if (noise(message, reason && reason.stack)) return;
     report(message, frames(reason && reason.stack));
   });
 
