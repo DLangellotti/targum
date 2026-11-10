@@ -152,7 +152,7 @@ def _reader(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, on: bool) -> dict[s
 ADDED = (
     re.compile(r"<style>\.preread \{.*?</style>\n?", re.S),
     re.compile(r'<details class="preread".*?</details>\n?', re.S),
-    re.compile(r'<script>\(function \(\) \{\n  "use strict";\n  var box = .*?</script>\n?', re.S),
+    re.compile(r'<script>\(function \(\) \{\n"use strict";\nvar box = .*?</script>\n?', re.S),
 )
 
 

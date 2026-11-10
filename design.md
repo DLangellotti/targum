@@ -384,6 +384,48 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
+
+Supersedes the split in "Russian says a cost in minutes and a balance in points"
+(2026-11-03, below). ling-ru found the subscriptions page saying one cap in two units —
+«Лимит — 60 мин в месяц» beside «Осталось 12 баллов» — and David decided on 2026-11-09:
+
+- **An amount of credits is points, everywhere.** A cost, a set's total, an estimate, a
+  monthly cap, what is used and what is left: «Займёт 12 баллов», «Всего займёт 3 балла»,
+  «около 8 баллов на новое», «Баллов потрачено в этом месяце: 5 из 60», «Лимит баллов в
+  месяц: 60». The confirm page's exception is no longer one, because it is the rule.
+- **«мин» says a duration only.** How long a video, a recording or a read is, how long a
+  build will take: «12 мин видео», «Будет готово примерно через 7 минут». The rate line
+  still joins the two: «Один балл — это минута аудио или видео».
+- **Every count takes its form,** 1 балл, 2 балла, 5 баллов, 21 балл, and «около»
+  takes the genitive: около 1 балла, около 5 баллов. A number that has no plural key of
+  its own goes after a colon or in brackets («Лимит баллов в месяц: 60», «лимит баллов
+  на «…» (60) исчерпан») so it cannot take the wrong form. English still says credits.
+
+### The box's line is measured, not cut — 2026-11-09
+
+David, 2026-11-09 (targum-internal#472), answering the §14 re-audit of the chat drawer,
+which asked whether the fallback merged on 2026-10-28 (targum#966) belongs here. It
+amends "Talk is a sheet over a dimmed page" (2026-10-09), which gave a reader's box one
+line.
+
+- **In a reader the box has two lines, and the field's width picks.** "Ask about it or
+  write in {language}" («Вопрос о тексте {language:adv}») where it fits on one line,
+  "Ask about it" («Спросите…») where it does not.
+- **Not an ellipsis**, because a textarea's placeholder takes none in Chromium, whatever
+  chat.css asks: the old line was cut mid-letter, "Ask about the text, or wri", on a
+  390px phone.
+- **Measured, not set by a breakpoint.** `placeholder()` in chat.js measures each line
+  in the field's own font against its width less padding, takes the first that fits or
+  else the last, and measures again when the field's width changes, so a phone turned on
+  its side gets the long line back. At a desk the field is about 235px and shows the long
+  line; a phone's sheet leaves about 158px at 390 and 88px at 320, and shows the short.
+- **Only a reader's box has a second line.** "{language} or English" and "The word, and
+  the sentence it was in" pass through the same chooser with one line each.
+
+Pinned by `test_in_a_reader_the_box_s_line_fits_the_drawer` and
+`test_the_long_line_fits_for_every_language_read`.
+
 ### Russian grammar on Your Progress: Aspect | Cases, and More — 2026-11-09
 
 David, 2026-11-09, passing design's v3 mock of targum-internal#639 ("looks good"), after
@@ -1113,6 +1155,9 @@ meanings follow the text.
   and spends nothing. A page written before it has no comment and is served as before.
 
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
+
+*(Superseded on 2026-11-09 by "Russian says every credit amount in points, and minutes
+only for a duration", above: a cost is points now too. «Кредит» stays out.)*
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
 decided on 2026-11-03: the Russian interface keeps the credit as a unit and stops naming it.
@@ -4895,13 +4940,9 @@ ink (#684); this is what it opens.
   nothing there: there is nothing in front of the reader to be about.
 - **The suggestions and the Reading line stand only while the conversation is empty.**
   Once there is a turn the thread has the room, and the chip says what it is about.
-  In a reader the box says "Ask about it or write in {language}" («Вопрос о тексте
-  {language:adv}»), and "Ask about it" («Спросите…») where the field is too narrow for
-  that, measured (David, 2026-10-28, targum-internal#472). It said "Ask about the text,
-  or write in {language}", which the drawer's field cut mid-letter, because a
-  placeholder takes no ellipsis. At a desk the field is about 235px and the long line
-  shows; a phone's sheet leaves it about 158px at 390 and 88px at 320, so a phone
-  shows the short line.
+  In a reader the box says "Ask about it or write in {language}", or "Ask about it"
+  where that does not fit (David, 2026-10-28, targum-internal#472; "The box's line is
+  measured, not cut", 2026-11-09).
 - **The conversation's own look**: the reader's lines in the teal wash at the end edge,
   sized to what was said, targum's on the page; a door to a text ("Open …") is the
   primary, a pill at its words' width, where it was an ink block — "A door's one press is

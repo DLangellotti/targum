@@ -696,7 +696,7 @@ def test_a_link_is_quoted_in_the_accounts_language(world: World) -> None:
     world.seconds = 5 * 60
     world.door.handle(link(1, ARTICLE))
     [(_, text, button, _)] = world.telegram.offered
-    assert text.endswith("Займёт 5 минут.") and button == "Подтвердить"
+    assert text.endswith("Займёт 5 баллов.") and button == "Подтвердить"
 
 
 def test_the_bot_api_sends_the_button_as_telegram_reads_one(

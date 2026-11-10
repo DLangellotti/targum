@@ -22,8 +22,42 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Home and Your Progress open quickly again for a signed-in reader (targum-internal#484,
+  David 2026-11-10). On the box, Home's `/readers` had gone from 0.6 s to 3–6 s since
+  2026-11-04 and Progress's `/account/story` from 0.1 s on 2026-10-21 to 6.6 s, growing
+  with reading; `/chat/list`, ~0.9 s on its own, waited 3 s beside either. Two causes:
+  every unmarked word of the whole shared shelf asked the root lexicon whether it is
+  borrowed, two or three file stats a word, again for each fresh estimate (one after
+  every sync); and every text the reader had finished a section of walked every folder of
+  every home to find itself. A word's difficulty is now kept per language while the
+  frequency list and the borrowed words are the same (`estimate._difficulty`), each home
+  is walked once into a hash index kept while its listing is unchanged
+  (`Library._hashes`), a hit checked against its document and a miss against every
+  document's stamp, so a text whose line was just edited is found by its new hash at once
+  and the section finished after it keeps its measurement (qa-claude on #1158), and `touchstones.a_word` stops at the second letter. Measured on a
+  copy of the account against 321 texts after a sync: `/readers?catalogue=0` 0.98 → 0.36
+  s, `/account/story` 1.37 → 0.37 s in Hebrew and 0.66 → 0.18 s in Russian. No spend, no
+  new strings.
 
 ### Changed
+- Russian says every amount of credits in баллы, and «мин» only for a duration (David,
+  2026-11-09; design.md §12, superseding the 2026-11-03 split). ling-ru found the
+  subscriptions page saying one cap in two units. Costs, set totals, estimates, monthly
+  caps and what is used now read «Займёт 12 баллов», «около 8 баллов на новое», «Баллов
+  потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
+  each in the form its number takes. A video's length and a build's wait stay in minutes.
+  No spend, no new strings.
+- A reader's baked stylesheets and scripts lose their indentation as well as their
+  comments (targum-internal#670). What a word waits for on a portion page fell from
+  119.3 kB gzipped, 3 bytes under its 119.3 kB budget, to 113.4 kB; the budget stays where
+  it was, so the 5.8 kB is room for the next reader change. Every line stays a line, and a
+  test holds that no asset has a string that runs onto the next one. No behaviour change,
+  no spend, no new strings.
+- Russian subscription and news-topic lines read as written Russian (targum-internal#475,
+  cleared by ling-ru 2026-11-09): channel and podcast names and the waiting title sit in
+  «», "не тратят баллов" for "не расходуют баллы", the cap label and the paused, capped,
+  unsubscribed and subscribe-again lines tightened. The балл/мин split is unchanged. No
+  spend, no new strings.
 - The Global Storybooks fetcher refuses a story whose folder names a language other than
   English but whose pages read as English (targum-internal#666). African Storybook's
   `fr/0211_le-faux-roi-bouc.md` is the English story under a French title, and it reached

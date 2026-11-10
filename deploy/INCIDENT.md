@@ -265,7 +265,7 @@ in the moment, like the real thing.
 | Rollback | 2026-10-22, live, on David's go | yes |
 | Restore last night's database | 2026-10-22 on the box (scratch copy); 2026-09-29 from the bucket (#16) | no, scratch only |
 | Provider down | 2026-10-28, read-only walk | no |
-| Out of credit | not yet: needs David's go to send one mail | sends one mail |
+| Out of credit | 2026-11-09, live, on David's go | sends one mail |
 | Box unreachable | 2026-10-28, read-only walk, laptop side only | no |
 
 ### Rollback
@@ -319,8 +319,11 @@ ssh root@targum.page 'systemd-run --quiet --wait --pipe --collect --uid=targum -
 Healthy: it prints `mailed: targum: Anthropic is out of credit (a drill)` and the mail
 arrives at `TARGUM_ALERT_TO`. Then the real move, as a walk: open the provider's billing
 page in the back office's balances and find the top-up. `--provider` takes Anthropic,
-OpenAI, Google or ElevenLabs. Not yet run: it needs the deploy that carries it and
-David's go.
+OpenAI, Google or ElevenLabs.
+
+Run 2026-11-09 18:52 UTC on the box, on David's go, with `--provider Anthropic`: it
+printed `mailed: targum: Anthropic is out of credit (a drill)`, spent nothing, and left
+`credit-watch.json` alone. Not drilled: the top-up itself, which spends.
 
 ### Box unreachable
 

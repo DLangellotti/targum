@@ -283,7 +283,7 @@ def test_the_offer_card_draws_a_subscription_and_opens_targums_page(browser) -> 
     assert direction == "rtl", "a Hebrew name is drawn right to left"
     assert label == "Канал на YouTube" and theme == "dark"
     assert (
-        facts == "Около 2 в неделю · Около 8 минут на новое · Месячный лимит вы выберете в targum"
+        facts == "Около 2 в неделю · Около 8 баллов на новое · Месячный лимит вы выберете в targum"
     )
     assert opened.endswith("via=connector") and calls == [], "it opens a page and presses nothing"
 

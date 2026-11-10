@@ -130,13 +130,39 @@ def sigmoid(x: float) -> float:
 def difficulty(lemma: str, language: str) -> float:
     """A word's `b`: the log of its place in the language's frequency list, less
     `BORROWED` for a word the root lexicon marks borrowed."""
+    return _difficulty(lemma, language, _borrowed(language))
+
+
+#: Each word's `b` by language, kept while the frequency list and the borrowed words it
+#: was worked out from are the same objects. A word's difficulty is the language's, not a
+#: reader's, so it outlives every estimate: Home and Progress measure the whole shared
+#: shelf against a fresh estimate after every sync, and working out each of its ~80,000
+#: forms again — each a stat of the root lexicon — was most of their time on the box
+#: (3–4 s a page, targum-internal#484, 2026-11-10).
+_BS: dict[str, tuple[Any, frozenset[str], dict[str, float]]] = {}
+_BS_MOST = 400_000
+_NO_LOANS: frozenset[str] = frozenset()
+
+
+def _difficulty(lemma: str, language: str, loans: frozenset[str]) -> float:
+    """`difficulty` with the borrowed words already in hand, kept per word."""
     from .annotate import frequency
 
-    place = frequency.rank(lemma, language)
+    places = frequency.ranks(language)
+    held = _BS.get(language)
+    if held is None or held[0] is not places or held[1] is not loans:
+        held = (places, loans, {})
+        _BS[language] = held
+    memo = held[2]
+    b = memo.get(lemma)
+    if b is not None:
+        return b
+    place = places.get(frequency._POINTS.sub("", lemma))
     b = math.log(place) if place else math.log(UNRANKED_AT)
-    loans = _borrowed(language)
     if loans and unicodedata.normalize("NFC", frequency._POINTS.sub("", lemma)) in loans:
         b -= BORROWED
+    if len(memo) < _BS_MOST:
+        memo[lemma] = b
     return b
 
 
@@ -144,12 +170,12 @@ def _borrowed(language: str) -> frozenset[str]:
     """The words the root lexicon marks borrowed, for Hebrew; none for another language,
     or where the lexicon is not on this machine. Read again when the file changes."""
     if language.split("-")[0].lower() != "he":
-        return frozenset()
+        return _NO_LOANS
     from .annotate import root_card
 
     found = root_card.lexicon("he")
     if found is None:
-        return frozenset()
+        return _NO_LOANS
     with _DIFFICULTY_LOCK:
         held = _LOANS.get(found.version)
         if held is not None and held[0] is found:
@@ -273,8 +299,9 @@ def fit(
     each one pass over the evidence. Words of the same difficulty are pooled first.
     """
     pooled: dict[tuple[float, bool, float], float] = {}
+    loans = _borrowed(language)
     for item in items:
-        key = (round(difficulty(item.lemma, language), 6), item.known, item.guess)
+        key = (round(_difficulty(item.lemma, language, loans), 6), item.known, item.guess)
         pooled[key] = pooled.get(key, 0.0) + item.weight
     rows = [(b, known, guess, weight) for (b, known, guess), weight in pooled.items()]
 
@@ -323,6 +350,8 @@ class Estimate:
     )
 
     _memo: dict[str, float] = field(default_factory=dict, compare=False, repr=False)
+    #: The borrowed words, looked up once for the estimate's life rather than once a word.
+    _loans: list[frozenset[str]] = field(default_factory=list, compare=False, repr=False)
 
     def chance(self, lemma: str) -> float:
         """The chance this reader knows a word they have not marked, between 0 and 1.
@@ -332,7 +361,10 @@ class Estimate:
             return 0.0
         held = self._memo.get(lemma)
         if held is None:
-            held = sigmoid(self.slope * (self.theta - difficulty(lemma, self.language)))
+            if not self._loans:
+                self._loans.append(_borrowed(self.language))
+            b = _difficulty(lemma, self.language, self._loans[0])
+            held = sigmoid(self.slope * (self.theta - b))
             if len(self._memo) < 200_000:
                 self._memo[lemma] = held
         return held
@@ -506,6 +538,7 @@ def for_reader(
 
 
 def forget() -> None:
-    """Drop every kept estimate (tests)."""
+    """Drop every kept estimate, and every word's kept difficulty (tests)."""
     with _LOCK:
         _KEPT.clear()
+    _BS.clear()
