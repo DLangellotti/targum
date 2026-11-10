@@ -17,7 +17,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - The AI Assistant's drawer reads right and says what it cannot do (targum-internal#674,
   from design's #472 finish pass). A line that starts in Hebrew is set right to left,
   with its closing mark inside its run, so "שלום, מה נשמע?" ends with its ? on the left; a
-  line that starts in English keeps its direction. With no model to answer (`usable:
+  line that starts in English, or is English opening on the Hebrew word it explains
+  ("שלום means hello."), keeps its direction. With no model to answer (`usable:
   false`) the fault leads the conversation, the chips and the words check are not
   offered, and the box, Send, Speak and `+` are disabled, the field saying why ("We can't
   answer right now", "Not right now" where that does not fit); opening a conversation no

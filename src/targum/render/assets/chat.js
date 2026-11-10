@@ -714,12 +714,17 @@
     }
   }
 
-  // Whether the first letter of a line, of any script, is a Hebrew one.
+  // Whether a line is a Hebrew one: it starts in Hebrew and its Hebrew letters outnumber
+  // its Latin and Cyrillic ones. An English line that opens on the word it explains,
+  // "שלום means hello." or "שלום (hello)", is English, and keeps its own direction
+  // (qa-claude on #1165).
   function hebrewFirst(text) {
-    var letter = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF]/.exec(
-      String(text || "")
-    );
-    return !!letter && /[\u0590-\u05FF]/.test(letter[0]);
+    var line = String(text || "");
+    var letter = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF\u0590-\u05FF]/.exec(line);
+    if (!letter || !/[\u0590-\u05FF]/.test(letter[0])) return false;
+    var hebrew = (line.match(/[\u05D0-\u05EA]/g) || []).length;
+    var other = (line.match(/[A-Za-z\u00C0-\u024F\u0400-\u04FF]/g) || []).length;
+    return hebrew > other;
   }
 
   // The marks that close a Hebrew sentence. In a line that starts in Hebrew they ride

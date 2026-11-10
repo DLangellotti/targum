@@ -509,7 +509,8 @@ def test_a_line_that_starts_in_hebrew_reads_right_to_left(browser) -> None:
     """#674 (design's `failed-ru-390`): "שלום, מה נשמע?" was a Hebrew run in a line with no
     direction, so its ? stood outside the run, on the right, at the Hebrew's start. A line
     that starts in Hebrew reads right to left, and its closing mark is inside its run, on
-    the left. A line that starts in English keeps its own direction."""
+    the left. A line that starts in English, or is English opening on a Hebrew word,
+    keeps its own direction."""
     context = browser.new_context(viewport={"width": 390, "height": 844})
     page = context.new_page()
     chat = {
@@ -517,6 +518,8 @@ def test_a_line_that_starts_in_hebrew_reads_right_to_left(browser) -> None:
         "turns": [
             {"n": 1, "role": "user", "said": "שלום, מה נשמע?", "stage": "done"},
             {"n": 2, "role": "assistant", "said": "The word is שלום.", "stage": "done"},
+            {"n": 3, "role": "user", "said": "שלום means hello.", "stage": "done"},
+            {"n": 4, "role": "assistant", "said": "שלום (hello)", "stage": "done"},
         ],
         "seconds": 0,
     }
@@ -565,13 +568,18 @@ def test_a_line_that_starts_in_hebrew_reads_right_to_left(browser) -> None:
         }"""
     )
     context.close()
-    hebrew, english = got
+    hebrew, english, explained, glossed = got
     assert hebrew["text"] == "שלום, מה נשמע?", got
     assert hebrew["dir"] in ("rtl", "auto") and hebrew["base"] == "rtl", hebrew
     assert hebrew["run"] == "שלום, מה נשמע?", "the ? is inside the run"
     assert hebrew["markLeft"] < hebrew["firstLeft"], "the ? stands at the Hebrew's end, on the left"
     assert english["dir"] is None and english["base"] == "ltr", english
     assert english["run"] == "שלום" and english["markLeft"] > english["firstLeft"], english
+    # An English line that opens on the Hebrew word it explains is English (qa-claude on
+    # #1165): set right to left it read backwards, "hello means שלום." on the left.
+    for line in (explained, glossed):
+        assert line["dir"] is None and line["base"] == "ltr", line
+        assert line["run"] == "שלום" and line["markLeft"] > line["firstLeft"], line
 
 
 #: The words check's list, so the first exchange has something to ask.
