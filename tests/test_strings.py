@@ -879,10 +879,11 @@ def test_how_much_you_know_is_an_exact_percentage_in_russian_too() -> None:
             assert not re.search(r"in 10\b|in ten or more|из 10\b|из десяти", said), key
 
 
-def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
-    """David, 2026-11-03 (design.md §12): «кредит» reads as a bank loan in Russian, so a
-    cost is said in minutes («Займёт 12 минут») and the month's balance in points
-    («Осталось 12 баллов»), each in the form its number takes."""
+def test_russian_says_every_credit_amount_in_points() -> None:
+    """David, 2026-11-09 (design.md §12, superseding 2026-11-03): «кредит» reads as a bank
+    loan in Russian, so every amount of credits (a cost, a cap, what is used, what is
+    left) is said in points («Займёт 12 баллов», «Осталось 12 баллов»), each in the form
+    its number takes. «мин» is kept for a duration."""
     from targum.strings import catalogue, counted
 
     ru = catalogue("ru")
@@ -892,23 +893,26 @@ def test_russian_says_a_cost_in_minutes_and_a_balance_in_points() -> None:
     def say(key: str, n: int) -> str:
         return counted(key, n, "ru", {"one": "", "other": ""}).format(n=n)
 
-    cost = [say("bring.uses-credits", n) for n in (1, 2, 5, 21, 12)]
-    assert cost == [
-        "Займёт 1 минуту",
-        "Займёт 2 минуты",
-        "Займёт 5 минут",
-        "Займёт 21 минуту",
-        "Займёт 12 минут",
-    ]
-    left = [say("account.credits.left-short", n) for n in (1, 3, 11)]
-    assert left == ["Остался 1 балл", "Осталось 3 балла", "Осталось 11 баллов"]
-    # The confirm page says its wait in minutes beside the cost, so there the cost is
-    # points (David, 2026-11-03).
-    confirm = [say("press.page.uses-credits", n) for n in (1, 2, 5, 21, 12)]
-    assert confirm == [
+    points = [
         "Займёт 1 балл",
         "Займёт 2 балла",
         "Займёт 5 баллов",
         "Займёт 21 балл",
         "Займёт 12 баллов",
     ]
+    for key in ("bring.uses-credits", "press.page.uses-credits", "reader.chapter.uses-credits"):
+        assert [say(key, n) for n in (1, 2, 5, 21, 12)] == points, key
+    left = [say("account.credits.left-short", n) for n in (1, 3, 11)]
+    assert left == ["Остался 1 балл", "Осталось 3 балла", "Осталось 11 баллов"]
+    about = [say("subs.credits.about", n) for n in (1, 2, 5, 21)]
+    assert about == ["около 1 балла", "около 2 баллов", "около 5 баллов", "около 21 балла"]
+    # Wherever the English counts credits, the Russian never counts them in minutes.
+    en = catalogue("en")
+    in_minutes = [
+        key
+        for key, said in ru.items()
+        if re.search(r"\bcredits?\b", en.get(re.sub(r"\.(few|many)$", ".other", key), ""))
+        and re.search(r"\bмин", said)
+        and "балл" not in said
+    ]
+    assert not in_minutes, f"a credit amount said in minutes: {in_minutes[:5]}"

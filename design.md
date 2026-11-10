@@ -384,6 +384,24 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
+
+Supersedes the split in "Russian says a cost in minutes and a balance in points"
+(2026-11-03, below). ling-ru found the subscriptions page saying one cap in two units —
+«Лимит — 60 мин в месяц» beside «Осталось 12 баллов» — and David decided on 2026-11-09:
+
+- **An amount of credits is points, everywhere.** A cost, a set's total, an estimate, a
+  monthly cap, what is used and what is left: «Займёт 12 баллов», «Всего займёт 3 балла»,
+  «около 8 баллов на новое», «Баллов потрачено в этом месяце: 5 из 60», «Лимит баллов в
+  месяц: 60». The confirm page's exception is no longer one, because it is the rule.
+- **«мин» says a duration only.** How long a video, a recording or a read is, how long a
+  build will take: «12 мин видео», «Будет готово примерно через 7 минут». The rate line
+  still joins the two: «Один балл — это минута аудио или видео».
+- **Every count takes its form,** 1 балл, 2 балла, 5 баллов, 21 балл, and «около»
+  takes the genitive: около 1 балла, около 5 баллов. A number that has no plural key of
+  its own goes after a colon or in brackets («Лимит баллов в месяц: 60», «лимит баллов
+  на «…» (60) исчерпан») so it cannot take the wrong form. English still says credits.
+
 ### The box's line is measured, not cut — 2026-11-09
 
 David, 2026-11-09 (targum-internal#472), answering the §14 re-audit of the chat drawer,
@@ -1137,6 +1155,9 @@ meanings follow the text.
   and spends nothing. A page written before it has no comment and is served as before.
 
 ### Russian says a cost in minutes and a balance in points — 2026-11-03
+
+*(Superseded on 2026-11-09 by "Russian says every credit amount in points, and minutes
+only for a duration", above: a cost is points now too. «Кредит» stays out.)*
 
 «Кредит» is a bank loan in Russian, so «Займёт 12 кредитов» read as borrowing. David
 decided on 2026-11-03: the Russian interface keeps the credit as a unit and stops naming it.
