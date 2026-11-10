@@ -182,7 +182,9 @@ def test_every_cookie_the_server_sets_is_named_in_the_notice() -> None:
     from targum.serve import CONNECT_COOKIE, KEPT_COOKIE, KEPT_DAYS, SESSION_COOKIE
 
     page = " ".join(said(legal_page("privacy")).split())
-    assert "sets no cookie other than that which maintains an authenticated session" in page
+    assert (
+        "sets no cookie of its own other than that which maintains an authenticated session" in page
+    )
     assert "ten minutes" in page, CONNECT_COOKIE
     assert SESSION_COOKIE.startswith("targum_") and KEPT_COOKIE == "targum_kept"
     assert "named targum_kept" in page
