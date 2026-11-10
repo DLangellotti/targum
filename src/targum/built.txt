@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-09
+For a Russian reader, Your Progress shows grammar: aspect by tense, case by number, and verbs of motion.
+A word whose pronunciation is corrected once is said right in every recording made after.
+In Russian, the lines for subscriptions and news topics read as written Russian.
+
 2026-11-08
 A new French or Russian reader can tick the words they know on arrival, and starts at the level they reach.
 In French, Russian and Italian, Your Progress leads with how many Library texts you can read now.
