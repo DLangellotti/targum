@@ -17,10 +17,18 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import test_serve
+from test_meetings import text, w
+from test_reading_line import ms
+from test_serve import Postbox, call, sign_in
 
 from targum import estimate as est
 from targum.annotate import root_card
+from targum.coverage import KNOWN
 from targum.serve import Library
+
+served = test_serve.served
+postbox = test_serve.postbox
 
 WORDS = [f"מילה{n:04d}" for n in range(400)]
 
@@ -137,3 +145,79 @@ def test_the_readers_own_home_is_asked_first(tmp_path: Path) -> None:
     built(own / "mine", "same")
     built(library.shared / "theirs", "same")
     assert library.document_folder([own, library.shared], "same") == (own / "mine", "he")
+
+
+def rewrite(folder: Path, content_hash: str) -> None:
+    """A line edit's own write (`correct.py`): the same folder's document, rewritten in
+    place under its new hash. The home's listing does not change."""
+    document = folder / "document.json"
+    body = json.loads(document.read_text(encoding="utf-8"))
+    body["content_hash"] = content_hash
+    document.write_text(json.dumps(body), encoding="utf-8")
+
+
+def test_a_text_edited_in_place_is_found_by_its_new_hash_at_once(tmp_path: Path) -> None:
+    """qa-claude on targum#1158: the page names a text's new hash the moment a line is
+    edited, and the kept index must not answer None for it, however recently it was made.
+    Asked for the new hash first, never the old one, which would walk again by itself."""
+    library = Library(tmp_path / "out")
+    home = tmp_path / "out" / "p1"
+    built(home / "one", "a")
+    built(home / "two", "b")
+    assert library.document_folder([home], "b") == (home / "two", "he")  # the index is made
+
+    rewrite(home / "one", "c")
+    assert library.document_folder([home], "c") == (home / "one", "he")
+    assert library.document_folder([home], "a") is None
+
+
+def test_a_miss_walks_again_only_when_a_document_changed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    library = Library(tmp_path / "out")
+    home = tmp_path / "out" / "p1"
+    for n in range(10):
+        built(home / f"own{n}", f"own{n}")
+    walked: list[Path] = []
+    real = Path.iterdir
+
+    def iterdir(self: Path) -> Any:
+        if self == home:
+            walked.append(self)
+        return real(self)
+
+    monkeypatch.setattr(Path, "iterdir", iterdir)
+    for _ in range(5):
+        assert library.document_folder([home], "gone") is None
+    assert len(walked) == 1, "nothing changed, and a miss is believed"
+
+    rewrite(home / "own3", "new")
+    assert library.document_folder([home], "new") == (home / "own3", "he")
+    assert len(walked) == 2
+
+
+def test_a_section_finished_after_a_line_edit_keeps_its_measurement(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    """The consequence qa found: `_measure_finished` runs once, for a section with no
+    row before the push, so a miss in that sync lost the section's measurement for good."""
+    port, token, out = served
+    line = ("ספר של ים", [w("ספר", "ספר"), w("ים", "ים")])
+    text(out / "shared" / "one", {1: [line]}, content_hash="one")
+    text(out / "shared" / "two", {1: [line]}, content_hash="aaaa")
+    cookie = sign_in(port, postbox)
+    words = [{"language": "he", "lemma": "ים", "status": KNOWN, "at": 1, "seen": 1}]
+    first = [{"hash": "one", "section": "1", "at": ms(2026, 9), "seen": ms(2026, 9)}]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"words": words, "sections": first}, cookie=cookie
+    )
+    assert status == 200, answer  # the shelf's index is made, with "two" under "aaaa"
+
+    rewrite(out / "shared" / "two", "cccc")
+    then = [{"hash": "cccc", "section": "1", "at": ms(2026, 10), "seen": ms(2026, 10)}]
+    status, answer, _ = call(port, "POST", f"/sync?k={token}", {"sections": then}, cookie=cookie)
+    assert status == 200, answer
+
+    status, said, _ = call(port, "GET", f"/account/words?language=he&k={token}", cookie=cookie)
+    assert status == 200, said
+    assert said["met"] == {"ים": 2}, "the section finished after the edit was measured"

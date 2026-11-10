@@ -24,7 +24,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   every home to find itself. A word's difficulty is now kept per language while the
   frequency list and the borrowed words are the same (`estimate._difficulty`), each home
   is walked once into a hash index kept while its listing is unchanged
-  (`Library._hashes`), and `touchstones.a_word` stops at the second letter. Measured on a
+  (`Library._hashes`), a hit checked against its document and a miss against every
+  document's stamp, so a text whose line was just edited is found by its new hash at once
+  and the section finished after it keeps its measurement (qa-claude on #1158), and `touchstones.a_word` stops at the second letter. Measured on a
   copy of the account against 321 texts after a sync: `/readers?catalogue=0` 0.98 → 0.36
   s, `/account/story` 1.37 → 0.37 s in Hebrew and 0.66 → 0.18 s in Russian. No spend, no
   new strings.

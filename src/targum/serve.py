@@ -1889,8 +1889,14 @@ class Library:
         # an answer about a text, never the text.
         self.remembered = Remembered()
         # Each home's folders by the content hash their document names (`document_folder`),
-        # kept while the home's own listing is unchanged.
-        self._by_hash: dict[Path, tuple[int, float, dict[str, tuple[Path, str]]]] = {}
+        # kept while the home's own listing is unchanged, with each folder's document
+        # stamp so a miss can tell a document rewritten in place.
+        self._by_hash: dict[
+            Path,
+            tuple[
+                int, tuple[tuple[Path, tuple[int, int] | None], ...], dict[str, tuple[Path, str]]
+            ],
+        ] = {}
         self._by_hash_lock = threading.Lock()
         # Where published issues of the weekly land. A third read-only home, owned by
         # nobody, written only by `targum weekly publish` and never by a request.
@@ -3310,16 +3316,21 @@ class Library:
             if not home.is_dir():
                 continue
             found = self._hashes(home).get(document_hash)
-            if found is None:
+            if found is not None:
+                # The kept answer still says it: a folder rebuilt since names its own hash.
+                document = found[0] / "document.json"
+                if document.is_file():
+                    facts = self.remembered.get(
+                        found[0], "document", [document], partial(self._document_facts, document)
+                    )
+                    if facts.get("content_hash") == document_hash:
+                        return found[0], str(facts.get("language") or "")
+            elif not self._hashes_changed(home):
+                # A miss is only believed once no document in the home has been written
+                # since the index was made: a line edit rewrites `document.json` in place
+                # under a new hash, and the page names that hash at once (qa-claude on
+                # targum#1158). Nothing written since, and the text is not here.
                 continue
-            # The kept answer still says it: a folder rebuilt since names its own hash.
-            document = found[0] / "document.json"
-            if document.is_file():
-                facts = self.remembered.get(
-                    found[0], "document", [document], partial(self._document_facts, document)
-                )
-                if facts.get("content_hash") == document_hash:
-                    return found[0], str(facts.get("language") or "")
             with self._by_hash_lock:
                 self._by_hash.pop(home, None)
             found = self._hashes(home).get(document_hash)
@@ -3327,30 +3338,55 @@ class Library:
                 return found
         return None
 
-    #: How long a home's hash index is trusted while its listing is unchanged: a folder
-    #: rebuilt in place with a new hash changes the folder, not the home.
-    HASHES_FOR = 60.0
+    @staticmethod
+    def _document_stamp(folder: Path) -> tuple[int, int] | None:
+        """When a folder's document was last written, and its size; None where it has none."""
+        try:
+            stat = (folder / "document.json").stat()
+        except OSError:
+            return None
+        return stat.st_mtime_ns, stat.st_size
+
+    def _hashes_changed(self, home: Path) -> bool:
+        """Whether anything the home's kept index was made from has changed since: its
+        listing, or any one folder's document (written, rebuilt, removed or new). A stat a
+        folder and no read, so a miss costs a fraction of the walk it saves."""
+        with self._by_hash_lock:
+            held = self._by_hash.get(home)
+        if held is None:
+            return True
+        try:
+            if home.stat().st_mtime_ns != held[0]:
+                return True
+        except OSError:
+            return True
+        return any(self._document_stamp(folder) != stamp for folder, stamp in held[1])
 
     def _hashes(self, home: Path) -> dict[str, tuple[Path, str]]:
         """Every built folder in one home by its document's content hash, the first one
         in listing order winning, as `document_folder` once found it by walking the home
         for every hash it was asked: Progress asks for each text the reader has finished a
         section of, and that walk, once a hash, was half its time (targum-internal#484,
-        2026-11-10). One walk now, kept while the home's listing is unchanged."""
+        2026-11-10). One walk now, kept while the home's listing is unchanged; a hit is
+        checked against its document and a miss against every document's stamp, so a
+        kept index is never believed past a change (`document_folder`)."""
         try:
             stamp = home.stat().st_mtime_ns
         except OSError:
             return {}
-        now = time.monotonic()
         with self._by_hash_lock:
             held = self._by_hash.get(home)
-            if held is not None and held[0] == stamp and now - held[1] < self.HASHES_FOR:
+            if held is not None and held[0] == stamp:
                 return held[2]
         index: dict[str, tuple[Path, str]] = {}
+        stamps: list[tuple[Path, tuple[int, int] | None]] = []
         for folder in home.iterdir():
-            document = folder / "document.json"
-            if not document.is_file():
+            # Stamped before it is read, so a write during the walk reads as a change.
+            written = self._document_stamp(folder)
+            stamps.append((folder, written))
+            if written is None:
                 continue
+            document = folder / "document.json"
             facts = self.remembered.get(
                 folder, "document", [document], partial(self._document_facts, document)
             )
@@ -3358,7 +3394,7 @@ class Library:
             if content_hash and content_hash not in index:
                 index[content_hash] = (folder, str(facts.get("language") or ""))
         with self._by_hash_lock:
-            self._by_hash[home] = (stamp, now, index)
+            self._by_hash[home] = (stamp, tuple(stamps), index)
         return index
 
     def document_title(self, folder: Path) -> str:
