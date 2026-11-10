@@ -3607,6 +3607,8 @@
   "job.out-of.texts-open": "Your texts still open",
   "job.no-key.fact": "Everything you have still opens",
   "chat.cannot-answer.fact": "Your texts and the library still open",
+  "chat.cannot-answer.box": "We can't answer right now",
+  "chat.cannot-answer.box-short": "Not right now",
   "chat.ask-about-the-text": "Ask about it or write in {language}",
   "chat.ask-about-it": "Ask about it",
   "add.credits.none.fact": "The library still opens",
