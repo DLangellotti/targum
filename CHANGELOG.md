@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Home and Your Progress open quickly again for a signed-in reader (targum-internal#484,
+  David 2026-11-10). On the box, Home's `/readers` had gone from 0.6 s to 3–6 s since
+  2026-11-04 and Progress's `/account/story` from 0.1 s on 2026-10-21 to 6.6 s, growing
+  with reading; `/chat/list`, ~0.9 s on its own, waited 3 s beside either. Two causes:
+  every unmarked word of the whole shared shelf asked the root lexicon whether it is
+  borrowed, two or three file stats a word, again for each fresh estimate (one after
+  every sync); and every text the reader had finished a section of walked every folder of
+  every home to find itself. A word's difficulty is now kept per language while the
+  frequency list and the borrowed words are the same (`estimate._difficulty`), each home
+  is walked once into a hash index kept while its listing is unchanged
+  (`Library._hashes`), and `touchstones.a_word` stops at the second letter. Measured on a
+  copy of the account against 321 texts after a sync: `/readers?catalogue=0` 0.98 → 0.36
+  s, `/account/story` 1.37 → 0.37 s in Hebrew and 0.66 → 0.18 s in Russian. No spend, no
+  new strings.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

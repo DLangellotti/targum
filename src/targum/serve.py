@@ -1888,6 +1888,10 @@ class Library:
         # thing a request writes on the shared shelf, as `coverage.lemmas` already did:
         # an answer about a text, never the text.
         self.remembered = Remembered()
+        # Each home's folders by the content hash their document names (`document_folder`),
+        # kept while the home's own listing is unchanged.
+        self._by_hash: dict[Path, tuple[int, float, dict[str, tuple[Path, str]]]] = {}
+        self._by_hash_lock = threading.Lock()
         # Where published issues of the weekly land. A third read-only home, owned by
         # nobody, written only by `targum weekly publish` and never by a request.
         self.weekly = out / "weekly"
@@ -3305,16 +3309,57 @@ class Library:
         for home in homes:
             if not home.is_dir():
                 continue
-            for folder in home.iterdir():
-                document = folder / "document.json"
-                if not document.is_file():
-                    continue
+            found = self._hashes(home).get(document_hash)
+            if found is None:
+                continue
+            # The kept answer still says it: a folder rebuilt since names its own hash.
+            document = found[0] / "document.json"
+            if document.is_file():
                 facts = self.remembered.get(
-                    folder, "document", [document], partial(self._document_facts, document)
+                    found[0], "document", [document], partial(self._document_facts, document)
                 )
                 if facts.get("content_hash") == document_hash:
-                    return folder, str(facts.get("language") or "")
+                    return found[0], str(facts.get("language") or "")
+            with self._by_hash_lock:
+                self._by_hash.pop(home, None)
+            found = self._hashes(home).get(document_hash)
+            if found is not None:
+                return found
         return None
+
+    #: How long a home's hash index is trusted while its listing is unchanged: a folder
+    #: rebuilt in place with a new hash changes the folder, not the home.
+    HASHES_FOR = 60.0
+
+    def _hashes(self, home: Path) -> dict[str, tuple[Path, str]]:
+        """Every built folder in one home by its document's content hash, the first one
+        in listing order winning, as `document_folder` once found it by walking the home
+        for every hash it was asked: Progress asks for each text the reader has finished a
+        section of, and that walk, once a hash, was half its time (targum-internal#484,
+        2026-11-10). One walk now, kept while the home's listing is unchanged."""
+        try:
+            stamp = home.stat().st_mtime_ns
+        except OSError:
+            return {}
+        now = time.monotonic()
+        with self._by_hash_lock:
+            held = self._by_hash.get(home)
+            if held is not None and held[0] == stamp and now - held[1] < self.HASHES_FOR:
+                return held[2]
+        index: dict[str, tuple[Path, str]] = {}
+        for folder in home.iterdir():
+            document = folder / "document.json"
+            if not document.is_file():
+                continue
+            facts = self.remembered.get(
+                folder, "document", [document], partial(self._document_facts, document)
+            )
+            content_hash = str(facts.get("content_hash") or "")
+            if content_hash and content_hash not in index:
+                index[content_hash] = (folder, str(facts.get("language") or ""))
+        with self._by_hash_lock:
+            self._by_hash[home] = (stamp, now, index)
+        return index
 
     def document_title(self, folder: Path) -> str:
         """A built text's title, as the shelf has it — for naming a place a word was met
