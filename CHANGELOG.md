@@ -38,6 +38,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `moz-extension://` or `safari-web-extension://` script with no frame of ours in it are
   dropped by `report.js` before sending, and those plus MetaMask's and other wallets'
   disconnect errors by `/errors` before storing. The reader's byte budget is unchanged.
+- Sign-in's links are teal and answer a thumb (targum-internal#672, design's #477 pass).
+  Signed out the door carries no `chrome.css`, so "New here? Join the waitlist" and the
+  refusal's "Join the waitlist" drew the browser's `#0000EE`; both are now the primary at
+  the desk's 600 weight. Under a coarse pointer they were 99 × 21 (RU 173 × 21) and a text
+  page's "Sign in to read it" 88 × 18: all three take the centred `::after` reach of 44px
+  and are in `THUMBED`, with the line moved far enough from what stands over it that the
+  reach crosses only the margin. And a 502 on `/account/sign-in` says "We couldn't send a
+  link just now. Try again." with the clay mark, where it said "We can't reach targum": the
+  proxy's HTML page threw on `response.json()` and fell into the connection's catch. One
+  new string, `signin.server-fault`, with its Russian. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

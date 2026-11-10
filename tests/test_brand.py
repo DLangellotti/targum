@@ -577,6 +577,11 @@ THUMBED = (
     ".rc-words-press",
     # Easier and Harder on Home's pick (design.md §12, 2026-11-05).
     ".rc-step .btn",
+    # The links inside a line on the door, and the text page's way in under the
+    # waitlist's press (design's #477 pass, 2026-11-10, targum-internal#672).
+    ".gate .said a",
+    ".gate .join-link",
+    ".public .door-in a",
 )
 
 

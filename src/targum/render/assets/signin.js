@@ -137,7 +137,7 @@
     if (!field || !field.value) return;
     button.disabled = true;
     said.hidden = true;
-    said.classList.remove("bad");
+    said.classList.remove("bad", "fault-marked");
     var fault = window.TargumFault;
     if (fault) fault.clear(field);
     /* Past three seconds the wait is said (design.md §14, line 1): a pressed button that
@@ -155,13 +155,30 @@
       body: JSON.stringify({ email: field.value, into: carried(), next: form.getAttribute("data-next") || "" }),
     })
       .then(function (response) {
-        return response.json().then(function (body) {
-          return { ok: response.ok, body: body };
-        });
+        /* An answer that is not ours: a 502 from the proxy while targum restarts is a
+           page of HTML, and reading it as JSON threw into the catch below, which told a
+           server's fault as the connection's ("We can't reach targum"; design's #477
+           pass, 2026-11-10). targum was reached; it couldn't send. */
+        return response.json().then(
+          function (body) {
+            return { ok: response.ok, body: body || {} };
+          },
+          function () {
+            return { ok: false, body: {}, unread: true };
+          }
+        );
       })
       .then(function (answer) {
         window.clearTimeout(slow);
         said.hidden = false;
+        if (answer.unread) {
+          // Not about the address, so not under its field: a line with the clay mark
+          // where the form's answer goes, and the press is still there to try again with.
+          button.disabled = false;
+          said.classList.add("bad", "fault-marked");
+          said.textContent = t("signin.server-fault", "We couldn't send a link just now. Try again.");
+          return;
+        }
         if (answer.ok) {
           // Thanked, and told where the link went. The server says the same thing for
           // every address, so naming the one just typed confirms nothing about it.

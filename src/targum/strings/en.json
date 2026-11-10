@@ -1233,6 +1233,7 @@
   "weekly.level.gimel.explained": "Not simplified: official statements quoted as they were said, idioms, and the sentences a real paper uses. The week's biggest story runs at length.",
   "signin.unreachable": "We can't reach targum.",
   "signin.still-sending": "We're still sending your link.",
+  "signin.server-fault": "We couldn't send a link just now. Try again.",
   "signin.sent.open": "Open it to sign in. It works once, for 20 minutes.",
   "signin.sent.another": "Use another address",
   "parasha.full-screen": "Full screen",
