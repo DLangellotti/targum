@@ -52,7 +52,8 @@
 
   function offline(message) {
     if (navigator.onLine === false) return true;
-    return /failed to fetch|networkerror|load failed|network request failed/i.test(message);
+    // Nor is the ResizeObserver loop notice (#669).
+    return /failed to fetch|networkerror|load failed|network request failed|resizeobserver loop/i.test(message);
   }
 
   function report(message, place) {
@@ -95,8 +96,11 @@
   window.addEventListener("unhandledrejection", function (event) {
     var reason = event && event.reason;
     if (reason === undefined || reason === null) return;
-    var message = reason && reason.message ? reason.name + ": " + reason.message : String(reason);
-    report(message, frames(reason && reason.stack));
+    var place = frames(reason.stack);
+    // An extension's own promise, with no frame of ours in it (#669).
+    if (!place && /-extension:/.test(reason.stack)) return;
+    var message = reason.message ? reason.name + ": " + reason.message : String(reason);
+    report(message, place);
   });
 
   // A part of the address that names one thing rather than a kind of thing: a number, a

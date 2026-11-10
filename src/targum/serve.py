@@ -6111,6 +6111,25 @@ NEXT_LONGEST = 1024
 QUERY_AFTER = re.compile(r"(/[^\s?#)'\"]*)[?#][^\s)'\":]*")
 
 
+#: What a browser reports that is not a fault of ours (targum-internal#669): the
+#: ResizeObserver notice, which a layout that settles over two frames raises and which
+#: breaks nothing, a wallet extension's complaints, and anything whose message, place or
+#: stack names an extension's own script. `report.js` drops the same before it sends;
+#: this is for a page still running an older copy, and for one that is not ours.
+FAULT_NOISE = re.compile(
+    r"ResizeObserver loop (?:completed with undelivered notifications|limit exceeded)"
+    r"|Failed to connect to MetaMask"
+    r"|The provider is disconnected from all chains"
+    r"|(?:chrome|moz|safari(?:-web)?)-extension://",
+    re.IGNORECASE,
+)
+
+
+def fault_is_noise(*said: object) -> bool:
+    """Whether any of a fault report's message, place or stack is `FAULT_NOISE`."""
+    return any(FAULT_NOISE.search(str(part or "")) for part in said)
+
+
 def _without_queries(said: object) -> str:
     """A fault's message or place, on one line, with every address's query taken off."""
     return QUERY_AFTER.sub(r"\1", " ".join(str(said or "").split()))[:300]
@@ -13259,6 +13278,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "bad request"}, 400)
         if not isinstance(payload, dict):
             return self._json({"error": "bad request"}, 400)
+        if fault_is_noise(payload.get("message"), payload.get("place"), payload.get("stack")):
+            # Not ours to count, and not worth an hour's allowance: answered, not kept.
+            return self._json({"kept": False})
         person = self._person()
         who = f"fault:{person.id}" if person is not None else "fault:" + digest(self._visitor())
         if store.asking_too_often(who, limit=FAULTS_PER_HOUR) or store.asking_too_often(

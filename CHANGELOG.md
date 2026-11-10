@@ -30,6 +30,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   copy of the account against 321 texts after a sync: `/readers?catalogue=0` 0.98 → 0.36
   s, `/account/story` 1.37 → 0.37 s in Hebrew and 0.66 → 0.18 s in Russian. No spend, no
   new strings.
+- The front page's film draws in Safari before 16 and Chrome before 99, where
+  `ctx.roundRect` is missing and threw on every frame (targum-internal#668): the spoon's
+  handle is drawn from `arcTo` there, and by `roundRect` unchanged where it exists. And
+  the browser-fault reports no longer count what is not ours (targum-internal#669): the
+  ResizeObserver loop notice and any fault from a `chrome-extension://`,
+  `moz-extension://` or `safari-web-extension://` script with no frame of ours in it are
+  dropped by `report.js` before sending, and those plus MetaMask's and other wallets'
+  disconnect errors by `/errors` before storing. The reader's byte budget is unchanged.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

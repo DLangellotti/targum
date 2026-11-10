@@ -238,6 +238,33 @@ def test_fault_reports_are_held_to_a_rate(
     assert store_of(tmp_path).db.execute("SELECT COUNT(*) FROM fault").fetchone()[0] == 3
 
 
+@pytest.mark.parametrize(
+    "report",
+    [
+        {"message": "ResizeObserver loop limit exceeded"},
+        {"message": "ResizeObserver loop completed with undelivered notifications."},
+        {"message": "Error: Failed to connect to MetaMask"},
+        {"message": "Error: The provider is disconnected from all chains."},
+        {"message": "TypeError: x is null", "place": "chrome-extension://abc/inpage.js:1:2"},
+        {"message": "TypeError: x is null", "stack": "at y (moz-extension://1234/c.js:3:4)"},
+    ],
+)
+def test_noise_is_answered_and_not_kept(
+    served: tuple[int, str, Path], tmp_path: Path, report: dict[str, str]
+) -> None:
+    """The ResizeObserver notice and a wallet extension's complaints are no fault of ours
+    (targum-internal#669): dropped at the door, from a page with an older `report.js`."""
+    port, _, _ = served
+    status, answer, _ = call(port, "POST", "/errors", {**report, "page": "/"})
+    assert status == 200 and answer == {"kept": False}
+    assert store_of(tmp_path).db.execute("SELECT COUNT(*) FROM fault").fetchone()[0] == 0
+
+
+def test_noise_is_told_from_a_fault_by_what_it_says() -> None:
+    assert not serve.fault_is_noise("TypeError: ctx.roundRect is not a function", "/:1390")
+    assert serve.fault_is_noise("Error", "", "at x (safari-web-extension://a/b.js:1:1)")
+
+
 def test_a_fault_report_that_is_not_one_is_refused(served: tuple[int, str, Path]) -> None:
     port, _, _ = served
     assert call(port, "POST", "/errors", {"message": "  "})[0] == 400
