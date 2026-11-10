@@ -6,6 +6,7 @@ things that only break once there is a domain in front of it.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 import threading
@@ -1069,14 +1070,18 @@ def test_an_address_taken_off_the_list_stays_off_at_the_open_door(
     assert _press(port, links[-1])[0] == 403
     store.invite("pest@gmail.com")
     assert _ask(port, "pest@gmail.com")[0] == 200
+    # The invitation lifts the bar on the inbox, not only on the spelling it names.
+    assert _ask(port, "p.est@gmail.com", "198.51.100.10")[0] == 200
+    assert sent[-1] == "pest@gmail.com"
 
 
-def test_another_spelling_of_an_inbox_is_the_account_already_there(
+def test_another_spelling_of_a_gmail_inbox_is_the_account_already_there(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """qa-claude on targum#1160, P2: `ab@`, `a.b@` and `ab+1@gmail.com` were three
-    accounts and three free months. At the open door the other spellings are mailed the
-    link of the account already proved at that inbox."""
+    accounts and three free months. At the mailed link's open door the other Gmail
+    spellings are mailed the link of the account already proved at that inbox — to its
+    own address, so the asker is handed nothing."""
     sent: list[str] = []
     links: list[str] = []
     port, store = _hosted_box(tmp_path, free_port, sent, links)
@@ -1090,10 +1095,72 @@ def test_another_spelling_of_an_inbox_is_the_account_already_there(
         assert sent[-1] == "ab@gmail.com"
         assert store.person_by_email(spelling) is None
     assert _press(port, links[-1])[0] == 303
-    # Only a proved account is folded onto: at another host `x+1@` is its own address.
-    assert _ask(port, "x+1@example.com")[0] == 200
-    assert _ask(port, "x@example.com", "198.51.100.4")[0] == 200
-    assert sent[-1] == "x@example.com"
+
+
+def _session_of(store: Store, headers: dict[str, str]) -> str:
+    """Whose account a response's session cookie opened."""
+    session = headers.get("set-cookie", "").split("targum_session=", 1)[1].split(";", 1)[0]
+    person = store.whoever(session)
+    assert person is not None
+    return person.email
+
+
+def test_a_plus_spelling_elsewhere_never_opens_the_account_at_its_bare_address(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude, round 2 on targum#1160, P1, the mailed link's half: outside Gmail
+    `john+other@` may be somebody else's mailbox, so it is never folded onto `john@`. Its
+    link goes to its own address and opens its own account."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
+    assert _ask(port, "john@corp.com")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    assert _ask(port, "john+other@corp.com", "198.51.100.5")[0] == 200
+    assert sent[-1] == "john+other@corp.com"
+    status, headers = _press(port, links[-1])
+    assert status == 303 and _session_of(store, headers) == "john+other@corp.com"
+
+
+def test_google_opens_exactly_the_address_it_proved(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude, round 2 on targum#1160, P1: Google's door folded `john+other@corp.com`
+    onto `john@corp.com` and handed the asker john's session — an operator-invited beta
+    address too. Google is the one door where the asker gets the session, so it opens
+    exactly the address Google proved, or a new account for it, and never another's."""
+    from targum import google
+
+    monkeypatch.setenv(google.CLIENT_ID_ENV, "targum.apps.googleusercontent.com")
+    monkeypatch.setenv(google.CLIENT_SECRET_ENV, "a-secret")
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
+    assert _ask(port, "john@corp.com")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    store.invite("beta@corp.com")
+    assert _ask(port, "beta@corp.com")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    store.invite("ab@gmail.com")
+
+    def through_google(address: str) -> dict[str, str]:
+        _, headers, _ = _exchange(port, "GET", "/account/google")
+        state = parse_qs(urlparse(headers["location"]).query)["state"][0]
+        payload = base64.urlsafe_b64encode(
+            json.dumps({"email": address, "email_verified": True}).encode()
+        ).decode()
+        monkeypatch.setattr(
+            google, "exchange", lambda *_: {"id_token": f"h.{payload.rstrip('=')}.s"}
+        )
+        status, headers, _ = _exchange(port, "GET", f"/account/google/back?state={state}&code=x")
+        assert status in (302, 303), status
+        return headers
+
+    for proved in ("john+other@corp.com", "beta+x@corp.com", "a.b@gmail.com"):
+        assert _session_of(store, through_google(proved)) == proved
+    assert _session_of(store, through_google("john@corp.com")) == "john@corp.com"
 
 
 def test_a_domain_is_read_as_registered() -> None:
@@ -1103,8 +1170,39 @@ def test_a_domain_is_read_as_registered() -> None:
     assert registrable("evil.org") == "evil.org"
     assert registrable("mail.walla.co.il") == "walla.co.il"
     assert registrable("a.b.example.org.uk") == "example.org.uk"
+    # Shared suffixes keep their owners apart (qa-claude, round 2).
+    assert registrable("mail.a.eu.org") == "a.eu.org"
+    assert registrable("trust1.nhs.uk") != registrable("trust2.nhs.uk")
+    assert registrable("x.qc.ca") == "x.qc.ca"
     assert mail_domain("x@Mail.Example.COM.") == "mail.example.com"
     assert mail_domain("x@example\u3002com") == "example.com"
+
+
+def test_free_mail_the_readers_use_is_never_counted_by_domain() -> None:
+    """qa-claude, round 2: a free provider missing from the list is a domain a script
+    can shut. The Russian readers' providers among them."""
+    from targum.backoffice import WEBMAIL
+
+    for provider in (
+        "rambler.ru",
+        "yandex.by",
+        "yandex.ua",
+        "ukr.net",
+        "outlook.fr",
+        "hotmail.it",
+        "hotmail.co.il",
+        "live.co.uk",
+        "yahoo.it",
+        "yahoo.co.jp",
+        "mail.com",
+        "tuta.io",
+        "tutanota.com",
+        "duck.com",
+        "qq.com",
+        "naver.com",
+        "seznam.cz",
+    ):
+        assert provider in WEBMAIL, provider
 
 
 # -- a door back to the page (QA 2026-10-11, decision D2) ------------------------------

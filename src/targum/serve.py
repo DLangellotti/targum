@@ -13826,12 +13826,6 @@ class Handler(BaseHTTPRequestHandler):
         # tell an asker whether an address is on the list, and for an alpha of a handful
         # of people the confusion of a link that never arrives costs more than the
         # enumeration is worth. Revisit when the list is long enough to be worth probing.
-        if self.require_account and signup_is_open() and not self.store.may_join(email):
-            # One inbox, one account (qa-claude on targum#1160): `name+2@` or Gmail's
-            # `n.ame@` is mailed the link of the account already at that inbox.
-            folded = self.store.same_inbox(email)
-            if folded != tidy(email):
-                email = folded
         if self.store.is_leaving(email):
             # Asked before the invitation: a closing account was invited once, and would
             # be mailed a link that then refuses it (copy audit, 2026-09-28).
@@ -13840,6 +13834,16 @@ class Handler(BaseHTTPRequestHandler):
             held = self._door_holds(email)
             if held is not None:
                 return self._json({"error": held[0]}, held[1])
+            # One inbox, one account (qa-claude on targum#1160): at Gmail, `n.ame@` or
+            # `name+2@` is mailed the link of the account already proved at that inbox.
+            # Mailed to that account's own address, never to the spelling that asked, so
+            # it hands nobody a session. After the visitor's count, so asking again and
+            # again costs a slot each time rather than a scan for free.
+            folded = self.store.same_inbox(email)
+            if folded != tidy(email):
+                email = folded
+                if self.store.is_leaving(email):
+                    return self._json({"error": self._closing()}, 403)
         elif self.require_account and not self.store.may_join(email):
             refused: dict[str, str] = {"error": self._not_open()}
             if front_door_is_open():
@@ -13987,8 +13991,10 @@ class Handler(BaseHTTPRequestHandler):
 
         # The same gate the mailed link goes through. Without it, standing OAuth up on a
         # funded box lets anybody with a Google account open one and start spending.
-        if self.require_account and signup_is_open() and not self.store.may_join(email):
-            email = self.store.same_inbox(email)
+        # Never folded onto another spelling's account (qa-claude, round 2 on
+        # targum#1160): this is the one door where the asker gets the session, so it
+        # opens exactly the address Google proved. Folding `john+other@` onto `john@`
+        # is a takeover wherever `+` is a separate mailbox.
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
             return self._send(200, page.encode("utf-8"), HTML)

@@ -3777,21 +3777,36 @@ class Store:
         return found is not None
 
     def same_inbox(self, email: str) -> str:
-        """The address of an account already at this address's inbox, or the address as
-        given (targum-internal#485, qa-claude on targum#1160). `name+2@` and, at Gmail,
-        `n.ame@` reach the same inbox as `name@`, and at the open door each spelling
-        would otherwise be one more account and one more free month. Asked only there:
-        an invited address is the operator's word for exactly that spelling.
+        """The address of an account already proved at this Gmail inbox, or the address
+        as given (targum-internal#485, qa-claude on targum#1160). At Gmail, `n.ame@`,
+        `name+2@` and `@googlemail.com` all reach `name@gmail.com`, which Google itself
+        documents, and at the open door each spelling would otherwise be one more
+        account and one more free month. Gmail only: elsewhere `john+other@` may be
+        somebody else's mailbox (round 2), so it is its own address. Asked only at the
+        mailed link's open door, whose link goes to the account's own address; never by
+        Google's door, where the asker gets the session.
 
         Only an account that has proved its inbox — on the guest list, as the open door
         puts it once its link is pressed — is folded onto. A row somebody typed and never
-        opened is not, or typing `you+x@` first would send your own links to a spelling
-        your mail host might not deliver."""
+        opened is not."""
         from .backoffice import GMAIL, bare
 
         address = tidy(email)
-        if self.may_join(address):
+        if address.rpartition("@")[2] not in GMAIL or self.may_join(address):
             return address
+        inbox = bare(address)
+        for each in sorted(GMAIL):
+            suffix = "@" + each
+            rows = self.db.execute(
+                "SELECT invited.email AS email FROM invited "
+                "JOIN person ON person.email = invited.email "
+                "WHERE substr(invited.email, -?) = ? ORDER BY person.id",
+                (len(suffix), suffix),
+            ).fetchall()
+            for row in rows:
+                if bare(str(row["email"])) == inbox:
+                    return str(row["email"])
+        return address
         inbox = bare(address)
         domain = address.rpartition("@")[2]
         domains = sorted(GMAIL) if domain in GMAIL else [domain]

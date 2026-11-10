@@ -1459,8 +1459,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   to the log and `TARGUM_ALERT_TO`, once an hour, and refuses nobody. The switch needs
   `TARGUM_PLANS=1`, or it stays shut and the start-up log says why. `uninvite` now bars
   the inbox at the open door until an invitation lifts it (a `barred` table, schema 62),
-  another spelling of a proved inbox (`+tag`, Gmail's dots) is mailed that account's
-  link, and the throwaway check reads full-width spellings (NFKC).
+  another Gmail spelling of a proved inbox (dots, `+tag`, googlemail) is mailed that
+  account's link at its own address, and the throwaway check reads full-width spellings
+  (NFKC). Google's door never folds: it opens exactly the address Google proved, since
+  `john+other@` may be another person's mailbox. `WEBMAIL` covers the free providers
+  readers use (Russian ones included), and `registrable` keeps shared suffixes such as
+  `eu.org`, `nhs.uk` and the Canadian provinces apart.
 - `scripts/merge_topics.py` merges the Hebrew topic runs into one `topics/1` lexicon
   (targum-internal#606): the full run's agreed rows, ling-he's decisions on its top 5,000,
   the card's rule below them (the shared topic, otherwise `general`), and an incremental

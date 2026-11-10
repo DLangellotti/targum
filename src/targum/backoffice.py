@@ -748,57 +748,139 @@ def flag_key(email: str) -> str:
     return fold(email.strip())
 
 
-#: The big consumer mail providers (targum-internal#485). Anybody can make an address at
+#: The free consumer mail providers (targum-internal#485). Anybody can make an address at
 #: one in a minute, so the open door's per-domain count would only let a script shut them
 #: out for everybody else; at these the visitor's own count and the throwaway list hold
-#: instead. By `registrable` domain.
+#: instead. By `registrable` domain. A list kept here by hand, never fetched: a provider
+#: missing from it is counted like any company's domain, so add one when a reader's
+#: address turns up refused (qa-claude, round 2 on targum#1160).
 WEBMAIL = frozenset(
     {
         *GMAIL,
+        # Microsoft
         "outlook.com",
+        "outlook.fr",
+        "outlook.de",
+        "outlook.it",
+        "outlook.es",
+        "outlook.co.il",
         "hotmail.com",
         "hotmail.co.uk",
         "hotmail.fr",
+        "hotmail.de",
+        "hotmail.it",
+        "hotmail.es",
+        "hotmail.co.il",
         "live.com",
+        "live.co.uk",
+        "live.fr",
+        "live.de",
+        "live.it",
+        "live.ru",
         "msn.com",
+        # Yahoo, AOL
         "yahoo.com",
         "yahoo.co.uk",
         "yahoo.fr",
+        "yahoo.de",
+        "yahoo.it",
+        "yahoo.es",
+        "yahoo.co.jp",
         "ymail.com",
+        "rocketmail.com",
+        "aol.com",
+        # Apple
         "icloud.com",
         "me.com",
         "mac.com",
-        "aol.com",
+        # Private mail
         "proton.me",
         "protonmail.com",
         "pm.me",
-        "gmx.com",
-        "gmx.de",
-        "gmx.net",
-        "web.de",
+        "tuta.io",
+        "tutanota.com",
+        "tutanota.de",
+        "duck.com",
+        "fastmail.com",
+        "zoho.com",
+        "mail.com",
+        # Russian and the neighbours'
         "mail.ru",
         "bk.ru",
         "list.ru",
         "inbox.ru",
+        "internet.ru",
         "yandex.ru",
         "yandex.com",
+        "yandex.by",
+        "yandex.ua",
+        "yandex.kz",
         "ya.ru",
+        "rambler.ru",
+        "ukr.net",
+        # Israel
         "walla.co.il",
         "walla.com",
-        "zoho.com",
-        "fastmail.com",
+        # Europe
+        "gmx.com",
+        "gmx.de",
+        "gmx.net",
+        "gmx.fr",
+        "web.de",
+        "t-online.de",
         "orange.fr",
+        "wanadoo.fr",
         "free.fr",
+        "laposte.net",
+        "sfr.fr",
         "libero.it",
+        "virgilio.it",
+        "seznam.cz",
+        # Asia
+        "qq.com",
+        "163.com",
+        "126.com",
+        "naver.com",
     }
 )
 
 #: The second-level labels a country's registry sells under (`co.il`, `org.uk`, `ac.il`),
-#: so that `registrable` keeps three labels there rather than two. A short list rather
-#: than the public suffix list: nothing is fetched at runtime, and a miss only makes a
-#: domain's count a little wider or narrower.
+#: so that `registrable` keeps three labels there rather than two.
 SECOND_LEVEL = frozenset(
     {"ac", "co", "com", "edu", "gov", "net", "org", "ne", "or", "go", "muni", "k12", "ltd"}
+)
+
+#: Suffixes under which unrelated owners each have their own name, beyond the country
+#: rule above (qa-claude, round 2 on targum#1160): `eu.org` gives subdomains away with
+#: mail, `nhs.uk` is every hospital trust, and a Canadian province's `qc.ca` is a whole
+#: province's towns. Merged, one owner could spend everybody's count. A short list
+#: rather than the public suffix list, so nothing is fetched at runtime; a miss only
+#: makes a domain's count a little wider.
+SHARED_SUFFIXES = frozenset(
+    {
+        "eu.org",
+        "us.org",
+        "nhs.uk",
+        "police.uk",
+        "sch.uk",
+        "ab.ca",
+        "bc.ca",
+        "mb.ca",
+        "nb.ca",
+        "nl.ca",
+        "ns.ca",
+        "nt.ca",
+        "nu.ca",
+        "on.ca",
+        "pe.ca",
+        "qc.ca",
+        "sk.ca",
+        "yt.ca",
+        "github.io",
+        "gitlab.io",
+        "duckdns.org",
+        "no-ip.org",
+    }
 )
 
 
@@ -818,7 +900,8 @@ def registrable(domain: str) -> str:
     labels = [label for label in domain.casefold().split(".") if label]
     if len(labels) <= 2:
         return ".".join(labels)
-    keep = 3 if len(labels[-1]) == 2 and labels[-2] in SECOND_LEVEL else 2
+    shared = ".".join(labels[-2:]) in SHARED_SUFFIXES
+    keep = 3 if shared or (len(labels[-1]) == 2 and labels[-2] in SECOND_LEVEL) else 2
     return ".".join(labels[-keep:])
 
 
