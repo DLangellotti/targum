@@ -803,6 +803,128 @@ def test_a_closing_account_is_told_so_at_every_door(
     assert not store.is_leaving("reader@example.com")
 
 
+# -- the open door (targum-internal#485) -----------------------------------------------
+
+
+def _press(port: int, link: str) -> tuple[int, dict[str, str]]:
+    """Open a mailed link and press its button, as a reader does."""
+    token = parse_qs(urlparse(link).query)["t"][0]
+    form = urlencode({"t": token}).encode()
+    status, headers, _ = _exchange(
+        port, "POST", "/account/enter", form, "application/x-www-form-urlencoded"
+    )
+    return status, headers
+
+
+def test_the_door_is_shut_unless_the_deployment_opens_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """David, 2026-11-03: the beta stays invitation-only. Open is one line in targum.env."""
+    monkeypatch.delenv("TARGUM_OPEN_SIGNUP", raising=False)
+    assert not serve.signup_is_open()
+    for on in ("1", "true", "yes"):
+        monkeypatch.setenv("TARGUM_OPEN_SIGNUP", on)
+        assert serve.signup_is_open()
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "0")
+    assert not serve.signup_is_open()
+
+
+def test_with_the_door_open_a_stranger_signs_up_and_stays_in_once_it_shuts(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The done-when's first half: a stranger, never invited, gets a link and an account.
+    Put on the guest list only once the link is pressed — an address typed and never
+    opened is not let in — so shutting the door again locks out nobody who is reading."""
+    from targum import plans
+
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+
+    status, body = post(port, "/account/sign-in", {"email": "Stranger@Example.com"})
+    assert status == 200 and body["sent"] is True
+    assert sent == ["Stranger@Example.com"]
+    assert not store.may_join("stranger@example.com"), "typed is not yet proved"
+
+    status, headers = _press(port, links[0])
+    assert status == 303 and "targum_session=" in headers.get("set-cookie", "")
+    assert store.may_join("stranger@example.com")
+
+    # The free plan holds a door-opened account like any other: it is nobody's operator.
+    person = store.person_by_email("stranger@example.com")
+    assert person is not None and not person.admin
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    assert plans.free(person)
+
+    monkeypatch.delenv("TARGUM_OPEN_SIGNUP")
+    assert post(port, "/account/sign-in", {"email": "stranger@example.com"})[0] == 200
+    assert post(port, "/account/sign-in", {"email": "other@example.com"})[0] == 403
+
+
+@pytest.mark.parametrize("address", ["someone@mailinator.com", "x@inbox.mailinator.com"])
+def test_the_open_door_refuses_a_throwaway_address(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch, address: str
+) -> None:
+    from targum.strings import catalogue
+
+    sent: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    status, body = post(port, "/account/sign-in", {"email": address})
+    assert status == 403
+    assert body["error"] == (
+        "We don't open accounts at throwaway addresses. Use an address you keep."
+    )
+    status, body = post(port, "/account/sign-in", {"email": address, "into": "ru"})
+    assert body["error"] == catalogue("ru")["serve.signup.throwaway"]
+    assert sent == [] and store.person_by_email(address) is None
+
+    # The operator's own invitation is the operator's call, throwaway or not.
+    store.invite(address)
+    assert post(port, "/account/sign-in", {"email": address})[0] == 200
+
+
+def test_a_burst_of_signups_from_one_visitor_is_refused(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The done-when's scripted burst. Only a new account is counted: somebody asking
+    again because the first link did not arrive is not, and an invited address never is."""
+    sent: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    burst = [f"reader{n}@example.com" for n in range(serve.SIGNUPS_PER_HOUR + 3)]
+    answers = [post(port, "/account/sign-in", {"email": each}) for each in burst]
+    took = serve.SIGNUPS_PER_HOUR
+    assert [status for status, _ in answers] == [200] * took + [429] * 3
+    assert answers[-1][1]["error"] == (
+        "We can't open more new accounts this hour. Try again in an hour."
+    )
+    assert sent == burst[:took]
+    assert all(store.person_by_email(each) is None for each in burst[took:])
+
+    assert post(port, "/account/sign-in", {"email": burst[0]})[0] == 200
+    store.invite("friend@example.com")
+    assert post(port, "/account/sign-in", {"email": "friend@example.com"})[0] == 200
+
+
+def test_a_burst_at_one_mail_domain_is_refused_and_others_are_not(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Counted in order — the visitor, the domain, everybody — and a refusal at one
+    counts at none after it."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR", 100)
+    monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR_AT_A_DOMAIN", 2)
+    asked = [post(port, "/account/sign-in", {"email": f"a{n}@one.org"})[0] for n in range(3)]
+    assert asked == [200, 200, 429]
+    assert post(port, "/account/sign-in", {"email": "a@two.org"})[0] == 200
+    monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR_FOR_EVERYBODY", 3)
+    assert post(port, "/account/sign-in", {"email": "b@two.org"})[0] == 429
+
+
 # -- a door back to the page (QA 2026-10-11, decision D2) ------------------------------
 
 

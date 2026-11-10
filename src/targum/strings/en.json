@@ -1279,6 +1279,8 @@
   "serve.that-s-too-long-for-one": "That's too long for one line. Try a shorter one.",
   "serve.we-didn-t-catch-that-try": "We didn't catch that. Try again a little closer.",
   "serve.say-something-first": "Say something first.",
+  "serve.signup.throwaway": "We don't open accounts at throwaway addresses. Use an address you keep.",
+  "serve.signup.too-many": "We can't open more new accounts this hour. Try again in an hour.",
   "serve.that-s-too-long-for-one-2": "That's too long for one message. Send a shorter one.",
   "serve.we-can-t-give-this-text": "We can't give this text a voice yet.",
   "serve.we-can-t-read-this-language": "We can't read this language aloud yet.",

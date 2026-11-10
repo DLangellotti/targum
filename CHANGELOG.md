@@ -1441,6 +1441,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- Open signup behind a switch, off by default (targum-internal#485). With
+  `TARGUM_OPEN_SIGNUP=1` a stranger who was never let in may open an account by the
+  mailed link or Google, and the safety moves from the guest list to limits: a throwaway
+  domain (the vendored list the back office flags with) is refused, and new accounts are
+  counted per visitor (3 an hour, under a digest of their address), per mail domain (20)
+  and for everybody (60), on the `asked` table the sign-in links use. An address that
+  already has an account is not counted. Once the link is pressed, the address goes on the
+  guest list, so shutting the door again locks nobody out. Spend is unchanged: every build
+  still goes through `Library.claim` and its box ceiling. The beta stays invitation-only
+  (David, 2026-11-03), and the switch stays off. New strings `serve.signup.throwaway` and
+  `serve.signup.too-many` (en; ru drafted for David's read). No spend.
 - `scripts/merge_topics.py` merges the Hebrew topic runs into one `topics/1` lexicon
   (targum-internal#606): the full run's agreed rows, ling-he's decisions on its top 5,000,
   the card's rule below them (the shared topic, otherwise `general`), and an incremental

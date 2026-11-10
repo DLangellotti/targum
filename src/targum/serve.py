@@ -1033,6 +1033,14 @@ SUBSCRIBE_ASKS_PER_HOUR = 3
 TRIES_PER_HOUR = 5
 TRIES_PER_HOUR_FOR_EVERYBODY = 120
 
+#: How many new accounts the open door starts in an hour (targum-internal#485): from one
+#: visitor, at one mail domain, and for everybody together. Only while `signup_is_open`,
+#: and only for an address with no account yet. On the `asked` table the sign-in links
+#: use, the visitor under a digest of their address, never the address itself.
+SIGNUPS_PER_HOUR = 3
+SIGNUPS_PER_HOUR_AT_A_DOMAIN = 20
+SIGNUPS_PER_HOUR_FOR_EVERYBODY = 60
+
 #: How many fault reports one browser may send in an hour, by its account or, signed
 #: out, by a digest of its address (privacy notice clause 3.14), and how many everybody
 #: together may. A page sends at most five itself (`report.js`); this is for a page that
@@ -1110,6 +1118,20 @@ def shows_occurrences() -> bool:
     what it was: its root is a plain word and it has no line of counts.
     """
     return os.environ.get("TARGUM_OCCURRENCES", "").strip().lower() in {"1", "true", "yes"}
+
+
+def signup_is_open() -> bool:
+    """Whether a stranger may open an account without being let in (targum-internal#485).
+
+    Off unless the deployment says so: David decided on 2026-11-03 that the beta stays
+    invitation-only (design.md §12). With it on, the guest list stops being the only way
+    in and the safety moves to limits — a throwaway domain is refused, new accounts are
+    counted per visitor, per mail domain and for everybody (`SIGNUPS_PER_HOUR`), and
+    every spend still goes through `Library.claim` and its box ceiling. An address the
+    door let in is put on the guest list once it has proved itself, so shutting the door
+    again locks nobody out of their own words.
+    """
+    return os.environ.get("TARGUM_OPEN_SIGNUP", "").strip().lower() in {"1", "true", "yes"}
 
 
 def front_door_is_open() -> bool:
@@ -13655,6 +13677,49 @@ class Handler(BaseHTTPRequestHandler):
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else ""
 
+    def _door_holds(self, email: str) -> tuple[str, int] | None:
+        """Why the open door will not start an account for this address, with its status,
+        or None where it will (targum-internal#485). Asked only while `signup_is_open`, of
+        an address not on the guest list.
+
+        A throwaway domain is refused outright: the free month is per account, and an
+        address nobody keeps is how one person becomes a hundred. An address that already
+        has an account is let through uncounted — it is somebody asking again because the
+        first link did not arrive, and `asking_too_often` guards their inbox. Only a new
+        account is counted, against the visitor, the mail domain and everybody, in that
+        order, so a burst from one place stops at its own limit first.
+        """
+        from .backoffice import throwaway
+
+        if throwaway(email):
+            said = self._say(
+                "serve.signup.throwaway",
+                "We don't open accounts at throwaway addresses. Use an address you keep.",
+            )
+            return said, 403
+        if self.store.person_by_email(email) is not None:
+            return None
+        domain = email.strip().lower().rpartition("@")[2]
+        store = self.store
+        if (
+            store.asking_too_often("signup:" + digest(self._visitor()), limit=SIGNUPS_PER_HOUR)
+            or store.asking_too_often("signup-at:" + domain, limit=SIGNUPS_PER_HOUR_AT_A_DOMAIN)
+            or store.asking_too_often("signup:everybody", limit=SIGNUPS_PER_HOUR_FOR_EVERYBODY)
+        ):
+            said = self._say(
+                "serve.signup.too-many",
+                "We can't open more new accounts this hour. Try again in an hour.",
+            )
+            return said, 429
+        return None
+
+    def _door_keeps(self, email: str) -> None:
+        """Put an address the open door let in on the guest list, now that it has proved
+        itself — the link was opened, or Google vouched for it — so that shutting the door
+        later locks nobody out (targum-internal#485). Nothing while the door is shut."""
+        if self.require_account and signup_is_open() and not self.store.may_join(email):
+            self.store.invite(email)
+
     def _sign_in(self, payload: dict[str, Any]) -> None:
         """What the form says back is said in the language of the page it was sent from,
         which signin.js posts as `into`: a page opened as /account/signin?lang=ru drew its
@@ -13695,7 +13760,11 @@ class Handler(BaseHTTPRequestHandler):
             # Asked before the invitation: a closing account was invited once, and would
             # be mailed a link that then refuses it (copy audit, 2026-09-28).
             return self._json({"error": self._closing()}, 403)
-        if self.require_account and not self.store.may_join(email):
+        if self.require_account and not self.store.may_join(email) and signup_is_open():
+            held = self._door_holds(email)
+            if held is not None:
+                return self._json({"error": held[0]}, held[1])
+        elif self.require_account and not self.store.may_join(email):
             refused: dict[str, str] = {"error": self._not_open()}
             if front_door_is_open():
                 # The refusal's "Join the waitlist" is a link (beta review PUB-05,
@@ -13845,11 +13914,16 @@ class Handler(BaseHTTPRequestHandler):
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
             return self._send(200, page.encode("utf-8"), HTML)
-        if self.require_account and not self.store.may_join(email):
+        if self.require_account and not self.store.may_join(email) and signup_is_open():
+            held = self._door_holds(email)
+            if held is not None:
+                return refuse(held[0])
+        elif self.require_account and not self.store.may_join(email):
             return refuse(self._not_open())
         got = self.store.sign_in_verified(email)
         if got is None:
             return refuse(self._not_open())
+        self._door_keeps(email)
         _, session = got
         from .accounts import SESSION_DAYS
 
@@ -13870,6 +13944,7 @@ class Handler(BaseHTTPRequestHandler):
                 expired=True, language=self._public_language(), asked=self._asked(), back=back
             )
             return self._send(200, page.encode("utf-8"), HTML)
+        self._door_keeps(got[0].email)
         _, session = got
         from .accounts import SESSION_DAYS
 
