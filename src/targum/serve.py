@@ -59,6 +59,7 @@ from .accounts import (
     now,
     plausible,
     playlist_most,
+    tidy,
 )
 from .alerts import out_of_credit
 from .audio.manifest import POSTER
@@ -1033,10 +1034,25 @@ SUBSCRIBE_ASKS_PER_HOUR = 3
 TRIES_PER_HOUR = 5
 TRIES_PER_HOUR_FOR_EVERYBODY = 120
 
-#: How many new accounts the open door starts in an hour (targum-internal#485): from one
-#: visitor, at one mail domain, and for everybody together. Only while `signup_is_open`,
-#: and only for an address with no account yet. On the `asked` table the sign-in links
-#: use, the visitor under a digest of their address, never the address itself.
+#: How many new accounts the open door starts in an hour (targum-internal#485), only
+#: while `signup_is_open` and only for an address with no account yet, on the `asked`
+#: table the sign-in links use. Shaped so that nobody can spend what real readers need
+#: (qa-claude on targum#1160):
+#:
+#: - **From one visitor**, counted when the link is asked for, under a digest of their
+#:   address as the try box keeps it. It is the attacker's own budget, so it is the one
+#:   counted early: it stops the mail going out at all.
+#: - **At one mail domain**, counted when the link is *pressed* (or Google vouches), by
+#:   `backoffice.registrable` domain so made-up subdomains are one domain. Counting at
+#:   the press means only somebody who can read mail at a domain can spend its count, so
+#:   a script can shut out at most a domain it owns. The big consumer providers
+#:   (`backoffice.WEBMAIL`) are not counted at all, because anybody can make addresses
+#:   there and a shared count would be a door a script can shut on every Gmail reader.
+#: - **For everybody**, also at the press, and an alarm rather than a refusal: past it
+#:   the operator is told (the log, and `TARGUM_ALERT_TO` once an hour) and the door
+#:   stays open. A hard cap here is a lockout anybody with three domains can trigger,
+#:   and spend is already held by Free (open signup needs `TARGUM_PLANS`), by
+#:   `Library.claim` and by the box ceiling.
 SIGNUPS_PER_HOUR = 3
 SIGNUPS_PER_HOUR_AT_A_DOMAIN = 20
 SIGNUPS_PER_HOUR_FOR_EVERYBODY = 60
@@ -1120,18 +1136,28 @@ def shows_occurrences() -> bool:
     return os.environ.get("TARGUM_OCCURRENCES", "").strip().lower() in {"1", "true", "yes"}
 
 
+def signup_is_asked() -> bool:
+    """Whether the deployment asks for the open door (`TARGUM_OPEN_SIGNUP`), whether or
+    not it gets it: see `signup_is_open`."""
+    return os.environ.get("TARGUM_OPEN_SIGNUP", "").strip().lower() in {"1", "true", "yes"}
+
+
 def signup_is_open() -> bool:
     """Whether a stranger may open an account without being let in (targum-internal#485).
 
     Off unless the deployment says so: David decided on 2026-11-03 that the beta stays
     invitation-only (design.md §12). With it on, the guest list stops being the only way
     in and the safety moves to limits — a throwaway domain is refused, new accounts are
-    counted per visitor, per mail domain and for everybody (`SIGNUPS_PER_HOUR`), and
-    every spend still goes through `Library.claim` and its box ceiling. An address the
-    door let in is put on the guest list once it has proved itself, so shutting the door
-    again locks nobody out of their own words.
+    counted (`SIGNUPS_PER_HOUR`), and every spend still goes through `Library.claim` and
+    its box ceiling. An address the door let in is put on the guest list once it has
+    proved itself, so shutting the door again locks nobody out of their own words.
+
+    **And only with plans on** (qa-claude on targum#1160). With `TARGUM_PLANS` off every
+    account gets the whole monthly allowance, so one person with a catch-all domain
+    could use up the box ceiling every day and stop spending for every reader. The
+    switch asked for without plans is the switch off, and `run` says so at start-up.
     """
-    return os.environ.get("TARGUM_OPEN_SIGNUP", "").strip().lower() in {"1", "true", "yes"}
+    return signup_is_asked() and plans.on()
 
 
 def front_door_is_open() -> bool:
@@ -13677,17 +13703,24 @@ class Handler(BaseHTTPRequestHandler):
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else ""
 
+    def _too_many_signups(self) -> str:
+        return self._say(
+            "serve.signup.too-many",
+            "We can't open more new accounts this hour. Try again in an hour.",
+        )
+
     def _door_holds(self, email: str) -> tuple[str, int] | None:
-        """Why the open door will not start an account for this address, with its status,
-        or None where it will (targum-internal#485). Asked only while `signup_is_open`, of
-        an address not on the guest list.
+        """Why the open door will not mail this address a link, with its status, or None
+        where it will (targum-internal#485). Asked only while `signup_is_open`, of an
+        address not on the guest list, when the link is asked for.
 
         A throwaway domain is refused outright: the free month is per account, and an
-        address nobody keeps is how one person becomes a hundred. An address that already
-        has an account is let through uncounted — it is somebody asking again because the
-        first link did not arrive, and `asking_too_often` guards their inbox. Only a new
-        account is counted, against the visitor, the mail domain and everybody, in that
-        order, so a burst from one place stops at its own limit first.
+        address nobody keeps is how one person becomes a hundred. So is an inbox the
+        operator took off the guest list (`Store.is_barred`), said as the shut door says
+        it. An address that already has an account is let through uncounted — it is
+        somebody asking again because the first link did not arrive, and
+        `asking_too_often` guards their inbox. A new one is counted against the visitor
+        only; the domain and everybody are counted at the press (`_door_opens`).
         """
         from .backoffice import throwaway
 
@@ -13697,21 +13730,58 @@ class Handler(BaseHTTPRequestHandler):
                 "We don't open accounts at throwaway addresses. Use an address you keep.",
             )
             return said, 403
+        if self.store.is_barred(email):
+            return self._not_open(), 403
         if self.store.person_by_email(email) is not None:
             return None
-        domain = email.strip().lower().rpartition("@")[2]
-        store = self.store
-        if (
-            store.asking_too_often("signup:" + digest(self._visitor()), limit=SIGNUPS_PER_HOUR)
-            or store.asking_too_often("signup-at:" + domain, limit=SIGNUPS_PER_HOUR_AT_A_DOMAIN)
-            or store.asking_too_often("signup:everybody", limit=SIGNUPS_PER_HOUR_FOR_EVERYBODY)
-        ):
-            said = self._say(
-                "serve.signup.too-many",
-                "We can't open more new accounts this hour. Try again in an hour.",
-            )
-            return said, 429
+        if self.store.asking_too_often("signup:" + digest(self._visitor()), limit=SIGNUPS_PER_HOUR):
+            return self._too_many_signups(), 429
         return None
+
+    def _door_opens(self, email: str) -> tuple[str, int] | None:
+        """Why the open door will not open this account now that its address is proved —
+        the link pressed, or Google vouching — or None where it will (targum-internal#485).
+
+        Asked here rather than when the link is asked for so that only somebody who can
+        read mail at a domain spends its count (`SIGNUPS_PER_HOUR_AT_A_DOMAIN`). A link
+        refused here is not spent, so it still works inside its twenty minutes. Everybody
+        together is an alarm and never a refusal (`_door_counts`).
+        """
+        from .backoffice import WEBMAIL, mail_domain, registrable
+
+        if self.store.is_barred(email):
+            return self._not_open(), 403
+        domain = registrable(mail_domain(email))
+        if domain not in WEBMAIL and self.store.asking_too_often(
+            "signup-at:" + domain, limit=SIGNUPS_PER_HOUR_AT_A_DOMAIN
+        ):
+            return self._too_many_signups(), 429
+        self._door_counts()
+        return None
+
+    def _door_counts(self) -> None:
+        """Count one more account opened by the open door, and tell the operator once an
+        hour when more than `SIGNUPS_PER_HOUR_FOR_EVERYBODY` have been. A warning in the
+        log every time, a mail to `TARGUM_ALERT_TO` at most hourly; nobody is refused."""
+        store = self.store
+        if not store.asking_too_often("signup:everybody", limit=SIGNUPS_PER_HOUR_FOR_EVERYBODY):
+            return
+        log.warning(
+            "open signup: more than %d new accounts this hour", SIGNUPS_PER_HOUR_FOR_EVERYBODY
+        )
+        if store.asking_too_often("signup:alarm", limit=1):
+            return
+        from . import alerts
+
+        try:
+            alerts.tell(
+                "targum: open signup is busy",
+                f"More than {SIGNUPS_PER_HOUR_FOR_EVERYBODY} new accounts came through the "
+                "open door in the last hour. Nobody was refused for it. If it looks like a "
+                "script, shut the door (TARGUM_OPEN_SIGNUP) and look at the back office.",
+            )
+        except Exception as error:
+            log.warning("open signup: the alarm could not be mailed: %s", error)
 
     def _door_keeps(self, email: str) -> None:
         """Put an address the open door let in on the guest list, now that it has proved
@@ -13756,6 +13826,12 @@ class Handler(BaseHTTPRequestHandler):
         # tell an asker whether an address is on the list, and for an alpha of a handful
         # of people the confusion of a link that never arrives costs more than the
         # enumeration is worth. Revisit when the list is long enough to be worth probing.
+        if self.require_account and signup_is_open() and not self.store.may_join(email):
+            # One inbox, one account (qa-claude on targum#1160): `name+2@` or Gmail's
+            # `n.ame@` is mailed the link of the account already at that inbox.
+            folded = self.store.same_inbox(email)
+            if folded != tidy(email):
+                email = folded
         if self.store.is_leaving(email):
             # Asked before the invitation: a closing account was invited once, and would
             # be mailed a link that then refuses it (copy audit, 2026-09-28).
@@ -13911,11 +13987,13 @@ class Handler(BaseHTTPRequestHandler):
 
         # The same gate the mailed link goes through. Without it, standing OAuth up on a
         # funded box lets anybody with a Google account open one and start spending.
+        if self.require_account and signup_is_open() and not self.store.may_join(email):
+            email = self.store.same_inbox(email)
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
             return self._send(200, page.encode("utf-8"), HTML)
         if self.require_account and not self.store.may_join(email) and signup_is_open():
-            held = self._door_holds(email)
+            held = self._door_holds(email) or self._door_opens(email)
             if held is not None:
                 return refuse(held[0])
         elif self.require_account and not self.store.may_join(email):
@@ -13931,6 +14009,15 @@ class Handler(BaseHTTPRequestHandler):
         self._go(safe_next(back) or landed, self._session_cookie(session, SESSION_DAYS))
 
     def _enter(self, token: str, back: str = "") -> None:
+        if token and self.require_account and signup_is_open():
+            # The press is where the open door counts the domain and everybody
+            # (`_door_opens`), before the link is spent so a refused one still works.
+            who = self.store.peek_sign_in(token)
+            if who is not None and not self.store.may_join(who.email):
+                held = self._door_opens(who.email)
+                if held is not None:
+                    page = signin_page(language=self._public_language(), said=held[0], back=back)
+                    return self._send(held[1], page.encode("utf-8"), HTML)
         got = self.store.finish_sign_in(token) if token else None
         if got is None and token and self.store.leaving_link(token):
             page = signin_page(language=self._page_language(), closing=True)
@@ -18976,6 +19063,12 @@ def start(
     # A provider out of credit mails the operator from here (known issues 1.10). Hosted
     # only, beside the store, where the health watch keeps its own state; and still
     # nothing unless TARGUM_ALERT_TO names somebody (`alerts.credit_ran_out`).
+    if require_account and signup_is_asked() and not plans.on():
+        # The open door needs plans (qa-claude on targum#1160): without them a stranger's
+        # account gets the whole monthly allowance. Asked for alone it stays shut.
+        log.warning(
+            "TARGUM_OPEN_SIGNUP is set but TARGUM_PLANS is not: signup stays invitation-only"
+        )
     if require_account:
         from . import alerts
 

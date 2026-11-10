@@ -1452,6 +1452,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   still goes through `Library.claim` and its box ceiling. The beta stays invitation-only
   (David, 2026-11-03), and the switch stays off. New strings `serve.signup.throwaway` and
   `serve.signup.too-many` (en; ru drafted for David's read). No spend.
+  Reworked after qa-claude's check so nobody can spend what real readers need: the
+  visitor is counted when a link is asked for, the mail domain only when it is pressed
+  (or Google vouches), by registrable domain so made-up subdomains are one, and never at
+  the big consumer providers (`backoffice.WEBMAIL`). Everybody together (60) is an alarm
+  to the log and `TARGUM_ALERT_TO`, once an hour, and refuses nobody. The switch needs
+  `TARGUM_PLANS=1`, or it stays shut and the start-up log says why. `uninvite` now bars
+  the inbox at the open door until an invitation lifts it (a `barred` table, schema 62),
+  another spelling of a proved inbox (`+tag`, Gmail's dots) is mailed that account's
+  link, and the throwaway check reads full-width spellings (NFKC).
 - `scripts/merge_topics.py` merges the Hebrew topic runs into one `topics/1` lexicon
   (targum-internal#606): the full run's agreed rows, ling-he's decisions on its top 5,000,
   the card's rule below them (the shared topic, otherwise `general`), and an incremental

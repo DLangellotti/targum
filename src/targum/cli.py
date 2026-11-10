@@ -291,7 +291,9 @@ def invite(
     is what makes having the box the root of the whole thing.
 
     Taking an address off stops it opening a *new* account; anyone already reading keeps
-    their words. Use the account-deletion path to remove a person.
+    their words. It also bars that inbox at the open door (`TARGUM_OPEN_SIGNUP`), which
+    would otherwise let it straight back in; inviting it again lifts that. Use the
+    account-deletion path to remove a person.
 
     With no arguments, lists who is on it.
     """

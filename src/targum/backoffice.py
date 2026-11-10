@@ -52,6 +52,7 @@ import contextlib
 import json
 import os
 import sqlite3
+import unicodedata
 from bisect import bisect_right
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
@@ -747,10 +748,84 @@ def flag_key(email: str) -> str:
     return fold(email.strip())
 
 
+#: The big consumer mail providers (targum-internal#485). Anybody can make an address at
+#: one in a minute, so the open door's per-domain count would only let a script shut them
+#: out for everybody else; at these the visitor's own count and the throwaway list hold
+#: instead. By `registrable` domain.
+WEBMAIL = frozenset(
+    {
+        *GMAIL,
+        "outlook.com",
+        "hotmail.com",
+        "hotmail.co.uk",
+        "hotmail.fr",
+        "live.com",
+        "msn.com",
+        "yahoo.com",
+        "yahoo.co.uk",
+        "yahoo.fr",
+        "ymail.com",
+        "icloud.com",
+        "me.com",
+        "mac.com",
+        "aol.com",
+        "proton.me",
+        "protonmail.com",
+        "pm.me",
+        "gmx.com",
+        "gmx.de",
+        "gmx.net",
+        "web.de",
+        "mail.ru",
+        "bk.ru",
+        "list.ru",
+        "inbox.ru",
+        "yandex.ru",
+        "yandex.com",
+        "ya.ru",
+        "walla.co.il",
+        "walla.com",
+        "zoho.com",
+        "fastmail.com",
+        "orange.fr",
+        "free.fr",
+        "libero.it",
+    }
+)
+
+#: The second-level labels a country's registry sells under (`co.il`, `org.uk`, `ac.il`),
+#: so that `registrable` keeps three labels there rather than two. A short list rather
+#: than the public suffix list: nothing is fetched at runtime, and a miss only makes a
+#: domain's count a little wider or narrower.
+SECOND_LEVEL = frozenset(
+    {"ac", "co", "com", "edu", "gov", "net", "org", "ne", "or", "go", "muni", "k12", "ltd"}
+)
+
+
+def mail_domain(email: str) -> str:
+    """The domain of an address in one form: NFKC-folded, so `mailinator.com` spelt in
+    full-width letters or with a full-width dot is `mailinator.com`, its ideographic full
+    stops read as dots, case taken off and a trailing dot dropped (qa-claude on
+    targum#1160)."""
+    domain = unicodedata.normalize("NFKC", email.strip()).rpartition("@")[2]
+    return domain.replace("\u3002", ".").casefold().strip(".")
+
+
+def registrable(domain: str) -> str:
+    """The part of a domain somebody registers: `x1.evil.org` is `evil.org`, and
+    `mail.walla.co.il` is `walla.co.il`. The open door counts by this, so a catch-all
+    under made-up subdomains is one domain and not a new one each time (targum#1160)."""
+    labels = [label for label in domain.casefold().split(".") if label]
+    if len(labels) <= 2:
+        return ".".join(labels)
+    keep = 3 if len(labels[-1]) == 2 and labels[-2] in SECOND_LEVEL else 2
+    return ".".join(labels[-keep:])
+
+
 def throwaway(email: str) -> bool:
     """Whether an address is at a throwaway domain, or under one: `x.mailinator.com` is
-    as much one as `mailinator.com`."""
-    domain = email.strip().lower().rpartition("@")[2]
+    as much one as `mailinator.com`, and so is its full-width spelling (`mail_domain`)."""
+    domain = mail_domain(email)
     known = _disposable()
     labels = domain.split(".")
     return any(".".join(labels[n:]) in known for n in range(len(labels) - 1))

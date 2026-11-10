@@ -816,17 +816,63 @@ def _press(port: int, link: str) -> tuple[int, dict[str, str]]:
     return status, headers
 
 
+def _open_the_door(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The switch, and the plans it needs (qa-claude on targum#1160)."""
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+
+
+def _ask(port: int, email: str, visitor: str = "203.0.113.1") -> tuple[int, dict[str, str]]:
+    """Ask for a link as one visitor, the way Caddy names them."""
+    body = json.dumps({"email": email}).encode()
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("POST", "/account/sign-in", skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.putheader("Content-Type", "application/json")
+    conn.putheader("Content-Length", str(len(body)))
+    conn.putheader("X-Forwarded-For", visitor)
+    conn.endheaders()
+    conn.send(body)
+    response = conn.getresponse()
+    out = json.loads(response.read())
+    conn.close()
+    return response.status, out
+
+
 def test_the_door_is_shut_unless_the_deployment_opens_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """David, 2026-11-03: the beta stays invitation-only. Open is one line in targum.env."""
+    """David, 2026-11-03: the beta stays invitation-only. Open is one line in targum.env,
+    and it needs plans on beside it."""
     monkeypatch.delenv("TARGUM_OPEN_SIGNUP", raising=False)
+    monkeypatch.setenv("TARGUM_PLANS", "1")
     assert not serve.signup_is_open()
     for on in ("1", "true", "yes"):
         monkeypatch.setenv("TARGUM_OPEN_SIGNUP", on)
         assert serve.signup_is_open()
     monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "0")
     assert not serve.signup_is_open()
+
+
+def test_the_door_stays_shut_without_plans_and_says_so_at_start(
+    tmp_path: Path,
+    free_port: Callable[[], int],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """With plans off every account gets the whole month, so one person with a catch-all
+    domain could use up the box ceiling every day (qa-claude on targum#1160, P1). The
+    switch asked for alone is the switch off, and the log says why."""
+    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    monkeypatch.delenv("TARGUM_PLANS", raising=False)
+    assert serve.signup_is_asked() and not serve.signup_is_open()
+    sent: list[str] = []
+    with caplog.at_level("WARNING", logger="targum.serve"):
+        port, store = _hosted_box(tmp_path, free_port, sent)
+    assert "TARGUM_OPEN_SIGNUP is set but TARGUM_PLANS is not" in caplog.text
+    status, body = post(port, "/account/sign-in", {"email": "stranger@example.com"})
+    assert status == 403 and body["error"].startswith("Thanks for asking. targum isn't open")
+    assert sent == [] and store.person_by_email("stranger@example.com") is None
 
 
 def test_with_the_door_open_a_stranger_signs_up_and_stays_in_once_it_shuts(
@@ -840,7 +886,7 @@ def test_with_the_door_open_a_stranger_signs_up_and_stays_in_once_it_shuts(
     sent: list[str] = []
     links: list[str] = []
     port, store = _hosted_box(tmp_path, free_port, sent, links)
-    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    _open_the_door(monkeypatch)
 
     status, body = post(port, "/account/sign-in", {"email": "Stranger@Example.com"})
     assert status == 200 and body["sent"] is True
@@ -854,7 +900,6 @@ def test_with_the_door_open_a_stranger_signs_up_and_stays_in_once_it_shuts(
     # The free plan holds a door-opened account like any other: it is nobody's operator.
     person = store.person_by_email("stranger@example.com")
     assert person is not None and not person.admin
-    monkeypatch.setenv("TARGUM_PLANS", "1")
     assert plans.free(person)
 
     monkeypatch.delenv("TARGUM_OPEN_SIGNUP")
@@ -862,7 +907,16 @@ def test_with_the_door_open_a_stranger_signs_up_and_stays_in_once_it_shuts(
     assert post(port, "/account/sign-in", {"email": "other@example.com"})[0] == 403
 
 
-@pytest.mark.parametrize("address", ["someone@mailinator.com", "x@inbox.mailinator.com"])
+@pytest.mark.parametrize(
+    "address",
+    [
+        "someone@mailinator.com",
+        "x@inbox.mailinator.com",
+        # Full-width letters, which NFKC folds (qa-claude on targum#1160, P3).
+        "x@\uff4d\uff41\uff49\uff4c\uff49\uff4e\uff41\uff54\uff4f\uff52.com",
+        "x@inbox.\uff4d\uff41\uff49\uff4c\uff49\uff4e\uff41\uff54\uff4f\uff52.com",
+    ],
+)
 def test_the_open_door_refuses_a_throwaway_address(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch, address: str
 ) -> None:
@@ -870,7 +924,7 @@ def test_the_open_door_refuses_a_throwaway_address(
 
     sent: list[str] = []
     port, store = _hosted_box(tmp_path, free_port, sent)
-    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    _open_the_door(monkeypatch)
     status, body = post(port, "/account/sign-in", {"email": address})
     assert status == 403
     assert body["error"] == (
@@ -885,6 +939,19 @@ def test_the_open_door_refuses_a_throwaway_address(
     assert post(port, "/account/sign-in", {"email": address})[0] == 200
 
 
+@pytest.mark.parametrize("dot", ["\uff0e", "\u3002", "\uff61"])
+def test_a_throwaway_domain_with_a_wide_dot_is_never_mailed(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch, dot: str
+) -> None:
+    """qa-claude on targum#1160, P3: `x@a.mailinator．com` got 200 at the gate. It is
+    refused now, by the address check or by the throwaway one."""
+    sent: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent)
+    _open_the_door(monkeypatch)
+    assert post(port, "/account/sign-in", {"email": f"x@a.mailinator{dot}com"})[0] in {400, 403}
+    assert sent == []
+
+
 def test_a_burst_of_signups_from_one_visitor_is_refused(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -892,7 +959,7 @@ def test_a_burst_of_signups_from_one_visitor_is_refused(
     again because the first link did not arrive is not, and an invited address never is."""
     sent: list[str] = []
     port, store = _hosted_box(tmp_path, free_port, sent)
-    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
+    _open_the_door(monkeypatch)
     burst = [f"reader{n}@example.com" for n in range(serve.SIGNUPS_PER_HOUR + 3)]
     answers = [post(port, "/account/sign-in", {"email": each}) for each in burst]
     took = serve.SIGNUPS_PER_HOUR
@@ -908,21 +975,136 @@ def test_a_burst_of_signups_from_one_visitor_is_refused(
     assert post(port, "/account/sign-in", {"email": "friend@example.com"})[0] == 200
 
 
-def test_a_burst_at_one_mail_domain_is_refused_and_others_are_not(
+def test_a_script_cannot_shut_the_door_on_gmail(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Counted in order — the visitor, the domain, everybody — and a refusal at one
-    counts at none after it."""
+    """qa-claude's lockout (targum#1160, P1): a script asking and pressing for many Gmail
+    addresses from many visitors used up gmail.com's count for every real reader. The big
+    providers are not counted by domain at all, so it cannot."""
     sent: list[str] = []
-    port, _ = _hosted_box(tmp_path, free_port, sent)
-    monkeypatch.setenv("TARGUM_OPEN_SIGNUP", "1")
-    monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR", 100)
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
     monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR_AT_A_DOMAIN", 2)
-    asked = [post(port, "/account/sign-in", {"email": f"a{n}@one.org"})[0] for n in range(3)]
-    assert asked == [200, 200, 429]
-    assert post(port, "/account/sign-in", {"email": "a@two.org"})[0] == 200
+    for n in range(6):
+        assert _ask(port, f"bot{n}@gmail.com", f"198.51.100.{n}")[0] == 200
+        assert _press(port, links[-1])[0] == 303
+    assert _ask(port, "reader@gmail.com", "203.0.113.50")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    assert store.may_join("reader@gmail.com")
+
+
+def test_the_domain_is_counted_at_the_press_by_its_registrable_domain(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on targum#1160, P1 and P1: made-up subdomains of one catch-all are one
+    domain, and asking spends nothing of a domain's count — only an opened account does,
+    which only somebody reading that domain's mail can do. A press refused for it does
+    not spend the link, and another domain is untouched."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
+    monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR_AT_A_DOMAIN", 2)
+
+    # Asking for ten links there spends none of it.
+    for n in range(10):
+        assert _ask(port, f"a@x{n}.evil.org", f"198.51.100.{n}")[0] == 200
+    pressed = [_press(port, link)[0] for link in links[:3]]
+    assert pressed == [303, 303, 429]
+    token = parse_qs(urlparse(links[2]).query)["t"][0]
+    assert store.peek_sign_in(token) is not None, "a refused press leaves the link whole"
+    assert not store.may_join("a@x2.evil.org")
+
+    assert _ask(port, "a@deep.x.evil.org", "198.51.100.77")[0] == 200
+    assert _press(port, links[-1])[0] == 429
+    assert _ask(port, "a@good.co.il", "198.51.100.78")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+
+
+def test_everybody_together_is_an_alarm_and_not_a_refusal(
+    tmp_path: Path,
+    free_port: Callable[[], int],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """qa-claude on targum#1160, P1: a hard cap for everybody is a lockout anybody with a
+    few domains can trigger. Past it the operator is told, once an hour, and nobody is
+    refused for it."""
+    from targum import alerts
+
+    told: list[str] = []
+    monkeypatch.setattr(alerts, "tell", lambda subject, body, **_: told.append(subject) or True)
+    sent: list[str] = []
+    links: list[str] = []
+    port, _ = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
     monkeypatch.setattr(serve, "SIGNUPS_PER_HOUR_FOR_EVERYBODY", 3)
-    assert post(port, "/account/sign-in", {"email": "b@two.org"})[0] == 429
+    with caplog.at_level("WARNING", logger="targum.serve"):
+        for n in range(6):
+            assert _ask(port, f"a@d{n}.org", f"198.51.100.{n}")[0] == 200
+            assert _press(port, links[-1])[0] == 303
+    assert told == ["targum: open signup is busy"]
+    assert "more than 3 new accounts this hour" in caplog.text
+
+
+def test_an_address_taken_off_the_list_stays_off_at_the_open_door(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on targum#1160, P2: `uninvite` was no ban, since asking again put the
+    address straight back. It bars the inbox now, its other spellings too, until an
+    invitation lifts it."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
+    assert _ask(port, "pest@gmail.com")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    store.uninvite("pest@gmail.com")
+    for spelling in ("pest@gmail.com", "p.est+2@gmail.com", "pest@googlemail.com"):
+        assert _ask(port, spelling, "198.51.100.9")[0] == 403
+    # A link asked for before the bar is refused at the press too.
+    assert _ask(port, "other@example.com")[0] == 200
+    store.uninvite("other@example.com")
+    assert _press(port, links[-1])[0] == 403
+    store.invite("pest@gmail.com")
+    assert _ask(port, "pest@gmail.com")[0] == 200
+
+
+def test_another_spelling_of_an_inbox_is_the_account_already_there(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on targum#1160, P2: `ab@`, `a.b@` and `ab+1@gmail.com` were three
+    accounts and three free months. At the open door the other spellings are mailed the
+    link of the account already proved at that inbox."""
+    sent: list[str] = []
+    links: list[str] = []
+    port, store = _hosted_box(tmp_path, free_port, sent, links)
+    _open_the_door(monkeypatch)
+    assert _ask(port, "ab@gmail.com")[0] == 200
+    assert _press(port, links[-1])[0] == 303
+    first = store.person_by_email("ab@gmail.com")
+    assert first is not None
+    for spelling in ("a.b@gmail.com", "ab+1@googlemail.com"):
+        assert _ask(port, spelling, "198.51.100.3")[0] == 200
+        assert sent[-1] == "ab@gmail.com"
+        assert store.person_by_email(spelling) is None
+    assert _press(port, links[-1])[0] == 303
+    # Only a proved account is folded onto: at another host `x+1@` is its own address.
+    assert _ask(port, "x+1@example.com")[0] == 200
+    assert _ask(port, "x@example.com", "198.51.100.4")[0] == 200
+    assert sent[-1] == "x@example.com"
+
+
+def test_a_domain_is_read_as_registered() -> None:
+    from targum.backoffice import mail_domain, registrable
+
+    assert registrable("x1.evil.org") == "evil.org"
+    assert registrable("evil.org") == "evil.org"
+    assert registrable("mail.walla.co.il") == "walla.co.il"
+    assert registrable("a.b.example.org.uk") == "example.org.uk"
+    assert mail_domain("x@Mail.Example.COM.") == "mail.example.com"
+    assert mail_domain("x@example\u3002com") == "example.com"
 
 
 # -- a door back to the page (QA 2026-10-11, decision D2) ------------------------------

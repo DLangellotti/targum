@@ -421,10 +421,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    `finds.steer.SCHEMA`). Written only while `TARGUM_CHIP_COUNTS` is on. A new table, so
 #    `CREATE TABLE IF NOT EXISTS` is the whole migration.
 #
+# 61→62: barred — an address taken off the guest list, which the open door refuses
+#    (targum-internal#485). A new table, so `CREATE TABLE IF NOT EXISTS` is the whole
+#    migration.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 61
+SCHEMA_VERSION = 62
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -456,6 +460,16 @@ EDITOR_FIELDS = ("language", "target", "term", "span", "before", "after")
 # backed up with everything else, and can be changed without one.
 INVITED = """
 CREATE TABLE IF NOT EXISTS invited (
+  email TEXT PRIMARY KEY,
+  at    INTEGER NOT NULL
+);
+
+-- An address taken off the guest list, which the open door then refuses too
+-- (targum-internal#485, qa-claude on targum#1160): with `TARGUM_OPEN_SIGNUP` on, taking
+-- somebody off the list would otherwise only last until they asked again. Kept by the
+-- inbox (`backoffice.bare`), so `name+2@` and Gmail's dots are the same refusal. An
+-- invitation lifts it. The door that is shut never reads it.
+CREATE TABLE IF NOT EXISTS barred (
   email TEXT PRIMARY KEY,
   at    INTEGER NOT NULL
 );
@@ -3722,11 +3736,15 @@ class Store:
         address = tidy(email)
         if not address:
             raise ValueError("No address given.")
+        from .backoffice import bare
+
         with self.write() as db:
             db.execute(
                 "INSERT INTO invited (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
                 (address, now()),
             )
+            # An invitation is the operator's word, and lifts a bar on the same inbox.
+            db.execute("DELETE FROM barred WHERE email = ?", (bare(address),))
         return address
 
     def uninvite(self, email: str) -> bool:
@@ -3735,9 +3753,60 @@ class Store:
         Deliberately: this decides who may *join*, and someone who has been reading for a
         month should not be locked out of their own words by an edit to a guest list.
         Use `forget` to remove a person.
+
+        It also bars the inbox at the open door (targum-internal#485): with
+        `TARGUM_OPEN_SIGNUP` on, an address taken off the list would otherwise be let
+        straight back in by asking again. `invite` lifts it.
         """
+        from .backoffice import bare
+
         with self.write() as db:
+            db.execute(
+                "INSERT INTO barred (email, at) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
+                (bare(tidy(email)), now()),
+            )
             return db.execute("DELETE FROM invited WHERE email = ?", (tidy(email),)).rowcount > 0
+
+    def is_barred(self, email: str) -> bool:
+        """Whether the open door refuses this inbox: it was taken off the guest list."""
+        from .backoffice import bare
+
+        found = self.db.execute(
+            "SELECT 1 FROM barred WHERE email = ?", (bare(tidy(email)),)
+        ).fetchone()
+        return found is not None
+
+    def same_inbox(self, email: str) -> str:
+        """The address of an account already at this address's inbox, or the address as
+        given (targum-internal#485, qa-claude on targum#1160). `name+2@` and, at Gmail,
+        `n.ame@` reach the same inbox as `name@`, and at the open door each spelling
+        would otherwise be one more account and one more free month. Asked only there:
+        an invited address is the operator's word for exactly that spelling.
+
+        Only an account that has proved its inbox — on the guest list, as the open door
+        puts it once its link is pressed — is folded onto. A row somebody typed and never
+        opened is not, or typing `you+x@` first would send your own links to a spelling
+        your mail host might not deliver."""
+        from .backoffice import GMAIL, bare
+
+        address = tidy(email)
+        if self.may_join(address):
+            return address
+        inbox = bare(address)
+        domain = address.rpartition("@")[2]
+        domains = sorted(GMAIL) if domain in GMAIL else [domain]
+        for each in domains:
+            suffix = "@" + each
+            rows = self.db.execute(
+                "SELECT person.email AS email FROM person "
+                "JOIN invited ON invited.email = person.email "
+                "WHERE substr(person.email, -?) = ? ORDER BY person.id",
+                (len(suffix), suffix),
+            ).fetchall()
+            for row in rows:
+                if bare(str(row["email"])) == inbox:
+                    return str(row["email"])
+        return address
 
     # -- test accounts (2026-09-28) ------------------------------------------------
 
