@@ -4714,6 +4714,19 @@ def test_stripping_leaves_strings_and_regular_expressions_alone() -> None:
     assert "\n\n" not in out  # blank lines go with the comments
 
 
+def test_stripping_takes_out_the_indentation_and_keeps_the_lines() -> None:
+    """targum-internal#670: indentation is for the source's reader, like its comments,
+    and was 5.8 kB gzipped of what a word waits for. Every line stays a line, so semicolon
+    insertion sees what it saw."""
+    from targum.render.builder import ASSETS, _strip
+
+    out = _strip("x.js", "function f() {\n  if (a) {\n    return 1;\n  }\n}\n")
+    assert out == "function f() {\nif (a) {\nreturn 1;\n}\n}\n"
+    for name in ("reader.js", "reader.css"):
+        baked = _strip(name, (ASSETS / name).read_text(encoding="utf-8"))
+        assert not [line for line in baked.splitlines() if line[:1] in (" ", "\t")], name
+
+
 def test_no_asset_carries_a_template_literal_across_a_line() -> None:
     """The assumption the stripper rests on, held rather than trusted.
 
@@ -4730,6 +4743,10 @@ def test_no_asset_carries_a_template_literal_across_a_line() -> None:
         code = re.sub(r"/\*.*?\*/", "", path.read_text(encoding="utf-8"), flags=re.S)
         spanning = [run for run in re.findall(r"`[^`]*`", code, re.S) if "\n" in run]
         assert not spanning, f"{path.name} has a template literal across a line"
+        # The other way a string goes on to the next line, where the indentation the
+        # stripper takes out would be part of it (targum-internal#670).
+        continued = [line for line in code.splitlines() if line.rstrip().endswith("\\")]
+        assert not continued, f"{path.name} continues a string with a backslash"
 
 
 def test_the_script_a_reader_gets_still_parses(tmp_path: Path) -> None:
@@ -5817,6 +5834,9 @@ def test_a_word_answers_before_the_commentaries_and_the_faces_arrive(tmp_path: P
 #: its edition gives it"): the plate, the parashot and half-lines, and the column cut.
 #: 119.1 kB on 2026-11-07 with a playlist's third foot press, "Mark 12 words known"
 #: (targum-internal#657), which is the foot's and so cannot wait in `reader-rest.js`.
+#: 113.4 kB on 2026-11-10 once the baked assets lost their indentation as well as their
+#: comments (targum-internal#670), from 119.3 kB with 3 bytes left; the limit stays, so
+#: the 5.8 kB is room for what comes next rather than a new floor.
 A_WORD_WAITS_GZ = 119_300
 
 
