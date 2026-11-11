@@ -25,6 +25,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   docstring says plainly that a missed drop is not swept: the row stays current, and
   `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
   is missed today. No spend, no new strings.
+- A Russian root keeps one meaning across English wording (targum-internal#596). The
+  sense index (`root_card._clusters`) compared a root's senses word for word, so крас
+  "beauty" and "beautiful", здоров "health" and "healthy", гроз "threat" and "threaten"
+  were two meanings, and a family asked from one left the other out. Russian senses are
+  now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
+  splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
+  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
+  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
+  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
+  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
+  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
+  spend, no new strings.
 - With the door open, every door says so (targum-internal#671; design.md §12,
   2026-11-10). With `TARGUM_OPEN_SIGNUP` and plans on, sign-in opened accounts and every
   page still asked a stranger to join a waitlist. Each template that draws it now asks
