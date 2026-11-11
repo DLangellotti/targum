@@ -228,6 +228,39 @@ def with_yo(lemma: str, spellings: Iterable[str]) -> str:
     return restored.capitalize() if lemma[:1].isupper() else restored
 
 
+def yo_checked(surface: str, lemma: str, normal_forms: Iterable[str]) -> str:
+    """A word written with ё filed under the dictionary's one form for it, where Stanza's
+    answer is none of the dictionary's.
+
+    Stanza is asked the word with е (`without_yo`), and for most ё-words that is what it
+    needs; for some it then answers another word's form or none: недотёпа as недотеп,
+    копчёная as копченой, уберём as уберь, ушёл as уйел. The ё was the clue it could not
+    read, and the dictionary, which reads it, gives one form. Where the dictionary gives
+    several, or Stanza's is among them, Stanza's stands (targum-internal#650)."""
+    if "ё" not in surface.lower():
+        return lemma
+    forms = {form.lower() for form in normal_forms}
+    if without_yo(lemma.lower()) in {without_yo(form) for form in forms} or len(forms) != 1:
+        return lemma
+    return forms.pop()
+
+
+def pronoun(surface: str, pos: str) -> str | None:
+    """The dictionary form a learner looks a pronoun up by, where the treebank's is another.
+
+    её is она only as она's own case (я вижу её); the possessive (её дом) does not change
+    and is its own word on the card, as их is. всё, everything, is its own word too — всё
+    равно, всё ещё, всё в порядке — and not filed under весь, as it is where it agrees
+    with a noun (всё время, всё это), which spaCy tags DET (targum-internal#650). spaCy
+    tags the possessive её DET, PART, ADJ or even PROPN, but the object PRON."""
+    word = surface.lower()
+    if word == "её":
+        return "она" if pos == "PRON" else "её"
+    if word == "всё" and pos != "DET":
+        return "всё"
+    return None
+
+
 #: What follows a hyphen and makes the word before it a different word, not a second one:
 #: каких-то, какой-либо, где-нибудь, давай-ка, всё-таки. The word takes the first half's
 #: grammar. Everywhere else — из-за, по-русски, кое-что, светло-синий — the last half's.
@@ -539,6 +572,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
         parses = morph.parse(surface)
         spellings = [piece.lemma, *(p.normal_form for p in parses)]
         lemma = with_yo(read.lemma or surface, spellings)
+        lemma = yo_checked(surface, lemma, [p.normal_form for p in parses if p.is_known])
         if pos in _COMPATIBLE and not morph.word_is_known(lemma):
             lemma = known(lemma, [p for p in parses if p.tag.POS in _COMPATIBLE[pos]])
         if pos in {"VERB", "AUX"}:
@@ -554,6 +588,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
             pos = "PROPN"
         if pos == "PROPN":
             lemma = as_name(lemma, named, said.get("Case", ""))
+        lemma = pronoun(surface, pos) or lemma
         if not any("\u0400" <= char <= "\u04ff" for char in surface):
             # Not a Russian word, and Stanza's answer for one is not to be trusted: it
             # wrote Facebook as Фейсбук.

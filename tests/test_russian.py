@@ -20,9 +20,11 @@ from targum.annotate.russian import (
     Piece,
     RussianLemmatizer,
     Tagged,
+    pronoun,
     settle,
     stanza_asked,
     with_yo,
+    yo_checked,
 )
 from targum.models import BlockKind, Segment
 
@@ -112,6 +114,31 @@ def test_stanza_is_asked_without_the_yo() -> None:
     ]
     assert asked[0][0] == {"id": 1, "text": "елке", "upos": "NOUN"}
     assert asked[1][0]["upos"] == "X"
+
+
+def test_a_yo_word_stanza_misread_takes_the_dictionarys_one_form() -> None:
+    """Asked недотепа, Stanza answered недотеп; the dictionary reads недотёпа and gives
+    one form (targum-internal#650)."""
+    assert yo_checked("недотёпа", "недотеп", ["недотёпа"]) == "недотёпа"
+    assert yo_checked("копчёная", "копченой", ["копчёный"]) == "копчёный"
+    # Stanza's answer is the dictionary's, ё or not: it stands, and with_yo has the ё.
+    assert yo_checked("ёлке", "ёлка", ["ёлка"]) == "ёлка"
+    assert yo_checked("осёл", "осел", ["осёл", "осесть"]) == "осел"
+    # Two forms in the dictionary, or no ё in the word: not a spelling rule's to choose.
+    assert yo_checked("щёлке", "щелок", ["щёлка", "щёлок"]) == "щелок"
+    assert yo_checked("дома", "дом", ["дома"]) == "дом"
+
+
+def test_a_learner_looks_her_and_everything_up_by_their_own_words() -> None:
+    """Possessive её is её, as их is их; её the object is она. всё, everything, is всё;
+    всё agreeing with a noun is весь's (targum-internal#650)."""
+    assert pronoun("её", "PRON") == "она"
+    assert pronoun("Её", "DET") == "её"
+    assert pronoun("её", "PART") == "её"
+    assert pronoun("Всё", "PROPN") == "всё"
+    assert pronoun("всё", "PRON") == "всё"
+    assert pronoun("всё", "DET") is None
+    assert pronoun("дом", "NOUN") is None
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:
@@ -279,6 +306,13 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
         "Ёлке было холодно.",
         "Мы купили мёда и нашли ёжика.",
         "Учёного пришёл встретить осёл.",
+        "Не понимая, в чём дело, Тётка и Фёдор Тимофеич жались.",
+        "Она обо всём аккуратно расспрашивала.",
+        "Её дочь поведала об этом.",
+        "Всё в порядке.",
+        "Эх ты… недотёпа!",
+        "Здравствуйте! У вас есть копчёная рыба?",
+        "Своими вздохами, нытьём, своими тёмными очками он давил нас всех.",
     ]
     segments = [
         Segment(id=f"{at:04d}.000-x", block_id="b0000", block_index=0, index=at, text=text)
@@ -291,3 +325,11 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
     assert by["мёда"] == "мёд"
     assert by["ёжика"] == "ёжик"
     assert by["осёл"] == "осёл"
+    # The fold cost these their lemma, or their ё; what restores it.
+    assert by["чём"] == "что"
+    assert by["всём"] == "весь"
+    assert by["Её"] == "её"
+    assert by["Всё"] == "всё"
+    assert by["недотёпа"] == "недотёпа"
+    assert by["копчёная"] == "копчёный"
+    assert by["нытьём"] == "нытьё"

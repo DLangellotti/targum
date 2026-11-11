@@ -18,7 +18,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
   wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
   It is now asked the word with е, and the ё goes back from pymorphy3's dictionary, as it
-  already did for учёный. The local Russian annotator moves to `/2`, so `rebuild --words`
+  already did for учёный. Where Stanza, asked with е, answers a form the dictionary does
+  not give and the dictionary gives one, the dictionary's stands: недотёпа, копчёный,
+  нытьё, убрать, уйти. Possessive её is её and the object она; всё, everything, is всё,
+  and весь only where it agrees with a noun (всё время). The local Russian annotator moves to `/2`, so `rebuild --words`
   re-reads every Russian text it built, here and on the box, for nothing but time. On the
   laptop's shelf that changes 9 of 38 ё-words. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
