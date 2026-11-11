@@ -1590,6 +1590,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- Your Progress's What next draws a bar for each shown topic (targum-internal#608;
+  design.md §12, "Topics in What next are weighed by how common a word is"): the exact
+  share of the topic's words in the yardsticks' top 20,000 that you know, the commoner
+  words counting for more, behind both floors (60 lemmas a topic, 100 known words a
+  reader, with a line saying what to do under it). A bar opens the topic's commonest
+  words to learn next with the meanings the glossary already holds. `/account/story`
+  sends `topics` from `topics.load_shown` and the yardstick snapshots; nothing where no
+  lexicon is installed, and Hebrew only. No spend.
 - Open signup behind a switch, off by default (targum-internal#485). With
   `TARGUM_OPEN_SIGNUP=1` a stranger who was never let in may open an account by the
   mailed link or Google, and the safety moves from the guest list to limits: a throwaway
