@@ -37,6 +37,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Russian weight. The prior reads a named rung as the words check reads it back, so a
   reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
   No spend, no new strings.
+- A deploy fetches Morphalou (targum-internal#678). `deploy.sh` fetched menaked,
+  OpenRussian's tables, the Russian lemmatizer, LaBSE and the scripture models but not
+  Morphalou, so a fresh or restored box had a French word's forms (for its difficulty) and
+  its readings (behind `TARGUM_FRENCH_IPA`) only if somebody ran `targum models fetch
+  morphalou` by hand, and without them it measured and said less, quietly. It is now
+  fetched beside OpenRussian's tables, a one-line no-op once there; like the STEP Bible
+  glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
+  on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
+  strings.
 - whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
   `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
   words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
