@@ -239,6 +239,19 @@ DIALOGUE = shaped(
 )
 
 
+#: whisper at its most generous with ? and !: one in fifteen words, more than one in
+#: thirty, and still no full stop or comma. Only a rule that leaves ? and ! out calls it
+#: bare.
+WHISPER_QUESTIONS = shaped(300, {n: "?!"[n % 2] for n in range(5, 300, 15)})
+
+#: Properly punctuated talk, every sentence a question or a comma splice: commas and no
+#: full stop at all, as a model writes conversational Hebrew.
+QUESTIONS = " ".join(["מה שלומך? טוב, ואתה? מה עשית היום? הלכתי לים, היה חם, ואז חזרתי הביתה?"] * 6)
+
+#: Dialogue whose sentences end inside the quotes around them.
+QUOTED = " ".join(['אמר לה "אני הולך הביתה עכשיו." ואז הלך'] * 12)
+
+
 def test_stray_question_marks_do_not_make_a_hearing_punctuated() -> None:
     """whisper-1 leaves a ? or ! in Hebrew it never otherwise marks. Counted as
     sentence ends they cleared one in forty, and a tale went out unpunctuated."""
@@ -247,21 +260,32 @@ def test_stray_question_marks_do_not_make_a_hearing_punctuated() -> None:
     assert WHISPER_STRAY.count("?") + WHISPER_STRAY.count("!") == 9
     assert needs_punctuation(heard(WHISPER_STRAY))
     assert needs_punctuation(heard(WHISPER_FEW))
+    assert needs_punctuation(heard(WHISPER_QUESTIONS)), "? and ! alone are not punctuation"
     assert not needs_punctuation(heard(SCRIBE))
     assert not needs_punctuation(heard(DIALOGUE))
+
+
+def test_a_comma_splice_or_a_quoted_full_stop_is_punctuation() -> None:
+    """Conversational Hebrew punctuated by a careful hand runs at a full stop in 25 to 90
+    words, and a line of dialogue ends inside its quotes. Neither is bought a pass."""
+    from targum.transcribe.refine.punctuate import needs_punctuation
+
+    assert "." not in QUESTIONS
+    assert not needs_punctuation(heard(QUESTIONS))
+    assert not needs_punctuation(heard(QUOTED))
 
 
 def test_the_rules_punctuate_whisper_with_stray_marks_and_leave_scribe_alone() -> None:
     from targum.transcribe.refine.punctuate import Punctuator
 
-    for text in (WHISPER_STRAY, WHISPER_FEW):
+    for text in (WHISPER_STRAY, WHISPER_FEW, WHISPER_QUESTIONS):
         asked, ask = stub(text)
         RuleRefiner(Punctuator(ask=ask)).refine(  # type: ignore[arg-type]
             Transcript(provider="openai/whisper-1", language="he", words=heard(text))
         )
         assert len(asked) == 1, "a hearing with stray marks is punctuated"
 
-    for text in (SCRIBE, DIALOGUE):
+    for text in (SCRIBE, DIALOGUE, QUESTIONS, QUOTED):
         asked, ask = stub("")
         RuleRefiner(Punctuator(ask=ask)).refine(  # type: ignore[arg-type]
             Transcript(provider="elevenlabs/scribe_v2", language="he", words=heard(text))

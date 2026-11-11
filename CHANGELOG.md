@@ -18,11 +18,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
   words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
   words, one full stop, 25 of ? and !), so the punctuation pass never ran and the reader
-  got 40-word lines cut at a breath. It now counts full stops only, against one in 30:
-  every punctuated whisper part on the laptop runs at one stop in 4 to 17 words and every
-  unpunctuated one at none, or one in more than 500. A stored `rules/1`–`rules/3` part
-  the new rule finds bare is owed punctuation the next time its reader builds; no part
-  is redone by a deploy. No spend, no new strings.
+  got 40-word lines cut at a breath. It now counts full stops and commas, never ? or !,
+  against one in 30, and a stop inside a closing quote counts: of the laptop's 109
+  refined Hebrew parts every punctuated one runs at a mark in 12 words or fewer, comma
+  splices included, and every bare one at none, or one in 426. A stored
+  `rules/1`–`rules/3` part the new rule finds bare is owed punctuation the next time its
+  reader builds; no part is redone by a deploy. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a

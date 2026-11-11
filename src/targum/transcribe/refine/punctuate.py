@@ -36,20 +36,27 @@ TIMEOUT = 120.0
 #: What ends a sentence, as the transcript or the model writes it.
 ENDS = (".", "?", "!", "…", "׃")
 
-#: The ends that say a transcript was punctuated. Not ? and !: whisper-1 leaves those in
-#: Hebrew it otherwise never marks, a few to a few dozen a part, and never a full stop.
-STOPS = (".", "…", "׃")
+#: The marks that say a transcript was punctuated: full stops, and commas, since
+#: conversational Hebrew is written in comma splices with a full stop in 25 to 90 words.
+#: Not ? and !: whisper-1 leaves those in Hebrew it otherwise never marks, a few to a few
+#: dozen a part, and never a full stop or a comma.
+PUNCTUATED = (".", "…", "׃", ",")
+
+#: What may close a word after its mark: a bracket, or a quote around speech ("…home
+#: now." or «…сейчас.»). The geresh-like ' is among them; stripped from וכו' it leaves a
+#: word with no mark, which is what it is.
+CLOSERS = ")\"”»'"
 
 #: The marks a heard word may gain. No quotes, apostrophes, geresh or gershayim: in
 #: Hebrew those are letters of a word (ד"ר, וכו'), and a mark that changes a word is not
 #: punctuation.
 MARKS = frozenset(".,?!;:…()–—")
 
-#: Fewer full stops than one in this many words is a transcript heard without
-#: punctuation. Measured on the whisper-1 Hebrew parts on the laptop (2026-11-11): every
-#: one that punctuated ran at one stop in 4 to 17 words, and Scribe's Hebrew ends a
-#: sentence about once in twelve; every one that did not had no stop at all, or one in
-#: more than 500 words, whatever its ? and ! came to. Thirty keeps clear of both.
+#: Fewer `PUNCTUATED` marks than one in this many words is a transcript heard without
+#: punctuation. Measured on the laptop's 109 refined Hebrew parts (2026-11-11): every
+#: punctuated one, whisper's on a good day or the model's, ran at one mark in 12 words or
+#: fewer; every unpunctuated one had none at all, or one in 426 (a Kan tale: 853 words,
+#: one full stop, one comma, 25 of ? and !). Thirty keeps clear of both.
 SPARSE_WORDS = 30
 
 #: Too few words to need a sentence end at all.
@@ -89,14 +96,14 @@ Ask = Callable[[str], tuple[str, int, int]]
 
 
 def ends_sentence(text: str) -> bool:
-    return text.rstrip(")").endswith(ENDS)
+    return text.rstrip(CLOSERS).endswith(ENDS)
 
 
 def sparse(words: list[Word]) -> bool:
-    """Whether these words hold fewer full stops than a punctuated text would."""
+    """Whether these words hold fewer full stops and commas than a punctuated text would."""
     tokens = [token for word in words for token in word.text.split()]
-    stops = sum(1 for token in tokens if token.rstrip(")").endswith(STOPS))
-    return stops * SPARSE_WORDS < len(tokens)
+    marks = sum(1 for token in tokens if token.rstrip(CLOSERS).endswith(PUNCTUATED))
+    return marks * SPARSE_WORDS < len(tokens)
 
 
 def needs_punctuation(words: list[Word]) -> bool:
