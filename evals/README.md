@@ -33,6 +33,7 @@ nothing is here that no script writes, except where it says so:
 | `chat` | `tatoeba-correct` | `why_on_correct_lines`, `why_shown_on_correct_lines`: `~ ` lines the chat writes, and the reader is shown, under a correct line a native speaker wrote | `scripts/eval_why.py` (targum-internal#242) |
 | `ask` | `heq` | `span_found_share`, `span_found_share_ktiv`, `token_f1`, `unanswered`: the chat's reply to a question about a paragraph on a stubbed page against the span a person marked as the answer | `scripts/eval_ask.py` (targum-internal#223) |
 | `suggest` | `shelf-<n>` | `suggested_known_share`, `suggested_with_known_share`: the known share of the texts `suggest_next` offers a reader who knows the commonest words, and how many offers carry one, over the texts built on this machine. Calls no model | `scripts/eval_suggest.py` (targum-internal#244) |
+| `suggest` | `marks-he`, `marks-fr`, `marks-ru` | `readers` (the readers with 50 marks or more, n the marks they made), and where there are known and not-known marks both `auc`, `log_loss`, `brier`, `brier_base_rate`, `ece`: the estimate of words a reader has not marked, five folds of each reader's marks held out, each language on its own readers. The version names the slope and the borrowed-word weight. Calls no model | `scripts/eval_estimate.py --record` (targum-internal#613, #633) |
 
 `targum eval <stage>` runs any of these from the repository root, passing everything
 after the stage to the script: `targum eval vocalize --corpus dicta-modern`. `lemma` and

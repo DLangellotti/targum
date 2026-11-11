@@ -55,6 +55,15 @@ weight fitted on the four: pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, 
 0.1865 → 0.1848, calibration error unchanged at 0.027; with the weight fitted on the
 other readers only, 0.917. A machine without the lexicon estimates as before.
 
+**Russian borrows the same term** (targum-internal#633, 2026-11-11): a Russian word the
+Russian root lexicon marks borrowed (телефон, интернет, кофе: `roots-ru`, which agreed
+with ling-ru's read on 98.9% of words, #596) has the same `BORROWED` taken off. The weight
+is Hebrew's until Russian marks can fit their own: on 2026-11-11 the laptop held one
+Russian reader with 125 marked words, nine of them not known, and no French reader with
+any (`scripts/eval_estimate.py --language ru`). Held out on that one reader, AUC 0.831
+with the term and 0.843 without, Brier 0.058 and 0.059: nine words decide nothing either
+way. French has no lexicon and estimates as before.
+
 **Tried and left out** (2026-11-05, the same run, `scripts/eval_difficulty_features.py`):
 part of speech (verb, adjective, adverb and the closed classes against nouns) loses, AUC
 0.914 and 0.909 with the weights from the other readers; a loanword list drawn from the
@@ -129,7 +138,7 @@ def sigmoid(x: float) -> float:
 
 def difficulty(lemma: str, language: str) -> float:
     """A word's `b`: the log of its place in the language's frequency list, less
-    `BORROWED` for a word the root lexicon marks borrowed."""
+    `BORROWED` for a word the language's root lexicon marks borrowed (Hebrew, Russian)."""
     return _difficulty(lemma, language, _borrowed(language))
 
 
@@ -159,7 +168,7 @@ def _difficulty(lemma: str, language: str, loans: frozenset[str]) -> float:
         return b
     place = places.get(frequency._POINTS.sub("", lemma))
     b = math.log(place) if place else math.log(UNRANKED_AT)
-    if loans and unicodedata.normalize("NFC", frequency._POINTS.sub("", lemma)) in loans:
+    if loans and _loan_key(frequency._POINTS.sub("", lemma), language) in loans:
         b -= BORROWED
     if len(memo) < _BS_MOST:
         memo[lemma] = b
@@ -167,24 +176,36 @@ def _difficulty(lemma: str, language: str, loans: frozenset[str]) -> float:
 
 
 def _borrowed(language: str) -> frozenset[str]:
-    """The words the root lexicon marks borrowed, for Hebrew; none for another language,
-    or where the lexicon is not on this machine. Read again when the file changes."""
-    if language.split("-")[0].lower() != "he":
-        return _NO_LOANS
+    """The words the language's root lexicon marks borrowed (`root_card.LANGUAGES`:
+    Hebrew and Russian), as `_loan_key` spells them; none for another language, or where
+    the lexicon is not on this machine. Read again when the file changes."""
     from .annotate import root_card
 
-    found = root_card.lexicon("he")
+    code = language.split("-")[0].lower()
+    if code not in root_card.LANGUAGES:
+        return _NO_LOANS
+    found = root_card.lexicon(code)
     if found is None:
         return _NO_LOANS
     with _DIFFICULTY_LOCK:
-        held = _LOANS.get(found.version)
+        held = _LOANS.get(code)
         if held is not None and held[0] is found:
             return held[1]
-    loans = frozenset(lemma for lemma, row in found.hebrew.items() if row.borrowed)
+    rows = found.hebrew if code == "he" else found.russian
+    loans = frozenset(lemma for lemma, row in rows.items() if row.borrowed)
     with _DIFFICULTY_LOCK:
-        _LOANS.clear()
-        _LOANS[found.version] = (found, loans)
+        _LOANS[code] = (found, loans)
     return loans
+
+
+def _loan_key(bare: str, language: str) -> str:
+    """A lemma (points already off) spelled as its lexicon keys it: NFC for Hebrew,
+    `root_card.fold_ru` for Russian (lower case, ё as е, no stress marks)."""
+    if language.split("-")[0].lower() == "ru":
+        from .annotate.root_card import fold_ru
+
+        return fold_ru(bare)
+    return unicodedata.normalize("NFC", bare)
 
 
 def ranked(language: str) -> bool:
@@ -272,7 +293,15 @@ def checked_evidence(
 
 def prior(level: Level | None) -> float:
     """The guess before any evidence: the rung named on arrival while nothing is measured
-    (`level.seed`), else the rung the marks reach, else aleph."""
+    (`level.seed`), else the rung the marks reach, else aleph.
+
+    A rung's `at` is read as a vocabulary on both ladders. The ulpan's counts words; the
+    CEFR's counts known words among the commonest five thousand lemmas (`level.CEFR`), and
+    the words check reads theta back onto it the same way, as the vocabulary theta stands
+    for (`check.common_reach`, calibrated by David on 2026-11-05: the *expected* count at
+    the Rasch slope ran every band a step high). So a reader who names A2 and has done
+    nothing else stands at A2, not at A1 or B1, and `tests/test_estimate.py` holds the two
+    together for every rung of every ladder (targum-internal#633)."""
     from . import level as level_module
 
     words = PRIOR_WORDS
@@ -408,6 +437,7 @@ class Estimate:
 
 _DIFFICULTY_LOCK = threading.Lock()
 _DIFFICULTIES: dict[tuple[int, str], tuple[tuple[str, ...], frozenset[str], array[float]]] = {}
+#: Each language's borrowed words, with the lexicon they were read from.
 _LOANS: dict[str, tuple[Any, frozenset[str]]] = {}
 
 
@@ -433,7 +463,7 @@ def _difficulties(index: Index, language: str) -> array[float]:
             continue
         place = places.get(bare)
         b = math.log(place) if place else unranked
-        if loans and unicodedata.normalize("NFC", bare) in loans:
+        if loans and _loan_key(bare, language) in loans:
             b -= BORROWED
         values.append(b)
     with _DIFFICULTY_LOCK:
