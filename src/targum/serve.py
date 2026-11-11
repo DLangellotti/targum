@@ -7876,7 +7876,16 @@ class Handler(BaseHTTPRequestHandler):
             "try:" + digest(self._visitor()), limit=TRIES_PER_HOUR
         ) or store.asking_too_often("try:everybody", limit=TRIES_PER_HOUR_FOR_EVERYBODY):
             tried = {
+                # The open door's own words (design.md §12, 2026-11-10; qa-claude on
+                # targum#1180): nobody waits to be invited, so nobody is told they will be.
                 "refused": said_in(
+                    said,
+                    "open-door.too-often",
+                    "That's a lot of links for one hour. Try again in an hour, or sign up and "
+                    "upload them when you're in.",
+                )
+                if signup_is_open()
+                else said_in(
                     said,
                     "door.too-often",
                     "That's a lot of links for one hour. Try again in an hour, or join and "

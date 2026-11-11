@@ -54,6 +54,17 @@ def _asked(language: str) -> str:
     return "" if language == "en" else language
 
 
+def _too_often(language: str) -> dict[str, str]:
+    """What `_try_post` hands the front page when a visitor has tried too many links."""
+    return {
+        "refused": serve.said_in(
+            language,
+            "open-door.too-often" if serve.signup_is_open() else "door.too-often",
+            "",
+        )
+    }
+
+
 def _entry() -> Any:
     from targum.catalogue import everything
 
@@ -79,6 +90,12 @@ PAGES: list[tuple[str, str, Callable[[str], str]]] = [
         "front, a link tried",
         "landing.html.j2",
         lambda lang: builder.front_page(lang, ADDRESS, _asked(lang), tried=TRIED),
+    ),
+    (
+        # The box refused a try: too many links this hour (qa-claude on targum#1180).
+        "front, a try refused",
+        "landing.html.j2",
+        lambda lang: builder.front_page(lang, ADDRESS, _asked(lang), tried=_too_often(lang)),
     ),
     ("aliyah", "aliyah.html.j2", lambda lang: builder.aliyah_page(lang, ADDRESS, _asked(lang))),
     ("about", "about.html.j2", lambda lang: builder.about_page(lang, ADDRESS)),
@@ -358,3 +375,26 @@ def test_with_the_door_open_the_sign_in_page_and_a_reader_say_no_waitlist(
     assert "If you're new, the same link sets up your account." in page
     # A signed-out reader keeps "Sign in to keep the words you mark" and nothing beside it.
     assert "join" not in json.loads(_ask(port, "GET", "/account/me")[1])
+
+
+def test_a_try_refused_at_the_open_door_does_not_wait_to_be_invited(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on targum#1180: too many links tried in an hour said «…когда вас
+    пригласят» at a door that invites nobody. Open, it says sign up; shut, as it was."""
+    links: list[tuple[str, str]] = []
+    port, _ = _box(tmp_path, free_port, links)
+    monkeypatch.setattr(serve, "TRIES_PER_HOUR", 0)
+    for switches, lang, said in (
+        (OPEN, "ru", "зарегистрируйтесь и загрузите их, когда войдёте"),
+        (OPEN, "en", "or sign up and upload them when you're in."),
+        (SHUT, "ru", "когда вас пригласят"),
+    ):
+        _switched(monkeypatch, switches)
+        body = urlencode({"link": "https://www.youtube.com/watch?v=abc"}).encode()
+        status, page = _ask(
+            port, "POST", f"/try?lang={lang}", body, "application/x-www-form-urlencoded"
+        )
+        assert status == 200 and said in page, (switches, lang)
+        if switches is OPEN:
+            assert WAITING.search(page) is None, lang

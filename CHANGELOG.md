@@ -27,7 +27,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   mark", the FAQs' "When does it open?" goes, and a barred inbox is told "We can't open
   an account at that address." With the switch off, or asked for without plans, every
   page is byte for byte as before; `tests/test_signup_door.py` walks every public page
-  both ways. No spend; ten new strings, Russian first-passed.
+  both ways. The try box's "too many links" refusal says sign up rather than «когда
+  вас пригласят» while the door is open. No spend; eleven new strings, Russian
+  first-passed.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

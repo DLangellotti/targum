@@ -1523,6 +1523,7 @@
   "door.not-a-link": "That isn't a link. Paste one that starts with https.",
   "door.empty": "Paste a link first.",
   "door.too-often": "That's a lot of links for one hour. Try again in an hour, or join and upload them when you're in.",
+  "open-door.too-often": "That's a lot of links for one hour. Try again in an hour, or sign up and upload them when you're in.",
   "door.host-closed": "{service} doesn't let us fetch its videos. Try a link to an article instead.",
   "door.x-closed": "We don't bring posts in from X yet.",
   "door.unreadable.language": "This looks like {language}, and we can't read that yet.",
