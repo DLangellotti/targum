@@ -53,7 +53,7 @@
       {%- if not signed_in %}
       {#- Connecting needs an account, and accounts come off the waitlist, so a stranger
           sent to the steps is told once, here, where to start. -#}
-      <p class="need-account">{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account.") }} <a href="#join">{{ t("connect.page.join-the-waitlist-link", "Join the waitlist") }}</a></p>
+      <p class="need-account">{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account.") }} {% if door_is_open() %}<a href="/account/signin{% if asked|default('') %}?lang={{ asked }}{% endif %}">{{ t("open-door.sign-up", "Sign up") }}</a>{% else %}<a href="#join">{{ t("connect.page.join-the-waitlist-link", "Join the waitlist") }}</a>{% endif %}</p>
       {%- endif %}
       <ul class="cn-facts">
         <li>{{ glyph('check') }}{{ t("connect.page.free-to-connect", "Free to connect") }}</li>
@@ -241,7 +241,7 @@
   <section class="cn-questions" id="questions" aria-labelledby="cn-q-h">
     <h2 class="cn-section" id="cn-q-h">{{ t("connect.page.before-you-connect", "Before you connect.") }}</h2>
       <div class="cn-faq">
-        <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your AI reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}</p></details>
+        <details><summary>{{ t("connect.page.q-do-i-need-an-account", "Do I need a targum account?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{% if door_is_open() %}{{ t("open-door.connect-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your AI reads.") }}{% else %}{{ t("connect.page.a-do-i-need-an-account", "Yes. Your words and your progress live in it, and that’s what your AI reads. We’re opening in small groups, so join the waitlist and we’ll email you when it’s your turn.") }}{% endif %}</p></details>
         <details><summary>{{ t("connect.page.q-what-does-it-cost", "What does it cost?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-what-does-it-cost", "Connecting is free, and so are searching the library and your word list. Chatting is included in your monthly credits. A new text, playlist or subscription uses credits, and you confirm it on targum first.") }}</p></details>
         <details><summary>{{ t("connect.page.q-which-apps", "Which apps does it work with?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-which-apps", "Claude, ChatGPT, Claude Code, VS Code, Gemini CLI and Codex, and any other app that can add a remote MCP server and sign in with OAuth.") }}</p></details>
         <details><summary>{{ t("connect.page.q-will-it-speak-hebrew", "Will it talk to me in Hebrew?") }}<svg class="cn-chev" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4"/></svg></summary><p>{{ t("connect.page.a-will-it-speak-hebrew", "Yes. We give your AI the rules our own chat follows: short replies in simple Hebrew, built from the words you know, with the English when you ask.") }}</p></details>
@@ -254,13 +254,13 @@
   {%- if not signed_in %}
   <div class="cn-close">
     <h2 class="cn-section">{{ t("connect.page.learn-hebrew-in-the-ai-you-already-use", "Learn Hebrew in the AI you already use.") }}</h2>
-    <form class="join-form" id="join" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+    <form class="join-form" id="join" method="post" action="{% if door_is_open() %}/signup{% else %}/waitlist{% endif %}{% if asked|default('') %}?lang={{ asked }}{% endif %}">
       <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
       <label class="field">
         <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("connect.page.you-example-com", "you@example.com") }}" aria-label="{{ t("connect.page.your-email", "Your email") }}">
-        <button class="btn cta" type="submit">{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}</button>
+        <button class="btn cta" type="submit">{% if door_is_open() %}{{ t("open-door.sign-up", "Sign up") }}{% else %}{{ t("connect.page.join-the-waitlist", "Join the waitlist") }}{% endif %}</button>
       </label>
-      <p class="join-note">{{ t("connect.page.we-re-opening-in-small-groups", "You’ll need a targum account. We’re opening in small groups, and we’ll email you when your turn comes.") }}</p>
+      <p class="join-note">{% if door_is_open() %}{{ t("connect.page.you-ll-need-a-targum-account", "You’ll need a targum account.") }}{% else %}{{ t("connect.page.we-re-opening-in-small-groups", "You’ll need a targum account. We’re opening in small groups, and we’ll email you when your turn comes.") }}{% endif %}</p>
     </form>
   </div>
   {%- endif %}

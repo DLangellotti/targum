@@ -107,7 +107,14 @@
 
   <p class="facts">{{ t("text.page.facts", "{words} words, about {minutes} minutes of reading.", words=entry.words | int, minutes=minutes) }}</p>
 
-  {%- if front_door_is_open() %}
+  {%- if door_is_open() %}
+  {#- The door is open (design.md §12, 2026-11-10): the press is Sign up, carrying the
+      text through the sign-in page, which is also where somebody already in signs in. -#}
+  <p class="door">
+    <a class="go" href="{{ door }}">{{ t("open-door.sign-up", "Sign up") }}</a>
+    <span class="free">{{ t("shelf.page.free-to-read-once-you-re-in", "Free to read once you’re in.") }}</span>
+  </p>
+  {%- elif front_door_is_open() %}
   {#- While the front door takes an address, its press is the waitlist, keeping the text
       (beta review PUB-06, 2026-11-03): "Read it" went to a sign-in that refuses anybody
       not invited. Somebody invited still has the way in, quietly, under it. -#}

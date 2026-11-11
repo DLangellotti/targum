@@ -14,17 +14,21 @@
     The server narrows either to a page it knows, and keeps nothing else.
 
     `link` is set where the form stands under the front page's box with a link tried in
-    it (targum-internal#399), so joining keeps the link with the place. -#}
-<form class="join-form" method="post" action="/waitlist{% if asked|default('') %}?lang={{ asked }}{% endif %}">
+    it (targum-internal#399), so joining keeps the link with the place.
+
+    While the door is open (`door_is_open()`, design.md §12, 2026-11-10) the same one
+    field signs up: it posts to `/signup`, which mails the sign-in link /account/signin
+    would, and a tried link rides in it so Upload opens holding it once they are in. -#}
+<form class="join-form" method="post" action="{% if door_is_open() %}/signup{% else %}/waitlist{% endif %}{% if asked|default('') %}?lang={{ asked }}{% endif %}">
   <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
   {%- if link|default('') %}
   <input type="hidden" name="link" value="{{ link }}">
   {%- endif %}
   <label class="field">
     <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}">
-    <button class="btn cta" type="submit">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</button>
+    <button class="btn cta" type="submit">{% if door_is_open() %}{{ t("open-door.sign-up", "Sign up") }}{% else %}{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}{% endif %}</button>
   </label>
-  {%- if note|default(false) %}
+  {%- if note|default(false) and not door_is_open() %}
   <p class="join-note">{{ t("landing.page.we-re-opening-in-small-groups-we-ll", "We’re opening in small groups. We’ll email you when your turn comes.") }}</p>
   {%- endif %}
 </form>

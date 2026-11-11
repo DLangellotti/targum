@@ -4,9 +4,16 @@
 <section class="part" id="join">
   <div class="col join-end">
     <div class="part-head">
+      {% if door_is_open() %}
+      {#- The door is open (design.md §12, 2026-11-10): the ending signs up. -#}
+      <p class="label">{{ t("open-door.sign-up-label", "Sign up") }}</p>
+      <h2>{{ t("open-door.start-learning-hebrew-this-way", "Start learning Hebrew this way.") }}</h2>
+      <p>{{ t("open-door.enter-your-email", "Enter your email and we’ll send you a link. There’s no password.") }}</p>
+      {% else %}
       <p class="label">{{ t("landing.page.the-waitlist", "The waitlist") }}</p>
       <h2>{{ t("landing.page.be-among-the-first-to-learn-hebrew-this", "Be among the first to learn Hebrew this way.") }}</h2>
       <p>{{ t("landing.page.we-re-opening-in-small-groups-leave-your", "We’re opening in small groups. Leave your email and we’ll tell you when it’s your turn.") }}</p>
+      {% endif %}
     </div>
     <div class="join-body">
       {% include '_join_form.html.j2' %}

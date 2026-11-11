@@ -851,6 +851,10 @@ WEEKLY_POSTS = frozenset({"/weekly/subscribe", "/weekly/confirm", "/weekly/stop"
 #: leaving are a page with a button, for the reason the weekly's two are.
 WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 
+#: The open door's form on the public pages (targum-internal#671): one field that mails
+#: the sign-in link, as /account/signin's does, from a page that works with JavaScript off.
+SIGNUP_POST = "/signup"
+
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 
@@ -7923,6 +7927,8 @@ class Handler(BaseHTTPRequestHandler):
         done: bool = True,
         said: str = "",
         heading: str = "waitlist.note.heading-joined",
+        title: str = "waitlist.note.title",
+        status: int = 0,
         **rest: Any,
     ) -> None:
         """A sentence back from the front door, on the furniture the weekly's doors use.
@@ -7941,6 +7947,10 @@ class Handler(BaseHTTPRequestHandler):
         heading for every answer, "the waitlist", over "Thanks. Check your email…". Each
         heading follows from the step alone and never from the address, so the answers
         that must not say whether an address is waiting still cannot.
+
+        `title` is the key of the tab's title and description (`<key>`, and
+        `description` beside it), and `status` the answer's where it is not 200 or 429:
+        the open door's form says its answers on this page too (`_signup_post`).
         """
         from .strings import text
 
@@ -7950,14 +7960,56 @@ class Handler(BaseHTTPRequestHandler):
             address=self.address,
             done=done,
             # Its own tab, not the Weekly News Digest's (copy audit, 2026-09-28).
-            title=text("waitlist.note.title", code),
-            description=text("waitlist.note.description", code),
+            title=text(title, code),
+            description=text(title.rsplit(".", 1)[0] + ".description", code),
             heading=text(heading, code),
             home="/",
             language=code,
             **rest,
         )
-        return self._send(200 if done else 429, page.encode("utf-8"), HTML)
+        return self._send(status or (200 if done else 429), page.encode("utf-8"), HTML)
+
+    def _signup_post(self, form: dict[str, str]) -> None:
+        """The open door's form on the public pages (targum-internal#671, design.md §12
+        "When the door is open, every door says so", 2026-11-10): its one field mails the
+        sign-in link /account/signin's would, through the same gates (`_ask_link`), and
+        the answer is a page, so it works with JavaScript off and `landing.js` reads it
+        as it reads the waitlist's.
+
+        A link tried in the front page's box rides in the mailed link as where to land:
+        Upload, holding it (`?source=`). Nothing is built: it is got ready on their own
+        press, like any link they paste.
+        """
+        from .strings import text
+
+        said = self._public_language()
+        email = (form.get("email") or "").strip()
+        link = kept_link(form.get("link", ""))
+        payload = {
+            "email": email,
+            "into": said,
+            "next": "/add?source=" + quote(link, safe="") if link else "",
+        }
+        self._answering_in = said
+        try:
+            answer, status = self._ask_link(payload)
+        finally:
+            self._answering_in = ""
+        if status == 200:
+            return self._waitlist_note(
+                text("account.sent", said, address=email), said=said, title="signup.note.title"
+            )
+        heading = "waitlist.note.heading-later"
+        if status in (400, 403):
+            heading = "waitlist.note.heading-address"
+        return self._waitlist_note(
+            str(answer.get("error") or ""),
+            done=False,
+            said=said,
+            heading=heading,
+            title="signup.note.title",
+            status=status,
+        )
 
     def _waitlist_get(self, route: str) -> None:
         """The two doors that arrive from an email: a page with a button, never an act.
@@ -8047,7 +8099,16 @@ class Handler(BaseHTTPRequestHandler):
             "try:" + digest(self._visitor()), limit=TRIES_PER_HOUR
         ) or store.asking_too_often("try:everybody", limit=TRIES_PER_HOUR_FOR_EVERYBODY):
             tried = {
+                # The open door's own words (design.md §12, 2026-11-10; qa-claude on
+                # targum#1180): nobody waits to be invited, so nobody is told they will be.
                 "refused": said_in(
+                    said,
+                    "open-door.too-often",
+                    "That's a lot of links for one hour. Try again in an hour, or sign up and "
+                    "upload them when you're in.",
+                )
+                if signup_is_open()
+                else said_in(
                     said,
                     "door.too-often",
                     "That's a lot of links for one hour. Try again in an hour, or join and "
@@ -10071,7 +10132,7 @@ class Handler(BaseHTTPRequestHandler):
                     # 2026-11-03), where an address has to have been invited and the
                     # front door takes one.
                     join=self._join_address()
-                    if self.require_account and front_door_is_open()
+                    if self.require_account and front_door_is_open() and not signup_is_open()
                     else "",
                 ).encode("utf-8"),
                 HTML,
@@ -10447,6 +10508,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._waitlist_post(route, self._form())
         if route == "/try" and front_door_is_open():
             return self._try_post(self._form())
+        # The open door's form, where the waitlist's stood (design.md §12, 2026-11-10):
+        # a plain post, before the account check for the reason the waitlist's is.
+        if route == SIGNUP_POST and signup_is_open():
+            return self._signup_post(self._form())
         # What the phone's Share menu posts. Before the account check: it only sends the
         # reader on to Add, which asks for the sign-in itself and keeps the link through
         # it. Nothing is read, priced or kept here.
@@ -13982,6 +14047,10 @@ class Handler(BaseHTTPRequestHandler):
     def _join_said(self) -> dict[str, str]:
         """Where the waitlist is, for a signed-out reader's page to offer beside Sign in
         (beta review RDR-01, 2026-11-03), while the front door takes an address."""
+        if signup_is_open():
+            # The open door's sign-in page says what the link does (design.md §12,
+            # 2026-11-10), so a signed-out reader keeps only "Sign in to keep…".
+            return {}
         return {"join": self._join_address()} if front_door_is_open() else {}
 
     def _join_address(self, language: str = "") -> str:
@@ -14089,6 +14158,11 @@ class Handler(BaseHTTPRequestHandler):
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else ""
 
+    def _barred(self) -> str:
+        """What an inbox taken off the guest list is told at the open door (design.md §12,
+        2026-11-10): not "targum isn't open yet", which an open door never says."""
+        return self._say("serve.signup.barred", "We can't open an account at that address.")
+
     def _too_many_signups(self) -> str:
         return self._say(
             "serve.signup.too-many",
@@ -14102,8 +14176,8 @@ class Handler(BaseHTTPRequestHandler):
 
         A throwaway domain is refused outright: the free month is per account, and an
         address nobody keeps is how one person becomes a hundred. So is an inbox the
-        operator took off the guest list (`Store.is_barred`), said as the shut door says
-        it. An address that already has an account is let through uncounted — it is
+        operator took off the guest list (`Store.is_barred`), told the open door's own
+        `_barred`. An address that already has an account is let through uncounted — it is
         somebody asking again because the first link did not arrive, and
         `asking_too_often` guards their inbox. A new one is counted against the visitor
         only; the domain and everybody are counted at the press (`_door_opens`).
@@ -14117,7 +14191,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return said, 403
         if self.store.is_barred(email):
-            return self._not_open(), 403
+            return self._barred(), 403
         if self.store.person_by_email(email) is not None:
             return None
         if self.store.asking_too_often("signup:" + digest(self._visitor()), limit=SIGNUPS_PER_HOUR):
@@ -14136,7 +14210,7 @@ class Handler(BaseHTTPRequestHandler):
         from .backoffice import WEBMAIL, mail_domain, registrable
 
         if self.store.is_barred(email):
-            return self._not_open(), 403
+            return self._barred(), 403
         domain = registrable(mail_domain(email))
         if domain not in WEBMAIL and self.store.asking_too_often(
             "signup-at:" + domain, limit=SIGNUPS_PER_HOUR_AT_A_DOMAIN
@@ -14192,9 +14266,15 @@ class Handler(BaseHTTPRequestHandler):
             self._answering_in = ""
 
     def _signing_in(self, payload: dict[str, Any]) -> None:
+        self._json(*self._ask_link(payload))
+
+    def _ask_link(self, payload: dict[str, Any]) -> tuple[dict[str, Any], int]:
+        """Mail the sign-in link `payload` asks for, or say why not: the answer and its
+        status. The sign-in form's (`_signing_in`), and the open door's form on the
+        public pages (`_signup_post`, targum-internal#671), which says it as a page."""
         email = str(payload.get("email") or "")
         if not plausible(email):
-            return self._json(
+            return (
                 {
                     "error": self._say(
                         "serve.we-couldn-t-read-that-as",
@@ -14215,11 +14295,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.store.is_leaving(email):
             # Asked before the invitation: a closing account was invited once, and would
             # be mailed a link that then refuses it (copy audit, 2026-09-28).
-            return self._json({"error": self._closing()}, 403)
+            return {"error": self._closing()}, 403
         if self.require_account and not self.store.may_join(email) and signup_is_open():
             held = self._door_holds(email)
             if held is not None:
-                return self._json({"error": held[0]}, held[1])
+                return {"error": held[0]}, held[1]
             # One inbox, one account (qa-claude on targum#1160): at Gmail, `n.ame@` or
             # `name+2@` is mailed the link of the account already proved at that inbox.
             # Mailed to that account's own address, never to the spelling that asked, so
@@ -14229,7 +14309,7 @@ class Handler(BaseHTTPRequestHandler):
             if folded != tidy(email):
                 email = folded
                 if self.store.is_leaving(email):
-                    return self._json({"error": self._closing()}, 403)
+                    return {"error": self._closing()}, 403
         elif self.require_account and not self.store.may_join(email):
             refused: dict[str, str] = {"error": self._not_open()}
             if front_door_is_open():
@@ -14239,9 +14319,9 @@ class Handler(BaseHTTPRequestHandler):
                 # find their own way back to the front door.
                 refused["join"] = self._join_address(self._answering_in)
                 refused["join_link"] = self._say("serve.not-open.join-link", "Join the waitlist")
-            return self._json(refused, 403)
+            return refused, 403
         if self.store.asking_too_often(email):
-            return self._json(
+            return (
                 {
                     "error": self._say(
                         "serve.we-ve-sent-a-few-links",
@@ -14277,7 +14357,7 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Said plainly, because a link that never arrives with a cheerful "check
             # your email" is the worst version of this failing.
-            return self._json(
+            return (
                 {
                     "error": self._say(
                         "serve.we-couldn-t-send-the-link",
@@ -14286,7 +14366,7 @@ class Handler(BaseHTTPRequestHandler):
                 },
                 502,
             )
-        self._json({"sent": True, "message": SENT})
+        return {"sent": True, "message": SENT}, 200
 
     #: Sign-ins started with Google and not yet finished, by `state`. In memory and not
     #: on disk: they live ten minutes, they belong to no account yet, and a restart
