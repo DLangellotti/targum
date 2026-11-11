@@ -15805,6 +15805,7 @@ class Handler(BaseHTTPRequestHandler):
         nothing spends. A word to learn next carries the meaning the glossary already
         holds, or none."""
         from . import topics as topics_module
+        from .models import VERB_MARK
         from .tables.registers import BIBLE
 
         if language != "he":
@@ -15813,6 +15814,13 @@ class Handler(BaseHTTPRequestHandler):
         if held is None:
             return None
         lexicon, shown = held
+        glossary = self._held_meaning(language)
+
+        def meaning(lemma: str) -> str:
+            # A verb's meaning is filed under its verb entry (targum#69), so a bare lemma
+            # that holds none is asked again as the verb: still the cache only.
+            return glossary(lemma) or glossary(lemma + VERB_MARK)
+
         return topics_module.progress(
             lexicon,
             shown,
@@ -15820,7 +15828,7 @@ class Handler(BaseHTTPRequestHandler):
             known,
             topics_module.yardstick_weights(topics_module.MODERN),
             topics_module.yardstick_weights((BIBLE,)),
-            self._held_meaning(language),
+            meaning,
         )
 
     def _built_shares(self, wanted: set[str]) -> dict[str, tuple[float, bool]]:

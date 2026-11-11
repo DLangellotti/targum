@@ -830,9 +830,29 @@ def test_the_story_sends_topics_behind_both_floors_and_none_without_a_lexicon(
     held = {"register": "news", "made_at": "2026-11-01", "weights": {}}
     held["weights"] = {lemma: share for lemma in food + law}
     (tables / "yardstick-news-v1.json").write_text(json.dumps(held), encoding="utf-8")
+    # A verb's meaning is held only under its verb entry (targum#69): it is read from
+    # there, and nothing is bought for the words that hold none.
+    from targum.annotate import gloss as gloss_module
+    from targum.cache import Cache
+    from targum.models import VERB_MARK
+
+    cache = Cache()
+    provider = gloss_module.gloss_provider_name()
+    key = gloss_module.gloss_key(cache, "אוכל32" + VERB_MARK, "he", "en", provider)
+    cache.put("gloss", key, {"gloss": "to eat", "part_of_speech": "verb"})
+    key = gloss_module.gloss_key(cache, "אוכל33", "he", "en", provider)
+    cache.put("gloss", key, {"gloss": "food", "part_of_speech": "noun"})
+
+    def bought(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a meaning was bought for Your Progress")
+
+    monkeypatch.setattr(gloss_module, "gloss_one", bought, raising=False)
     status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
     assert said["known"] == 100
     shown = said["topics"]
+    meanings = {word["lemma"]: word["meaning"] for word in shown["rows"][0]["words"]}
+    assert meanings["אוכל32"] == "to eat" and meanings["אוכל33"] == "food"
+    assert meanings["אוכל34"] == "", "none held: none shown, none bought"
     assert [row["topic"] for row in shown["rows"]] == ["food"], "law is under 60 lemmas"
     assert shown["rows"][0]["known"] == 40, "32 of 80 equally common words"
     assert shown["rows"][0]["words"][0]["lemma"] == "אוכל32"

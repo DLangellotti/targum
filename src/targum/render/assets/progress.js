@@ -1651,22 +1651,22 @@
    * where the machine has no topic lexicon, and the slot stays hidden.
    */
   var TOPIC_NAMES = {
-    everyday: t("progress.topic.everyday", "Everyday life"),
-    family: t("progress.topic.family", "Family & home"),
-    people: t("progress.topic.people", "People & feelings"),
-    food: t("progress.topic.food", "Food & drink"),
-    money: t("progress.topic.money", "Money & shopping"),
-    travel: t("progress.topic.travel", "Travel & transport"),
-    work: t("progress.topic.work", "Work & business"),
-    school: t("progress.topic.school", "School & study"),
-    health: t("progress.topic.health", "Health & body"),
-    culture: t("progress.topic.culture", "Free time & culture"),
-    nature: t("progress.topic.nature", "Nature & weather"),
-    politics: t("progress.topic.politics", "Politics & government"),
-    law: t("progress.topic.law", "Law & crime"),
-    security: t("progress.topic.security", "Security & the army"),
-    science: t("progress.topic.science", "Science & technology"),
-    religion: t("progress.topic.religion", "Religion & tradition"),
+    everyday: t("find.topic.everyday", "Everyday life"),
+    family: t("find.topic.family", "Family & home"),
+    people: t("find.topic.people", "People & feelings"),
+    food: t("find.topic.food", "Food & drink"),
+    money: t("find.topic.money", "Money & shopping"),
+    travel: t("find.topic.travel", "Travel & transport"),
+    work: t("find.topic.work", "Work & business"),
+    school: t("find.topic.school", "School & study"),
+    health: t("find.topic.health", "Health & body"),
+    culture: t("find.topic.culture", "Free time & culture"),
+    nature: t("find.topic.nature", "Nature & weather"),
+    politics: t("find.topic.politics", "Politics & government"),
+    law: t("find.topic.law", "Law & crime"),
+    security: t("find.topic.security", "Security & the army"),
+    science: t("find.topic.science", "Science & technology"),
+    religion: t("find.topic.religion", "Religion & tradition"),
   };
 
   function drawTopics(code, said) {
@@ -1683,10 +1683,11 @@
     rows.hidden = !lines.length;
     if (!lines.length) {
       // Under the reader floor: what to do, never a row of bars at 0%.
-      note.textContent = t(
+      note.textContent = tn(
         "progress.topics.floor",
-        "Once you know {n} words, we'll show how much of each topic you know. Mark the words you know as you read.",
-        { n: said.floor }
+        said.floor,
+        "Once you know {n} word, we'll show how much of each topic you know. Mark the words you know as you read.",
+        "Once you know {n} words, we'll show how much of each topic you know. Mark the words you know as you read."
       );
       return;
     }
@@ -1696,7 +1697,8 @@
     );
     lines.forEach(function (line) {
       var name = TOPIC_NAMES[line.topic];
-      var item = el("li", "topic-row" + (said.weakest === line.topic ? " weakest" : ""));
+      // With one bar there is nothing to set it against, so no outline (the grid's rule).
+      var item = el("li", "topic-row" + (lines.length > 1 && said.weakest === line.topic ? " weakest" : ""));
       var words = line.words || [];
       var bar = el(words.length ? "button" : "div", "topic-bar");
       bar.appendChild(el("span", "topic-name", name));

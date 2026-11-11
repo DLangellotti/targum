@@ -393,7 +393,8 @@ topic-tagging plan recommends) and the lexicon he kept live on 2026-11-10 (#606)
 - **A bar a topic, under Grammar.** One row per topic in the lexicon's `shown` list, in
   the list's fixed order so a bar never moves as the numbers do: the topic's name, a track
   filled with leaf to the share, and the exact percentage. The track is in the grid's
-  36rem. The weakest bar is outlined in teal, as the grid's weakest row is.
+  36rem. The weakest bar is outlined in teal, as the grid's weakest row is; with one bar
+  there is nothing to set it against, so no outline, as with the grid.
 - **What a bar measures.** Of the topic's lemmas inside the yardsticks' top 20,000, the
   share the reader has marked known, each weighed by log(1 + its blended rate per million)
   over news, conversation and literature, read off the snapshots "How much Hebrew you
@@ -405,10 +406,50 @@ topic-tagging plan recommends) and the lexicon he kept live on 2026-11-10 (#606)
   you read." Never a row of bars at 0%.
 - **A bar opens its words to learn next.** Each bar is a button: it opens, under the
   list, the topic's eight commonest words not on the reader's list at all, each with the
-  meaning the glossary already holds or none. Nothing is bought for it.
+  meaning the glossary already holds (a verb's under its verb entry) or none. Nothing is
+  bought for it. A topic is named as Find names it (`find.topic.*`), one name a topic.
 - **Where there is no lexicon nothing is drawn**, as on a laptop or CI checkout without
   `topics.json`, and the slot stays hidden. Hebrew only. Where there is no grid, Topics
   stands alone under the two lists and "Grammar" is not said over nothing.
+
+### When the door is open, every door says so — 2026-11-10
+
+Amends "A stranger is told the door is by invitation before they knock" (2026-11-03,
+below), written while the beta was invitation-only and #485 waited. #485 shipped on
+2026-11-10 behind `TARGUM_OPEN_SIGNUP`, off by default, and changed no copy, so with the
+switch on every door still asked a stranger to join a waitlist that no longer stands
+between them and an account (design's finish bar, targum-internal#477; #671). The test is
+`signup_is_open()`, the switch asked for with plans on, and every template that draws the
+waitlist asks it.
+
+- **The call to action is "Sign up", to /account/signin.** The bar, the foot, a text's
+  public page, /connect and the closing section of the front page and /aliyah say it where
+  they said "Join the waitlist". Where a page has the form, its one field sends the
+  sign-in link, as /account/signin's does. The closing section is "Sign up", then "Start
+  learning Hebrew this way." and "Enter your email and we'll send you a link. There's no
+  password." Every "We're opening in small groups" goes.
+- **Sign in drops "New here? Join the waitlist"** and the invited clause: "We'll email you
+  a link, so there's no password. If you're new, the same link sets up your account."
+- **The try box keeps the link for them.** "Sign up and this link will be waiting for
+  you." Once in, Upload opens with it in the box, and it is got ready on their own press
+  like any link they paste, through `Library.claim`. Let in's gift build (2026-10-01) has
+  the operator's press behind it; the open door has none, so it builds nothing.
+- **The FAQ's "When does it open?" goes.** /connect's "Do I need an account?" ends at
+  "that's what your AI reads.", and its account line is "You'll need a targum account."
+  with Sign up.
+- **"Free to read once you're in." stays** beside a text page's Sign up. "Already invited?
+  Sign in to read it" goes, since Sign up and Sign in are one page. "Free to start, with
+  the whole library open." and the front page's "Once you're in" note stay.
+- **A signed-out reader keeps "Sign in to keep the words you mark"** and loses "New here?
+  Join the waitlist" beside it: the sign-in page tells a new reader what the link does.
+- **The door's only new lines are its refusals:** "We don't open accounts at throwaway
+  addresses. Use an address you keep." and "We can't open more new accounts this hour.
+  Try again in an hour." An inbox taken off the guest list is told "We can't open an
+  account at that address." rather than "targum isn't open yet", which an open door
+  never says.
+- **With the switch off, every page is as the 2026-11-03 entry says**, byte for byte, and
+  so it is with the switch asked for and plans off. A render test pins both. The Russian
+  is ling-ru's, for David's read.
 
 ### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
 
@@ -1289,7 +1330,8 @@ The beta review of 2026-11-03 (surface audit PUB-02, PUB-03, PUB-05, PUB-06, RDR
 LIB-R03, LIB-H03; the beginner's B-02 and B-03) walked in as somebody with no account and
 found the front door promising what it could not keep. David decided the same day that
 the beta stays invitation-only for now: the waitlist and his Let in, no open sign-up
-(#485 waits). So every door a stranger reaches says that, and says it first.
+(#485 waits). So every door a stranger reaches says that, and says it first. With open
+signup on, "When the door is open, every door says so" (2026-11-10, above) holds instead.
 
 - **The try box promises no wait.** "Ready in about 4 minutes" went with a link a stranger
   pasted, beside a form that only joins a waitlist; the build comes when they are let in,
@@ -2529,10 +2571,11 @@ meeting and don't know yet" and "Texts at your level now", stay as they were.
   one plain list under the grid, the words of that square, most met first, each saying
   whether it is known. It is a real table with scoped headers, so a screen reader says
   "hitpa'el, Past, 38%".
-- **Topics has a slot and nothing in it.** The column beside the grid is built for
-  "Topics" and stays hidden until topic tagging exists, which is a card of its own. No
-  topic figure is drawn from anything else in the meantime. Filled on 2026-11-11: "Topics
-  in What next are weighed by how common a word is".
+- **Topics has a slot and nothing in it.** A row of its own under Grammar (since "The
+  Mishkal list beside the Grammar grid", 2026-11-02, which took the column beside the
+  grid) is kept for "Topics" and stays hidden until topic tagging exists, which is a card
+  of its own. No topic figure is drawn from anything else in the meantime. Filled on
+  2026-11-11: "Topics in What next are weighed by how common a word is".
 - **Where the data comes from.** A modern verb token in `annotation.json` already
   carries its tense in `feats` (`Tense`, and `VerbForm` for the infinitive and the
   participle). Its binyan is the annotation's where it named one, but since the DICTA

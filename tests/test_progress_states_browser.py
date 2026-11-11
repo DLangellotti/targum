@@ -364,3 +364,19 @@ def test_no_lexicon_on_the_machine_draws_no_topics(chromium: Any) -> None:
         assert not thrown, thrown
     finally:
         context.close()
+
+
+def test_one_topic_bar_has_nothing_to_be_weakest_against(chromium: Any) -> None:
+    """As the grid: with one bar there is nothing to set it against, so no outline."""
+    one = topics_said()
+    one["rows"], one["weakest"] = one["rows"][-1:], "security"
+    spec = {"signed": True, "words": 40, "story": with_topics(one)}
+    context, page, thrown = open_state(chromium, spec, 1440)
+    try:
+        page.goto(SITE + "/progress")
+        page.locator("#topic-rows .topic-bar").first.wait_for(state="visible", timeout=10_000)
+        assert page.locator("#topic-rows .topic-bar").count() == 1
+        assert page.locator("#topic-rows .weakest").count() == 0
+        assert not thrown, thrown
+    finally:
+        context.close()
