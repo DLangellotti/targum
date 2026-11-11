@@ -23,7 +23,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
   a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
-  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
+  sweeps a missed drop (targum-internal#680). No
   spend, no new strings.
 - A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
   from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
