@@ -875,6 +875,79 @@ class TestTheBitsTravel:
         assert ledger.Ledger(file).text("a" * 64) is not None
 
 
+class OneWord:
+    """Reads the first word of every segment, so a build writes a `tokens` pass."""
+
+    name = "one-word/1"
+
+    def annotate(self, segmented: Any, vocalization: Any = None) -> Annotation:
+        return Annotation(
+            document_hash=segmented.document_hash,
+            language=segmented.language,
+            annotator=self.name,
+            method="frequency",
+            method_note="made up",
+            tokens={
+                segment.id: [Token(start=0, end=len(word), surface=word, lemma=word, band=3)]
+                for segment in segmented.segments
+                for word in segment.text.split()[:1]
+            },
+        )
+
+
+class TestAHeldLock:
+    def test_a_build_finishes_promptly_and_skips_both_of_its_writes(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        source: Path,
+        fake_segmenter: object,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """#162: `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened
+        the ledger with sqlite's 30 s default, so another process holding the write lock
+        stalled a reader's build half a minute for each. Now each waits `MIRROR_TIMEOUT`,
+        says so in the log and goes on without its row."""
+        import logging
+        import time
+
+        from targum.pipeline import Build
+
+        file = tmp_path / "corpus.db"
+        monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv(ledger.ENV, str(file))
+        monkeypatch.setattr(ledger, "MIRROR_TIMEOUT", 0.5)
+        ledger.Ledger(file)._connect().close()
+        out = tmp_path / "out"
+        holder = sqlite3.connect(file, isolation_level=None)
+        try:
+            holder.execute("BEGIN IMMEDIATE")
+            began = time.monotonic()
+            with caplog.at_level(logging.WARNING, logger=ledger.__name__):
+                Build(
+                    str(source),
+                    provider_name="null",
+                    out=out,
+                    segmenter=fake_segmenter,  # type: ignore[arg-type]
+                    target_language="en",
+                    vocalizer=Named("fake/1"),
+                    difficulty=True,
+                    annotator=OneWord(),  # type: ignore[arg-type]
+                ).run()
+            waited = time.monotonic() - began
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+        assert waited < 15, f"the build waited {waited:.1f} s on the ledger"
+        assert (out / "vocalization.json").is_file() and (out / "annotation.json").is_file()
+        said = [r.getMessage() for r in caplog.records if "not recorded" in r.getMessage()]
+        assert any("vocalize" in one for one in said), said
+        assert any("tokens" in one for one in said), said
+        with sqlite3.connect(file) as db:
+            assert db.execute("SELECT COUNT(*) FROM vocalizations").fetchone() == (0,)
+            assert db.execute("SELECT COUNT(*) FROM annotations").fetchone() == (0,)
+
+
 def _rendering(document_hash: str = "doc123", **change: Any) -> dict[str, Any]:
     # Segments out of document order, and coarse and confidence fields only some carry.
     value = Translation(
