@@ -737,7 +737,9 @@ body.public {
      the same centred reach, with the line far enough under the press that the reach
      crosses only the margin, never the press over it (§8). */
   .public .door-in { margin-block-start: 1rem; }
-  .public .door-in a { position: relative; }
+  /* One line, as sign-in's links are: at 320 «Войдите, чтобы читать» broke in two, and
+     the reach centred on both fragments stood between them, over neither (#677). */
+  .public .door-in a { position: relative; white-space: nowrap; }
   .public .door-in a::after {
     content: "";
     position: absolute;
