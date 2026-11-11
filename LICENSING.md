@@ -250,6 +250,148 @@ any of it in this repository: the suite's frozen Russian sample
 lemma pairs and names, and is read through pymorphy3 again when the suite runs, so the
 dictionary's readings and its names are never committed.
 
+### pymorphy3's dictionary and Zaliznyak's — a claim read at its source (2026-11-11, open for David)
+
+targum-internal#444. The gramdict project, which publishes Zaliznyak's *Grammatical
+Dictionary* under CC BY-NC, says that anyone who earns money from OpenCorpora's dictionary
+or from pymorphy2 needs a commercial licence from it. pymorphy3 reads every Russian text
+on the machine (`annotate/russian.py`, `annotate/difficulty.py`, `finds/score.py`), so if
+that claim holds, Russian's cases, aspects and ё rest on a NonCommercial source. The
+2026-09-27 carve-out above does not settle it: the carve-out is about what a model was
+trained on, and this is a file that targum reads at run time.
+
+**What each source says, quoted.** The English in brackets is our translation.
+
+- **pymorphy3** 2.0.6, `LICENSE.txt` in the wheel and
+  [on GitHub](https://github.com/no-plagiarism/pymorphy3/blob/master/LICENSE.txt):
+  "MIT License … Copyright (c) 2022". The pymorphy2 paper
+  ([Korobov 2015](https://arxiv.org/abs/1503.07283)) says "it uses open source permissively
+  licensed dictionary data" and "All the dictionaries and corpora pymorphy2 depends on are
+  also available under permissive open-source licenses". That is the author's view and was
+  written before gramdict's claim.
+- **pymorphy3-dicts-ru** 2.4.417150.4580142, the package description
+  ([PyPI](https://pypi.org/project/pymorphy3-dicts-ru/)): "License for Python code in this
+  package is MIT. The data is licensed under Creative Commons Attribution-Share Alike
+  <http://creativecommons.org/licenses/by-sa/3.0/>." The package's metadata field and
+  classifier say "MIT license" only. Its `data/meta.json` records `"source":
+  "opencorpora.org"`, `"source_revision": "417150"` and `"source_lexemes_count": 391778`.
+  So the package is OpenCorpora's dictionary, compiled.
+- **OpenCorpora**, the site. opencorpora.org served nginx's default page on 2026-11-11,
+  and the Wayback Machine was offline, so this was read from the site's own source
+  ([OpenCorpora/opencorpora](https://github.com/OpenCorpora/opencorpora), last commit
+  2023-08-26, code GPL-2.0). The footer says "CC BY-SA 3.0" and links
+  `creativecommons.org/licenses/by-sa/3.0/deed.ru` (`templates/footer.tpl`). Every editor
+  agrees to "неотзывную публикацию всех вносимых мной изменений в соответствии с лицензией
+  Creative Commons Attribution/Share-Alike 3.0" [irrevocable publication of all my changes
+  under CC BY-SA 3.0] (`templates/login.tpl`). The FAQ answer on terms of use lives in the
+  site's database, not the repository. pymorphy2's issue
+  [#79](https://github.com/pymorphy2/pymorphy2/issues/79) (2016) cites it as CC BY-SA 3.0.
+- **OpenCorpora on where its dictionary came from**, from its own papers in that
+  repository. `doc/articles/2011_CorpusLing.tex`: "используется переработанная версия
+  словаря проекта АОТ" [a reworked version of the AOT project's dictionary is used].
+  `doc/articles/2011_Dialog.tex`: "Несмотря на то, что формат представления словаря
+  изменился существенным образом, все имеющиеся в исходом словаре АОТ данные были в том
+  или ином виде включены в словарь OpenCorpora." [Although the format changed
+  substantially, all the data in the original AOT dictionary was included in OpenCorpora's
+  dictionary in one form or another.] The papers do not name Zaliznyak, and they say
+  nothing about AOT's right to license the data.
+- **AOT**, on its dictionary ([aot.ru/docs/rusmorph.html](http://www.aot.ru/docs/rusmorph.html)):
+  "Русский морфологический словарь Диалинг базируется на грамматическом словаре
+  А.А.Зализняка[1987]." [Dialing's Russian morphological dictionary is based on
+  A. A. Zaliznyak's grammatical dictionary (1987).] Its code and dictionaries are
+  LGPL-2.1 ([sokirko74/aot](https://github.com/sokirko74/aot), `readme`: "This program is
+  distributed under the Library GNU Public Licence").
+- **gramdict**, [gramdict/zalizniak-2010](https://github.com/gramdict/zalizniak-2010),
+  `LICENSE.txt`: "Attribution-NonCommercial 4.0 International". Its README: "Данные
+  предоставлены правообладателем словаря Анной Андреевной Зализняк и опубликованы с ее
+  согласия под лицензией CC BY-NC." [The data was provided by the dictionary's rights
+  holder, Anna Andreevna Zaliznyak, and published with her consent under CC BY-NC.] And,
+  added 2021-03-30 (commit `ef7a01f`): "Исключительные права на Словарь, включая файлы в
+  каталоге dictionary и любое другое, полное или частичное, воспроизведение Словаря,
+  принадлежат Анне Андреевне Зализняк." [The exclusive rights in the Dictionary, including
+  the files in the dictionary folder and any other full or partial reproduction of it,
+  belong to Anna Andreevna Zaliznyak.] Then: "Те, кто зарабатывает на Словаре, теперь
+  получили официальный канал для лицензирования: напишите нам на human@gramdict.ru для
+  получения коммерческой лицензии. Лицензия нужна, даже если вы используете производные
+  Словаря, такие как словарь АОТ или словарь OpenCorpora, или программы на его основе,
+  такие как pymorphy2 или mystem." [Those who earn money from the Dictionary now have an
+  official channel: write to us for a commercial licence. A licence is needed even if you
+  use derivatives of the Dictionary, such as the AOT dictionary or OpenCorpora's, or
+  programs based on it, such as pymorphy2 or mystem.]
+
+**What is established, and what is only asserted.**
+
+- *Established, by each project's own words:* the chain runs Zaliznyak (1987) → AOT
+  ("базируется на") → OpenCorpora ("переработанная версия", all of AOT's data kept) →
+  pymorphy3-dicts-ru (`"source": "opencorpora.org"`). OpenCorpora's dictionary does
+  descend from Zaliznyak's, through AOT.
+- *Established:* every licence that any project in the chain puts on the file targum runs
+  is permissive or copyleft. MIT on the code, CC BY-SA 3.0 on OpenCorpora's data, and
+  LGPL-2.1 on AOT's. None of them is NonCommercial.
+- *Established:* gramdict's CC BY-NC licence is on its own files of the 2010 sixth edition,
+  digitised from proofs bought in 2017 and published in 2021. AOT worked from the 1987
+  edition decades earlier. Whatever reaches OpenCorpora, the CC BY-NC grant on gramdict's
+  files cannot, because OpenCorpora never had those files.
+- *Asserted, not established:* that Zaliznyak's rights reach OpenCorpora's dictionary, so
+  that a commercial user of pymorphy2 needs a licence. This is the rights holder's position,
+  stated by a project that sells those licences. No court ruling, takedown or complaint
+  against AOT, OpenCorpora or pymorphy was found, and OpenCorpora's papers never address
+  it. Nor is it established that AOT had Zaliznyak's permission. Nothing found says
+  either way.
+- *Not knowable from the sources, and a question for counsel:* whether what survived into
+  OpenCorpora is protected at all. The facts of Russian inflection are not anyone's work.
+  What Zaliznyak authored is the selection of about 110,000 words and the system of
+  indices that describes their paradigms. OpenCorpora keeps neither the indices nor the
+  arrangement. It lists 391,778 lemmas, about three and a half times the Dictionary, as
+  word forms with grammemes, reworked by its editors since 2009. On the other side, its
+  own paper says all of AOT's data was kept, and its editors are adding "difficult form"
+  marks "по Зализняку" [after Zaliznyak], as one of them wrote in
+  [OpenCorpora#896](https://github.com/OpenCorpora/opencorpora/issues/896#issuecomment-699509417)
+  in 2020. Under Russian law the author's exclusive right lasts for the author's life plus
+  70 years (Civil Code art. 1281), and Zaliznyak died in 2017. The database maker's right
+  lasts 15 years from creation or the last substantial update (art. 1335). Which of these
+  reaches a word list derived through two intermediaries is for a lawyer.
+
+**How targum touches it.** targum does not distribute the dictionary. It is installed from
+PyPI into the box's environment by the `russian` extra, and it is not in this repository,
+the wheel or any reader, and `test_finds.py` holds the suite's Russian sample to the
+shelf's own pairs.
+A reader shows one fact about one word: that a form can be genitive, that a verb is
+perfective, where a ё goes. targum makes money from the service, not from the dictionary,
+which gramdict's "зарабатывает на Словаре" [earns money from the Dictionary] may or may not
+mean to cover. The exposure is a demand from the rights holder to licence or stop. It is
+not a hidden NonCommercial term in a file we accepted.
+
+**The risk as scout assesses it: low-to-moderate, and not a blocker for the beta.** It is
+low because every licence on the file permits what targum does, the claim against
+derivatives has never been tested, and what targum shows is a fact per word rather than
+the Dictionary. It is not negligible, because the chain is real and documented, and the
+rights holder's representative has put the claim in writing, naming pymorphy2. It is
+DICTA's shape again: a file whose own licence is clean, with a lineage that is not.
+
+**Proposed decision, for David (not taken):**
+
+1. **Keep pymorphy3 as a lookup, under the CC BY-SA 3.0 its data is offered under,** with
+   the posture OpenRussian has: attributed at the foot (as now), never trained on, and
+   never shipped as a list. Record gramdict's claim here as asserted and not established,
+   so that it is a decision and not a drift.
+2. **Name the trigger to revisit:** a word from the rights holder or gramdict, Russian
+   becoming a line of revenue that someone would notice, or counsel's read before Launch.
+   Whichever comes first.
+3. **Keep the way out ready, not taken.** Russian's morphology can go back to the model
+   (`annotate/model_lemma.py`, paid per text, what Russian ran on before 2026-09-27).
+   Aspect partners are targum's own (`annotate/aspect_partners.json`) and stress is
+   OpenRussian's plus silero's, so neither depends on OpenCorpora. Replacing pymorphy3
+   costs the case and ё checks and the finds' unseen forms. It costs no shipped data.
+4. **Not proposed without David's word:** writing to gramdict for a commercial licence or a
+   quote. That is an outward-facing act in targum's name. It would also tell a party that
+   sells licences that targum is a commercial user of the Dictionary, which is the point
+   in dispute.
+
+The alternative, treating the claim as established and removing pymorphy3 now, follows the
+Hebrew rule's caution. It costs Russian its local reading, and the box could no longer
+rebuild Russian texts for free (targum-internal#310).
+
 ### DICTA's annotator — CC BY 4.0 weights, trained on the treebank Stanza was dropped for (asked, awaiting answer — 2026-09-27)
 
 **The section on Stanza's Hebrew models says the NonCommercial model "was replaced
