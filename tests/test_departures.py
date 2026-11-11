@@ -526,3 +526,59 @@ def test_a_build_queued_for_an_account_that_went_never_runs(
     library.queue.put("queued")
     library.queue.join()
     assert ran == []
+
+
+def test_a_home_name_past_any_id_given_does_not_stop_the_seed(tmp_path: Path) -> None:
+    """qa-claude's sixth read of #1174 (P2-d): a folder named past anything this server
+    could have given (a typo, a test, p<2**64>) is not an id, and does not cost the real
+    homes beside it their count."""
+    store = Store(tmp_path / "targum.db")
+    _person(store, "one@example.com")
+    out = tmp_path / "out"
+    for name in ("p7", f"p{2**64}", f"p{10**6 + 50}"):
+        (out / name).mkdir(parents=True)
+    notes = _notes_folder(store)
+    notes.mkdir()
+    (notes / f"p{2**70}-1-abcdef.json").write_text("{}", encoding="utf-8")
+
+    Library(out, store=store)
+
+    assert _person(store, "new@example.com").id == 8
+
+
+def test_a_store_that_cannot_answer_for_an_owner_stops_no_build(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    """P2-e: the owner lookup before a build raised past the worker, which died, and
+    nothing queued after it ever ran. Now the owner is taken to be there."""
+    import time
+
+    store, library, _book = world
+    person = _person(store, "reader@example.com")
+    ran: list[str] = []
+    monkeypatch.setattr(Library, "run", lambda _self, job: ran.append(job.id))
+    failures = [sqlite3.OperationalError("disk I/O error")]
+    real = Store.db
+
+    class Flaky:
+        def __init__(self, connection: sqlite3.Connection) -> None:
+            self.connection = connection
+
+        def execute(self, sql: str, *args: object) -> sqlite3.Cursor:
+            if sql.startswith("SELECT 1 FROM person WHERE id") and failures:
+                raise failures.pop()
+            return self.connection.execute(sql, *args)
+
+        def __getattr__(self, name: str) -> object:
+            return getattr(self.connection, name)
+
+    monkeypatch.setattr(Store, "db", property(lambda self: Flaky(real.fget(self))))  # type: ignore[attr-defined]
+    for name in ("one", "two"):
+        library.jobs[name] = serve_module.Job(id=name, source="x", owner=person.id)
+    library.start_workers(1)
+    library.queue.put("one")
+    library.queue.put("two")
+    deadline = time.monotonic() + 5
+    while len(ran) < 2 and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert ran == ["one", "two"]

@@ -876,6 +876,12 @@ PURGE_AT_HOUR = 3
 #: next purge comes tonight or at the next start, and start-up waits on this one.
 FORGET_TIMEOUT = 5.0
 
+#: How far past the highest live id a home or a note may name and still be counted as an
+#: id once given here (`Library._seed_ids`), and the most any id can be: sqlite holds
+#: 2**63 - 1, and 2**53 keeps it exact anywhere a page reads it as a number.
+ID_SEED_REACH = 10**6
+ID_MOST = 2**53
+
 
 def until_next(hour: int, moment: datetime) -> float:
     """Seconds from `moment` (aware, any zone) to the next `hour`:00 UTC, never zero."""
@@ -2136,15 +2142,23 @@ class Library:
                         self.run(job)
                     finally:
                         self._after_build(job)
+            except Exception as error:  # noqa: BLE001 - a worker that dies empties the line
+                log.warning("worker: a build raised past run: %s", error)
             finally:
                 self.queue.task_done()
 
     def _owner_gone(self, job: Job) -> bool:
-        """Whether the account this build is for has been deleted since it was queued."""
+        """Whether the account this build is for has been deleted since it was queued.
+        Asked of the store; where it cannot answer, the owner is taken to be there, and
+        `_after_build` asks again once the build is done."""
         if job.owner is None or self.store is None:
             return False
-        row = self.store.db.execute("SELECT 1 FROM person WHERE id = ?", (job.owner,))
-        return row.fetchone() is None
+        try:
+            row = self.store.db.execute("SELECT 1 FROM person WHERE id = ?", (job.owner,))
+            return row.fetchone() is None
+        except Exception as error:  # noqa: BLE001
+            log.warning("worker: %s's owner went unasked: %s", job.id, error)
+            return False
 
     def _after_build(self, job: Job) -> None:
         """A build that finished after its owner's account went (targum-internal#679):
@@ -2825,17 +2839,31 @@ class Library:
         its id be given again while its folder or its corpus rows remain."""
         if self.store is None:
             return
-        highest = 0
+        try:
+            found = self.store.db.execute("SELECT COALESCE(MAX(id), 0) FROM person").fetchone()
+            live = int(found[0])
+        except Exception as error:  # noqa: BLE001 - never stops a start
+            log.warning("purge: ids not seeded: %s", error)
+            return
+        # A name nothing here could have given is somebody's mistake, not an id: counting
+        # it would move every id after it, or overflow sqlite and drop the whole seed.
+        ceiling = min(live + ID_SEED_REACH, ID_MOST)
+        names: list[str] = []
         with contextlib.suppress(OSError):
-            for one in self.out.iterdir():
-                if HOME.fullmatch(one.name):
-                    highest = max(highest, int(one.name[1:]))
+            names += [one.name for one in self.out.iterdir() if HOME.fullmatch(one.name)]
         folder = self._departing()
         with contextlib.suppress(OSError):
             for note in folder.glob("p*-*.json") if folder is not None else []:
                 head = note.name.split("-", 1)[0]
                 if HOME.fullmatch(head):
-                    highest = max(highest, int(head[1:]))
+                    names.append(head)
+        highest = 0
+        for name in names:
+            given = int(name[1:])
+            if given > ceiling:
+                log.warning("purge: %s is past any id given here; not counted", name)
+                continue
+            highest = max(highest, given)
         try:
             self.store.no_id_below(highest)
         except Exception as error:  # noqa: BLE001 - never stops a start
