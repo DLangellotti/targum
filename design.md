@@ -707,6 +707,10 @@ frequency alone.
   Every reader language alike, since the measured readers read in English and an
   internationalism is one in Russian too. A machine without the lexicon estimates as
   before. Nothing new is stored and nothing is spent.
+- **A Russian word the Russian root lexicon marks borrowed** (телефон, интернет, кофе;
+  `roots-ru`'s `borrowed` field) takes the same 1.6, without a fit of its own
+  (targum-internal#633, 2026-11-11). Russian marks are too few to fit one: one reader,
+  125 marked words, 9 not known.
 - **Measured** (`scripts/eval_difficulty_features.py`, five folds of the laptop's 3,388
   marked words, 289 not known): pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, log
   loss 0.1865 → 0.1848, calibration error 0.027 unchanged. With the weight fitted on the
