@@ -15,7 +15,15 @@ import pytest
 
 from targum.annotate import lemma, model_lemma, russian
 from targum.annotate.model_lemma import ModelLemmatizer
-from targum.annotate.russian import Analysis, RussianLemmatizer, Tagged, settle, with_yo
+from targum.annotate.russian import (
+    Analysis,
+    Piece,
+    RussianLemmatizer,
+    Tagged,
+    settle,
+    stanza_asked,
+    with_yo,
+)
 from targum.models import BlockKind, Segment
 
 
@@ -88,6 +96,22 @@ def test_the_yo_stays_out_where_a_reading_is_spelled_without_it() -> None:
     """совершенный is "perfect" and совершённый "accomplished": two words, and which one
     this is is not a spelling rule's to say."""
     assert with_yo("совершенный", ["совершённый", "совершенный"]) == "совершенный"
+
+
+def test_stanza_is_asked_without_the_yo() -> None:
+    """Stanza's treebank never writes ё, and asked ёлке it answered блок
+    (targum-internal#650). It is asked елке; the ё goes back afterwards."""
+
+    def piece(text: str, pos: str = "NOUN") -> Piece:
+        return Piece(text=text, idx=0, pos=pos, morph="", dep="", head=0, lemma=text)
+
+    asked = stanza_asked([[piece("ёлке"), piece("Ёжик"), piece("дом")], [], [piece("всё", "")]])
+    assert [[word["text"] for word in sentence] for sentence in asked] == [
+        ["елке", "Ежик", "дом"],
+        ["все"],
+    ]
+    assert asked[0][0] == {"id": 1, "text": "елке", "upos": "NOUN"}
+    assert asked[1][0]["upos"] == "X"
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:
@@ -238,3 +262,32 @@ def test_a_real_sentence(monkeypatch: pytest.MonkeyPatch) -> None:
     assert (by["книги"].feats or "").startswith("UPOS=NOUN|")
     for token in tokens:
         assert text[token.start : token.end] == token.surface
+
+
+def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ёлке was filed under блок, мёда under мёда and осёл under осела: Stanza had no
+    letter for ё (targum-internal#650)."""
+    here = all(
+        importlib.util.find_spec(name) is not None
+        for name in ("spacy", russian.SPACY_MODEL, "pymorphy3", "stanza")
+    )
+    if not here or not russian.is_fetched():
+        pytest.skip("the russian extra and Stanza's Russian lemmatizer are not here")
+    monkeypatch.setattr(russian, "available", lambda: True)
+    texts = [
+        "Мальчик у Христа на ёлке.",
+        "Ёлке было холодно.",
+        "Мы купили мёда и нашли ёжика.",
+        "Учёного пришёл встретить осёл.",
+    ]
+    segments = [
+        Segment(id=f"{at:04d}.000-x", block_id="b0000", block_index=0, index=at, text=text)
+        for at, text in enumerate(texts)
+    ]
+    read = RussianLemmatizer(auto_download=False).lemmas(segments, "ru")
+    by = {token.surface: token.lemma for tokens in read.values() for token in tokens}
+    assert by["ёлке"] == "ёлка"
+    assert by["Ёлке"] == "ёлка"
+    assert by["мёда"] == "мёд"
+    assert by["ёжика"] == "ёжик"
+    assert by["осёл"] == "осёл"

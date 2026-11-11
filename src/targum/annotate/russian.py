@@ -78,7 +78,8 @@ LEMMA_PACKAGE = AUDITED["ru"]["lemma"]
 CHUNK = 256
 
 #: Moves when what this module writes changes, which re-reads every Russian text.
-VERSION = 1
+#: 2: ё is folded to е before Stanza is asked (targum-internal#650).
+VERSION = 2
 
 #: What each spaCy part of speech may be in pymorphy3's tagset, for reading its analyses.
 #: A participle is spaCy's VERB with VerbForm=Part, and pymorphy's PRTF.
@@ -198,6 +199,16 @@ def _case_from_form(word: Tagged, said: dict[str, str]) -> None:
     number = _NUMBERS.get(said.get("Number", ""))
     agreeing = [a for a in readings if a.number == number] or readings
     said["Case"] = max(agreeing, key=lambda a: a.score).case
+
+
+def without_yo(word: str) -> str:
+    """The word as the treebank Stanza learned from writes it, ё as е.
+
+    SynTagRus never writes ё, so Stanza's lemmatizer has no letter for it and puts one it
+    knows in its place: it read ёлке as блок, ёжика as бжик and ёмкости as бмкость, and
+    the dictionary, which knows блок, had no reason to doubt it. Asked елке, it answers
+    елка, and `with_yo` puts the ё back from the dictionary (targum-internal#650)."""
+    return word.replace("ё", "е").replace("Ё", "Е")
 
 
 def with_yo(lemma: str, spellings: Iterable[str]) -> str:
@@ -457,19 +468,26 @@ class RussianLemmatizer:
         return out
 
 
-def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
-    from stanza.models.common.doc import Document
-
-    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
-    words = [pieces(doc) for doc in docs]
-    asked = [
+def stanza_asked(words: Sequence[Sequence[Piece]]) -> list[list[dict[str, Any]]]:
+    """What Stanza's lemmatizer is handed: each sentence's words with spaCy's part of
+    speech, spelled as its treebank spells them (`without_yo`). An empty sentence is left
+    out, and so is not answered."""
+    return [
         [
-            {"id": at + 1, "text": piece.text, "upos": piece.pos or "X"}
+            {"id": at + 1, "text": without_yo(piece.text), "upos": piece.pos or "X"}
             for at, piece in enumerate(sentence)
         ]
         for sentence in words
         if sentence
     ]
+
+
+def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
+    from stanza.models.common.doc import Document
+
+    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
+    words = [pieces(doc) for doc in docs]
+    asked = stanza_asked(words)
     answered = iter(lemmatizer(Document(asked)).sentences if asked else [])
     out: dict[str, list[Token]] = {}
     for segment, sentence in zip(segments, words, strict=True):

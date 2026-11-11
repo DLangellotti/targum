@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A Russian word with ё keeps its own dictionary form (targum-internal#650). Stanza's
+  lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
+  wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
+  It is now asked the word with е, and the ё goes back from pymorphy3's dictionary, as it
+  already did for учёный. The local Russian annotator moves to `/2`, so `rebuild --words`
+  re-reads every Russian text it built, here and on the box, for nothing but time. On the
+  laptop's shelf that changes 9 of 38 ё-words. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a
