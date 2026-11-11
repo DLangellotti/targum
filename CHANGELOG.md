@@ -14,6 +14,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- An account purge whose corpus-ledger step fails is finished by the next purge
+  (targum-internal#679, clause 3.14). `Library.purge_departed` deleted the home right after
+  `ledger.disown` and `ledger.forget`, so a lock on `corpus.db` held past 30 s was logged
+  and then lost: the home was the only place that reader's documents could be listed
+  from, and their rows stayed. The home still goes on time; its document hashes are
+  written first to `corpus.db.forgetting/<home>.json`, and the note is removed only once
+  the ledger step holds, retried at every start-up and every nightly purge. A retry where
+  the person id has since been given to somebody new takes out only the departed's own
+  texts. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

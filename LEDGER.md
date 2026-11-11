@@ -159,6 +159,13 @@ text it held, so a text another reader still holds keeps no trace of the one who
 (`ledger.documents_under`), so no annotation is parsed whole. `scores` rows have no
 owner and survive the deletion (criterion 5).
 
+**A purge the ledger refused is finished later** (targum-internal#679, 2026-11-11). The
+home is deleted on time whatever the ledger says, so its document hashes are written
+first to `corpus.db.forgetting/<home>.json`, beside the file they are about. The note is
+removed once `disown` and `forget` have held; until then every start-up and every nightly
+purge tries again. Where the person id has meanwhile been given to somebody new, the retry
+takes out only the departed's own texts that the new home does not hold.
+
 ## How the criteria get verified
 
 - **Criterion 1** (every stage writes rows, the cache reads from them, the four checks

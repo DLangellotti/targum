@@ -629,19 +629,30 @@ def _verdict(text: Text) -> tuple[int, int, int]:
     return int(terms.exportable), int(terms.research), int(publishable)
 
 
-def disown(home: str) -> int:
+def disown(home: str, only: set[str] | None = None) -> int:
     """Take one departed reader's home out of every text it held (clause 3.14).
 
     `forget` deletes what was theirs alone; this is the rest, a text somebody else
     still holds. Its rows stay, as corpus or as the other reader's, and keep no trace of
     this home: the homes live only in `text_homes`, never in a row or its history.
-    Returns how many texts it was taken out of; does nothing with the flag off.
+    `only` limits it to these documents, for a retry made once the home's name may
+    belong to somebody new (targum-internal#679). Returns how many texts it was taken
+    out of; does nothing with the flag off.
     """
     file = path()
     if file is None or not home or not file.is_file():
         return 0
+    if only is not None and not only:
+        return 0
     with closing(Ledger(file)._connect()) as db, db:
-        return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
+        if only is None:
+            return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
+        wanted = sorted(only)
+        marks = ",".join("?" for _ in wanted)
+        return db.execute(
+            f"DELETE FROM text_homes WHERE home = ? AND document_hash IN ({marks})",  # noqa: S608
+            [home, *wanted],
+        ).rowcount
 
 
 #: The rows a value is made of, by the head table they hang off and the column that

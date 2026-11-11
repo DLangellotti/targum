@@ -2738,6 +2738,9 @@ class Library:
         deletion that waits, and then happens. `Store.purge` had nothing calling it, so
         "Delete account" ended the session and the grace period never ended anything.
         """
+        # A ledger step that failed on an earlier purge goes first (targum-internal#679):
+        # the night's sweep and every start-up retry it until it holds.
+        self._finish_forgetting()
         if self.store is None:
             return []
         # Who is about to go, read before the rows do: the last mail needs the address
@@ -2747,7 +2750,6 @@ class Library:
         for person_id in gone:
             home = self.out / f"p{person_id}"
             self._forget_in_ledger(home)
-            shutil.rmtree(home, ignore_errors=True)
         self._mail_the_departed([row for row in leaving if row["id"] in gone])
         return gone
 
@@ -2782,35 +2784,105 @@ class Library:
                 )
 
     def _forget_in_ledger(self, home: Path) -> None:
-        """Take a departed reader's texts out of the corpus ledger (targum-internal#162).
+        """Delete a departed reader's home, and take their texts out of the corpus ledger
+        (targum-internal#162).
 
         Only what was theirs alone: a text somebody else has, or the shared shelf or the
         weekly holds, is the same document and the same rows, and is corpus rather than
-        anybody's. Does nothing with the ledger off, and never stands in the way of the
-        deletion it is part of.
+        anybody's. The home's document hashes are written down before the home goes
+        (`_forgetting`), because the home is the only place they can be listed from, and
+        the note is removed only once the ledger step has held. A ledger step that fails
+        (a lock held past its 30 s) used to be logged and then lost with the home,
+        leaving that reader's rows in `corpus.db` for good (targum-internal#679); now the
+        next purge finishes it. Never stands in the way of the home's own deletion.
+        """
+        from . import ledger as ledger_module
+
+        file = ledger_module.path()
+        if file is None:
+            shutil.rmtree(home, ignore_errors=True)
+            return
+        note = self._forgetting(file) / f"{home.name}.json"
+        try:
+            note.parent.mkdir(parents=True, exist_ok=True)
+            hashes = sorted(ledger_module.documents_under(home))
+            draft = note.with_suffix(".tmp")
+            draft.write_text(json.dumps({"home": home.name, "hashes": hashes}), "utf-8")
+            os.replace(draft, note)
+        except OSError as error:
+            # Nowhere to write the note: try the ledger now, as before, and say so.
+            log.warning("corpus ledger: no note kept for %s: %s", home.name, error)
+            self._forget_now(home.name, set(ledger_module.documents_under(home)), home)
+            shutil.rmtree(home, ignore_errors=True)
+            return
+        shutil.rmtree(home, ignore_errors=True)
+        self._finish_forgetting(note)
+
+    @staticmethod
+    def _forgetting(file: Path) -> Path:
+        """Where the purges still owed to the ledger are written down: beside it, so the
+        note lives exactly as long as the file it is about (targum-internal#679)."""
+        return file.parent / f"{file.name}.forgetting"
+
+    def _finish_forgetting(self, only: Path | None = None) -> None:
+        """Finish every ledger step a purge still owes, or just `only`; remove each note
+        once its step holds, and keep it for the next purge when it does not."""
+        from . import ledger as ledger_module
+
+        file = ledger_module.path()
+        if file is None:
+            return
+        if only is not None:
+            notes = [only]
+        else:
+            folder = self._forgetting(file)
+            notes = sorted(folder.glob("*.json")) if folder.is_dir() else []
+        for note in notes:
+            try:
+                said = json.loads(note.read_text(encoding="utf-8"))
+                name = str(said["home"])
+                hashes = {str(one) for one in said["hashes"]}
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                log.warning("corpus ledger: unreadable purge note %s: %s", note.name, error)
+                continue
+            if self._forget_now(name, hashes, None):
+                note.unlink(missing_ok=True)
+
+    def _forget_now(self, name: str, hashes: set[str], home: Path | None) -> bool:
+        """The ledger step itself: whether it held.
+
+        A retry runs after the home is gone, and a person id can be given again to
+        somebody new once the account that had it is deleted; so where a home of that
+        name stands again, only the departed's own texts that the new home does not hold
+        are taken out of it, never the newcomer's.
         """
         import sqlite3
 
         from . import ledger as ledger_module
 
-        if ledger_module.path() is None:
-            return
         try:
-            # Their home out of every text it held, including those somebody else still
-            # holds, before anything else can fail (clause 3.14).
-            ledger_module.disown(home.name)
-            mine = ledger_module.documents_under(home)
-            if not mine:
-                return
             others: set[str] = set()
             roots = [self.shared, self.weekly]
             if self.out.is_dir():
                 roots += [one for one in self.out.iterdir() if one.is_dir() and one != home]
             for root in dict.fromkeys(roots):
                 others |= ledger_module.documents_under(root)
-            ledger_module.forget(mine - others)
+            again = self.out / name
+            if home is None and again.is_dir():
+                ledger_module.disown(name, hashes - ledger_module.documents_under(again))
+            else:
+                # Their home out of every text it held, including those somebody else
+                # still holds, before anything else can fail (clause 3.14).
+                ledger_module.disown(name)
+            ledger_module.forget(hashes - others)
         except (OSError, sqlite3.Error) as error:
-            log.warning("corpus ledger: a departed reader's texts were not forgotten: %s", error)
+            log.warning(
+                "corpus ledger: a departed reader's texts were not forgotten yet; "
+                "the next purge tries again: %s",
+                error,
+            )
+            return False
+        return True
 
     def empty_trash(self, days: int = TRASH_DAYS) -> list[str]:
         """Delete for real anything whose week is up. Called at start-up."""

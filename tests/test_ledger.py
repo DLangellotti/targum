@@ -1521,6 +1521,77 @@ class TestAnyDepth:
         assert library.purge_departed() == [person.id]
         assert book.history("vocalize", "k-a") == []
 
+    def test_a_purge_the_ledger_lock_stopped_is_finished_by_the_next(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """targum-internal#679: a lock on `corpus.db` held through the purge used to be
+        logged, and the home deleted anyway, so that reader's rows could never be listed
+        again. The home still goes; what is owed to the ledger is written down and the
+        next purge finishes it, and the note goes only then."""
+        from targum.accounts import Store
+        from targum.serve import Library
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        # A lock held longer than the ledger waits, without waiting 30 s for it.
+        monkeypatch.setattr(ledger.Ledger.__init__, "__kwdefaults__", {"timeout": 0.05})
+        store = Store(tmp_path / "targum.db")
+        person, _ = store.finish_sign_in(store.start_sign_in("leaving@example.com"))  # type: ignore[misc]
+        library = Library(tmp_path / "out", store=store)
+        home = library.home(person)
+        TestADepartedReader._text(home / "my-upload", "a" * 64)
+        self._built(home / "article", "c" * 64, "https://x.example/a")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record("vocalize", "k-a", {**POINTED, "document_hash": "a" * 64})
+        book.record_text(ledger.Text("c" * 64, "https://x.example/a", "", frozenset({home.name})))
+        notes = tmp_path / "corpus.db.forgetting"
+
+        holder = sqlite3.connect(book.file, isolation_level=None)
+        holder.execute("BEGIN IMMEDIATE")
+        try:
+            with store.write() as db:
+                db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (person.id,))
+            assert library.purge_departed() == [person.id]
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+
+        assert not home.exists(), "the home goes on time, whatever the ledger says"
+        assert book.get("vocalize", "k-a") is not None, "the lock held: the rows are there"
+        assert book.text("c" * 64) is not None
+        assert [one.name for one in notes.iterdir()] == [f"{home.name}.json"]
+
+        assert library.purge_departed() == [], "nobody new is due"
+        assert book.get("vocalize", "k-a") is None
+        assert book.history("vocalize", "k-a") == []
+        assert book.text("c" * 64) is None
+        with sqlite3.connect(book.file) as db:
+            assert db.execute("SELECT COUNT(*) FROM text_homes").fetchone()[0] == 0
+        assert list(notes.iterdir()) == [], "the note goes once the ledger step holds"
+
+    def test_a_retry_leaves_a_newcomer_who_has_the_same_home_name_alone(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """A person id can be given again once its account is deleted, so a home of the
+        departed's name may hold somebody new by the time a purge is retried (#679)."""
+        from targum.serve import Library
+
+        monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
+        library = Library(tmp_path / "out")
+        book = ledger.Ledger(tmp_path / "corpus.db")
+        book.record_text(ledger.Text("a" * 64, "upload.pdf", "", frozenset({"p7"})))
+        book.record_text(ledger.Text("b" * 64, "https://x.example/b", "", frozenset({"p7"})))
+        self._built(library.out / "p7" / "theirs", "b" * 64, "https://x.example/b")
+        notes = tmp_path / "corpus.db.forgetting"
+        notes.mkdir()
+        (notes / "p7.json").write_text(json.dumps({"home": "p7", "hashes": ["a" * 64]}))
+
+        library.purge_departed()
+
+        assert book.text("a" * 64) is None, "the departed's own text went"
+        held = book.text("b" * 64)
+        assert held is not None and held.homes == {"p7"}, "the newcomer's stayed theirs"
+        assert list(notes.iterdir()) == []
+
     def test_a_text_the_shelf_holds_twice_keeps_one_rendering_and_no_churn(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
