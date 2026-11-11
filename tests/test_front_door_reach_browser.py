@@ -259,12 +259,82 @@ def test_a_text_page_s_way_in_answers_a_thumb(browser: Any, monkeypatch: Any) ->
         assert way_in["h"] < 44, "the words stay their size; the reach is what grows"
         assert way_in["up"] and way_in["down"], way_in
         over = page.evaluate(OVER, [".door-in a", ".door .go"])
-        assert over["top"] >= over["above"], f"the reach crosses the waitlist's press: {over}"
+        # Not merely clear: without the line's own margin the reach cleared the press by
+        # about 1px, a hair a thumb does not respect (#677). With it, about 5.
+        assert over["top"] - over["above"] >= 4, f"the reach crowds the waitlist's press: {over}"
         assert not thrown, thrown
     finally:
         context.close()
 
 
+#: How many lines the link is set on, and whether a tap 20px off its middle lands.
+ONE_LINE = """(selector) => {
+  const one = document.querySelector(selector);
+  return {lines: one.getClientRects().length, text: one.textContent};
+}"""
+
+
+def ruth_behind_the_door(monkeypatch: Any) -> str:
+    from targum.catalogue import Entry
+
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    ruth = Entry(
+        id="ruth",
+        title="רות",
+        author="Ketuvim · Ruth",
+        language="he",
+        source="sefaria:he:Ruth",
+        blurb="Four chapters, the shortest way in.",
+        words=100,
+        english="Ruth",
+    )
+    return text_page(ruth, "https://targum.page", language="ru")
+
+
+@pytest.mark.parametrize("width", [320, 360])
+def test_the_ways_in_keep_one_line_on_a_narrow_phone_in_russian(
+    browser: Any, monkeypatch: Any, width: int
+) -> None:
+    """A link broken over two lines is two fragments, and the reach centred on both stood
+    between them, over neither: each way in stays one box at 320 and 360 (#672, #677)."""
+    context, page, thrown = opened(
+        browser, signin_page(join="/#join", language="ru"), width, True, sign_in=refused
+    )
+    try:
+        page.goto(SITE + "/account/signin")
+        page.fill("#email", "stranger@example.com")
+        page.click("#ask button")
+        page.wait_for_selector(".gate .join-link")
+        for selector in (".gate .new-here a", ".gate .join-link"):
+            got = page.evaluate(ONE_LINE, selector)
+            assert got["lines"] == 1, f"{selector} breaks at {width}: {got}"
+            tap = page.evaluate(TAPPED, [selector, 20])
+            assert tap["up"] and tap["down"], (selector, tap)
+        assert not thrown, thrown
+    finally:
+        context.close()
+    context, page, thrown = opened(browser, ruth_behind_the_door(monkeypatch), width, True)
+    try:
+        page.goto(SITE + "/library/ruth")
+        page.wait_for_selector(".door-in a")
+        got = page.evaluate(ONE_LINE, ".door-in a")
+        assert got["lines"] == 1, f"the text page's way in breaks at {width}: {got}"
+        tap = page.evaluate(TAPPED, [".door-in a", 20])
+        assert tap["up"] and tap["down"], tap
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+#: What a server's fault looks like on the wire: the proxy's page of HTML while targum
+#: restarts, and targum's own JSON 5xx that carries no `error` to say (#677).
+FAULTS = {
+    "proxy": (502, "text/html", "<html>502 Bad Gateway</html>"),
+    "json": (500, "application/json", '{"ok": false}'),
+}
+
+
+@pytest.mark.parametrize("fault", sorted(FAULTS))
 @pytest.mark.parametrize(
     ("language", "line"),
     [
@@ -273,12 +343,13 @@ def test_a_text_page_s_way_in_answers_a_thumb(browser: Any, monkeypatch: Any) ->
     ],
 )
 def test_a_sign_in_the_server_could_not_send_is_not_told_as_the_connection(
-    browser: Any, language: str, line: str
+    browser: Any, language: str, line: str, fault: str
 ) -> None:
-    """A 502 is a page of the proxy's HTML: targum was reached, and could not send."""
+    """targum was reached, and could not send: neither the connection nor the address."""
+    status, kind, body = FAULTS[fault]
 
     def bad_gateway(route: Any) -> None:
-        route.fulfill(status=502, content_type="text/html", body="<html>502 Bad Gateway</html>")
+        route.fulfill(status=status, content_type=kind, body=body)
 
     context, page, thrown = opened(
         browser, signin_page(language=language), 1440, False, sign_in=bad_gateway
@@ -287,7 +358,8 @@ def test_a_sign_in_the_server_could_not_send_is_not_told_as_the_connection(
         page.goto(SITE + "/account/signin")
         page.fill("#email", "reader@example.com")
         page.click("#ask button")
-        page.wait_for_selector("#sent:not([hidden])")
+        # Every answer gives the press back, so wait on that, not on the line it should say.
+        page.wait_for_function("() => !document.querySelector('#ask button').disabled")
         got = page.evaluate(
             """() => ({
               said: document.querySelector('#sent').textContent,

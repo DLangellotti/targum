@@ -161,17 +161,22 @@
            pass, 2026-11-10). targum was reached; it couldn't send. */
         return response.json().then(
           function (body) {
-            return { ok: response.ok, body: body || {} };
+            body = body || {};
+            /* A 5xx that is JSON but says nothing of its own is the server's fault
+               too, not the address's: without this it took account.could-not-send
+               under the field, as if the address were wrong (#677). */
+            if (response.status >= 500 && !body.error) return { ok: false, body: body, serverFault: true };
+            return { ok: response.ok, body: body };
           },
           function () {
-            return { ok: false, body: {}, unread: true };
+            return { ok: false, body: {}, serverFault: true };
           }
         );
       })
       .then(function (answer) {
         window.clearTimeout(slow);
         said.hidden = false;
-        if (answer.unread) {
+        if (answer.serverFault) {
           // Not about the address, so not under its field: a line with the clay mark
           // where the form's answer goes, and the press is still there to try again with.
           button.disabled = false;

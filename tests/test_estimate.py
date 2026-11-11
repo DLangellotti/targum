@@ -64,6 +64,46 @@ def test_a_borrowed_word_is_easier_than_its_place_says(
     assert by_word["של"] == pytest.approx(before["של"]), "a word not borrowed is unchanged"
 
 
+def test_a_russian_borrowed_word_is_easier_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Russian root lexicon's borrowed flag feeds the same term (targum-internal#633),
+    looked up by the lexicon's own spelling: case, ё and stress marks do not hide a word."""
+    plain = est.difficulty("телефон", "ru")
+    other = est.difficulty("стол", "ru")
+    spelled = {word: est.difficulty(word, "ru") for word in ("Телефо\u0301н", "актёр")}
+    index = index_of({"t": {"телефон": 1, "стол": 1}})
+    file = tmp_path / "roots-ru.json"
+    rows = {
+        "Телефо\u0301н": {"roots": [], "borrowed": True},
+        "актер": {"roots": [], "borrowed": True},
+        "стол": {"roots": []},
+    }
+    body = {"version": "ru-roots/1", "language": "ru", "lemmas": rows}
+    file.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setenv("TARGUM_ROOTS_RU", str(file))
+    assert est.difficulty("телефон", "ru") == pytest.approx(plain - est.BORROWED)
+    assert est.difficulty("стол", "ru") == pytest.approx(other), "a word not borrowed"
+    for word, before in spelled.items():
+        assert est.difficulty(word, "ru") == pytest.approx(before - est.BORROWED), word
+    known = est.Estimate("ru", 9.0, {})
+    by_word = dict(zip(index.words, known.chances(index), strict=True))
+    assert by_word["телефон"] == pytest.approx(known.chance("телефон")), "the table agrees"
+    assert est.difficulty("телефон", "fr") != pytest.approx(plain - est.BORROWED)
+    assert est._borrowed("he") is not est._borrowed("ru"), "each language its own words"
+
+
+def test_a_russian_word_is_as_common_with_its_yo_as_without() -> None:
+    """ё and е are one letter written two ways, and wordfreq ranks the spellings apart:
+    a lemma with ё is as common as the commoner spelling (targum-internal#684)."""
+    for yo, plain in (("ещё", "еще"), ("чёрный", "черный"), ("мёд", "мед")):
+        assert est.difficulty(yo, "ru") == pytest.approx(est.difficulty(plain, "ru")), yo
+        assert est.difficulty(plain, "ru") < math.log(est.UNRANKED_AT), plain
+    index = index_of({"t": {"чёрный": 1, "черный": 1}})
+    table = dict(zip(index.words, est.Estimate("ru", 9.0, {}).chances(index), strict=True))
+    assert table["чёрный"] == pytest.approx(table["черный"]), "the table agrees"
+
+
 def test_a_mark_always_wins() -> None:
     known = est.Estimate("he", 20.0, {"ים": KNOWN, "בית": 2, "דוד": IGNORED})
     assert known.p_known("ים") == 1.0
@@ -122,6 +162,23 @@ def test_the_prior_is_the_rung_named_until_one_is_measured() -> None:
     measured = replace(named, here=level_module.ULPAN[1])
     assert est.prior(measured) == pytest.approx(math.log(900) + est.FORMS_PER_LEMMA)
     assert est.prior(None) == pytest.approx(math.log(est.PRIOR_WORDS) + est.FORMS_PER_LEMMA)
+
+
+def test_a_named_rung_with_nothing_else_stands_on_that_rung() -> None:
+    """The prior and the words check read a rung the same way on every ladder
+    (targum-internal#633): a reader who names A2 and does nothing else is A2, not the A1
+    that "known among the commonest five thousand" read as an expected count would make
+    it, and not a step higher."""
+    from targum import check
+
+    for code in ("he", "fr", "ru"):
+        ladder = level_module.ladder_for(code)
+        assert ladder is not None
+        for rung in ladder.rungs:
+            said = replace(level_module.EMPTY, language=code, declared=check.rung_id(rung))
+            assert level_module.seed(said) == rung
+            alone = est.Estimate(code, est.prior(said), {})
+            assert check.rung_after(alone) == rung, f"{code} {rung.name}"
 
 
 def test_a_readers_estimate_is_fitted_again_after_a_sync_and_kept_between(tmp_path: Path) -> None:
