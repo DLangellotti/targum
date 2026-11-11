@@ -384,6 +384,32 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Topics in What next are weighed by how common a word is — 2026-11-11
+
+targum-internal#608 fills the Topics slot "What next leads with your biggest grammar gap"
+(2026-10-30) kept empty, with the share David approved on 2026-10-30 (weighted, as the
+topic-tagging plan recommends) and the lexicon he kept live on 2026-11-10 (#606).
+
+- **A bar a topic, under Grammar.** One row per topic in the lexicon's `shown` list, in
+  the list's fixed order so a bar never moves as the numbers do: the topic's name, a track
+  filled with leaf to the share, and the exact percentage. The track is in the grid's
+  36rem. The weakest bar is outlined in teal, as the grid's weakest row is.
+- **What a bar measures.** Of the topic's lemmas inside the yardsticks' top 20,000, the
+  share the reader has marked known, each weighed by log(1 + its blended rate per million)
+  over news, conversation and literature, read off the snapshots "How much Hebrew you
+  understand" reads; Religion & tradition falls back to the Bible's. A word in two topics
+  counts in both. `general` has no bar.
+- **Both floors.** A topic is drawn only when it is shown and has 60 lemmas in the top
+  20,000. Under 100 known words (the ledger's figure) there are no bars, only "Once you
+  know 100 words, we'll show how much of each topic you know. Mark the words you know as
+  you read." Never a row of bars at 0%.
+- **A bar opens its words to learn next.** Each bar is a button: it opens, under the
+  list, the topic's eight commonest words not on the reader's list at all, each with the
+  meaning the glossary already holds or none. Nothing is bought for it.
+- **Where there is no lexicon nothing is drawn**, as on a laptop or CI checkout without
+  `topics.json`, and the slot stays hidden. Hebrew only. Where there is no grid, Topics
+  stands alone under the two lists and "Grammar" is not said over nothing.
+
 ### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
 
 Supersedes the split in "Russian says a cost in minutes and a balance in points"
@@ -2505,7 +2531,8 @@ meeting and don't know yet" and "Texts at your level now", stay as they were.
   "hitpa'el, Past, 38%".
 - **Topics has a slot and nothing in it.** The column beside the grid is built for
   "Topics" and stays hidden until topic tagging exists, which is a card of its own. No
-  topic figure is drawn from anything else in the meantime.
+  topic figure is drawn from anything else in the meantime. Filled on 2026-11-11: "Topics
+  in What next are weighed by how common a word is".
 - **Where the data comes from.** A modern verb token in `annotation.json` already
   carries its tense in `feats` (`Tense`, and `VerbForm` for the infinitive and the
   participle). Its binyan is the annotation's where it named one, but since the DICTA

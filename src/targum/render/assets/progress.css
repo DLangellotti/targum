@@ -652,7 +652,48 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .gap-note { margin: 0.5rem 0 0; font-size: 0.8125rem; color: var(--ink-soft); }
 .progress .grammar-words { margin-block-start: 1rem; }
 .progress .grammar-words-title { margin: 0 0 0.25rem; font-size: 0.875rem; font-weight: 600; color: var(--ink); }
-.progress .topic-rows { list-style: none; margin: 0; padding: 0; }
+/* Topics (design.md §12, 2026-11-11; targum-internal#608): a bar a topic, in the grid's
+   36rem, its name, a track filled with leaf to the share and the exact percentage. A bar
+   is a button that opens its words to learn next, outlined in teal where it is the
+   weakest, as the grid's weakest row is. */
+.progress .gap-head[hidden], .progress .topic-rows[hidden] { display: none; }
+.progress .topic-rows { list-style: none; margin: 0; padding: 0; max-inline-size: 36rem; }
+.progress .topic-row { margin: 0 0 0.25rem; border-radius: var(--radius-control); }
+.progress .topic-row.weakest { outline: 2px solid var(--focus); outline-offset: 1px; }
+.progress .topic-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 11rem) minmax(4rem, 1fr) 3rem;
+  align-items: center;
+  column-gap: 0.75rem;
+  inline-size: 100%;
+  min-block-size: 2.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+}
+.progress button.topic-bar { cursor: pointer; }
+.progress button.topic-bar:hover { box-shadow: inset 0 0 0 1px var(--ink-soft); }
+.progress button.topic-bar[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+.progress .topic-name { font-size: 0.875rem; line-height: 1.3; }
+.progress .topic-track {
+  display: block;
+  block-size: 0.5rem;
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--leaf) 14%, var(--card));
+  overflow: hidden;
+}
+.progress .topic-fill { display: block; block-size: 100%; background: var(--leaf); }
+.progress .topic-percent { font-size: 0.875rem; font-variant-numeric: tabular-nums; text-align: end; }
+@media (max-width: 40rem) {
+  .progress .topic-bar { grid-template-columns: minmax(0, 8.5rem) minmax(3rem, 1fr) 2.75rem; column-gap: 0.5rem; }
+}
+@media (hover: none) and (pointer: coarse) {
+  .progress .topic-bar { min-block-size: 2.75rem; }
+}
 
 /* The Mishkal list: a row a pattern, one square a row, drawn with the grid's own squares
    and outline. The script splits it into two tables of rows; they stand side by side

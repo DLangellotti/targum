@@ -1459,6 +1459,139 @@ def shares(
     return out
 
 
+# --- The bars on Your Progress ------------------------------------------------------------
+
+#: How many of a topic's words to learn next its bar opens: the commonest the reader does
+#: not know yet.
+NEXT_WORDS = 8
+
+
+#: The snapshots' weights once blended, by the snapshot objects they came from.
+_WEIGHED: dict[tuple[int, ...], dict[str, float]] = {}
+
+
+def yardstick_weights(registers: Sequence[str], where: Path | None = None) -> dict[str, float]:
+    """`weights`, read off the yardstick snapshots (targum-internal#579) instead of the live
+    counts: the same plain mean of each register's rate per million, log-damped, over the
+    lists a reader's "How much Hebrew you understand" is measured on. A served page reads
+    these, never the tables, so a bar moves only when the reader learns a word or a new
+    snapshot lands. Nothing where no register has a snapshot."""
+    from .tables import yardstick
+
+    sticks = [stick for stick in (yardstick.load(r, where) for r in registers) if stick]
+    if not sticks:
+        return {}
+    # `yardstick.load` hands back the same object until its file changes.
+    key = tuple(id(stick) for stick in sticks)
+    if key in _WEIGHED:
+        return _WEIGHED[key]
+    rates: dict[str, float] = {}
+    for stick in sticks:
+        for lemma, share in stick.weights.items():
+            rates[lemma] = rates.get(lemma, 0.0) + share * 1_000_000
+    blended = sorted(rates.items(), key=lambda item: (-item[1], item[0]))[:DEPTH]
+    weighed = {lemma: math.log1p(rate / len(sticks)) for lemma, rate in blended}
+    if len(_WEIGHED) > 8:
+        _WEIGHED.clear()
+    _WEIGHED[key] = weighed
+    return weighed
+
+
+#: (file, its mtime) → the lexicon keyed by bare lemma and its `shown`, so a page load
+#: parses the file once.
+_HELD: dict[tuple[str, float], tuple[dict[str, tuple[str, ...]], tuple[str, ...]]] = {}
+
+
+def held_for_progress(
+    language: str = "he",
+) -> tuple[dict[str, tuple[str, ...]], tuple[str, ...]] | None:
+    """The language's lexicon keyed by bare lemma, with the topics it may draw
+    (`load_shown`), or None where there is no lexicon or nothing in it may be drawn."""
+    from .tables.yardstick import bare
+
+    file = default_file(language)
+    if file is None:
+        return None
+    try:
+        key = (str(file), file.stat().st_mtime)
+    except OSError:
+        return None
+    if key not in _HELD:
+        merged: dict[str, tuple[str, ...]] = {}
+        for lemma, codes in (load(file, language) or {}).items():
+            plain = bare(lemma)
+            merged[plain] = tuple(dict.fromkeys((*merged.get(plain, ()), *codes)))
+        _HELD.clear()
+        _HELD[key] = (merged, load_shown(file, language))
+    merged, shown = _HELD[key]
+    if not merged or not shown:
+        return None
+    return merged, shown
+
+
+def progress(
+    lexicon: Mapping[str, Sequence[str]],
+    shown: Sequence[str],
+    marked: Mapping[str, int],
+    known: int,
+    modern: Mapping[str, float],
+    bible: Mapping[str, float],
+    meaning: Callable[[str], str] | None = None,
+) -> dict[str, Any] | None:
+    """What next's Topics for one reader (targum-internal#608): one row per topic that
+    passes both floors, in the order of `TOPICS`, with the exact percentage of its
+    weighed lemmas the reader knows and the commonest of them they have not met on their
+    list yet.
+
+    None, so the page draws nothing, where there is no lexicon, no shown topic, no
+    yardstick, or no topic with `TOPIC_FLOOR` lemmas inside it. Under the reader floor
+    (`known`, the ledger's count, below `READER_FLOOR`) there are no rows, only the floor,
+    and the page says what to do instead of drawing bars at 0%. `lexicon` is keyed as the
+    yardsticks are, by bare lemma (`held_for_progress`); `marked` is bared here."""
+    from .level import KNOWN, known_percent
+    from .tables.yardstick import bare
+
+    if not lexicon or not shown or not modern:
+        return None
+    status: dict[str, int] = {}
+    for lemma, step in marked.items():
+        plain = bare(lemma)
+        # Two spellings of one word: the furthest along says it.
+        status[plain] = max(step, status.get(plain, step))
+    knows = {lemma for lemma, step in status.items() if step == KNOWN}
+    drawn = [one for one in shares(lexicon, knows, modern, bible, shown) if one.drawn]
+    if not drawn:
+        return None
+    if known < READER_FLOOR:
+        return {"floor": READER_FLOOR, "rows": [], "weakest": None}
+    rows: list[dict[str, Any]] = []
+    for one in drawn:
+        weighed: list[tuple[float, str]] = []
+        for lemma, codes in lexicon.items():
+            if one.topic not in codes or lemma in status:
+                # Known, still being learned or set aside: none is a word to learn next.
+                continue
+            weight = modern.get(lemma)
+            if weight is None and one.topic == "religion":
+                weight = bible.get(lemma)
+            if weight is not None:
+                weighed.append((weight, lemma))
+        weighed.sort(key=lambda item: (-item[0], item[1]))
+        rows.append(
+            {
+                "topic": one.topic,
+                "known": known_percent(one.share),
+                "words": [
+                    {"lemma": lemma, "meaning": meaning(lemma) if meaning else ""}
+                    for _, lemma in weighed[:NEXT_WORDS]
+                ],
+            }
+        )
+    order = list(TOPICS)
+    weakest = min(drawn, key=lambda one: (one.share, order.index(one.topic)))
+    return {"floor": READER_FLOOR, "rows": rows, "weakest": weakest.topic}
+
+
 #: Three made-up readers, from the tables alone, so the formula and the floors can be
 #: seen before any real reader is: (who, register, how many of its commonest lemmas they
 #: know). No real account is ever read for this.

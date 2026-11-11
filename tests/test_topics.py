@@ -1096,3 +1096,89 @@ def test_load_shown_drops_shown_once_the_tags_it_was_proven_on_change(tmp_path: 
     del held["shown_tags_sha256"]
     file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
     assert topics.load_shown(file, "ru") == ("family",)
+
+
+# -- the bars on Your Progress (targum-internal#608) ---------------------------------------
+
+
+def _bars_lexicon() -> dict[str, tuple[str, ...]]:
+    """Food with 80 lemmas inside the yardstick, law with 59 (under the topic floor), and
+    family with 70 but not shown."""
+    held: dict[str, tuple[str, ...]] = {}
+    held.update({f"אוכל{n}": ("food",) for n in range(80)})
+    held.update({f"חוק{n}": ("law",) for n in range(59)})
+    held.update({f"בית{n}": ("family",) for n in range(70)})
+    return held
+
+
+def _bars_weights() -> dict[str, float]:
+    lemmas = [*(f"אוכל{n}" for n in range(80)), *(f"חוק{n}" for n in range(59))]
+    lemmas += [f"בית{n}" for n in range(70)]
+    return {lemma: 10.0 - at / 100 for at, lemma in enumerate(lemmas)}
+
+
+def test_a_bar_is_drawn_only_past_both_floors_and_only_for_a_shown_topic() -> None:
+    lexicon, weights = _bars_lexicon(), _bars_weights()
+    marked = {f"אוכל{n}": 9 for n in range(20)} | {"אוכל20": 2, "אוכל21": 0}
+    said = topics.progress(lexicon, ("food", "law"), marked, 150, weights, {}, lambda w: "m")
+    assert said is not None
+    assert [row["topic"] for row in said["rows"]] == ["food"], "law is under 60 lemmas"
+    food = said["rows"][0]
+    # Weighed: the 20 known are the commonest, so over a quarter of 80.
+    shares = {s.topic: s for s in topics.shares(lexicon, list(marked)[:20], weights, {})}
+    assert food["known"] == round(shares["food"].share * 100) and food["known"] > 25
+    # Words to learn next: the commonest not on the list at all, still-learning and
+    # set-aside words left out, each with the glossary's meaning.
+    assert [w["lemma"] for w in food["words"]] == [f"אוכל{n}" for n in range(22, 30)]
+    assert food["words"][0]["meaning"] == "m"
+    assert said["weakest"] == "food" and said["floor"] == topics.READER_FLOOR
+
+    under = topics.progress(lexicon, ("food",), marked, 99, weights, {})
+    assert under == {"floor": 100, "rows": [], "weakest": None}, "no bars at 0% under it"
+
+
+def test_no_lexicon_no_shown_topic_or_no_yardstick_draws_nothing() -> None:
+    lexicon, weights = _bars_lexicon(), _bars_weights()
+    assert topics.progress({}, ("food",), {}, 500, weights, {}) is None
+    assert topics.progress(lexicon, (), {}, 500, weights, {}) is None
+    assert topics.progress(lexicon, ("food",), {}, 500, {}, {}) is None
+    assert topics.progress(lexicon, ("law",), {}, 500, weights, {}) is None, "law is under 60"
+
+
+def test_a_pointed_mark_meets_the_lexicons_bare_lemma() -> None:
+    lexicon = {f"ספר{n}": ("school",) for n in range(60)}
+    weights = {f"ספר{n}": 1.0 for n in range(60)}
+    said = topics.progress(lexicon, ("school",), {"סֵפֶר0": 9}, 100, weights, {})
+    assert said is not None and said["rows"][0]["known"] == 2  # 1 of 60, never 0%
+    assert "ספר0" not in [w["lemma"] for w in said["rows"][0]["words"]]
+
+
+def test_the_served_weights_are_the_tables_weights_read_off_the_yardsticks(
+    tmp_path: Path,
+) -> None:
+    folder = tmp_path / "tables"
+    _yardstick(folder, "news", {"לחם": 0.75, "חלב": 0.25})
+    _yardstick(folder, "literature", {"לחם": 0.5, "ספר": 0.5})
+    weighed = topics.yardstick_weights(("news", "conversation", "literature"), folder)
+    import math
+
+    assert weighed["לחם"] == pytest.approx(math.log1p(625_000))
+    assert weighed["חלב"] == pytest.approx(math.log1p(125_000))
+    assert topics.yardstick_weights(("conversation",), folder) == {}
+
+
+def test_the_lexicon_a_page_reads_is_bare_and_carries_its_shown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    file = tmp_path / "topics.json"
+    monkeypatch.setenv(topics.ENV, str(file))
+    assert topics.held_for_progress() is None, "no lexicon: nothing"
+    held = {"version": topics.VERSION, "shown": ["food"], "lemmas": {"לֶחֶם": ["food"]}}
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    assert topics.held_for_progress() == ({"לחם": ("food",)}, ("food",))
+    held["shown"] = []
+    file.write_text(json.dumps(held, ensure_ascii=False), encoding="utf-8")
+    import os
+
+    os.utime(file, (1, 1))
+    assert topics.held_for_progress() is None, "nothing shown: nothing"

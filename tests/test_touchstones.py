@@ -788,3 +788,60 @@ def test_what_next_lists_a_row_by_any_language_it_is_written_in() -> None:
     index = index_of({"daniel": {"מלכא": 19, "ספר": 1}})
     listed = touchstones.at_level([daniel], index, {"מלכא": KNOWN}, "arc")
     assert [row["id"] for row in listed] == ["daniel"] and listed[0]["known"] == 95
+
+
+def test_the_story_sends_topics_behind_both_floors_and_none_without_a_lexicon(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """What next's Topics (targum-internal#608): weighed off the yardstick snapshots,
+    only for a shown topic with 60 lemmas in them, rows only past the reader's 100 known
+    words; nothing at all where the machine has no lexicon (the laptop's and CI's case),
+    and never for a language other than Hebrew."""
+    import os
+
+    from targum import catalogue as catalogue_module
+    from targum import topics
+
+    port, token, _ = served
+    monkeypatch.setattr(catalogue_module, "everything", list)
+    cookie = sign_in(port, postbox)
+    food = [f"אוכל{n}" for n in range(80)]
+    law = [f"חוק{n}" for n in range(59)]
+    words = [
+        {"language": "he", "lemma": lemma, "status": KNOWN, "at": 1, "seen": 1}
+        for lemma in food[:32] + [f"מלה{n}" for n in range(68)]
+    ]
+    status, answer, _ = call(port, "POST", f"/sync?k={token}", {"words": words}, cookie=cookie)
+    assert status == 200, answer
+
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert status == 200 and said["topics"] is None, "no lexicon here: nothing is drawn"
+
+    lexicon = {lemma: ["food"] for lemma in food} | {lemma: ["law"] for lemma in law}
+    Path(os.environ[topics.ENV]).write_text(
+        json.dumps({"version": topics.VERSION, "shown": ["food", "law"], "lemmas": lexicon}),
+        encoding="utf-8",
+    )
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert said["topics"] is None, "no yardstick to weigh by: nothing is drawn"
+
+    tables = Path(os.environ["TARGUM_TABLES_DIR"])
+    share = 1 / (len(food) + len(law))
+    held = {"register": "news", "made_at": "2026-11-01", "weights": {}}
+    held["weights"] = {lemma: share for lemma in food + law}
+    (tables / "yardstick-news-v1.json").write_text(json.dumps(held), encoding="utf-8")
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert said["known"] == 100
+    shown = said["topics"]
+    assert [row["topic"] for row in shown["rows"]] == ["food"], "law is under 60 lemmas"
+    assert shown["rows"][0]["known"] == 40, "32 of 80 equally common words"
+    assert shown["rows"][0]["words"][0]["lemma"] == "אוכל32"
+    assert shown["weakest"] == "food"
+
+    gone = [dict(word, status=2, at=2, seen=2) for word in words[-1:]]
+    call(port, "POST", f"/sync?k={token}", {"words": gone}, cookie=cookie)
+    status, said, _ = call(port, "GET", f"/account/story?language=he&k={token}", cookie=cookie)
+    assert said["known"] == 99 and said["topics"] == {"floor": 100, "rows": [], "weakest": None}
+
+    status, said, _ = call(port, "GET", f"/account/story?language=ru&k={token}", cookie=cookie)
+    assert said["topics"] is None

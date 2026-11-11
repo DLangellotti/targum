@@ -235,7 +235,7 @@
       {#- "Grammar" stays the heading; the two kinds of pattern are its tabs, in the
           page's own `.seg`, as Week | Month is. Real tabs: arrows move between them. With
           one kind only (no root lexicon on the machine) there are no tabs. -#}
-      <div class="gap-head">
+      <div class="gap-head" id="grammar-head">
         <h3 class="gap-sub" id="grammar-title">{{ t("progress.gap.grammar", "Grammar") }}</h3>
         <div class="seg gap-tabs" id="grammar-tabs" role="tablist" aria-labelledby="grammar-title" hidden>
           <button type="button" role="tab" id="grammar-tab-binyan" data-tab="binyan" aria-controls="gap-grammar" aria-selected="true">{{ t("progress.gap.tab-binyanim", "Binyanim") }}</button>
@@ -280,12 +280,19 @@
           <ul class="next-rows" id="mishkal-word-rows" aria-labelledby="mishkal-words-title"></ul>
         </div>
       </div>
-      {#- Topics: hidden until topic tagging exists (a card of its own), and then a row of
-          its own under Grammar. Nothing is drawn here from anything else in the
-          meantime. -#}
+      {#- Topics (design.md §12, "Topics in What next are weighed by how common a word
+          is", 2026-11-11; targum-internal#608): a row of its own under Grammar, one bar a
+          shown topic, its exact share known. A bar is a button that opens the topic's
+          words to learn next below. Under the reader floor, one line in place of the
+          bars. Hidden on a machine with no topic lexicon. -#}
       <div class="gap-topics" id="gap-topics" hidden>
         <h3 class="gap-sub" id="topics-title">{{ t("progress.gap.topics", "Topics") }}</h3>
         <ul class="topic-rows" id="topic-rows" aria-labelledby="topics-title"></ul>
+        <p class="gap-note" id="topics-note"></p>
+        <div class="grammar-words" id="topics-words" hidden>
+          <h4 class="grammar-words-title" id="topics-words-title"></h4>
+          <ul class="next-rows" id="topics-word-rows" aria-labelledby="topics-words-title"></ul>
+        </div>
       </div>
     </div>
     {#- Russian's Grammar (design.md §12, "Russian grammar on Your Progress", 2026-11-09;

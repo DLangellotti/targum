@@ -1348,14 +1348,18 @@
     list.textContent = "";
     (words || []).forEach(function (one) {
       var word = meaningOf(code, one.lemma);
+      // A topic's word to learn next was never counted as met: it says its meaning, the
+      // reader's own where it is on their list, else the glossary's, and nothing after.
       row(
         list,
         (word && word.term) || one.lemma,
         code,
-        word ? word.note || word.meaning : "",
+        word ? word.note || word.meaning : one.meaning || "",
         one.known
           ? t("progress.gap.word-known", "known")
-          : tn("progress.gap.word-met", one.count, "met once", "met {n} times"),
+          : typeof one.count === "number"
+            ? tn("progress.gap.word-met", one.count, "met once", "met {n} times")
+            : "",
         null,
         one.known
       );
@@ -1534,7 +1538,6 @@
     var title = document.getElementById("next-title");
     var lead = document.getElementById("gap-said");
     var rows = document.getElementById("grammar-rows");
-    var topics = document.getElementById("gap-topics");
     if (!box || !title) return;
     shutWords();
     rows.textContent = "";
@@ -1545,11 +1548,16 @@
     var leads = said && said.lead !== undefined ? said.lead : grammar && grammar.gap ? "binyan" : null;
     var gap = leads === "binyan" && grammar && grammar.gap && BINYANIM[grammar.gap.binyan] ? grammar.gap : null;
     var nouns = leads === "mishkal" && mishkal && mishkal.gap && MISHKALIM[mishkal.gap.pattern] ? mishkal.gap : null;
-    box.hidden = !grammar && !mishkal;
+    // Topics stands on its own where there is no grid: a reader past the floor with no
+    // binyan met often enough still sees which topics they know least.
+    var topicsSaid = (said && said.topics) || null;
+    box.hidden = !grammar && !mishkal && !topicsSaid;
+    document.getElementById("grammar-head").hidden = !grammar && !mishkal;
     document.getElementById("gap-grammar").hidden = !grammar;
     document.getElementById("gap-mishkal").hidden = !mishkal;
     lead.hidden = !gap && !nouns;
     drawMishkal(code, mishkal);
+    drawTopics(code, topicsSaid);
     if (!grammar && !mishkal) return;
     // One grid at a time, under "Grammar": the tab of the headline's gap open on every
     // load, never a remembered one, and with one kind only, no tabs (David, 2026-11-03).
@@ -1631,11 +1639,91 @@
         rows.appendChild(tr);
       });
     }
+  }
 
-    // Topics: hidden until topic tagging sends something (a card of its own), and then a
-    // row of its own under the two.
-    var topicRows = (said && said.topics) || [];
-    topics.hidden = !topicRows.length;
+  /* --- 3 · what next: Topics ------------------------------------------------------
+   *
+   * targum-internal#608, design.md §12, "Topics in What next are weighed by how common a
+   * word is" (2026-11-11). The account sends `topics` (`topics.progress`): a row a shown
+   * topic with enough words to say anything, its exact share known, the commoner words
+   * counting for more, and the commonest it has not seen on the reader's list yet; or
+   * no rows under the reader floor, and the page says what to do instead. Nothing at all
+   * where the machine has no topic lexicon, and the slot stays hidden.
+   */
+  var TOPIC_NAMES = {
+    everyday: t("progress.topic.everyday", "Everyday life"),
+    family: t("progress.topic.family", "Family & home"),
+    people: t("progress.topic.people", "People & feelings"),
+    food: t("progress.topic.food", "Food & drink"),
+    money: t("progress.topic.money", "Money & shopping"),
+    travel: t("progress.topic.travel", "Travel & transport"),
+    work: t("progress.topic.work", "Work & business"),
+    school: t("progress.topic.school", "School & study"),
+    health: t("progress.topic.health", "Health & body"),
+    culture: t("progress.topic.culture", "Free time & culture"),
+    nature: t("progress.topic.nature", "Nature & weather"),
+    politics: t("progress.topic.politics", "Politics & government"),
+    law: t("progress.topic.law", "Law & crime"),
+    security: t("progress.topic.security", "Security & the army"),
+    science: t("progress.topic.science", "Science & technology"),
+    religion: t("progress.topic.religion", "Religion & tradition"),
+  };
+
+  function drawTopics(code, said) {
+    var holder = document.getElementById("gap-topics");
+    var rows = document.getElementById("topic-rows");
+    var note = document.getElementById("topics-note");
+    if (!holder || !rows) return;
+    rows.textContent = "";
+    var lines = ((said && said.rows) || []).filter(function (line) {
+      return !!TOPIC_NAMES[line.topic];
+    });
+    holder.hidden = !said;
+    if (!said) return;
+    rows.hidden = !lines.length;
+    if (!lines.length) {
+      // Under the reader floor: what to do, never a row of bars at 0%.
+      note.textContent = t(
+        "progress.topics.floor",
+        "Once you know {n} words, we'll show how much of each topic you know. Mark the words you know as you read.",
+        { n: said.floor }
+      );
+      return;
+    }
+    note.textContent = t(
+      "progress.topics.note",
+      "Share of each topic's common words that you know. Commoner words count for more. Tap a topic to see words to learn next."
+    );
+    lines.forEach(function (line) {
+      var name = TOPIC_NAMES[line.topic];
+      var item = el("li", "topic-row" + (said.weakest === line.topic ? " weakest" : ""));
+      var words = line.words || [];
+      var bar = el(words.length ? "button" : "div", "topic-bar");
+      bar.appendChild(el("span", "topic-name", name));
+      var track = el("span", "topic-track");
+      track.setAttribute("aria-hidden", "true");
+      var fill = el("span", "topic-fill");
+      fill.style.inlineSize = Math.max(0, Math.min(100, line.known)) + "%";
+      track.appendChild(fill);
+      bar.appendChild(track);
+      bar.appendChild(el("span", "topic-percent", t("progress.gap.percent", "{n}%", { n: line.known })));
+      if (words.length) {
+        bar.type = "button";
+        bar.setAttribute("aria-expanded", "false");
+        bar.setAttribute("aria-controls", "topics-words");
+        bar.addEventListener("click", function () {
+          showWords(
+            code,
+            bar,
+            "topics",
+            t("progress.topics.words-title", "{topic}: words to learn next", { topic: name }),
+            words
+          );
+        });
+      }
+      item.appendChild(bar);
+      rows.appendChild(item);
+    });
   }
 
   /* --- 3 · what next: Russian's Grammar -------------------------------------------
