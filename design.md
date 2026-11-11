@@ -384,6 +384,45 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### When the door is open, every door says so — 2026-11-10
+
+Amends "A stranger is told the door is by invitation before they knock" (2026-11-03,
+below), written while the beta was invitation-only and #485 waited. #485 shipped on
+2026-11-10 behind `TARGUM_OPEN_SIGNUP`, off by default, and changed no copy, so with the
+switch on every door still asked a stranger to join a waitlist that no longer stands
+between them and an account (design's finish bar, targum-internal#477; #671). The test is
+`signup_is_open()`, the switch asked for with plans on, and every template that draws the
+waitlist asks it.
+
+- **The call to action is "Sign up", to /account/signin.** The bar, the foot, a text's
+  public page, /connect and the closing section of the front page and /aliyah say it where
+  they said "Join the waitlist". Where a page has the form, its one field sends the
+  sign-in link, as /account/signin's does. The closing section is "Sign up", then "Start
+  learning Hebrew this way." and "Enter your email and we'll send you a link. There's no
+  password." Every "We're opening in small groups" goes.
+- **Sign in drops "New here? Join the waitlist"** and the invited clause: "We'll email you
+  a link, so there's no password. If you're new, the same link sets up your account."
+- **The try box keeps the link for them.** "Sign up and this link will be waiting for
+  you." Once in, Upload opens with it in the box, and it is got ready on their own press
+  like any link they paste, through `Library.claim`. Let in's gift build (2026-10-01) has
+  the operator's press behind it; the open door has none, so it builds nothing.
+- **The FAQ's "When does it open?" goes.** /connect's "Do I need an account?" ends at
+  "that's what your AI reads.", and its account line is "You'll need a targum account."
+  with Sign up.
+- **"Free to read once you're in." stays** beside a text page's Sign up. "Already invited?
+  Sign in to read it" goes, since Sign up and Sign in are one page. "Free to start, with
+  the whole library open." and the front page's "Once you're in" note stay.
+- **A signed-out reader keeps "Sign in to keep the words you mark"** and loses "New here?
+  Join the waitlist" beside it: the sign-in page tells a new reader what the link does.
+- **The door's only new lines are its refusals:** "We don't open accounts at throwaway
+  addresses. Use an address you keep." and "We can't open more new accounts this hour.
+  Try again in an hour." An inbox taken off the guest list is told "We can't open an
+  account at that address." rather than "targum isn't open yet", which an open door
+  never says.
+- **With the switch off, every page is as the 2026-11-03 entry says**, byte for byte, and
+  so it is with the switch asked for and plans off. A render test pins both. The Russian
+  is ling-ru's, for David's read.
+
 ### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
 
 Supersedes the split in "Russian says a cost in minutes and a balance in points"
@@ -707,6 +746,10 @@ frequency alone.
   Every reader language alike, since the measured readers read in English and an
   internationalism is one in Russian too. A machine without the lexicon estimates as
   before. Nothing new is stored and nothing is spent.
+- **A Russian word the Russian root lexicon marks borrowed** (телефон, интернет, кофе;
+  `roots-ru`'s `borrowed` field) takes the same 1.6, without a fit of its own
+  (targum-internal#633, 2026-11-11). Russian marks are too few to fit one: one reader,
+  125 marked words, 9 not known.
 - **Measured** (`scripts/eval_difficulty_features.py`, five folds of the laptop's 3,388
   marked words, 289 not known): pooled AUC 0.915 → 0.918, Brier 0.0566 → 0.0560, log
   loss 0.1865 → 0.1848, calibration error 0.027 unchanged. With the weight fitted on the
@@ -1259,7 +1302,8 @@ The beta review of 2026-11-03 (surface audit PUB-02, PUB-03, PUB-05, PUB-06, RDR
 LIB-R03, LIB-H03; the beginner's B-02 and B-03) walked in as somebody with no account and
 found the front door promising what it could not keep. David decided the same day that
 the beta stays invitation-only for now: the waitlist and his Let in, no open sign-up
-(#485 waits). So every door a stranger reaches says that, and says it first.
+(#485 waits). So every door a stranger reaches says that, and says it first. With open
+signup on, "When the door is open, every door says so" (2026-11-10, above) holds instead.
 
 - **The try box promises no wait.** "Ready in about 4 minutes" went with a link a stranger
   pasted, beside a form that only joins a waitlist; the build comes when they are let in,
