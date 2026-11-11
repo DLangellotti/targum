@@ -27,8 +27,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `FORGET_TIMEOUT` (5 s) once per sweep. Another account with the same id is told apart
   by its `made`, never by the disk or the clock; a purge never clears a folder under a
   newcomer's id, and `Library.home` clears a departed's folder still standing before it
-  hands that id's home out, or refuses it. A note that cannot be read, changed or
-  removed is logged and never stops a deletion or a start. No spend, no new strings.
+  hands that id's home out, but only a folder holding nothing but the note's texts and
+  nothing newer than that account; while it will not go, the reader gets a 503 saying
+  we're getting their account ready (`serve.home-not-free`, new in EN and RU), and each
+  purge logs the stuck id at ERROR. A note that cannot be read, changed or removed is
+  logged and never stops a deletion or a start. No spend.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

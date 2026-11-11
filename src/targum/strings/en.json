@@ -1265,6 +1265,7 @@
   "signin.page.continue-with-google": "Continue with Google",
   "signin.page.or": "or",
   "serve.that-sign-in-took-too-long": "That sign-in took too long.",
+  "serve.home-not-free": "We're getting your account ready. Try again in a few minutes.",
   "serve.account-closing": "We're closing this account. To keep it, email hello@targum.page.",
   "serve.not-open": "Thanks for asking. targum isn't open yet.",
   "serve.not-open.waitlist": "Thanks for asking. targum isn't open yet. Join the waitlist and we'll email you when it's your turn.",

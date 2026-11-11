@@ -4526,3 +4526,21 @@ def test_a_pasted_link_to_a_text_the_library_has_built_opens_it_free(
         assert status == 200, (pasted, answer)
         assert answer["catalogue"]["id"] == video.id and answer["catalogue"]["shelved"] is True
         assert "id" not in answer, "no job: nothing was priced"
+
+
+def test_a_refused_home_is_a_page_not_a_dropped_connection(
+    served: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#679: while a departed reader's folder still stands under an id,
+    its home is refused; the reader gets a 503 that says so, not an empty response."""
+    from targum.serve import HomeNotFree
+
+    port, token, _ = served
+
+    def refused(_self: Library, _person: object) -> Path:
+        raise HomeNotFree("p1")
+
+    monkeypatch.setattr(Library, "home", refused)
+    status, body = get(port, f"/glossary/book-he?k={token}")
+    assert status == 503
+    assert body == b"We're getting your account ready. Try again in a few minutes."

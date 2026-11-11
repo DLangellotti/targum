@@ -877,6 +877,15 @@ PURGE_AT_HOUR = 3
 FORGET_TIMEOUT = 5.0
 
 
+class HomeNotFree(PermissionError):
+    """A departed reader's folder still stands under this id, so its home is not handed
+    to the account now given it (targum-internal#679). The request is answered 503."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(f"{name}: a departed reader's folder is still there")
+        self.name = name
+
+
 def until_next(hour: int, moment: datetime) -> float:
     """Seconds from `moment` (aware, any zone) to the next `hour`:00 UTC, never zero."""
     moment = moment.astimezone(UTC)
@@ -2829,7 +2838,7 @@ class Library:
         when = now()
         note = folder / f"{home.name}-{when}-{secrets.token_hex(3)}.json"
         draft = note.with_suffix(".tmp")
-        hashes = ledger_module.documents_under(home) if ledger_module.path() else set()
+        hashes = ledger_module.documents_under(home)
         said = {
             "home": home.name,
             "purged": when,
@@ -2968,19 +2977,47 @@ class Library:
             read = self._read_note(note)
             if read is None:
                 continue
-            _name, person_id, made, _hashes, left = read
+            _name, person_id, made, hashes, left = read
             if made is not None and self._made(person_id) == made:
                 waiting = True  # still the departing account itself: the purge decides
                 continue
             aside = self._aside(note)
             if aside.is_dir() or not left:
                 continue
-            if not self._clear_away(self.out / name, aside):
-                raise PermissionError(f"{name}: a departed reader's folder is still there")
+            home = self.out / name
+            if home.exists() and not self._only_theirs(home, hashes, self._made(person_id)):
+                # Something here is not the departed's: the newcomer's own, after a
+                # note neither record of "freed" could be written to. Never cleared.
+                log.error(
+                    "purge: %s holds texts its departure note does not name; left alone", name
+                )
+                continue
+            if not self._clear_away(home, aside):
+                raise HomeNotFree(name)
             if not aside.is_dir():
                 self._mark_removed(note)
         if not waiting:
             self._remains.discard(name)
+
+    @staticmethod
+    def _only_theirs(home: Path, hashes: set[str], made: int | None) -> bool:
+        """Whether a folder standing under a departed reader's name holds nothing but
+        theirs: every text in it one their note names, and no file in it newer than the
+        account now given the id (targum-internal#679)."""
+        from . import ledger as ledger_module
+
+        if not ledger_module.documents_under(home) <= hashes:
+            return False
+        if made is None:
+            return True
+        for here, _dirs, files in os.walk(home, onerror=lambda _error: None):
+            for one in files:
+                try:
+                    if os.lstat(os.path.join(here, one)).st_mtime * 1000 >= made:
+                        return False
+                except OSError:
+                    continue
+        return True
 
     def _finish_departures(self) -> None:
         """Finish every departure still written down: the folder, then the ledger.
@@ -3036,6 +3073,17 @@ class Library:
                 freed = self._clear_away(home, aside)
                 if freed and not aside.is_dir():
                     self._mark_removed(note)
+            if newcomer and not freed:
+                if not home.exists():
+                    freed = True  # nothing of the departed's stands under the name
+                elif not self._only_theirs(home, hashes, now_made):
+                    # What stands is the newcomer's: a note neither record of "freed"
+                    # could be written to. Theirs is never cleared.
+                    log.error(
+                        "purge: %s holds texts its departure note does not name; left alone",
+                        name,
+                    )
+                    freed = True
             if not freed:
                 # Standing under a newcomer's id is `home`'s to clear before they hold
                 # anything; standing under nobody's, it is tried again next time.
@@ -3043,6 +3091,8 @@ class Library:
             done = not aside.exists() or self._empty(aside)
             owed.append((note, name, hashes, newcomer, freed, done))
         self._remains = remains
+        for name in sorted(remains):
+            log.error("purge: %s still holds a departed reader's folder; its home is refused", name)
         if not owed:
             return
         if ledger_module.path() is None:
@@ -9827,6 +9877,15 @@ class Handler(BaseHTTPRequestHandler):
         self._robots_tag = ""
         try:
             route()
+        except HomeNotFree as error:
+            # Their home is refused until the departed's folder goes (#679): a page that
+            # says so, not a dropped connection. The purge logs the id at ERROR.
+            log.error("home refused: %s", error)
+            said = self._say(
+                "serve.home-not-free",
+                "We're getting your account ready. Try again in a few minutes.",
+            )
+            self._send(503, said.encode("utf-8"), "text/plain; charset=utf-8")
         except Exception as error:
             incidents_module.record(self.library.incidents, self.path, error)
             raise
