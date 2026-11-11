@@ -240,6 +240,81 @@ def test_a_root_with_two_meanings_keeps_a_family_to_one() -> None:
     assert not root_card.same_sense("ru", "летать", "летний", "лет")
 
 
+def _ru_senses(*rows: tuple[str, str, str]) -> dict[str, int]:
+    """Each lemma's sense number under its one root, read through `from_body`."""
+    body = {
+        "version": "ru-roots/1-test",
+        "language": "ru",
+        "lemmas": {
+            lemma: {"roots": [{"morph": morph, "variants": [], "sense": sense}]}
+            for lemma, morph, sense in rows
+        },
+    }
+    read = root_card.from_body(body, "ru")
+    assert read is not None
+    return {lemma: read.russian[lemma].roots[0].number for lemma, _, _ in rows}
+
+
+def test_a_russian_meaning_is_not_split_by_its_english_wording() -> None:
+    # ling-ru's check of 2026-11-09 (targum-internal#596): these were two meanings each.
+    senses = _ru_senses(
+        ("красота", "крас", "beauty"),
+        ("красивый", "крас", "beautiful"),
+        ("здоровье", "здоров", "health"),
+        ("здоровый", "здоров", "healthy"),
+        ("угроза", "гроз", "threat"),
+        ("грозить", "гроз", "to threaten"),
+        ("молчать", "молч", "be silent"),
+        ("молчаливый", "молч", "silent"),
+        ("долгий", "долг", "long (time)"),
+        ("долгота", "долг", "long"),
+        ("долг", "долг", "debt"),
+        ("летать", "лет", "fly"),
+        ("лето", "лет", "summer"),
+    )
+    assert senses["красота"] == senses["красивый"]
+    assert senses["здоровье"] == senses["здоровый"]
+    assert senses["угроза"] == senses["грозить"]
+    assert senses["молчать"] == senses["молчаливый"]
+    assert senses["долгий"] == senses["долгота"]
+    # A real homonym stays two.
+    assert senses["долг"] != senses["долгий"]
+    assert senses["летать"] != senses["лето"]
+
+
+@pytest.mark.parametrize(
+    ("word", "stem"),
+    [
+        ("beauty", "beaut"),
+        ("beautiful", "beaut"),
+        ("healthy", "health"),
+        ("threaten", "threat"),
+        ("greed", "greed"),
+        ("greedy", "greed"),
+        ("fitting", "fit"),
+        ("steppe", "stepp"),
+        ("mission", "mission"),
+        ("sea", "sea"),
+    ],
+)
+def test_a_sense_word_is_stemmed_without_eating_short_words(word: str, stem: str) -> None:
+    assert root_card.stem_en(word) == stem
+
+
+def test_hebrew_senses_are_not_stemmed() -> None:
+    body = {
+        "version": "roots/1-test",
+        "language": "he",
+        "lemmas": {
+            "עצב": {"root": "ע־צ־ב", "meaning": "sad"},
+            "עציב": {"root": "ע־צ־ב", "meaning": "sadden"},
+        },
+    }
+    read = root_card.from_body(body, "he")
+    assert read is not None
+    assert read.hebrew["עצב"].sense != read.hebrew["עציב"].sense
+
+
 @pytest.mark.usefixtures("lexicons")
 def test_a_russian_word_carries_its_root_variants_and_prefixes() -> None:
     assert root_card.russian_shape("приходить", "VERB") == [
