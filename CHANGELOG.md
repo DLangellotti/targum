@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- With the door open, every door says so (targum-internal#671; design.md §12,
+  2026-11-10). With `TARGUM_OPEN_SIGNUP` and plans on, sign-in opened accounts and every
+  page still asked a stranger to join a waitlist. Each template that draws it now asks
+  `door_is_open()` (`serve.signup_is_open`): the bar, the foot, a text's page, the
+  Library, /connect and the closing section of the front page and /aliyah say Sign up,
+  to /account/signin; their forms post to a new `/signup`, which mails the sign-in link
+  through the sign-in's own gates and answers with a page, so it works with JavaScript
+  off. A link tried at the front door rides in that link, and the reader lands on Upload
+  holding it, built only on their own press. Sign-in loses "New here? Join the waitlist"
+  and the invited clause, a signed-out reader keeps only "Sign in to keep the words you
+  mark", the FAQs' "When does it open?" goes, and a barred inbox is told "We can't open
+  an account at that address." With the switch off, or asked for without plans, every
+  page is byte for byte as before; `tests/test_signup_door.py` walks every public page
+  both ways. No spend; ten new strings, Russian first-passed.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

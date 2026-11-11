@@ -80,10 +80,12 @@
                   {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.</p>
                 {#- No wait here (beta review PUB-02, 2026-11-03): the address joins a waitlist,
                     and the build comes when the operator lets them in, which may be weeks.
-                    "Ready in about 4 minutes" promised what the door cannot keep (§6). -#}
+                    "Ready in about 4 minutes" promised what the door cannot keep (§6).
+                    With the door open (design.md §12, 2026-11-10) the link waits for them
+                    in Upload instead, got ready on their own press: nothing is built here. -#}
               </div>
             </div>
-            <p class="tried-keep">{{ t("landing.try.turned-into-a-lesson", "Join the waitlist and we’ll have this ready for you when your turn comes.") }}</p>
+            <p class="tried-keep">{% if door_is_open() %}{{ t("open-door.link-waiting-for-you", "Sign up and this link will be waiting for you.") }}{% else %}{{ t("landing.try.turned-into-a-lesson", "Join the waitlist and we’ll have this ready for you when your turn comes.") }}{% endif %}</p>
             {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
             {%- endif %}
           </div>
@@ -347,7 +349,9 @@
         <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
       </div>
       <div class="faq">
+        {% if not door_is_open() %}
         <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        {% endif %}
         <details><summary>{{ t("landing.page.is-targum-for-me", "Is targum for me?") }}</summary><p>{{ t("landing.page.if-you-re-learning-hebrew-and-know-the", "Yes, if you’re learning Hebrew and know the alphabet. You might be fresh out of an ulpan, a year into an app, studying for a degree or keeping up with the weekly portion. The library is sorted by the words you already know, so there’s always something you can learn from.") }}</p></details>
         <details><summary>{{ t("landing.page.does-it-replace-a-course", "Does it replace a course?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "No, it works beside one. A course teaches you the rules, and targum gives you real Hebrew to practise them on. It keeps count of every word you learn.") }}</p></details>
         <details><summary>{{ t("landing.page.biblical-or-modern", "Biblical or modern?") }}</summary><p>{{ t("landing.page.both-on-one-list-a-word-you-learn", "Both, on one list. A word you learn in Genesis is already yours when it turns up in the news.") }}</p></details>
