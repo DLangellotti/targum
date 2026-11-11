@@ -78,7 +78,8 @@ LEMMA_PACKAGE = AUDITED["ru"]["lemma"]
 CHUNK = 256
 
 #: Moves when what this module writes changes, which re-reads every Russian text.
-VERSION = 1
+#: 2: ё is folded to е before Stanza is asked (targum-internal#650).
+VERSION = 2
 
 #: What each spaCy part of speech may be in pymorphy3's tagset, for reading its analyses.
 #: A participle is spaCy's VERB with VerbForm=Part, and pymorphy's PRTF.
@@ -200,6 +201,16 @@ def _case_from_form(word: Tagged, said: dict[str, str]) -> None:
     said["Case"] = max(agreeing, key=lambda a: a.score).case
 
 
+def without_yo(word: str) -> str:
+    """The word as the treebank Stanza learned from writes it, ё as е.
+
+    SynTagRus never writes ё, so Stanza's lemmatizer has no letter for it and puts one it
+    knows in its place: it read ёлке as блок, ёжика as бжик and ёмкости as бмкость, and
+    the dictionary, which knows блок, had no reason to doubt it. Asked елке, it answers
+    елка, and `with_yo` puts the ё back from the dictionary (targum-internal#650)."""
+    return word.replace("ё", "е").replace("Ё", "Е")
+
+
 def with_yo(lemma: str, spellings: Iterable[str]) -> str:
     """The dictionary form with its ё, where the readings offered spell it one way only, and
     that way has ё. The treebank Stanza learned from writes е; targum does not.
@@ -215,6 +226,39 @@ def with_yo(lemma: str, spellings: Iterable[str]) -> str:
         return lemma
     restored = matching.pop()
     return restored.capitalize() if lemma[:1].isupper() else restored
+
+
+def yo_checked(surface: str, lemma: str, normal_forms: Iterable[str]) -> str:
+    """A word written with ё filed under the dictionary's one form for it, where Stanza's
+    answer is none of the dictionary's.
+
+    Stanza is asked the word with е (`without_yo`), and for most ё-words that is what it
+    needs; for some it then answers another word's form or none: недотёпа as недотеп,
+    копчёная as копченой, уберём as уберь, ушёл as уйел. The ё was the clue it could not
+    read, and the dictionary, which reads it, gives one form. Where the dictionary gives
+    several, or Stanza's is among them, Stanza's stands (targum-internal#650)."""
+    if "ё" not in surface.lower():
+        return lemma
+    forms = {form.lower() for form in normal_forms}
+    if without_yo(lemma.lower()) in {without_yo(form) for form in forms} or len(forms) != 1:
+        return lemma
+    return forms.pop()
+
+
+def pronoun(surface: str, pos: str) -> str | None:
+    """The dictionary form a learner looks a pronoun up by, where the treebank's is another.
+
+    её is она only as она's own case (я вижу её); the possessive (её дом) does not change
+    and is its own word on the card, as их is. всё, everything, is its own word too — всё
+    равно, всё ещё, всё в порядке — and not filed under весь, as it is where it agrees
+    with a noun (всё время, всё это), which spaCy tags DET (targum-internal#650). spaCy
+    tags the possessive её DET, PART, ADJ or even PROPN, but the object PRON."""
+    word = surface.lower()
+    if word == "её":
+        return "она" if pos == "PRON" else "её"
+    if word == "всё" and pos != "DET":
+        return "всё"
+    return None
 
 
 #: What follows a hyphen and makes the word before it a different word, not a second one:
@@ -457,19 +501,26 @@ class RussianLemmatizer:
         return out
 
 
-def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
-    from stanza.models.common.doc import Document
-
-    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
-    words = [pieces(doc) for doc in docs]
-    asked = [
+def stanza_asked(words: Sequence[Sequence[Piece]]) -> list[list[dict[str, Any]]]:
+    """What Stanza's lemmatizer is handed: each sentence's words with spaCy's part of
+    speech, spelled as its treebank spells them (`without_yo`). An empty sentence is left
+    out, and so is not answered."""
+    return [
         [
-            {"id": at + 1, "text": piece.text, "upos": piece.pos or "X"}
+            {"id": at + 1, "text": without_yo(piece.text), "upos": piece.pos or "X"}
             for at, piece in enumerate(sentence)
         ]
         for sentence in words
         if sentence
     ]
+
+
+def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
+    from stanza.models.common.doc import Document
+
+    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
+    words = [pieces(doc) for doc in docs]
+    asked = stanza_asked(words)
     answered = iter(lemmatizer(Document(asked)).sentences if asked else [])
     out: dict[str, list[Token]] = {}
     for segment, sentence in zip(segments, words, strict=True):
@@ -521,6 +572,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
         parses = morph.parse(surface)
         spellings = [piece.lemma, *(p.normal_form for p in parses)]
         lemma = with_yo(read.lemma or surface, spellings)
+        lemma = yo_checked(surface, lemma, [p.normal_form for p in parses if p.is_known])
         if pos in _COMPATIBLE and not morph.word_is_known(lemma):
             lemma = known(lemma, [p for p in parses if p.tag.POS in _COMPATIBLE[pos]])
         if pos in {"VERB", "AUX"}:
@@ -536,6 +588,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
             pos = "PROPN"
         if pos == "PROPN":
             lemma = as_name(lemma, named, said.get("Case", ""))
+        lemma = pronoun(surface, pos) or lemma
         if not any("\u0400" <= char <= "\u04ff" for char in surface):
             # Not a Russian word, and Stanza's answer for one is not to be trusted: it
             # wrote Facebook as Фейсбук.

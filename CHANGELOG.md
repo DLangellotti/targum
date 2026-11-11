@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A Russian lemma spelled with ё is as common in the estimate as its е spelling
+  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
+  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
+  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
+  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
+  marks still read AUC 0.918. No spend, no new strings.
 - `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
   (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
   docstring says plainly that a missed drop is not swept: the row stays current, and
@@ -43,6 +49,35 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Russian weight. The prior reads a named rung as the words check reads it back, so a
   reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
   No spend, no new strings.
+- A deploy fetches Morphalou (targum-internal#678). `deploy.sh` fetched menaked,
+  OpenRussian's tables, the Russian lemmatizer, LaBSE and the scripture models but not
+  Morphalou, so a fresh or restored box had a French word's forms (for its difficulty) and
+  its readings (behind `TARGUM_FRENCH_IPA`) only if somebody ran `targum models fetch
+  morphalou` by hand, and without them it measured and said less, quietly. It is now
+  fetched beside OpenRussian's tables, a one-line no-op once there; like the STEP Bible
+  glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
+  on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
+  strings.
+- whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
+  `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
+  words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
+  words, one full stop, 25 of ? and !), so the punctuation pass never ran and the reader
+  got 40-word lines cut at a breath. It now counts full stops and commas, never ? or !,
+  against one in 30, and a stop inside a closing quote counts: of the laptop's 109
+  refined Hebrew parts every punctuated one runs at a mark in 12 words or fewer, comma
+  splices included, and every bare one at none, or one in 426. A stored
+  `rules/1`–`rules/3` part the new rule finds bare is owed punctuation the next time its
+  reader builds; no part is redone by a deploy. No spend, no new strings.
+- A Russian word with ё keeps its own dictionary form (targum-internal#650). Stanza's
+  lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
+  wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
+  It is now asked the word with е, and the ё goes back from pymorphy3's dictionary, as it
+  already did for учёный. Where Stanza, asked with е, answers a form the dictionary does
+  not give and the dictionary gives one, the dictionary's stands: недотёпа, копчёный,
+  нытьё, убрать, уйти. Possessive её is её and the object она; всё, everything, is всё,
+  and весь only where it agrees with a noun (всё время). The local Russian annotator moves to `/2`, so `rebuild --words`
+  re-reads every Russian text it built, here and on the box, for nothing but time. On the
+  laptop's shelf that changes 9 of 38 ё-words. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a

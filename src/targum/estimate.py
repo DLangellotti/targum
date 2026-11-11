@@ -166,7 +166,7 @@ def _difficulty(lemma: str, language: str, loans: frozenset[str]) -> float:
     b = memo.get(lemma)
     if b is not None:
         return b
-    place = places.get(frequency._POINTS.sub("", lemma))
+    place = _place(places, frequency._POINTS.sub("", lemma), language)
     b = math.log(place) if place else math.log(UNRANKED_AT)
     if loans and _loan_key(frequency._POINTS.sub("", lemma), language) in loans:
         b -= BORROWED
@@ -206,6 +206,23 @@ def _loan_key(bare: str, language: str) -> str:
 
         return fold_ru(bare)
     return unicodedata.normalize("NFC", bare)
+
+
+def _place(places: Mapping[str, int], bare: str, language: str) -> int | None:
+    """A word's place in the frequency list. In Russian ё and е are one letter written two
+    ways, and wordfreq ranks the two spellings apart: еще is the 38th word and ещё the
+    155th, черный the 2,425th and чёрный the 5,929th. A lemma spelled with ё takes the
+    commoner of its two spellings, as `root_card.fold_ru` folds it for the borrowed words
+    (targum-internal#684): ru-local restores ё in lemmas, and мёд or ещё would otherwise
+    be scored rarer than they are. Most Russian is printed without ё, so the е spelling
+    carries most of a word's uses; where it is also another word (все and всё) the two
+    share its place, which errs easy."""
+    place = places.get(bare)
+    if ("ё" in bare or "Ё" in bare) and language.split("-")[0].lower() == "ru":
+        plain = places.get(bare.replace("ё", "е").replace("Ё", "Е"))
+        if plain is not None and (place is None or plain < place):
+            return plain
+    return place
 
 
 def ranked(language: str) -> bool:
@@ -461,7 +478,7 @@ def _difficulties(index: Index, language: str) -> array[float]:
         if script is not None and not script(bare):
             values.append(math.nan)
             continue
-        place = places.get(bare)
+        place = _place(places, bare, language)
         b = math.log(place) if place else unranked
         if loans and _loan_key(bare, language) in loans:
             b -= BORROWED
