@@ -2,15 +2,16 @@
 
 Clause 3.14: an account whose grace period is up loses its rows, its home and its texts'
 rows in `corpus.db`. Each home is written down before its account goes, so a lock on the
-ledger, a removal that leaves part of the folder, or a crash in between is finished by
-the next purge instead of lost, and a person id given again is never handed what was
-left of the last one's.
+ledger, a delete that fails, or a crash in between is finished by the next purge instead
+of lost; and a person id is never given twice, so whatever stands under a departed name
+is always theirs to delete and never anybody else's to be handed.
 """
 
 from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -24,9 +25,11 @@ from targum import serve as serve_module
 from targum.accounts import Person, Store
 from targum.serve import Library
 
+World = tuple[Store, Library, ledger.Ledger]
+
 
 @pytest.fixture
-def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Store, Library, ledger.Ledger]:
+def world(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> World:
     monkeypatch.setenv(ledger.ENV, str(tmp_path / "corpus.db"))
     # A lock held longer than a purge waits, without waiting seconds for it.
     monkeypatch.setattr(serve_module, "FORGET_TIMEOUT", 0.05)
@@ -40,12 +43,13 @@ def _person(store: Store, email: str) -> Person:
     return person
 
 
-def _text(book: ledger.Ledger, home: Path, name: str, document_hash: str) -> None:
+def _text(book: ledger.Ledger, home: Path, name: str, document_hash: str, *homes: str) -> None:
     folder = home / name
     folder.mkdir(parents=True)
     document = {"source": "https://x.example/a", "blocks": [], "content_hash": document_hash}
     (folder / "document.json").write_text(json.dumps(document), encoding="utf-8")
-    book.record_text(ledger.Text(document_hash, "https://x.example/a", "", frozenset({home.name})))
+    owners = frozenset({home.name, *homes})
+    book.record_text(ledger.Text(document_hash, "https://x.example/a", "", owners))
 
 
 def _leave(store: Store, person: Person) -> None:
@@ -53,8 +57,12 @@ def _leave(store: Store, person: Person) -> None:
         db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (person.id,))
 
 
+def _notes_folder(store: Store) -> Path:
+    return Path(store.path).parent / f"{Path(store.path).name}.departing"
+
+
 def _notes(store: Store) -> list[dict[str, object]]:
-    folder = Path(store.path).parent / f"{Path(store.path).name}.departing"
+    folder = _notes_folder(store)
     if not folder.is_dir():
         return []
     return [json.loads(one.read_text(encoding="utf-8")) for one in sorted(folder.iterdir())]
@@ -71,9 +79,44 @@ def _locked(book: ledger.Ledger) -> Iterator[None]:
         holder.close()
 
 
-def test_a_purge_the_ledger_lock_stopped_is_finished_by_the_next(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
+@contextlib.contextmanager
+def _crash_after_the_note(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """The process dies once the rows are gone, before the home is touched."""
+    with monkeypatch.context() as crash:
+        crash.setattr(Library, "_remove_home", lambda *_a: None)
+        crash.setattr(Library, "_finish_departures", lambda *_a: None)
+        yield
+
+
+@contextlib.contextmanager
+def _undeletable(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    with monkeypatch.context() as stuck:
+        stuck.setattr(shutil, "rmtree", lambda *_a, **_k: None)
+        yield
+
+
+# -- an id is never given twice ---------------------------------------------------
+
+
+def test_an_id_is_never_given_twice(tmp_path: Path) -> None:
+    """sqlite gives `max(id) + 1`, so the newest account deleted made its id the next
+    sign-up's, and with it whatever of theirs was still on disk (qa-claude on #1174)."""
+    store = Store(tmp_path / "targum.db")
+    first = _person(store, "first@example.com")
+    _leave(store, first)
+    assert store.purge() == [first.id]
+    second = _person(store, "second@example.com")
+    assert second.id == first.id + 1
+    _leave(store, second)
+    store.purge()
+    again = Store(tmp_path / "targum.db")
+    assert _person(again, "third@example.com").id == second.id + 1, "and across a restart"
+
+
+# -- the ledger step ----------------------------------------------------------------
+
+
+def test_a_purge_the_ledger_lock_stopped_is_finished_by_the_next(world: World) -> None:
     """The card's done-when: the lock held through the purge, the rows are there after
     it, gone after the next, and the note goes only then."""
     store, library, book = world
@@ -96,9 +139,231 @@ def test_a_purge_the_ledger_lock_stopped_is_finished_by_the_next(
     assert _notes(store) == [], "the note goes once the ledger step holds"
 
 
-def test_a_note_that_cannot_be_removed_stops_no_deletion_and_no_start(
-    world: tuple[Store, Library, ledger.Ledger],
+def test_a_held_lock_costs_a_sweep_one_wait(monkeypatch: pytest.MonkeyPatch, world: World) -> None:
+    """Start-up waits on the purge, so three departures under a lock wait once."""
+    store, library, book = world
+    people = [_person(store, f"p{n}@example.com") for n in range(3)]
+    for n, person in enumerate(people):
+        _text(book, library.home(person), "theirs", str(n) * 64)
+        _leave(store, person)
+    tries: list[str] = []
+    real = ledger.depart
+
+    def counted(home: str, *args: object, **kwargs: object) -> int:
+        tries.append(home)
+        return real(home, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ledger, "depart", counted)
+    with _locked(book):
+        assert sorted(library.purge_departed()) == sorted(one.id for one in people)
+    assert len(tries) == 1
+    assert len(_notes(store)) == 3
+
+
+def test_a_text_another_reader_holds_stays_theirs(
+    monkeypatch: pytest.MonkeyPatch, world: World
 ) -> None:
+    """Only what was theirs alone goes; a shared text loses the departed home only, even
+    while the departed's folder still stands."""
+    store, library, book = world
+    live = _person(store, "live@example.com")
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, library.home(live), "mine", "d" * 64)
+    _text(book, library.home(live), "shared", "5" * 64)
+    _text(book, home, "shared", "5" * 64, f"p{live.id}")
+    _text(book, home, "alone", "a" * 64)
+    _leave(store, person)
+    with _undeletable(monkeypatch):
+        library.purge_departed()
+        library.purge_departed()
+        assert home.is_dir()
+    assert book.text("a" * 64) is None
+    shared = book.text("5" * 64)
+    assert shared is not None and shared.homes == {f"p{live.id}"}
+    mine = book.text("d" * 64)
+    assert mine is not None and mine.homes == {f"p{live.id}"}
+    assert (library.home(live) / "mine").is_dir()
+
+
+def test_a_text_held_by_another_home_only_in_the_ledger_stays(world: World) -> None:
+    """Another reader's copy may not be readable on disk; `text_homes` still says it is
+    theirs too, and that is enough to keep it."""
+    store, library, book = world
+    live = _person(store, "live@example.com")
+    person = _person(store, "leaving@example.com")
+    _text(book, library.home(person), "shared", "5" * 64, f"p{live.id}")
+    _leave(store, person)
+    library.purge_departed()
+    shared = book.text("5" * 64)
+    assert shared is not None and shared.homes == {f"p{live.id}"}
+
+
+def test_a_text_only_the_ledger_knows_is_theirs_goes_too(world: World) -> None:
+    """A text whose folder is already gone (trashed, or never finished) is still theirs in
+    `text_homes`, and goes with them though no file names it."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    book.record_text(ledger.Text("f" * 64, "https://x.example/f", "", frozenset({home.name})))
+    _leave(store, person)
+    library.purge_departed()
+    assert book.text("f" * 64) is None
+
+
+def test_a_text_the_note_missed_is_forgotten_by_what_the_ledger_knows(world: World) -> None:
+    """qa-claude's fourth read of #1174 (R4-6): a text unreadable when the note was
+    written, in a home that would not go. Once it can go, it goes, and so do its rows,
+    found through `text_homes` where the note had no hash for it."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _text(book, home, "secret", "c" * 64)
+    (home / "secret").chmod(0o000)
+    _leave(store, person)
+    try:
+        assert library.purge_departed() == [person.id]
+        assert home.exists(), "the unreadable folder holds the home up"
+        assert [one["hashes"] for one in _notes(store)] == [["a" * 64]]
+        newcomer = _person(store, "new@example.com")
+        assert newcomer.id != person.id
+        (home / "secret").chmod(0o755)  # ops fixes the permissions
+        library.purge_departed()
+    finally:
+        with contextlib.suppress(OSError):
+            (home / "secret").chmod(0o755)
+    assert not home.exists()
+    assert not library.home(newcomer).exists()
+    assert book.text("a" * 64) is None
+    assert book.text("c" * 64) is None
+    assert _notes(store) == []
+
+
+# -- the folder ----------------------------------------------------------------
+
+
+def test_a_home_that_will_not_go_keeps_its_note_until_it_does(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+    with _undeletable(monkeypatch):
+        assert library.purge_departed() == [person.id]
+        library.purge_departed()
+        assert (home / "my-upload").is_dir()
+        assert book.text("a" * 64) is None, "the rows go even while the folder stands"
+        assert len(_notes(store)) == 1, "kept while it stands"
+        newcomer = _person(store, "new@example.com")
+    assert library.home(newcomer) != home, "never handed to anybody"
+    library.purge_departed()
+    assert not home.exists()
+    assert _notes(store) == []
+
+
+def test_what_a_delete_leaves_is_tried_again(world: World) -> None:
+    """Files a deletion cannot take (a root run's) keep the note, across purges and a
+    restart, until they go."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    audio = home / "my-upload" / "audio"
+    audio.mkdir()
+    (audio / "private.mp3").write_bytes(b"x")
+    audio.chmod(0o500)
+    _leave(store, person)
+    try:
+        assert library.purge_departed() == [person.id]
+        library.purge_departed()
+        Library(library.out, store=store)
+        assert (audio / "private.mp3").exists()
+        assert len(_notes(store)) == 1
+    finally:
+        audio.chmod(0o755)
+    library.purge_departed()
+    assert not home.exists()
+    assert _notes(store) == []
+
+
+def test_a_crash_after_the_note_is_finished_at_start_up(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+    with _crash_after_the_note(monkeypatch):
+        assert library.purge_departed() == [person.id]
+    assert home.is_dir() and book.text("a" * 64) is not None
+
+    Library(library.out, store=store)
+
+    assert not home.exists()
+    assert book.text("a" * 64) is None
+    assert _notes(store) == []
+
+
+def test_a_build_that_lands_after_the_purge_is_cleared_too(world: World) -> None:
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+    with _locked(book):
+        assert library.purge_departed() == [person.id]
+    _text(book, home, "late-build", "e" * 64)
+    # Its texts row written, its home not (`mirror_text` refused): only the disk knows.
+    with sqlite3.connect(book.file) as db:
+        db.execute("DELETE FROM text_homes WHERE document_hash = ?", ("e" * 64,))
+
+    library.purge_departed()
+
+    assert not home.exists()
+    assert book.text("a" * 64) is None
+    assert book.text("e" * 64) is None
+    assert _notes(store) == []
+
+
+# -- the note ----------------------------------------------------------------
+
+
+def test_a_note_for_an_account_still_here_touches_nothing(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    """Written for a purge that then never happened (`Store.purge` failed, then Keep):
+    the account, its home and its rows stay."""
+    store, library, book = world
+    person = _person(store, "staying@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+
+    def locked(*_args: object, **_kwargs: object) -> list[int]:
+        raise sqlite3.OperationalError("database is locked")
+
+    with monkeypatch.context() as failing:
+        failing.setattr(Store, "purge", locked)
+        with pytest.raises(sqlite3.OperationalError):
+            library.purge_departed()
+    assert len(_notes(store)) == 1
+    with store.write() as db:  # Keep pressed
+        db.execute("UPDATE person SET leaving = NULL WHERE id = ?", (person.id,))
+
+    library.purge_departed()
+
+    assert (home / "my-upload").is_dir()
+    held = book.text("a" * 64)
+    assert held is not None and held.homes == {home.name}
+    assert _notes(store) == []
+
+
+def test_a_note_that_cannot_be_removed_stops_no_deletion_and_no_start(world: World) -> None:
     """qa-claude on #1174: a folder of notes the server cannot change (a root run's)
     raised out of the purge before anyone was deleted, and out of start-up."""
     store, library, book = world
@@ -110,149 +375,22 @@ def test_a_note_that_cannot_be_removed_stops_no_deletion_and_no_start(
     second = _person(store, "second@example.com")
     _text(book, library.home(second), "theirs", "b" * 64)
     _leave(store, second)
-    folder = Path(store.path).parent / f"{Path(store.path).name}.departing"
+    folder = _notes_folder(store)
     folder.chmod(0o555)
     try:
         assert library.purge_departed() == [second.id]
         assert not library.home(second).exists()
         assert book.text("b" * 64) is None, "with no note, the ledger step runs at once"
+        assert book.text("a" * 64) is None, "the earlier one is finished too"
         Library(library.out, store=store)
     finally:
         folder.chmod(0o755)
-
-
-def test_a_home_that_will_not_go_keeps_its_note_and_is_never_handed_on(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """A removal that leaves the folder standing keeps the note; the next account given
-    the same id gets an empty home, not the departed's texts (clause 3.14)."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-
-    def refused(*_args: object, **_kwargs: object) -> None:
-        raise PermissionError("no")
-
-    with monkeypatch.context() as stuck:
-        stuck.setattr(os, "rename", refused)
-        stuck.setattr(shutil, "rmtree", lambda *_a, **_k: None)
-        assert library.purge_departed() == [person.id]
-        assert (home / "my-upload").is_dir()
-        assert book.text("a" * 64) is None, "the rows go even while the folder stands"
-        assert [one["left"] for one in _notes(store)] == [True]
-        library.purge_departed()
-        assert [one["left"] for one in _notes(store)] == [True], "kept while it stands"
-        newcomer = _person(store, "new@example.com")
-        assert newcomer.id == person.id, "sqlite gives the highest id again"
-        with pytest.raises(PermissionError):
-            library.home(newcomer)
-
-    assert not (library.home(newcomer) / "my-upload").exists()
     library.purge_departed()
     assert _notes(store) == []
-    assert store.db.execute("SELECT id FROM person").fetchall()[0]["id"] == newcomer.id
-
-
-def test_a_crash_after_the_note_is_finished_at_start_up(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    with monkeypatch.context() as crash:
-        crash.setattr(Library, "_remove_home", lambda *_a: None)
-        crash.setattr(Library, "_finish_departures", lambda *_a: None)
-        assert library.purge_departed() == [person.id]
-    assert home.is_dir() and book.text("a" * 64) is not None
-
-    Library(library.out, store=store)
-
-    assert not home.exists()
-    assert book.text("a" * 64) is None
-    assert _notes(store) == []
-
-
-def test_a_note_for_an_account_still_here_touches_nothing(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """Written for a purge that then never happened: the account and its home stay."""
-    store, library, book = world
-    person = _person(store, "staying@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    monkeypatch.setattr(Store, "purge", lambda *_a, **_k: [])
-    assert library.purge_departed() == []
-    assert (home / "my-upload").is_dir()
-    assert book.text("a" * 64) is not None
-    assert _notes(store) == []
-
-
-def test_an_id_given_twice_keeps_both_notes_and_the_newcomer_s_texts(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
-    """qa-claude on #1174: a reused id wrote its note over the one still owed."""
-    store, library, book = world
-    first = _person(store, "first@example.com")
-    _text(book, library.home(first), "theirs", "a" * 64)
-    _leave(store, first)
-    with _locked(book):
-        library.purge_departed()
-
-    second = _person(store, "second@example.com")
-    assert second.id == first.id
-    _text(book, library.home(second), "mine", "b" * 64)
-    library.purge_departed()
-    assert book.text("a" * 64) is None, "the first account's text went"
-    held = book.text("b" * 64)
-    assert held is not None and held.homes == {f"p{second.id}"}, "the newcomer's stayed"
-
-    _text(book, library.home(second), "more", "c" * 64)
-    _leave(store, second)
-    with _locked(book):
-        assert library.purge_departed() == [second.id]
-    third = _person(store, "third@example.com")
-    _text(book, library.home(third), "theirs", "d" * 64)
-    _leave(store, third)
-    with _locked(book):
-        assert library.purge_departed() == [third.id]
-    assert len(_notes(store)) == 2, "one note each, neither written over"
-
-    library.purge_departed()
-    for hash_ in ("b", "c", "d"):
-        assert book.text(hash_ * 64) is None
-    assert _notes(store) == []
-
-
-def test_a_held_lock_costs_a_sweep_one_wait(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """Start-up waits on the purge, so three departures under a lock wait once."""
-    store, library, book = world
-    people = [_person(store, f"p{n}@example.com") for n in range(3)]
-    for n, person in enumerate(people):
-        _text(book, library.home(person), "theirs", str(n) * 64)
-        _leave(store, person)
-    tries: list[str] = []
-    real = ledger.disown
-
-    def counted(home: str, *args: object, **kwargs: object) -> int:
-        tries.append(home)
-        return real(home, *args, **kwargs)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(ledger, "disown", counted)
-    with _locked(book):
-        assert sorted(library.purge_departed()) == sorted(one.id for one in people)
-    assert len(tries) == 1
-    assert len(_notes(store)) == 3
 
 
 def test_a_note_that_cannot_be_written_leaves_no_draft_and_forgets_at_once(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
+    monkeypatch: pytest.MonkeyPatch, world: World
 ) -> None:
     store, library, book = world
     person = _person(store, "leaving@example.com")
@@ -265,266 +403,51 @@ def test_a_note_that_cannot_be_written_leaves_no_draft_and_forgets_at_once(
 
     monkeypatch.setattr(os, "replace", refused)
     assert library.purge_departed() == [person.id]
-    folder = Path(store.path).parent / f"{Path(store.path).name}.departing"
-    assert list(folder.iterdir()) == [], "no draft left behind"
+    assert list(_notes_folder(store).iterdir()) == [], "no draft left behind"
     assert not home.exists()
     assert book.text("a" * 64) is None
 
 
-def test_a_build_that_lands_after_the_purge_is_cleared_too(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
-    """A folder of the departed's name with no account behind it is theirs, not somebody
-    new's: the store says who has the id, never the disk (qa-claude on #1174)."""
+def test_two_notes_written_in_one_purge_are_both_finished(world: World) -> None:
+    """Notes are named by when they were written and a random tail, never overwritten."""
     store, library, book = world
+    people = [_person(store, f"p{n}@example.com") for n in range(2)]
+    for n, person in enumerate(people):
+        _text(book, library.home(person), "theirs", str(n) * 64)
+        _leave(store, person)
+    with _locked(book):
+        library.purge_departed()
+    assert len({one.name for one in _notes_folder(store).iterdir()}) == 2
+    library.purge_departed()
+    assert _notes(store) == []
+    assert book.text("0" * 64) is None and book.text("1" * 64) is None
+
+
+def test_a_departure_with_the_ledger_off_still_finishes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv(ledger.ENV, raising=False)
+    store = Store(tmp_path / "targum.db")
+    library = Library(tmp_path / "out", store=store)
     person = _person(store, "leaving@example.com")
     home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
+    (home / "my-upload").mkdir(parents=True)
     _leave(store, person)
-    with _locked(book):
-        assert library.purge_departed() == [person.id]
-    (home / "late-build").mkdir(parents=True)
-
-    library.purge_departed()
-
+    with _crash_after_the_note(monkeypatch):
+        library.purge_departed()
+    Library(library.out, store=store)
     assert not home.exists()
-    assert book.text("a" * 64) is None
     assert _notes(store) == []
 
 
-def _departed_folder(library: Library) -> Path:
-    return library.out / ".departed"
-
-
-@pytest.mark.parametrize("cause", ["rename refused", "departed folder read-only"])
-def test_a_refused_rename_deletes_the_home_where_it_stands(
-    cause: str, monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
+def test_an_unreadable_note_is_logged_and_kept(
+    world: World, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """qa-claude's second read of #1174: a refused rename left the home standing for
-    good, and the next account given the id was handed it."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    departed = _departed_folder(library)
-    if cause == "rename refused":
-
-        def refused(*_args: object, **_kwargs: object) -> None:
-            raise OSError(18, "Invalid cross-device link")
-
-        monkeypatch.setattr(os, "rename", refused)
-    else:
-        departed.mkdir()
-        departed.chmod(0o555)
-    try:
-        assert library.purge_departed() == [person.id]
-        assert not home.exists()
-        assert book.text("a" * 64) is None
-        newcomer = _person(store, "new@example.com")
-        assert newcomer.id == person.id
-        assert not library.home(newcomer).exists()
+    store, library, _book = world
+    folder = _notes_folder(store)
+    folder.mkdir(exist_ok=True)
+    (folder / "p9-1-abcdef.json").write_text("{not json", encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="targum.serve"):
         library.purge_departed()
-        assert _notes(store) == []
-    finally:
-        if departed.exists():
-            departed.chmod(0o755)
-
-
-def test_what_a_removal_leaves_in_the_set_aside_folder_is_tried_again(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
-    """Files a deletion cannot take (a root run's) keep the note, and every purge tries
-    them again until they go."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    audio = home / "my-upload" / "audio"
-    audio.mkdir()
-    (audio / "private.mp3").write_bytes(b"x")
-    audio.chmod(0o500)
-    _leave(store, person)
-    departed = _departed_folder(library)
-    try:
-        assert library.purge_departed() == [person.id]
-        assert not home.exists()
-        assert len(_notes(store)) == 1, "kept while part of the home is on disk"
-        library.purge_departed()
-        Library(library.out, store=store)
-        assert len(_notes(store)) == 1
-        assert [one.name for one in departed.rglob("private.mp3")] == ["private.mp3"]
-    finally:
-        for one in departed.rglob("audio"):
-            one.chmod(0o755)
-    library.purge_departed()
-    assert _notes(store) == []
-    assert list(departed.iterdir()) == []
-    assert book.text("a" * 64) is None
-
-
-def test_a_note_that_cannot_be_changed_never_clears_a_newcomer_s_home(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """qa-claude's second read of #1174: a note whose `left` could not be cleared made
-    every nightly purge delete the live home of the next account given the id."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    with monkeypatch.context() as crash:
-        crash.setattr(Library, "_remove_home", lambda *_a: None)
-        crash.setattr(Library, "_finish_departures", lambda *_a: None)
-        library.purge_departed()
-    notes = Path(store.path).parent / f"{Path(store.path).name}.departing"
-    notes.chmod(0o555)
-    try:
-        library = Library(library.out, store=store)
-        assert not home.exists()
-        newcomer = _person(store, "new@example.com")
-        assert newcomer.id == person.id
-        _text(book, library.home(newcomer), "newcomers-own", "b" * 64)
-        library.purge_departed()
-        Library(library.out, store=store).purge_departed()
-        assert (library.home(newcomer) / "newcomers-own").is_dir()
-        held = book.text("b" * 64)
-        assert held is not None and held.homes == {f"p{newcomer.id}"}
-        assert book.text("a" * 64) is None, "what was owed went"
-    finally:
-        notes.chmod(0o755)
-    library.purge_departed()
-    assert _notes(store) == [], "the note goes once its folder can be changed"
-    assert (library.home(newcomer) / "newcomers-own").is_dir()
-
-
-def test_a_newcomer_s_home_is_never_cleared_when_no_record_of_freed_could_be_written(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """qa-claude's third read of #1174 (probe C2): the notes folder and `out/.departed`
-    both unwritable (one root run). The departed's home goes at start-up with neither
-    record of it, then the newcomer builds; nothing may clear their home after that."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    with monkeypatch.context() as crash:
-        crash.setattr(Library, "_remove_home", lambda *_a: None)
-        crash.setattr(Library, "_finish_departures", lambda *_a: None)
-        library.purge_departed()
-    notes = Path(store.path).parent / f"{Path(store.path).name}.departing"
-    departed = _departed_folder(library)
-    departed.mkdir()
-    notes.chmod(0o555)
-    departed.chmod(0o555)
-    try:
-        library = Library(library.out, store=store)
-        assert not home.exists()
-        newcomer = _person(store, "new@example.com")
-        assert newcomer.id == person.id
-        _text(book, library.home(newcomer), "newcomers-own", "b" * 64)
-        for _night in range(2):
-            library.purge_departed()
-            library.home(newcomer)
-        assert (library.home(newcomer) / "newcomers-own").is_dir()
-        held = book.text("b" * 64)
-        assert held is not None and held.homes == {f"p{newcomer.id}"}
-        assert book.text("a" * 64) is None
-    finally:
-        notes.chmod(0o755)
-        departed.chmod(0o755)
-    library.purge_departed()
-    assert _notes(store) == [], "what stands is the newcomer's: the note is finished"
-    assert (library.home(newcomer) / "newcomers-own").is_dir()
-
-
-def test_the_set_aside_folder_says_freed_where_the_note_could_not(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """A note left at `left: true` because its folder was read-only: the set-aside folder
-    still says the name was freed, so a newcomer's empty home does not hold it up."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    _leave(store, person)
-    with monkeypatch.context() as crash:
-        crash.setattr(Library, "_remove_home", lambda *_a: None)
-        crash.setattr(Library, "_finish_departures", lambda *_a: None)
-        library.purge_departed()
-    notes = Path(store.path).parent / f"{Path(store.path).name}.departing"
-    notes.chmod(0o555)
-    try:
-        library = Library(library.out, store=store)
-    finally:
-        notes.chmod(0o755)
-    assert [one["left"] for one in _notes(store)] == [True]
-    newcomer = _person(store, "new@example.com")
-    library.home(newcomer).mkdir()
-    library.purge_departed()
-    assert _notes(store) == []
-    assert library.home(newcomer).is_dir()
-
-
-def test_a_departed_s_folder_under_a_newcomer_s_id_is_cleared_before_they_get_it(
-    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
-) -> None:
-    """The other side of C2: what stands is all the departed's and older than the
-    newcomer, so `home` still takes it away before handing the id's home out."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    home = library.home(person)
-    _text(book, home, "my-upload", "a" * 64)
-    old = 1_000_000_000
-    for here, _dirs, files in os.walk(home):
-        for one in files:
-            os.utime(os.path.join(here, one), (old, old))
-    _leave(store, person)
-    with monkeypatch.context() as stuck:
-        stuck.setattr(Library, "_remove_home", lambda *_a: None)
-        stuck.setattr(Library, "_finish_departures", lambda *_a: None)
-        library.purge_departed()
-    newcomer = _person(store, "new@example.com")
-    assert newcomer.id == person.id
-    library._remains.add(home.name)
-    assert not (library.home(newcomer) / "my-upload").exists()
-
-
-def test_a_newcomer_made_before_the_note_by_the_clock_is_still_a_newcomer(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
-    """Told apart by identity, not by clock order: a clock that stepped back must not
-    make a newcomer look like the departing account and drop what is owed."""
-    store, library, book = world
-    person = _person(store, "leaving@example.com")
-    _text(book, library.home(person), "my-upload", "a" * 64)
-    _leave(store, person)
-    with _locked(book):
-        library.purge_departed()
-    (note,) = _notes(store)
-    newcomer = _person(store, "new@example.com")
-    assert newcomer.id == person.id
-    with store.write() as db:
-        db.execute(
-            "UPDATE person SET made = ? WHERE id = ?",
-            (int(str(note["purged"])) - 60_000, newcomer.id),
-        )
-    _text(book, library.home(newcomer), "newcomers-own", "b" * 64)
-
-    library.purge_departed()
-
-    assert book.text("a" * 64) is None, "what was owed went"
-    assert (library.home(newcomer) / "newcomers-own").is_dir()
-    assert _notes(store) == []
-
-
-def test_a_set_aside_folder_nobody_s_note_names_goes_at_the_next_purge(
-    world: tuple[Store, Library, ledger.Ledger],
-) -> None:
-    _store, library, _book = world
-    stray = _departed_folder(library) / "p9-1-abcdef"
-    (stray / "my-upload").mkdir(parents=True)
-    (stray / "my-upload" / "document.json").write_text("{}", encoding="utf-8")
-    library.purge_departed()
-    assert not stray.exists()
+    assert "unreadable departure" in caplog.text
+    assert (folder / "p9-1-abcdef.json").exists()

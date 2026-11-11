@@ -629,31 +629,19 @@ def _verdict(text: Text) -> tuple[int, int, int]:
     return int(terms.exportable), int(terms.research), int(publishable)
 
 
-def disown(home: str, only: set[str] | None = None, *, timeout: float = 30) -> int:
+def disown(home: str) -> int:
     """Take one departed reader's home out of every text it held (clause 3.14).
 
     `forget` deletes what was theirs alone; this is the rest, a text somebody else
     still holds. Its rows stay, as corpus or as the other reader's, and keep no trace of
     this home: the homes live only in `text_homes`, never in a row or its history.
-    `only` limits it to these documents, for a retry made once the home's name may
-    belong to somebody new (targum-internal#679), and `timeout` how long it waits for
-    another process's lock. Returns how many texts it was taken out of; does nothing
-    with the flag off.
+    Returns how many texts it was taken out of; does nothing with the flag off.
     """
     file = path()
     if file is None or not home or not file.is_file():
         return 0
-    if only is not None and not only:
-        return 0
-    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
-        if only is None:
-            return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
-        wanted = sorted(only)
-        marks = ",".join("?" for _ in wanted)
-        return db.execute(
-            f"DELETE FROM text_homes WHERE home = ? AND document_hash IN ({marks})",  # noqa: S608
-            [home, *wanted],
-        ).rowcount
+    with closing(Ledger(file)._connect()) as db, db:
+        return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
 
 
 #: The rows a value is made of, by the head table they hang off and the column that
@@ -665,7 +653,7 @@ _UNITS = {
 }
 
 
-def forget(hashes: set[str], *, timeout: float = 30) -> int:
+def forget(hashes: set[str]) -> int:
     """Delete everything the ledger holds about these documents, history and all.
 
     For an account that is gone (decided 2026-10-03: `corpus.db` is its own file, and
@@ -676,30 +664,73 @@ def forget(hashes: set[str], *, timeout: float = 30) -> int:
     file = path()
     if file is None or not hashes or not file.is_file():
         return 0
+    with closing(Ledger(file)._connect()) as db, db:
+        return _forget(db, hashes)
+
+
+def _forget(db: sqlite3.Connection, hashes: set[str]) -> int:
+    if not hashes:
+        return 0
     gone = 0
-    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
-        wanted = sorted(hashes)
-        marks = ",".join("?" for _ in wanted)
-        for head, (units, link) in _UNITS.items():
-            ids = [
-                row[0]
-                for row in db.execute(
-                    f"SELECT id FROM {head} WHERE document_hash IN ({marks})",  # noqa: S608
-                    wanted,
-                )
-            ]
-            for start in range(0, len(ids), 500):
-                chunk = ids[start : start + 500]
-                holes = ",".join("?" for _ in chunk)
-                db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
-                db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
-            gone += len(ids)
-        db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
-        db.execute(
-            f"DELETE FROM text_homes WHERE document_hash IN ({marks})",  # noqa: S608
-            wanted,
-        )
+    wanted = sorted(hashes)
+    marks = ",".join("?" for _ in wanted)
+    for head, (units, link) in _UNITS.items():
+        ids = [
+            row[0]
+            for row in db.execute(
+                f"SELECT id FROM {head} WHERE document_hash IN ({marks})",  # noqa: S608
+                wanted,
+            )
+        ]
+        for start in range(0, len(ids), 500):
+            chunk = ids[start : start + 500]
+            holes = ",".join("?" for _ in chunk)
+            db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
+            db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
+        gone += len(ids)
+    db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
+    db.execute(
+        f"DELETE FROM text_homes WHERE document_hash IN ({marks})",  # noqa: S608
+        wanted,
+    )
     return gone
+
+
+def depart(home: str, hashes: set[str], kept: set[str], *, timeout: float = 30) -> int:
+    """Take a departed reader's home out of the ledger, in one transaction (clause 3.14).
+
+    What was theirs alone goes, history and all (`forget`): the documents `hashes` names
+    (read off their home) and any `text_homes` says the home held, so a text whose file
+    could not be read is not missed (targum-internal#679). A document in `kept` (the
+    shelf, the weekly, another home on disk) or held by another home in `text_homes` is
+    corpus or somebody else's, and only loses this home (`disown`). Raises on a lock
+    held past `timeout`, so the caller can try again; does nothing with the flag off.
+    """
+    file = path()
+    if file is None or not home or not file.is_file():
+        return 0
+    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
+        mine = set(hashes) | {
+            str(row[0])
+            for row in db.execute("SELECT document_hash FROM text_homes WHERE home = ?", (home,))
+        }
+        wanted = sorted(mine)
+        marks = ",".join("?" for _ in wanted)
+        shared = (
+            {
+                str(row[0])
+                for row in db.execute(
+                    "SELECT DISTINCT document_hash FROM text_homes"
+                    f" WHERE home != ? AND document_hash IN ({marks})",  # noqa: S608
+                    [home, *wanted],
+                )
+            }
+            if wanted
+            else set()
+        )
+        gone = _forget(db, mine - kept - shared)
+        db.execute("DELETE FROM text_homes WHERE home = ?", (home,))
+        return gone
 
 
 #: A document's hash where an artifact names it, read from the head of the file: every

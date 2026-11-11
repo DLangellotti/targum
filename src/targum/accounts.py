@@ -915,6 +915,25 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE find ADD COLUMN season INTEGER NOT NULL DEFAULT 0",
 )
 
+
+def _open_account(db: sqlite3.Connection, address: str) -> None:
+    """An account for this address, unless it has one, under an id never given before.
+
+    Inside the caller's write transaction. sqlite alone would give `max(id) + 1`, which
+    is a deleted account's id again whenever the newest account was the one deleted;
+    `person_high` remembers past it (targum-internal#679)."""
+    if db.execute("SELECT 1 FROM person WHERE email = ?", (address,)).fetchone() is not None:
+        return
+    row = db.execute(
+        "SELECT MAX(COALESCE((SELECT MAX(id) FROM person), 0),"
+        " COALESCE((SELECT id FROM person_high WHERE one = 1), 0)) + 1"
+    ).fetchone()
+    db.execute(
+        "INSERT INTO person (id, email, made) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING",
+        (int(row[0]), address, now()),
+    )
+
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS person (
   id         INTEGER PRIMARY KEY,
@@ -935,6 +954,15 @@ CREATE TABLE IF NOT EXISTS person (
   -- When they accepted the contribution grant (targum-internal#164, door 3), or 0.
   -- CONTRIBUTING.md holds the sentence; this holds that they read it.
   granted  INTEGER NOT NULL DEFAULT 0
+);
+
+-- The highest person id ever given, kept past the account that had it, so an id is
+-- never given twice (targum-internal#679): `person.id` is `max(id) + 1`, and a reader
+-- whose home or corpus rows are still being deleted must never share an id with
+-- whoever signs up next. One row; written by `purge`, read by `_open_account`.
+CREATE TABLE IF NOT EXISTS person_high (
+  one  INTEGER PRIMARY KEY CHECK (one = 1),
+  id   INTEGER NOT NULL
 );
 
 -- How often an address has asked for a link. A sign-in endpoint that anyone can call
@@ -3214,10 +3242,7 @@ class Store:
         with self.write() as db:
             if db.execute("SELECT 1 FROM invited WHERE email = ?", (address,)).fetchone() is None:
                 return None
-            db.execute(
-                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-                (address, now()),
-            )
+            _open_account(db, address)
         return self.person_by_email(address)
 
     # -- subscriptions (design.md §12, "A subscription is the account's", 2026-10-09) ---
@@ -4178,10 +4203,7 @@ class Store:
         address = tidy(email)
         token = secrets.token_urlsafe(TOKEN_BYTES)
         with self.write() as db:
-            db.execute(
-                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-                (address, now()),
-            )
+            _open_account(db, address)
             row = db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
             # Any link minted earlier is void: asking for a new one is what someone does
             # when the first did not arrive, and two live links is one more than needed.
@@ -4212,10 +4234,7 @@ class Store:
         if not address:
             return None
         with self.write() as db:
-            db.execute(
-                "INSERT INTO person (email, made) VALUES (?, ?) ON CONFLICT(email) DO NOTHING",
-                (address, now()),
-            )
+            _open_account(db, address)
             row = db.execute(
                 "SELECT id, email, leaving FROM person WHERE email = ?", (address,)
             ).fetchone()
@@ -4429,6 +4448,12 @@ class Store:
                 )
                 db.execute("DELETE FROM subscription WHERE person = ?", (person_id,))
                 db.execute("DELETE FROM person WHERE id = ?", (person_id,))
+            if gone:
+                db.execute(
+                    "INSERT INTO person_high (one, id) VALUES (1, ?)"
+                    " ON CONFLICT(one) DO UPDATE SET id = MAX(id, excluded.id)",
+                    (max(gone),),
+                )
         return gone
 
     # -- syncing ----------------------------------------------------------------

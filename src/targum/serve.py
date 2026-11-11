@@ -877,15 +877,6 @@ PURGE_AT_HOUR = 3
 FORGET_TIMEOUT = 5.0
 
 
-class HomeNotFree(PermissionError):
-    """A departed reader's folder still stands under this id, so its home is not handed
-    to the account now given it (targum-internal#679). The request is answered 503."""
-
-    def __init__(self, name: str) -> None:
-        super().__init__(f"{name}: a departed reader's folder is still there")
-        self.name = name
-
-
 def until_next(hour: int, moment: datetime) -> float:
     """Seconds from `moment` (aware, any zone) to the next `hour`:00 UTC, never zero."""
     moment = moment.astimezone(UTC)
@@ -1974,8 +1965,6 @@ class Library:
         self.account_budget = account_budget
         self.upload_seconds = upload_seconds
         self.store = store
-        # Names whose departed folder is not yet confirmed gone (`_settle_remains`).
-        self._remains: set[str] = set()
         self.adopt()
         self.empty_trash()
         self.purge_departed()
@@ -2279,12 +2268,7 @@ class Library:
         and wrong for a hosted box, which is why hosted has to require an account —
         the sign-in page in A2 is what closes it.
         """
-        if person is None:
-            return self.out / "local"
-        name = f"p{person.id}"
-        if name in getattr(self, "_remains", ()):
-            self._settle_remains(name)
-        return self.out / name
+        return self.out / (f"p{person.id}" if person else "local")
 
     def _sole_owner(self) -> Path | None:
         """The one person on this machine, if there is exactly one.
@@ -2822,29 +2806,27 @@ class Library:
         """Write down a home about to go, before its account does (targum-internal#679).
 
         The home is the only place its texts can be listed from, so its document hashes
-        are kept here until the corpus ledger has let go of them: a note outlives a lock
-        on `corpus.db`, a removal that leaves part of the folder, and a crash anywhere in
-        between. It names the account by its `made`, read while the row still exists, so
-        a later account given the same id is told apart by identity, never by clocks.
-        Named by the moment it was written, so an id given again never overwrites it.
+        are kept here until the home is gone and the corpus ledger has let go of them: a
+        note outlives a lock on `corpus.db`, a delete that fails, and a crash anywhere in
+        between. It names the account by its `made`, so a purge that never happened is
+        told from one that did. Named by the moment it was written, never overwritten.
         None where nothing could be written; the caller then does it all at once.
         """
         from . import ledger as ledger_module
 
         folder = self._departing()
-        if folder is None:
+        if folder is None or self.store is None:
             return None
         home = self.out / f"p{person_id}"
+        row = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person_id,))
+        found = row.fetchone()
         when = now()
         note = folder / f"{home.name}-{when}-{secrets.token_hex(3)}.json"
         draft = note.with_suffix(".tmp")
-        hashes = ledger_module.documents_under(home)
         said = {
             "home": home.name,
-            "purged": when,
-            "made": self._made(person_id),
-            "hashes": sorted(hashes),
-            "left": True,
+            "made": None if found is None else int(found["made"]),
+            "hashes": sorted(ledger_module.documents_under(home)),
         }
         try:
             folder.mkdir(parents=True, exist_ok=True)
@@ -2855,169 +2837,17 @@ class Library:
                 draft.unlink(missing_ok=True)
             log.warning("purge: no note kept for %s: %s", home.name, error)
             return None
-        self._remains.add(home.name)
         return note
-
-    def _aside(self, note: Path) -> Path:
-        """Where a noted home is moved to be deleted, named by its note. While it exists
-        it says the home's name was freed; while it holds anything, the deletion is not
-        finished and the note stays."""
-        return self.out / ".departed" / note.stem
 
     def _remove_home(self, home: Path, note: Path | None) -> None:
         """Delete a departed reader's home; with no note, take it out of the ledger first,
         as before #679, since nothing would be left to list its texts from."""
         from . import ledger as ledger_module
 
-        if note is None:
-            if ledger_module.path() is not None:
-                others = set().union(*self._texts_on_disk({home.name}).values())
-                mine = ledger_module.documents_under(home)
-                self._forget_now(home.name, mine, None, others)
-            shutil.rmtree(home, ignore_errors=True)
-            return
-        if self._clear_away(home, self._aside(note)) and not self._aside(note).is_dir():
-            self._mark_removed(note)
-
-    def _clear_away(self, home: Path, aside: Path) -> bool:
-        """Take a departed home out of its name, then delete it: whether the name is free.
-
-        Renamed aside first, because a rename needs only the parent and is one step, and
-        a removal that fails halfway must not leave part of somebody's texts where the
-        next person given the same id would be handed them (`home`). Where the rename is
-        refused, it is deleted where it stands.
-        """
-        if home.exists():
-            try:
-                aside.parent.mkdir(exist_ok=True)
-                target = aside / f"late-{secrets.token_hex(3)}" if aside.exists() else aside
-                os.rename(home, target)
-            except OSError as error:
-                log.warning("purge: %s not set aside, deleted in place: %s", home.name, error)
-                shutil.rmtree(home, ignore_errors=True)
-        if home.exists():
-            log.error("purge: %s could not be deleted", home.name)
-            return False
-        with contextlib.suppress(OSError):
-            aside.mkdir(parents=True, exist_ok=True)
-        self._empty(aside)
-        return True
-
-    @staticmethod
-    def _empty(aside: Path) -> bool:
-        """Delete what is inside a set-aside folder: whether nothing is left."""
-        if not aside.is_dir():
-            return True
-        try:
-            for one in list(aside.iterdir()):
-                if one.is_dir() and not one.is_symlink():
-                    shutil.rmtree(one, ignore_errors=True)
-                else:
-                    one.unlink(missing_ok=True)
-            left = any(True for _ in aside.iterdir())
-        except OSError as error:
-            log.error("purge: %s could not be emptied: %s", aside.name, error)
-            return False
-        if left:
-            log.error("purge: %s could not be emptied; tried again at the next purge", aside)
-        return not left
-
-    def _mark_removed(self, note: Path) -> None:
-        """Say in its note that a home's folder is gone, where no set-aside folder could
-        say it, so a folder of that name made later is somebody new's."""
-        try:
-            said = json.loads(note.read_text(encoding="utf-8"))
-            said["left"] = False
-            draft = note.with_suffix(".tmp")
-            draft.write_text(json.dumps(said), encoding="utf-8")
-            os.replace(draft, note)
-        except (OSError, ValueError, TypeError) as error:
-            log.warning("purge: could not mark %s removed: %s", note.name, error)
-
-    def _made(self, person_id: int) -> int | None:
-        """When the account that has this id now was made, or None: there is none."""
-        if self.store is None:
-            return None
-        row = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person_id,))
-        found = row.fetchone()
-        return None if found is None else int(found["made"])
-
-    @staticmethod
-    def _read_note(note: Path) -> tuple[str, int, int | None, set[str], bool] | None:
-        """A note's home, person id, departed account's `made`, hashes and `left`."""
-        try:
-            said = json.loads(note.read_text(encoding="utf-8"))
-            name = str(said["home"])
-            made = said.get("made")
-            return (
-                name,
-                int(name[1:]),
-                None if made is None else int(made),
-                {str(one) for one in said["hashes"]},
-                bool(said.get("left")),
-            )
-        except (OSError, ValueError, KeyError, TypeError) as error:
-            log.warning("purge: unreadable departure %s: %s", note.name, error)
-            return None
-
-    def _settle_remains(self, name: str) -> None:
-        """Before a home is handed out: if a departed reader's folder is still standing
-        under this name, take it away first, and refuse the home if it will not go
-        (clause 3.14). A person id can be given again once its account is deleted, so the
-        next sign-up can be p7 too."""
-        folder = self._departing()
-        if folder is None:
-            return
-        try:
-            notes = sorted(folder.glob(f"{name}-*.json"))
-        except OSError:
-            return
-        waiting = False
-        for note in notes:
-            read = self._read_note(note)
-            if read is None:
-                continue
-            _name, person_id, made, hashes, left = read
-            if made is not None and self._made(person_id) == made:
-                waiting = True  # still the departing account itself: the purge decides
-                continue
-            aside = self._aside(note)
-            if aside.is_dir() or not left:
-                continue
-            home = self.out / name
-            if home.exists() and not self._only_theirs(home, hashes, self._made(person_id)):
-                # Something here is not the departed's: the newcomer's own, after a
-                # note neither record of "freed" could be written to. Never cleared.
-                log.error(
-                    "purge: %s holds texts its departure note does not name; left alone", name
-                )
-                continue
-            if not self._clear_away(home, aside):
-                raise HomeNotFree(name)
-            if not aside.is_dir():
-                self._mark_removed(note)
-        if not waiting:
-            self._remains.discard(name)
-
-    @staticmethod
-    def _only_theirs(home: Path, hashes: set[str], made: int | None) -> bool:
-        """Whether a folder standing under a departed reader's name holds nothing but
-        theirs: every text in it one their note names, and no file in it newer than the
-        account now given the id (targum-internal#679)."""
-        from . import ledger as ledger_module
-
-        if not ledger_module.documents_under(home) <= hashes:
-            return False
-        if made is None:
-            return True
-        for here, _dirs, files in os.walk(home, onerror=lambda _error: None):
-            for one in files:
-                try:
-                    if os.lstat(os.path.join(here, one)).st_mtime * 1000 >= made:
-                        return False
-                except OSError:
-                    continue
-        return True
+        if note is None and ledger_module.path() is not None:
+            kept = set().union(*self._texts_on_disk(home.name).values())
+            self._depart(home.name, ledger_module.documents_under(home), kept)
+        shutil.rmtree(home, ignore_errors=True)
 
     def _finish_departures(self) -> None:
         """Finish every departure still written down: the folder, then the ledger.
@@ -3035,87 +2865,64 @@ class Library:
         from . import ledger as ledger_module
 
         folder = self._departing()
-        if folder is None:
+        if folder is None or self.store is None:
             return
         try:
             notes = sorted(folder.glob("*.json")) if folder.is_dir() else []
         except OSError as error:
             log.warning("purge: departures not listed: %s", error)
             return
-        # What a removal left behind inside a set-aside folder (files a root run made),
-        # tried again every time; an empty one nobody's note names any more goes too.
-        stems = {note.stem for note in notes}
-        with contextlib.suppress(OSError):
-            for aside in sorted((self.out / ".departed").iterdir()):
-                if self._empty(aside) and aside.name not in stems:
-                    with contextlib.suppress(OSError):
-                        aside.rmdir()
-        owed: list[tuple[Path, str, set[str], bool, bool, bool]] = []
-        remains: set[str] = set()
+        owed: list[tuple[Path, str, set[str], bool]] = []
         for note in notes:
-            read = self._read_note(note)
-            if read is None:
+            try:
+                said = json.loads(note.read_text(encoding="utf-8"))
+                name = str(said["home"])
+                person_id = int(name[1:])
+                made = said.get("made")
+                hashes = {str(one) for one in said["hashes"]}
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                log.warning("purge: unreadable departure %s: %s", note.name, error)
                 continue
-            name, person_id, made, hashes, left = read
-            now_made = self._made(person_id)
-            if made is not None and now_made == made:
-                # The account is still here: the purge this was written for never
-                # happened (a crash first, or Keep pressed in time). Nothing to finish.
+            row = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person_id,))
+            found = row.fetchone()
+            if found is not None:
+                # An id is never given twice (`Store`), so this is the account the note
+                # was written for: its purge never happened (a crash first, or Keep
+                # pressed in time). Nothing to finish.
+                if made is None or int(found["made"]) != int(made):
+                    log.error("purge: %s is somebody else's now; note kept", note.name)
+                    continue
                 self._drop(note)
                 continue
-            # Told apart by the store, never the disk or the clock: any other account
-            # with this id is somebody new, and its folder is never cleared here.
-            newcomer = now_made is not None
+            # Nobody can have this id again, so whatever stands under it is theirs: a
+            # delete that failed, a build that landed after, or a crash before it.
             home = self.out / name
-            aside = self._aside(note)
-            freed = aside.is_dir() or not left
-            if not newcomer and (not freed or home.exists()):
-                freed = self._clear_away(home, aside)
-                if freed and not aside.is_dir():
-                    self._mark_removed(note)
-            if newcomer and not freed:
-                if not home.exists():
-                    freed = True  # nothing of the departed's stands under the name
-                elif not self._only_theirs(home, hashes, now_made):
-                    # What stands is the newcomer's: a note neither record of "freed"
-                    # could be written to. Theirs is never cleared.
-                    log.error(
-                        "purge: %s holds texts its departure note does not name; left alone",
-                        name,
-                    )
-                    freed = True
-            if not freed:
-                # Standing under a newcomer's id is `home`'s to clear before they hold
-                # anything; standing under nobody's, it is tried again next time.
-                remains.add(name)
-            done = not aside.exists() or self._empty(aside)
-            owed.append((note, name, hashes, newcomer, freed, done))
-        self._remains = remains
-        for name in sorted(remains):
-            log.error("purge: %s still holds a departed reader's folder; its home is refused", name)
+            if home.exists():
+                hashes |= ledger_module.documents_under(home)
+                shutil.rmtree(home, ignore_errors=True)
+                if home.exists():
+                    log.error("purge: %s could not be deleted; tried again next time", name)
+            owed.append((note, name, hashes, not home.exists()))
         if not owed:
             return
         if ledger_module.path() is None:
-            for note, _name, _hashes, _newcomer, freed, done in owed:
-                if freed and done:
+            for note, _name, _hashes, gone in owed:
+                if gone:
                     self._drop(note)
             return
-        # Every other text on disk, read once for the whole sweep.
-        held = self._texts_on_disk(remains)
-        others: set[str] = set().union(*held.values())
-        for note, name, hashes, newcomer, freed, done in owed:
-            if newcomer and not freed:
-                continue  # `home` clears the folder first; until then the name is mixed
-            if not self._forget_now(
-                name, hashes, held.get(self.out / name, set()) if newcomer else None, others
-            ):
+        # Every other text on disk, read once for the whole sweep; a departed home still
+        # standing is nobody's to keep a text for.
+        held = self._texts_on_disk(*(name for _note, name, _hashes, _gone in owed))
+        kept: set[str] = set().union(*held.values())
+        for note, name, hashes, gone in owed:
+            if not self._depart(name, hashes, kept):
                 break  # the lock is still held; the rest wait for the next purge
-            if freed and done:
+            if gone:
                 self._drop(note)
 
-    def _texts_on_disk(self, leaving_out: set[str]) -> dict[Path, set[str]]:
+    def _texts_on_disk(self, *leaving_out: str) -> dict[Path, set[str]]:
         """The document hashes every folder of texts holds, by folder: the shared shelf,
-        the weekly and each home but those named, and never a departed one set aside."""
+        the weekly and each home but those named."""
         from . import ledger as ledger_module
 
         roots = [self.shared, self.weekly]
@@ -3128,36 +2935,21 @@ class Library:
         return {root: ledger_module.documents_under(root) for root in dict.fromkeys(roots)}
 
     def _drop(self, note: Path) -> None:
-        """A departure finished: its note goes, then its emptied set-aside folder."""
         try:
             note.unlink(missing_ok=True)
         except OSError as error:
             log.warning("purge: could not remove %s: %s", note.name, error)
-            return
-        with contextlib.suppress(OSError):
-            self._aside(note).rmdir()
 
-    def _forget_now(
-        self, name: str, hashes: set[str], newcomer: set[str] | None, others: set[str]
-    ) -> bool:
+    def _depart(self, name: str, hashes: set[str], kept: set[str]) -> bool:
         """Take a departed home out of the corpus ledger (targum-internal#162): whether it
-        held. Only what was theirs alone goes: a text somebody else has, or the shared
-        shelf or the weekly holds, is the same document and the same rows, and is corpus
-        rather than anybody's. `newcomer` is what a new account given the same id holds
-        now, which stays theirs; `others` every other text on disk.
-        """
+        held. Only what was theirs alone goes; a text the shelf, the weekly or another
+        reader also has is the same document and the same rows (`ledger.depart`)."""
         import sqlite3
 
         from . import ledger as ledger_module
 
         try:
-            if newcomer is None:
-                # Their home out of every text it held, including those somebody else
-                # still holds, before anything else can fail (clause 3.14).
-                ledger_module.disown(name, timeout=FORGET_TIMEOUT)
-            else:
-                ledger_module.disown(name, only=hashes - newcomer, timeout=FORGET_TIMEOUT)
-            ledger_module.forget(hashes - others, timeout=FORGET_TIMEOUT)
+            ledger_module.depart(name, hashes, kept, timeout=FORGET_TIMEOUT)
         except (OSError, sqlite3.Error) as error:
             log.warning(
                 "corpus ledger: a departed reader's texts were not forgotten yet; "
@@ -9877,15 +9669,6 @@ class Handler(BaseHTTPRequestHandler):
         self._robots_tag = ""
         try:
             route()
-        except HomeNotFree as error:
-            # Their home is refused until the departed's folder goes (#679): a page that
-            # says so, not a dropped connection. The purge logs the id at ERROR.
-            log.error("home refused: %s", error)
-            said = self._say(
-                "serve.home-not-free",
-                "We're getting your account ready. Try again in a few minutes.",
-            )
-            self._send(503, said.encode("utf-8"), "text/plain; charset=utf-8")
         except Exception as error:
             incidents_module.record(self.library.incidents, self.path, error)
             raise

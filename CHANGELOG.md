@@ -14,24 +14,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
-- An account purge whose corpus-ledger step or folder removal fails is finished by the
-  next purge (targum-internal#679, clause 3.14). `Library.purge_departed` deleted the home
-  right after `ledger.disown` and `ledger.forget`, so a lock on `corpus.db` held past
-  30 s was logged and then lost: the home was the only place that reader's documents
-  could be listed from, and their rows stayed. Each departing home is now written down
-  before its account goes, in `targum.db.departing/<home>-<ms>-<rand>.json`: its
-  document hashes and the departing account's own `made`. The home is renamed to
-  `out/.departed/<note>` (deleted in place if the rename is refused) and emptied; the
-  note goes only once that folder is empty and the ledger step has held, retried after
-  the night's own deletions at every start-up and every nightly purge, waiting at most
-  `FORGET_TIMEOUT` (5 s) once per sweep. Another account with the same id is told apart
-  by its `made`, never by the disk or the clock; a purge never clears a folder under a
-  newcomer's id, and `Library.home` clears a departed's folder still standing before it
-  hands that id's home out, but only a folder holding nothing but the note's texts and
-  nothing newer than that account; while it will not go, the reader gets a 503 saying
-  we're getting their account ready (`serve.home-not-free`, new in EN and RU), and each
-  purge logs the stuck id at ERROR. A note that cannot be read, changed or removed is
-  logged and never stops a deletion or a start. No spend.
+- A Russian lemma spelled with ё is as common in the estimate as its е spelling
+  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
+  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
+  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
+  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
+  marks still read AUC 0.918. No spend, no new strings.
+- An account purge whose corpus-ledger step fails is finished by the next purge, and a
+  person id is never given twice (targum-internal#679, clause 3.14).
+  `Library.purge_departed` deleted the home right after `ledger.disown` and
+  `ledger.forget`, so a lock on `corpus.db` held past 30 s was logged and then lost: the
+  home was the only place that reader's documents could be listed from, and their rows
+  stayed. Each departing home is now written down before its account goes, in
+  `targum.db.departing/<home>-<ms>-<rand>.json` (its document hashes and the account's
+  `made`); the home is deleted on time, and the note goes only once the folder is gone
+  and `ledger.depart` has held, retried after the night's own deletions at every
+  start-up and every nightly purge, waiting at most `FORGET_TIMEOUT` (5 s) once per
+  sweep. `ledger.depart` also forgets what `text_homes` says the home held, so a text
+  whose file could not be read is not missed. Ids were `max(id) + 1`, so the next
+  sign-up could be given a departed reader's id and, after a failed delete, their
+  folder; `Store` now keeps the highest id ever given (`person_high`) and never hands
+  one out twice, which is what lets a retry delete whatever stands under a departed
+  name. A note that cannot be read or removed is logged and never stops a deletion or a
+  start. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
@@ -64,6 +69,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
   on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
   strings.
+- whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
+  `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
+  words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
+  words, one full stop, 25 of ? and !), so the punctuation pass never ran and the reader
+  got 40-word lines cut at a breath. It now counts full stops and commas, never ? or !,
+  against one in 30, and a stop inside a closing quote counts: of the laptop's 109
+  refined Hebrew parts every punctuated one runs at a mark in 12 words or fewer, comma
+  splices included, and every bare one at none, or one in 426. A stored
+  `rules/1`–`rules/3` part the new rule finds bare is owed punctuation the next time its
+  reader builds; no part is redone by a deploy. No spend, no new strings.
+- A Russian word with ё keeps its own dictionary form (targum-internal#650). Stanza's
+  lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
+  wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
+  It is now asked the word with е, and the ё goes back from pymorphy3's dictionary, as it
+  already did for учёный. Where Stanza, asked with е, answers a form the dictionary does
+  not give and the dictionary gives one, the dictionary's stands: недотёпа, копчёный,
+  нытьё, убрать, уйти. Possessive её is её and the object она; всё, everything, is всё,
+  and весь only where it agrees with a noun (всё время). The local Russian annotator moves to `/2`, so `rebuild --words`
+  re-reads every Russian text it built, here and on the box, for nothing but time. On the
+  laptop's shelf that changes 9 of 38 ё-words. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a
