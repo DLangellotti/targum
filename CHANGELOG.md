@@ -35,6 +35,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
   2 s, then log the miss and go on without the row; the next backfill writes it. No
   spend, no new strings.
+- A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
+  from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
+  44px reach centred on both pieces stood between them, so a tap 20px off either missed.
+  It is `nowrap` under a coarse pointer, as sign-in's links are. A JSON 5xx from
+  `/account/sign-in` that carries no `error` now says `signin.server-fault` where the
+  form's answer goes, not "We couldn't send the link" under the address field, as if the
+  address were at fault. Browser tests pin both `nowrap`s at 320 and 360 in Russian and the
+  way in's clearance from the waitlist's press at 4px or more. No spend, no new strings.
+- The estimate of the words a reader has not marked takes the Russian root lexicon's
+  borrowed flag (targum-internal#633): телефон, интернет, кофе are easier than their
+  place in the frequency list says, by the same `BORROWED` as Hebrew's, looked up by the
+  lexicon's own spelling (`fold_ru`). `scripts/eval_estimate.py --language fr
+  --language ru --record` holds each language out on its own readers' marks and writes `marks-fr` and `marks-ru` rows to the ledger, with n: on the laptop, no French
+  reader and one Russian reader (125 marks, 9 not known, AUC 0.831), too few to fit a
+  Russian weight. The prior reads a named rung as the words check reads it back, so a
+  reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
+  No spend, no new strings.
+- A deploy fetches Morphalou (targum-internal#678). `deploy.sh` fetched menaked,
+  OpenRussian's tables, the Russian lemmatizer, LaBSE and the scripture models but not
+  Morphalou, so a fresh or restored box had a French word's forms (for its difficulty) and
+  its readings (behind `TARGUM_FRENCH_IPA`) only if somebody ran `targum models fetch
+  morphalou` by hand, and without them it measured and said less, quietly. It is now
+  fetched beside OpenRussian's tables, a one-line no-op once there; like the STEP Bible
+  glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
+  on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
+  strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a
