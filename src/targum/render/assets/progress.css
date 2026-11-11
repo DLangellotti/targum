@@ -688,9 +688,6 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 }
 .progress .topic-fill { display: block; block-size: 100%; background: var(--leaf); }
 .progress .topic-percent { font-size: 0.875rem; font-variant-numeric: tabular-nums; text-align: end; }
-@media (max-width: 40rem) {
-  .progress .topic-bar { grid-template-columns: minmax(0, 8.5rem) minmax(3rem, 1fr) 2.75rem; column-gap: 0.5rem; }
-}
 @media (hover: none) and (pointer: coarse) {
   .progress .topic-bar { min-block-size: 2.75rem; }
 }
@@ -743,6 +740,7 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .grammar { border-spacing: 0.1875rem; }
   .progress .grammar-binyan { padding-inline-end: 0.25rem; white-space: normal; line-height: 1.2; }
   .progress .grammar-name { display: block; }
+  .progress .topic-bar { grid-template-columns: minmax(0, 8.5rem) minmax(3rem, 1fr) 2.75rem; column-gap: 0.5rem; }
   .progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem; font-size: 1.75rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
