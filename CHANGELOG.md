@@ -20,6 +20,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
   they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
   marks still read AUC 0.918. No spend, no new strings.
+- `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
+  (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
+  docstring says plainly that a missed drop is not swept: the row stays current, and
+  `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
+  is missed today. No spend, no new strings.
 - With the door open, every door says so (targum-internal#671; design.md §12,
   2026-11-10). With `TARGUM_OPEN_SIGNUP` and plans on, sign-in opened accounts and every
   page still asked a stranger to join a waitlist. Each template that draws it now asks
@@ -40,7 +45,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
   a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
-  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
+  sweeps a missed drop (targum-internal#680). No
   spend, no new strings.
 - A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
   from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
