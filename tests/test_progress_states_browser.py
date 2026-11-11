@@ -156,13 +156,14 @@ STATES: dict[str, dict[str, Any]] = {
 
 
 def open_state(chromium: Any, spec: dict[str, Any], width: int) -> tuple[Any, Any, list[str]]:
-    html = progress_page("", "en")
+    interface = spec.get("interface", "en")
+    html = progress_page("", interface)
     signed = spec["signed"]
     words = spec.get("words", 0)
     answers: dict[str, Any] = {
-        "/account/me": me(signed),
+        "/account/me": dict(me(signed), reads=[interface]) if signed else me(signed),
         "/sync": record(words, spec.get("texts", 0), spec.get("days", 0)),
-        "/account/story": story(bool(words)),
+        "/account/story": spec.get("story") or story(bool(words)),
         "/account/totals": {"signedIn": True, "on": True, "totals": []},
         "/account/reading": {"signedIn": True, "reading": {}},
     }
@@ -225,6 +226,157 @@ def test_every_state_says_what_next_and_fits(chromium: Any, state: str, width: i
                 page.get_by_role("button", name=spec["press"])
             )
             assert press.first.is_visible(), spec["press"]
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+# -- What next's Topics (targum-internal#608) ---------------------------------------------
+
+#: The six topics the live lexicon shows, as `topics.progress` sends them: a row a topic,
+#: the exact share known, the weakest named, and the words to learn next.
+TOPIC_ROWS = [
+    ("family", 62),
+    ("food", 48),
+    ("money", 35),
+    ("school", 71),
+    ("law", 19),
+    ("security", 8),
+]
+
+
+def with_topics(topics: dict[str, Any] | None) -> dict[str, Any]:
+    return dict(story(True), grammar=None, mishkal=None, lead=None, topics=topics)
+
+
+def topics_said(rows: bool = True) -> dict[str, Any]:
+    if not rows:
+        return {"floor": 100, "rows": [], "weakest": None}
+    return {
+        "floor": 100,
+        "rows": [
+            {
+                "topic": topic,
+                "known": known,
+                "words": [
+                    {"lemma": "מילואים", "meaning": "reserve duty"},
+                    {"lemma": "חייל", "meaning": ""},
+                ],
+            }
+            for topic, known in TOPIC_ROWS
+        ],
+        "weakest": "security",
+    }
+
+
+TOPIC_WORDS = {
+    "en": {"food": "Food & drink", "security": "Security & the army", "title": "Topics"},
+    "ru": {"food": "Еда и напитки", "security": "Безопасность и армия", "title": "Темы"},
+}
+
+
+@pytest.mark.parametrize("interface", ["en", "ru"])
+@pytest.mark.parametrize("width", [1440, 390])
+def test_topics_draw_a_bar_a_topic_that_opens_its_words(
+    chromium: Any, width: int, interface: str
+) -> None:
+    said = TOPIC_WORDS[interface]
+    spec = {
+        "signed": True,
+        "words": 40,
+        "interface": interface,
+        "story": with_topics(topics_said()),
+    }
+    context, page, thrown = open_state(chromium, spec, width)
+    try:
+        page.goto(SITE + "/progress")
+        bars = page.locator("#topic-rows .topic-bar")
+        bars.first.wait_for(state="visible", timeout=10_000)
+        assert page.locator("#gap-topics").is_visible()
+        assert page.locator("#topics-title").inner_text() == said["title"]
+        assert bars.count() == len(TOPIC_ROWS)
+        # No grid here, so no "Grammar" over nothing.
+        assert page.locator("#grammar-head").is_hidden()
+        food = page.get_by_role("button", name=said["food"])
+        assert food.inner_text().replace("\n", " ").endswith("48%")
+        fill = page.locator("#topic-rows .topic-fill").nth(1)
+        track = page.locator("#topic-rows .topic-track").nth(1)
+        ratio = fill.bounding_box()["width"] / track.bounding_box()["width"]  # type: ignore[index]
+        assert abs(ratio - 0.48) < 0.02, ratio
+        weakest = page.locator("#topic-rows .topic-row.weakest")
+        assert weakest.count() == 1 and said["security"] in weakest.inner_text()
+
+        security = page.get_by_role("button", name=said["security"])
+        assert security.get_attribute("aria-expanded") == "false"
+        security.click()
+        assert page.locator("#topics-words").is_visible()
+        assert security.get_attribute("aria-expanded") == "true"
+        assert said["security"] in page.locator("#topics-words-title").inner_text()
+        listed = page.locator("#topics-word-rows").inner_text()
+        assert "מילואים" in listed and "reserve duty" in listed
+        assert "met" not in listed and "раз" not in listed, "never met: no count"
+        security.click()
+        assert page.locator("#topics-words").is_hidden()
+
+        measured = page.evaluate(
+            """() => ({
+              scroll: document.documentElement.scrollWidth,
+              client: document.documentElement.clientWidth,
+              bar: Math.min(...[...document.querySelectorAll('.topic-bar')]
+                .map((one) => one.getBoundingClientRect().height)),
+            })"""
+        )
+        assert measured["scroll"] <= measured["client"], measured
+        if width < 600:
+            assert measured["bar"] >= 44, "a bar answers a thumb over 44px (§8)"
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_under_the_reader_floor_topics_says_what_to_do_not_bars_at_nought(
+    chromium: Any, width: int
+) -> None:
+    spec = {"signed": True, "words": 40, "story": with_topics(topics_said(rows=False))}
+    context, page, thrown = open_state(chromium, spec, width)
+    try:
+        page.goto(SITE + "/progress")
+        note = page.locator("#topics-note")
+        note.wait_for(state="visible", timeout=10_000)
+        assert note.inner_text().startswith("Once you know 100 words")
+        assert page.locator("#topic-rows .topic-bar").count() == 0
+        assert page.locator("#topic-rows").is_hidden()
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_no_lexicon_on_the_machine_draws_no_topics(chromium: Any) -> None:
+    spec = {"signed": True, "words": 40, "story": with_topics(None)}
+    context, page, thrown = open_state(chromium, spec, 1440)
+    try:
+        page.goto(SITE + "/progress")
+        page.get_by_text("Texts at your level now").wait_for(state="visible", timeout=10_000)
+        page.wait_for_load_state("networkidle")
+        assert page.locator("#gap-topics").is_hidden()
+        assert page.locator("#gap").is_hidden(), "nothing at all under the two lists"
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_one_topic_bar_has_nothing_to_be_weakest_against(chromium: Any) -> None:
+    """As the grid: with one bar there is nothing to set it against, so no outline."""
+    one = topics_said()
+    one["rows"], one["weakest"] = one["rows"][-1:], "security"
+    spec = {"signed": True, "words": 40, "story": with_topics(one)}
+    context, page, thrown = open_state(chromium, spec, 1440)
+    try:
+        page.goto(SITE + "/progress")
+        page.locator("#topic-rows .topic-bar").first.wait_for(state="visible", timeout=10_000)
+        assert page.locator("#topic-rows .topic-bar").count() == 1
+        assert page.locator("#topic-rows .weakest").count() == 0
         assert not thrown, thrown
     finally:
         context.close()

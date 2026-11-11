@@ -15994,6 +15994,10 @@ class Handler(BaseHTTPRequestHandler):
             if language == "he" and root_card.lexicon("he") is not None
             else None
         )
+        # Topics (targum-internal#608): the share of each shown topic's words the reader
+        # knows, weighed by the yardsticks' frequencies, behind both floors. Hebrew only,
+        # and none on a machine without the topics lexicon, so the slot stays hidden.
+        answer["topics"] = self._topics(language, marked, int(answer["known"]))
 
         # A language with no library has nothing to offer at its level but what the
         # reader brought (board ProgressYi): their own texts, measured as the shelf does.
@@ -16015,6 +16019,40 @@ class Handler(BaseHTTPRequestHandler):
                 for reader in mine[: touchstones.TEXTS]
             ]
         self._json(answer)
+
+    def _topics(self, language: str, marked: dict[str, int], known: int) -> Any:
+        """What next's Topics for Your Progress's story (targum-internal#608): None, and
+        nothing drawn, for a language other than Hebrew, on a machine with no topics
+        lexicon or nothing in it shown, or with no yardstick to weigh by. Read off the
+        lexicon the wheel carries and the yardstick snapshots; nothing is fetched and
+        nothing spends. A word to learn next carries the meaning the glossary already
+        holds, or none."""
+        from . import topics as topics_module
+        from .models import VERB_MARK
+        from .tables.registers import BIBLE
+
+        if language != "he":
+            return None
+        held = topics_module.held_for_progress(language)
+        if held is None:
+            return None
+        lexicon, shown = held
+        glossary = self._held_meaning(language)
+
+        def meaning(lemma: str) -> str:
+            # A verb's meaning is filed under its verb entry (targum#69), so a bare lemma
+            # that holds none is asked again as the verb: still the cache only.
+            return glossary(lemma) or glossary(lemma + VERB_MARK)
+
+        return topics_module.progress(
+            lexicon,
+            shown,
+            marked,
+            known,
+            topics_module.yardstick_weights(topics_module.MODERN),
+            topics_module.yardstick_weights((BIBLE,)),
+            meaning,
+        )
 
     def _built_shares(self, wanted: set[str]) -> dict[str, tuple[float, bool]]:
         """Each wanted catalogue text a copy is built of, on the shared shelf or the
