@@ -29,6 +29,7 @@ it.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -40,6 +41,8 @@ from pathlib import Path
 from typing import Any
 
 from .hebrew import ENDINGS, FINALS
+
+LOG = logging.getLogger(__name__)
 
 LANGUAGES = ("he", "ru")
 ENV = {"he": "TARGUM_ROOTS_HE", "ru": "TARGUM_ROOTS_RU"}
@@ -150,15 +153,34 @@ def stem_en(word: str) -> str:
     return word[:-1] if word.endswith("i") and len(word) > 3 else word
 
 
+#: What a Russian morph, variant or prefix may be spelled with once folded (`fold_ru`).
+#: The model's answers have carried Latin, Devanagari, kana and brackets ("step", "टоск",
+#: "мел})"); such a spelling never reaches the page (targum-internal#596).
+CYRILLIC = re.compile(r"[а-яё-]+")
+
+
+def cyrillic(spelling: str, lemma: str) -> bool:
+    """Whether a folded Russian spelling is Cyrillic only; one that is not is logged."""
+    if CYRILLIC.fullmatch(spelling):
+        return True
+    LOG.warning("roots-ru: %r under %s is not Cyrillic; left out", spelling, lemma)
+    return False
+
+
 def _sense_words(sense: str | None, stem: bool = False) -> frozenset[str]:
     """The words of a sense ("show, tell" → show, tell), "to" left off a verb.
 
-    With `stem`, "be" is left off too, a bracketed note ("long (time)") is dropped and
-    each word is stemmed (`stem_en`), so wording alone never splits a meaning.
+    With `stem`, "be" is left off too, a bracketed note ("long (time)") is dropped,
+    only what comes before a ";" is read (коса's "braid; scythe" is two meanings, and
+    joining on both would make them one) and each word is stemmed (`stem_en`), so
+    wording alone never splits a meaning.
     """
     text = (sense or "").lower()
     if stem:
         text = re.sub(r"\([^)]*\)", "", text)
+    if stem:
+        # "braid; scythe" is two meanings in one sense: only the first is compared.
+        text = text.split(";")[0]
     out = set()
     for part in re.split(r"[,;/]", text):
         word = part.strip()
@@ -363,13 +385,17 @@ def _russian(rows: Mapping[str, Any]) -> dict[str, RussianRow]:
             if not isinstance(morph, dict) or not morph.get("morph"):
                 continue
             spelled = fold_ru(morph["morph"])
+            if not cyrillic(spelled, lemma):
+                continue
             sense = str(morph.get("sense") or "")
             roots.append(
                 RussianMorph(
                     morph=spelled,
                     variants=tuple(
                         dict.fromkeys(
-                            v for v in map(fold_ru, _strings(morph.get("variants"))) if v != spelled
+                            v
+                            for v in map(fold_ru, _strings(morph.get("variants")))
+                            if v != spelled and cyrillic(v, lemma)
                         )
                     ),
                     sense=sense,
@@ -378,7 +404,7 @@ def _russian(rows: Mapping[str, Any]) -> dict[str, RussianRow]:
             )
         out[fold_ru(str(lemma))] = RussianRow(
             roots=tuple(roots),
-            prefixes=_strings(row.get("prefixes")),
+            prefixes=tuple(p for p in _strings(row.get("prefixes")) if cyrillic(fold_ru(p), lemma)),
             suffixes=_strings(row.get("suffixes")),
             transparent=row.get("transparency") == "transparent",
             borrowed=row.get("borrowed") is True,

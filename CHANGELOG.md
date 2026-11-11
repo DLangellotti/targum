@@ -20,9 +20,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   were two meanings, and a family asked from one left the other out. Russian senses are
   now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
   splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
-  нос, долг, гор, вод, мер, пар) stay apart. Hebrew is not stemmed, because one of its
-  senses would join עצב's "sad" to its "shape". The private lexicon's root errors from
-  ling-ru's check are fixed in the file itself. No spend, no new strings.
+  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
+  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
+  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
+  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
+  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
+  spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

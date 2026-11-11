@@ -301,6 +301,100 @@ def test_a_sense_word_is_stemmed_without_eating_short_words(word: str, stem: str
     assert root_card.stem_en(word) == stem
 
 
+def test_a_semicolon_keeps_two_meanings_apart() -> None:
+    senses = _ru_senses(
+        ("коса", "кос", "braid; scythe"),
+        ("косичка", "кос", "braid"),
+        ("косить", "кос", "to mow, scythe"),
+    )
+    assert senses["коса"] == senses["косичка"]
+    assert senses["косить"] != senses["коса"]
+
+
+def test_a_spelling_that_is_not_cyrillic_never_reaches_the_card(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    body = {
+        "version": "ru-roots/1-test",
+        "language": "ru",
+        "lemmas": {
+            "доступ": {
+                "roots": [
+                    {"morph": "ступ", "variants": ["step", "стуā", "ступа"], "sense": "step"}
+                ],
+                "prefixes": ["до", "dо"],
+            },
+            "тосковать": {"roots": [{"morph": "टоск", "variants": [], "sense": "yearn"}]},
+        },
+    }
+    with caplog.at_level("WARNING", logger="targum.annotate.root_card"):
+        read = root_card.from_body(body, "ru")
+    assert read is not None
+    assert read.russian["доступ"].roots[0].variants == ("ступа",)
+    assert read.russian["доступ"].prefixes == ("до",)
+    assert read.russian["тосковать"].roots == ()
+    assert "step" in caplog.text and "टоск" in caplog.text
+
+
+#: The real lexicon, where this machine has one: the private file, never in CI.
+REAL_RU = Path.home() / ".targum" / "roots-ru.json"
+
+
+def _real_ru() -> dict[str, object]:
+    if not REAL_RU.is_file():
+        pytest.skip("no private Russian root lexicon on this machine")
+    body = json.loads(REAL_RU.read_text(encoding="utf-8"))
+    assert isinstance(body, dict)
+    return body
+
+
+def test_the_real_russian_lexicon_is_cyrillic_only() -> None:
+    body = _real_ru()
+    odd = [
+        (lemma, spelling)
+        for lemma, row in body["lemmas"].items()  # type: ignore[attr-defined]
+        for morph in row.get("roots") or []
+        for spelling in [morph.get("morph") or "", *(morph.get("variants") or [])]
+        + list(row.get("prefixes") or [])
+        if not root_card.CYRILLIC.fullmatch(root_card.fold_ru(spelling))
+    ]
+    assert odd == []
+
+
+#: Which roots stemming changes in the real lexicon, as (meanings unstemmed, stemmed).
+#: Read by hand on 2026-11-11 (targum#1175). A new lexicon or a new ending changes this:
+#: read the new merges before updating it, since an ending can join two words
+#: (hat/hate, new/news) that no row joins today.
+STEMMED_MERGES = {
+    "веч": (2, 1), "встреч": (2, 1), "гроз": (2, 1), "груст": (2, 1), "доб": (3, 2),
+    "долг": (3, 2), "жад": (3, 2), "здоров": (2, 1), "здрав": (2, 1), "знач": (3, 2),
+    "кос": (6, 5), "крас": (4, 3), "краш": (3, 2), "лен": (2, 1), "молч": (2, 1),
+    "мрак": (2, 1), "скором": (2, 1), "слух": (2, 1), "стал": (2, 1), "та": (5, 4),
+    "толк": (3, 2), "торж": (3, 2), "чувств": (2, 1),
+}  # fmt: skip
+
+
+def test_the_real_russian_lexicon_merges_only_what_was_read() -> None:
+    from collections import Counter
+
+    body = _real_ru()
+    senses: dict[str, Counter[str]] = {}
+    for row in body["lemmas"].values():  # type: ignore[attr-defined]
+        for morph in row.get("roots") or []:
+            if morph.get("morph") and morph.get("sense"):
+                senses.setdefault(root_card.fold_ru(morph["morph"]), Counter())[morph["sense"]] += 1
+
+    def meanings(stem: bool) -> dict[str, int]:
+        out: dict[str, set[int]] = {}
+        for (root, _), number in root_card._clusters(senses, stem=stem).items():
+            out.setdefault(root, set()).add(number)
+        return {root: len(numbers) for root, numbers in out.items()}
+
+    plain, stemmed = meanings(False), meanings(True)
+    changed = {root: (plain[root], stemmed[root]) for root in plain if plain[root] != stemmed[root]}
+    assert changed == STEMMED_MERGES
+
+
 def test_hebrew_senses_are_not_stemmed() -> None:
     body = {
         "version": "roots/1-test",
