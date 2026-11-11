@@ -37,6 +37,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
   private lexicon's root errors from ling-ru's check are fixed in the file itself. No
   spend, no new strings.
+- Sign-in's own 502, when the mailer fails, is told as the server's fault
+  (targum-internal#681, from qa-claude's read of targum#1168). It carries an `error`, so
+  `signin.js` still put "We couldn't send the link. Try again in a minute." under the
+  address field with the clay outline, as if the address were wrong. Every status of 500
+  or more now goes to the form's answer line, with the body's `error` as its words where
+  there is a sentence and `signin.server-fault` where there is none, or where `error` is
+  an object, a number or a machine's word (`TargumFault.words`, #468); the field is left
+  unmarked, and the keyboard goes back to the press only where it had fallen to the page.
+  A 4xx still goes under the field. Browser tests pin the real 502 in English and Russian,
+  the odd `error` shapes, a reader who moved focus meanwhile, a 429 under the field, and the Russian
+  one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
+  measured at 320 and 360. No spend, no new strings.
 - An account purge whose corpus-ledger step fails is finished by the next purge, and a
   person id is never given twice (targum-internal#679, clause 3.14).
   `Library.purge_departed` deleted the home right after `ledger.disown` and
