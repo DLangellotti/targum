@@ -657,6 +657,16 @@ ssh "${SSH_OPTS[@]}" "$HOST" "bash -euo pipefail -s" <<EOF
         --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
         /usr/local/bin/targum models fetch openrussian
 
+      # Morphalou 3.1, 38 MB (targum-internal#678): a French word'"'"'s forms for its
+      # difficulty, and how it is said behind TARGUM_FRENCH_IPA. Looked up at render, so
+      # a fresh or restored box without it measures and says less, quietly; until this
+      # line it had it only if somebody fetched it by hand. Optional like the STEP Bible
+      # glosses below, so an ORTOLANG that cannot be reached warns and the deploy goes on.
+      systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum \
+        --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env \
+        /usr/local/bin/targum models fetch morphalou \
+        || echo "   Morphalou not fetched; French is read without it until the next deploy" >&2
+
       # The Russian reader'"'"'s lemmatizer, 4 MB (targum-internal#310, switched on by David
       # on 2026-09-27): spaCy'"'"'s model came with the russian extra above, and this is the
       # one file it fetches for itself. Here rather than at the first Russian build, so a
