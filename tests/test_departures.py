@@ -87,9 +87,7 @@ def test_a_purge_the_ledger_lock_stopped_is_finished_by_the_next(
 
     assert not home.exists(), "the home goes on time, whatever the ledger says"
     assert book.text("a" * 64) is not None, "the lock held: the rows are there"
-    assert [(one["home"], one["hashes"], one["left"]) for one in _notes(store)] == [
-        (home.name, ["a" * 64], False)
-    ]
+    assert [(one["home"], one["hashes"]) for one in _notes(store)] == [(home.name, ["a" * 64])]
 
     assert library.purge_departed() == [], "nobody new is due"
     assert book.text("a" * 64) is None
@@ -146,9 +144,11 @@ def test_a_home_that_will_not_go_keeps_its_note_and_is_never_handed_on(
         assert [one["left"] for one in _notes(store)] == [True]
         library.purge_departed()
         assert [one["left"] for one in _notes(store)] == [True], "kept while it stands"
+        newcomer = _person(store, "new@example.com")
+        assert newcomer.id == person.id, "sqlite gives the highest id again"
+        with pytest.raises(PermissionError):
+            library.home(newcomer)
 
-    newcomer = _person(store, "new@example.com")
-    assert newcomer.id == person.id, "sqlite gives the highest id again"
     assert not (library.home(newcomer) / "my-upload").exists()
     library.purge_departed()
     assert _notes(store) == []
@@ -290,3 +290,144 @@ def test_a_build_that_lands_after_the_purge_is_cleared_too(
     assert not home.exists()
     assert book.text("a" * 64) is None
     assert _notes(store) == []
+
+
+def _departed_folder(library: Library) -> Path:
+    return library.out / ".departed"
+
+
+@pytest.mark.parametrize("cause", ["rename refused", "departed folder read-only"])
+def test_a_refused_rename_deletes_the_home_where_it_stands(
+    cause: str, monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
+) -> None:
+    """qa-claude's second read of #1174: a refused rename left the home standing for
+    good, and the next account given the id was handed it."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+    departed = _departed_folder(library)
+    if cause == "rename refused":
+
+        def refused(*_args: object, **_kwargs: object) -> None:
+            raise OSError(18, "Invalid cross-device link")
+
+        monkeypatch.setattr(os, "rename", refused)
+    else:
+        departed.mkdir()
+        departed.chmod(0o555)
+    try:
+        assert library.purge_departed() == [person.id]
+        assert not home.exists()
+        assert book.text("a" * 64) is None
+        newcomer = _person(store, "new@example.com")
+        assert newcomer.id == person.id
+        assert not library.home(newcomer).exists()
+        library.purge_departed()
+        assert _notes(store) == []
+    finally:
+        if departed.exists():
+            departed.chmod(0o755)
+
+
+def test_what_a_removal_leaves_in_the_set_aside_folder_is_tried_again(
+    world: tuple[Store, Library, ledger.Ledger],
+) -> None:
+    """Files a deletion cannot take (a root run's) keep the note, and every purge tries
+    them again until they go."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    audio = home / "my-upload" / "audio"
+    audio.mkdir()
+    (audio / "private.mp3").write_bytes(b"x")
+    audio.chmod(0o500)
+    _leave(store, person)
+    departed = _departed_folder(library)
+    try:
+        assert library.purge_departed() == [person.id]
+        assert not home.exists()
+        assert len(_notes(store)) == 1, "kept while part of the home is on disk"
+        library.purge_departed()
+        Library(library.out, store=store)
+        assert len(_notes(store)) == 1
+        assert [one.name for one in departed.rglob("private.mp3")] == ["private.mp3"]
+    finally:
+        for one in departed.rglob("audio"):
+            one.chmod(0o755)
+    library.purge_departed()
+    assert _notes(store) == []
+    assert list(departed.iterdir()) == []
+    assert book.text("a" * 64) is None
+
+
+def test_a_note_that_cannot_be_changed_never_clears_a_newcomer_s_home(
+    monkeypatch: pytest.MonkeyPatch, world: tuple[Store, Library, ledger.Ledger]
+) -> None:
+    """qa-claude's second read of #1174: a note whose `left` could not be cleared made
+    every nightly purge delete the live home of the next account given the id."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+    _leave(store, person)
+    with monkeypatch.context() as crash:
+        crash.setattr(Library, "_remove_home", lambda *_a: None)
+        crash.setattr(Library, "_finish_departures", lambda *_a: None)
+        library.purge_departed()
+    notes = Path(store.path).parent / f"{Path(store.path).name}.departing"
+    notes.chmod(0o555)
+    try:
+        library = Library(library.out, store=store)
+        assert not home.exists()
+        newcomer = _person(store, "new@example.com")
+        assert newcomer.id == person.id
+        _text(book, library.home(newcomer), "newcomers-own", "b" * 64)
+        library.purge_departed()
+        Library(library.out, store=store).purge_departed()
+        assert (library.home(newcomer) / "newcomers-own").is_dir()
+        held = book.text("b" * 64)
+        assert held is not None and held.homes == {f"p{newcomer.id}"}
+    finally:
+        notes.chmod(0o755)
+
+
+def test_a_newcomer_made_before_the_note_by_the_clock_is_still_a_newcomer(
+    world: tuple[Store, Library, ledger.Ledger],
+) -> None:
+    """Told apart by identity, not by clock order: a clock that stepped back must not
+    make a newcomer look like the departing account and drop what is owed."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    _text(book, library.home(person), "my-upload", "a" * 64)
+    _leave(store, person)
+    with _locked(book):
+        library.purge_departed()
+    (note,) = _notes(store)
+    newcomer = _person(store, "new@example.com")
+    assert newcomer.id == person.id
+    with store.write() as db:
+        db.execute(
+            "UPDATE person SET made = ? WHERE id = ?",
+            (int(str(note["purged"])) - 60_000, newcomer.id),
+        )
+    _text(book, library.home(newcomer), "newcomers-own", "b" * 64)
+
+    library.purge_departed()
+
+    assert book.text("a" * 64) is None, "what was owed went"
+    assert (library.home(newcomer) / "newcomers-own").is_dir()
+    assert _notes(store) == []
+
+
+def test_a_set_aside_folder_nobody_s_note_names_goes_at_the_next_purge(
+    world: tuple[Store, Library, ledger.Ledger],
+) -> None:
+    _store, library, _book = world
+    stray = _departed_folder(library) / "p9-1-abcdef"
+    (stray / "my-upload").mkdir(parents=True)
+    (stray / "my-upload" / "document.json").write_text("{}", encoding="utf-8")
+    library.purge_departed()
+    assert not stray.exists()

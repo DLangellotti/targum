@@ -19,14 +19,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   right after `ledger.disown` and `ledger.forget`, so a lock on `corpus.db` held past
   30 s was logged and then lost: the home was the only place that reader's documents
   could be listed from, and their rows stayed. Each departing home is now written down
-  before its account goes, in `targum.db.departing/<home>-<ms>-<rand>.json` (its
-  document hashes, when, and whether the folder still stands). The home is renamed
-  aside and deleted on time; the note goes only once the folder is gone and the ledger
-  step has held, retried after the night's own deletions at every start-up and every
-  nightly purge, waiting at most `FORGET_TIMEOUT` (5 s) once per sweep. Whether a
-  folder of that name is somebody new's is decided by the store (an account made after
-  the note), never by the disk, and `Library.home` clears a departed's folder that is
-  still standing before it hands the id's home to anyone. A note that cannot be read or
+  before its account goes, in `targum.db.departing/<home>-<ms>-<rand>.json`: its
+  document hashes and the departing account's own `made`. The home is renamed to
+  `out/.departed/<note>` (deleted in place if the rename is refused) and emptied; the
+  note goes only once that folder is empty and the ledger step has held, retried after
+  the night's own deletions at every start-up and every nightly purge, waiting at most
+  `FORGET_TIMEOUT` (5 s) once per sweep. Another account with the same id is told apart
+  by its `made`, never by the disk or the clock; a purge never clears a folder under a
+  newcomer's id, and `Library.home` clears a departed's folder still standing before it
+  hands that id's home out, or refuses it. A note that cannot be read, changed or
   removed is logged and never stops a deletion or a start. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`

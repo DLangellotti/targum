@@ -161,13 +161,13 @@ owner and survive the deletion (criterion 5).
 
 **A purge the ledger refused is finished later** (targum-internal#679, 2026-11-11). Each
 departing home is written down before its account goes, beside the account store in
-`targum.db.departing/`: its document hashes, when, and whether its folder still stands.
-The home is renamed aside and deleted on time whatever the ledger says, and the note is
-removed only once the folder is gone and `disown` and `forget` have held; until then
+`targum.db.departing/`: its document hashes and the account's own `made`. The home is
+moved to `out/.departed/` and deleted on time whatever the ledger says, and the note is
+removed only once that folder is empty and `disown` and `forget` have held; until then
 every start-up and every nightly purge tries again, after that night's own deletions.
-Where the person id has meanwhile been given to somebody new (the store says so, by an
-account made after the note), the retry takes out only the departed's own texts that the
-new home does not hold.
+Where the person id has meanwhile been given to somebody new (another `made` in the
+store), the retry takes out only the departed's own texts that the new home does not
+hold, and never touches the new home.
 
 ## How the criteria get verified
 
