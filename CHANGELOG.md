@@ -14,6 +14,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
+  from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
+  44px reach centred on both pieces stood between them, so a tap 20px off either missed.
+  It is `nowrap` under a coarse pointer, as sign-in's links are. A JSON 5xx from
+  `/account/sign-in` that carries no `error` now says `signin.server-fault` where the
+  form's answer goes, not "We couldn't send the link" under the address field, as if the
+  address were at fault. Browser tests pin both `nowrap`s at 320 and 360 in Russian and the
+  way in's clearance from the waitlist's press at 4px or more. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a
