@@ -14,6 +14,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
+  `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
+  words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
+  words, one full stop, 25 of ? and !), so the punctuation pass never ran and the reader
+  got 40-word lines cut at a breath. It now counts full stops only, against one in 30:
+  every punctuated whisper part on the laptop runs at one stop in 4 to 17 words and every
+  unpunctuated one at none, or one in more than 500. A stored `rules/1`–`rules/3` part
+  the new rule finds bare is owed punctuation the next time its reader builds; no part
+  is redone by a deploy. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a

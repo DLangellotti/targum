@@ -209,6 +209,66 @@ def test_a_transcript_heard_without_marks_is_told_from_one_that_has_them() -> No
     assert not needs_punctuation(heard("שלום לכם")), "too short to need a full stop"
 
 
+def shaped(words: int, marks: dict[int, str]) -> str:
+    """A hearing `words` long, the words cycled from `UNMARKED`, with `marks` (word index
+    to mark) put on where a transcriber left them."""
+    pool = UNMARKED.split()
+    return " ".join(pool[n % len(pool)] + marks.get(n, "") for n in range(words))
+
+
+#: The shape whisper-1 gave a Kan children's tale (2026-10-25): 853 words, one full
+#: stop, 25 marks of ? and !, no commas. At its density, 300 words hold nine.
+WHISPER_STRAY = shaped(300, {n: "?!"[n % 2] for n in range(17, 300, 33)})
+
+#: The card's own shape: 300 words, two ? and one !, nothing else.
+WHISPER_FEW = shaped(300, {80: "?", 160: "!", 240: "?"})
+
+#: The shape of a punctuated hearing, Scribe's or whisper's on a good day: an end in
+#: about twelve words — mostly full stops, a question now and then — and commas.
+SCRIBE = shaped(
+    300,
+    {n: ("?" if n % 5 == 0 else ".") for n in range(11, 300, 12)}
+    | {n: "," for n in range(5, 300, 12)},
+)
+
+#: A punctuated tale heavy with dialogue (ארי האריה מתחפש לאחר, 2026-10-25): a full
+#: stop in twelve words and nearly as many ? and !.
+DIALOGUE = shaped(
+    300,
+    {n: "." for n in range(11, 300, 12)} | {n: "?!"[n % 2] for n in range(6, 300, 30)},
+)
+
+
+def test_stray_question_marks_do_not_make_a_hearing_punctuated() -> None:
+    """whisper-1 leaves a ? or ! in Hebrew it never otherwise marks. Counted as
+    sentence ends they cleared one in forty, and a tale went out unpunctuated."""
+    from targum.transcribe.refine.punctuate import needs_punctuation
+
+    assert WHISPER_STRAY.count("?") + WHISPER_STRAY.count("!") == 9
+    assert needs_punctuation(heard(WHISPER_STRAY))
+    assert needs_punctuation(heard(WHISPER_FEW))
+    assert not needs_punctuation(heard(SCRIBE))
+    assert not needs_punctuation(heard(DIALOGUE))
+
+
+def test_the_rules_punctuate_whisper_with_stray_marks_and_leave_scribe_alone() -> None:
+    from targum.transcribe.refine.punctuate import Punctuator
+
+    for text in (WHISPER_STRAY, WHISPER_FEW):
+        asked, ask = stub(text)
+        RuleRefiner(Punctuator(ask=ask)).refine(  # type: ignore[arg-type]
+            Transcript(provider="openai/whisper-1", language="he", words=heard(text))
+        )
+        assert len(asked) == 1, "a hearing with stray marks is punctuated"
+
+    for text in (SCRIBE, DIALOGUE):
+        asked, ask = stub("")
+        RuleRefiner(Punctuator(ask=ask)).refine(  # type: ignore[arg-type]
+            Transcript(provider="elevenlabs/scribe_v2", language="he", words=heard(text))
+        )
+        assert asked == [], "a punctuated hearing is left as it came"
+
+
 def test_punctuation_adds_marks_and_never_changes_a_word() -> None:
     """The model may be asked for marks; it is not trusted to have given only marks."""
     from targum.transcribe.refine.punctuate import transfer
@@ -292,6 +352,8 @@ def test_only_an_unpunctuated_part_is_redone_once_punctuation_can_be_bought() ->
     _, ask = stub("")
     buying = RuleRefiner(Punctuator(ask=ask))  # type: ignore[arg-type]
     assert not buying.keeps(part(UNMARKED)), "a bare hearing is redone"
+    assert not buying.keeps(part(WHISPER_STRAY)), "stray ? and ! are not punctuation"
+    assert buying.keeps(part(SCRIBE)), "a punctuated hearing stands"
     assert buying.keeps(part(MARKED)), "one that punctuates stands"
     assert buying.keeps(part(UNMARKED, "rules/3+punctuate/1"))
     assert not buying.keeps(part(MARKED, "none")), "a refiner that is not rules is redone"
