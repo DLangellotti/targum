@@ -14,6 +14,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
+  `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
+  with sqlite's 30 s default, so another process holding the write lock cost a build half
+  a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
+  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  spend, no new strings.
+- A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
+  from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
+  44px reach centred on both pieces stood between them, so a tap 20px off either missed.
+  It is `nowrap` under a coarse pointer, as sign-in's links are. A JSON 5xx from
+  `/account/sign-in` that carries no `error` now says `signin.server-fault` where the
+  form's answer goes, not "We couldn't send the link" under the address field, as if the
+  address were at fault. Browser tests pin both `nowrap`s at 320 and 360 in Russian and the
+  way in's clearance from the waitlist's press at 4px or more. No spend, no new strings.
+- The estimate of the words a reader has not marked takes the Russian root lexicon's
+  borrowed flag (targum-internal#633): телефон, интернет, кофе are easier than their
+  place in the frequency list says, by the same `BORROWED` as Hebrew's, looked up by the
+  lexicon's own spelling (`fold_ru`). `scripts/eval_estimate.py --language fr
+  --language ru --record` holds each language out on its own readers' marks and writes `marks-fr` and `marks-ru` rows to the ledger, with n: on the laptop, no French
+  reader and one Russian reader (125 marks, 9 not known, AUC 0.831), too few to fit a
+  Russian weight. The prior reads a named rung as the words check reads it back, so a
+  reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
+  No spend, no new strings.
 - A Russian word with ё keeps its own dictionary form (targum-internal#650). Stanza's
   lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
   wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
