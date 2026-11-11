@@ -629,22 +629,23 @@ def _verdict(text: Text) -> tuple[int, int, int]:
     return int(terms.exportable), int(terms.research), int(publishable)
 
 
-def disown(home: str, only: set[str] | None = None) -> int:
+def disown(home: str, only: set[str] | None = None, *, timeout: float = 30) -> int:
     """Take one departed reader's home out of every text it held (clause 3.14).
 
     `forget` deletes what was theirs alone; this is the rest, a text somebody else
     still holds. Its rows stay, as corpus or as the other reader's, and keep no trace of
     this home: the homes live only in `text_homes`, never in a row or its history.
     `only` limits it to these documents, for a retry made once the home's name may
-    belong to somebody new (targum-internal#679). Returns how many texts it was taken
-    out of; does nothing with the flag off.
+    belong to somebody new (targum-internal#679), and `timeout` how long it waits for
+    another process's lock. Returns how many texts it was taken out of; does nothing
+    with the flag off.
     """
     file = path()
     if file is None or not home or not file.is_file():
         return 0
     if only is not None and not only:
         return 0
-    with closing(Ledger(file)._connect()) as db, db:
+    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
         if only is None:
             return db.execute("DELETE FROM text_homes WHERE home = ?", (home,)).rowcount
         wanted = sorted(only)
@@ -664,7 +665,7 @@ _UNITS = {
 }
 
 
-def forget(hashes: set[str]) -> int:
+def forget(hashes: set[str], *, timeout: float = 30) -> int:
     """Delete everything the ledger holds about these documents, history and all.
 
     For an account that is gone (decided 2026-10-03: `corpus.db` is its own file, and
@@ -676,7 +677,7 @@ def forget(hashes: set[str]) -> int:
     if file is None or not hashes or not file.is_file():
         return 0
     gone = 0
-    with closing(Ledger(file)._connect()) as db, db:
+    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
         wanted = sorted(hashes)
         marks = ",".join("?" for _ in wanted)
         for head, (units, link) in _UNITS.items():
