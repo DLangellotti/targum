@@ -182,8 +182,12 @@
           // where the form's answer goes, and the press is still there to try again with.
           button.disabled = false;
           said.classList.add("bad", "fault-marked");
-          said.textContent =
-            answer.body.error || t("signin.server-fault", "We couldn't send a link just now. Try again.");
+          /* The server's own sentence where it wrote one for a person; never an object,
+             a number or a machine's word, which would be drawn as the line (#468). */
+          var ours = t("signin.server-fault", "We couldn't send a link just now. Try again.");
+          var sent = answer.body.error;
+          if (fault) said.textContent = fault.words(sent, ours);
+          else said.textContent = typeof sent === "string" && /[^a-z_ ]/.test(sent.trim()) ? sent.trim() : ours;
           /* The press went grey while it waited, which dropped the keyboard to the page;
              it goes back to the press, which is the way to try again. Never taken from
              anything the reader moved on to meanwhile. The line itself is a status, so

@@ -19,9 +19,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `signin.js` still put "We couldn't send the link. Try again in a minute." under the
   address field with the clay outline, as if the address were wrong. Every status of 500
   or more now goes to the form's answer line, with the body's `error` as its words where
-  there is one and `signin.server-fault` where there is none; the field is left unmarked
-  and the keyboard goes back to the press. A 4xx still goes under the field. Browser
-  tests pin the real 502 in English and Russian, a 429 under the field, and the Russian
+  there is a sentence and `signin.server-fault` where there is none, or where `error` is
+  an object, a number or a machine's word (`TargumFault.words`, #468); the field is left
+  unmarked, and the keyboard goes back to the press only where it had fallen to the page.
+  A 4xx still goes under the field. Browser tests pin the real 502 in English and Russian,
+  the odd `error` shapes, a reader who moved focus meanwhile, a 429 under the field, and the Russian
   one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
   measured at 320 and 360. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).

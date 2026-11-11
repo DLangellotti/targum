@@ -357,6 +357,11 @@ FAULTS: dict[str, tuple[int, str, str | None]] = {
     "proxy": (502, "text/html", "<html>502 Bad Gateway</html>"),
     "json": (500, "application/json", '{"ok": false}'),
     "mailer": (502, "application/json", None),
+    # An `error` that is not a sentence for a person is never drawn as the line: an
+    # object read "[object Object]", a number "42" (#681), a machine's word as itself.
+    "object": (502, "application/json", '{"error": {"code": 1}}'),
+    "number": (502, "application/json", '{"error": 42}'),
+    "machine": (502, "application/json", '{"error": "bad gateway"}'),
 }
 
 #: What the form says after a press, and where the keyboard and the clay mark are.
@@ -448,6 +453,37 @@ def test_a_sign_in_the_address_was_refused_for_stays_under_the_field(browser: An
         assert got["invalid"] == "true" and got["outlined"], got
         assert got["focus"] == "field" and not got["shown"] and not got["marked"], got
         assert got["again"] and got["form"] and not got["banner"], got
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_a_server_fault_leaves_the_keyboard_where_the_reader_moved_it(browser: Any) -> None:
+    """The press takes the keyboard back only where it had fallen to the page: a reader who
+    moved on while the link was being sent is left where they went (#681)."""
+    held: list[Any] = []
+    context, page, thrown = opened(
+        browser, signin_page(join="/#join"), 1440, False, sign_in=held.append
+    )
+    try:
+        page.goto(SITE + "/account/signin")
+        page.fill("#email", "reader@example.com")
+        page.click("#ask button")
+        page.wait_for_function("() => document.querySelector('#ask button').disabled")
+        while not held:
+            page.wait_for_timeout(50)
+        page.focus(".gate .new-here a")
+        held[0].fulfill(
+            status=502,
+            content_type="application/json",
+            body=json.dumps({"error": "We couldn't send the link. Try again in a minute."}),
+        )
+        page.wait_for_function("() => !document.querySelector('#ask button').disabled")
+        on = page.evaluate("() => document.activeElement.matches('.gate .new-here a')")
+        assert on, "the keyboard was taken from the link the reader moved to"
+        assert page.locator("#sent").text_content() == (
+            "We couldn't send the link. Try again in a minute."
+        )
         assert not thrown, thrown
     finally:
         context.close()
