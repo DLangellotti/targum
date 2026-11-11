@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Sign-in's own 502, when the mailer fails, is told as the server's fault
+  (targum-internal#681, from qa-claude's read of targum#1168). It carries an `error`, so
+  `signin.js` still put "We couldn't send the link. Try again in a minute." under the
+  address field with the clay outline, as if the address were wrong. Every status of 500
+  or more now goes to the form's answer line, with the body's `error` as its words where
+  there is one and `signin.server-fault` where there is none; the field is left unmarked
+  and the keyboard goes back to the press. A 4xx still goes under the field. Browser
+  tests pin the real 502 in English and Russian, a 429 under the field, and the Russian
+  one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
+  measured at 320 and 360. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

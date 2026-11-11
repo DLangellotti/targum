@@ -162,10 +162,11 @@
         return response.json().then(
           function (body) {
             body = body || {};
-            /* A 5xx that is JSON but says nothing of its own is the server's fault
-               too, not the address's: without this it took account.could-not-send
-               under the field, as if the address were wrong (#677). */
-            if (response.status >= 500 && !body.error) return { ok: false, body: body, serverFault: true };
+            /* Any 5xx is the server's fault, not the address's, whatever it says:
+               targum's own 502 when the mailer fails carries an `error`, and that sent
+               it under the field with the clay outline as if the address were wrong
+               (#677, #681). Its sentence is still the one said, on the form's line. */
+            if (response.status >= 500) return { ok: false, body: body, serverFault: true };
             return { ok: response.ok, body: body };
           },
           function () {
@@ -181,7 +182,14 @@
           // where the form's answer goes, and the press is still there to try again with.
           button.disabled = false;
           said.classList.add("bad", "fault-marked");
-          said.textContent = t("signin.server-fault", "We couldn't send a link just now. Try again.");
+          said.textContent =
+            answer.body.error || t("signin.server-fault", "We couldn't send a link just now. Try again.");
+          /* The press went grey while it waited, which dropped the keyboard to the page;
+             it goes back to the press, which is the way to try again. Never taken from
+             anything the reader moved on to meanwhile. The line itself is a status, so
+             it is read out where it stands. */
+          var on = document.activeElement;
+          if (!on || on === document.body || on === document.documentElement) button.focus();
           return;
         }
         if (answer.ok) {
