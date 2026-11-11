@@ -875,7 +875,17 @@ def _not_older(written_at: str, not_before: float) -> bool:
 
 
 def mirror_drop(stage: str, key: str) -> None:
-    """`Cache.drop`'s second hand, on the same terms as `mirror_put`."""
+    """`Cache.drop`'s second hand, on the same terms as `mirror_put`: waits at most
+    `MIRROR_TIMEOUT` for the write lock, and on a miss logs "not dropped" and goes on.
+
+    A missed drop is not swept (targum-internal#680). The cache file is gone but the row
+    stays current, and nothing re-applies the drop later: `backfill` reads only the
+    cache files that exist, so it never replaces the row, and `rebuild` or an export
+    would hand the dropped value back. `mirror_get` does not, because it answers only
+    while the cache file exists. Today the one caller is `Cache.drop` for `gloss`,
+    which is not a ledger stage, so no drop reaches here yet; a ledger stage that gains
+    a `Cache.drop` caller should look for the log line or redo the drop by hand.
+    """
     file = path()
     if file is None or stage not in STAGES:
         return

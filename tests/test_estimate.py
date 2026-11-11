@@ -93,6 +93,17 @@ def test_a_russian_borrowed_word_is_easier_too(
     assert est._borrowed("he") is not est._borrowed("ru"), "each language its own words"
 
 
+def test_a_russian_word_is_as_common_with_its_yo_as_without() -> None:
+    """ё and е are one letter written two ways, and wordfreq ranks the spellings apart:
+    a lemma with ё is as common as the commoner spelling (targum-internal#684)."""
+    for yo, plain in (("ещё", "еще"), ("чёрный", "черный"), ("мёд", "мед")):
+        assert est.difficulty(yo, "ru") == pytest.approx(est.difficulty(plain, "ru")), yo
+        assert est.difficulty(plain, "ru") < math.log(est.UNRANKED_AT), plain
+    index = index_of({"t": {"чёрный": 1, "черный": 1}})
+    table = dict(zip(index.words, est.Estimate("ru", 9.0, {}).chances(index), strict=True))
+    assert table["чёрный"] == pytest.approx(table["черный"]), "the table agrees"
+
+
 def test_a_mark_always_wins() -> None:
     known = est.Estimate("he", 20.0, {"ים": KNOWN, "בית": 2, "דוד": IGNORED})
     assert known.p_known("ים") == 1.0

@@ -14,11 +14,47 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A Russian lemma spelled with ё is as common in the estimate as its е spelling
+  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
+  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
+  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
+  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
+  marks still read AUC 0.918. No spend, no new strings.
+- `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
+  (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
+  docstring says plainly that a missed drop is not swept: the row stays current, and
+  `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
+  is missed today. No spend, no new strings.
+- A Russian root keeps one meaning across English wording (targum-internal#596). The
+  sense index (`root_card._clusters`) compared a root's senses word for word, so крас
+  "beauty" and "beautiful", здоров "health" and "healthy", гроз "threat" and "threaten"
+  were two meanings, and a family asked from one left the other out. Russian senses are
+  now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
+  splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
+  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
+  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
+  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
+  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
+  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
+  spend, no new strings.
+- Sign-in's own 502, when the mailer fails, is told as the server's fault
+  (targum-internal#681, from qa-claude's read of targum#1168). It carries an `error`, so
+  `signin.js` still put "We couldn't send the link. Try again in a minute." under the
+  address field with the clay outline, as if the address were wrong. Every status of 500
+  or more now goes to the form's answer line, with the body's `error` as its words where
+  there is a sentence and `signin.server-fault` where there is none, or where `error` is
+  an object, a number or a machine's word (`TargumFault.words`, #468); the field is left
+  unmarked, and the keyboard goes back to the press only where it had fallen to the page.
+  A 4xx still goes under the field. Browser tests pin the real 502 in English and Russian,
+  the odd `error` shapes, a reader who moved focus meanwhile, a 429 under the field, and the Russian
+  one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
+  measured at 320 and 360. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
   a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
-  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
+  sweeps a missed drop (targum-internal#680). No
   spend, no new strings.
 - A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
   from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
@@ -56,6 +92,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   splices included, and every bare one at none, or one in 426. A stored
   `rules/1`–`rules/3` part the new rule finds bare is owed punctuation the next time its
   reader builds; no part is redone by a deploy. No spend, no new strings.
+- A Russian word with ё keeps its own dictionary form (targum-internal#650). Stanza's
+  lemmatizer learned from SynTagRus, which never writes ё, so it had no letter for one and
+  wrote another: ёлке came out as блок, мёда as мёда, осёл as осела, пахнёт as пахнеткий.
+  It is now asked the word with е, and the ё goes back from pymorphy3's dictionary, as it
+  already did for учёный. Where Stanza, asked with е, answers a form the dictionary does
+  not give and the dictionary gives one, the dictionary's stands: недотёпа, копчёный,
+  нытьё, убрать, уйти. Possessive её is её and the object она; всё, everything, is всё,
+  and весь only where it agrees with a noun (всё время). The local Russian annotator moves to `/2`, so `rebuild --words`
+  re-reads every Russian text it built, here and on the box, for nothing but time. On the
+  laptop's shelf that changes 9 of 38 ё-words. No spend, no new strings.
 - A channel or a podcast the subscribe confirm page can't read says so in the
   subscription's words, with Try again (targum-internal#673). Any refusal from a door
   `/subscribe` shares with Upload (the fetch door, YouTube's Data API, a box without a

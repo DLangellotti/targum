@@ -29,6 +29,7 @@ it.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
@@ -40,6 +41,8 @@ from pathlib import Path
 from typing import Any
 
 from .hebrew import ENDINGS, FINALS
+
+LOG = logging.getLogger(__name__)
 
 LANGUAGES = ("he", "ru")
 ENV = {"he": "TARGUM_ROOTS_HE", "ru": "TARGUM_ROOTS_RU"}
@@ -106,15 +109,86 @@ def fold_ru(text: str | None) -> str:
     return unicodedata.normalize("NFC", bare).lower().replace("ё", "е").strip()
 
 
-def _sense_words(sense: str | None) -> frozenset[str]:
-    """The words of a sense ("show, tell" → show, tell), "to" left off a verb."""
+#: English endings a sense word drops before senses are compared, longest first, so
+#: "beauty" and "beautiful", "threat" and "threaten", "meet" and "meeting" are one meaning
+#: (targum-internal#596). Not "ion" or "er": "mission" is not "miss", "laughter" not "laugh".
+ENDINGS_EN = (
+    "fulness",
+    "fully",
+    "iness",
+    "ness",
+    "ation",
+    "ening",
+    "ened",
+    "ful",
+    "ing",
+    "ity",
+    "ies",
+    "ed",
+    "en",
+    "ly",
+    "al",
+    "es",
+    "s",
+    "y",
+    "e",
+)
+#: The endings after which a doubled consonant is single again: "fitting" is "fit".
+_DOUBLING = frozenset({"ing", "ed", "en", "y"})
+
+
+def stem_en(word: str) -> str:
+    """An English sense word with its ending off (`ENDINGS_EN`), at least three letters
+    kept: healthy → health, beautiful → beaut, beauty → beaut, greedy → greed."""
+    for ending in ENDINGS_EN:
+        if (
+            word.endswith(ending)
+            and len(word) - len(ending) >= 3
+            and not (ending == "ed" and word.endswith("eed"))
+        ):
+            word = word[: -len(ending)]
+            if ending in _DOUBLING and len(word) > 3 and word[-1] == word[-2] not in "ls":
+                word = word[:-1]
+            break
+    return word[:-1] if word.endswith("i") and len(word) > 3 else word
+
+
+#: What a Russian morph, variant or prefix may be spelled with once folded (`fold_ru`).
+#: The model's answers have carried Latin, Devanagari, kana and brackets ("step", "टоск",
+#: "мел})"); such a spelling never reaches the page (targum-internal#596).
+CYRILLIC = re.compile(r"[а-яё-]+")
+
+
+def cyrillic(spelling: str, lemma: str) -> bool:
+    """Whether a folded Russian spelling is Cyrillic only; one that is not is logged."""
+    if CYRILLIC.fullmatch(spelling):
+        return True
+    LOG.warning("roots-ru: %r under %s is not Cyrillic; left out", spelling, lemma)
+    return False
+
+
+def _sense_words(sense: str | None, stem: bool = False) -> frozenset[str]:
+    """The words of a sense ("show, tell" → show, tell), "to" left off a verb.
+
+    With `stem`, "be" is left off too, a bracketed note ("long (time)") is dropped,
+    only what comes before a ";" is read (коса's "braid; scythe" is two meanings, and
+    joining on both would make them one) and each word is stemmed (`stem_en`), so
+    wording alone never splits a meaning.
+    """
+    text = (sense or "").lower()
+    if stem:
+        text = re.sub(r"\([^)]*\)", "", text)
+    if stem:
+        # "braid; scythe" is two meanings in one sense: only the first is compared.
+        text = text.split(";")[0]
     out = set()
-    for part in re.split(r"[,;/]", (sense or "").lower()):
+    for part in re.split(r"[,;/]", text):
         word = part.strip()
-        if word.startswith("to "):
-            word = word[3:].strip()
+        for lead in ("to ", "be ") if stem else ("to ",):
+            if word.startswith(lead):
+                word = word[len(lead) :].strip()
         if word:
-            out.add(word)
+            out.add(" ".join(stem_en(w) for w in word.split()) if stem else word)
     return frozenset(out)
 
 
@@ -130,12 +204,15 @@ def _finder(parent: dict[str, str]) -> Callable[[str], str]:
     return find
 
 
-def _clusters(senses: Mapping[str, Counter[str]]) -> dict[tuple[str, str], int]:
+def _clusters(senses: Mapping[str, Counter[str]], stem: bool = False) -> dict[tuple[str, str], int]:
     """For each (root, sense) the lexicon gives, which of the root's meanings it is.
 
     Senses of one root that share a word are one meaning ("show", "show, tell", "tell");
     the rest are others (лет: "fly", "year"). Numbered from 1 by how many words carry
-    them, so the commonest meaning is 1.
+    them, so the commonest meaning is 1. With `stem` the words are compared stemmed
+    (`_sense_words`): Russian's крас is one meaning across "beauty" and "beautiful".
+    Hebrew is not stemmed yet: its עצב has a sense "sadden, shape" in the lexicon that
+    would join "sad" to "shape" once "sadden" is "sad".
     """
     out: dict[tuple[str, str], int] = {}
     for root, counted in senses.items():
@@ -143,7 +220,7 @@ def _clusters(senses: Mapping[str, Counter[str]]) -> dict[tuple[str, str], int]:
         find = _finder(parent)
         by_word: dict[str, str] = {}
         for sense in counted:
-            for word in _sense_words(sense):
+            for word in _sense_words(sense, stem):
                 if word in by_word:
                     parent[find(sense)] = find(by_word[word])
                 else:
@@ -298,7 +375,7 @@ def _russian(rows: Mapping[str, Any]) -> dict[str, RussianRow]:
         for morph in (row.get("roots") or []) if isinstance(row, dict) else []:
             if isinstance(morph, dict) and morph.get("morph") and morph.get("sense"):
                 senses.setdefault(fold_ru(morph["morph"]), Counter())[str(morph["sense"])] += 1
-    clusters = _clusters(senses)
+    clusters = _clusters(senses, stem=True)
     out: dict[str, RussianRow] = {}
     for lemma, row in rows.items():
         if not isinstance(row, dict):
@@ -308,13 +385,17 @@ def _russian(rows: Mapping[str, Any]) -> dict[str, RussianRow]:
             if not isinstance(morph, dict) or not morph.get("morph"):
                 continue
             spelled = fold_ru(morph["morph"])
+            if not cyrillic(spelled, lemma):
+                continue
             sense = str(morph.get("sense") or "")
             roots.append(
                 RussianMorph(
                     morph=spelled,
                     variants=tuple(
                         dict.fromkeys(
-                            v for v in map(fold_ru, _strings(morph.get("variants"))) if v != spelled
+                            v
+                            for v in map(fold_ru, _strings(morph.get("variants")))
+                            if v != spelled and cyrillic(v, lemma)
                         )
                     ),
                     sense=sense,
@@ -323,7 +404,7 @@ def _russian(rows: Mapping[str, Any]) -> dict[str, RussianRow]:
             )
         out[fold_ru(str(lemma))] = RussianRow(
             roots=tuple(roots),
-            prefixes=_strings(row.get("prefixes")),
+            prefixes=tuple(p for p in _strings(row.get("prefixes")) if cyrillic(fold_ru(p), lemma)),
             suffixes=_strings(row.get("suffixes")),
             transparent=row.get("transparency") == "transparent",
             borrowed=row.get("borrowed") is True,
