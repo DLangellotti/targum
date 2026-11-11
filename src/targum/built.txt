@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-10
+In the AI Assistant, a line that starts in Hebrew reads right to left; English quoting a Hebrew word does not.
+Home and Your Progress open quickly again.
+A channel or podcast that cannot be subscribed to is said plainly on that page, with Try again.
+
 2026-11-09
 For a Russian reader, Your Progress shows grammar: aspect by tense, case by number, and verbs of motion.
 A word whose pronunciation is corrected once is said right in every recording made after.
