@@ -45,7 +45,9 @@
         address, Sign in where it does not. The switch to Sign up comes with #485. -#}
     <p class="lib-ask">
       <span>{{ t("shelf.page.free-to-read-once-you-re-in", "Free to read once you’re in.") }}</span>
-      {%- if front_door_is_open() %}
+      {%- if door_is_open() %}
+      <a class="btn cta" href="/account/signin{{ q }}">{{ t("open-door.sign-up", "Sign up") }}</a>
+      {%- elif front_door_is_open() %}
       <a class="btn cta" href="/{{ q }}#join">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
       {%- else %}
       <a class="btn cta" href="/account/signin{{ q }}">{{ t("shelf.page.sign-in", "Sign in") }}</a>

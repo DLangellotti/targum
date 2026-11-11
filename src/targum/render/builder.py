@@ -633,6 +633,10 @@ def _environment() -> Environment:
     # The foot offers the waitlist only while it takes an address, read at call time
     # for the reason `connector_is_open` is (design.md §12, 2026-09-28).
     env.globals["front_door_is_open"] = _front_door_is_open
+    # And whether that door opens an account itself (design.md §12, "When the door is
+    # open, every door says so", 2026-11-10): every template that draws the waitlist asks
+    # it, and says Sign up where it said Join the waitlist.
+    env.globals["door_is_open"] = _door_is_open
     # The foot inside the app links the plans page only while plans are on (design.md
     # §12, "The plans page is the one place money shows", 2026-10-09).
     env.globals["plans_are_on"] = _plans_are_on
@@ -3143,6 +3147,15 @@ def _front_door_is_open() -> bool:
     from ..serve import front_door_is_open
 
     return front_door_is_open()
+
+
+def _door_is_open() -> bool:
+    """Whether a stranger may open an account without being let in, for every template
+    that draws the waitlist to know (targum-internal#671). `serve.signup_is_open`: the
+    switch asked for with plans on, read at call time for the reason the two above are."""
+    from ..serve import signup_is_open
+
+    return signup_is_open()
 
 
 def _connector_is_open() -> bool:

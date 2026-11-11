@@ -17,8 +17,12 @@
     - `signin` — where Sign in goes, where it is not the plain door: a text's public page
       carries the text through it (known issues 2.13).
     - `join` — where the waitlist is, `#join` where the page has the form and `/#join`
-      where it does not (the public Library, targum-internal#519). -#}
+      where it does not (the public Library, targum-internal#519).
+
+    While the door is open (`door_is_open()`, design.md §12, 2026-11-10) the call to
+    action is Sign up, to the sign-in page Sign in goes to: they are one page. -#}
 {%- set home = home|default('') %}
+{%- set door_in = signin|default('/account/signin' ~ ('?lang=' ~ asked if asked else '')) %}
 {%- set here = here|default('/') %}
 <header class="{{ bar_class|default('front-bar') }}">
   <div class="col">
@@ -46,10 +50,14 @@
         {%- if page_language == 'ru' %}<a href="{{ here }}?lang=en" hreflang="en">EN</a><span>/</span><b>RU</b>
         {%- else %}<b>EN</b><span>/</span><a href="{{ here }}?lang=ru" hreflang="ru">RU</a>{% endif %}
       </p>
-      <a class="signin" href="{{ signin|default('/account/signin' ~ ('?lang=' ~ asked if asked else '')) }}">{{ t("landing.page.sign-in", "Sign in") }}</a>
+      <a class="signin" href="{{ door_in }}">{{ t("landing.page.sign-in", "Sign in") }}</a>
       {#- Not to somebody who has already chosen targum (§6; copy audit, 2026-09-28). -#}
       {%- if not signed_in|default(false) %}
+      {%- if door_is_open() %}
+      <a class="btn cta small" href="{{ door_in }}">{{ t("open-door.sign-up", "Sign up") }}</a>
+      {%- else %}
       <a class="btn cta small" href="{{ join|default('#join') }}">{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}</a>
+      {%- endif %}
       {%- endif %}
     </div>
   </div>

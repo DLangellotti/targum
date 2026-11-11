@@ -130,7 +130,9 @@
         <details><summary>{{ t("landing.page.is-what-i-bring-private", "Is what I bring private?") }}</summary><p>{{ t("landing.page.yes-what-you-bring-is-yours-and-we", "Yes. What you bring is yours, and we never train a model on it.") }}</p></details>
         <details><summary>{{ t("aliyah.page.does-it-replace-ulpan", "Does it replace ulpan?") }}</summary><p>{{ t("landing.page.it-s-the-other-half-of-one-a", "It’s the other half of one. A course teaches you the rules; targum gives you real Hebrew to practise them on, every day, and keeps count of every word you learn.") }}</p></details>
         <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        {% if not door_is_open() %}
         <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        {% endif %}
       </div>
     </div>
   </section>
