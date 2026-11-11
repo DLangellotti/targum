@@ -796,12 +796,16 @@ def documents_under(root: Path) -> set[str]:
 
 def mirror_put(stage: str, key: str, value: Any) -> None:
     """`Cache.put`'s second write. Does nothing with the flag off or for another stage;
-    never raises, because the cache already holds the value and the build goes on."""
+    never raises, because the cache already holds the value and the build goes on.
+
+    Waits at most `MIRROR_TIMEOUT` for the write lock: both of a build's writes come
+    through here (`vocalize` from `Cache.put`, `tokens` from the pipeline), and another
+    process holding the lock cost a reader's build sqlite's 30 s default (#162)."""
     file = path()
     if file is None or stage not in STAGES:
         return
     try:
-        Ledger(file).record(stage, key, value)
+        Ledger(file, timeout=MIRROR_TIMEOUT).record(stage, key, value)
     except (sqlite3.Error, OSError, ValueError, TypeError) as error:
         log.warning("corpus ledger: %s %s not recorded: %s", stage, key[:12], error)
         # What the key held before is no longer what the cache holds. Read-through must
@@ -876,7 +880,7 @@ def mirror_drop(stage: str, key: str) -> None:
     if file is None or stage not in STAGES:
         return
     try:
-        Ledger(file).drop(stage, key)
+        Ledger(file, timeout=MIRROR_TIMEOUT).drop(stage, key)
     except (sqlite3.Error, OSError) as error:
         log.warning("corpus ledger: %s %s not dropped: %s", stage, key[:12], error)
 

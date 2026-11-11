@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
+  `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
+  with sqlite's 30 s default, so another process holding the write lock cost a build half
+  a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
+  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  spend, no new strings.
 - A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
   from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
   44px reach centred on both pieces stood between them, so a tap 20px off either missed.
