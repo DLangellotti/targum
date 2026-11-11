@@ -71,14 +71,21 @@ def test_a_russian_borrowed_word_is_easier_too(
     looked up by the lexicon's own spelling: case, ё and stress marks do not hide a word."""
     plain = est.difficulty("телефон", "ru")
     other = est.difficulty("стол", "ru")
+    spelled = {word: est.difficulty(word, "ru") for word in ("Телефо\u0301н", "актёр")}
     index = index_of({"t": {"телефон": 1, "стол": 1}})
     file = tmp_path / "roots-ru.json"
-    rows = {"Телефо\u0301н": {"roots": [], "borrowed": True}, "стол": {"roots": []}}
+    rows = {
+        "Телефо\u0301н": {"roots": [], "borrowed": True},
+        "актер": {"roots": [], "borrowed": True},
+        "стол": {"roots": []},
+    }
     body = {"version": "ru-roots/1", "language": "ru", "lemmas": rows}
     file.write_text(json.dumps(body, ensure_ascii=False), encoding="utf-8")
     monkeypatch.setenv("TARGUM_ROOTS_RU", str(file))
     assert est.difficulty("телефон", "ru") == pytest.approx(plain - est.BORROWED)
     assert est.difficulty("стол", "ru") == pytest.approx(other), "a word not borrowed"
+    for word, before in spelled.items():
+        assert est.difficulty(word, "ru") == pytest.approx(before - est.BORROWED), word
     known = est.Estimate("ru", 9.0, {})
     by_word = dict(zip(index.words, known.chances(index), strict=True))
     assert by_word["телефон"] == pytest.approx(known.chance("телефон")), "the table agrees"
