@@ -2,10 +2,13 @@
 
 Two halves, both offline and both free:
 
-1. **Held out, on real marks.** Every reader in an accounts database with enough Hebrew
-   marks: five folds of their marked words (known against steps 1–3), theta fitted on
-   four and the fifth predicted. Pooled and per-reader AUC, log loss, Brier against the
-   base rate, and expected calibration error in ten bins.
+1. **Held out, on real marks.** Every reader in an accounts database with enough marks
+   in a language: five folds of their marked words (known against steps 1–3), theta
+   fitted on four and the fifth predicted. Pooled and per-reader AUC, log loss, Brier
+   against the base rate, and expected calibration error in ten bins. Each language
+   (`--language`, Hebrew unless named; French and Russian since targum-internal#633) is
+   reported on its own readers' marks only, never pooled with another's, with how many
+   readers and marks it rests on, also where there are too few to say anything.
 2. **Simulated readers**, over the Hebrew texts built in a folder. Each reader has a true
    vocabulary, and knows a word by a noisier model than the estimate's (a word's own
    difficulty off its frequency, and the reader's own luck on it). They read a few texts,
@@ -17,9 +20,14 @@ Two halves, both offline and both free:
 
     PYTHONPATH=src .venv/bin/python scripts/eval_estimate.py \\
         --accounts ~/.targum/targum.db --texts targum-out
+    PYTHONPATH=src .venv/bin/python scripts/eval_estimate.py \\
+        --accounts ~/.targum/targum.db --language fr --language ru --record
 
 The accounts database is opened read-only, through a copy, so a running server's file is
-never locked. Nothing is written but the report on stdout.
+never locked. Nothing is written but the report on stdout, and with `--record` the
+held-out rows in `evals/ledger.jsonl` (stage `suggest`, corpus `marks-<language>`): a
+`readers` row for every language asked, with the marks as its n, and the scores where
+there are both known and not-known marks to score.
 """
 
 from __future__ import annotations
@@ -35,9 +43,10 @@ import statistics
 import tempfile
 from collections import Counter
 from collections.abc import Sequence
+from datetime import date
 from pathlib import Path
 
-from targum import choose
+from targum import choose, evals
 from targum import estimate as est
 from targum.annotate.base import not_vocabulary
 from targum.touchstones import a_word
@@ -78,25 +87,56 @@ def calibration(scores: Sequence[float], labels: Sequence[int]) -> tuple[float, 
     return loss, brier, ece
 
 
-def held_out(accounts: Path, folds: int = 5) -> None:
+#: Fewer marks than this and a reader's folds say nothing about them.
+LEAST_MARKS = 50
+
+
+def held_out(accounts: Path, language: str = "he", folds: int = 5) -> list[evals.Row]:
+    """The held-out half for one language, printed, and its rows for the ledger."""
     with tempfile.TemporaryDirectory() as scratch:
         copy = Path(scratch) / "accounts.db"
         shutil.copy(accounts, copy)
         db = sqlite3.connect(copy)
         rows = db.execute(
             "SELECT person, lemma, status FROM word"
-            " WHERE language = 'he' AND gone = 0 AND status IN (1, 2, 3, 9)"
+            " WHERE language = ? AND gone = 0 AND status IN (1, 2, 3, 9)",
+            (language,),
         ).fetchall()
     readers: dict[int, list[tuple[str, int]]] = {}
     for person, lemma, status in rows:
         if a_word(lemma):
             readers.setdefault(person, []).append((lemma, 1 if status == 9 else 0))
-    readers = {person: marks for person, marks in readers.items() if len(marks) >= 50}
-    print(f"## Held out, real marks ({accounts})\n")
+    everyone = len(readers)
+    readers = {person: marks for person, marks in readers.items() if len(marks) >= LEAST_MARKS}
+    marked = sum(len(m) for m in readers.values())
+    unknown = sum(len(m) - sum(y for _, y in m) for m in readers.values())
+    borrowed = "on" if est.BORROWED and est._borrowed(language) else "off"
+    print(f"## Held out, real marks: {language} ({accounts})\n")
     print(
-        f"{len(readers)} readers, {sum(len(m) for m in readers.values())} marked words, "
-        f"{sum(len(m) - sum(y for _, y in m) for m in readers.values())} of them not known.\n"
+        f"{len(readers)} readers with {LEAST_MARKS} marks or more (of {everyone} with any), "
+        f"{marked} marked words, {unknown} of them not known. Borrowed-word term {borrowed}.\n"
     )
+    today = date.today().isoformat()
+    version = f"slope-{est.SLOPE}/borrowed-{est.BORROWED if borrowed == 'on' else 0}"
+    note = f"{len(readers)} readers of {everyone} with marks, {unknown} not known"
+
+    def row(metric: str, score: float, n: int) -> evals.Row:
+        return evals.Row(
+            at=today,
+            stage="suggest",
+            system="estimate",
+            version=version,
+            metric=metric,
+            score=round(score, 4),
+            n=n,
+            corpus=f"marks-{language}",
+            note=note,
+        )
+
+    out = [row("readers", len(readers), marked)]
+    if not readers or not unknown or unknown == marked:
+        print("- too few to score: there must be known and not-known marks both.\n")
+        return out
     scores: list[float] = []
     labels: list[int] = []
     who: list[int] = []
@@ -108,15 +148,16 @@ def held_out(accounts: Path, folds: int = 5) -> None:
             test = shuffled[fold::folds]
             train = [one for at, one in enumerate(shuffled) if at % folds != fold]
             items = [est.Evidence(lemma, bool(y)) for lemma, y in train]
-            theta = est.fit(items, "he", centre)
+            theta = est.fit(items, language, centre)
             for lemma, y in test:
-                scores.append(est.sigmoid(est.SLOPE * (theta - est.difficulty(lemma, "he"))))
+                scores.append(est.sigmoid(est.SLOPE * (theta - est.difficulty(lemma, language))))
                 labels.append(y)
                 who.append(person)
     loss, brier, ece = calibration(scores, labels)
     base = sum(labels) / len(labels)
     base_brier = sum((base - y) ** 2 for y in labels) / len(labels)
-    print(f"- pooled AUC {auc(scores, labels):.3f}")
+    pooled = auc(scores, labels)
+    print(f"- pooled AUC {pooled:.3f}")
     for person in sorted(readers):
         mine = [(s, y) for s, y, w in zip(scores, labels, who, strict=True) if w == person]
         known = sum(y for _, y in mine)
@@ -126,6 +167,17 @@ def held_out(accounts: Path, folds: int = 5) -> None:
         )
     print(f"- log loss {loss:.3f}, Brier {brier:.3f} (base rate {base:.3f}: {base_brier:.3f})")
     print(f"- expected calibration error {ece:.3f}\n")
+    out.extend(
+        row(metric, score, len(labels))
+        for metric, score in (
+            ("auc", pooled),
+            ("log_loss", loss),
+            ("brier", brier),
+            ("brier_base_rate", base_brier),
+            ("ece", ece),
+        )
+    )
+    return out
 
 
 def corpus(folder: Path) -> list[Counter[str]]:
@@ -293,9 +345,25 @@ def main() -> None:
     parser.add_argument("--accounts", type=Path, help="an accounts database to hold out from")
     parser.add_argument("--texts", type=Path, help="a folder of built texts to simulate over")
     parser.add_argument("--readers", type=int, default=200)
+    parser.add_argument(
+        "--language",
+        action="append",
+        help="a language to hold out, each reported on its own (repeatable; he by default)",
+    )
+    parser.add_argument(
+        "--no-borrowed", action="store_true", help="leave the borrowed-word term out"
+    )
+    parser.add_argument("--record", action="store_true", help="append the rows to the ledger")
+    parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     args = parser.parse_args()
+    if args.no_borrowed:
+        est.BORROWED = 0.0
     if args.accounts:
-        held_out(args.accounts.expanduser())
+        rows: list[evals.Row] = []
+        for language in args.language or ["he"]:
+            rows.extend(held_out(args.accounts.expanduser(), language))
+        if args.record:
+            print(f"Recorded {evals.append(rows, args.ledger)} rows in {args.ledger}.")
     if args.texts:
         simulate(corpus(args.texts.expanduser()), args.readers)
 
