@@ -20,6 +20,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
   they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
   marks still read AUC 0.918. No spend, no new strings.
+- `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
+  (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
+  docstring says plainly that a missed drop is not swept: the row stays current, and
+  `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
+  is missed today. No spend, no new strings.
+- A Russian root keeps one meaning across English wording (targum-internal#596). The
+  sense index (`root_card._clusters`) compared a root's senses word for word, so крас
+  "beauty" and "beautiful", здоров "health" and "healthy", гроз "threat" and "threaten"
+  were two meanings, and a family asked from one left the other out. Russian senses are
+  now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
+  splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
+  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
+  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
+  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
+  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
+  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
+  spend, no new strings.
 - An account purge whose corpus-ledger step fails is finished by the next purge, and a
   person id is never given twice (targum-internal#679, clause 3.14).
   `Library.purge_departed` deleted the home right after `ledger.disown` and
@@ -35,13 +52,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   sign-up could be given a departed reader's id and, after a failed delete, their
   folder; `Store` now keeps the highest id ever given (`person_high`) and never hands
   one out twice, which is what lets a retry delete whatever stands under a departed
-  name. A note that cannot be read or removed is logged and never stops a deletion or a
-  start. No spend, no new strings.
+  name. At start the count is seeded from the highest home on disk and the highest id
+  a note still owes, so an id an older targum gave up, or a restore forgot, is not given
+  again. A build queued for an account that has gone never runs, and one that finishes
+  after its owner went is cleared with them. A note that cannot be read or removed is
+  logged and never stops a deletion or a start. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
   a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
-  2 s, then log the miss and go on without the row; the next backfill writes it. No
+  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
+  sweeps a missed drop (targum-internal#680). No
   spend, no new strings.
 - A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
   from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the

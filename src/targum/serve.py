@@ -1966,6 +1966,7 @@ class Library:
         self.upload_seconds = upload_seconds
         self.store = store
         self.adopt()
+        self._seed_ids()
         self.empty_trash()
         self.purge_departed()
         # And the connector's dead rows (#80). Here for the reason `purge_departed` is
@@ -2130,10 +2131,34 @@ class Library:
             # (`drain`): a build that raised past `run` would otherwise hold every
             # deploy for the whole of `DRAIN_SECONDS`.
             try:
-                if job is not None:
-                    self.run(job)
+                if job is not None and not self._owner_gone(job):
+                    try:
+                        self.run(job)
+                    finally:
+                        self._after_build(job)
             finally:
                 self.queue.task_done()
+
+    def _owner_gone(self, job: Job) -> bool:
+        """Whether the account this build is for has been deleted since it was queued."""
+        if job.owner is None or self.store is None:
+            return False
+        row = self.store.db.execute("SELECT 1 FROM person WHERE id = ?", (job.owner,))
+        return row.fetchone() is None
+
+    def _after_build(self, job: Job) -> None:
+        """A build that finished after its owner's account went (targum-internal#679):
+        what it wrote into their home goes the way the rest of the home went, note and
+        all. Never raises: the build is over either way."""
+        try:
+            if not self._owner_gone(job):
+                return
+            home = self.out / f"p{job.owner}"
+            if home.exists():
+                self._remove_home(home, self._note_departure(int(job.owner or 0)))
+                self._finish_departures()
+        except Exception as error:  # noqa: BLE001
+            log.warning("purge: a departed reader's late build was not cleared: %s", error)
 
     #: A finished build stays on the list this long, so the strip on every page can say
     #: it is ready and hand over the link. The page forgets one the reader has dismissed.
@@ -2792,6 +2817,29 @@ class Library:
                 self.mailer.notify(
                     str(row["email"]), letter.subject, letter.text, None, letter.html
                 )
+
+    def _seed_ids(self) -> None:
+        """Tell the store which ids were given before it kept count (targum-internal#679):
+        the highest home on disk and the highest a note still owes. An account deleted by
+        an older targum, or a database restored from before a purge, would otherwise let
+        its id be given again while its folder or its corpus rows remain."""
+        if self.store is None:
+            return
+        highest = 0
+        with contextlib.suppress(OSError):
+            for one in self.out.iterdir():
+                if HOME.fullmatch(one.name):
+                    highest = max(highest, int(one.name[1:]))
+        folder = self._departing()
+        with contextlib.suppress(OSError):
+            for note in folder.glob("p*-*.json") if folder is not None else []:
+                head = note.name.split("-", 1)[0]
+                if HOME.fullmatch(head):
+                    highest = max(highest, int(head[1:]))
+        try:
+            self.store.no_id_below(highest)
+        except Exception as error:  # noqa: BLE001 - never stops a start
+            log.warning("purge: ids not seeded: %s", error)
 
     def _departing(self) -> Path | None:
         """Where the departures not yet finished are written down: beside the account

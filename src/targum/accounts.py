@@ -4386,6 +4386,17 @@ class Store:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def no_id_below(self, highest: int) -> None:
+        """Never give an id at or below `highest` again (targum-internal#679): what the
+        server knows was given before `person_high` existed or a restore forgot it."""
+        with self.write() as db:
+            db.execute(
+                "INSERT INTO person_high (one, id)"
+                " VALUES (1, MAX(?, COALESCE((SELECT MAX(id) FROM person), 0)))"
+                " ON CONFLICT(one) DO UPDATE SET id = MAX(id, excluded.id)",
+                (highest,),
+            )
+
     def purge(self, days: int = GRACE_DAYS) -> list[int]:
         """Delete everyone whose grace period is up, and say whose files still stand.
 

@@ -947,6 +947,36 @@ class TestAHeldLock:
             assert db.execute("SELECT COUNT(*) FROM vocalizations").fetchone() == (0,)
             assert db.execute("SELECT COUNT(*) FROM annotations").fetchone() == (0,)
 
+    def test_a_drop_gives_up_after_the_short_timeout_and_says_so(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """targum-internal#680: `mirror_drop` waits `MIRROR_TIMEOUT` (2 s), not sqlite's
+        30 s default, logs the miss and leaves the row current. Nothing sweeps it later,
+        which its docstring says."""
+        import logging
+        import time
+
+        file = tmp_path / "corpus.db"
+        monkeypatch.setenv(ledger.ENV, str(file))
+        assert ledger.MIRROR_TIMEOUT == 2.0
+        ledger.Ledger(file).record("vocalize", "k1", POINTED)
+        holder = sqlite3.connect(file, isolation_level=None)
+        try:
+            holder.execute("BEGIN IMMEDIATE")
+            began = time.monotonic()
+            with caplog.at_level(logging.WARNING, logger=ledger.__name__):
+                ledger.mirror_drop("vocalize", "k1")
+            waited = time.monotonic() - began
+        finally:
+            holder.execute("ROLLBACK")
+            holder.close()
+        assert 1.5 <= waited < 6, f"waited {waited:.1f} s for the lock"
+        said = [r.getMessage() for r in caplog.records]
+        assert any("vocalize" in one and "not dropped" in one for one in said), said
+        assert ledger.Ledger(file).get("vocalize", "k1") == POINTED, "the missed drop stays missed"
+        ledger.mirror_drop("vocalize", "k1")
+        assert ledger.Ledger(file).get("vocalize", "k1") is None
+
 
 def _rendering(document_hash: str = "doc123", **change: Any) -> dict[str, Any]:
     # Segments out of document order, and coarse and confidence fields only some carry.

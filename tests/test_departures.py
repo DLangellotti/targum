@@ -451,3 +451,78 @@ def test_an_unreadable_note_is_logged_and_kept(
         library.purge_departed()
     assert "unreadable departure" in caplog.text
     assert (folder / "p9-1-abcdef.json").exists()
+
+
+# -- ids given before the count was kept, and builds that outlive the account --------
+
+
+@pytest.mark.parametrize("left_behind", ["a home on disk", "a pending note"])
+def test_an_id_given_before_the_count_was_kept_is_not_given_again(
+    left_behind: str, tmp_path: Path
+) -> None:
+    """qa-claude's fifth read of #1174 (P2-a, P2-b): an older targum purged the newest
+    account and kept no `person_high`, or a restore lost it under a pending note. The
+    server seeds the count at start from what it can see, so the id is not given again."""
+    store = Store(tmp_path / "targum.db")
+    people = [_person(store, f"{n}@example.com") for n in range(3)]
+    newest = people[-1]
+    _leave(store, newest)
+    assert store.purge() == [newest.id]
+    with store.write() as db:  # what the old purge left: the rows gone, no count kept
+        db.execute("DELETE FROM person_high")
+    out = tmp_path / "out"
+    if left_behind == "a home on disk":
+        (out / f"p{newest.id}" / "my-upload").mkdir(parents=True)
+    else:
+        notes = _notes_folder(store)
+        notes.mkdir()
+        said = {"home": f"p{newest.id}", "made": None, "hashes": []}
+        (notes / f"p{newest.id}-1-abcdef.json").write_text(json.dumps(said), encoding="utf-8")
+        out.mkdir()
+
+    Library(out, store=store)
+
+    assert _person(store, "new@example.com").id == newest.id + 1
+
+
+def test_a_build_that_finishes_after_its_owner_went_is_cleared_with_them(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    """P2-c (probe P7): the account goes while its build runs; what the build writes
+    into the home afterwards goes too, rows and all, with nothing left to retry."""
+    store, library, book = world
+    person = _person(store, "leaving@example.com")
+    home = library.home(person)
+    _text(book, home, "my-upload", "a" * 64)
+
+    def building(_self: Library, _job: serve_module.Job) -> None:
+        _leave(store, person)
+        assert library.purge_departed() == [person.id]
+        assert not home.exists()
+        _text(book, home, "late", "9" * 64)  # the build lands after the sweep
+
+    monkeypatch.setattr(Library, "run", building)
+    library.jobs["late"] = serve_module.Job(id="late", source="x", owner=person.id, home=home)
+    library.start_workers(1)
+    library.queue.put("late")
+    library.queue.join()
+
+    assert not home.exists()
+    assert book.text("9" * 64) is None
+    assert _notes(store) == []
+
+
+def test_a_build_queued_for_an_account_that_went_never_runs(
+    monkeypatch: pytest.MonkeyPatch, world: World
+) -> None:
+    store, library, _book = world
+    person = _person(store, "leaving@example.com")
+    ran: list[str] = []
+    monkeypatch.setattr(Library, "run", lambda _self, job: ran.append(job.id))
+    library.jobs["queued"] = serve_module.Job(id="queued", source="x", owner=person.id)
+    _leave(store, person)
+    library.purge_departed()
+    library.start_workers(1)
+    library.queue.put("queued")
+    library.queue.join()
+    assert ran == []
