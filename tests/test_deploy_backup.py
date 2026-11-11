@@ -286,3 +286,35 @@ def test_a_step_bible_that_cannot_be_reached_does_not_stop_the_deploy(tmp_path: 
     assert ran.returncode == 0, ran.stderr
     assert "went on" in ran.stdout
     assert "STEP Bible glosses not fetched; cards keep Strong's" in ran.stderr
+
+
+def test_a_morphalou_that_cannot_be_reached_does_not_stop_the_deploy(tmp_path: Path) -> None:
+    """targum-internal#678: a fresh or restored box had Morphalou only if somebody fetched
+    it by hand, so French went without its forms and its readings, quietly. The deploy
+    fetches it beside OpenRussian's tables, before the rebuild that reads it; it is
+    optional like the STEP Bible glosses, so a failed fetch warns and the deploy goes on.
+    Cut out and run with a `systemd-run` that fails."""
+    script = (DEPLOY / "deploy.sh").read_text(encoding="utf-8")
+    fetch = script.index("/usr/local/bin/targum models fetch morphalou")
+    assert (
+        script.index("uv tool install --force")
+        < script.index("/usr/local/bin/targum models fetch openrussian")
+        < fetch
+        < script.index("/usr/local/bin/targum rebuild --words --gloss")
+    ), "fetched beside openrussian, after the wheel is in and before the rebuild"
+    start = script.rindex("systemd-run", 0, fetch)
+    end = script.index("\n", script.index("|| echo", fetch))
+    assert script.index("systemd-run", fetch) > end, "the warning belongs to this fetch"
+    step = script[start:end].replace("'\"'\"'", "'")
+    fake = tmp_path / "systemd-run"
+    fake.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    fake.chmod(0o755)
+    ran = subprocess.run(
+        ["bash", "-euo", "pipefail", "-c", step + "\necho went on"],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"},
+    )
+    assert ran.returncode == 0, ran.stderr
+    assert "went on" in ran.stdout
+    assert "Morphalou not fetched" in ran.stderr

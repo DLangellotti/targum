@@ -53,6 +53,12 @@ Strong's long definitions). Expect
 `preflight` to warn about scripture until you do — that warning is the design, not a
 broken restore.
 
+The next deploy fetches every model the box reads, each a no-op once it is there:
+`menaked`, `openrussian`, `morphalou`, `ru`, `embeddings` and `scripture`, in that order,
+before its rebuild. Morphalou (a French word's forms and how it is said) and the STEP
+Bible glosses only warn when they cannot be reached; the others stop the deploy. To have
+them before a deploy, run the same `targum models fetch <name>` as the `targum` user.
+
 Readers are not copied either. They are rendered from artifacts on disk, and
 `targum rebuild` writes them again.
 

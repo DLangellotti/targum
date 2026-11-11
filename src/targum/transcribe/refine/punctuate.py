@@ -1,9 +1,12 @@
 """Punctuation, put back into a transcript that was heard without any.
 
-whisper-1 writes Hebrew down as one unbroken run of words: no full stop, no comma, no
-question mark. A learner cannot find where a sentence ends, the segmenter cannot either —
-so a "sentence" is forty words cut at a breath — and each of those is translated as one
-line. Measured on a 14-minute talk (2026-09-15): 1,300 words and not one mark.
+whisper-1 writes Hebrew down as one run of words: no full stop and no comma, and at most
+a stray question or exclamation mark where the voice rose. A learner cannot find where a
+sentence ends, the segmenter cannot either — so a "sentence" is forty words cut at a
+breath — and each of those is translated as one line. Measured on a 14-minute talk
+(2026-09-15): 1,300 words and not one mark. On a children's tale (2026-10-25): 853 words,
+one full stop and 25 marks of ? and !, which a count of every sentence end took for a
+punctuated text, so the tale was never punctuated (targum-internal#624).
 
 The model is asked for the marks and for nothing else, and it is not trusted to have
 given only that. Every token it returns is matched back to the token that was heard, and
@@ -33,14 +36,28 @@ TIMEOUT = 120.0
 #: What ends a sentence, as the transcript or the model writes it.
 ENDS = (".", "?", "!", "…", "׃")
 
+#: The marks that say a transcript was punctuated: full stops, and commas, since
+#: conversational Hebrew is written in comma splices with a full stop in 25 to 90 words.
+#: Not ? and !: whisper-1 leaves those in Hebrew it otherwise never marks, a few to a few
+#: dozen a part, and never a full stop or a comma.
+PUNCTUATED = (".", "…", "׃", ",")
+
+#: What may close a word after its mark: a bracket, or a quote around speech ("…home
+#: now." or «…сейчас.»). The geresh-like ' is among them; stripped from וכו' it leaves a
+#: word with no mark, which is what it is.
+CLOSERS = ")\"”»'"
+
 #: The marks a heard word may gain. No quotes, apostrophes, geresh or gershayim: in
 #: Hebrew those are letters of a word (ד"ר, וכו'), and a mark that changes a word is not
 #: punctuation.
 MARKS = frozenset(".,?!;:…()–—")
 
-#: Fewer sentence ends than one in this many words is a transcript heard without
-#: punctuation. Scribe's Hebrew runs at about one in twelve; whisper's at none in 1,300.
-SPARSE_WORDS = 40
+#: Fewer `PUNCTUATED` marks than one in this many words is a transcript heard without
+#: punctuation. Measured on the laptop's 109 refined Hebrew parts (2026-11-11): every
+#: punctuated one, whisper's on a good day or the model's, ran at one mark in 12 words or
+#: fewer; every unpunctuated one had none at all, or one in 426 (a Kan tale: 853 words,
+#: one full stop, one comma, 25 of ? and !). Thirty keeps clear of both.
+SPARSE_WORDS = 30
 
 #: Too few words to need a sentence end at all.
 LEAST_WORDS = 20
@@ -79,14 +96,14 @@ Ask = Callable[[str], tuple[str, int, int]]
 
 
 def ends_sentence(text: str) -> bool:
-    return text.rstrip(")").endswith(ENDS)
+    return text.rstrip(CLOSERS).endswith(ENDS)
 
 
 def sparse(words: list[Word]) -> bool:
-    """Whether these words hold fewer sentence ends than a punctuated text would."""
+    """Whether these words hold fewer full stops and commas than a punctuated text would."""
     tokens = [token for word in words for token in word.text.split()]
-    ends = sum(1 for token in tokens if ends_sentence(token))
-    return ends * SPARSE_WORDS < len(tokens)
+    marks = sum(1 for token in tokens if token.rstrip(CLOSERS).endswith(PUNCTUATED))
+    return marks * SPARSE_WORDS < len(tokens)
 
 
 def needs_punctuation(words: list[Word]) -> bool:
