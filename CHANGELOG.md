@@ -66,8 +66,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   one out twice, which is what lets a retry delete whatever stands under a departed
   name. At start the count is seeded from the highest home on disk and the highest id
   a note still owes, so an id an older targum gave up, or a restore forgot, is not given
-  again. A build queued for an account that has gone never runs, and one that finishes
-  after its owner went is cleared with them. A note that cannot be read or removed is
+  again (a name past `max(id) + 10**6` is skipped, not counted). A build queued for an
+  account that has gone never runs, and one that finishes after its owner went is
+  cleared with them; a store that cannot say whether the owner is there stops no build. A note that cannot be read or removed is
   logged and never stops a deletion or a start. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
