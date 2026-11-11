@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A Russian lemma spelled with ё is as common in the estimate as its е spelling
+  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
+  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
+  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
+  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
+  marks still read AUC 0.918. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half
