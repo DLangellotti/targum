@@ -28,6 +28,116 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with ё or его/её/их, 406 of 107,935 lemmas change, read one by one: 376 better, 28
   worse, 2 neither. Both reach readers at ru-local's next rename, which this change does
   not make. No spend, no new strings.
+- A long address in "We've sent a link to …" wraps on a phone (targum-internal#687).
+  The line had nothing to break it, so a 60-character address widened a 320px page to
+  653px: sideways scroll. It now wraps anywhere, in the account menu and on the sign-in
+  door, pinned in English and Russian by `tests/test_long_address_browser.py`. No spend,
+  no new strings.
+- A Russian lemma spelled with ё is as common in the estimate as its е spelling
+  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
+  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
+  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
+  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
+  marks still read AUC 0.918. No spend, no new strings.
+- `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
+  (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
+  docstring says plainly that a missed drop is not swept: the row stays current, and
+  `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
+  is missed today. No spend, no new strings.
+- A Russian root keeps one meaning across English wording (targum-internal#596). The
+  sense index (`root_card._clusters`) compared a root's senses word for word, so крас
+  "beauty" and "beautiful", здоров "health" and "healthy", гроз "threat" and "threaten"
+  were two meanings, and a family asked from one left the other out. Russian senses are
+  now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
+  splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
+  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
+  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
+  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
+  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
+  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
+  spend, no new strings.
+- Sign-in's own 502, when the mailer fails, is told as the server's fault
+  (targum-internal#681, from qa-claude's read of targum#1168). It carries an `error`, so
+  `signin.js` still put "We couldn't send the link. Try again in a minute." under the
+  address field with the clay outline, as if the address were wrong. Every status of 500
+  or more now goes to the form's answer line, with the body's `error` as its words where
+  there is a sentence and `signin.server-fault` where there is none, or where `error` is
+  an object, a number or a machine's word (`TargumFault.words`, #468); the field is left
+  unmarked, and the keyboard goes back to the press only where it had fallen to the page.
+  A 4xx still goes under the field. Browser tests pin the real 502 in English and Russian,
+  the odd `error` shapes, a reader who moved focus meanwhile, a 429 under the field, and the Russian
+  one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
+  measured at 320 and 360. No spend, no new strings.
+- With the door open, every door says so (targum-internal#671; design.md §12,
+  2026-11-10). With `TARGUM_OPEN_SIGNUP` and plans on, sign-in opened accounts and every
+  page still asked a stranger to join a waitlist. Each template that draws it now asks
+  `door_is_open()` (`serve.signup_is_open`): the bar, the foot, a text's page, the
+  Library, /connect and the closing section of the front page and /aliyah say Sign up,
+  to /account/signin; their forms post to a new `/signup`, which mails the sign-in link
+  through the sign-in's own gates and answers with a page, so it works with JavaScript
+  off. A link tried at the front door rides in that link, and the reader lands on Upload
+  holding it, built only on their own press. Sign-in loses "New here? Join the waitlist"
+  and the invited clause, a signed-out reader keeps only "Sign in to keep the words you
+  mark", the FAQs' "When does it open?" goes, and a barred inbox is told "We can't open
+  an account at that address." With the switch off, or asked for without plans, every
+  page is byte for byte as before; `tests/test_signup_door.py` walks every public page
+  both ways. The try box's "too many links" refusal says sign up rather than «когда
+  вас пригласят» while the door is open. No spend; eleven new strings, Russian
+  first-passed.
+- An account purge whose corpus-ledger step fails is finished by the next purge, and a
+  person id is never given twice (targum-internal#679, clause 3.14).
+  `Library.purge_departed` deleted the home right after `ledger.disown` and
+  `ledger.forget`, so a lock on `corpus.db` held past 30 s was logged and then lost: the
+  home was the only place that reader's documents could be listed from, and their rows
+  stayed. Each departing home is now written down before its account goes, in
+  `targum.db.departing/<home>-<ms>-<rand>.json` (its document hashes and the account's
+  `made`); the home is deleted on time, and the note goes only once the folder is gone
+  and `ledger.depart` has held, retried after the night's own deletions at every
+  start-up and every nightly purge, waiting at most `FORGET_TIMEOUT` (5 s) once per
+  sweep. `ledger.depart` also forgets what `text_homes` says the home held, so a text
+  whose file could not be read is not missed. Ids were `max(id) + 1`, so the next
+  sign-up could be given a departed reader's id and, after a failed delete, their
+  folder; `Store` now keeps the highest id ever given (`person_high`) and never hands
+  one out twice, which is what lets a retry delete whatever stands under a departed
+  name. At start the count is seeded from the highest home on disk and the highest id
+  a note still owes, so an id an older targum gave up, or a restore forgot, is not given
+  again (a name past `max(id) + 10**6` is skipped, not counted). A build queued for an
+  account that has gone never runs, and one that finishes after its owner went is
+  cleared with them; a store that cannot say whether the owner is there stops no build. A note that cannot be read or removed is
+  logged and never stops a deletion or a start. No spend, no new strings.
+- A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
+  `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
+  with sqlite's 30 s default, so another process holding the write lock cost a build half
+  a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
+  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
+  sweeps a missed drop (targum-internal#680). No
+  spend, no new strings.
+- A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
+  from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
+  44px reach centred on both pieces stood between them, so a tap 20px off either missed.
+  It is `nowrap` under a coarse pointer, as sign-in's links are. A JSON 5xx from
+  `/account/sign-in` that carries no `error` now says `signin.server-fault` where the
+  form's answer goes, not "We couldn't send the link" under the address field, as if the
+  address were at fault. Browser tests pin both `nowrap`s at 320 and 360 in Russian and the
+  way in's clearance from the waitlist's press at 4px or more. No spend, no new strings.
+- The estimate of the words a reader has not marked takes the Russian root lexicon's
+  borrowed flag (targum-internal#633): телефон, интернет, кофе are easier than their
+  place in the frequency list says, by the same `BORROWED` as Hebrew's, looked up by the
+  lexicon's own spelling (`fold_ru`). `scripts/eval_estimate.py --language fr
+  --language ru --record` holds each language out on its own readers' marks and writes `marks-fr` and `marks-ru` rows to the ledger, with n: on the laptop, no French
+  reader and one Russian reader (125 marks, 9 not known, AUC 0.831), too few to fit a
+  Russian weight. The prior reads a named rung as the words check reads it back, so a
+  reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
+  No spend, no new strings.
+- A deploy fetches Morphalou (targum-internal#678). `deploy.sh` fetched menaked,
+  OpenRussian's tables, the Russian lemmatizer, LaBSE and the scripture models but not
+  Morphalou, so a fresh or restored box had a French word's forms (for its difficulty) and
+  its readings (behind `TARGUM_FRENCH_IPA`) only if somebody ran `targum models fetch
+  morphalou` by hand, and without them it measured and said less, quietly. It is now
+  fetched beside OpenRussian's tables, a one-line no-op once there; like the STEP Bible
+  glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
+  on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
+  strings.
 - whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
   `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
   words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853
