@@ -704,9 +704,27 @@ _SUFFIX_RULES = {
     "2fp": "practice.rule.suffix-2p",
 }
 
+#: The Hebrew each rule names, filled into its blanks here rather than written into the
+#: catalogue (design.md §14, line 3; targum-internal#477). The sentence is English or
+#: Russian and the letters are not, so the Grammar tab draws each Hebrew run with its own
+#: `lang` and `dir` (`ruleText` in grammar.js), and a translation cannot drop or turn one.
+_RULE_HEBREW = {
+    "practice.rule.bound": {"letter": "ה"},
+    "practice.rule.free": {"letter": "ה"},
+    "practice.rule.suffix-3ms": {"one": "ו", "two": "יו"},
+    "practice.rule.suffix-3fs": {"one": "ה", "two": "יה"},
+    "practice.rule.suffix-3mp": {"one": "ם", "two": "הם"},
+    "practice.rule.suffix-3fp": {"one": "ן", "two": "הן"},
+    "practice.rule.suffix-1s": {"one": "י", "two": "ני"},
+    "practice.rule.suffix-1p": {"one": "נו"},
+    "practice.rule.suffix-2s": {"one": "ך"},
+    "practice.rule.suffix-2p": {"one": "כם", "two": "כן"},
+}
+
 
 def rule(spot: str, code: str, ui: str) -> str:
-    """The clause that decided the answer, one line, never a paragraph."""
+    """The clause that decided the answer, one line, never a paragraph. Plain text, with
+    any Hebrew it names filled in: the page that draws it tags each Hebrew run."""
     from . import strings
 
     keys = {
@@ -719,7 +737,8 @@ def rule(spot: str, code: str, ui: str) -> str:
         "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
         "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
     }
-    return strings.text(keys[spot], ui)
+    key = keys[spot]
+    return strings.text(key, ui, **_RULE_HEBREW.get(key, {}))
 
 
 # How a Hebrew reading is said in letters a learner reads, the way the reader's card says

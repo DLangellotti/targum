@@ -44,12 +44,14 @@
   <h1>{{ t("how.page.title", "How targum reads Hebrew") }}</h1>
   <p class="lede">{{ t("how.page.lede", "Hebrew is easy to read once you know it, and hard for a machine that does not. These are the hard parts, each solved on a real text. Every example is targum's own output, copied from a reader.") }}</p>
 
-  {#- 1. Vowels. The switch is the reader's own, named the same. -#}
+  {#- 1. Vowels. The switch is the reader's own, named the same, and starts where the
+      reader's does on this text (targum-internal#477): the weekly's points are ours, and
+      a text pointed by us opens bare, with the vowels a press away. -#}
   <section class="part" id="vowels">
     <h2>{{ t("how.vowels.title", "Hebrew hides its vowels") }}</h2>
-    <p>{{ t("how.vowels.said", "Hebrew is printed without its vowels, and a learner reads by them. targum points every word of a text that came without them, and the reader can take the points off again.") }}</p>
+    <p>{{ t("how.vowels.said", "Hebrew is printed without its vowels, and a learner reads by them. targum adds the vowels to every word of a text that came without them, and you turn them on when you want them.") }}</p>
     <div class="example vowels">
-      <input type="checkbox" id="how-points" class="how-switch-box" checked>
+      <input type="checkbox" id="how-points" class="how-switch-box">
       <label class="how-switch" for="how-points">{{ t("how.vowels.switch", "Vowel points") }}</label>
       <p class="he pointed" lang="he" dir="rtl">{{ how.vowels.pointed }}</p>
       <p class="he bare" lang="he" dir="rtl">{{ how.vowels.plain }}</p>

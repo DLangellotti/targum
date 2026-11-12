@@ -48,6 +48,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `landing.demo.that-aliyah-is-on-your-progress`, and the counted
   `landing.page.free-hebrew-texts-and-videos`, `landing.page.library-count` and
   `connect.page.library-count`, in English and Russian (ling-en, ling-ru).
+- /how no longer says the reader takes the vowels off (targum-internal#477, 2026-11-13).
+  A text targum pointed opens without vowels and the reader turns them on; only one whose
+  source brought them opens pointed. `how.vowels.said` now says so in English and Russian,
+  and the page's own example, the weekly's, opens bare as it would in a reader. The
+  Grammar tab's rules (`practice.rule.*`) said ה, יו and the other endings inside an
+  English or Russian sentence with no `lang` or `dir`: each Hebrew run is now its own
+  `<span lang="he" dir="rtl">`, built as DOM, never parsed as markup. The letters left the
+  catalogue for `{letter}`, `{one}` and `{two}` blanks the server fills
+  (`practices._RULE_HEBREW`), and a brand test now refuses Hebrew letters in any string
+  Python says, as it does for the templates. No spend. Eleven strings changed in English
+  and Russian: `how.vowels.said` (new Russian, ling-ru) and ten `practice.rule.*` keys
+  (blanks only).
 - French difficulty picks Morphalou up when it lands, and the fetch streams it
   (targum-internal#682). deploy.sh restarts the service before `targum models fetch
   morphalou`, so on a fresh or restored box the first French words were measured without
