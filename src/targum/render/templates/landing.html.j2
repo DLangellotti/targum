@@ -98,7 +98,7 @@
               "Talk to targum", not here (design.md §12). -#}
           <li>{{ t("landing.page.start-at-any-level", "Start at any level") }}</li>
           <li>{{ t("landing.page.upload-any-text-or-media", "Upload any text or media") }}</li>
-          <li>{{ t("landing.page.hundreds-of-free-texts-and-videos", "Hundreds of free texts and videos") }}</li>
+          <li>{{ tn("landing.page.free-hebrew-texts-and-videos", library_n, "{count} free Hebrew text and video", "{count} free Hebrew texts and videos", count=library_count) }}</li>
           <li>{{ t("landing.page.no-credit-card-required", "No credit card required") }}</li>
         </ul>
       </div>
@@ -297,7 +297,7 @@
     <div class="col">
       <div class="part-head">
         <p class="label">{{ t("landing.page.the-library", "The library") }}</p>
-        <h2>{{ t("landing.page.nearly-500-texts-and-videos-to-learn-from", "More than 700 texts and videos to learn from, free.") }}</h2>
+        <h2>{{ tn("landing.page.library-count", library_n, "{count} Hebrew text and video to learn from, all free.", "{count} Hebrew texts and videos to learn from, all free.", count=library_count) }}</h2>
         <p>{{ t("landing.page.this-week-s-news-at-three-levels-videos", "This week’s news at three levels, graded stories, Bialik and the whole Tanakh. Many come with a published translation, sentence by sentence.") }}</p>
       </div>
       <div class="shelf">
@@ -371,7 +371,7 @@
       it with what the link is and the form; joining turns it into the server's own
       answer. Filled by landing.js from the same pages the plain posts return, so with
       JavaScript off nothing changes and the words are the same either way. -#}
-  <dialog class="pop" id="pop" data-reading="{{ t("landing.try.reading", "Looking at the link…") }}">
+  <dialog class="pop" id="pop" data-reading="{{ t("landing.try.reading", "Looking at the link…") }}" data-offline="{{ t("door.offline", "You're offline. Try again when you're back online.") }}">
     <button class="pop-x" type="button" aria-label="{{ t("nav.close", "Close") }}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
     <div class="pop-body" id="popBody"></div>
   </dialog>

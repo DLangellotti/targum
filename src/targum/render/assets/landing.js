@@ -128,13 +128,16 @@
     });
   }
 
-  // The Here row's meaning, on a line of its own under the form: run on after it, the
-  // last word wrapped alone at 1440, "crack" under "Here" with nothing beside it (design's
-  // #477 pass, polish 4). The meaning is whatever follows the row's last " · ".
+  // The Here row says the form and its meaning on the first line, and the grammar
+  // between them on a quieter line of its own. Run on, the meaning wrapped alone at 1440,
+  // "crack" under "Here" (design's #477 pass, polish 4); set on its own line, it still
+  // read as a wrap (P2-8, 2026-11-12). The meaning is whatever follows the last " · ".
   function hereGloss(value) {
-    var cut = value.lastIndexOf(" · ");
-    if (cut < 0) return value;
-    return value.slice(0, cut) + "<span class=\"here-gloss\">" + value.slice(cut + 3) + "</span>";
+    var parts = value.split(" · ");
+    if (parts.length < 2) return value;
+    var gloss = "<span class=\"here-gloss\">" + parts.pop() + "</span>";
+    var form = parts.shift();
+    return form + " · " + gloss + (parts.length ? "<span class=\"here-grammar\">" + parts.join(" · ") + "</span>" : "");
   }
 
   // A binyan's name in the page's language: the names Progress and the card already say
@@ -474,7 +477,8 @@
      the plain post would have put under the box: what the link is, and the waitlist
      form. Joining, from there or from the end of the page, turns the popup into the
      server's own answer. Each is the same page the post returns, read for its words, so
-     nothing is said twice in two places. Any failure falls back to the plain post. */
+     nothing is said twice in two places. A server's failure falls back to the plain
+     post; no connection at all is said in the popup. */
   var pop = document.getElementById("pop"), popBody = document.getElementById("popBody");
   if (pop && pop.showModal && window.fetch) {
     var popOpen = function (node, label) {
@@ -484,8 +488,14 @@
       var field = popBody.querySelector("input[type=email]");
       if (field) field.focus();
     };
+    // Offline, the plain post fell through to the browser's own error page (design's #477
+    // pass, P2-5): a fetch that never reached targum keeps the popup and says so, and only
+    // a server that answered with nothing to read falls back to the plain post.
+    var OFFLINE = "offline";
     var post = function (form) {
+      if (navigator.onLine === false) return Promise.reject(new Error(OFFLINE));
       return fetch(form.action, { method: "POST", body: new URLSearchParams(new FormData(form)), credentials: "same-origin" })
+        .catch(function () { throw new Error(OFFLINE); })
         .then(function (r) { return r.text().then(function (html) {
           // Read in an inert template: nothing in it is applied or run, so the answer's
           // own page brings no styles of its own along.
@@ -498,6 +508,15 @@
       var head = doc.querySelector("main h1"), lede = doc.querySelector("main .lede");
       return { head: head ? head.textContent.trim() : "", lede: lede ? lede.textContent.trim() : "" };
     };
+    var cut = function (why) { return !!why && why.message === OFFLINE; };
+    var offline = function () {
+      var box = document.createElement("div");
+      box.className = "pop-done";
+      box.innerHTML = '<p class="pop-head" role="alert"></p>';
+      box.querySelector(".pop-head").textContent = pop.dataset.offline;
+      return box;
+    };
+    var linkGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a3.6 3.6 0 0 0 5.1 0l3-3a3.6 3.6 0 0 0-5.1-5.1l-1.1 1.1M13.4 10.6a3.6 3.6 0 0 0-5.1 0l-3 3a3.6 3.6 0 0 0 5.1 5.1l1.1-1.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     var envelope = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12.5" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 7.5 12 13l7.5-5.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>';
     var done = function (words, mark) {
       var box = document.createElement("div");
@@ -521,7 +540,15 @@
           wrong.className = "pop-wrong"; wrong.setAttribute("role", "alert"); wrong.textContent = words.lede;
           if (pop.open && popBody.contains(form)) form.parentNode.insertBefore(wrong, form);
           else popOpen(done(words, false), words.head);
-        }).catch(function () { form.submit(); })
+        }).catch(function (why) {
+          if (!cut(why)) return form.submit();
+          // Said where they typed, as a bad address is, so the address waits to be sent again.
+          if (pop.open && popBody.contains(form)) {
+            var wrong = form.parentNode.querySelector(".pop-wrong") || document.createElement("p");
+            wrong.className = "pop-wrong"; wrong.setAttribute("role", "alert"); wrong.textContent = pop.dataset.offline;
+            form.parentNode.insertBefore(wrong, form);
+          } else popOpen(offline(), pop.dataset.offline);
+        })
           .then(function () { if (button) button.disabled = false; });
       });
     };
@@ -531,7 +558,10 @@
       e.preventDefault();
       var reading = document.createElement("div");
       reading.className = "pop-reading";
-      reading.innerHTML = '<span class="tried-mark"></span><p></p>';
+      // A link's glyph in the tile, so it reads as a link being looked at, not a picture
+      // that failed (design's #477 pass, P2-12). It breathes where motion is welcome and
+      // holds still where it is not (landing.css).
+      reading.innerHTML = '<span class="tried-mark" aria-hidden="true">' + linkGlyph + '</span><p></p>';
       reading.querySelector("p").textContent = pop.dataset.reading;
       popOpen(reading, pop.dataset.reading);
       post(tryForm).then(function (answer) {
@@ -541,7 +571,10 @@
         tried.querySelectorAll(".join-form").forEach(join);
         var title = tried.querySelector(".tried-title, .tried-what");
         popOpen(tried, title ? title.textContent.trim() : "");
-      }).catch(function () { pop.close(); tryForm.submit(); });
+      }).catch(function (why) {
+        if (cut(why)) return popOpen(offline(), pop.dataset.offline);
+        pop.close(); tryForm.submit();
+      });
     });
     pop.querySelector(".pop-x").addEventListener("click", function () { pop.close(); });
     // A press on the dim around the popup closes it, as Escape does.
@@ -587,7 +620,7 @@
     if (mode === "aliyah") {
       meta.textContent = t("landing.demo.shnayim-mikra-the-aliyah", "Shnayim mikra · the aliyah");
       var done = reading === 3;
-      foot.innerHTML = "<span class=\"say\">" + (done ? "That aliyah is on your progress." : READINGS[reading]) + "</span>" +
+      foot.innerHTML = "<span class=\"say\">" + (done ? t("landing.demo.that-aliyah-is-on-your-progress", "That aliyah is now marked on Your Progress.") : READINGS[reading]) + "</span>" +
         "<button class=\"btn filled small\" type=\"button\" data-go=\"" + (done ? "restart" : "reading") + "\">" + (done ? t("landing.demo.start-again", "Start again") : reading === 2 ? t("landing.demo.done", "Done") : t("landing.demo.next-reading", "Next reading")) + "</button>";
     }
   }

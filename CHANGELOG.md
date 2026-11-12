@@ -27,6 +27,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `lang`. A brand test now refuses Hebrew letters in any string a template says. No
   spend, no new strings. One string, `how.spelling.said`, has its Hebrew word swapped for
   a `{word}` blank in English and Russian.
+- The front door's P2s from design's §14 finish bar (targum-internal#477, 2026-11-12).
+  Offline, Try it and Join no longer drop the visitor on the browser's error page: the
+  popup stays and says `door.offline`; only a server that answered with nothing to read
+  falls back to the plain post. The landing, /aliyah and /connect sell one figure, the
+  Hebrew shelf's exact count, the number /library's Hebrew heading says, in three new
+  counted keys; the three stale "hundreds" / "more than 700" keys are gone. The word
+  card's Here row says the form and its meaning on one line and the grammar quieter under
+  them, so "crack" no longer sits alone. /connect's demo says "this learner knows 91% of
+  the words" (`connect.example.known`). The Torah demo's last line is keyed
+  (`landing.demo.that-aliyah-is-on-your-progress`), and the unkeyed-English test now
+  catches a sentence on either half of a ternary. The try box's waiting tile draws a
+  link and holds still under reduced motion. /account/signin carries the public head
+  (description, canonical, og:image). A note page (the JS-off waitlist answers, the
+  weekly's confirm) no longer asks "Join the waitlist →" in its foot. A row whose title
+  is in the page's language draws no English gloss under it, and a catalogue translation
+  note is said only on an English page. Under a coarse pointer /connect's bar and email
+  field, the text page's credit links, the legal pages' mark and /credits' rows reach
+  44px. No spend. New strings: `door.offline`, `connect.example.known`,
+  `landing.demo.that-aliyah-is-on-your-progress`, and the counted
+  `landing.page.free-hebrew-texts-and-videos`, `landing.page.library-count` and
+  `connect.page.library-count`, in English and Russian (ling-en, ling-ru).
 - French difficulty picks Morphalou up when it lands, and the fetch streams it
   (targum-internal#682). deploy.sh restarts the service before `targum models fetch
   morphalou`, so on a fresh or restored box the first French words were measured without
