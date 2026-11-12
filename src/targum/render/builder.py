@@ -2938,6 +2938,49 @@ def after_duolingo_firsts() -> list[dict[str, Any]]:
     return firsts
 
 
+#: The Shoelace Seller's four lines with each word as targum reads it (design's spec,
+#: 2026-11-12; David: "tapping any word ... opens it in the word card"): a snapshot of a
+#: local build of the public-domain story, so the page's reader answers a tap with what
+#: the library's reader would say, and the page carries no build of its own.
+AFTER_DUOLINGO_STORY_WORDS = Path(__file__).parent / "after_duolingo_story.json"
+
+_HEBREW_RUN = re.compile(r"[\u0590-\u05FF]+")
+
+
+def _with_hebrew_marked(text: str) -> Markup:
+    """A line of the card, escaped, its Hebrew runs in the Hebrew face and direction."""
+    out = Markup("")
+    at = 0
+    for run in _HEBREW_RUN.finditer(text):
+        out += escape(text[at : run.start()])
+        out += Markup('<span class="he" lang="he" dir="rtl">{}</span>').format(run.group())
+        at = run.end()
+    return out + escape(text[at:])
+
+
+@cache
+def after_duolingo_story() -> dict[str, Any]:
+    """The reader's four lines, as parts the template draws (text, or a word by its id),
+    and every word's card, as the page draws it with no script and as `landing.js` draws
+    it on a tap: the dictionary form, the infinitive a verb is cited by, the meaning, the
+    part of speech, and the facts (how it is built here, the binyan, the root)."""
+    held = json.loads(AFTER_DUOLINGO_STORY_WORDS.read_text(encoding="utf-8"))
+    words: dict[str, dict[str, Any]] = {}
+    for word_id, word in held["words"].items():
+        words[word_id] = {
+            "he": word["he"],
+            "head": str(escape(word["head"])),
+            "inf": str(escape(word["inf"])),
+            "sense": str(escape(word["sense"])),
+            "pos": str(escape(word["pos"])),
+            "facts": [
+                [str(escape(label)), str(_with_hebrew_marked(value))]
+                for label, value in word["facts"]
+            ],
+        }
+    return {"open": held["open"], "lines": held["lines"], "words": words}
+
+
 def after_duolingo_try() -> dict[str, str] | None:
     """The link the page offers to try: `AFTER_DUOLINGO_TRY`'s own source, read off the
     catalogue, as somebody would paste it, and as the chip shows it. None where this
@@ -3013,6 +3056,10 @@ def after_duolingo_page(
             came_from=AFTER_DUOLINGO_FROM,
             tried=tried,
             try_this=after_duolingo_try(),
+            story_words=after_duolingo_story(),
+            story_json=embed_json(
+                {"open": after_duolingo_story()["open"], "words": after_duolingo_story()["words"]}
+            ),
             firsts=firsts,
             story=story,
             linked=linked,

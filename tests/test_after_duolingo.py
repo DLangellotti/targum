@@ -9,6 +9,7 @@ other origin (design.md §12, 2026-10-30).
 from __future__ import annotations
 
 import io
+import json
 import re
 import threading
 from collections.abc import Iterator
@@ -193,22 +194,44 @@ def test_with_the_library_shut_the_first_texts_are_named_without_links(shelf: No
 def test_the_top_is_the_front_page_s_word_card_and_reader(shelf: None) -> None:
     """Drawn as the front page's top (design's spec, 2026-11-12): the word card beside the
     hero, open on the word the reader's third line has open, and four real lines of the
-    story under both, its foot opening the story in the library. No script: nothing is
-    drawn as a press that does nothing."""
+    story under both, its foot opening the story in the library. Drawn whole in the
+    markup, so with no script nothing is a press that does nothing."""
     page = after_duolingo_page(ADDRESS)
     top = page.split('<div class="col top">', 1)[1].split('<section class="part"', 1)[0]
     assert '<aside class="card" id="card"' in top
-    assert '<p class="card-word" lang="he" dir="rtl">בֵּית סֵפֶר</p>' in top
-    assert '<article class="reader still"' in top
+    assert '<p class="card-word" lang="he" dir="rtl">בית</p>' in top
+    assert "house" in top.split("</aside>", 1)[0]
+    assert '<article class="reader still" id="story"' in top
     assert top.count('<div class="pair') == 4
-    assert '<mark class="w open">לְבֵית־הַסֵּפֶר</mark>' in top
+    assert '<span class="w open" data-id="l3w4">לְבֵית</span>' in top
     assert "“Why don’t you go to school?”" in top
     assert (
         '<a href="/library/yatziv-shoelace-seller?from=after-duolingo-hebrew">'
         "Read it in the library</a>" in top
     )
     assert "<button" not in top.rsplit("</form>", 1)[1], "a still page draws no dead press"
-    assert "<script" not in page
+    # The one line that says the words answer a tap waits for the script that makes it so.
+    assert '<span class="tap-hint" hidden>Tap any word.</span>' in top
+
+
+def test_every_word_in_the_reader_has_targum_s_card(shelf: None) -> None:
+    """Each word the reader draws is one targum read, and its card rides in the page for
+    `landing.js` (David, 2026-11-12: tapping any word opens it in the word card). The card
+    keeps no list, so it offers no Learning, Known or Ask."""
+    page = after_duolingo_page(ADDRESS)
+    lines = page.split('id="storyLines"', 1)[1].split("</article>", 1)[0]
+    drawn = re.findall(r'<span class="w(?: open)?" data-id="([^"]+)">', lines)
+    held = re.search(r'<script type="application/json" id="landingWords">(.*?)</script>', page)
+    assert held
+    words = json.loads(held.group(1))["words"]
+    assert len(drawn) == 22 and set(drawn) == set(words)
+    assert words["l3w4"]["head"] == "בית" and words["l3w4"]["sense"] == "house"
+    assert "ל</span> to + <span" in words["l3w4"]["facts"][0][1]
+    assert words["l4w2"]["inf"] == "לשלוח" and words["l4w2"]["sense"] == "to send"
+    assert "data-set" not in page.split('<aside class="card"', 1)[1].split("</aside>", 1)[0]
+    # The front page's own script, inline (§12: nothing from another origin).
+    assert "<script src" not in page
+    assert 'var film = document.getElementById("film");' in page
 
 
 def test_why_real_hebrew_feels_harder_is_shown(shelf: None) -> None:
@@ -258,7 +281,7 @@ def test_without_the_row_nothing_is_offered_to_try(monkeypatch: pytest.MonkeyPat
 
 def test_a_signed_in_reader_is_not_asked_to_join(shelf: None) -> None:
     page = after_duolingo_page(ADDRESS, signed_in=True)
-    assert 'name="from"' not in page
+    assert '<input type="hidden" name="from"' not in page
 
 
 # -- served ---------------------------------------------------------------------------

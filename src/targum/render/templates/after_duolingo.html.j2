@@ -5,8 +5,9 @@
     the front page is (design's spec, 2026-11-12): the front page's own box to try a link
     of theirs beside a word card, a real first text in the reader under both, why the
     Hebrew of a course and the Hebrew of a video feel so different (shown, in the How
-    cards' pictures), and three graded first texts as the Library draws them. Like
-    /aliyah it carries no script, so everything is drawn in the markup. Its one
+    cards' pictures), and three graded first texts as the Library draws them.
+    Everything is drawn in the markup, and the front page's `landing.js` makes it answer:
+    a tapped word opens in the card, the vowels switch, the glued word comes apart. Its one
     ask is the front door's, the waitlist or Sign up, and the form says it was pressed
     here (`from=after-duolingo-hebrew`).
 
@@ -39,8 +40,7 @@
 <main id="top">
   {#- The front page's top (design's spec, 2026-11-12): the hero, the word card beside it
       where the front page's card stands, and the reader the full width under both. Drawn
-      in the markup, since the page carries no script: the card is open on the word the
-      reader's third line has open, and nothing drawn here is a press that does nothing. -#}
+      in the markup, so nothing drawn here is a press that does nothing without a script. -#}
   <div class="col top">
     <div class="hero">
       <div class="headline">
@@ -63,54 +63,53 @@
       </div>
     </div>
 
+    {#- The card stands open on the word the reader's third line has open, drawn here so
+        it is there with no script; `landing.js` turns it to any word that is tapped.
+        Every word is as targum reads it (`after_duolingo_story`). -#}
+    {%- set opened = story_words.words[story_words.open] %}
     <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}">
       <div class="card-head">
         <span class="label">{{ t("landing.page.word-card", "Word card") }}</span>
-        <p class="card-word" lang="he" dir="rtl">בֵּית סֵפֶר</p>
-        <p class="card-sense">school <span class="pos">· {{ t("landing.card.noun-masculine", "noun, masculine") }}</span></p>
+        <p class="card-word" lang="he" dir="rtl">{{ opened.head|safe }}</p>
+        <p class="card-sense">{% if opened.inf %}<span class="he inf" lang="he" dir="rtl">{{ opened.inf|safe }}</span> {% endif %}{{ opened.sense|safe }}{% if opened.pos %} <span class="pos">{% if opened.sense %}· {% endif %}{{ opened.pos|safe }}</span>{% endif %}</p>
       </div>
+      {%- if opened.facts %}
       <dl class="facts-list">
-        <dt>{{ t("landing.card.here", "Here") }}</dt>
-        <dd><span class="he" lang="he" dir="rtl">לְ</span> + <span class="he" lang="he" dir="rtl">בֵית־הַסֵּפֶר</span><span class="here-gloss">to school</span></dd>
-        <dt>{{ t("landing.card.plural", "Plural") }}</dt>
-        <dd><span class="he" lang="he" dir="rtl">בָּתֵּי סֵפֶר</span></dd>
-        <dt>{{ t("landing.card.from", "From") }}</dt>
-        <dd><span class="he" lang="he" dir="rtl">בַּיִת</span>, house, and <span class="he" lang="he" dir="rtl">סֵפֶר</span>, book</dd>
+        {%- for label, value in opened.facts %}
+        <dt>{{ label|safe }}</dt>
+        <dd>{{ value|safe }}</dd>
+        {%- endfor %}
       </dl>
+      {%- endif %}
     </aside>
+    <p class="sr-only" id="cardSaid" aria-live="polite"></p>
 
     <div class="showcase">
       {#- Four lines of a real first text (`yatziv-shoelace-seller`, public domain), as the
           library points them, with the English under each. A story, not a recording, so
-          no line carries a time. -#}
-      <article class="reader still" aria-label="Example: The Shoelace Seller in the reader">
+          no line carries a time. Each word is one targum read; `landing.js` makes them
+          answer a tap, and without it they are the page's words and nothing more. -#}
+      <article class="reader still" id="story" aria-label="Example: The Shoelace Seller in the reader">
         <div class="reader-head">
           <div>
             <p class="reader-title">The Shoelace Seller</p>
             <p class="reader-meta">A story · 3 minutes · A1</p>
           </div>
         </div>
-        <div class="lines">
-          <div class="pair">
-            <p class="line-he" lang="he" dir="rtl">– בֶּן כַּמָּה אַתָּה, שְׁלֹמֹה?</p>
-            <p class="line-en">“How old are you, Shlomo?”</p>
+        <div class="lines" id="storyLines">
+          {%- for line in story_words.lines %}
+          <div class="pair{% if loop.index == 3 %} now{% endif %}">
+            <p class="line-he" lang="he" dir="rtl">{% for part in line.parts %}{% if part is string %}{{ part }}{% else %}<span class="w{% if part.w == story_words.open %} open{% endif %}" data-id="{{ part.w }}">{{ part.he }}</span>{% endif %}{% endfor %}</p>
+            <p class="line-en">{{ line.en }}</p>
           </div>
-          <div class="pair">
-            <p class="line-he" lang="he" dir="rtl">– בֶּן תֵּשַׁע – הוּא עוֹנֶה בְּקוֹל נָמוּךְ וְעֵינָיו מֻשְׁפָּלוֹת.</p>
-            <p class="line-en">“Nine,” he says quietly, looking down.</p>
-          </div>
-          <div class="pair now">
-            <p class="line-he" lang="he" dir="rtl">– מַדּוּעַ אֵינְךָ הוֹלֵךְ <mark class="w open">לְבֵית־הַסֵּפֶר</mark>?</p>
-            <p class="line-en">“Why don’t you go to school?”</p>
-          </div>
-          <div class="pair">
-            <p class="line-he" lang="he" dir="rtl">– אַבָּא שׁוֹלֵחַ אוֹתִי לִמְכֹּר שְׂרוֹכִים.</p>
-            <p class="line-en">“Dad sends me to sell shoelaces.”</p>
-          </div>
+          {%- endfor %}
         </div>
-        {%- if linked and story %}
-        <p class="reader-foot"><a href="{{ story.href }}">Read it in the library</a></p>
-        {%- endif %}
+        <p class="reader-foot">
+          <span class="tap-hint" hidden>Tap any word.</span>
+          {%- if linked and story %}
+          <a href="{{ story.href }}">Read it in the library</a>
+          {%- endif %}
+        </p>
       </article>
     </div>
   </div>
@@ -134,18 +133,22 @@
           <div class="how-vis vowels-vis">
             <div class="vs-as">
               <p class="label">As written</p>
-              <p class="he vs-line" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
+              <p class="he vs-line" id="vsRecipe" data-pointed="מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
             </div>
             <div class="vs-with">
               <p class="label">With vowels</p>
               <p class="he vs-line" lang="he" dir="rtl">מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?</p>
             </div>
+            {#- The front page's switch, shown by `landing.js`, which is what makes it work. -#}
+            <button class="switch" id="swVowels" type="button" role="switch" aria-checked="false" hidden><span class="knob" aria-hidden="true"></span>{{ t("landing.page.vowels", "Vowels") }}</button>
           </div>
         </li>
         <li class="how-card">
           <h3>Small words get glued on.</h3>
           <p>“And”, “the”, “in” and “to” join the front of the next word, so <span class="he" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</span> doesn’t look like <span class="he" lang="he" dir="rtl">בית ספר</span>. Tap it and you see the word you already know.</p>
-          <div class="how-vis center">
+          {#- `landing.js` makes this picture the press: closed up into the word, it comes
+              apart as it comes into view, and a tap closes or opens it. -#}
+          <div class="how-vis center glued-vis">
             <p class="he how-word" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</p>
             <ol class="glued" dir="rtl">
               <li><span class="he" lang="he" dir="rtl">לְ</span><span>to</span></li>
@@ -239,5 +242,11 @@
 </main>
 
 {% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+{#- The front page's own script, which runs here without its film (targum-internal#676,
+    David, 2026-11-12): the reader's words answer a tap, the vowel switch switches and the
+    glued word comes apart. The words it opens are the page's own, below. -#}
+<script type="application/json" id="landingWords">{{ story_json }}</script>
+{{ script('report.js', data_build=build()) }}
+{{ script('landing.js') }}
 </body>
 </html>

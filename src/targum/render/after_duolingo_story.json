@@ -1,0 +1,383 @@
+{
+ "_": "The first four lines of יצחק יציב, מוֹכֵר הַשְּׂרוֹכִים (public domain, Project Ben-Yehuda), with each word as targum reads it: dictionary form, meaning, how it is built, binyan and root, out of a local build of the story (--words, nothing translated or bought) on 2026-11-12. The English lines are the page's own. Drawn by /after-duolingo-hebrew (targum-internal#676).",
+ "open": "l3w4",
+ "lines": [
+  {
+   "en": "“How old are you, Shlomo?”",
+   "parts": [
+    "– ",
+    {
+     "w": "l1w1",
+     "he": "בֶּן"
+    },
+    " ",
+    {
+     "w": "l1w2",
+     "he": "כַּמָּה"
+    },
+    " ",
+    {
+     "w": "l1w3",
+     "he": "אַתָּה"
+    },
+    ", ",
+    {
+     "w": "l1w4",
+     "he": "שְׁלֹמֹה"
+    },
+    "?"
+   ]
+  },
+  {
+   "en": "“Nine,” he says quietly, looking down.",
+   "parts": [
+    "– ",
+    {
+     "w": "l2w1",
+     "he": "בֶּן"
+    },
+    " ",
+    {
+     "w": "l2w2",
+     "he": "תֵּשַׁע"
+    },
+    " – ",
+    {
+     "w": "l2w3",
+     "he": "הוּא"
+    },
+    " ",
+    {
+     "w": "l2w4",
+     "he": "עוֹנֶה"
+    },
+    " ",
+    {
+     "w": "l2w5",
+     "he": "בְּקוֹל"
+    },
+    " ",
+    {
+     "w": "l2w6",
+     "he": "נָמוּךְ"
+    },
+    " ",
+    {
+     "w": "l2w7",
+     "he": "וְעֵינָיו"
+    },
+    " ",
+    {
+     "w": "l2w8",
+     "he": "מֻשְׁפָּלוֹת"
+    },
+    "."
+   ]
+  },
+  {
+   "en": "“Why don’t you go to school?”",
+   "parts": [
+    "– ",
+    {
+     "w": "l3w1",
+     "he": "מַדּוּעַ"
+    },
+    " ",
+    {
+     "w": "l3w2",
+     "he": "אֵינְךָ"
+    },
+    " ",
+    {
+     "w": "l3w3",
+     "he": "הוֹלֵךְ"
+    },
+    " ",
+    {
+     "w": "l3w4",
+     "he": "לְבֵית"
+    },
+    "־",
+    {
+     "w": "l3w5",
+     "he": "הַסֵּפֶר"
+    },
+    "?"
+   ]
+  },
+  {
+   "en": "“Dad sends me to sell shoelaces.”",
+   "parts": [
+    "– ",
+    {
+     "w": "l4w1",
+     "he": "אַבָּא"
+    },
+    " ",
+    {
+     "w": "l4w2",
+     "he": "שׁוֹלֵחַ"
+    },
+    " ",
+    {
+     "w": "l4w3",
+     "he": "אוֹתִי"
+    },
+    " ",
+    {
+     "w": "l4w4",
+     "he": "לִמְכֹּר"
+    },
+    " ",
+    {
+     "w": "l4w5",
+     "he": "שְׂרוֹכִים"
+    },
+    "."
+   ]
+  }
+ ],
+ "words": {
+  "l1w1": {
+   "he": "בֶּן",
+   "head": "בן",
+   "inf": "",
+   "sense": "son",
+   "pos": "noun, masculine",
+   "facts": []
+  },
+  "l1w2": {
+   "he": "כַּמָּה",
+   "head": "כמה",
+   "inf": "",
+   "sense": "how much; several",
+   "pos": "adverb",
+   "facts": []
+  },
+  "l1w3": {
+   "he": "אַתָּה",
+   "head": "אתה",
+   "inf": "",
+   "sense": "you (masc. singular)",
+   "pos": "pronoun",
+   "facts": []
+  },
+  "l1w4": {
+   "he": "שְׁלֹמֹה",
+   "head": "שלמה",
+   "inf": "",
+   "sense": "a name",
+   "pos": "",
+   "facts": []
+  },
+  "l2w1": {
+   "he": "בֶּן",
+   "head": "בן",
+   "inf": "",
+   "sense": "son",
+   "pos": "noun, masculine",
+   "facts": []
+  },
+  "l2w2": {
+   "he": "תֵּשַׁע",
+   "head": "תשע",
+   "inf": "",
+   "sense": "nine",
+   "pos": "number",
+   "facts": []
+  },
+  "l2w3": {
+   "he": "הוּא",
+   "head": "הוא",
+   "inf": "",
+   "sense": "he; it",
+   "pos": "pronoun",
+   "facts": []
+  },
+  "l2w4": {
+   "he": "עוֹנֶה",
+   "head": "ענה",
+   "inf": "לענות",
+   "sense": "answer",
+   "pos": "verb",
+   "facts": [
+    [
+     "Binyan",
+     "pa’al"
+    ],
+    [
+     "Root",
+     "ע־נ־ה"
+    ]
+   ]
+  },
+  "l2w5": {
+   "he": "בְּקוֹל",
+   "head": "קול",
+   "inf": "",
+   "sense": "voice; sound",
+   "pos": "noun, masculine",
+   "facts": [
+    [
+     "Here",
+     "ב in + קול"
+    ]
+   ]
+  },
+  "l2w6": {
+   "he": "נָמוּךְ",
+   "head": "נמוך",
+   "inf": "",
+   "sense": "low; short",
+   "pos": "adjective",
+   "facts": []
+  },
+  "l2w7": {
+   "he": "וְעֵינָיו",
+   "head": "עיניו",
+   "inf": "",
+   "sense": "his eyes",
+   "pos": "noun, feminine",
+   "facts": [
+    [
+     "Here",
+     "ו and + עיניו + with a pronoun on the end"
+    ]
+   ]
+  },
+  "l2w8": {
+   "he": "מֻשְׁפָּלוֹת",
+   "head": "שפל",
+   "inf": "",
+   "sense": "",
+   "pos": "verb",
+   "facts": [
+    [
+     "Here",
+     "מ from + שפלות"
+    ],
+    [
+     "Binyan",
+     "pa’al"
+    ],
+    [
+     "Root",
+     "ש־פ־ל"
+    ]
+   ]
+  },
+  "l3w1": {
+   "he": "מַדּוּעַ",
+   "head": "מדוע",
+   "inf": "",
+   "sense": "why",
+   "pos": "adverb",
+   "facts": []
+  },
+  "l3w2": {
+   "he": "אֵינְךָ",
+   "head": "אינך",
+   "inf": "",
+   "sense": "you are not",
+   "pos": "particle",
+   "facts": []
+  },
+  "l3w3": {
+   "he": "הוֹלֵךְ",
+   "head": "הלך",
+   "inf": "ללכת",
+   "sense": "he went; he walked",
+   "pos": "verb",
+   "facts": [
+    [
+     "Binyan",
+     "pa’al"
+    ],
+    [
+     "Root",
+     "ה־ל־ך"
+    ]
+   ]
+  },
+  "l3w4": {
+   "he": "לְבֵית",
+   "head": "בית",
+   "inf": "",
+   "sense": "house",
+   "pos": "noun, masculine",
+   "facts": [
+    [
+     "Here",
+     "ל to + בית"
+    ]
+   ]
+  },
+  "l3w5": {
+   "he": "הַסֵּפֶר",
+   "head": "ספר",
+   "inf": "",
+   "sense": "book",
+   "pos": "noun, masculine",
+   "facts": [
+    [
+     "Here",
+     "ה the + ספר"
+    ]
+   ]
+  },
+  "l4w1": {
+   "he": "אַבָּא",
+   "head": "אבא",
+   "inf": "",
+   "sense": "dad; father",
+   "pos": "noun",
+   "facts": []
+  },
+  "l4w2": {
+   "he": "שׁוֹלֵחַ",
+   "head": "שלח",
+   "inf": "לשלוח",
+   "sense": "to send",
+   "pos": "verb",
+   "facts": [
+    [
+     "Binyan",
+     "pa’al"
+    ],
+    [
+     "Root",
+     "ש־ל־ח"
+    ]
+   ]
+  },
+  "l4w3": {
+   "he": "אוֹתִי",
+   "head": "את",
+   "inf": "",
+   "sense": "marks direct object",
+   "pos": "preposition",
+   "facts": []
+  },
+  "l4w4": {
+   "he": "לִמְכֹּר",
+   "head": "מכר",
+   "inf": "",
+   "sense": "to sell",
+   "pos": "noun, masculine",
+   "facts": [
+    [
+     "Here",
+     "ל to + מכר"
+    ]
+   ]
+  },
+  "l4w5": {
+   "he": "שְׂרוֹכִים",
+   "head": "שרוך",
+   "inf": "",
+   "sense": "shoelace",
+   "pos": "noun, masculine",
+   "facts": []
+  }
+ }
+}

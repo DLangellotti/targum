@@ -878,6 +878,27 @@ html { overflow-x: clip; }
 .reader.still .reader-foot a { font-weight: 600; }
 mark.w { color: inherit; }
 .reader.still .w, .how-vis .w { cursor: default; }
+/* With `landing.js` the still reader's words answer a tap (targum-internal#676); without
+   it they are words on a page, and nothing about them says otherwise. */
+.reader.still.live .w { cursor: pointer; }
+.reader.still:not(.live) .w:hover { background: none; }
+.reader.still .reader-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.reader.still .tap-hint { color: var(--muted); }
+/* The vowel switch, live: one line the switch turns (landing.js), the still picture's
+   second line and its motion put away. The letters' own settling is the front page's. */
+.vowels-vis.vs-live > .vs-with { display: none; }
+.vowels-vis.vs-live > div, .vowels-vis.vs-live > .vs-as .label, .vowels-vis.vs-live > .vs-as .vs-line { animation: none; }
+.vowels-vis .vs-l > .bare { text-decoration: none; }
+/* The glued word, live: the picture is the press. Closed, its pieces stand together at
+   the word's own size with their English hidden; apart, they ease open (landing.js). */
+.glued-vis.glued-live { cursor: pointer; }
+.glued-live .how-word { display: none; }
+.how-card .glued-live .glued .he { font-size: 1.75rem; line-height: 1.6; }
+.glued-live .glued, .glued-live .glued li > span:not(.he) { animation: none; }
+.glued-live .glued { transition: gap var(--in) var(--ease); }
+.glued-live .glued li > span:not(.he) { transition: opacity var(--in) var(--ease); }
+.glued-live:not(.apart) .glued { gap: 0; }
+.glued-live:not(.apart) .glued li > span:not(.he) { opacity: 0; }
 .how-vis .pair { padding: var(--space-2); background: var(--card); }
 .how-vis .pair .at { cursor: default; }
 .how-vis .line-he { font-size: 1.0625rem; line-height: 1.8; }

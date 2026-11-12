@@ -1680,6 +1680,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   posts it to the same box and shows the box's real answer, described and never built
   (`Library.describe`, no job written, nothing spent). Its own plain form, so it works
   with JavaScript off, and it is drawn only where the catalogue holds the row.
+  And it answers a touch, with the front page's own `landing.js`, which now runs without
+  its film (the film's parts, the Torah demo and the fold each run only where their page
+  draws them, so the front page behaves exactly as before): every word of the Shoelace
+  Seller's four lines opens in the word card beside it, by tap or by the arrows and
+  Enter; the vowel card's switch turns the line's vowels on and off; and לבית־הספר comes
+  apart into its pieces once it is in view, and closes or opens again on a tap. Each word
+  is as targum reads it (dictionary form, meaning, how it is built here, binyan, root),
+  held in `render/after_duolingo_story.json` from a local build of the public-domain
+  story with nothing translated or bought; the card here keeps no list, so it offers no
+  Learning, Known or Ask. Without JavaScript the page stands as drawn.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner
