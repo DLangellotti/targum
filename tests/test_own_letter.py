@@ -193,3 +193,15 @@ def test_a_gap_lemma_keeps_its_cut_unless_the_marks_say_infinitive() -> None:
 )
 def test_the_table_is_asked_in_ktiv_male(pointed: str, written: str) -> None:
     assert _male(_marked(pointed)) == written
+
+
+def test_forever_is_never_an_infinitive_and_to_win_is() -> None:
+    # DICTA reads לנצח "forever" as an adverb and leaves it whole, so nothing here
+    # reaches it (pm and ling-he on targum#1191; probed on three modern sentences).
+    forever = _token("לנצח", "נצח", "ADV", "ל to + נצח", "UPOS=ADV")
+    assert _mended(forever) is forever or _mended(forever).built == "ל to + נצח"
+    # Read by DICTA as the verb, לְנַצֵּחַ "to win" (or unpointed, as in "מתאמצים לנצח איש
+    # את חברו") keeps its ל.
+    for written in ("לְנַצֵּחַ", "לנצח"):
+        word = _mended(_token(written, "ניצח", "VERB", "ל to + נצח", "UPOS=VERB"))
+        assert (word.pos, word.built, word.lemma) == ("VERB", None, "ניצח")
