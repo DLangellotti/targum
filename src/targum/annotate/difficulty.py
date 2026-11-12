@@ -34,6 +34,7 @@ library needed the same number to say which of its texts a beginner could finish
 from __future__ import annotations
 
 import math
+import threading
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
 from functools import lru_cache
@@ -54,8 +55,20 @@ _bands = FrequencyBands()
 NOT_SENTENCES = frozenset({BlockKind.heading, BlockKind.byline})
 
 
-@lru_cache(maxsize=200_000)
 def band_of(lemma: str, language: str) -> int:
+    """The band a lemma falls in, in a language.
+
+    French is keyed on whether Morphalou was there to sum it (targum-internal#682): a band
+    measured without the lexicon is never the answer once the lexicon has arrived, so a
+    service that started before `targum models fetch morphalou` finished picks it up on
+    its next French word, without a restart.
+    """
+    french_summed = language.split("-")[0].lower() == "fr" and _french_sums() is not None
+    return _band_of(lemma, language, french_summed)
+
+
+@lru_cache(maxsize=200_000)
+def _band_of(lemma: str, language: str, french_summed: bool) -> int:
     code = language.split("-")[0].lower()
     if code == "arc":
         # wordfreq has no Aramaic, so every Aramaic text measured 0. The shelf's own
@@ -69,13 +82,13 @@ def band_of(lemma: str, language: str) -> int:
         summed = russian_zipf(lemma)
         if summed is not None:
             return band_for(summed)
-    if code == "fr":
-        summed = french_zipf(lemma)
-        if summed is not None:
+    if code == "fr" and french_summed:
+        total = french_zipf(lemma)
+        if total is not None:
             # Never harder than the dictionary form alone: a share of a form another
             # lemma also owns can leave a lemma below its own spelling (été the summer,
             # whose été is mostly être's), and the sum is here to undo an undercount.
-            return min(band_for(summed), _bands.band(lemma, language))
+            return min(band_for(total), _bands.band(lemma, language))
     return _bands.band(lemma, language)
 
 
@@ -176,8 +189,24 @@ def _french_key(word: str) -> str:
     return morphalou._bare_lemma(word)
 
 
-@lru_cache(maxsize=1)
+#: The sums, once they are made: never None, so a lexicon that was missing is looked for
+#: again on the next call rather than remembered as missing (targum-internal#682).
+_FRENCH_SUMS: dict[str, float] | None = None
+_FRENCH_SUMS_LOCK = threading.Lock()
+
+
 def _french_sums() -> dict[str, float] | None:
+    """Every French lemma's summed frequency, or None where this machine has no Morphalou
+    (or no wordfreq) yet.
+
+    Only a table that was read is kept. deploy.sh restarts the service before it fetches
+    Morphalou, so on a fresh or restored box the first French texts are measured before
+    the table lands; remembering that absence kept French without Morphalou until the
+    next restart. A miss costs one `stat` per call.
+    """
+    global _FRENCH_SUMS
+    if _FRENCH_SUMS is not None:
+        return _FRENCH_SUMS
     from . import morphalou
 
     if not morphalou.available():
@@ -192,7 +221,12 @@ def _french_sums() -> dict[str, float] | None:
         with path.open(encoding="utf-8", newline="") as handle:
             yield from (line.rstrip("\r\n") for line in handle)
 
-    return french_sums(lines, get_frequency_dict("fr"))
+    # One reading of the table at a time: two threads that both found it missing a moment
+    # ago would otherwise each read 106 MB twice over.
+    with _FRENCH_SUMS_LOCK:
+        if _FRENCH_SUMS is None:
+            _FRENCH_SUMS = french_sums(lines, get_frequency_dict("fr"))
+        return _FRENCH_SUMS
 
 
 def french_sums(
