@@ -25,6 +25,7 @@ from targum.annotate.russian import (
     stanza_asked,
     with_yo,
     yo_checked,
+    yo_repaired,
 )
 from targum.models import BlockKind, Segment
 
@@ -129,16 +130,140 @@ def test_a_yo_word_stanza_misread_takes_the_dictionarys_one_form() -> None:
     assert yo_checked("дома", "дом", ["дома"]) == "дом"
 
 
+def parsed(*words: tuple[str, str, str, int]) -> list[Piece]:
+    """A sentence as spaCy might parse it: (text, pos, dep, head) for each word. A
+    subject is in the nominative."""
+    out, idx = [], 0
+    for text, pos, dep, head in words:
+        morph = "Case=Nom" if dep.startswith("nsubj") else ""
+        out.append(Piece(text=text, idx=idx, pos=pos, morph=morph, dep=dep, head=head, lemma=text))
+        idx += len(text) + 1
+    return out
+
+
+def never(word: str, grammeme: str) -> bool:
+    """A dictionary with every word a noun, no verb transitive, nobody animate."""
+    return grammeme == "NOUN"
+
+
 def test_a_learner_looks_her_and_everything_up_by_their_own_words() -> None:
     """Possessive её is её, as их is их; её the object is она. всё, everything, is всё;
     всё agreeing with a noun is весь's (targum-internal#650)."""
-    assert pronoun("её", "PRON") == "она"
-    assert pronoun("Её", "DET") == "её"
-    assert pronoun("её", "PART") == "её"
-    assert pronoun("Всё", "PROPN") == "всё"
-    assert pronoun("всё", "PRON") == "всё"
-    assert pronoun("всё", "DET") is None
-    assert pronoun("дом", "NOUN") is None
+    sees_her = parsed(
+        ("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("её", "PRON", "obj", 1)
+    )
+    assert pronoun(sees_her, 2, "PRON", never) == "она"
+    her_house = parsed(("Её", "DET", "det", 1), ("дом", "NOUN", "ROOT", 1))
+    assert pronoun(her_house, 0, "DET", never) == "её"
+    assert pronoun(parsed(("Всё", "PROPN", "ROOT", 0)), 0, "PROPN", never) == "всё"
+    assert pronoun(parsed(("всё", "PRON", "ROOT", 0)), 0, "PRON", never) == "всё"
+    assert (
+        pronoun(parsed(("всё", "DET", "det", 1), ("время", "NOUN", "ROOT", 1)), 0, "DET", never)
+        is None
+    )
+    assert pronoun(parsed(("дом", "NOUN", "ROOT", 0)), 0, "NOUN", never) is None
+
+
+def test_possessive_his_goes_before_its_noun_and_is_no_verbs_object() -> None:
+    """Possessive его is его, as её and их are, whatever spaCy tags it: it goes before the
+    noun it hangs off, or straight after it. After a verb it is the verb's object, unless
+    the noun is (targum-internal#683)."""
+
+    def his(*words: tuple[str, str, str, int]) -> str | None:
+        sentence = parsed(*words)
+        at = next(n for n, w in enumerate(sentence) if w.text.lower() in {"его", "её", "их"})
+        return pronoun(sentence, at, sentence[at].pos, reads)
+
+    def reads(word: str, grammeme: str) -> bool:
+        if grammeme == "NOUN":
+            return word not in {"Одел", "убей"}
+        if grammeme == "VERB":
+            return word in {"Одел", "убей"}
+        if grammeme in {"ADVB", "ADJF"}:
+            return False
+        tran = {"хлопнув", "ожидают", "видел", "Одел", "сияет"}
+        return word in (tran if grammeme == "tran" else {"просители", "сапожник"})
+
+    assert (
+        his(("Его", "PRON", "nmod", 1), ("жена", "NOUN", "nsubj", 2), ("пришла", "VERB", "ROOT", 2))
+        == "его"
+    )
+    assert (
+        his(
+            ("о", "ADP", "case", 3),
+            ("его", "DET", "det", 3),
+            ("новой", "ADJ", "amod", 3),
+            ("книге", "NOUN", "ROOT", 3),
+        )
+        == "его"
+    )
+    assert (
+        his(("у", "ADP", "case", 1), ("отца", "NOUN", "ROOT", 1), ("его", "PRON", "nmod", 1))
+        == "его"
+    )
+    assert (
+        his(("видел", "VERB", "ROOT", 0), ("его", "PRON", "nmod", 2), ("брата", "NOUN", "obj", 0))
+        == "его"
+    )
+    assert his(("их", "PRON", "nmod", 1), ("дом", "NOUN", "ROOT", 1)) == "их"
+    # The objects ling-ru found filed as possessives.
+    assert (
+        his(("хлопнув", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("рукою", "NOUN", "obl", 0))
+        == "он"
+    )
+    assert (
+        his(
+            ("ожидают", "VERB", "ROOT", 0),
+            ("его", "DET", "det", 2),
+            ("просители", "NOUN", "nsubj", 0),
+        )
+        == "он"
+    )
+    assert (
+        his(
+            ("где", "ADV", "advmod", 2), ("его", "DET", "det", 2), ("похоронили", "VERB", "ROOT", 2)
+        )
+        == "он"
+    )
+    assert (
+        his(("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("его", "PRON", "obj", 1))
+        == "он"
+    )
+    assert (
+        his(("Его", "PRON", "nsubj", 1), ("не", "PART", "advmod", 2), ("было", "VERB", "ROOT", 2))
+        == "он"
+    )
+    assert his(("Это", "PRON", "nsubj", 1), ("его", "PRON", "ROOT", 1)) == "он"
+    assert (
+        his(("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("их", "PRON", "obj", 1))
+        == "они"
+    )
+    # After a verb, before its subject: a person's is the object, a thing's the possessive.
+    assert (
+        his(("Одел", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("сапожник", "NOUN", "nsubj", 0))
+        == "он"
+    )
+    assert (
+        his(("сияет", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("лицо", "NOUN", "nsubj", 0))
+        == "его"
+    )
+    # After a subject pronoun, or a word that is no noun whatever spaCy says: the object.
+    assert (
+        his(
+            ("мы", "PRON", "nsubj", 3),
+            ("его", "DET", "det", 2),
+            ("духом", "NOUN", "obl", 3),
+            ("поймаем", "VERB", "ROOT", 3),
+        )
+        == "он"
+    )
+    assert his(("Одел", "NOUN", "ROOT", 0), ("его", "PRON", "nmod", 0)) == "он"
+    assert (
+        his(("хоть", "ADV", "advmod", 2), ("его", "PRON", "det", 2), ("убей", "NOUN", "ROOT", 2))
+        == "он"
+    )
+    # A quantity's genitive is the pronoun's: тысячи их.
+    assert his(("тысячи", "NOUN", "ROOT", 0), ("их", "PRON", "nmod", 0)) == "они"
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:
@@ -291,6 +416,29 @@ def test_a_real_sentence(monkeypatch: pytest.MonkeyPatch) -> None:
         assert text[token.start : token.end] == token.surface
 
 
+def test_a_yo_word_takes_the_e_reading_only_where_it_repairs_the_tag() -> None:
+    """spaCy read идёт as a noun; asked идет it reads a verb. The е reading is taken only
+    for a ё-word whose own tag the dictionary has no reading under: землёю, a noun, keeps
+    it, and a word with no ё keeps its own however the е reading moved it
+    (targum-internal#683)."""
+    pymorphy3 = pytest.importorskip("pymorphy3")
+    morph = pymorphy3.MorphAnalyzer()
+    words = parsed(
+        ("Идёт", "NOUN", "ROOT", 0), ("землёю", "NOUN", "obl", 0), ("Вынимай", "VERB", "conj", 0)
+    )
+    folded = parsed(
+        ("Идет", "VERB", "ROOT", 0), ("землею", "VERB", "obl", 0), ("Вынимай", "PART", "conj", 0)
+    )
+    read = yo_repaired(words, folded, morph)
+    assert [(w.text, w.pos, w.lemma) for w in read] == [
+        ("Идёт", "VERB", ""),
+        ("землёю", "NOUN", "землёю"),
+        ("Вынимай", "VERB", "Вынимай"),
+    ]
+    # Read apart differently, the е reading is not taken at all.
+    assert yo_repaired(words, folded[:2], morph) == words
+
+
 def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.MonkeyPatch) -> None:
     """ёлке was filed under блок, мёда under мёда and осёл under осела: Stanza had no
     letter for ё (targum-internal#650)."""
@@ -310,6 +458,7 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
         "Она обо всём аккуратно расспрашивала.",
         "Её дочь поведала об этом.",
         "Всё в порядке.",
+        "Его жена видела его брата, а я вижу его.",
         "Эх ты… недотёпа!",
         "Здравствуйте! У вас есть копчёная рыба?",
         "Своими вздохами, нытьём, своими тёмными очками он давил нас всех.",
@@ -330,6 +479,10 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
     assert by["всём"] == "весь"
     assert by["Её"] == "её"
     assert by["Всё"] == "всё"
+    # Possessive его is его; the object его is он (targum-internal#683).
+    assert by["Его"] == "его"
+    his = [t for tokens in read.values() for t in tokens if t.surface == "его"]
+    assert [t.lemma for t in his] == ["его", "он"]
     assert by["недотёпа"] == "недотёпа"
     assert by["копчёная"] == "копчёный"
     assert by["нытьём"] == "нытьё"

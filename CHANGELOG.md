@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Possessive его is its own word, as её and их are, and spaCy's tag for a Russian word
+  with ё is repaired where it read the ё wrong (targum-internal#683). His brother (его
+  брата) was filed under он. Where spaCy calls его, её or их an object or a subject, that
+  stands. Otherwise the word is the possessive when it stands next to its noun, straight
+  after it or before it with only adjectives between. The exceptions are objects: after a
+  personal pronoun (мы его поймаем), a verb spaCy took for a noun (Одел его), a quantity
+  (тысячи их), or a transitive verb whose subject follows and is a person or an animal
+  (ожидают его просители). spaCy's tagger barely knows ё (идёт a noun, щёки a verb), so
+  a sentence with ё is read a second time with е. The е tag is taken only for a ё-word the
+  dictionary has no reading of under its own tag and has one under the е tag: about 300
+  of 3,123 on the laptop's shelf, and no word without ё moves. Over the 5,057 segments
+  with ё or его/её/их, 406 of 107,935 lemmas change, read one by one: 376 better, 28
+  worse, 2 neither. Both reach readers at ru-local's next rename, which this change does
+  not make. No spend, no new strings.
 - A long address in "We've sent a link to …" wraps on a phone (targum-internal#687).
   The line had nothing to break it, so a 60-character address widened a 320px page to
   653px: sideways scroll. It now wraps anywhere, in the account menu and on the sign-in
