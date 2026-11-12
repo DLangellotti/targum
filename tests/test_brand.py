@@ -1542,6 +1542,35 @@ def test_no_string_a_template_says_carries_hebrew_letters() -> None:
     assert not carrying, "§14: Hebrew letters inside a page's sentence:\n" + "\n".join(carrying)
 
 
+def test_no_string_python_says_carries_hebrew_letters() -> None:
+    """§14, line 3, for the strings the server says from Python (`strings.text`). The test
+    above reads the templates, so it never saw a key named in a `.py` file: the Grammar
+    tab's rules said ה and יו inside an English or a Russian sentence, drawn as text with
+    no `lang` and no `dir` (#477). A key is found as a literal anywhere in the package, a
+    dict of keys included; one built at run time from parts is not, which is a reason to
+    name keys whole. A Hebrew word goes in a blank, and what draws it tags the run."""
+    import json
+
+    strings = ROOT / "src/targum/strings"
+    english = json.loads((strings / "en.json").read_text(encoding="utf-8"))
+    named = re.compile(r'"([a-z][\w-]*(?:\.[\w-]+)+)"')
+    said = {
+        key
+        for module in (ROOT / "src/targum").rglob("*.py")
+        for key in named.findall(module.read_text(encoding="utf-8"))
+        if key in english
+    }
+    assert "practice.rule.suffix-3ms" in said, "the scan finds no key said from Python"
+    carrying = []
+    for code in ("en", "ru"):
+        catalogue = json.loads((strings / f"{code}.json").read_text(encoding="utf-8"))
+        for key in sorted(said):
+            value = catalogue.get(key)
+            if isinstance(value, str) and HEBREW_LETTER.search(value):
+                carrying.append(f"{code}: {key}")
+    assert not carrying, "§14: Hebrew letters in a sentence Python says:\n" + "\n".join(carrying)
+
+
 def test_the_text_pages_credit_links_are_teal() -> None:
     """§4, §10 and §13 (design's #477 finish bar, P1-1, 2026-11-12): the edition, its
     licence and the translation's publisher on every /library/<id> page drew the browser's

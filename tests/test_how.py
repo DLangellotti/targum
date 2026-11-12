@@ -116,3 +116,23 @@ def test_it_is_reached_from_about_and_not_the_foot(page: str) -> None:
     assert 'href="/how"' in about_page()
     foot = re.search(r"<footer.*?</footer>", page, re.S)
     assert foot and 'href="/how"' not in foot.group(0)
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_vowels_open_as_a_pointed_by_us_text_opens(language: str) -> None:
+    """targum-internal#477. A text whose points are mostly ours opens bare, and the reader
+    turns them on (`sourceMarked` in reader.js); only one whose source brought them opens
+    pointed. The example is the weekly's, pointed by us, so it opens bare too, and the line
+    above it no longer says the reader takes the points off."""
+    page = how_page(language)
+    section = re.search(r'<section class="part" id="vowels">(.*?)</section>', page, re.S)
+    assert section
+    switch = re.search(r'<input[^>]*id="how-points"[^>]*>', section.group(1))
+    assert switch and "checked" not in switch.group(0), "the example opens pointed"
+    said = re.search(r"<p>(.*?)</p>", section.group(1), re.S)
+    assert said
+    line = said.group(1)
+    if language == "en":
+        assert "turn them on" in line and "take the points off" not in line
+    else:
+        assert "включаете" in line and "убрать" not in line

@@ -229,6 +229,28 @@
     return line;
   }
 
+  // A rule is an English or a Russian sentence that names Hebrew letters, ה or יו, said
+  // from the server as plain text (`practices.rule`). Each Hebrew run is drawn as its own
+  // element with its language and direction (design.md §14, line 3; targum-internal#477),
+  // the rest as text: nothing in it is ever parsed as markup.
+  var HEBREW_RUN = /[\u0590-\u05FF\uFB1D-\uFB4F]+/g;
+  function ruleText(text) {
+    var line = el("p", "grammar-rule");
+    var whole = String(text || "");
+    var from = 0;
+    whole.replace(HEBREW_RUN, function (run, at) {
+      if (at > from) line.appendChild(document.createTextNode(whole.slice(from, at)));
+      var span = el("span", "", run);
+      span.setAttribute("lang", "he");
+      span.setAttribute("dir", "rtl");
+      line.appendChild(span);
+      from = at + run.length;
+      return run;
+    });
+    if (from < whole.length) line.appendChild(document.createTextNode(whole.slice(from)));
+    return line;
+  }
+
   function drawRound() {
     var host = at("grammar-round");
     if (!host) return;
@@ -309,7 +331,7 @@
             ? sentence(t("practice.page.right", "Yes, {said}.", KEEP), item.said, "grammar-verdict")
             : sentence(t("practice.page.wrong", "It's {said} here.", KEEP), item.said, "grammar-verdict")
       );
-      said.appendChild(el("p", "grammar-rule", item.rule));
+      said.appendChild(ruleText(item.rule));
       if (item.contrast) {
         said.appendChild(sentence(t("practice.page.other", "Where it's {said}:", KEEP), item.contrast.said, "grammar-other"));
         said.appendChild(lineOf(item.contrast, "practise-line grammar-other-line"));
