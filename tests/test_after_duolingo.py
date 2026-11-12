@@ -147,7 +147,7 @@ def test_the_page_names_duolingo_and_says_it_is_not_theirs(shelf: None) -> None:
     page = after_duolingo_page(ADDRESS)
     assert "<h1>You finished Duolingo Hebrew. Now learn from real Hebrew.</h1>" in page
     assert "targum isn’t affiliated with Duolingo." in page
-    assert "<title>targum — what to read after Duolingo Hebrew</title>" in page
+    assert "<title>After Duolingo Hebrew: what to read next — targum</title>" in page
     assert f'<link rel="canonical" href="{ADDRESS}/after-duolingo">' in page
 
 
@@ -175,6 +175,21 @@ def test_the_first_texts_are_the_library_s_own_rows(shelf: None) -> None:
     assert "Why does a small cola cost more than a big one?" in page
     assert "<b>A1</b> · Video · 3 minutes" in page
     assert "<b>A1</b> · Story · 3 minutes" in page
+
+
+def test_with_the_library_shut_the_first_texts_are_named_without_links(shelf: None) -> None:
+    """A link to a library page a stranger cannot open ends at a refusal (qa-claude on
+    targum#1187), so with the shelves shut the texts are named and not linked."""
+    page = after_duolingo_page(ADDRESS, linked=False)
+    assert 'class="letter first" href' not in page
+    assert '<div class="letter first">' in page
+    assert "The Shoelace Seller" in page
+
+
+def test_the_bar_s_faq_is_this_page_s_questions(shelf: None) -> None:
+    page = after_duolingo_page(ADDRESS)
+    assert '<a href="#questions">FAQ</a>' in page
+    assert 'id="questions"' in page
 
 
 def test_the_box_is_the_front_door_s_box_and_names_its_page(shelf: None) -> None:
@@ -220,7 +235,7 @@ def test_joining_here_is_counted_as_here(
 def test_a_try_here_answers_here_and_builds_nothing(
     served: tuple[int, Store], shelf: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    port, _ = served
+    port, store = served
     monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
 
     def describe(url: str) -> dict[str, Any]:
@@ -243,3 +258,5 @@ def test_a_try_here_answers_here_and_builds_nothing(
         '<input type="hidden" name="link" value="https://www.youtube.com/watch?v=abcdefghijk">'
         in page
     )
+    # Described, never built: no job was written for it.
+    assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0

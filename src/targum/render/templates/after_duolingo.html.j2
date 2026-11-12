@@ -31,7 +31,7 @@
 {#- The bar's places are the front door's, so `home` is its address. Its RU goes to the
     Russian front page: this page has no Russian yet. Sign in and Sign up carry where the
     visitor came from. -#}
-{% with bar_class = 'bar', home = '/', here = '/', join = '#join', signin = '/account/signin?lang=en&from=' ~ came_from %}{% include '_front_bar.html.j2' %}{% endwith %}
+{% with bar_class = 'bar', home = '/', faq = '#questions', here = '/', join = '#join', signin = '/account/signin?lang=en&from=' ~ came_from %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top">
   <div class="col top olim">
@@ -39,7 +39,7 @@
       <div class="headline">
         <p class="label">After Duolingo</p>
         <h1>You finished Duolingo Hebrew. Now learn from real Hebrew.</h1>
-        <p class="lede">Paste a link to a Hebrew video or article and read it with the vowels in and English beside every line.</p>
+        <p class="lede">Paste a link to a Hebrew video or article and read it with English beside every line and the vowels whenever you want them.</p>
         {% include '_try_box.html.j2' %}
         <p class="try-else">Nothing to paste yet? Start with one of our <a href="#firsts">first texts</a>.</p>
       </div>
@@ -51,13 +51,23 @@
       <h2 class="firsts-head">Start with one of these.</h2>
       <p class="firsts-note">All three are in the library, free to read.</p>
       {%- for first in firsts %}
+      {#- Each opens its page in the library, where the library is open to strangers;
+          where it is not, the text is named without a link that would end at a refusal. -#}
+      {%- if linked %}
       <a class="letter first" href="{{ first.href }}">
+      {%- else %}
+      <div class="letter first">
+      {%- endif %}
         <span class="first-meta">{% if first.level %}<b>{{ first.level }}</b> · {% endif %}{{ first.kind }} · {{ tn("landing.try.minutes", first.minutes, "{n} minute", "{n} minutes") }}</span>
         <span class="first-title">{{ first.english }}</span>
         <span class="he" lang="he" dir="rtl">{{ first.hebrew }}</span>
         <span class="letter-en">{{ first.blurb }}</span>
+        {%- if linked %}
         <span class="first-go">{{ first.verb }}</span>
       </a>
+        {%- else %}
+      </div>
+        {%- endif %}
       {%- endfor %}
     </nav>
   </div>
@@ -72,7 +82,7 @@
       <ul class="how four">
         <li class="how-card">
           <h3>Most Hebrew has no vowels.</h3>
-          <p>Courses show you the vowel marks. Articles, subtitles and signs leave them out. We put them back on every word, and you can turn them off when you’re ready.</p>
+          <p>Real Hebrew is written without them. Here you can turn them on for the whole text whenever you need them, and off again when you don’t.</p>
         </li>
         <li class="how-card">
           <h3>Small words get glued on.</h3>

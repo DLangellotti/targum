@@ -8136,6 +8136,7 @@ class Handler(BaseHTTPRequestHandler):
                 address=self.address,
                 signed_in=self._person() is not None,
                 tried=tried,
+                linked=shelves_are_public(),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
@@ -9939,6 +9940,7 @@ class Handler(BaseHTTPRequestHandler):
             page = after_duolingo_page(
                 address=self.address,
                 signed_in=self._person() is not None,
+                linked=shelves_are_public(),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:

@@ -2932,6 +2932,7 @@ def after_duolingo_page(
     address: str = "",
     signed_in: bool = False,
     tried: dict[str, Any] | None = None,
+    linked: bool = True,
 ) -> str:
     """The page for somebody who has finished Duolingo Hebrew, or a course like it, at
     `/after-duolingo` (targum-internal#676, step 3).
@@ -2950,6 +2951,8 @@ def after_duolingo_page(
 
     `signed_in` takes the waitlist off the page, as on `/aliyah`. `tried` is the box's
     answer when a link was tried here (`serve._try_post` with `on=after-duolingo`).
+    `linked` is whether a stranger can open a library text (`serve.shelves_are_public`):
+    where not, the first texts are named without links that would end at a refusal.
     """
     words = page_words("en")
     here = f"{address.rstrip('/')}/after-duolingo" if address else ""
@@ -2963,11 +2966,11 @@ def after_duolingo_page(
             # The page is English, so every form on it asks for English answers and mail.
             asked="en",
             signed_in=signed_in,
-            title="targum — what to read after Duolingo Hebrew",
+            title="After Duolingo Hebrew: what to read next — targum",
             description=(
                 "You finished Duolingo Hebrew. Now learn from real Hebrew. Paste a link to "
-                "a video or an article and read it with the vowels in and English beside "
-                "every line."
+                "a video or an article and read it with English beside every line and the "
+                "vowels whenever you want them."
             ),
             canonical=here,
             alternates=[],
@@ -2976,6 +2979,7 @@ def after_duolingo_page(
             came_from=AFTER_DUOLINGO_FROM,
             tried=tried,
             firsts=after_duolingo_firsts(),
+            linked=linked,
         )
     )
 
