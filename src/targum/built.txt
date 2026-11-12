@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-11
+In Hebrew, Your Progress shows how much of each topic you can read, with common words counting for more.
+A Russian word written with ё keeps its own dictionary form on its card, so ёлке is ёлка.
+A Russian root's family keeps one meaning across wording, such as beauty beside beautiful.
+
 2026-11-10
 In the AI Assistant, a line that starts in Hebrew reads right to left; English quoting a Hebrew word does not.
 Home and Your Progress open quickly again.
