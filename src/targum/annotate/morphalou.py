@@ -274,6 +274,10 @@ def fetch(notify: Callable[[str], None] | None = None) -> int:
     """
     say = notify or (lambda _message: None)
     target = ensure(directory())
+    # A fetch killed outright (SIGKILL, the OOM killer) runs no `finally`: its partial
+    # files are swept here, by the next one.
+    for stale in target.glob(".*.part"):
+        stale.unlink(missing_ok=True)
     part = f"{os.getpid()}.part"
     archive = target / f".{ARCHIVE}.{part}"
     licence = target / f".{LICENCE_FILE}.{part}"

@@ -225,6 +225,9 @@ def test_the_fetch_streams_the_zip_to_disk_and_the_table_out_of_it(
     """targum-internal#682: the 38 MB zip was held in memory and the 106 MB table decoded
     and re-encoded out of it, ~790 MB at the peak, beside the service on every deploy."""
     assert morphalou.available() is False
+    stale = morphalou.directory() / f".{morphalou.ARCHIVE}.1.part"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"left by a fetch that was killed")
     size = morphalou.fetch()
     folder = morphalou.directory()
     assert (folder / morphalou.TABLE).read_text(encoding="utf-8") == TABLE
