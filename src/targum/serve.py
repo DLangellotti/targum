@@ -77,6 +77,7 @@ from .render.builder import (
     LINK_PREVIEW,
     LINK_PREVIEW_ROUTE,
     about_page,
+    after_duolingo_page,
     aliyah_page,
     approve_page,
     asset_files,
@@ -697,6 +698,9 @@ OPEN_TO_STRANGERS = frozenset(
         # The olim's own door (targum-internal#385): a page in front of the door, read
         # by somebody who has no account yet, like the front door it stands beside.
         "/aliyah",
+        # The page for somebody who has finished Duolingo Hebrew or a course like it
+        # (targum-internal#676): in front of the door, like /aliyah.
+        "/after-duolingo",
         # The front page's box (targum-internal#399): a stranger pastes a link and is
         # told what it is. Describes and builds nothing.
         "/try",
@@ -975,7 +979,7 @@ def joined_from(said: str) -> str:
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
         return "/"
-    if first in {"aliyah", "connect", "weekly", "parasha", "siddur"}:
+    if first in {"aliyah", "after-duolingo", "connect", "weekly", "parasha", "siddur"}:
         return f"/{first}"
     if first and first in {cycle.slug for cycle in daily_cycles()}:
         return f"/{first}"
@@ -8089,7 +8093,10 @@ class Handler(BaseHTTPRequestHandler):
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
-        said = self._public_language()
+        # /after-duolingo is English only (targum-internal#676), so a try pressed there is
+        # answered in English whatever the browser asks for.
+        on_guide = form.get("on") == "after-duolingo"
+        said = "en" if on_guide else self._public_language()
         link = (form.get("link") or "").strip()
         tried: dict[str, Any]
         if not link:
@@ -8122,6 +8129,15 @@ class Handler(BaseHTTPRequestHandler):
             }
         else:
             tried = tried_for(self.library.describe(link, said), said)
+        # The box stands on /after-duolingo too (targum-internal#676), and answers on the
+        # page it was pressed on. That page is English only, so its answer is too (`said`).
+        if on_guide:
+            page = after_duolingo_page(
+                address=self.address,
+                signed_in=self._person() is not None,
+                tried=tried,
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
         page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -8640,7 +8656,7 @@ class Handler(BaseHTTPRequestHandler):
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
         paths = ["/", "/about", "/how", "/library"]
         if front_door_is_open():
-            paths.append("/aliyah")
+            paths += ["/aliyah", "/after-duolingo"]
         if connector_is_open():
             paths.append("/connect")
         if legal_is_public():
@@ -9910,6 +9926,18 @@ class Handler(BaseHTTPRequestHandler):
                 language=self._public_language(),
                 address=self.address,
                 asked=self._asked(),
+                signed_in=self._person() is not None,
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        # The page for course graduates (targum-internal#676), on /aliyah's terms: there
+        # while the front door is, because its one ask is the door's.
+        if route == "/after-duolingo":
+            if not front_door_is_open():
+                return self._send(404, b"not found", "text/plain")
+            # TODO(targum#1186): hand the page came_from(<this query>) or "after-duolingo",
+            # so an ad's utm_source rides in the form; whichever PR merges second wires it.
+            page = after_duolingo_page(
+                address=self.address,
                 signed_in=self._person() is not None,
             )
             return self._send(200, page.encode("utf-8"), HTML)

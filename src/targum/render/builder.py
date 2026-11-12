@@ -2883,6 +2883,103 @@ def aliyah_page(
     )
 
 
+#: The three first texts /after-duolingo offers (targum-internal#676): real library rows,
+#: modern, measured A1 or A2, each a few minutes, and none of them about life in Israel
+#: (the page assumes no country). A video, a story and a learners' TV episode, so the
+#: page shows that a video is read as a text is. A row the catalogue on this machine
+#: does not hold is left out rather than drawn from memory.
+AFTER_DUOLINGO_FIRSTS: tuple[str, ...] = (
+    "kan-small-cola",
+    "yatziv-shoelace-seller",
+    "kan-simantov-room-for-two",
+)
+
+#: What the page's own forms and links say about where somebody came from: the form's
+#: `from` field (`serve.joined_from`) and `?from=` on the links out of it.
+AFTER_DUOLINGO_FROM = "after-duolingo"
+
+
+def after_duolingo_firsts() -> list[dict[str, Any]]:
+    """The first texts, as the page draws them: English title, Hebrew title, level, kind,
+    minutes and the library's own blurb, read off the catalogue so the page and the
+    library never say two things about one text."""
+    from ..catalogue import by_id
+    from ..levelmap import text_level
+
+    firsts: list[dict[str, Any]] = []
+    for entry_id in AFTER_DUOLINGO_FIRSTS:
+        entry = by_id(entry_id)
+        if entry is None:
+            continue
+        video = entry.source.startswith("video:")
+        firsts.append(
+            {
+                "id": entry.id,
+                "english": entry.english or entry.title,
+                "hebrew": entry.title,
+                "level": text_level(entry),
+                "kind": "Video" if video else "Story" if entry.kind.value == "story" else "Text",
+                "verb": "Watch" if video else "Read",
+                "minutes": entry.minutes,
+                "blurb": entry.blurb,
+                "href": f"/library/{entry.id}?from={AFTER_DUOLINGO_FROM}",
+            }
+        )
+    return firsts
+
+
+def after_duolingo_page(
+    address: str = "",
+    signed_in: bool = False,
+    tried: dict[str, Any] | None = None,
+) -> str:
+    """The page for somebody who has finished Duolingo Hebrew, or a course like it, at
+    `/after-duolingo` (targum-internal#676, step 3).
+
+    The landing for stage 1 of the go-to-market (David, 2026-11-10): it says why course
+    Hebrew and real Hebrew feel different, carries the front page's own box
+    (`_try_box.html.j2`, answered by `Library.describe`, which never spends), and offers
+    three graded first texts from the library. Duolingo is named, and the page says once
+    that targum is not affiliated with it; nothing on it is Duolingo's, and no word list
+    of theirs is marked known.
+
+    English only for now. It is rendered in English whatever the browser asks, so a
+    Russian visitor reads one language rather than half of each; the bar's RU goes to the
+    Russian front page. Drawn from the front door's parts and held to its rules: every
+    file baked in, nothing fetched from anybody else's origin.
+
+    `signed_in` takes the waitlist off the page, as on `/aliyah`. `tried` is the box's
+    answer when a link was tried here (`serve._try_post` with `on=after-duolingo`).
+    """
+    words = page_words("en")
+    here = f"{address.rstrip('/')}/after-duolingo" if address else ""
+    return (
+        _environment()
+        .get_template("after_duolingo.html.j2")
+        .render(
+            t=words,
+            tn=page_counts("en"),
+            page_language="en",
+            # The page is English, so every form on it asks for English answers and mail.
+            asked="en",
+            signed_in=signed_in,
+            title="targum — what to read after Duolingo Hebrew",
+            description=(
+                "You finished Duolingo Hebrew. Now learn from real Hebrew. Paste a link to "
+                "a video or an article and read it with the vowels in and English beside "
+                "every line."
+            ),
+            canonical=here,
+            alternates=[],
+            joined_from=AFTER_DUOLINGO_FROM,
+            try_on=AFTER_DUOLINGO_FROM,
+            came_from=AFTER_DUOLINGO_FROM,
+            tried=tried,
+            firsts=after_duolingo_firsts(),
+        )
+    )
+
+
 def holding_page(language: str = "en") -> str:
     """What a stranger sees while the product is not open yet.
 

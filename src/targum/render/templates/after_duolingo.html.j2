@@ -1,0 +1,118 @@
+{#- The page for somebody who has finished Duolingo Hebrew, or a course like it, at
+    `/after-duolingo` (targum-internal#676, step 3; David, 2026-11-10).
+
+    The end of a course is a moment people search for, so this page answers it: why the
+    Hebrew of a course and the Hebrew of a video feel so different, the front page's own
+    box to try a link of theirs, and three graded first texts from the library. Its one
+    ask is the front door's, the waitlist or Sign up, and the form says it was pressed
+    here (`from=after-duolingo`).
+
+    Duolingo is named (David lifted "competitors never named" for this audience on
+    2026-11-10), and the page says once, in its questions, that targum is not affiliated
+    with it. Nothing on it is Duolingo's: no logo, colour or character, and no list of
+    their words is marked known.
+
+    English only. Its lines are written here rather than through the catalogue: a key in
+    `en.json` with no Russian beside it fails `test_strings.py`, and a Russian edition is
+    ling-ru's to write, so the page waits for one rather than carrying half of each.
+
+    Drawn from the front door's parts and held to its rules (§12, 2026-10-30): every file
+    baked in or named on targum's own origin, nothing from anybody else's. -#}
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+{{ styles('landing.css') }}
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="landing">
+<a class="skip" href="#top">{{ t("landing.page.skip-to-the-page", "Skip to the page") }}</a>
+{#- The bar's places are the front door's, so `home` is its address. Its RU goes to the
+    Russian front page: this page has no Russian yet. Sign in and Sign up carry where the
+    visitor came from. -#}
+{% with bar_class = 'bar', home = '/', here = '/', join = '#join', signin = '/account/signin?lang=en&from=' ~ came_from %}{% include '_front_bar.html.j2' %}{% endwith %}
+
+<main id="top">
+  <div class="col top olim">
+    <div class="hero">
+      <div class="headline">
+        <p class="label">After Duolingo</p>
+        <h1>You finished Duolingo Hebrew. Now learn from real Hebrew.</h1>
+        <p class="lede">Paste a link to a Hebrew video or article and read it with the vowels in and English beside every line.</p>
+        {% include '_try_box.html.j2' %}
+        <p class="try-else">Nothing to paste yet? Start with one of our <a href="#firsts">first texts</a>.</p>
+      </div>
+    </div>
+    {#- Where the front door's word card stands, three real texts from the library,
+        measured A1 or A2 (`AFTER_DUOLINGO_FIRSTS`). Each opens its public page. -#}
+    <nav class="letters firsts" id="firsts" aria-labelledby="firstsHead">
+      <p class="label" id="firstsHead">First texts</p>
+      <h2 class="firsts-head">Start with one of these.</h2>
+      <p class="firsts-note">All three are in the library, free to read.</p>
+      {%- for first in firsts %}
+      <a class="letter first" href="{{ first.href }}">
+        <span class="first-meta">{% if first.level %}<b>{{ first.level }}</b> · {% endif %}{{ first.kind }} · {{ tn("landing.try.minutes", first.minutes, "{n} minute", "{n} minutes") }}</span>
+        <span class="first-title">{{ first.english }}</span>
+        <span class="he" lang="he" dir="rtl">{{ first.hebrew }}</span>
+        <span class="letter-en">{{ first.blurb }}</span>
+        <span class="first-go">{{ first.verb }}</span>
+      </a>
+      {%- endfor %}
+    </nav>
+  </div>
+
+  <section class="part" id="why">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">After a course</p>
+        <h2>Why real Hebrew feels harder</h2>
+        <p>A course builds every sentence around words you’ve just practised. A news clip or a TV show doesn’t wait for you, so Hebrew you already know can look new.</p>
+      </div>
+      <ul class="how four">
+        <li class="how-card">
+          <h3>Most Hebrew has no vowels.</h3>
+          <p>Courses show you the vowel marks. Articles, subtitles and signs leave them out. We put them back on every word, and you can turn them off when you’re ready.</p>
+        </li>
+        <li class="how-card">
+          <h3>Small words get glued on.</h3>
+          <p>“And”, “the”, “in” and “to” join the front of the next word, so <span class="he" lang="he" dir="rtl">ובבית</span> doesn’t look like <span class="he" lang="he" dir="rtl">בית</span>. Tap it and you see the word you already know.</p>
+        </li>
+        <li class="how-card">
+          <h3>People talk fast.</h3>
+          <p>Videos and podcasts are written out word by word and timed to the voice, so each word lights up as it’s said.</p>
+        </li>
+        <li class="how-card">
+          <h3>There’s no list to finish.</h3>
+          <p>Read anything you like. We keep count of every word you learn, and each text tells you how much of it you already know.</p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Will targum know the words I learned on Duolingo?</summary><p>Not by itself. When you join, we show you some Hebrew words and you mark the ones you know.</p></details>
+        <details><summary>Do I need to finish the whole course first?</summary><p>No. If you can read the letters and know a few hundred words, the A1 texts are a good place to start.</p></details>
+        <details><summary>Is targum part of Duolingo?</summary><p>No. targum isn’t affiliated with Duolingo. We built it for learners who have finished a course like it.</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        {% if not door_is_open() %}
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {%- if not signed_in|default(false) %}
+  {% include '_join_end.html.j2' %}
+  {%- endif %}
+</main>
+
+{% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+</body>
+</html>

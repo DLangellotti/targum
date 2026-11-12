@@ -1653,6 +1653,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- `/after-duolingo`, a page for people who have finished Duolingo Hebrew or a course like
+  it, anywhere (targum-internal#676, step 3; David, 2026-11-10). It says why the Hebrew of
+  a course and the Hebrew of a video feel so different, carries the front page's own box
+  (now one partial, `_try_box.html.j2`, answered on the page it was pressed on and still
+  spending nothing), and offers three first texts from the library, read off the
+  catalogue: "Why does a small cola cost more than a big one?" (A1, video), "The
+  Shoelace Seller" (A1, story) and "Hebrew with Simantov: A Room for Two" (A2, video). Its
+  one ask is the front door's, the waitlist or Sign up by the switch, and every form on
+  it says `from=after-duolingo`, so `waiting.page` counts it as `/after-duolingo`.
+  Duolingo is named and the page says once that targum is not affiliated with it; no
+  Duolingo word list is marked known. English only, light only like every page in front
+  of the door, and nothing loaded from another origin. No spend, no new catalogue strings.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner
