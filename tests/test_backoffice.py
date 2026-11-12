@@ -374,6 +374,25 @@ def test_the_waitlist_says_which_page_each_joined_from(tmp_path: Path) -> None:
     assert "Joined from /aliyah 1 &middot; / 1 &middot; unknown 1" in page
 
 
+def test_accounts_say_which_page_or_link_brought_them(tmp_path: Path) -> None:
+    """targum-internal#676: somebody let in keeps the page or tag they joined the waitlist
+    by, a signup keeps its own, and the back office counts accounts by it beside the
+    waitlist's count."""
+    store = Store(tmp_path / "targum.db")
+    store.join_waitlist("a@example.com", "en", "meta.after-duolingo")
+    store.invite("a@example.com")
+    assert store.account_for_invited("a@example.com") is not None
+    store.start_sign_in("b@example.com", "meta.after-duolingo")
+    store.start_sign_in("c@example.com")
+
+    found = survey(store.db, today=date(2026, 10, 1))
+    assert found.waiting_by_page == {"meta.after-duolingo": 1}
+    assert found.accounts_by_came_from == {"meta.after-duolingo": 2, "": 1}
+    page = back_office_page(found, 30)
+    assert "Joined from meta.after-duolingo 1" in page
+    assert "Accounts from meta.after-duolingo 2 &middot; unknown 1" in page
+
+
 def test_a_store_from_before_the_page_reads_as_unknown(tmp_path: Path) -> None:
     """A survey over a database written before schema 37 has no `page` column, and the
     page is not the place to find that out."""

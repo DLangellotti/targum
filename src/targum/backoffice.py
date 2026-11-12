@@ -442,8 +442,12 @@ class Survey:
     waiting_list: list[Waiting] = field(default_factory=list)
     #: Confirmed and not yet let in — the number the door's own press would take from.
     waiting_for_a_way_in: int = 0
-    #: How many joined through each of targum's pages; "" is unknown.
+    #: How many joined through each of targum's pages, or each link's tag (#676); ""
+    #: is unknown.
     waiting_by_page: dict[str, int] = field(default_factory=dict)
+    #: How many accounts came in by each page or link tag (targum-internal#676): the
+    #: open door's signups, and those let in from the waitlist. "" is unknown.
+    accounts_by_came_from: dict[str, int] = field(default_factory=dict)
     #: What came in through the connector in the window (targum-internal#408): texts
     #: quoted from a host, how many of those the reader pressed, how many finished, and
     #: sets made there. Read off the job and playlist rows, which say so themselves, so
@@ -1243,6 +1247,18 @@ def _waitlist(
             for row in db.execute(
                 f"SELECT page, COUNT(*) AS n FROM waiting {mine}"  # noqa: S608
                 " GROUP BY page ORDER BY n DESC, MIN(asked), MIN(rowid)",
+                named,
+            )
+        }
+    # And by account (targum-internal#676): with the door open, a signup never has a
+    # waitlist row, so the channel is counted here too. Absent before schema 63.
+    with contextlib.suppress(sqlite3.Error):
+        people = NOT_MINE.format(column="p.email")
+        found.accounts_by_came_from = {
+            str(row["came_from"] or ""): int(row["n"])
+            for row in db.execute(
+                f"SELECT came_from, COUNT(*) AS n FROM person p WHERE {people}"  # noqa: S608
+                " GROUP BY came_from ORDER BY n DESC, MIN(made), MIN(id)",
                 named,
             )
         }

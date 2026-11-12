@@ -425,10 +425,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    (targum-internal#485). A new table, so `CREATE TABLE IF NOT EXISTS` is the whole
 #    migration.
 #
+# 62→63: person.came_from — which page, or which link's tag, a new account came in by,
+#    copied from its waitlist row where it had one (targum-internal#676). One added
+#    column with a default, so the migration is one ALTER.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 62
+SCHEMA_VERSION = 63
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -913,24 +917,38 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE find ADD COLUMN series TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN part INTEGER NOT NULL DEFAULT -1",
     "ALTER TABLE find ADD COLUMN season INTEGER NOT NULL DEFAULT 0",
+    # Which page, or which link's tag, an account came in by (schema 63,
+    # targum-internal#676): what `waiting.page` says of a row, said of an account, so a
+    # channel is counted whether the door was open or the account was let in. Empty on
+    # every account before it, and on any that came in some other way.
+    "ALTER TABLE person ADD COLUMN came_from TEXT NOT NULL DEFAULT ''",
 )
 
 
-def _open_account(db: sqlite3.Connection, address: str) -> None:
+def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> None:
     """An account for this address, unless it has one, under an id never given before.
 
     Inside the caller's write transaction. sqlite alone would give `max(id) + 1`, which
     is a deleted account's id again whenever the newest account was the one deleted;
-    `person_high` remembers past it (targum-internal#679)."""
+    `person_high` remembers past it (targum-internal#679).
+
+    `came_from` is the page or link tag the open door's form stood on, already narrowed
+    by the caller; where it says nothing, the waitlist row's `page` is kept instead, so
+    somebody let in is counted by the door they joined at (targum-internal#676). Only a
+    new account takes it: an old one keeps what brought it first."""
     if db.execute("SELECT 1 FROM person WHERE email = ?", (address,)).fetchone() is not None:
         return
     row = db.execute(
         "SELECT MAX(COALESCE((SELECT MAX(id) FROM person), 0),"
         " COALESCE((SELECT id FROM person_high WHERE one = 1), 0)) + 1"
     ).fetchone()
+    if not came_from:
+        waited = db.execute("SELECT page FROM waiting WHERE email = ?", (address,)).fetchone()
+        came_from = str(waited["page"] or "") if waited is not None else ""
     db.execute(
-        "INSERT INTO person (id, email, made) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING",
-        (int(row[0]), address, now()),
+        "INSERT INTO person (id, email, made, came_from) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT(email) DO NOTHING",
+        (int(row[0]), address, now(), came_from),
     )
 
 
@@ -4194,16 +4212,18 @@ class Store:
         ).fetchone()
         return row is not None
 
-    def start_sign_in(self, email: str) -> str:
+    def start_sign_in(self, email: str, came_from: str = "") -> str:
         """Mint a link for this address, making the account if there is not one.
 
         Signing up and signing in are the same act on purpose. There is no form to
         fill in, nothing to confirm, and no state where an account half exists.
+
+        `came_from` is kept on an account made here (`_open_account`, #676).
         """
         address = tidy(email)
         token = secrets.token_urlsafe(TOKEN_BYTES)
         with self.write() as db:
-            _open_account(db, address)
+            _open_account(db, address, came_from)
             row = db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
             # Any link minted earlier is void: asking for a new one is what someone does
             # when the first did not arrive, and two live links is one more than needed.

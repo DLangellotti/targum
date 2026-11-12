@@ -970,7 +970,15 @@ def joined_from(said: str) -> str:
     to write whatever a request says, and nothing about where somebody was before
     targum is kept at all. `/siddur` is the one family that is not a page: the front page
     says it for a link of our own marked `?from=siddur-…`.
+
+    Or a bare tag, the one a link of ours carried (`came_from`, targum-internal#676):
+    lowercase letters, digits, `.`, `_` and `-`, at most 32, so the channel an ad or a
+    post brought somebody through is counted without any pixel. A tag is never a free
+    text: anything else in the field is a path or nothing.
     """
+    slug = said.strip().lower()
+    if CAME_FROM.fullmatch(slug):
+        return slug
     path = urlparse(said.strip()).path or ""
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
@@ -980,6 +988,32 @@ def joined_from(said: str) -> str:
     if first and first in {cycle.slug for cycle in daily_cycles()}:
         return f"/{first}"
     return ""
+
+
+#: What a link's own tag may be (targum-internal#676): short, and nothing a reader could
+#: be shown as words.
+CAME_FROM = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}")
+
+
+def came_from(query: str) -> str:
+    """The tag a link to one of our pages carried, for the waitlist form's `from`, or "".
+
+    `?from=<tag>` where the link has one, else `utm_source`, joined to `utm_campaign`
+    with a dot where both fit (`meta.after-duolingo`). Each is kept only if it is a tag
+    `CAME_FROM` allows, lowercased; nothing else in the address is read.
+    """
+    asked = parse_qs(query)
+
+    def tag(name: str) -> str:
+        said = (asked.get(name) or [""])[0].strip().lower()
+        return said if CAME_FROM.fullmatch(said) else ""
+
+    if tag("from"):
+        return tag("from")
+    source, campaign = tag("utm_source"), tag("utm_campaign")
+    if source and campaign and CAME_FROM.fullmatch(f"{source}.{campaign}"):
+        return f"{source}.{campaign}"
+    return source or campaign
 
 
 def kept_link(said: str) -> str:
@@ -7992,6 +8026,9 @@ class Handler(BaseHTTPRequestHandler):
         link = kept_link(form.get("link", ""))
         payload = {
             "email": email,
+            # Which page, or which link's tag, the form stood on: kept on a new account
+            # as the waitlist keeps it on a row (targum-internal#676).
+            "from": form.get("from", ""),
             "into": said,
             "next": "/add?source=" + quote(link, safe="") if link else "",
         }
@@ -8122,7 +8159,14 @@ class Handler(BaseHTTPRequestHandler):
             }
         else:
             tried = tried_for(self.library.describe(link, said), said)
-        page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
+        # The tag the page was opened with rides through a try (targum-internal#676).
+        page = front_page(
+            language=said,
+            address=self.address,
+            asked=self._asked(),
+            tried=tried,
+            came=joined_from(form.get("from", "")),
+        )
         return self._send(200, page.encode("utf-8"), HTML)
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
@@ -9911,6 +9955,7 @@ class Handler(BaseHTTPRequestHandler):
                 address=self.address,
                 asked=self._asked(),
                 signed_in=self._person() is not None,
+                came=came_from(urlparse(self.path).query),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
@@ -10086,7 +10131,10 @@ class Handler(BaseHTTPRequestHandler):
             # a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
                 page = front_page(
-                    language=self._public_language(), address=self.address, asked=self._asked()
+                    language=self._public_language(),
+                    address=self.address,
+                    asked=self._asked(),
+                    came=came_from(urlparse(self.path).query),
                 )
                 return self._send(200, page.encode("utf-8"), HTML)
             # Every other room is a door back to itself (design.md §12, 2026-10-11; QA
@@ -14361,7 +14409,7 @@ class Handler(BaseHTTPRequestHandler):
                 429,
             )
         language = self._mail_language(email, payload.get("into"))
-        token = self.store.start_sign_in(email)
+        token = self.store.start_sign_in(email, joined_from(str(payload.get("from") or "")))
         link = f"{self.address}/account/enter?t={token}"
         # The room the reader was turned away from rides in the link itself (QA
         # 2026-10-11, D2), not in a cookie as a Connect does: a link opened on the phone

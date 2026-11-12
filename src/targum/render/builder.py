@@ -2795,6 +2795,7 @@ def front_page(
     address: str = "",
     asked: str = "",
     tried: dict[str, Any] | None = None,
+    came: str = "",
 ) -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
@@ -2808,6 +2809,10 @@ def front_page(
     `tried` is what the box under the headline found in a link a visitor pasted
     (`serve.tried_for`, targum-internal#399): the page comes back with the answer in
     place of the box's empty state and the waitlist's form carrying the link.
+
+    `came` is the tag the link to the page carried (`serve.came_from`,
+    targum-internal#676), already narrowed: the forms say it as where they stand, so
+    joining counts the channel without any pixel.
     """
     from ..ingest import x as x_door
 
@@ -2831,7 +2836,7 @@ def front_page(
                 "your own. Vowels on every word, English beside every line, and any word "
                 "explained the moment you tap it.",
             ),
-            joined_from="/",
+            joined_from=came or "/",
             tried=tried,
             tn=page_counts(language),
             canonical=_front_at[0],
@@ -2845,7 +2850,11 @@ def front_page(
 
 
 def aliyah_page(
-    language: str = "en", address: str = "", asked: str = "", signed_in: bool = False
+    language: str = "en",
+    address: str = "",
+    asked: str = "",
+    signed_in: bool = False,
+    came: str = "",
 ) -> str:
     """The olim's own door, at `/aliyah` (targum-internal#385, 2026-09-29).
 
@@ -2859,6 +2868,8 @@ def aliyah_page(
 
     `signed_in` takes the waitlist off the page, as it does on `/connect`: somebody who
     has already chosen targum is not asked to join (§6).
+
+    `came` is the tag the link to the page carried, as on the front page (#676).
     """
     words = page_words(language)
     here, alternates = _addressed_in(f"{address.rstrip('/')}/aliyah" if address else "", language)
@@ -2879,6 +2890,7 @@ def aliyah_page(
             ),
             canonical=here,
             alternates=alternates,
+            joined_from=came or here,
         )
     )
 
@@ -3085,7 +3097,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "8 November 2026"
+LEGAL_CHANGED = "12 November 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a

@@ -326,6 +326,12 @@
   <p class="taken">Joined from
     {%- for page, n in survey.waiting_by_page.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
   {%- endif %}
+  {#- And the accounts the same way (targum-internal#676): with the door open a signup
+      never waits, so its page or link tag is on the account. -#}
+  {%- if survey.accounts_by_came_from %}
+  <p class="taken">Accounts from
+    {%- for page, n in survey.accounts_by_came_from.items() %} {{ page or 'unknown' }} {{ n }}{% if not loop.last %} &middot;{% endif %}{% endfor %}</p>
+  {%- endif %}
   {%- endif %}
 
   {#- Who is waiting, oldest first, which is the order they would be let in. The counts
