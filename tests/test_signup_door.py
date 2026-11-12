@@ -244,6 +244,16 @@ def _box(
         def send(self, to: str, link: str, language: str = "en") -> None:
             links.append((to, link))
 
+        def notify(
+            self,
+            to: str,
+            subject: str,
+            body: str,
+            headers: object = None,
+            html: str | None = None,
+        ) -> None:
+            links.append((to, body))
+
     store_path = tmp_path / "box.db"
     store = Store(store_path)
     port = free_port()
@@ -429,6 +439,10 @@ MAILING = {
         lambda to: urlencode({"email": to}).encode(),
     ),
     "/signup": ("application/x-www-form-urlencoded", lambda to: urlencode({"email": to}).encode()),
+    "/weekly/subscribe": (
+        "application/x-www-form-urlencoded",
+        lambda to: urlencode({"email": to}).encode(),
+    ),
 }
 
 
@@ -441,10 +455,13 @@ def test_a_mailing_post_from_another_site_is_refused(
 ) -> None:
     """A form on another site could otherwise mail a link to an address it chose, counted
     against the visitor's IP. A browser names such a post `cross-site`; ours, a typed
-    address, and an old browser or curl that sends no header at all still get through."""
+    address, and an old browser or curl that sends no header at all still get through.
+    The mailer here records every letter, the weekly's and the waitlist's as well as
+    sign-in's, so "nothing mailed" is a real check."""
     links: list[tuple[str, str]] = []
     port, store = _box(tmp_path, free_port, links)
     _switched(monkeypatch, SHUT if path == "/waitlist" else OPEN)
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     kind, body = MAILING[path]
     store.invite("guest@example.com")
     status, said = _posted(port, path, body("guest@example.com"), kind, "cross-site")
@@ -456,6 +473,7 @@ def test_a_mailing_post_from_another_site_is_refused(
         store.invite(address)
         status, said = _posted(port, path, body(address), kind, fetched_from, visitor)
         assert status == 200, (fetched_from, status, said)
+        assert links[-1][0] == address, fetched_from
 
 
 def test_sign_in_takes_only_a_body_named_as_json(

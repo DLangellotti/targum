@@ -858,7 +858,7 @@ SIGNUP_POST = "/signup"
 #: The posts that mail a link to whatever address they are given (targum-internal#688).
 #: A form on another site could post to any of them, so each refuses a browser that
 #: says the post came from another site.
-MAILING_POSTS = frozenset({"/account/sign-in", "/waitlist", SIGNUP_POST})
+MAILING_POSTS = frozenset({"/account/sign-in", "/waitlist", SIGNUP_POST, "/weekly/subscribe"})
 
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
@@ -10245,7 +10245,7 @@ class Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
         if not self._host_is_ours():
             return self._json({"error": "not found"}, 404)
-        # The three posts that mail a link to an address the post chose
+        # The posts that mail a link to an address the post chose
         # (targum-internal#688). A form on another site could send one, which mails a
         # link nobody asked for and counts it against the visitor's address. A current
         # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser or curl

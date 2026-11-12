@@ -14,8 +14,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
-- Sign-in, `/signup` and `/waitlist` refuse a post from another site
-  (targum-internal#688). A form elsewhere could post to any of the three and have a link
+- Sign-in, `/signup`, `/waitlist` and `/weekly/subscribe` refuse a post from another
+  site (targum-internal#688). A form elsewhere could post to any of them and have a link
   mailed to an address it chose, counted against the visitor's address. A post whose
   browser says `Sec-Fetch-Site: cross-site` is now answered 403; same-origin, same-site,
   `none` and no header at all (an old browser, curl) still get through. Sign-in also
