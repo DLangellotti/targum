@@ -2994,25 +2994,59 @@ def after_duolingo_clip() -> dict[str, Any]:
     return {**held, "src": picture_address(held["film"])}
 
 
+_POINTS = re.compile(r"[\u0591-\u05BD\u05BF-\u05C7]")
+
+
+def _built_here(built: str, sense: str) -> Markup:
+    """How a word is built here, as the front page's card says it: the pieces in Hebrew,
+    then what each means on a line of its own (`.here-gloss`). targum says it as
+    "ל to + בית": a prefix with its meaning, the word itself, and a note for an ending
+    that has no letters of its own ("with a pronoun on the end"). The word's own meaning
+    is the first of its meanings."""
+    hebrew: list[str] = []
+    english: list[str] = []
+    for piece in built.split(" + "):
+        letters, _, said = piece.partition(" ")
+        if not _HEBREW_RUN.fullmatch(letters):
+            english.append(piece)
+            continue
+        hebrew.append(letters)
+        own = said or sense.split(";")[0].strip()
+        if own:
+            english.append(own)
+    return Markup(
+        '<span class="he" lang="he" dir="rtl">{}</span><span class="here-gloss">{}</span>'
+    ).format(" + ".join(hebrew), " + ".join(english))
+
+
 @cache
 def after_duolingo_story() -> dict[str, Any]:
     """The reader's four lines, as parts the template draws (text, or a word by its id),
     and every word's card, as the page draws it with no script and as `landing.js` draws
-    it on a tap: the dictionary form, the infinitive a verb is cited by, the meaning, the
-    part of speech, and the facts (how it is built here, the binyan, the root)."""
+    it on a tap. The card leads with the word as it stands in the line, as the reader's
+    own card does, then the infinitive a verb is cited by, its meaning and part of speech,
+    and the facts: how it is built here, its dictionary form where that is another
+    spelling, the binyan and the root."""
     held = json.loads(AFTER_DUOLINGO_STORY_WORDS.read_text(encoding="utf-8"))
     words: dict[str, dict[str, Any]] = {}
     for word_id, word in held["words"].items():
+        facts: list[list[str]] = []
+        for label, value in word["facts"]:
+            if label == "Here":
+                facts.append([label, str(_built_here(value, word["sense"]))])
+            else:
+                facts.append([str(escape(label)), str(_with_hebrew_marked(value))])
+        if word["head"] != _POINTS.sub("", word["he"]).replace("\u05be", ""):
+            # The reader calls it "Dictionary" (`reader.card.dictionary`).
+            at = 1 if facts and facts[0][0] == "Here" else 0
+            facts.insert(at, ["Dictionary", str(_with_hebrew_marked(word["head"]))])
         words[word_id] = {
             "he": word["he"],
-            "head": str(escape(word["head"])),
+            "head": str(escape(word["he"])),
             "inf": str(escape(word["inf"])),
             "sense": str(escape(word["sense"])),
             "pos": str(escape(word["pos"])),
-            "facts": [
-                [str(escape(label)), str(_with_hebrew_marked(value))]
-                for label, value in word["facts"]
-            ],
+            "facts": facts,
         }
     return {"open": held["open"], "lines": held["lines"], "words": words}
 

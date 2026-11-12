@@ -95,7 +95,7 @@ def test_the_keyboard_reaches_every_word(browser: Any) -> None:
     page.keyboard.press("Enter")
     head = page.eval_on_selector("#card .card-word", "(e) => e.textContent")
     context.close()
-    assert head == "ספר"
+    assert head == "הַסֵּפֶר"
     assert not thrown, thrown
 
 

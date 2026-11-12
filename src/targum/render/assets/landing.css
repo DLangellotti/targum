@@ -963,12 +963,16 @@ mark.w { color: inherit; }
     @keyframes glued-say { from { opacity: 0; } }
     /* The ladder climbs as it comes into view, one rung after another. */
     .how-bars { view-timeline: --ladder block; }
-    .how-bars i { transform-origin: 50% 100%; animation: ladder-climb linear both; animation-timeline: --ladder; animation-range: entry 70% cover 40%; }
-    .how-bars i:nth-child(2) { animation-range: entry 80% cover 45%; }
-    .how-bars i:nth-child(3) { animation-range: entry 90% cover 50%; }
-    .how-bars i:nth-child(4) { animation-range: entry 100% cover 55%; }
-    .how-bars i:nth-child(5) { animation-range: cover 25% cover 60%; }
-    .how-bars i:nth-child(6) { animation-range: cover 30% cover 65%; }
+    .how-bars i { transform-origin: 50% 100%; animation: ladder-climb linear both; animation-timeline: --ladder; animation-range: entry 0% entry 50%; }
+    .how-bars i:nth-child(2) { animation-range: entry 10% entry 60%; }
+    .how-bars i:nth-child(3) { animation-range: entry 20% entry 70%; }
+    .how-bars i:nth-child(4) { animation-range: entry 30% entry 80%; }
+    .how-bars i:nth-child(5) { animation-range: entry 40% entry 90%; }
+    .how-bars i:nth-child(6) { animation-range: entry 50% entry 100%; }
     @keyframes ladder-climb { from { scale: 1 0.06; } }
   }
 }
+/* Beside the clip the ladder's box is as tall as the film's (the cards share their rows),
+   so the ladder grows to fill it rather than leaving a field of nothing over it. */
+.how.four .how-vis:has(.how-bars) { align-content: stretch; grid-template-rows: auto minmax(3rem, 1fr); }
+.how.four .how-vis .how-bars { block-size: auto; }

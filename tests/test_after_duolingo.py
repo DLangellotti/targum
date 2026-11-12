@@ -202,7 +202,7 @@ def test_the_top_is_the_front_page_s_word_card_and_reader(shelf: None) -> None:
     page = after_duolingo_page(ADDRESS)
     top = page.split('<div class="col top">', 1)[1].split('<section class="part"', 1)[0]
     assert '<aside class="card" id="card"' in top
-    assert '<p class="card-word" lang="he" dir="rtl">בית</p>' in top
+    assert '<p class="card-word" lang="he" dir="rtl">לְבֵית</p>' in top
     assert "house" in top.split("</aside>", 1)[0]
     assert '<article class="reader still" id="story"' in top
     assert top.count('<div class="pair') == 4
@@ -228,8 +228,16 @@ def test_every_word_in_the_reader_has_targum_s_card(shelf: None) -> None:
     assert held
     words = json.loads(held.group(1))["words"]
     assert len(drawn) == 22 and set(drawn) == set(words)
-    assert words["l3w4"]["head"] == "בית" and words["l3w4"]["sense"] == "house"
-    assert "ל</span> to + <span" in words["l3w4"]["facts"][0][1]
+    assert words["l3w4"]["head"] == "לְבֵית" and words["l3w4"]["sense"] == "house"
+    assert words["l3w4"]["facts"][0] == [
+        "Here",
+        '<span class="he" lang="he" dir="rtl">ל + בית</span>'
+        '<span class="here-gloss">to + house</span>',
+    ]
+    assert words["l3w4"]["facts"][1] == [
+        "Dictionary",
+        '<span class="he" lang="he" dir="rtl">בית</span>',
+    ]
     assert words["l4w2"]["inf"] == "לשלוח" and words["l4w2"]["sense"] == "to send"
     assert "data-set" not in page.split('<aside class="card"', 1)[1].split("</aside>", 1)[0]
     # The front page's own script, inline (§12: nothing from another origin).
