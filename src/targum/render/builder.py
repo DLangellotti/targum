@@ -2894,6 +2894,12 @@ AFTER_DUOLINGO_FIRSTS: tuple[str, ...] = (
     "kan-simantov-room-for-two",
 )
 
+#: The first text whose own link the page offers to try (David, 2026-11-12): a video,
+#: because a video is what the page says to paste, so one press shows the box's real
+#: answer to a real link ("That's a YouTube video, 3 minutes, Hebrew subtitles written
+#: by a person").
+AFTER_DUOLINGO_TRY = "kan-small-cola"
+
 #: The first text whose opening lines the page's reader shows, drawn in the template:
 #: a public-domain story, so its words may stand on a page (design's spec, 2026-11-12).
 AFTER_DUOLINGO_STORY = "yatziv-shoelace-seller"
@@ -2930,6 +2936,24 @@ def after_duolingo_firsts() -> list[dict[str, Any]]:
             }
         )
     return firsts
+
+
+def after_duolingo_try() -> dict[str, str] | None:
+    """The link the page offers to try: `AFTER_DUOLINGO_TRY`'s own source, read off the
+    catalogue, as somebody would paste it, and as the chip shows it. None where this
+    machine's catalogue does not hold the row, so the page offers nothing it cannot back."""
+    from ..catalogue import by_id
+
+    entry = by_id(AFTER_DUOLINGO_TRY)
+    if entry is None:
+        return None
+    if entry.source.startswith("video:"):
+        link = f"https://www.youtube.com/watch?v={entry.source.removeprefix('video:')}"
+    elif entry.source.startswith(("https://", "http://")):
+        link = entry.source
+    else:
+        return None
+    return {"link": link, "shown": link.split("://", 1)[1].removeprefix("www.")}
 
 
 def after_duolingo_page(
@@ -2988,6 +3012,7 @@ def after_duolingo_page(
             try_on=AFTER_DUOLINGO_FROM,
             came_from=AFTER_DUOLINGO_FROM,
             tried=tried,
+            try_this=after_duolingo_try(),
             firsts=firsts,
             story=story,
             linked=linked,

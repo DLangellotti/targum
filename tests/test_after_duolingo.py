@@ -207,7 +207,7 @@ def test_the_top_is_the_front_page_s_word_card_and_reader(shelf: None) -> None:
         '<a href="/library/yatziv-shoelace-seller?from=after-duolingo-hebrew">'
         "Read it in the library</a>" in top
     )
-    assert "<button" not in top.split("</form>", 1)[1], "a still page draws no dead press"
+    assert "<button" not in top.rsplit("</form>", 1)[1], "a still page draws no dead press"
     assert "<script" not in page
 
 
@@ -232,6 +232,28 @@ def test_the_box_is_the_front_door_s_box_and_names_its_page(shelf: None) -> None
     form = re.search(r'<form class="try-form" method="post" action="([^"]+)">', page)
     assert form and form.group(1) == "/try?lang=en#try"
     assert '<input type="hidden" name="on" value="after-duolingo-hebrew">' in page
+
+
+def test_try_this_one_offers_a_first_text_s_own_link(shelf: None) -> None:
+    """Under the box, one of the first texts' own links to try (David, 2026-11-12): the
+    cola video's YouTube address, posted to the same box from a form of its own, so it
+    works with JavaScript off."""
+    page = after_duolingo_page(ADDRESS)
+    chip = page.split('<form class="try-this" id="tryThis"', 1)[1].split("</form>", 1)[0]
+    assert 'action="/try?lang=en#try"' in chip
+    assert '<input type="hidden" name="on" value="after-duolingo-hebrew">' in chip
+    assert (
+        '<input type="hidden" name="link" value="https://www.youtube.com/watch?v=NEoaePzDhGc">'
+        in chip
+    )
+    assert "Try this one" in chip
+    assert "youtube.com/watch?v=NEoaePzDhGc" in chip
+
+
+def test_without_the_row_nothing_is_offered_to_try(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A catalogue without the cola row offers no link it cannot back."""
+    monkeypatch.setattr("targum.catalogue.by_id", lambda entry_id: None)
+    assert 'id="tryThis"' not in after_duolingo_page(ADDRESS)
 
 
 def test_a_signed_in_reader_is_not_asked_to_join(shelf: None) -> None:
@@ -299,4 +321,37 @@ def test_a_try_here_answers_here_and_builds_nothing(
         in page
     )
     # Described, never built: no job was written for it.
+    assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0
+
+
+def test_try_this_one_is_the_box_s_real_answer_and_builds_nothing(
+    served: tuple[int, Store], shelf: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One press on "Try this one" is the box's own answer to that link, described and
+    never built: no job is written (`Library.describe` never spends)."""
+    port, store = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    asked: list[str] = []
+
+    def describe(url: str) -> dict[str, Any]:
+        asked.append(url)
+        return {
+            "webpage_url": url,
+            "title": "כאן מסבירים | למה קולה קטן עולה יותר מקולה גדול?",
+            "duration": 181,
+            "subtitles": {"iw": [{}]},
+        }
+
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr("targum.video.youtube.describe", describe)
+    page = after_duolingo_page(ADDRESS)
+    chip = page.split('id="tryThis"', 1)[1].split("</form>", 1)[0]
+    form = dict(re.findall(r'<input type="hidden" name="(\w+)" value="([^"]+)">', chip))
+    status, answer = ask(port, "POST", "/try?lang=en", form)
+    assert status == 200
+    assert asked == ["https://www.youtube.com/watch?v=NEoaePzDhGc"]
+    assert "That’s a YouTube video" in answer
+    assert "למה קולה קטן עולה יותר מקולה גדול?" in answer
+    # The answer stands in the box, so the chip has done its work and goes.
+    assert 'id="tryThis"' not in answer
     assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0

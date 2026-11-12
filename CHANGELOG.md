@@ -1676,6 +1676,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   2,140-word ladder climbs as it enters. CSS alone, the scrolled two only where the
   browser ties an animation to scrolling (`animation-timeline: view()`); with reduced
   motion, or anywhere else, the page stands as it was drawn.
+  Under the box, "Try this one" offers the cola video's own YouTube link: one press
+  posts it to the same box and shows the box's real answer, described and never built
+  (`Library.describe`, no job written, nothing spent). Its own plain form, so it works
+  with JavaScript off, and it is drawn only where the catalogue holds the row.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner
