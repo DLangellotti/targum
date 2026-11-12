@@ -1,5 +1,5 @@
 {
- "_": "Seconds 15.3 to 20.2 of Kan's 'Why does a small cola cost more than a big one?' (kan-small-cola, CC BY 3.0, כאן | דיגיטל - תאגיד השידור הישראלי), as targum's reader holds it on the laptop: the words of its Hebrew subtitle track, the English of its translation, and each word's clock from targum's forced aligner (ctc-xlsr-he/2, local and unpaid) run on this clip on 2026-11-12, in seconds into the clip. Drawn by /after-duolingo-hebrew (targum-internal#676).",
+ "_": "Seconds 15.3 to 20.2 of Kan's 'Why does a small cola cost more than a big one?' (kan-small-cola, CC BY 3.0, כאן | דיגיטל - תאגיד השידור הישראלי), as targum's reader holds it on the laptop: the words of its Hebrew subtitle track, the English of its translation, and each word's clock from targum's forced aligner (ctc-xlsr-he/2, local and unpaid) run on this clip on 2026-11-12, in seconds into the clip. Drawn by /after-duolingo-hebrew (targum-internal#676). `words` holds the hand-set readings of the two cola words (design.md §12, 2026-11-12). The clip's lines stay unpointed, as the subtitles write them.",
  "film": "films/kan-small-cola.mp4",
  "title": "Why does a small cola cost more than a big one?",
  "credit": "Kan",
@@ -113,5 +113,26 @@
     "?"
    ]
   }
- ]
+ ],
+ "words": {
+  "קולה": {
+   "head": "קוֹלָה",
+   "sense": "cola",
+   "pos": "noun, feminine",
+   "facts": [],
+   "hand": "Hand-set for this page (ling-he, 2026-11-12). targum's pointing read it as קוֹלָהּ, 'her voice', lemma קול."
+  },
+  "מקולה": {
+   "head": "קוֹלָה",
+   "sense": "cola",
+   "pos": "noun, feminine",
+   "facts": [
+    [
+     "Here",
+     "מ than + קולה cola"
+    ]
+   ],
+   "hand": "Hand-set for this page (ling-he, 2026-11-12). targum read it as מ + קול, 'voice'."
+  }
+ }
 }

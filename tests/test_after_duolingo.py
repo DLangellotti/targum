@@ -239,6 +239,11 @@ def test_every_word_in_the_reader_has_targum_s_card(shelf: None) -> None:
         '<span class="he" lang="he" dir="rtl">בית</span>',
     ]
     assert words["l4w2"]["inf"] == "לשלוח" and words["l4w2"]["sense"] == "to send"
+    # Hand-set for this page where targum's analyser slipped (design.md §12, 2026-11-12).
+    assert words["l2w8"]["sense"] == "lowered, downcast"
+    assert ["Binyan", "huf’al, passive participle"] in words["l2w8"]["facts"]
+    assert words["l4w4"]["sense"] == "to sell"
+    assert all(label != "Here" for label, _ in words["l4w4"]["facts"])
     assert "data-set" not in page.split('<aside class="card"', 1)[1].split("</aside>", 1)[0]
     # The front page's own script, inline (§12: nothing from another origin).
     assert "<script src" not in page

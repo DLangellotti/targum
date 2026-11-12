@@ -1,5 +1,5 @@
 {
- "_": "The first four lines of יצחק יציב, מוֹכֵר הַשְּׂרוֹכִים (public domain, Project Ben-Yehuda), with each word as targum reads it: dictionary form, meaning, how it is built, binyan and root, out of a local build of the story (--words, nothing translated or bought) on 2026-11-12. The English lines are the page's own. Drawn by /after-duolingo-hebrew (targum-internal#676).",
+ "_": "The first four lines of יצחק יציב, מוֹכֵר הַשְּׂרוֹכִים (public domain, Project Ben-Yehuda), with each word as targum reads it: dictionary form, meaning, how it is built, binyan and root, out of a local build of the story (--words, nothing translated or bought) on 2026-11-12. The English lines are the page's own. Drawn by /after-duolingo-hebrew (targum-internal#676). Words marked `hand` are corrected by hand for this page only (design.md §12, 2026-11-12).",
  "open": "l3w4",
  "lines": [
   {
@@ -247,24 +247,25 @@
   },
   "l2w8": {
    "he": "מֻשְׁפָּלוֹת",
-   "head": "שפל",
+   "head": "מֻשְׁפָּל",
    "inf": "",
-   "sense": "",
+   "sense": "lowered, downcast",
    "pos": "verb",
    "facts": [
     [
      "Here",
-     "מ from + שפלות"
+     "lowered (his eyes), feminine plural"
     ],
     [
      "Binyan",
-     "pa’al"
+     "huf’al, passive participle"
     ],
     [
      "Root",
      "ש־פ־ל"
     ]
-   ]
+   ],
+   "hand": "Hand-set for this page (ling-he, 2026-11-12). targum read it as מ from + שפלות, pa'al, with no meaning."
   },
   "l3w1": {
    "he": "מַדּוּעַ",
@@ -360,16 +361,21 @@
   },
   "l4w4": {
    "he": "לִמְכֹּר",
-   "head": "מכר",
+   "head": "מָכַר",
    "inf": "",
    "sense": "to sell",
-   "pos": "noun, masculine",
+   "pos": "verb, infinitive",
    "facts": [
     [
-     "Here",
-     "ל to + מכר"
+     "Binyan",
+     "pa’al"
+    ],
+    [
+     "Root",
+     "מ־כ־ר"
     ]
-   ]
+   ],
+   "hand": "Hand-set for this page (ling-he, 2026-11-12). targum split it as ל to + מכר, a noun, so the card read 'to + to sell'."
   },
   "l4w5": {
    "he": "שְׂרוֹכִים",

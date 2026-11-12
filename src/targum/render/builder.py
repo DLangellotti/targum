@@ -3003,6 +3003,10 @@ def _built_here(built: str, sense: str) -> Markup:
     "ל to + בית": a prefix with its meaning, the word itself, and a note for an ending
     that has no letters of its own ("with a pronoun on the end"). The word's own meaning
     is the first of its meanings."""
+    if not _HEBREW_RUN.search(built):
+        # Hand-set for this page (design.md §12, 2026-11-12): what it means here, said
+        # in English alone, because the word is not split.
+        return Markup('<span class="here-gloss">{}</span>').format(built)
     hebrew: list[str] = []
     english: list[str] = []
     for piece in built.split(" + "):

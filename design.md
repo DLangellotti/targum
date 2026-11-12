@@ -384,6 +384,28 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### /after-duolingo-hebrew carries a small fixed snapshot of targum output — 2026-11-12
+
+David's call, 2026-11-12. The page's reader and clip are touchable and lit
+(targum-internal#676), and what they show is targum's own output, held in the public repo
+beside the page:
+
+- **What it is.** `render/after_duolingo_story.json` holds the four Shoelace Seller lines'
+  analysis: each word's dictionary form, meaning, how it is built, binyan and root.
+  `render/after_duolingo_clip.json` holds the cola clip's lines and each word's clock from
+  the aligner. Both come from local builds, nothing bought, and they are fixed: a rebuild
+  does not refresh them.
+- **Why it may be public.** The page shows exactly these words to every visitor, so the
+  repo holds nothing the page does not already give away.
+- **Hand-set where targum slipped.** Three readings are corrected by hand for this page
+  only, from ling-he, and each is marked `hand` in the data: מֻשְׁפָּלוֹת and לִמְכֹּר on the
+  reader's cards, and קולה and מקולה in the clip's data (the clip's words open no card,
+  and its lines stay unpointed, as the subtitles write them). The analyser's bugs are
+  their own card.
+- **Not a precedent.** Library content and the code that makes it stay out of the public
+  repo (the catalogue split: types public, data private). This is one page's fixed example, and nothing else may
+  cite it as a reason to commit library output.
+
 ### Topics in What next are weighed by how common a word is — 2026-11-11
 
 targum-internal#608 fills the Topics slot "What next leads with your biggest grammar gap"

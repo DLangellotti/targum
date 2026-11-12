@@ -1701,6 +1701,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   is), and kept for a year. It plays while in view, never by itself under reduced
   motion, and its one key plays or pauses it; without JavaScript the browser's own
   controls stand.
+  The page's word data is a small fixed snapshot of targum output, public by David's
+  one-off exception (design.md §12, 2026-11-12), and three readings in it are set by hand
+  for this page from ling-he, each marked `hand`: מֻשְׁפָּלוֹת (huf'al passive participle of
+  ש־פ־ל, "lowered"), לִמְכֹּר (one word, "to sell") and the clip's קולה and מקולה ("cola").
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner
