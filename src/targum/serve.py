@@ -855,6 +855,11 @@ WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 #: the sign-in link, as /account/signin's does, from a page that works with JavaScript off.
 SIGNUP_POST = "/signup"
 
+#: The posts that mail a link to whatever address they are given (targum-internal#688).
+#: A form on another site could post to any of them, so each refuses a browser that
+#: says the post came from another site.
+MAILING_POSTS = frozenset({"/account/sign-in", "/waitlist", SIGNUP_POST})
+
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
 
@@ -10240,6 +10245,20 @@ class Handler(BaseHTTPRequestHandler):
         route = urlparse(self.path).path
         if not self._host_is_ours():
             return self._json({"error": "not found"}, 404)
+        # The three posts that mail a link to an address the post chose
+        # (targum-internal#688). A form on another site could send one, which mails a
+        # link nobody asked for and counts it against the visitor's address. A current
+        # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser or curl
+        # sends nothing and is let through, since the header is what tells them apart.
+        # Both refusals leave the body unread, so the connection closes after them.
+        if route in MAILING_POSTS and self._cross_site():
+            self.close_connection = True
+            return self._json({"error": "forbidden"}, 403)
+        # Sign-in reads its body as JSON, and a form on another site can send JSON as
+        # text/plain without asking first. Our own script always names the type.
+        if route == "/account/sign-in" and not self._json_body():
+            self.close_connection = True
+            return self._json({"error": "unsupported media type"}, 415)
         # Asking for a sign-in link is how somebody with an expired tab gets back in, so
         # it cannot be behind the key that expired. It is still loopback-only, it says
         # the same thing whatever address it is given, and all it can cause is one email
@@ -13718,6 +13737,17 @@ class Handler(BaseHTTPRequestHandler):
         if person is not None and self.store is not None:
             return self.store.language(person.id)
         return "he"
+
+    def _cross_site(self) -> bool:
+        """Whether the browser says this request came from another site. Same-origin,
+        same-site, `none` (typed or bookmarked) and an absent header are all ours to
+        answer."""
+        return (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site"
+
+    def _json_body(self) -> bool:
+        """Whether the post names its body as JSON, whatever parameters follow."""
+        kind = (self.headers.get("Content-Type") or "").split(";", 1)[0]
+        return kind.strip().lower() == "application/json"
 
     def _form(self) -> dict[str, str]:
         """A form post, read as a form. The landing page is a page, not an app."""

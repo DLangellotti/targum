@@ -398,3 +398,80 @@ def test_a_try_refused_at_the_open_door_does_not_wait_to_be_invited(
         assert status == 200 and said in page, (switches, lang)
         if switches is OPEN:
             assert WAITING.search(page) is None, lang
+
+
+def _posted(
+    port: int, path: str, body: bytes, kind: str, fetched_from: str | None, visitor: int = 9
+) -> tuple[int, str]:
+    """A post as a browser sends it, naming where it came from in `Sec-Fetch-Site`."""
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("POST", path, skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.putheader("X-Forwarded-For", f"203.0.113.{visitor}")
+    if fetched_from is not None:
+        conn.putheader("Sec-Fetch-Site", fetched_from)
+    conn.putheader("Content-Type", kind)
+    conn.putheader("Content-Length", str(len(body)))
+    conn.endheaders()
+    conn.send(body)
+    response = conn.getresponse()
+    said = response.read().decode("utf-8")
+    conn.close()
+    return response.status, said
+
+
+#: Each post that mails a link to the address it is given (targum-internal#688), as its
+#: own page sends it, with the switches that open it.
+MAILING = {
+    "/account/sign-in": ("application/json", lambda to: json.dumps({"email": to}).encode()),
+    "/waitlist": (
+        "application/x-www-form-urlencoded",
+        lambda to: urlencode({"email": to}).encode(),
+    ),
+    "/signup": ("application/x-www-form-urlencoded", lambda to: urlencode({"email": to}).encode()),
+}
+
+
+@pytest.mark.parametrize("path", sorted(MAILING))
+def test_a_mailing_post_from_another_site_is_refused(
+    path: str,
+    tmp_path: Path,
+    free_port: Callable[[], int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A form on another site could otherwise mail a link to an address it chose, counted
+    against the visitor's IP. A browser names such a post `cross-site`; ours, a typed
+    address, and an old browser or curl that sends no header at all still get through."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    _switched(monkeypatch, SHUT if path == "/waitlist" else OPEN)
+    kind, body = MAILING[path]
+    store.invite("guest@example.com")
+    status, said = _posted(port, path, body("guest@example.com"), kind, "cross-site")
+    assert status == 403, said
+    assert links == []
+    # One visitor and address each, so the doors' own limits never answer instead.
+    for visitor, fetched_from in enumerate(("same-origin", "same-site", "none", None), 20):
+        address = f"guest{visitor}@example.com"
+        store.invite(address)
+        status, said = _posted(port, path, body(address), kind, fetched_from, visitor)
+        assert status == 200, (fetched_from, status, said)
+
+
+def test_sign_in_takes_only_a_body_named_as_json(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A form on another site can send JSON as text/plain without the browser asking
+    first; our own script always names the type, so nothing else is read."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    _switched(monkeypatch, OPEN)
+    store.invite("guest@example.com")
+    body = json.dumps({"email": "guest@example.com"}).encode()
+    for kind in ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data"):
+        status, _ = _posted(port, "/account/sign-in", body, kind, None)
+        assert status == 415, kind
+    assert links == []
+    status, _ = _posted(port, "/account/sign-in", body, "application/json; charset=utf-8", None)
+    assert status == 200
+    assert [to for to, _ in links] == ["guest@example.com"]
