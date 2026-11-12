@@ -10168,6 +10168,7 @@ class Handler(BaseHTTPRequestHandler):
                 signin_page(
                     language=self._public_language(),
                     asked=self._asked(),
+                    address=self.address,
                     back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
                     # "New here? Join the waitlist" up front (beta review PUB-05,
                     # 2026-11-03), where an address has to have been invited and the

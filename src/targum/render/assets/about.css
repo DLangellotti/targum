@@ -133,6 +133,13 @@ body.about {
 .speakers { list-style: none; margin: 1rem 0 0; padding: 0; border-block-start: 1px solid var(--rule); }
 .speaker { padding-block: 0.75rem; border-block-end: 1px solid var(--rule); }
 .speaker summary { cursor: pointer; font-size: 0.9375rem; line-height: 1.45; }
+/* §8 under a thumb: a row was 22 tall (design's #477 pass, P2-9). The row's own padding
+   moves inside the summary, so the press is 46 and the list stands as tall as before. */
+@media (hover: none) and (pointer: coarse) {
+  .speaker { padding-block: 0; }
+  .speaker summary { padding-block: 0.75rem; }
+  .speaker details[open] { padding-block-end: 0.75rem; }
+}
 .speaker .terms { color: var(--ink-soft); }
 .speaker ul {
   display: flex;

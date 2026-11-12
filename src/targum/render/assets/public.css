@@ -756,6 +756,17 @@ body.public {
     inset-inline: min(0px, calc(50% - 22px));
     inset-block: min(0px, calc(50% - 22px));
   }
+  /* Design's #477 pass, P2-9 (2026-11-12): the legal pages' mark was 42 tall, and the text
+     page's credit links, the edition, its licence and the publisher, 18 to 22. The mark
+     grows; the links keep their size and answer through the same centred reach. */
+  .public .masthead .brand { min-block-size: 44px; }
+  .public .provenance a { position: relative; }
+  .public .provenance a::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: min(0px, calc(50% - 22px));
+  }
 }
 
 /* The band is the parasha's, unchanged: two equal columns, words then picture, so no

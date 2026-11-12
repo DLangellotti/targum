@@ -5,10 +5,17 @@
 <!doctype html>
 <html lang="{{ page_language|default('en') }}">
 <head>
+{%- if desk %}
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1{% if desk %}, viewport-fit=cover{% endif %}">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>targum</title>
 {% include '_icons.html.j2' %}
+{%- else %}
+{#- A public page like the others, so a shared sign-in link says what targum is and
+    shows the mark: it carried a bare title and nothing else (design's #477 pass,
+    P2-13, 2026-11-12). -#}
+{% with title = 'targum' %}{% include '_public_head.html.j2' %}{% endwith %}
+{%- endif %}
 {{ styles('tokens.css', 'shared.css', 'chrome.css' if desk else '', 'signin.css') }}
 {{ hebrew_face() }}
 {%- if not desk %}

@@ -81,7 +81,7 @@
             <div class="cn-k-body">
               <p class="cn-k-t" lang="he" dir="rtl">{{ title }}</p>
               <p class="cn-k-en">{{ english }}</p>
-              <p class="cn-k-f">{{ t("home.kind.dialogue", "Conversation") }} · {{ t("library.minutes", "{n} min", n=minutes) }} · {{ t("add.found.share", "You know {n}% of the words", n=known) }}<span class="cn-k-meter" aria-hidden="true"><span></span></span></p>
+              <p class="cn-k-f">{{ t("home.kind.dialogue", "Conversation") }} · {{ t("library.minutes", "{n} min", n=minutes) }} · {{ t("connect.example.known", "this learner knows {n}% of the words", n=known) }}<span class="cn-k-meter" aria-hidden="true"><span></span></span></p>
             </div>
             <span class="cn-k-play" aria-hidden="true">{{ glyph('play') }}</span>
             <span class="cn-k-door">{{ t("card.text.open", "Open") }}{{ glyph('out') }}</span>
@@ -222,7 +222,7 @@
     {%- endif %}
     <div class="cn-feats">
       {%- for icon, head, says in [
-          ('search', t("connect.page.something-to-read-next", "Something to read next"), t("connect.page.nearly-500-free-texts-and-videos-sorted-by-the-words-you-know", "More than 700 texts and videos, sorted by the words you know. Or paste a link to your own.")),
+          ('search', t("connect.page.something-to-read-next", "Something to read next"), tn("connect.page.library-count", library_n, "{count} Hebrew text and video, sorted by the words you know. Or paste a link to your own.", "{count} Hebrew texts and videos, sorted by the words you know. Or paste a link to your own.", count=library_count)),
           ('talk', t("connect.page.the-fix-and-why", "The fix, and why"), t("connect.page.write-in-hebrew-and-see-the-fix", "Write in Hebrew and see what to change and why. The mistake goes on your list to practise.")),
           ('lines', t("connect.page.words-where-you-met-them", "Words where you met them"), t("connect.page.ask-about-a-word-and-see-it-in-the-sentence-you-read-it-in", "Ask about a word and see it in the sentence you read it in, with how well you know it.")),
           ('list', t("connect.page.playlists", "Playlists"), t("connect.page.playlists-says", "Ask for a few texts on one theme. They come back as a playlist you confirm with one press.")),

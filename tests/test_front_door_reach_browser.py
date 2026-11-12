@@ -1,8 +1,9 @@
 """The front door's last polish from design's §14 pass (targum-internal#477).
 
 Polish 4: the word card's Here row ran its meaning on after the form, and at 1440 the last
-word wrapped alone ("crack" / «разбивают» under "Here"). The meaning now has a line of its
-own under the form.
+word wrapped alone ("crack" / «разбивают» under "Here"). Set on a line of its own, it still
+read as a wrap (P2-8, 2026-11-12), so the meaning now runs on after the form and the
+grammar between them takes the quieter second line.
 
 Polish 8: under a coarse pointer, four presses answered under 44px: the landing bar's mark
 (21 tall), the why-fold (39 wide), the chat demo's "Save as a text" (73 × 20) and a text
@@ -86,9 +87,12 @@ TAPPED = """([selector, dy]) => {
 }"""
 
 
-@pytest.mark.parametrize(("language", "gloss"), [("en", "crack"), ("ru", "разбивают")])
-def test_the_here_row_puts_its_meaning_on_a_line_of_its_own(
-    browser: Any, language: str, gloss: str
+@pytest.mark.parametrize(
+    ("language", "gloss", "grammar"),
+    [("en", "crack", "pa’al, present"), ("ru", "разбивают", "паал, настоящее")],
+)
+def test_the_here_row_keeps_its_meaning_beside_the_form(
+    browser: Any, language: str, gloss: str, grammar: str
 ) -> None:
     context, page, thrown = opened(
         browser, front_page(language, "https://targum.page"), 1440, False
@@ -100,16 +104,22 @@ def test_the_here_row_puts_its_meaning_on_a_line_of_its_own(
             """() => {
               const dd = document.querySelector('#card .facts-list dd');
               const gloss = dd.querySelector('.here-gloss');
-              const form = dd.querySelector('.he');
-              return gloss && {
-                text: gloss.textContent, display: getComputedStyle(gloss).display,
-                under: gloss.getBoundingClientRect().top >= form.getBoundingClientRect().bottom - 2,
+              const grammar = dd.querySelector('.here-grammar');
+              const form = dd.querySelector('.he').getBoundingClientRect();
+              const box = (one) => one.getClientRects();
+              return gloss && grammar && {
+                gloss: gloss.textContent, grammar: grammar.textContent,
+                glossLines: box(gloss).length,
+                beside: Math.abs(gloss.getBoundingClientRect().bottom - form.bottom) < 6,
+                under: grammar.getBoundingClientRect().top >= form.bottom - 2,
+                quiet: getComputedStyle(grammar).color !== getComputedStyle(dd).color,
               };
             }"""
         )
-        assert got, "the Here row has no meaning of its own"
-        assert got["text"] == gloss
-        assert got["display"] == "block" and got["under"], got
+        assert got, "the Here row has no meaning and grammar of its own"
+        assert got["gloss"] == gloss and got["grammar"] == grammar, got
+        assert got["glossLines"] == 1 and got["beside"], f"the meaning wrapped: {got}"
+        assert got["under"] and got["quiet"], got
         assert not thrown, thrown
     finally:
         context.close()
