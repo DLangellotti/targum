@@ -14,6 +14,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A long address in "We've sent a link to …" wraps on a phone (targum-internal#687).
+  The line had nothing to break it, so a 60-character address widened a 320px page to
+  653px: sideways scroll. It now wraps anywhere, in the account menu and on the sign-in
+  door, pinned in English and Russian by `tests/test_long_address_browser.py`. No spend,
+  no new strings.
 - A Russian lemma spelled with ё is as common in the estimate as its е spelling
   (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
   2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once

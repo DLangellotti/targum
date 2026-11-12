@@ -73,6 +73,7 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
   color: var(--ink-soft);
   font-size: 0.9375rem;
   line-height: 1.5;
+  overflow-wrap: anywhere; /* a long address in "We've sent a link to …" (#687) */
 }
 /* A way on inside a line, in the primary at the desk's link weight (§13), as the
    crumbs and the bell's links are: "New here? Join the waitlist" over the form, and the
