@@ -54,8 +54,8 @@ import importlib.util
 import io
 import logging
 import threading
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ..errors import TargumError
@@ -249,30 +249,96 @@ def yo_checked(surface: str, lemma: str, normal_forms: Iterable[str]) -> str:
 _POSSESSIVES = {"его": "он", "её": "она", "их": "они"}
 
 
-def possessive(pos: str, dep: str, head_pos: str) -> bool:
-    """Whether его, её or их is the possessive (его дом), by spaCy's parse.
+_NOUNS = frozenset({"NOUN", "PROPN"})
+_VERBS = frozenset({"VERB", "AUX"})
+#: The dependencies spaCy gives a possessive it tags PRON.
+_POSSESSIVE_DEPS = frozenset({"nmod", "det", "nmod:poss"})
+#: What may stand between a possessive and its noun: его новый дом, их первые два года,
+#: её поистине царственные плечи, его же церкви, их «заманчивого предложения».
+_MODIFIERS = frozenset({"ADJ", "DET", "NUM"})
+_PASSED = frozenset({",", "же", "ли", "«", "»", "и"})
+#: A verb's object straight after it, with a noun after that which is not the possessive's:
+#: the noun is the verb's subject or another of its arguments (ожидают его просители,
+#: хлопнув его рукою), where the possessive's noun would be its object (видел его брата).
+_ARGUMENTS = frozenset({"nsubj", "nsubj:pass", "obl", "nmod"})
 
-    spaCy tags the possessive DET, PART, ADJ, even ADP or PROPN, but often PRON too, and
-    then the parse tells it apart: the possessive hangs off a noun (его брата, о его
-    книге), the pronoun off a verb or a preposition (я вижу его, у него). An object
-    pronoun after a preposition is written него, not его, so it never comes here
-    (targum-internal#683)."""
-    if pos != "PRON":
+
+def _participle(piece: Piece) -> bool:
+    return piece.pos == "VERB" and "VerbForm=Part" in piece.morph
+
+
+def _noun_after(sentence: Sequence[Piece], at: int) -> int:
+    """The noun the word at `at` goes before, past its adjectives, or -1. An adverb may
+    stand between only before an adjective (его страшно побледневшим лицом)."""
+    after = at + 1
+    adverb = False
+    adjective = -1
+    while after < len(sentence):
+        word = sentence[after]
+        if word.pos in _MODIFIERS or _participle(word):
+            adverb = False
+            adjective = after
+        elif word.text.lower() in _PASSED or word.pos == "CCONJ":
+            pass
+        elif word.pos == "ADV":
+            adverb = True
+        else:
+            break
+        after += 1
+    if after < len(sentence) and sentence[after].pos in _NOUNS and not adverb:
+        return after
+    # An adjective standing for its noun (в его переднюю, её кондитерская), where spaCy has
+    # not taken the word for the pronoun.
+    if sentence[at].pos != "PRON" and adjective > at and sentence[adjective].pos == "ADJ":
+        return adjective
+    return -1
+
+
+def possessive(sentence: Sequence[Piece], at: int, transitive: Callable[[str], bool]) -> bool:
+    """Whether его, её or их at `at` is the possessive (его дом), by spaCy's parse and the
+    words' order.
+
+    spaCy's tag is half a guide. Where it says PRON as an object or a subject (я вижу его,
+    его не было) it is right, and that stands. Where it says DET, PART, ADP or PRON hung
+    off a noun, it is as often an object (хлопнув его рукою, где его похоронили). So the
+    possessive is the word that stands straight after its noun (у отца его, лицо его) or
+    before it, with only adjectives between (его брата, о его новой книге). Straight after
+    a transitive verb with no other object, before the verb's subject or another of its
+    arguments, it is the verb's object (ожидают его просители). A participle takes no
+    object there (поражённая его грандиозностью). After a preposition the pronoun is
+    spelled него, so it never comes here (targum-internal#683)."""
+    word = sentence[at]
+    if word.pos == "PRON" and word.dep not in _POSSESSIVE_DEPS:
+        return False
+    before = sentence[at - 1] if at > 0 else None
+    if before is not None and before.pos in _NOUNS:
         return True
-    return dep in {"nmod", "det", "nmod:poss"} and head_pos in {"NOUN", "PROPN"}
+    noun = _noun_after(sentence, at)
+    if noun < 0:
+        return False
+    return not (
+        before is not None
+        and before.pos in _VERBS
+        and not _participle(before)
+        and sentence[noun].dep in _ARGUMENTS
+        and not any(other.head == at - 1 and other.dep == "obj" for other in sentence)
+        and transitive(before.text)
+    )
 
 
-def pronoun(surface: str, pos: str, dep: str = "", head_pos: str = "") -> str | None:
+def pronoun(
+    sentence: Sequence[Piece], at: int, pos: str, transitive: Callable[[str], bool]
+) -> str | None:
     """The dictionary form a learner looks a pronoun up by, where the treebank's is another.
 
     The possessive его, её and их does not change and is its own word on the card (его
-    дом, её дом, их дом); as the pronoun's own case (я вижу его, её, их) each is он, она,
-    они (targum-internal#650, #683). всё, everything, is its own word too — всё равно,
-    всё ещё, всё в порядке — and not filed under весь, as it is where it agrees with a
-    noun (всё время, всё это), which spaCy tags DET (targum-internal#650)."""
-    word = surface.lower()
+    дом, её дом, их дом; `possessive`); as the pronoun's own case (я вижу его, её, их)
+    each is он, она, они (targum-internal#650, #683). всё, everything, is its own word too
+    — всё равно, всё ещё, всё в порядке — and not filed under весь, as it is where it
+    agrees with a noun (всё время, всё это), which spaCy tags DET (targum-internal#650)."""
+    word = sentence[at].text.lower()
     if word in _POSSESSIVES:
-        return word if possessive(pos, dep, head_pos) else _POSSESSIVES[word]
+        return word if possessive(sentence, at, transitive) else _POSSESSIVES[word]
     if word == "всё" and pos != "DET":
         return "всё"
     return None
@@ -532,33 +598,79 @@ def stanza_asked(words: Sequence[Sequence[Piece]]) -> list[list[dict[str, Any]]]
     ]
 
 
-def spelled(words: list[Piece], text: str) -> list[Piece]:
-    """The words spaCy read, each spelled as the text spells it.
+#: What each spaCy part of speech may be in pymorphy3's tagset, for asking whether the
+#: dictionary has any reading of a word under the tag spaCy gave it.
+_READABLE = {
+    **_COMPATIBLE,
+    "ADJ": frozenset({"ADJF", "ADJS", "PRTF", "PRTS", "COMP"}),
+    "VERB": frozenset({"VERB", "INFN", "PRTF", "PRTS", "GRND"}),
+    "AUX": frozenset({"VERB", "INFN"}),
+    "ADV": frozenset({"ADVB", "COMP", "PRED"}),
+    "PRON": frozenset({"NPRO"}),
+    "NUM": frozenset({"NUMR", "ADJF"}),
+    "ADP": frozenset({"PREP"}),
+    "CCONJ": frozenset({"CONJ"}),
+    "SCONJ": frozenset({"CONJ"}),
+    "PART": frozenset({"PRCL"}),
+    "INTJ": frozenset({"INTJ"}),
+}
 
-    spaCy is handed the text with ё as е (`without_yo`), which leaves every offset where
-    it was: its tagger, like Stanza's treebank, barely knows ё, and read идёт as a noun,
-    щёки as a verb and поёт as an adjective. Over the laptop's Russian shelf, 610 of 3,123
-    ё-words change part of speech when it is asked with е, and 2,691 rather than 2,477 then
-    have a reading in pymorphy3's dictionary under it; 81 of 396,783 other words move
-    (targum-internal#683). Everything after the tagger reads the word with its ё."""
-    for piece in words:
-        written = text[piece.idx : piece.idx + len(piece.text)]
-        if written != piece.text:
-            piece.text = written
-            # spaCy's form for the word as asked, with е, is only ever asked for its ё,
-            # and spelled with е it would stand in the ё's way (`with_yo`): pymorphy3's
-            # readings of the written word give the ё instead.
-            piece.lemma = ""
-    return words
+
+def readable(piece: Piece, morph: Any) -> bool:
+    """Whether the dictionary has a reading of the word under the tag spaCy gave it."""
+    allowed = _READABLE.get(piece.pos)
+    return allowed is None or any(
+        p.tag.POS in allowed for p in morph.parse(piece.text) if p.is_known
+    )
+
+
+def transitive(verb: str, morph: Any) -> bool:
+    """Whether the dictionary reads the verb as one that takes a direct object."""
+    return any(
+        "tran" in p.tag for p in morph.parse(verb) if p.tag.POS in _VERBISH or p.tag.POS == "INFN"
+    )
+
+
+def yo_repaired(words: list[Piece], folded: list[Piece], morph: Any) -> list[Piece]:
+    """The sentence as spaCy read it, with each word written with ё read as spaCy read it
+    with е instead, where only that reading is one the dictionary has.
+
+    spaCy's tagger, like Stanza's treebank, barely knows ё: it read идёт as a noun, щёки
+    as a verb and поёт as an adjective. Asked the text with е (`without_yo`), it reads
+    them right. But asking the whole text so moves words with no ё, by their context
+    (Вынимай became a particle, Гингиле a common noun), and a ё-word it already read well
+    can move the wrong way (землёю a verb, населённого a verb's form). So the е reading
+    is taken word by word, only for a ё-word whose tag the dictionary has no reading under
+    and whose е tag it does. Over the laptop's Russian shelf, 610 of 3,123 ё-words read
+    differently with е; about 300 of those are repairs of this kind. всё is left as read: its
+    tag decides всё or весь (`pronoun`), and the е reading moved it either way about as
+    often (targum-internal#683)."""
+    if [w.idx for w in words] != [w.idx for w in folded]:
+        return words
+    out = list(words)
+    for at, (word, other) in enumerate(zip(words, folded, strict=True)):
+        if (
+            "ё" in word.text.lower()
+            and word.text.lower() != "всё"
+            and word.pos != other.pos
+            and not readable(word, morph)
+            and readable(other, morph)
+        ):
+            # spaCy's own form, asked with е, would stand in the ё's way (`with_yo`):
+            # pymorphy3's readings of the written word give the ё instead.
+            out[at] = replace(other, text=word.text, lemma="")
+    return out
 
 
 def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
     from stanza.models.common.doc import Document
 
-    docs = nlp.pipe([without_yo(segment.text) for segment in segments], batch_size=64)
-    words = [
-        spelled(pieces(doc), segment.text) for doc, segment in zip(docs, segments, strict=True)
-    ]
+    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
+    words = [pieces(doc) for doc in docs]
+    yo = [at for at, segment in enumerate(segments) if "ё" in segment.text.lower()]
+    folded = nlp.pipe([without_yo(segments[at].text) for at in yo], batch_size=64)
+    for at, doc in zip(yo, folded, strict=True):
+        words[at] = yo_repaired(words[at], pieces(doc), morph)
     asked = stanza_asked(words)
     answered = iter(lemmatizer(Document(asked)).sentences if asked else [])
     out: dict[str, list[Token]] = {}
@@ -597,7 +709,9 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
     tagged = [_tagged(at, piece, morph) for at, piece in enumerate(sentence)]
     grammar = settle(tagged)
     out: list[Token] = []
-    for piece, word, said, read in zip(sentence, tagged, grammar, stanza_words, strict=True):
+    for at, (piece, word, said, read) in enumerate(
+        zip(sentence, tagged, grammar, stanza_words, strict=True)
+    ):
         pos = word.pos or "X"
         if pos in {"PUNCT", "SYM", "SPACE"}:
             continue
@@ -627,8 +741,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
             pos = "PROPN"
         if pos == "PROPN":
             lemma = as_name(lemma, named, said.get("Case", ""))
-        head_pos = sentence[piece.head].pos if 0 <= piece.head < len(sentence) else ""
-        lemma = pronoun(surface, pos, piece.dep, head_pos) or lemma
+        lemma = pronoun(sentence, at, pos, lambda verb: transitive(verb, morph)) or lemma
         if not any("\u0400" <= char <= "\u04ff" for char in surface):
             # Not a Russian word, and Stanza's answer for one is not to be trusted: it
             # wrote Facebook as Фейсбук.

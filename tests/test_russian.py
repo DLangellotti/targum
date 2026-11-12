@@ -22,10 +22,10 @@ from targum.annotate.russian import (
     Tagged,
     pronoun,
     settle,
-    spelled,
     stanza_asked,
     with_yo,
     yo_checked,
+    yo_repaired,
 )
 from targum.models import BlockKind, Segment
 
@@ -130,33 +130,101 @@ def test_a_yo_word_stanza_misread_takes_the_dictionarys_one_form() -> None:
     assert yo_checked("дома", "дом", ["дома"]) == "дом"
 
 
+def parsed(*words: tuple[str, str, str, int]) -> list[Piece]:
+    """A sentence as spaCy might parse it: (text, pos, dep, head) for each word."""
+    out, idx = [], 0
+    for text, pos, dep, head in words:
+        out.append(Piece(text=text, idx=idx, pos=pos, morph="", dep=dep, head=head, lemma=text))
+        idx += len(text) + 1
+    return out
+
+
+def never(verb: str) -> bool:
+    return False
+
+
 def test_a_learner_looks_her_and_everything_up_by_their_own_words() -> None:
     """Possessive её is её, as их is их; её the object is она. всё, everything, is всё;
     всё agreeing with a noun is весь's (targum-internal#650)."""
-    assert pronoun("её", "PRON") == "она"
-    assert pronoun("Её", "DET") == "её"
-    assert pronoun("её", "PART") == "её"
-    assert pronoun("Всё", "PROPN") == "всё"
-    assert pronoun("всё", "PRON") == "всё"
-    assert pronoun("всё", "DET") is None
-    assert pronoun("дом", "NOUN") is None
+    sees_her = parsed(
+        ("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("её", "PRON", "obj", 1)
+    )
+    assert pronoun(sees_her, 2, "PRON", never) == "она"
+    her_house = parsed(("Её", "DET", "det", 1), ("дом", "NOUN", "ROOT", 1))
+    assert pronoun(her_house, 0, "DET", never) == "её"
+    assert pronoun(parsed(("Всё", "PROPN", "ROOT", 0)), 0, "PROPN", never) == "всё"
+    assert pronoun(parsed(("всё", "PRON", "ROOT", 0)), 0, "PRON", never) == "всё"
+    assert (
+        pronoun(parsed(("всё", "DET", "det", 1), ("время", "NOUN", "ROOT", 1)), 0, "DET", never)
+        is None
+    )
+    assert pronoun(parsed(("дом", "NOUN", "ROOT", 0)), 0, "NOUN", never) is None
 
 
-def test_possessive_his_is_its_own_word_by_the_parse() -> None:
-    """Possessive его is его, as её and их are; spaCy often tags it PRON, and the parse
-    tells it apart: it hangs off a noun. The pronoun hangs off a verb (targum-internal#683)."""
-    # Его дом: DET. Его жена, его брата, дом его отца: PRON, nmod of a noun.
-    assert pronoun("Его", "DET", "det", "NOUN") == "его"
-    assert pronoun("Его", "PRON", "nmod", "NOUN") == "его"
-    assert pronoun("его", "PRON", "nmod", "PROPN") == "его"
-    assert pronoun("их", "PRON", "nmod", "NOUN") == "их"
-    assert pronoun("её", "PRON", "nmod", "NOUN") == "её"
-    # Я вижу его, его не было, это его: the pronoun's own case.
-    assert pronoun("его", "PRON", "obj", "VERB") == "он"
-    assert pronoun("Его", "PRON", "nsubj", "VERB") == "он"
-    assert pronoun("его", "PRON", "ROOT", "PRON") == "он"
-    assert pronoun("их", "PRON", "obj", "VERB") == "они"
-    assert pronoun("её", "PRON", "obj", "VERB") == "она"
+def test_possessive_his_goes_before_its_noun_and_is_no_verbs_object() -> None:
+    """Possessive его is его, as её and их are, whatever spaCy tags it: it goes before the
+    noun it hangs off, or straight after it. After a verb it is the verb's object, unless
+    the noun is (targum-internal#683)."""
+
+    def his(*words: tuple[str, str, str, int]) -> str | None:
+        sentence = parsed(*words)
+        at = next(n for n, w in enumerate(sentence) if w.text.lower() in {"его", "её", "их"})
+        return pronoun(sentence, at, sentence[at].pos, {"хлопнув", "ожидают", "видел"}.__contains__)
+
+    assert (
+        his(("Его", "PRON", "nmod", 1), ("жена", "NOUN", "nsubj", 2), ("пришла", "VERB", "ROOT", 2))
+        == "его"
+    )
+    assert (
+        his(
+            ("о", "ADP", "case", 3),
+            ("его", "DET", "det", 3),
+            ("новой", "ADJ", "amod", 3),
+            ("книге", "NOUN", "ROOT", 3),
+        )
+        == "его"
+    )
+    assert (
+        his(("у", "ADP", "case", 1), ("отца", "NOUN", "ROOT", 1), ("его", "PRON", "nmod", 1))
+        == "его"
+    )
+    assert (
+        his(("видел", "VERB", "ROOT", 0), ("его", "PRON", "nmod", 2), ("брата", "NOUN", "obj", 0))
+        == "его"
+    )
+    assert his(("их", "PRON", "nmod", 1), ("дом", "NOUN", "ROOT", 1)) == "их"
+    # The objects ling-ru found filed as possessives.
+    assert (
+        his(("хлопнув", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("рукою", "NOUN", "obl", 0))
+        == "он"
+    )
+    assert (
+        his(
+            ("ожидают", "VERB", "ROOT", 0),
+            ("его", "DET", "det", 2),
+            ("просители", "NOUN", "nsubj", 0),
+        )
+        == "он"
+    )
+    assert (
+        his(
+            ("где", "ADV", "advmod", 2), ("его", "DET", "det", 2), ("похоронили", "VERB", "ROOT", 2)
+        )
+        == "он"
+    )
+    assert (
+        his(("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("его", "PRON", "obj", 1))
+        == "он"
+    )
+    assert (
+        his(("Его", "PRON", "nsubj", 1), ("не", "PART", "advmod", 2), ("было", "VERB", "ROOT", 2))
+        == "он"
+    )
+    assert his(("Это", "PRON", "nsubj", 1), ("его", "PRON", "ROOT", 1)) == "он"
+    assert (
+        his(("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("их", "PRON", "obj", 1))
+        == "они"
+    )
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:
@@ -309,24 +377,27 @@ def test_a_real_sentence(monkeypatch: pytest.MonkeyPatch) -> None:
         assert text[token.start : token.end] == token.surface
 
 
-def test_spacy_reads_with_e_and_the_words_keep_their_yo() -> None:
-    """spaCy is asked идет, and its tagger reads a verb where идёт was a noun; the word
-    keeps its ё afterwards, and spaCy's е-spelled form is dropped so that it cannot stand
-    in the ё's way (targum-internal#683)."""
-
-    def piece(text: str, idx: int, lemma: str) -> Piece:
-        return Piece(text=text, idx=idx, pos="VERB", morph="", dep="", head=0, lemma=lemma)
-
-    text = "Идёт дождь, всё-таки."
-    words = spelled(
-        [piece("Идет", 0, "идти"), piece("дождь", 5, "дождь"), piece("все-таки", 12, "все-таки")],
-        text,
+def test_a_yo_word_takes_the_e_reading_only_where_it_repairs_the_tag() -> None:
+    """spaCy read идёт as a noun; asked идет it reads a verb. The е reading is taken only
+    for a ё-word whose own tag the dictionary has no reading under: землёю, a noun, keeps
+    it, and a word with no ё keeps its own however the е reading moved it
+    (targum-internal#683)."""
+    pymorphy3 = pytest.importorskip("pymorphy3")
+    morph = pymorphy3.MorphAnalyzer()
+    words = parsed(
+        ("Идёт", "NOUN", "ROOT", 0), ("землёю", "NOUN", "obl", 0), ("Вынимай", "VERB", "conj", 0)
     )
-    assert [(w.text, w.lemma) for w in words] == [
-        ("Идёт", ""),
-        ("дождь", "дождь"),
-        ("всё-таки", ""),
+    folded = parsed(
+        ("Идет", "VERB", "ROOT", 0), ("землею", "VERB", "obl", 0), ("Вынимай", "PART", "conj", 0)
+    )
+    read = yo_repaired(words, folded, morph)
+    assert [(w.text, w.pos, w.lemma) for w in read] == [
+        ("Идёт", "VERB", ""),
+        ("землёю", "NOUN", "землёю"),
+        ("Вынимай", "VERB", "Вынимай"),
     ]
+    # Read apart differently, the е reading is not taken at all.
+    assert yo_repaired(words, folded[:2], morph) == words
 
 
 def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.MonkeyPatch) -> None:
