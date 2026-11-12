@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 
@@ -20,17 +22,17 @@ def test_a_russian_lemma_is_counted_by_all_its_forms() -> None:
 
 def test_only_russian_and_french_are_summed(monkeypatch: pytest.MonkeyPatch) -> None:
     from targum.annotate import difficulty
-    from targum.annotate.difficulty import _bands, band_of
+    from targum.annotate.difficulty import _band_of, _bands, band_of
 
     for lemma, language in (("potere", "it"), ("שלום", "he")):
         assert band_of(lemma, language) == _bands.band(lemma, language)
     # And French as before where this machine never fetched Morphalou.
     monkeypatch.setattr(difficulty, "_french_sums", lambda: None)
-    band_of.cache_clear()
+    _band_of.cache_clear()
     try:
         assert band_of("sembler", "fr") == _bands.band("sembler", "fr")
     finally:
-        band_of.cache_clear()
+        _band_of.cache_clear()
 
 
 #: Morphalou's shape (`tests/test_morphalou.py` has the whole of it): a preamble, the
@@ -137,13 +139,44 @@ def test_a_french_lemma_is_never_harder_than_its_own_spelling(
     """A lemma whose forms are mostly another's (été the summer, été of être) can sum to
     less than its own spelling; the sum only ever makes a word easier."""
     from targum.annotate import difficulty
-    from targum.annotate.difficulty import _bands, band_of
+    from targum.annotate.difficulty import _band_of, _bands, band_of
 
     monkeypatch.setattr(difficulty, "_french_sums", lambda: {"été": 1e-8, "sembler": 1.4e-4})
-    band_of.cache_clear()
+    _band_of.cache_clear()
     try:
         assert band_of("été", "fr") == _bands.band("été", "fr")
         assert band_of("sembler", "fr") == 2, "Zipf 5.15 is band 2"
         assert band_of("crocodile", "fr") == _bands.band("crocodile", "fr"), "not in it"
     finally:
-        band_of.cache_clear()
+        _band_of.cache_clear()
+
+
+def test_french_picks_morphalou_up_once_it_lands_without_a_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """deploy.sh restarts the service before it fetches Morphalou, so on a fresh or
+    restored box the first French words are measured without it. That absence was
+    remembered, and French stayed without Morphalou until the next restart
+    (targum-internal#682). The next word after the table lands is summed."""
+    wordfreq = pytest.importorskip("wordfreq")
+    from targum.annotate import difficulty, morphalou
+    from targum.annotate.difficulty import _band_of, _bands, band_of
+
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    monkeypatch.setattr(difficulty, "_FRENCH_SUMS", None)
+    monkeypatch.setattr(wordfreq, "get_frequency_dict", lambda _language: FREQUENCY)
+    _band_of.cache_clear()
+    try:
+        alone = _bands.band("sembler", "fr")
+        assert alone > 2, "the infinitive alone is rarer than the verb"
+        assert band_of("sembler", "fr") == alone, "no table yet: as before"
+        assert difficulty._french_sums() is None
+
+        table = morphalou.directory() / morphalou.TABLE
+        table.parent.mkdir(parents=True)
+        table.write_text(TABLE, encoding="utf-8")
+
+        assert band_of("sembler", "fr") == 2, "summed now, with no restart in between"
+        assert difficulty._french_sums() is difficulty._french_sums(), "read once"
+    finally:
+        _band_of.cache_clear()

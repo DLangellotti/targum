@@ -5,24 +5,18 @@
     "A word is said by a person where one recorded it", 2026-10-31). Read out of the
     manifests kept beside the files, so a recording is credited the day it is served. -#}
 {% include '_public_head.html.j2' %}
-{{ styles('tokens.css', 'public-page.css', 'about.css') }}
+{{ styles('tokens.css', 'public-page.css', 'about.css', 'front-bar.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
 <body class="about credits">
-<div class="corner">
-  <a class="enter" href="/account/signin">{{ t("credits.page.sign-in", "Sign in") }}</a>
-</div>
+{#- The front door's bar, as the Library and the text pages have it (design's #477 finish
+    bar, P1-2, 2026-11-12): this page stood outside the door, with a lone Sign in and no
+    way to the waitlist or the other language. -#}
+{%- set q = '?lang=' ~ asked if asked|default('') else '' %}
+{% with bar_class = 'front-bar', home = '/' ~ q, here = '/credits', join = '/' ~ q ~ '#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main class="sheet">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
-
   <div class="card">
   <h1>{{ t("credits.page.heading", "Credits") }}</h1>
 

@@ -9,8 +9,13 @@ decides on.
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
+import io
 import sys
+import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -156,3 +161,90 @@ def test_a_reader_token_that_carries_its_grammar_decides_between_two_readings(
     script = load_script()
     one = script.tally([script.Word("est", "être", "AUX", "Mood=Ind")], lexicon)
     assert (one.covered, one.resolved, one.ambiguous) == (1, 1, 0)
+
+
+LICENCE = "GNU Lesser General Public License for Linguistic Resources\n"
+
+
+def _zipped(table: str) -> bytes:
+    bundle = io.BytesIO()
+    with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(f"Morphalou3.1_formatCSV_toutEnUn/{morphalou.TABLE}", table)
+    return bundle.getvalue()
+
+
+class _Answer:
+    """A streamed answer, as httpx gives it: no `.content`, so a fetch that reads the whole
+    body at once fails here rather than passing."""
+
+    def __init__(self, body: bytes, chunks: list[int]) -> None:
+        self.body, self.chunks = body, chunks
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def iter_bytes(self, size: int) -> Iterator[bytes]:
+        self.chunks.append(size)
+        for start in range(0, len(self.body), 7):  # small, so the hash spans many chunks
+            yield self.body[start : start + 7]
+
+
+@pytest.fixture
+def served(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
+    """Morphalou's two files served from memory, pinned to their own checksums: no test
+    reaches ORTOLANG."""
+    import httpx
+
+    files = {
+        morphalou.SOURCE: _zipped(TABLE),
+        morphalou.LICENCE_SOURCE: LICENCE.encode("utf-8"),
+    }
+    monkeypatch.setenv("TARGUM_MODEL_DIR", str(tmp_path))
+    monkeypatch.setattr(morphalou, "SHA256", hashlib.sha256(files[morphalou.SOURCE]).hexdigest())
+    monkeypatch.setattr(
+        morphalou,
+        "LICENCE_SHA256",
+        hashlib.sha256(files[morphalou.LICENCE_SOURCE]).hexdigest(),
+    )
+    chunks: list[int] = []
+
+    @contextmanager
+    def stream(method: str, url: str, **_kwargs: Any) -> Iterator[_Answer]:
+        assert method == "GET"
+        yield _Answer(files[url], chunks)
+
+    monkeypatch.setattr(httpx, "stream", stream)
+    morphalou.load.cache_clear()
+    yield files
+    morphalou.load.cache_clear()
+
+
+def test_the_fetch_streams_the_zip_to_disk_and_the_table_out_of_it(
+    served: dict[str, bytes],
+) -> None:
+    """targum-internal#682: the 38 MB zip was held in memory and the 106 MB table decoded
+    and re-encoded out of it, ~790 MB at the peak, beside the service on every deploy."""
+    assert morphalou.available() is False
+    stale = morphalou.directory() / f".{morphalou.ARCHIVE}.1.part"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"left by a fetch that was killed")
+    size = morphalou.fetch()
+    folder = morphalou.directory()
+    assert (folder / morphalou.TABLE).read_text(encoding="utf-8") == TABLE
+    assert size == len(TABLE.encode("utf-8"))
+    assert (folder / morphalou.LICENCE_FILE).read_text(encoding="utf-8") == LICENCE
+    assert sorted(path.name for path in folder.iterdir()) == sorted(
+        [morphalou.TABLE, morphalou.LICENCE_FILE]
+    ), "the zip and the partial files are gone"
+    assert morphalou.available() and morphalou.lexicon() is not None
+    assert morphalou.lexicon().transcriptions("hommes") == [frozenset({"O m @"})]
+
+
+def test_a_zip_that_is_not_the_pinned_one_writes_nothing(
+    served: dict[str, bytes], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(morphalou, "SHA256", "0" * 64)
+    with pytest.raises(TargumError, match="not the file this version of targum pins"):
+        morphalou.fetch()
+    assert morphalou.available() is False
+    assert list(morphalou.directory().iterdir()) == [], "no table, no licence, no partial file"
