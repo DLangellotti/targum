@@ -14,6 +14,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- The front door's four P1s from design's §14 finish bar (targum-internal#477,
+  2026-11-12). On a text page, the edition, licence and publisher links are now teal, not
+  the browser's blue. /about, /how and /credits now have the front door's bar (the mark,
+  EN / RU, Sign in and the waitlist) in place of a lone Sign in. /how and /credits answer
+  `?lang=ru`. /about stays English for everybody (David, 2026-11-12): its RU goes to the
+  front door in Russian, and the sitemap makes no Russian claim for it. If the try box's
+  link would not open, the box now says "We couldn't open that link. Check it and try
+  again." (`door.no-answer`). It used to say Upload's "Paste its text here instead",
+  under a box that takes only a link. On /how, ספר is a blank filled with
+  `<span lang="he" dir="rtl">`. It was in the English and Russian sentence with no
+  `lang`. A brand test now refuses Hebrew letters in any string a template says. No
+  spend, no new strings. One string, `how.spelling.said`, has its Hebrew word swapped for
+  a `{word}` blank in English and Russian.
 - Possessive его is its own word, as её and их are, and spaCy's tag for a Russian word
   with ё is repaired where it read the ё wrong (targum-internal#683). His brother (его
   брата) was filed under он. Where spaCy calls его, её or их an object or a subject, that

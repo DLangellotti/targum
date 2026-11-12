@@ -2105,6 +2105,44 @@ def test_how_targum_reads_hebrew_is_open_to_strangers(tmp_path: Path) -> None:
         server.shutdown()
 
 
+def test_about_how_and_credits_stand_inside_the_front_door(tmp_path: Path) -> None:
+    """Design's #477 finish bar, P1-2 (2026-11-12): /about, /how and /credits had no bar,
+    no EN / RU and no way to the waitlist, only a lone Sign in, and /credits answered
+    `?lang=ru` in English. Each now wears the front door's bar. /how and /credits answer
+    the language their address asks for; /about stays English (David, 2026-11-12), and
+    its RU goes to the front door in Russian."""
+    port, _, server = hosted(tmp_path)
+    try:
+        for path, russian in (
+            ("/how", "Как targum читает иврит"),
+            ("/credits", "Благодарности"),
+        ):
+            status, body, _ = call(port, "GET", f"{path}?lang=ru")
+            page = body.decode("utf-8")
+            assert status == 200, path
+            assert '<html lang="ru"' in page, path
+            assert russian in page, path
+            assert '<header class="front-bar">' in page, path
+            assert f'href="{path}?lang=en"' in page, f"{path}: the bar's EN"
+            assert 'href="/?lang=ru#join"' in page, f"{path}: the waitlist, in Russian"
+            assert 'class="corner"' not in page, f"{path}: the lone Sign in is gone"
+            _, body, _ = call(port, "GET", path)
+            page = body.decode("utf-8")
+            assert '<html lang="en"' in page and '<header class="front-bar">' in page, path
+            assert f'href="{path}?lang=ru"' in page, f"{path}: the bar's RU"
+
+        status, body, _ = call(port, "GET", "/about?lang=ru")
+        page = body.decode("utf-8")
+        assert status == 200
+        assert '<html lang="en"' in page, "/about has no Russian version"
+        assert "targum is built in public" in page
+        assert '<header class="front-bar">' in page and 'class="corner"' not in page
+        assert 'href="/?lang=ru"' in page, "the bar's RU is the front door's"
+        assert 'href="/#join"' in page
+    finally:
+        server.shutdown()
+
+
 def test_the_holding_page_links_to_it(tmp_path: Path) -> None:
     port, _, server = hosted(tmp_path)
     try:

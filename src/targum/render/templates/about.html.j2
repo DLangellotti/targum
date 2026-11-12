@@ -3,30 +3,24 @@
 <head>
 {#- The public head, as every page in the sitemap has it: a shared link to this page was a
     bare line of text, with no description and no picture (targum-internal#518). One
-    address for every language, so no `alternates`. -#}
+    address, in English for everybody (David, 2026-11-12), so no `alternates`. -#}
 {% include '_public_head.html.j2' %}
-{{ styles('tokens.css', 'public-page.css', 'about.css') }}
+{{ styles('tokens.css', 'public-page.css', 'about.css', 'front-bar.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
 <body class="about">
-<div class="corner">
-  <a class="enter" href="/account/signin">{{ t("about.page.sign-in", "Sign in") }}</a>
-</div>
+{#- The front door's bar, as the Library and the text pages have it (design's #477 finish
+    bar, P1-2, 2026-11-12): this page stood outside the door, with a lone Sign in and no
+    way to the waitlist or the other language. The page has no Russian of its own (David,
+    2026-11-12), so the bar's RU is the front door's: `here` is `/`. -#}
+{% with bar_class = 'front-bar', home = '/', here = '/', join = '/#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 {#- This page described targum at length: what it does, what had shipped, what it could
     not do yet. None of it was what somebody arriving early needs to be told. The state
     of the thing is the calendar, what was built is a line or three a day under it, and
     the rest is on GitHub. -#}
 <main class="sheet">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
-
   <div class="card">
   <h1>{{ t("about.page.targum-is-built-in-public", "targum is built in public") }}</h1>
 
