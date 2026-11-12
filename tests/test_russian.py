@@ -131,16 +131,19 @@ def test_a_yo_word_stanza_misread_takes_the_dictionarys_one_form() -> None:
 
 
 def parsed(*words: tuple[str, str, str, int]) -> list[Piece]:
-    """A sentence as spaCy might parse it: (text, pos, dep, head) for each word."""
+    """A sentence as spaCy might parse it: (text, pos, dep, head) for each word. A
+    subject is in the nominative."""
     out, idx = [], 0
     for text, pos, dep, head in words:
-        out.append(Piece(text=text, idx=idx, pos=pos, morph="", dep=dep, head=head, lemma=text))
+        morph = "Case=Nom" if dep.startswith("nsubj") else ""
+        out.append(Piece(text=text, idx=idx, pos=pos, morph=morph, dep=dep, head=head, lemma=text))
         idx += len(text) + 1
     return out
 
 
-def never(verb: str) -> bool:
-    return False
+def never(word: str, grammeme: str) -> bool:
+    """A dictionary with every word a noun, no verb transitive, nobody animate."""
+    return grammeme == "NOUN"
 
 
 def test_a_learner_looks_her_and_everything_up_by_their_own_words() -> None:
@@ -169,7 +172,17 @@ def test_possessive_his_goes_before_its_noun_and_is_no_verbs_object() -> None:
     def his(*words: tuple[str, str, str, int]) -> str | None:
         sentence = parsed(*words)
         at = next(n for n, w in enumerate(sentence) if w.text.lower() in {"его", "её", "их"})
-        return pronoun(sentence, at, sentence[at].pos, {"хлопнув", "ожидают", "видел"}.__contains__)
+        return pronoun(sentence, at, sentence[at].pos, reads)
+
+    def reads(word: str, grammeme: str) -> bool:
+        if grammeme == "NOUN":
+            return word not in {"Одел", "убей"}
+        if grammeme == "VERB":
+            return word in {"Одел", "убей"}
+        if grammeme in {"ADVB", "ADJF"}:
+            return False
+        tran = {"хлопнув", "ожидают", "видел", "Одел", "сияет"}
+        return word in (tran if grammeme == "tran" else {"просители", "сапожник"})
 
     assert (
         his(("Его", "PRON", "nmod", 1), ("жена", "NOUN", "nsubj", 2), ("пришла", "VERB", "ROOT", 2))
@@ -225,6 +238,32 @@ def test_possessive_his_goes_before_its_noun_and_is_no_verbs_object() -> None:
         his(("я", "PRON", "nsubj", 1), ("вижу", "VERB", "ROOT", 1), ("их", "PRON", "obj", 1))
         == "они"
     )
+    # After a verb, before its subject: a person's is the object, a thing's the possessive.
+    assert (
+        his(("Одел", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("сапожник", "NOUN", "nsubj", 0))
+        == "он"
+    )
+    assert (
+        his(("сияет", "VERB", "ROOT", 0), ("его", "DET", "det", 2), ("лицо", "NOUN", "nsubj", 0))
+        == "его"
+    )
+    # After a subject pronoun, or a word that is no noun whatever spaCy says: the object.
+    assert (
+        his(
+            ("мы", "PRON", "nsubj", 3),
+            ("его", "DET", "det", 2),
+            ("духом", "NOUN", "obl", 3),
+            ("поймаем", "VERB", "ROOT", 3),
+        )
+        == "он"
+    )
+    assert his(("Одел", "NOUN", "ROOT", 0), ("его", "PRON", "nmod", 0)) == "он"
+    assert (
+        his(("хоть", "ADV", "advmod", 2), ("его", "PRON", "det", 2), ("убей", "NOUN", "ROOT", 2))
+        == "он"
+    )
+    # A quantity's genitive is the pronoun's: тысячи их.
+    assert his(("тысячи", "NOUN", "ROOT", 0), ("их", "PRON", "nmod", 0)) == "они"
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:

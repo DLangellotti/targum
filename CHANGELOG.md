@@ -18,98 +18,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with ё is repaired where it read the ё wrong (targum-internal#683). His brother (его
   брата) was filed under он. Where spaCy calls его, её or их an object or a subject, that
   stands. Otherwise the word is the possessive when it stands next to its noun, straight
-  after it or before it with only adjectives between, unless it comes straight after a
-  transitive verb that has no other object (ожидают его просители: он). spaCy's tagger
-  barely knows ё (идёт a noun, щёки a verb), so a sentence with ё is read a second time
-  with е. The е tag is taken only for a ё-word the dictionary has no reading of under its
-  own tag and has one under the е tag: about 300 of 3,123 on the laptop's shelf, and no
-  word without ё moves. Over the 5,057 segments with ё or его/её/их, 423 of 107,935
-  lemmas change, read one by one: 375 better, 46 worse, 2 neither. Both reach readers
-  at ru-local's next rename, which this change does not make. No spend, no new strings.
-- A Russian lemma spelled with ё is as common in the estimate as its е spelling
-  (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
-  2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
-  ru-local restores ё (targum#1173) ещё, чёрный and мёд would have been scored rarer than
-  they are. The lookup now takes the commoner spelling, Russian only; Hebrew's held-out
-  marks still read AUC 0.918. No spend, no new strings.
-- `mirror_drop`'s 2 s give-up under a held corpus-ledger lock is pinned by a test
-  (targum-internal#680): reverting it to sqlite's 30 s default now fails one. Its
-  docstring says plainly that a missed drop is not swept: the row stays current, and
-  `backfill` never replaces it. No ledger stage has a `Cache.drop` caller yet, so no drop
-  is missed today. No spend, no new strings.
-- A Russian root keeps one meaning across English wording (targum-internal#596). The
-  sense index (`root_card._clusters`) compared a root's senses word for word, so крас
-  "beauty" and "beautiful", здоров "health" and "healthy", гроз "threat" and "threaten"
-  were two meanings, and a family asked from one left the other out. Russian senses are
-  now stemmed first (`root_card.stem_en`), "be" and a bracketed note dropped: 24 false
-  splits over 23 roots merge in the 2026-10-31 lexicon, and the real homonyms (мир, лет,
-  нос, долг, гор, вод, мер, пар) stay apart, and a ";" keeps two meanings apart (коса
-  "braid; scythe"). Hebrew is not stemmed, because one of its senses would join עצב's
-  "sad" to its "shape". A morph, variant or prefix that is not Cyrillic once folded
-  ("step", "टоск", "мел})") is left out with a log line instead of reaching the card. The
-  private lexicon's root errors from ling-ru's check are fixed in the file itself. No
-  spend, no new strings.
-- Sign-in's own 502, when the mailer fails, is told as the server's fault
-  (targum-internal#681, from qa-claude's read of targum#1168). It carries an `error`, so
-  `signin.js` still put "We couldn't send the link. Try again in a minute." under the
-  address field with the clay outline, as if the address were wrong. Every status of 500
-  or more now goes to the form's answer line, with the body's `error` as its words where
-  there is a sentence and `signin.server-fault` where there is none, or where `error` is
-  an object, a number or a machine's word (`TargumFault.words`, #468); the field is left
-  unmarked, and the keyboard goes back to the press only where it had fallen to the page.
-  A 4xx still goes under the field. Browser tests pin the real 502 in English and Russian,
-  the odd `error` shapes, a reader who moved focus meanwhile, a 429 under the field, and the Russian
-  one-line case now with the Russian refusal, so «Встаньте в список ожидания» is the link
-  measured at 320 and 360. No spend, no new strings.
-- With the door open, every door says so (targum-internal#671; design.md §12,
-  2026-11-10). With `TARGUM_OPEN_SIGNUP` and plans on, sign-in opened accounts and every
-  page still asked a stranger to join a waitlist. Each template that draws it now asks
-  `door_is_open()` (`serve.signup_is_open`): the bar, the foot, a text's page, the
-  Library, /connect and the closing section of the front page and /aliyah say Sign up,
-  to /account/signin; their forms post to a new `/signup`, which mails the sign-in link
-  through the sign-in's own gates and answers with a page, so it works with JavaScript
-  off. A link tried at the front door rides in that link, and the reader lands on Upload
-  holding it, built only on their own press. Sign-in loses "New here? Join the waitlist"
-  and the invited clause, a signed-out reader keeps only "Sign in to keep the words you
-  mark", the FAQs' "When does it open?" goes, and a barred inbox is told "We can't open
-  an account at that address." With the switch off, or asked for without plans, every
-  page is byte for byte as before; `tests/test_signup_door.py` walks every public page
-  both ways. The try box's "too many links" refusal says sign up rather than «когда
-  вас пригласят» while the door is open. No spend; eleven new strings, Russian
-  first-passed.
-- A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
-  `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
-  with sqlite's 30 s default, so another process holding the write lock cost a build half
-  a minute for each. `mirror_put` (and `mirror_drop`) now wait at most `MIRROR_TIMEOUT`,
-  2 s, then log the miss and go on: the next backfill writes a missed put, and nothing
-  sweeps a missed drop (targum-internal#680). No
-  spend, no new strings.
-- A text page's "Sign in to read it" keeps one line under a thumb (targum-internal#677,
-  from qa's read of targum#1163). At 320px «Войдите, чтобы читать» broke in two, and the
-  44px reach centred on both pieces stood between them, so a tap 20px off either missed.
-  It is `nowrap` under a coarse pointer, as sign-in's links are. A JSON 5xx from
-  `/account/sign-in` that carries no `error` now says `signin.server-fault` where the
-  form's answer goes, not "We couldn't send the link" under the address field, as if the
-  address were at fault. Browser tests pin both `nowrap`s at 320 and 360 in Russian and the
-  way in's clearance from the waitlist's press at 4px or more. No spend, no new strings.
-- The estimate of the words a reader has not marked takes the Russian root lexicon's
-  borrowed flag (targum-internal#633): телефон, интернет, кофе are easier than their
-  place in the frequency list says, by the same `BORROWED` as Hebrew's, looked up by the
-  lexicon's own spelling (`fold_ru`). `scripts/eval_estimate.py --language fr
-  --language ru --record` holds each language out on its own readers' marks and writes `marks-fr` and `marks-ru` rows to the ledger, with n: on the laptop, no French
-  reader and one Russian reader (125 marks, 9 not known, AUC 0.831), too few to fit a
-  Russian weight. The prior reads a named rung as the words check reads it back, so a
-  reader who names A2 and does nothing else is A2 on every ladder, now pinned by a test.
-  No spend, no new strings.
-- A deploy fetches Morphalou (targum-internal#678). `deploy.sh` fetched menaked,
-  OpenRussian's tables, the Russian lemmatizer, LaBSE and the scripture models but not
-  Morphalou, so a fresh or restored box had a French word's forms (for its difficulty) and
-  its readings (behind `TARGUM_FRENCH_IPA`) only if somebody ran `targum models fetch
-  morphalou` by hand, and without them it measured and said less, quietly. It is now
-  fetched beside OpenRussian's tables, a one-line no-op once there; like the STEP Bible
-  glosses it is optional, so an ORTOLANG that cannot be reached warns and the deploy goes
-  on. `deploy/RESTORE.md` says which models the next deploy brings back. No spend, no new
-  strings.
+  after it or before it with only adjectives between. The exceptions are objects: after a
+  personal pronoun (мы его поймаем), a verb spaCy took for a noun (Одел его), a quantity
+  (тысячи их), or a transitive verb whose subject follows and is a person or an animal
+  (ожидают его просители). spaCy's tagger barely knows ё (идёт a noun, щёки a verb), so
+  a sentence with ё is read a second time with е. The е tag is taken only for a ё-word the
+  dictionary has no reading of under its own tag and has one under the е tag: about 300
+  of 3,123 on the laptop's shelf, and no word without ё moves. Over the 5,057 segments
+  with ё or его/её/их, 406 of 107,935 lemmas change, read one by one: 376 better, 28
+  worse, 2 neither. Both reach readers at ru-local's next rename, which this change does
+  not make. No spend, no new strings.
 - whisper Hebrew with a few stray ? and ! is punctuated again (targum-internal#624).
   `transcribe.refine.punctuate.sparse` counted every sentence end against one in 40
   words, and whisper-1 leaves ? and ! in Hebrew it never otherwise marks (a Kan tale: 853

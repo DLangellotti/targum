@@ -267,15 +267,23 @@ def _participle(piece: Piece) -> bool:
     return piece.pos == "VERB" and "VerbForm=Part" in piece.morph
 
 
-def _noun_after(sentence: Sequence[Piece], at: int) -> int:
+def _noun_after(sentence: Sequence[Piece], at: int, reads: Callable[[str, str], bool]) -> int:
     """The noun the word at `at` goes before, past its adjectives, or -1. An adverb may
-    stand between only before an adjective (его страшно побледневшим лицом)."""
+    stand between only before an adjective (его страшно побледневшим лицом). A word spaCy
+    calls a noun is one only where the dictionary has a noun or an adjective reading of it
+    (его знакомый): горячечно is an adverb, убей a verb."""
     after = at + 1
     adverb = False
     adjective = -1
     while after < len(sentence):
         word = sentence[after]
-        if word.pos in _MODIFIERS or _participle(word):
+        if word.pos == "NOUN" and not reads(word.text, "NOUN"):
+            if reads(word.text, "ADJF") or reads(word.text, "PRTF"):
+                break  # an adjective standing for its noun: его знакомый, его поверенный
+            if reads(word.text, "VERB"):
+                return -1
+            adverb = True
+        elif word.pos in _MODIFIERS or _participle(word):
             adverb = False
             adjective = after
         elif word.text.lower() in _PASSED or word.pos == "CCONJ":
@@ -294,40 +302,73 @@ def _noun_after(sentence: Sequence[Piece], at: int) -> int:
     return -1
 
 
-def possessive(sentence: Sequence[Piece], at: int, transitive: Callable[[str], bool]) -> bool:
+#: The personal pronouns, which as a subject straight before его, её or их make it their
+#: verb's object (мы его поймаем).
+_PERSONAL = frozenset({"я", "ты", "он", "она", "оно", "мы", "вы", "они"})
+#: Nouns of quantity, which take the pronoun's genitive after them, not a possessive:
+#: тысячи их, сотни их, большинство их.
+_QUANTITIES = ("сотн", "тысяч", "миллион", "десят", "множеств", "большинств", "половин")
+
+
+def possessive(sentence: Sequence[Piece], at: int, reads: Callable[[str, str], bool]) -> bool:
     """Whether его, её or их at `at` is the possessive (его дом), by spaCy's parse and the
-    words' order.
+    words' order; `reads(word, grammeme)` asks the dictionary whether the word has a
+    reading with the grammeme (pymorphy3's `tran`, `anim`).
 
     spaCy's tag is half a guide. Where it says PRON as an object or a subject (я вижу его,
     его не было) it is right, and that stands. Where it says DET, PART, ADP or PRON hung
     off a noun, it is as often an object (хлопнув его рукою, где его похоронили). So the
-    possessive is the word that stands straight after its noun (у отца его, лицо его) or
-    before it, with only adjectives between (его брата, о его новой книге). Straight after
-    a transitive verb with no other object, before the verb's subject or another of its
-    arguments, it is the verb's object (ожидают его просители). A participle takes no
-    object there (поражённая его грандиозностью). After a preposition the pronoun is
-    spelled него, so it never comes here (targum-internal#683)."""
+    possessive is the word that stands straight after its noun (у отца его, лицо его;
+    but тысячи их is the pronoun's) or before it, with only adjectives between (его
+    брата, о его новой книге). Straight after a verb with no other object, before a
+    noun in the nominative, the noun is the verb's subject, and where the verb is
+    transitive the word is its object if the subject is a person or an animal (одел его
+    сапожник, ожидают его просители) and the possessive if it is a thing (тревожил его
+    покой, шептали его губы); after a verb that takes no object it is the possessive
+    (шла его дочь). Before another of a transitive verb's arguments it is the object
+    (хлопнув его рукою). бы and ли may stand between (обманул бы его овчинник). After a
+    pronoun that is the subject it is the object (мы его поймаем), and next to a word spaCy
+    calls a noun that the dictionary has no noun reading of, it is too (Тащи его, хоть его
+    убей).
+    A participle takes no object there (поражённая его грандиозностью). After a
+    preposition the pronoun is spelled него, so it never comes here (targum-internal#683)."""
     word = sentence[at]
     if word.pos == "PRON" and word.dep not in _POSSESSIVE_DEPS:
         return False
     before = sentence[at - 1] if at > 0 else None
+    if before is not None and before.pos == "PRON" and before.dep.startswith("nsubj"):
+        if before.text.lower().split("-")[0] in _PERSONAL:
+            # я его, мы его, ты их, он её: the subject, and then its object, unless a noun
+            # that is the verb's object follows (они его справедливость любят).
+            noun = _noun_after(sentence, at, reads)
+            return noun >= 0 and sentence[noun].dep == "obj"
+    if before is not None and before.pos == "NOUN" and not reads(before.text, "NOUN"):
+        if reads(before.text, "VERB"):
+            # A verb spaCy took for a noun: Одел его, Тащи его, Сложи их.
+            return False
+        before = None
     if before is not None and before.pos in _NOUNS:
-        return True
-    noun = _noun_after(sentence, at)
+        return word.text.lower() != "их" or not before.text.lower().startswith(_QUANTITIES)
+    noun = _noun_after(sentence, at, reads)
     if noun < 0:
         return False
-    return not (
-        before is not None
-        and before.pos in _VERBS
-        and not _participle(before)
-        and sentence[noun].dep in _ARGUMENTS
-        and not any(other.head == at - 1 and other.dep == "obj" for other in sentence)
-        and transitive(before.text)
-    )
+    after = sentence[noun]
+    verb = at - 2 if before is not None and before.text.lower() in {"бы", "ли"} else at - 1
+    if (
+        verb < 0
+        or sentence[verb].pos not in _VERBS
+        or _participle(sentence[verb])
+        or any(other.head == verb and other.dep == "obj" for other in sentence)
+        or not reads(sentence[verb].text, "tran")
+    ):
+        return True
+    if "Case=Nom" in after.morph or after.dep.startswith("nsubj"):
+        return not reads(after.text, "anim")
+    return after.dep not in _ARGUMENTS
 
 
 def pronoun(
-    sentence: Sequence[Piece], at: int, pos: str, transitive: Callable[[str], bool]
+    sentence: Sequence[Piece], at: int, pos: str, reads: Callable[[str, str], bool]
 ) -> str | None:
     """The dictionary form a learner looks a pronoun up by, where the treebank's is another.
 
@@ -338,7 +379,7 @@ def pronoun(
     agrees with a noun (всё время, всё это), which spaCy tags DET (targum-internal#650)."""
     word = sentence[at].text.lower()
     if word in _POSSESSIVES:
-        return word if possessive(sentence, at, transitive) else _POSSESSIVES[word]
+        return word if possessive(sentence, at, reads) else _POSSESSIVES[word]
     if word == "всё" and pos != "DET":
         return "всё"
     return None
@@ -624,11 +665,15 @@ def readable(piece: Piece, morph: Any) -> bool:
     )
 
 
-def transitive(verb: str, morph: Any) -> bool:
-    """Whether the dictionary reads the verb as one that takes a direct object."""
-    return any(
-        "tran" in p.tag for p in morph.parse(verb) if p.tag.POS in _VERBISH or p.tag.POS == "INFN"
-    )
+def has_reading(word: str, grammeme: str, morph: Any) -> bool:
+    """Whether the dictionary reads the word with the grammeme: `tran` for a verb with any
+    reading that takes a direct object; `anim` for a noun whose likeliest reading names a
+    person or an animal (Любовь is a name, любовь is not)."""
+    parses = morph.parse(word)
+    if grammeme == "anim":
+        nouns = [p for p in parses if p.tag.POS == "NOUN"]
+        return bool(nouns) and "anim" in nouns[0].tag
+    return any(grammeme in p.tag for p in parses)
 
 
 def yo_repaired(words: list[Piece], folded: list[Piece], morph: Any) -> list[Piece]:
@@ -741,7 +786,7 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
             pos = "PROPN"
         if pos == "PROPN":
             lemma = as_name(lemma, named, said.get("Case", ""))
-        lemma = pronoun(sentence, at, pos, lambda verb: transitive(verb, morph)) or lemma
+        lemma = pronoun(sentence, at, pos, lambda w, g: has_reading(w, g, morph)) or lemma
         if not any("\u0400" <= char <= "\u04ff" for char in surface):
             # Not a Russian word, and Stanza's answer for one is not to be trusted: it
             # wrote Facebook as Фейсбук.
