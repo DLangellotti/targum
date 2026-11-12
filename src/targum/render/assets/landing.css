@@ -876,14 +876,52 @@ mark.w { color: inherit; }
 .how-vis .line-he { font-size: 1.0625rem; line-height: 1.8; }
 .vowels-vis { gap: var(--space-1); }
 .how-card .vowels-vis .vs-line { font-size: 1.5rem; line-height: 1.8; }
-.vowels-vis .vs-line + .label { margin-block-start: var(--space-2); }
-.glued { display: flex; justify-content: center; gap: var(--space-3); }
+.vowels-vis > div { display: grid; gap: var(--space-1); }
+.vowels-vis > .vs-with { margin-block-start: var(--space-2); }
+.glued { display: flex; justify-content: center; gap: var(--space-5); }
 .glued li { display: grid; justify-items: center; gap: 0.1rem; }
 .how-card .glued .he { font-size: 1.25rem; line-height: 1.5; }
-.glued li > span:not(.he) { font: 400 0.8125rem/1.3 var(--reading); color: var(--muted); direction: ltr; }
+/* Each piece's English hangs centred under it without widening it, so the pieces can
+   close up into the word they are and open out again. */
+.glued li > span:not(.he) { inline-size: 0; display: flex; justify-content: center; white-space: nowrap; font: 400 0.8125rem/1.3 var(--reading); color: var(--muted); direction: ltr; }
 .how-card .he { font-size: 1.0625rem; }
 .how-card p .he { white-space: nowrap; }
 .how-card .how-vis .how-word { font-size: 1.75rem; }
 .how-card .how-vis p.he { color: var(--ink); }
 @media (max-width: 40rem) { .how-card .vowels-vis .vs-line { font-size: 1.25rem; } }
 .lib-name { display: grid; gap: 0.1rem; }
+
+/* Small living details (David, 2026-11-12: the page "feels so dead"). Each happens only
+   where motion is allowed, and the scrolled ones only where the browser can tie an
+   animation to scrolling; anywhere else the page stands exactly as drawn (§8). */
+@media (prefers-reduced-motion: no-preference) {
+  /* The vowels come and go on the written line: the two lines share one place, the
+     pointed one fades over the bare one, and the bare letters step aside only while the
+     pointed letters cover them, so no letter is drawn twice at rest. */
+  .vowels-vis > .vs-as, .vowels-vis > .vs-with { grid-area: 1 / 1; margin: 0; }
+  .vowels-vis > .vs-with { animation: vs-points 7s var(--ease) infinite; }
+  .vowels-vis > .vs-as .label { animation: vs-label 7s var(--ease) infinite; }
+  .vowels-vis > .vs-as .vs-line { animation: vs-letters 7s linear infinite; }
+  @keyframes vs-points { 0%, 40% { opacity: 0; } 50%, 85% { opacity: 1; } 95%, 100% { opacity: 0; } }
+  @keyframes vs-label { 0%, 40% { opacity: 1; } 50%, 85% { opacity: 0; } 95%, 100% { opacity: 1; } }
+  @keyframes vs-letters { 0%, 49.9% { color: var(--ink); } 50%, 84.9% { color: transparent; } 85%, 100% { color: var(--ink); } }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* לבית־הספר comes apart as it comes into view: closed up into the word, then its
+       pieces ease apart and their English arrives under them. */
+    .glued { animation: glued-apart linear both; animation-timeline: view(); animation-range: entry 80% cover 55%; }
+    .glued li > span:not(.he) { animation: glued-say linear both; animation-timeline: view(); animation-range: entry 100% cover 60%; }
+    @keyframes glued-apart { from { gap: 0; } }
+    @keyframes glued-say { from { opacity: 0; } }
+    /* The ladder climbs as it comes into view, one rung after another. */
+    .how-bars { view-timeline: --ladder block; }
+    .how-bars i { transform-origin: 50% 100%; animation: ladder-climb linear both; animation-timeline: --ladder; animation-range: entry 70% cover 40%; }
+    .how-bars i:nth-child(2) { animation-range: entry 80% cover 45%; }
+    .how-bars i:nth-child(3) { animation-range: entry 90% cover 50%; }
+    .how-bars i:nth-child(4) { animation-range: entry 100% cover 55%; }
+    .how-bars i:nth-child(5) { animation-range: cover 25% cover 60%; }
+    .how-bars i:nth-child(6) { animation-range: cover 30% cover 65%; }
+    @keyframes ladder-climb { from { scale: 1 0.06; } }
+  }
+}

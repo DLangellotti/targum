@@ -1668,8 +1668,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   or Sign up by the switch, and every form on it says `from=after-duolingo-hebrew`, so
   `waiting.page` counts it as `/after-duolingo-hebrew`. Duolingo is named and the page
   says once that targum is not affiliated with it; no Duolingo word list is marked
-  known. English only, light only like every page in front of the door, no script, and
-  nothing loaded from another origin. No spend, no new catalogue strings.
+  known. English only, light only like every page in front of the door, and nothing
+  loaded from another origin. No spend, no new catalogue strings.
+  It moves a little, as David asked of it (2026-11-12: "it feels so dead"), and only
+  where motion is allowed: the vowels come and go on the "As written" line every few
+  seconds, לבית־הספר eases apart into its pieces as it scrolls into view, and the
+  2,140-word ladder climbs as it enters. CSS alone, the scrolled two only where the
+  browser ties an animation to scrolling (`animation-timeline: view()`); with reduced
+  motion, or anywhere else, the page stands as it was drawn.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner

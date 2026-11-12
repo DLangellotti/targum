@@ -117,11 +117,18 @@
         <li class="how-card">
           <h3>Most Hebrew has no vowels.</h3>
           <p>Here you can turn them on for the whole text whenever you need them, and off again when you don’t.</p>
+          {#- The line as written and the line pointed. Still, they stand one under the
+              other; with motion allowed they share one place and the vowels come and go
+              on the written line every few seconds (landing.css, `.vowels-vis`). -#}
           <div class="how-vis vowels-vis">
-            <p class="label">As written</p>
-            <p class="he vs-line" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
-            <p class="label">With vowels</p>
-            <p class="he vs-line" lang="he" dir="rtl">מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?</p>
+            <div class="vs-as">
+              <p class="label">As written</p>
+              <p class="he vs-line" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
+            </div>
+            <div class="vs-with">
+              <p class="label">With vowels</p>
+              <p class="he vs-line" lang="he" dir="rtl">מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?</p>
+            </div>
           </div>
         </li>
         <li class="how-card">
