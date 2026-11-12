@@ -1,11 +1,14 @@
 {#- The page for somebody who has finished Duolingo Hebrew, or a course like it, at
-    `/after-duolingo` (targum-internal#676, step 3; David, 2026-11-10).
+    `/after-duolingo-hebrew` (targum-internal#676, step 3; David, 2026-11-10).
 
-    The end of a course is a moment people search for, so this page answers it: why the
-    Hebrew of a course and the Hebrew of a video feel so different, the front page's own
-    box to try a link of theirs, and three graded first texts from the library. Its one
+    The end of a course is a moment people search for, so this page answers it, drawn as
+    the front page is (design's spec, 2026-11-12): the front page's own box to try a link
+    of theirs beside a word card, a real first text in the reader under both, why the
+    Hebrew of a course and the Hebrew of a video feel so different (shown, in the How
+    cards' pictures), and three graded first texts as the Library draws them. Like
+    /aliyah it carries no script, so everything is drawn in the markup. Its one
     ask is the front door's, the waitlist or Sign up, and the form says it was pressed
-    here (`from=after-duolingo`).
+    here (`from=after-duolingo-hebrew`).
 
     Duolingo is named (David lifted "competitors never named" for this audience on
     2026-11-10), and the page says once, in its questions, that targum is not affiliated
@@ -22,7 +25,7 @@
 <html lang="en">
 <head>
 {% include '_public_head.html.j2' %}
-{{ styles('landing.css') }}
+{{ styles('landing.css', 'shelf.css') }}
 {{ hebrew_face() }}
 {{ chrome_face() }}
 </head>
@@ -34,7 +37,11 @@
 {% with bar_class = 'bar', home = '/', faq = '#questions', here = '/', join = '#join', signin = '/account/signin?lang=en&from=' ~ came_from %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main id="top">
-  <div class="col top olim">
+  {#- The front page's top (design's spec, 2026-11-12): the hero, the word card beside it
+      where the front page's card stands, and the reader the full width under both. Drawn
+      in the markup, since the page carries no script: the card is open on the word the
+      reader's third line has open, and nothing drawn here is a press that does nothing. -#}
+  <div class="col top">
     <div class="hero">
       <div class="headline">
         <p class="label">After Duolingo</p>
@@ -44,32 +51,57 @@
         <p class="try-else">Nothing to paste yet? Start with one of our <a href="#firsts">first texts</a>.</p>
       </div>
     </div>
-    {#- Where the front door's word card stands, three real texts from the library,
-        measured A1 or A2 (`AFTER_DUOLINGO_FIRSTS`). Each opens its public page. -#}
-    <nav class="letters firsts" id="firsts" aria-labelledby="firstsHead">
-      <p class="label" id="firstsHead">First texts</p>
-      <h2 class="firsts-head">Start with one of these.</h2>
-      <p class="firsts-note">All three are in the library, free to read.</p>
-      {%- for first in firsts %}
-      {#- Each opens its page in the library, where the library is open to strangers;
-          where it is not, the text is named without a link that would end at a refusal. -#}
-      {%- if linked %}
-      <a class="letter first" href="{{ first.href }}">
-      {%- else %}
-      <div class="letter first">
-      {%- endif %}
-        <span class="first-meta">{% if first.level %}<b>{{ first.level }}</b> · {% endif %}{{ first.kind }} · {{ tn("landing.try.minutes", first.minutes, "{n} minute", "{n} minutes") }}</span>
-        <span class="first-title">{{ first.english }}</span>
-        <span class="he" lang="he" dir="rtl">{{ first.hebrew }}</span>
-        <span class="letter-en">{{ first.blurb }}</span>
-        {%- if linked %}
-        <span class="first-go">{{ first.verb }}</span>
-      </a>
-        {%- else %}
+
+    <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}">
+      <div class="card-head">
+        <span class="label">{{ t("landing.page.word-card", "Word card") }}</span>
+        <p class="card-word" lang="he" dir="rtl">בֵּית סֵפֶר</p>
+        <p class="card-sense">school <span class="pos">· {{ t("landing.card.noun-masculine", "noun, masculine") }}</span></p>
       </div>
+      <dl class="facts-list">
+        <dt>{{ t("landing.card.here", "Here") }}</dt>
+        <dd><span class="he" lang="he" dir="rtl">לְ</span> + <span class="he" lang="he" dir="rtl">בֵית־הַסֵּפֶר</span><span class="here-gloss">to school</span></dd>
+        <dt>{{ t("landing.card.plural", "Plural") }}</dt>
+        <dd><span class="he" lang="he" dir="rtl">בָּתֵּי סֵפֶר</span></dd>
+        <dt>{{ t("landing.card.from", "From") }}</dt>
+        <dd><span class="he" lang="he" dir="rtl">בַּיִת</span>, house, and <span class="he" lang="he" dir="rtl">סֵפֶר</span>, book</dd>
+      </dl>
+    </aside>
+
+    <div class="showcase">
+      {#- Four lines of a real first text (`yatziv-shoelace-seller`, public domain), as the
+          library points them, with the English under each. A story, not a recording, so
+          no line carries a time. -#}
+      <article class="reader still" aria-label="Example: The Shoelace Seller in the reader">
+        <div class="reader-head">
+          <div>
+            <p class="reader-title">The Shoelace Seller</p>
+            <p class="reader-meta">A story · 3 minutes · A1</p>
+          </div>
+        </div>
+        <div class="lines">
+          <div class="pair">
+            <p class="line-he" lang="he" dir="rtl">– בֶּן כַּמָּה אַתָּה, שְׁלֹמֹה?</p>
+            <p class="line-en">“How old are you, Shlomo?”</p>
+          </div>
+          <div class="pair">
+            <p class="line-he" lang="he" dir="rtl">– בֶּן תֵּשַׁע – הוּא עוֹנֶה בְּקוֹל נָמוּךְ וְעֵינָיו מֻשְׁפָּלוֹת.</p>
+            <p class="line-en">“Nine,” he says quietly, looking down.</p>
+          </div>
+          <div class="pair now">
+            <p class="line-he" lang="he" dir="rtl">– מַדּוּעַ אֵינְךָ הוֹלֵךְ <mark class="w open">לְבֵית־הַסֵּפֶר</mark>?</p>
+            <p class="line-en">“Why don’t you go to school?”</p>
+          </div>
+          <div class="pair">
+            <p class="line-he" lang="he" dir="rtl">– אַבָּא שׁוֹלֵחַ אוֹתִי לִמְכֹּר שְׂרוֹכִים.</p>
+            <p class="line-en">“Dad sends me to sell shoelaces.”</p>
+          </div>
+        </div>
+        {%- if linked and story %}
+        <p class="reader-foot"><a href="{{ story.href }}">Read it in the library</a></p>
         {%- endif %}
-      {%- endfor %}
-    </nav>
+      </article>
+    </div>
   </div>
 
   <section class="part" id="why">
@@ -79,23 +111,88 @@
         <h2>Why real Hebrew feels harder</h2>
         <p>A course builds every sentence around words you’ve just practised. A news clip or a TV show doesn’t wait for you, so Hebrew you already know can look new.</p>
       </div>
+      {#- The front page's How cards, each with a picture that shows its point, so the
+          words under each heading can be few. -#}
       <ul class="how four">
         <li class="how-card">
           <h3>Most Hebrew has no vowels.</h3>
-          <p>Real Hebrew is written without them. Here you can turn them on for the whole text whenever you need them, and off again when you don’t.</p>
+          <p>Here you can turn them on for the whole text whenever you need them, and off again when you don’t.</p>
+          <div class="how-vis vowels-vis">
+            <p class="label">As written</p>
+            <p class="he vs-line" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
+            <p class="label">With vowels</p>
+            <p class="he vs-line" lang="he" dir="rtl">מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?</p>
+          </div>
         </li>
         <li class="how-card">
           <h3>Small words get glued on.</h3>
-          <p>“And”, “the”, “in” and “to” join the front of the next word, so <span class="he" lang="he" dir="rtl">ובבית</span> doesn’t look like <span class="he" lang="he" dir="rtl">בית</span>. Tap it and you see the word you already know.</p>
+          <p>“And”, “the”, “in” and “to” join the front of the next word, so <span class="he" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</span> doesn’t look like <span class="he" lang="he" dir="rtl">בית ספר</span>. Tap it and you see the word you already know.</p>
+          <div class="how-vis center">
+            <p class="he how-word" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</p>
+            <ol class="glued" dir="rtl">
+              <li><span class="he" lang="he" dir="rtl">לְ</span><span>to</span></li>
+              <li><span class="he" lang="he" dir="rtl">בֵית</span><span>house of</span></li>
+              <li><span class="he" lang="he" dir="rtl">הַ</span><span>the</span></li>
+              <li><span class="he" lang="he" dir="rtl">סֵּפֶר</span><span>book</span></li>
+            </ol>
+          </div>
         </li>
         <li class="how-card">
           <h3>People talk fast.</h3>
           <p>Videos and podcasts are written out word by word and timed to the voice, so each word lights up as it’s said.</p>
+          {#- The front page's own example video, its 2:19 line, one word lit as it's said. -#}
+          <div class="how-vis">
+            <div class="pair now">
+              <span class="at tnum">2:19</span>
+              <p class="line-he" lang="he" dir="rtl">עַכְשָׁיו שׁוֹבְרִים אֶת הַבֵּיצִים <span class="w saying">יְשִׁירוֹת</span> לְתוֹךְ הָרֹטֶב.</p>
+              <p class="line-en">{{ t("landing.demo.now-crack-the-eggs-straight-into-the-sauce", "Now crack the eggs straight into the sauce.") }}</p>
+            </div>
+          </div>
         </li>
         <li class="how-card">
           <h3>There’s no list to finish.</h3>
           <p>Read anything you like. We keep count of every word you learn, and each text tells you how much of it you already know.</p>
+          {#- The front page's own Your Progress figure (its "Watch your Hebrew grow"). -#}
+          <div class="how-vis">
+            <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} {{ t("progress.where.most.article", "You'd follow most of a news article") }}</span></div>
+            <div class="how-bars"><i class="h30 on"></i><i class="h42 on"></i><i class="h54 part"></i><i class="h66"></i><i class="h78"></i><i class="h90"></i></div>
+          </div>
         </li>
+      </ul>
+    </div>
+  </section>
+
+  {#- Three real texts from the library, measured A1 or A2 (`AFTER_DUOLINGO_FIRSTS`),
+      drawn as the signed-out Library draws a row (`shelf.css`), three across. -#}
+  <section class="part" id="firsts">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">First texts</p>
+        <h2>Start with one of these.</h2>
+        <p>All three are in the library, free to read.</p>
+      </div>
+      <ul class="texts lib-rows">
+        {%- for first in firsts %}
+        <li class="lib-row">
+          {#- The whole card opens the text's page in the library where the library is open
+              to strangers; where it is not, it is named without a link that would end at a
+              refusal. -#}
+          {%- if linked %}
+          <a href="{{ first.href }}">
+          {%- else %}
+          <div class="lib-name">
+          {%- endif %}
+            <bdi class="lib-title" lang="he" dir="rtl">{{ first.hebrew }}</bdi>
+            <span class="english" lang="en" dir="ltr">{{ first.english }}</span>
+          {%- if linked %}
+          </a>
+          {%- else %}
+          </div>
+          {%- endif %}
+          <span class="byline">{% if first.level %}{{ first.level }} · {% endif %}{{ first.kind }} · {{ tn("landing.try.minutes", first.minutes, "{n} minute", "{n} minutes") }}</span>
+          <span class="blurb">{{ first.blurb }}</span>
+        </li>
+        {%- endfor %}
       </ul>
     </div>
   </section>

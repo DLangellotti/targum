@@ -2883,7 +2883,7 @@ def aliyah_page(
     )
 
 
-#: The three first texts /after-duolingo offers (targum-internal#676): real library rows,
+#: The three first texts /after-duolingo-hebrew offers (targum-internal#676): real library rows,
 #: modern, measured A1 or A2, each a few minutes, and none of them about life in Israel
 #: (the page assumes no country). A video, a story and a learners' TV episode, so the
 #: page shows that a video is read as a text is. A row the catalogue on this machine
@@ -2894,9 +2894,13 @@ AFTER_DUOLINGO_FIRSTS: tuple[str, ...] = (
     "kan-simantov-room-for-two",
 )
 
+#: The first text whose opening lines the page's reader shows, drawn in the template:
+#: a public-domain story, so its words may stand on a page (design's spec, 2026-11-12).
+AFTER_DUOLINGO_STORY = "yatziv-shoelace-seller"
+
 #: What the page's own forms and links say about where somebody came from: the form's
 #: `from` field (`serve.joined_from`) and `?from=` on the links out of it.
-AFTER_DUOLINGO_FROM = "after-duolingo"
+AFTER_DUOLINGO_FROM = "after-duolingo-hebrew"
 
 
 def after_duolingo_firsts() -> list[dict[str, Any]]:
@@ -2935,12 +2939,15 @@ def after_duolingo_page(
     linked: bool = True,
 ) -> str:
     """The page for somebody who has finished Duolingo Hebrew, or a course like it, at
-    `/after-duolingo` (targum-internal#676, step 3).
+    `/after-duolingo-hebrew` (targum-internal#676, step 3).
 
-    The landing for stage 1 of the go-to-market (David, 2026-11-10): it says why course
-    Hebrew and real Hebrew feel different, carries the front page's own box
-    (`_try_box.html.j2`, answered by `Library.describe`, which never spends), and offers
-    three graded first texts from the library. Duolingo is named, and the page says once
+    The landing for stage 1 of the go-to-market (David, 2026-11-10). It is drawn as the
+    front page is (design's spec, 2026-11-12): the hero with the front page's own box
+    (`_try_box.html.j2`, answered by `Library.describe`, which never spends), the word
+    card beside it and the reader under both, showing a word every course teaches inside
+    a real sentence; then why course Hebrew and real Hebrew feel different, each reason
+    shown in the How cards' pictures; then three graded first texts as the Library's own
+    cards. Duolingo is named, and the page says once
     that targum is not affiliated with it; nothing on it is Duolingo's, and no word list
     of theirs is marked known.
 
@@ -2950,12 +2957,15 @@ def after_duolingo_page(
     file baked in, nothing fetched from anybody else's origin.
 
     `signed_in` takes the waitlist off the page, as on `/aliyah`. `tried` is the box's
-    answer when a link was tried here (`serve._try_post` with `on=after-duolingo`).
+    answer when a link was tried here (`serve._try_post` with `on=after-duolingo-hebrew`).
     `linked` is whether a stranger can open a library text (`serve.shelves_are_public`):
     where not, the first texts are named without links that would end at a refusal.
     """
     words = page_words("en")
-    here = f"{address.rstrip('/')}/after-duolingo" if address else ""
+    here = f"{address.rstrip('/')}/after-duolingo-hebrew" if address else ""
+    firsts = after_duolingo_firsts()
+    # The reader at the top shows four lines of this one, and its foot opens it.
+    story = next((first for first in firsts if first["id"] == AFTER_DUOLINGO_STORY), None)
     return (
         _environment()
         .get_template("after_duolingo.html.j2")
@@ -2978,7 +2988,8 @@ def after_duolingo_page(
             try_on=AFTER_DUOLINGO_FROM,
             came_from=AFTER_DUOLINGO_FROM,
             tried=tried,
-            firsts=after_duolingo_firsts(),
+            firsts=firsts,
+            story=story,
             linked=linked,
         )
     )
