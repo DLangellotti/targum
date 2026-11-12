@@ -664,30 +664,73 @@ def forget(hashes: set[str]) -> int:
     file = path()
     if file is None or not hashes or not file.is_file():
         return 0
-    gone = 0
     with closing(Ledger(file)._connect()) as db, db:
-        wanted = sorted(hashes)
-        marks = ",".join("?" for _ in wanted)
-        for head, (units, link) in _UNITS.items():
-            ids = [
-                row[0]
-                for row in db.execute(
-                    f"SELECT id FROM {head} WHERE document_hash IN ({marks})",  # noqa: S608
-                    wanted,
-                )
-            ]
-            for start in range(0, len(ids), 500):
-                chunk = ids[start : start + 500]
-                holes = ",".join("?" for _ in chunk)
-                db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
-                db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
-            gone += len(ids)
-        db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
-        db.execute(
-            f"DELETE FROM text_homes WHERE document_hash IN ({marks})",  # noqa: S608
-            wanted,
-        )
+        return _forget(db, hashes)
+
+
+def _forget(db: sqlite3.Connection, hashes: set[str]) -> int:
+    if not hashes:
+        return 0
+    gone = 0
+    wanted = sorted(hashes)
+    marks = ",".join("?" for _ in wanted)
+    for head, (units, link) in _UNITS.items():
+        ids = [
+            row[0]
+            for row in db.execute(
+                f"SELECT id FROM {head} WHERE document_hash IN ({marks})",  # noqa: S608
+                wanted,
+            )
+        ]
+        for start in range(0, len(ids), 500):
+            chunk = ids[start : start + 500]
+            holes = ",".join("?" for _ in chunk)
+            db.execute(f"DELETE FROM {units} WHERE {link} IN ({holes})", chunk)  # noqa: S608
+            db.execute(f"DELETE FROM {head} WHERE id IN ({holes})", chunk)  # noqa: S608
+        gone += len(ids)
+    db.execute(f"DELETE FROM texts WHERE document_hash IN ({marks})", wanted)  # noqa: S608
+    db.execute(
+        f"DELETE FROM text_homes WHERE document_hash IN ({marks})",  # noqa: S608
+        wanted,
+    )
     return gone
+
+
+def depart(home: str, hashes: set[str], kept: set[str], *, timeout: float = 30) -> int:
+    """Take a departed reader's home out of the ledger, in one transaction (clause 3.14).
+
+    What was theirs alone goes, history and all (`forget`): the documents `hashes` names
+    (read off their home) and any `text_homes` says the home held, so a text whose file
+    could not be read is not missed (targum-internal#679). A document in `kept` (the
+    shelf, the weekly, another home on disk) or held by another home in `text_homes` is
+    corpus or somebody else's, and only loses this home (`disown`). Raises on a lock
+    held past `timeout`, so the caller can try again; does nothing with the flag off.
+    """
+    file = path()
+    if file is None or not home or not file.is_file():
+        return 0
+    with closing(Ledger(file, timeout=timeout)._connect()) as db, db:
+        mine = set(hashes) | {
+            str(row[0])
+            for row in db.execute("SELECT document_hash FROM text_homes WHERE home = ?", (home,))
+        }
+        wanted = sorted(mine)
+        marks = ",".join("?" for _ in wanted)
+        shared = (
+            {
+                str(row[0])
+                for row in db.execute(
+                    "SELECT DISTINCT document_hash FROM text_homes"
+                    f" WHERE home != ? AND document_hash IN ({marks})",  # noqa: S608
+                    [home, *wanted],
+                )
+            }
+            if wanted
+            else set()
+        )
+        gone = _forget(db, mine - kept - shared)
+        db.execute("DELETE FROM text_homes WHERE home = ?", (home,))
+        return gone
 
 
 #: A document's hash where an artifact names it, read from the head of the file: every

@@ -14,6 +14,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A long address in "We've sent a link to …" wraps on a phone (targum-internal#687).
+  The line had nothing to break it, so a 60-character address widened a 320px page to
+  653px: sideways scroll. It now wraps anywhere, in the account menu and on the sign-in
+  door, pinned in English and Russian by `tests/test_long_address_browser.py`. No spend,
+  no new strings.
 - Sign-in, `/signup`, `/waitlist` and `/weekly/subscribe` refuse a post from another
   site (targum-internal#688). A form elsewhere could post to any of them and have a link
   mailed to an address it chose, counted against the visitor's address. A post whose
@@ -72,6 +77,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   both ways. The try box's "too many links" refusal says sign up rather than «когда
   вас пригласят» while the door is open. No spend; eleven new strings, Russian
   first-passed.
+- An account purge whose corpus-ledger step fails is finished by the next purge, and a
+  person id is never given twice (targum-internal#679, clause 3.14).
+  `Library.purge_departed` deleted the home right after `ledger.disown` and
+  `ledger.forget`, so a lock on `corpus.db` held past 30 s was logged and then lost: the
+  home was the only place that reader's documents could be listed from, and their rows
+  stayed. Each departing home is now written down before its account goes, in
+  `targum.db.departing/<home>-<ms>-<rand>.json` (its document hashes and the account's
+  `made`); the home is deleted on time, and the note goes only once the folder is gone
+  and `ledger.depart` has held, retried after the night's own deletions at every
+  start-up and every nightly purge, waiting at most `FORGET_TIMEOUT` (5 s) once per
+  sweep. `ledger.depart` also forgets what `text_homes` says the home held, so a text
+  whose file could not be read is not missed. Ids were `max(id) + 1`, so the next
+  sign-up could be given a departed reader's id and, after a failed delete, their
+  folder; `Store` now keeps the highest id ever given (`person_high`) and never hands
+  one out twice, which is what lets a retry delete whatever stands under a departed
+  name. At start the count is seeded from the highest home on disk and the highest id
+  a note still owes, so an id an older targum gave up, or a restore forgot, is not given
+  again (a name past `max(id) + 10**6` is skipped, not counted). A build queued for an
+  account that has gone never runs, and one that finishes after its owner went is
+  cleared with them; a store that cannot say whether the owner is there stops no build. A note that cannot be read or removed is
+  logged and never stops a deletion or a start. No spend, no new strings.
 - A held corpus-ledger lock no longer stalls a reader's build for 30 s (targum-internal#162).
   `Cache.put`'s `vocalize` write and the pipeline's `tokens` write opened `corpus.db`
   with sqlite's 30 s default, so another process holding the write lock cost a build half

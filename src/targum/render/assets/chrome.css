@@ -295,7 +295,9 @@ html:lang(ru) .site-nav .nav-place { text-transform: lowercase; }
 /* account.js writes both outcomes here, so accent painted a failure in the hue §4
    reserves for the primary action. Ink for both: a refusal about the address goes under
    its field with the clay mark (`fault.js`, design.md §12, 2026-10-09). */
-.account-panel .said { margin: 0.6rem 0 0; color: var(--ink); }
+/* "We've sent a link to {address}" is one run as long as the address: a long one
+   widened a 320px phone page to 653px (targum-internal#687). */
+.account-panel .said { margin: 0.6rem 0 0; color: var(--ink); overflow-wrap: anywhere; }
 .account-panel .said[hidden] { display: none; }
 .account-panel [hidden] { display: none; }
 
