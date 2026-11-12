@@ -211,7 +211,7 @@ def _futures() -> tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:
 def _infinitive_of(under: list[tuple[str, str]]) -> tuple[str, str] | None:
     """The one verb a pointed ל-word is the infinitive of, by its future: ל in place of
     the future's prefix with the future's vowels after it (לִמְכֹּר, יִמְכֹּר), or, for a
-    hif'il, nif'al or hitpa'el, לה in place of it (לְהַשְׁפִּיל, יַשְׁפִּיל; לְהִכָּנֵס, יִיכָּנֵס)."""
+    hif'il, nif'al or hitpa'el, לה in place of it (לְהַשְׁפִּיל, יַשְׁפִּיל; לְהִכָּנֵס, יִכָּנֵס)."""
     by_vowels, by_letters = _futures()
     found = by_vowels.get("ל" + _stem(under[1:]))
     if not found and len(under) > 4 and under[1][0] == "ה":
@@ -253,7 +253,7 @@ def _rebuilt(built: str | None, letter: str) -> str | None:
 
 #: The binyan a participle's מ says by its vowel, where the word is pointed: a pi'el's or
 #: pu'al's shva (מְדַבֵּר, מְזֻעְזָע), a hif'il's patach or tsere (מַשְׁפִּיל, מֵקִים), a
-#: huf'al's qubuts or qamats (מֻשְׁפָּל, מָקָם), a hitpa'el's hiriq (מִתְלַבֵּשׁ).
+#: huf'al's qubuts or qamats qatan (מֻשְׁפָּל, מׇשְׁלָךְ), a hitpa'el's hiriq (מִתְלַבֵּשׁ).
 _MEM_VOWELS = {
     "\u05b0": frozenset({"פיעל", "פועל"}),
     "\u05b2": frozenset({"פיעל", "פועל"}),
