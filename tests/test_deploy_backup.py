@@ -307,7 +307,10 @@ def test_a_morphalou_that_cannot_be_reached_does_not_stop_the_deploy(tmp_path: P
     assert script.index("systemd-run", fetch) > end, "the warning belongs to this fetch"
     step = script[start:end].replace("'\"'\"'", "'")
     fake = tmp_path / "systemd-run"
-    fake.write_text("#!/usr/bin/env bash\nexit 1\n", encoding="utf-8")
+    said = tmp_path / "said"
+    fake.write_text(
+        f'#!/usr/bin/env bash\nprintf "%s\\n" "$@" > {said}\nexit 1\n', encoding="utf-8"
+    )
     fake.chmod(0o755)
     ran = subprocess.run(
         ["bash", "-euo", "pipefail", "-c", step + "\necho went on"],
@@ -318,3 +321,8 @@ def test_a_morphalou_that_cannot_be_reached_does_not_stop_the_deploy(tmp_path: P
     assert ran.returncode == 0, ran.stderr
     assert "went on" in ran.stdout
     assert "Morphalou not fetched" in ran.stderr
+    # As the targum user, into its own model directory (targum-internal#682): a fetch as
+    # root leaves files the service cannot replace and root's cache the service never reads.
+    args = said.read_text(encoding="utf-8").split("\n")
+    assert {"--uid=targum", "--gid=targum", "--setenv=HOME=/srv/targum"} <= set(args), args
+    assert "-p" in args and "EnvironmentFile=/etc/targum/targum.env" in args, args
