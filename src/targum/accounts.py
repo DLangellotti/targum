@@ -933,8 +933,9 @@ def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> 
     `person_high` remembers past it (targum-internal#679).
 
     `came_from` is the page or link tag the open door's form stood on, already narrowed
-    by the caller; where it says nothing, the waitlist row's `page` is kept instead, so
-    somebody let in is counted by the door they joined at (targum-internal#676). Only a
+    by the caller; where it says nothing, the waitlist row's `page` is kept instead, if
+    the row was confirmed or let in, so somebody let in is counted by the door they
+    joined at (targum-internal#676). Only a
     new account takes it: an old one keeps what brought it first."""
     if db.execute("SELECT 1 FROM person WHERE email = ?", (address,)).fetchone() is not None:
         return
@@ -943,7 +944,12 @@ def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> 
         " COALESCE((SELECT id FROM person_high WHERE one = 1), 0)) + 1"
     ).fetchone()
     if not came_from:
-        waited = db.execute("SELECT page FROM waiting WHERE email = ?", (address,)).fetchone()
+        # Only from a place they confirmed or were let in from: a row never confirmed,
+        # or withdrawn, gave no consent to keep (qa-claude on targum#1186).
+        waited = db.execute(
+            "SELECT page FROM waiting WHERE email = ? AND (state = 'on' OR invited > 0)",
+            (address,),
+        ).fetchone()
         came_from = str(waited["page"] or "") if waited is not None else ""
     db.execute(
         "INSERT INTO person (id, email, made, came_from) VALUES (?, ?, ?, ?)"
@@ -4692,7 +4698,8 @@ class Store:
     def _settings_of(self, person: Person) -> dict[str, Any]:
         """The account's own settings, as the reader set them, for `everything`."""
         row = self.db.execute(
-            "SELECT address, interest, declared, events, granted FROM person WHERE id = ?",
+            "SELECT address, interest, declared, events, granted, came_from"
+            " FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
         return {
@@ -4703,6 +4710,8 @@ class Store:
             "declared": self.declared_map(str(row["declared"] or "")),
             "record": "off" if row["events"] == "off" else "kept",
             "granted": row["granted"],
+            # Which page, or which link's tag, the account came in by (#676).
+            "came_from": row["came_from"],
         }
 
     def everything(self, person: Person) -> dict[str, Any]:
@@ -4728,7 +4737,8 @@ class Store:
         list at all: it takes the database whole.
         """
         account = self.db.execute(
-            "SELECT email, name, picture, made FROM person WHERE id = ?", (person.id,)
+            "SELECT email, name, picture, made, came_from FROM person WHERE id = ?",
+            (person.id,),
         ).fetchone()
         out: dict[str, Any] = {
             "account": {
@@ -4738,6 +4748,9 @@ class Store:
                 # the plainest sense: they typed it.
                 "name": account["name"],
                 "picture": account["picture"],
+                # Which page, or which link's tag, they came in by: the privacy notice
+                # says it is kept with the account (clause 3.10, targum-internal#676).
+                "came_from": account["came_from"],
             },
             # What they said about their languages — which they are learning, which they
             # read — as the rows they wrote, not the defaulted sets `learning()` and

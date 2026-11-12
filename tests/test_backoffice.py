@@ -379,7 +379,8 @@ def test_accounts_say_which_page_or_link_brought_them(tmp_path: Path) -> None:
     by, a signup keeps its own, and the back office counts accounts by it beside the
     waitlist's count."""
     store = Store(tmp_path / "targum.db")
-    store.join_waitlist("a@example.com", "en", "meta.after-duolingo")
+    token = store.join_waitlist("a@example.com", "en", "meta.after-duolingo")
+    assert token and store.confirm_waiting(token)
     store.invite("a@example.com")
     assert store.account_for_invited("a@example.com") is not None
     store.start_sign_in("b@example.com", "meta.after-duolingo")
@@ -469,3 +470,67 @@ def test_the_page_shows_the_last_calibration_of_each_language(
     assert he < ru, "in order of language"
     assert "knows 2000: -1.3 pt, |1.3|" in page[ru:]
     assert "knows 2000: +1.1 pt, |1.1|" in page[he:ru]
+
+
+def test_only_a_confirmed_or_let_in_place_is_kept_on_the_account(tmp_path: Path) -> None:
+    """qa-claude on targum#1186: the notice keeps the tag with the account of somebody
+    admitted from the waitlist, on the consent they gave by confirming. A row never
+    confirmed, or withdrawn, hands nothing on; one let in does, confirmed or not."""
+    store = Store(tmp_path / "targum.db")
+
+    def came(address: str) -> str:
+        row = store.db.execute(
+            "SELECT came_from FROM person WHERE email = ?", (address,)
+        ).fetchone()
+        return str(row["came_from"])
+
+    store.join_waitlist("pending@example.com", "en", "meta.x")
+    store.start_sign_in("pending@example.com")
+    assert came("pending@example.com") == ""
+
+    token = store.join_waitlist("left@example.com", "en", "tiktok.y")
+    assert token and store.confirm_waiting(token)
+    stop = store.db.execute(
+        "SELECT stop FROM waiting WHERE email = ?", ("left@example.com",)
+    ).fetchone()["stop"]
+    assert store.leave_waitlist(stop)
+    store.start_sign_in("left@example.com")
+    assert came("left@example.com") == ""
+
+    token = store.join_waitlist("on@example.com", "en", "meta.x")
+    assert token and store.confirm_waiting(token)
+    store.start_sign_in("on@example.com")
+    assert came("on@example.com") == "meta.x"
+
+    store.join_waitlist("let-in@example.com", "en", "meta.x")
+    store.waiting_invited("let-in@example.com")
+    store.start_sign_in("let-in@example.com")
+    assert came("let-in@example.com") == "meta.x"
+
+
+def test_the_from_lines_name_ten_and_count_the_rest_as_other(tmp_path: Path) -> None:
+    """qa-claude on targum#1186: a tag is whatever a form says, so a page of forged ones
+    could make each line as long as the list. Ten by count, then the rest together."""
+    store = Store(tmp_path / "targum.db")
+    for n in range(12):
+        for k in range(12 - n):
+            store.join_waitlist(f"w{n}-{k}@example.com", "en", f"tag-{n}")
+            store.start_sign_in(f"a{n}-{k}@example.com", f"tag-{n}")
+    found = survey(store.db, today=date(2026, 10, 1))
+    for counted in (found.waiting_by_page, found.accounts_by_came_from):
+        assert list(counted) == [f"tag-{n}" for n in range(10)] + ["other"]
+        assert counted["tag-0"] == 12 and counted["other"] == 2 + 1
+    page = back_office_page(found, 30)
+    assert "tag-9 3 &middot; other 3</p>" in page and "tag-10" not in page
+
+
+def test_the_export_says_which_page_or_link_brought_them(tmp_path: Path) -> None:
+    """qa-claude on targum#1186: clause 3.10 says the tag is kept with the account, so the
+    reader's own export, which promises everything targum holds, carries it."""
+    store = Store(tmp_path / "targum.db")
+    store.start_sign_in("b@example.com", "meta.after-duolingo")
+    person = store.person_by_email("b@example.com")
+    assert person is not None
+    taken = store.everything(person)
+    assert taken["account"]["came_from"] == "meta.after-duolingo"
+    assert taken["settings"]["came_from"] == "meta.after-duolingo"

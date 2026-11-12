@@ -88,6 +88,24 @@ BETA_FROM = date(2026, 10, 19)
 
 GMAIL = frozenset({"gmail.com", "googlemail.com"})
 
+#: How many pages or link tags the waitlist's and the accounts' "from" lines name before
+#: the rest are counted together as other (qa-claude on targum#1186): a tag is anything a
+#: form says, so the line has to stay one line however many there are.
+TAGS_SHOWN = 10
+
+#: The key the rest are counted under. No tag has a space in it, so none can be it.
+OTHER_TAGS = "other"
+
+
+def _top_tags(counted: dict[str, int]) -> dict[str, int]:
+    """The `TAGS_SHOWN` biggest, in the order given, and the rest summed as other."""
+    shown = dict(list(counted.items())[:TAGS_SHOWN])
+    rest = sum(list(counted.values())[TAGS_SHOWN:])
+    if rest:
+        shown[OTHER_TAGS] = rest
+    return shown
+
+
 #: How many rows a list on the page draws at once (targum-internal#542). The page drew
 #: every account, every waiting address and a thirty-day row for each on every load,
 #: which was fine at eight and is not at five thousand.
@@ -1242,26 +1260,30 @@ def _waitlist(
     # (targum-internal#388). Unknown is counted too, under "". Most first, and between
     # two the same, the one that brought somebody first.
     with contextlib.suppress(sqlite3.Error):
-        found.waiting_by_page = {
-            str(row["page"] or ""): int(row["n"])
-            for row in db.execute(
-                f"SELECT page, COUNT(*) AS n FROM waiting {mine}"  # noqa: S608
-                " GROUP BY page ORDER BY n DESC, MIN(asked), MIN(rowid)",
-                named,
-            )
-        }
+        found.waiting_by_page = _top_tags(
+            {
+                str(row["page"] or ""): int(row["n"])
+                for row in db.execute(
+                    f"SELECT page, COUNT(*) AS n FROM waiting {mine}"  # noqa: S608
+                    " GROUP BY page ORDER BY n DESC, MIN(asked), MIN(rowid)",
+                    named,
+                )
+            }
+        )
     # And by account (targum-internal#676): with the door open, a signup never has a
     # waitlist row, so the channel is counted here too. Absent before schema 63.
     with contextlib.suppress(sqlite3.Error):
         people = NOT_MINE.format(column="p.email")
-        found.accounts_by_came_from = {
-            str(row["came_from"] or ""): int(row["n"])
-            for row in db.execute(
-                f"SELECT came_from, COUNT(*) AS n FROM person p WHERE {people}"  # noqa: S608
-                " GROUP BY came_from ORDER BY n DESC, MIN(made), MIN(id)",
-                named,
-            )
-        }
+        found.accounts_by_came_from = _top_tags(
+            {
+                str(row["came_from"] or ""): int(row["n"])
+                for row in db.execute(
+                    f"SELECT came_from, COUNT(*) AS n FROM person p WHERE {people}"  # noqa: S608
+                    " GROUP BY came_from ORDER BY n DESC, MIN(made), MIN(id)",
+                    named,
+                )
+            }
+        )
 
 
 def _accounts(

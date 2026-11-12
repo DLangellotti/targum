@@ -495,6 +495,11 @@ def test_no_join_form_drops_the_language_that_was_pressed() -> None:
         ("two words", ""),
         ("-dash-first", ""),
         ("<b>hi</b>", ""),
+        # A tag that names a page family is that page, and the siddur's own links are the
+        # siddur, with JavaScript or without (qa-claude on targum#1186).
+        ("aliyah", "/aliyah"),
+        ("siddur-shacharit", "/siddur"),
+        ("siddur", "/siddur"),
     ],
 )
 def test_the_waitlist_keeps_only_a_page_of_targum_s_own(said: str, kept: str) -> None:
@@ -562,8 +567,13 @@ def test_the_tag_a_page_was_opened_with_is_kept_on_the_row(
         "SELECT page FROM waiting WHERE email = ?", ("noa@example.com",)
     ).fetchone()
     assert row["page"] == "meta.after-duolingo"
-    # Through a try, the page comes back still carrying it.
-    _, tried = post(port, "/try", {"link": "", "from": "meta.after-duolingo"})
+    # Through a try, the page comes back still carrying it: posted as the page's own try
+    # form would post it, so the form has to carry it (qa-claude on targum#1186).
+    try_form = re.search(r'<form class="try-form".*?</form>', page, re.S)
+    assert try_form is not None
+    fields = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)">', try_form[0]))
+    assert fields == {"from": "meta.after-duolingo"}
+    _, tried = post(port, "/try", {"link": "", **fields})
     assert set(re.findall(r'<input type="hidden" name="from" value="([^"]*)">', tried)) == {
         "meta.after-duolingo"
     }

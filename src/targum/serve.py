@@ -976,16 +976,24 @@ def joined_from(said: str) -> str:
     post brought somebody through is counted without any pixel. A tag is never a free
     text: anything else in the field is a path or nothing.
     """
+    families = {"aliyah", "connect", "weekly", "parasha", "siddur"} | {
+        cycle.slug for cycle in daily_cycles()
+    }
     slug = said.strip().lower()
     if CAME_FROM.fullmatch(slug):
+        # A tag that names a family is that family, and a link of ours marked
+        # `siddur-…` is the siddur, whether `landing.js` ran or not (qa-claude on
+        # targum#1186): one channel, one count.
+        if slug in families:
+            return f"/{slug}"
+        if slug.startswith("siddur-"):
+            return "/siddur"
         return slug
     path = urlparse(said.strip()).path or ""
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
         return "/"
-    if first in {"aliyah", "connect", "weekly", "parasha", "siddur"}:
-        return f"/{first}"
-    if first and first in {cycle.slug for cycle in daily_cycles()}:
+    if first and first in families:
         return f"/{first}"
     return ""
 
