@@ -1097,7 +1097,7 @@ def asset_files() -> dict[str, tuple[bytes, str, str]]:
     asset they are. Read once, so `targum serve` answers from memory; an address that is
     not here is a 404. The worker is left out: it is served from the root, and only there
     (`worker_script`)."""
-    return {**_read_files(), **_pictures(), **_GENERATED}
+    return {**_read_files(), **_pictures(), **_films(), **_GENERATED}
 
 
 def asset_set() -> str:
@@ -1123,6 +1123,28 @@ def _pictures() -> dict[str, tuple[bytes, str, str]]:
             name = f"{folder}/{path.name}"
             found[picture_address(name)] = (path.read_bytes(), "image/jpeg", name)
     return found
+
+
+#: The short films a public page plays (targum-internal#676): a few seconds of an openly
+#: licensed video, cut small, served from targum's own origin by a hash address and kept
+#: for a year, as the pictures are. Each folder's README says where each one is from.
+FILM_FOLDER = "films"
+
+
+@cache
+def _films() -> dict[str, tuple[bytes, str, str]]:
+    """Every film `picture_address` can name, by its address."""
+    found: dict[str, tuple[bytes, str, str]] = {}
+    for path in sorted((ASSETS / FILM_FOLDER).glob("*.mp4")):
+        name = f"{FILM_FOLDER}/{path.name}"
+        found[picture_address(name)] = (path.read_bytes(), "video/mp4", name)
+    return found
+
+
+def asset_source(name: str) -> Path:
+    """Where one of the assets is on disk, by the name `asset_files` gives it: what a
+    film is answered from, in ranges."""
+    return ASSETS / name
 
 
 @cache
@@ -2958,6 +2980,20 @@ def _with_hebrew_marked(text: str) -> Markup:
     return out + escape(text[at:])
 
 
+#: A few seconds of the cola video with each word's clock (David, 2026-11-12: "a real
+#: video playing"), for the "People talk fast" card: the film beside the page's assets,
+#: its lines as targum's reader holds them, every word timed by targum's own aligner.
+AFTER_DUOLINGO_CLIP = Path(__file__).parent / "after_duolingo_clip.json"
+
+
+@cache
+def after_duolingo_clip() -> dict[str, Any]:
+    """The clip as the page draws it: the film's address, the credit its licence asks
+    for, and its lines, each word with the seconds it is lit for."""
+    held: dict[str, Any] = json.loads(AFTER_DUOLINGO_CLIP.read_text(encoding="utf-8"))
+    return {**held, "src": picture_address(held["film"])}
+
+
 @cache
 def after_duolingo_story() -> dict[str, Any]:
     """The reader's four lines, as parts the template draws (text, or a word by its id),
@@ -3057,6 +3093,7 @@ def after_duolingo_page(
             tried=tried,
             try_this=after_duolingo_try(),
             story_words=after_duolingo_story(),
+            clip=after_duolingo_clip(),
             story_json=embed_json(
                 {"open": after_duolingo_story()["open"], "words": after_duolingo_story()["words"]}
             ),

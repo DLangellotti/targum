@@ -900,6 +900,25 @@ mark.w { color: inherit; }
 .glued-live:not(.apart) .glued { gap: 0; }
 .glued-live:not(.apart) .glued li > span:not(.he) { opacity: 0; }
 .how-vis .pair { padding: var(--space-2); background: var(--card); }
+/* The clip in "People talk fast" (targum-internal#676): a few seconds of the cola video
+   over its two lines, the line being said in the reader's teal wash and each word lit in
+   the reader's teal as it is said. */
+.clip { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: var(--ink); }
+.clip video { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.clip-play { position: absolute; inset-block-end: var(--space-2); inset-inline-end: var(--space-2); display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; border-radius: 999px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); cursor: pointer; }
+.clip-play svg { inline-size: 0.875rem; block-size: 0.875rem; }
+.clip-play .g-pause, .clip.playing .clip-play .g-play { display: none; }
+.clip.playing .clip-play .g-pause { display: inline; }
+.clip-lines { display: grid; gap: var(--space-1); }
+.how-vis.clip-vis .pair { grid-template-columns: minmax(0, 1fr); padding: var(--space-1) var(--space-2); background: none; }
+.how-vis.clip-vis .pair.now { background: var(--teal-wash); }
+.clip-vis .line-en { grid-column: 1; }
+.clip-credit { font-size: 0.8125rem; line-height: 1.4; color: var(--muted); }
+.how-card .clip-credit { font-size: 0.8125rem; }
+.clip-credit a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+@media (hover: none) and (pointer: coarse) {
+  .clip-play { inline-size: 44px; block-size: 44px; }
+}
 .how-vis .pair .at { cursor: default; }
 .how-vis .line-he { font-size: 1.0625rem; line-height: 1.8; }
 .vowels-vis { gap: var(--space-1); }

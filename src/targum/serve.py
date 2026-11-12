@@ -82,6 +82,7 @@ from .render.builder import (
     approve_page,
     asset_files,
     asset_set,
+    asset_source,
     back_office_page,
     connect_page,
     connect_refused_page,
@@ -18796,7 +18797,11 @@ class Handler(BaseHTTPRequestHandler):
         found = asset_files().get(route)
         if found is None:
             return self._send(404, b"not found", "text/plain")
-        body, kind, _ = found
+        body, kind, name = found
+        # A film is asked for in ranges, and Safari refuses one that is not answered in
+        # them (`_send_file`), so it is answered from its file as a reader's part is.
+        if kind.startswith("video/"):
+            return self._send_file(asset_source(name), kind, cache=self.ASSET_CACHE)
         return self._send(200, body, kind, cache=self.ASSET_CACHE)
 
     def _clip(self, name: str) -> None:

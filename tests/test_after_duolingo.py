@@ -24,7 +24,7 @@ import pytest
 from targum.accounts import Store
 from targum.catalogue import Entry, Kind, Register
 from targum.mail import ConsoleMailer
-from targum.render.builder import AFTER_DUOLINGO_FIRSTS, after_duolingo_page
+from targum.render.builder import AFTER_DUOLINGO_FIRSTS, after_duolingo_page, asset_files
 from targum.serve import Handler, Library, joined_from
 
 ADDRESS = "https://targum.page"
@@ -140,6 +140,9 @@ def test_the_page_loads_nothing_from_another_origin(shelf: None) -> None:
         "https://www.instagram.com/targum.page/",
         "https://www.linkedin.com/company/targum-page/",
         f"{ADDRESS}/after-duolingo-hebrew",
+        # The clip's credit: its source and its licence, as CC BY asks.
+        "https://www.youtube.com/watch?v=NEoaePzDhGc",
+        "https://creativecommons.org/licenses/by/3.0/",
     }, outbound
     assert "<script src" not in page
 
@@ -242,6 +245,28 @@ def test_why_real_hebrew_feels_harder_is_shown(shelf: None) -> None:
     assert why.count('<div class="how-vis') == 4
     assert "מדוע אינך הולך לבית־הספר?" in why
     assert "מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?" in why
+
+
+def test_people_talk_fast_plays_a_real_clip_from_our_own_origin(shelf: None) -> None:
+    """ "People talk fast" plays a few seconds of the cola video (David, 2026-11-12): from
+    targum's own origin by a hash address, small, muted, credited as CC BY asks, every
+    word carrying the clock targum's aligner gave it."""
+    page = after_duolingo_page(ADDRESS)
+    card = page.split("<h3>People talk fast.</h3>", 1)[1].split("</li>", 1)[0]
+    film = re.search(
+        r'<video id="clipFilm" src="(/assets/kan-small-cola\.[0-9a-f]{16}\.mp4)"', card
+    )
+    assert film, card
+    assert " muted " in card and " controls " in card
+    assert film.group(1) in asset_files()
+    body, kind, name = asset_files()[film.group(1)]
+    assert kind == "video/mp4" and name == "films/kan-small-cola.mp4"
+    assert len(body) < 300_000, "a clip rides beside the page, so it stays a few seconds and small"
+    timed = re.findall(r'<span class="w" data-at="([\d.]+) ([\d.]+)">', card)
+    assert len(timed) == 12
+    assert all(float(a) < float(b) <= 5 for a, b in timed)
+    assert "CC BY 3.0" in card and "Kan" in card
+    assert "Hold on, something here doesn’t add up." in card
 
 
 def test_the_bar_s_faq_is_this_page_s_questions(shelf: None) -> None:
@@ -378,3 +403,22 @@ def test_try_this_one_is_the_box_s_real_answer_and_builds_nothing(
     # The answer stands in the box, so the chip has done its work and goes.
     assert 'id="tryThis"' not in answer
     assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0
+
+
+def test_the_clip_is_answered_in_ranges(served: tuple[int, Store]) -> None:
+    """Safari opens a video with a two-byte probe and plays nothing unless it is a real
+    206, so the clip is answered in ranges, as a reader's part is."""
+    port, _ = served
+    film = next(
+        address for address, (_, _, name) in asset_files().items() if name.startswith("films/")
+    )
+    connection = HTTPConnection("127.0.0.1", port, timeout=10)
+    try:
+        connection.request("GET", film, headers={"Range": "bytes=0-1"})
+        response = connection.getresponse()
+        assert response.status == 206
+        assert response.getheader("Accept-Ranges") == "bytes"
+        assert response.getheader("Content-Type") == "video/mp4"
+        assert len(response.read()) == 2
+    finally:
+        connection.close()

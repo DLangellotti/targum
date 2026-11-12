@@ -1690,6 +1690,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   held in `render/after_duolingo_story.json` from a local build of the public-domain
   story with nothing translated or bought; the card here keeps no list, so it offers no
   Learning, Known or Ask. Without JavaScript the page stands as drawn.
+  And "People talk fast" plays a real video now, in place of the front page's borrowed
+  shakshuka line: 4.9 seconds of Kan's "Why does a small cola cost more than a big one?"
+  (CC BY 3.0, credited under it with its link and licence), muted, its two lines under
+  it with each word lit as it is said and the line being said in the reader's wash. The
+  words and English are the ones targum's reader holds for that video; each word's clock
+  is targum's own forced aligner (`ctc-xlsr-he/2`, local and unpaid) run on the clip. The
+  clip is 113 kB in `render/assets/films/`, served from targum's own origin by a hash
+  address and in ranges (`_asset_file` answers a film from its file, as a reader's part
+  is), and kept for a year. It plays while in view, never by itself under reduced
+  motion, and its one key plays or pauses it; without JavaScript the browser's own
+  controls stand.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner

@@ -578,6 +578,62 @@
     }
   }
 
+  /* ---- the clip, on /after-duolingo-hebrew ----
+     A few seconds of a real video, muted, its words lit as they are said by the clocks
+     targum's aligner gave them (`data-at`, seconds into the clip), and the line being
+     said in the reader's wash. It plays while it is in view and waits out of it; the key
+     plays or pauses it, and once pressed it plays only when the reader says. Never by
+     itself under reduced motion. Without this the browser's own controls stand. */
+  var clipFilm = document.getElementById("clipFilm");
+  if (clipFilm) {
+    var clipBox = clipFilm.closest(".clip"), clipVis = clipFilm.closest(".clip-vis");
+    var clipKey = clipVis.querySelector(".clip-play");
+    var clipPairs = Array.prototype.slice.call(clipVis.querySelectorAll(".clip-lines .pair"));
+    var clipWords = clipPairs.map(function (pair) {
+      return Array.prototype.slice.call(pair.querySelectorAll(".w[data-at]")).map(function (w) {
+        var at = w.getAttribute("data-at").split(" ");
+        return { el: w, from: +at[0], to: +at[1] };
+      });
+    });
+    var clipHands = false, clipFrame = 0;
+    clipFilm.removeAttribute("controls");
+    clipKey.hidden = false;
+    var lightClip = function () {
+      var now = clipFilm.currentTime, line = -1;
+      clipWords.forEach(function (words, n) {
+        words.forEach(function (w) { w.el.classList.toggle("saying", now >= w.from && now < w.to); });
+        if (words.length && now >= words[0].from - 0.3) line = n;
+      });
+      clipPairs.forEach(function (pair, n) { pair.classList.toggle("now", n === Math.max(0, line)); });
+      clipFrame = clipFilm.paused ? 0 : requestAnimationFrame(lightClip);
+    };
+    var clipShown = function () {
+      var on = !clipFilm.paused;
+      clipBox.classList.toggle("playing", on);
+      clipKey.setAttribute("aria-label", on ? t("landing.demo.pause", "Pause") : t("landing.demo.play", "Play"));
+      if (on && !clipFrame) clipFrame = requestAnimationFrame(lightClip);
+      if (!on) lightClip();
+    };
+    var clipPlay = function () {
+      var started = clipFilm.play();
+      if (started && started.catch) started.catch(function () { clipShown(); });
+    };
+    clipFilm.addEventListener("play", clipShown);
+    clipFilm.addEventListener("pause", clipShown);
+    clipKey.addEventListener("click", function () {
+      clipHands = true;
+      if (clipFilm.paused) clipPlay(); else clipFilm.pause();
+    });
+    if (!reduced && "IntersectionObserver" in window) {
+      new IntersectionObserver(function (seen) {
+        if (clipHands) return;
+        if (seen.some(function (e) { return e.isIntersecting; })) clipPlay();
+        else clipFilm.pause();
+      }, { threshold: 0.6 }).observe(clipFilm);
+    }
+    clipShown();
+  }
+
   /* ---- the conversation arrives (David, 2026-10-02) ----
      When the phone comes into view the turns arrive one after another, as they would:
      yours, then targum's correction, its double underline drawn a beat later, then the

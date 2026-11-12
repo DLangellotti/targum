@@ -162,3 +162,19 @@ def test_nothing_the_front_page_s_film_needs_is_asked_for(browser: Any) -> None:
     assert not has_top_live
     assert not thrown, thrown
     assert not [line for line in thrown if re.search("null", line)]
+
+
+def test_the_clip_has_one_key_and_no_browser_controls(browser: Any) -> None:
+    """With the script, the clip's one key stands in for the browser's controls; under
+    reduced motion nothing plays by itself (Playwright's Chromium cannot decode H.264, so
+    playing is the real browsers' to show, and the key's label is what is checked)."""
+    context, page, thrown = opened(browser)
+    assert page.eval_on_selector("#clipFilm", "(v) => v.hasAttribute('controls')") is False
+    key = page.locator(".clip-play")
+    assert key.is_visible()
+    assert key.get_attribute("aria-label") == "Play"
+    assert page.eval_on_selector("#clipFilm", "(v) => v.paused") is True
+    # The first line is the one being said before anything plays, as drawn.
+    assert page.locator(".clip-lines .pair.now").count() == 1
+    context.close()
+    assert not thrown, thrown

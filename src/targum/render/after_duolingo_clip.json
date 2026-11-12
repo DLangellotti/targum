@@ -1,0 +1,117 @@
+{
+ "_": "Seconds 15.3 to 20.2 of Kan's 'Why does a small cola cost more than a big one?' (kan-small-cola, CC BY 3.0, כאן | דיגיטל - תאגיד השידור הישראלי), as targum's reader holds it on the laptop: the words of its Hebrew subtitle track, the English of its translation, and each word's clock from targum's forced aligner (ctc-xlsr-he/2, local and unpaid) run on this clip on 2026-11-12, in seconds into the clip. Drawn by /after-duolingo-hebrew (targum-internal#676).",
+ "film": "films/kan-small-cola.mp4",
+ "title": "Why does a small cola cost more than a big one?",
+ "credit": "Kan",
+ "licence": "CC BY 3.0",
+ "licence_url": "https://creativecommons.org/licenses/by/3.0/",
+ "home": "https://www.youtube.com/watch?v=NEoaePzDhGc",
+ "lines": [
+  {
+   "en": "Hold on, something here doesn’t add up.",
+   "parts": [
+    {
+     "he": "רגע",
+     "at": [
+      0.26,
+      0.83
+     ]
+    },
+    ", ",
+    {
+     "he": "משהו",
+     "at": [
+      1.32,
+      1.56
+     ]
+    },
+    " ",
+    {
+     "he": "פה",
+     "at": [
+      1.56,
+      1.6
+     ]
+    },
+    " ",
+    {
+     "he": "לא",
+     "at": [
+      1.6,
+      1.68
+     ]
+    },
+    " ",
+    {
+     "he": "הגיוני",
+     "at": [
+      1.68,
+      2.37
+     ]
+    },
+    "."
+   ]
+  },
+  {
+   "en": "Why does a small Coke cost more than a large Coke?",
+   "parts": [
+    {
+     "he": "למה",
+     "at": [
+      3.0,
+      3.26
+     ]
+    },
+    " ",
+    {
+     "he": "קולה",
+     "at": [
+      3.26,
+      3.42
+     ]
+    },
+    " ",
+    {
+     "he": "קטן",
+     "at": [
+      3.42,
+      3.6
+     ]
+    },
+    " ",
+    {
+     "he": "עולה",
+     "at": [
+      3.6,
+      3.76
+     ]
+    },
+    " ",
+    {
+     "he": "יותר",
+     "at": [
+      3.76,
+      3.92
+     ]
+    },
+    " ",
+    {
+     "he": "מקולה",
+     "at": [
+      3.92,
+      4.16
+     ]
+    },
+    " ",
+    {
+     "he": "גדול",
+     "at": [
+      4.16,
+      4.71
+     ]
+    },
+    "?"
+   ]
+  }
+ ]
+}

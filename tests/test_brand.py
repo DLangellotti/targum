@@ -243,6 +243,8 @@ def test_no_focus_ring_is_the_gold() -> None:
 #: `inset-inline-end: -1.9rem`, outside the pair, so its reach crosses a margin and never
 #: the words. A control that sat among them could not take this.
 THUMBED = (
+    # The clip's one key on /after-duolingo-hebrew (targum-internal#676): play and pause.
+    ".clip-play",
     # Every part of a `.seg`, the one switch on every surface (design.md §12, "Your
     # level, v3", 2026-10-29): Your Progress's Day / Week / Month is one.
     ".seg > *",
