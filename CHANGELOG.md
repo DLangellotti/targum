@@ -19,6 +19,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   653px: sideways scroll. It now wraps anywhere, in the account menu and on the sign-in
   door, pinned in English and Russian by `tests/test_long_address_browser.py`. No spend,
   no new strings.
+- Sign-in, `/signup`, `/waitlist` and `/weekly/subscribe` refuse a post from another
+  site (targum-internal#688). A form elsewhere could post to any of them and have a link
+  mailed to an address it chose, counted against the visitor's address. A post whose
+  browser says `Sec-Fetch-Site: cross-site` is now answered 403; same-origin, same-site,
+  `none` and no header at all (an old browser, curl) still get through. Sign-in also
+  takes only a body sent as `application/json` (415 otherwise), since a text/plain body
+  that parses as JSON needs no preflight. No spend, no new strings.
 - A Russian lemma spelled with ё is as common in the estimate as its е spelling
   (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
   2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
