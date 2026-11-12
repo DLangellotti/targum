@@ -176,6 +176,37 @@ def test_a_host_we_cannot_fetch_is_named(
     assert said(page) == "Vimeo doesn't let us fetch its videos. Try a link to an article instead."
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_a_dead_link_is_not_asked_for_its_text(
+    door: tuple[int, Store, Library, io.StringIO],
+    monkeypatch: pytest.MonkeyPatch,
+    language: str,
+) -> None:
+    """Design's #477 finish bar, P1-3 (2026-11-12): a page that would not open was told
+    Upload's "Paste its text here instead" under a box that takes only a link. The box
+    says its own sentence, in the page's language."""
+    from targum.serve import said_in
+
+    port, *_ = door
+
+    def dead(source: str, language: str | None = None) -> None:
+        raise ConnectionError("no such host")
+
+    monkeypatch.setattr("targum.audio.episode.sounds_like_audio", lambda url: False)
+    monkeypatch.setattr("targum.audio.episode.find", lambda url: None)
+    monkeypatch.setattr("targum.ingest.load", dead)
+    path = "/try" + ("?lang=ru" if language == "ru" else "")
+    status, page = post(port, path, {"link": "https://no-such-host.example/item"})
+    assert status == 200
+    assert said(page) == html.unescape(
+        said_in(language, "door.no-answer", "We couldn't open that link. Check it and try again.")
+    )
+    paste = said_in(
+        language, "job.unreadable.other", "We couldn't read that page. Paste its text here instead."
+    )
+    assert html.unescape(paste) not in html.unescape(page)
+
+
 def test_a_visitor_is_counted_and_told_when_to_come_back(
     door: tuple[int, Store, Library, io.StringIO], monkeypatch: pytest.MonkeyPatch
 ) -> None:

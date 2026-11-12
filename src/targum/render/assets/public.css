@@ -164,6 +164,16 @@ body.public {
 .public .provenance .licence {
   font-size: 0.8125rem;
 }
+/* The edition, its licence and the translation's publisher are links (§13: teal, as a
+   link is on the pages around this one). With no rule they were the browser's own blue,
+   which §4 and §10 say is never ours (design's #477 finish bar, P1-1, 2026-11-12). */
+.public .provenance a {
+  color: var(--teal);
+  text-decoration: none;
+}
+.public .provenance a:hover {
+  text-decoration: underline;
+}
 
 .public .facts {
   margin: 0 0 2rem;

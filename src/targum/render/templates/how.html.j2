@@ -2,7 +2,7 @@
 <html lang="{{ page_language|default('en') }}">
 <head>
 {% include '_public_head.html.j2' %}
-{{ styles('tokens.css', 'shared.css', 'reader.css', 'about.css', 'how.css') }}
+{{ styles('tokens.css', 'shared.css', 'reader.css', 'about.css', 'how.css', 'front-bar.css') }}
 {{ hebrew_face() }}
 {{ scripture_face() }}
 {{ chrome_face() }}
@@ -33,19 +33,13 @@
 <p class="he{% if scripture %} scripture{% endif %}" lang="he" dir="rtl">{{ s.before }}<b>{{ s.word }}</b>{{ s.after }}</p>
 {%- endmacro -%}
 <body class="about how">
-<div class="corner">
-  <a class="enter" href="/account/signin">{{ t("about.page.sign-in", "Sign in") }}</a>
-</div>
+{#- The front door's bar, as the Library and the text pages have it (design's #477 finish
+    bar, P1-2, 2026-11-12): this page stood outside the door, with a lone Sign in and no
+    way to the waitlist or the other language. -#}
+{%- set q = '?lang=' ~ asked if asked|default('') else '' %}
+{% with bar_class = 'front-bar', home = '/' ~ q, here = '/how', join = '/' ~ q ~ '#join' %}{% include '_front_bar.html.j2' %}{% endwith %}
 
 <main class="sheet">
-  <a class="brand" href="/" aria-label="targum">
-    <svg class="brand-mark" viewBox="20 12 56 72" aria-hidden="true" focusable="false">
-      <rect x="20" y="12" width="22" height="62" rx="5" fill="currentColor"></rect>
-      <rect x="54" y="22" width="22" height="62" rx="5" fill="var(--mark-accent)"></rect>
-    </svg>
-    <span>targum</span>
-  </a>
-
   <div class="card">
   <h1>{{ t("how.page.title", "How targum reads Hebrew") }}</h1>
   <p class="lede">{{ t("how.page.lede", "Hebrew is easy to read once you know it, and hard for a machine that does not. These are the hard parts, each solved on a real text. Every example is targum's own output, copied from a reader.") }}</p>
@@ -67,7 +61,11 @@
   {#- 2. One spelling, several words: two pairs, each the same letters. -#}
   <section class="part" id="spelling">
     <h2>{{ t("how.spelling.title", "One spelling can be five words") }}</h2>
-    <p>{{ t("how.spelling.said", "Without vowels, ספר can be a book, a barber, a border, he counted or he told. Only the sentence says which. targum reads each word in its sentence and files it as the word it is there.") }}</p>
+    {#- The word is Hebrew inside an English or Russian line, so it says its language and
+        its direction (§14.3; design's #477 finish bar, P1-4): a blank in the catalogue,
+        filled here, never Hebrew letters in a sentence the catalogue holds. -#}
+    {%- set spelled %}<span lang="he" dir="rtl">ספר</span>{% endset %}
+    <p>{{ t("how.spelling.said", "Without vowels, {word} can be a book, a barber, a border, he counted or he told. Only the sentence says which. targum reads each word in its sentence and files it as the word it is there.", word=spelled) }}</p>
     {% for pair in how.homographs %}
     <div class="pair-row">
       {% for card in pair %}

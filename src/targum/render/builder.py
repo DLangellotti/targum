@@ -790,6 +790,13 @@ def _addressed_in(base: str, language: str) -> tuple[str, list[tuple[str, str]]]
     return address(_page_language(language)), alternates
 
 
+def _asked_for(language: str) -> str:
+    """The language a public page carries on the front door's bar (`asked` in
+    `_front_bar.html.j2`): none for English, whose addresses carry no `?lang=`."""
+    code = _page_language(language)
+    return "" if code == "en" else code
+
+
 def page_words(language: str) -> Callable[..., Markup]:
     """A template's `t(key, English)` in `language` (targum-internal#184): that language's
     catalogue where it has the key, the English written in the template where not.
@@ -2654,8 +2661,8 @@ def about_page(language: str = "en", address: str = "") -> str:
     own words around them and marks the list as English.
 
     Indexed, and in the sitemap, so it names its own address like every other page a
-    crawler is sent to. One address for every language: this page reads the browser's
-    language rather than `?lang=`, so there is no second address to name.
+    crawler is sent to. One address, and English for everybody (David, 2026-11-12): the
+    front door's bar is on it, and its RU goes to the front door in Russian.
     """
     from ..about import DAYS, built, work
     from ..strings import said_day
@@ -2715,11 +2722,12 @@ def credits_page(language: str = "en", address: str = "") -> str:
     linked to its file's page on Commons: CC BY-SA asks for the credit on the file itself,
     and a card that plays one links here. Read from the manifest beside the files
     (`voices.credits`), so only a recording on disk is credited and every one that is.
-    One address for every language, like /about.
+    An address for each language, like /about.
     """
     from .. import voices
 
     said = page_words(language)
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/credits" if address else "", language)
     return (
         _environment()
         .get_template("credits.html.j2")
@@ -2734,7 +2742,9 @@ def credits_page(language: str = "en", address: str = "") -> str:
             ),
             language="he",
             speakers=voices.credits("he"),
-            canonical=f"{address.rstrip('/')}/credits" if address else "",
+            canonical=here,
+            alternates=alternates,
+            asked=_asked_for(language),
         )
     )
 
@@ -2786,6 +2796,7 @@ def how_page(language: str = "en", address: str = "") -> str:
             alternates=alternates,
             how=examples,
             clock=clock,
+            asked=_asked_for(language),
         )
     )
 

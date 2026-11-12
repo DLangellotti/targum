@@ -1135,7 +1135,9 @@ def test_the_about_page_carries_the_public_head(language: str) -> None:
     if language == "ru":
         assert "Все изменения" in described.group(1), "the Russian page says it in Russian"
     assert page.count("<title>") == 1 and page.count('rel="canonical"') == 1
-    assert 'hreflang="' not in page, "one address for every language, so no alternates"
+    # The front door's bar links the other language with `hreflang` (#477); the head
+    # claims no second address, since /about stays English (David, 2026-11-12).
+    assert 'rel="alternate" hreflang="' not in page, "one address, so no alternates"
 
 
 def test_a_page_with_no_address_names_no_preview(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2855,7 +2855,7 @@
   "how.vowels.said": "Hebrew is printed without its vowels, and a learner reads by them. targum points every word of a text that came without them, and the reader can take the points off again.",
   "how.vowels.switch": "Vowel points",
   "how.spelling.title": "One spelling can be five words",
-  "how.spelling.said": "Without vowels, ספר can be a book, a barber, a border, he counted or he told. Only the sentence says which. targum reads each word in its sentence and files it as the word it is there.",
+  "how.spelling.said": "Without vowels, {word} can be a book, a barber, a border, he counted or he told. Only the sentence says which. targum reads each word in its sentence and files it as the word it is there.",
   "how.kind.noun": "noun",
   "how.kind.verb-past": "verb, past",
   "how.kind.name": "name",
