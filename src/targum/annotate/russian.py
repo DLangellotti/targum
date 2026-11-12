@@ -245,17 +245,34 @@ def yo_checked(surface: str, lemma: str, normal_forms: Iterable[str]) -> str:
     return forms.pop()
 
 
-def pronoun(surface: str, pos: str) -> str | None:
+#: The third-person pronouns whose genitive is also the possessive: его дом, её дом, их дом.
+_POSSESSIVES = {"его": "он", "её": "она", "их": "они"}
+
+
+def possessive(pos: str, dep: str, head_pos: str) -> bool:
+    """Whether его, её or их is the possessive (его дом), by spaCy's parse.
+
+    spaCy tags the possessive DET, PART, ADJ, even ADP or PROPN, but often PRON too, and
+    then the parse tells it apart: the possessive hangs off a noun (его брата, о его
+    книге), the pronoun off a verb or a preposition (я вижу его, у него). An object
+    pronoun after a preposition is written него, not его, so it never comes here
+    (targum-internal#683)."""
+    if pos != "PRON":
+        return True
+    return dep in {"nmod", "det", "nmod:poss"} and head_pos in {"NOUN", "PROPN"}
+
+
+def pronoun(surface: str, pos: str, dep: str = "", head_pos: str = "") -> str | None:
     """The dictionary form a learner looks a pronoun up by, where the treebank's is another.
 
-    её is она only as она's own case (я вижу её); the possessive (её дом) does not change
-    and is its own word on the card, as их is. всё, everything, is its own word too — всё
-    равно, всё ещё, всё в порядке — and not filed under весь, as it is where it agrees
-    with a noun (всё время, всё это), which spaCy tags DET (targum-internal#650). spaCy
-    tags the possessive её DET, PART, ADJ or even PROPN, but the object PRON."""
+    The possessive его, её and их does not change and is its own word on the card (его
+    дом, её дом, их дом); as the pronoun's own case (я вижу его, её, их) each is он, она,
+    они (targum-internal#650, #683). всё, everything, is its own word too — всё равно,
+    всё ещё, всё в порядке — and not filed under весь, as it is where it agrees with a
+    noun (всё время, всё это), which spaCy tags DET (targum-internal#650)."""
     word = surface.lower()
-    if word == "её":
-        return "она" if pos == "PRON" else "её"
+    if word in _POSSESSIVES:
+        return word if possessive(pos, dep, head_pos) else _POSSESSIVES[word]
     if word == "всё" and pos != "DET":
         return "всё"
     return None
@@ -515,11 +532,33 @@ def stanza_asked(words: Sequence[Sequence[Piece]]) -> list[list[dict[str, Any]]]
     ]
 
 
+def spelled(words: list[Piece], text: str) -> list[Piece]:
+    """The words spaCy read, each spelled as the text spells it.
+
+    spaCy is handed the text with ё as е (`without_yo`), which leaves every offset where
+    it was: its tagger, like Stanza's treebank, barely knows ё, and read идёт as a noun,
+    щёки as a verb and поёт as an adjective. Over the laptop's Russian shelf, 610 of 3,123
+    ё-words change part of speech when it is asked with е, and 2,691 rather than 2,477 then
+    have a reading in pymorphy3's dictionary under it; 81 of 396,783 other words move
+    (targum-internal#683). Everything after the tagger reads the word with its ё."""
+    for piece in words:
+        written = text[piece.idx : piece.idx + len(piece.text)]
+        if written != piece.text:
+            piece.text = written
+            # spaCy's form for the word as asked, with е, is only ever asked for its ё,
+            # and spelled with е it would stand in the ё's way (`with_yo`): pymorphy3's
+            # readings of the written word give the ё instead.
+            piece.lemma = ""
+    return words
+
+
 def _read(segments: list[Segment], nlp: Any, morph: Any, lemmatizer: Any) -> dict[str, list[Token]]:
     from stanza.models.common.doc import Document
 
-    docs = nlp.pipe([segment.text for segment in segments], batch_size=64)
-    words = [pieces(doc) for doc in docs]
+    docs = nlp.pipe([without_yo(segment.text) for segment in segments], batch_size=64)
+    words = [
+        spelled(pieces(doc), segment.text) for doc, segment in zip(docs, segments, strict=True)
+    ]
     asked = stanza_asked(words)
     answered = iter(lemmatizer(Document(asked)).sentences if asked else [])
     out: dict[str, list[Token]] = {}
@@ -588,7 +627,8 @@ def _tokens(text: str, sentence: list[Piece], stanza_words: Any, morph: Any) -> 
             pos = "PROPN"
         if pos == "PROPN":
             lemma = as_name(lemma, named, said.get("Case", ""))
-        lemma = pronoun(surface, pos) or lemma
+        head_pos = sentence[piece.head].pos if 0 <= piece.head < len(sentence) else ""
+        lemma = pronoun(surface, pos, piece.dep, head_pos) or lemma
         if not any("\u0400" <= char <= "\u04ff" for char in surface):
             # Not a Russian word, and Stanza's answer for one is not to be trusted: it
             # wrote Facebook as Фейсбук.

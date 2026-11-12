@@ -22,6 +22,7 @@ from targum.annotate.russian import (
     Tagged,
     pronoun,
     settle,
+    spelled,
     stanza_asked,
     with_yo,
     yo_checked,
@@ -139,6 +140,23 @@ def test_a_learner_looks_her_and_everything_up_by_their_own_words() -> None:
     assert pronoun("всё", "PRON") == "всё"
     assert pronoun("всё", "DET") is None
     assert pronoun("дом", "NOUN") is None
+
+
+def test_possessive_his_is_its_own_word_by_the_parse() -> None:
+    """Possessive его is его, as её and их are; spaCy often tags it PRON, and the parse
+    tells it apart: it hangs off a noun. The pronoun hangs off a verb (targum-internal#683)."""
+    # Его дом: DET. Его жена, его брата, дом его отца: PRON, nmod of a noun.
+    assert pronoun("Его", "DET", "det", "NOUN") == "его"
+    assert pronoun("Его", "PRON", "nmod", "NOUN") == "его"
+    assert pronoun("его", "PRON", "nmod", "PROPN") == "его"
+    assert pronoun("их", "PRON", "nmod", "NOUN") == "их"
+    assert pronoun("её", "PRON", "nmod", "NOUN") == "её"
+    # Я вижу его, его не было, это его: the pronoun's own case.
+    assert pronoun("его", "PRON", "obj", "VERB") == "он"
+    assert pronoun("Его", "PRON", "nsubj", "VERB") == "он"
+    assert pronoun("его", "PRON", "ROOT", "PRON") == "он"
+    assert pronoun("их", "PRON", "obj", "VERB") == "они"
+    assert pronoun("её", "PRON", "obj", "VERB") == "она"
 
 
 def test_a_verb_keeps_its_own_aspect() -> None:
@@ -291,6 +309,26 @@ def test_a_real_sentence(monkeypatch: pytest.MonkeyPatch) -> None:
         assert text[token.start : token.end] == token.surface
 
 
+def test_spacy_reads_with_e_and_the_words_keep_their_yo() -> None:
+    """spaCy is asked идет, and its tagger reads a verb where идёт was a noun; the word
+    keeps its ё afterwards, and spaCy's е-spelled form is dropped so that it cannot stand
+    in the ё's way (targum-internal#683)."""
+
+    def piece(text: str, idx: int, lemma: str) -> Piece:
+        return Piece(text=text, idx=idx, pos="VERB", morph="", dep="", head=0, lemma=lemma)
+
+    text = "Идёт дождь, всё-таки."
+    words = spelled(
+        [piece("Идет", 0, "идти"), piece("дождь", 5, "дождь"), piece("все-таки", 12, "все-таки")],
+        text,
+    )
+    assert [(w.text, w.lemma) for w in words] == [
+        ("Идёт", ""),
+        ("дождь", "дождь"),
+        ("всё-таки", ""),
+    ]
+
+
 def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.MonkeyPatch) -> None:
     """ёлке was filed under блок, мёда under мёда and осёл under осела: Stanza had no
     letter for ё (targum-internal#650)."""
@@ -310,6 +348,7 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
         "Она обо всём аккуратно расспрашивала.",
         "Её дочь поведала об этом.",
         "Всё в порядке.",
+        "Его жена видела его брата, а я вижу его.",
         "Эх ты… недотёпа!",
         "Здравствуйте! У вас есть копчёная рыба?",
         "Своими вздохами, нытьём, своими тёмными очками он давил нас всех.",
@@ -330,6 +369,10 @@ def test_a_word_with_a_yo_keeps_its_own_dictionary_form(monkeypatch: pytest.Monk
     assert by["всём"] == "весь"
     assert by["Её"] == "её"
     assert by["Всё"] == "всё"
+    # Possessive его is его; the object его is он (targum-internal#683).
+    assert by["Его"] == "его"
+    his = [t for tokens in read.values() for t in tokens if t.surface == "его"]
+    assert [t.lemma for t in his] == ["его", "он"]
     assert by["недотёпа"] == "недотёпа"
     assert by["копчёная"] == "копчёный"
     assert by["нытьём"] == "нытьё"

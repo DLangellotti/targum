@@ -14,6 +14,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Possessive его is its own word, as её and их are, and spaCy reads a Russian word with ё
+  as it reads it with е (targum-internal#683). spaCy often tags the possessive PRON, so
+  his brother (его брата) was filed under он; the parse tells the two apart, since the
+  possessive hangs off a noun and the pronoun off a verb, and the same rule now settles её
+  and их. spaCy's tagger barely knows ё (идёт a noun, щёки a verb, поёт an adjective), so
+  it is handed the text with е and every word keeps its ё afterwards. On the laptop's
+  Russian shelf 610 of 3,123 ё-words change part of speech and 2,691 rather than 2,477
+  then have a dictionary reading under it; 75 other words move. Over the 5,057 segments
+  with ё or его/её/их, 554 of 107,935 lemmas change, 425 of them его/её/их. Both reach
+  readers at ru-local's next rename, which this change does not make. No spend, no new
+  strings.
 - A Russian lemma spelled with ё is as common in the estimate as its е spelling
   (targum-internal#684). wordfreq ranks the two apart (еще 38th, ещё 155th; черный
   2,425th, чёрный 5,929th), and the estimate looked the lemma up as spelled, so once
