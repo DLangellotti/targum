@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- French difficulty picks Morphalou up when it lands, and the fetch streams it
+  (targum-internal#682). deploy.sh restarts the service before `targum models fetch
+  morphalou`, so on a fresh or restored box the first French words were measured without
+  the lexicon and that absence was cached until the next restart. A missing table is now
+  looked for again on the next word, and a band measured without it is never reused once
+  it is there. The fetch no longer holds the zip in memory or decodes the 106 MB table out
+  of it: both are streamed to disk a megabyte at a time and renamed into place whole, the
+  table last. Peak memory on a laptop fetch, from a local copy: 623–634 MB before, 93 MB
+  after, of which 75 MB is Python and its imports. The deploy test also checks the step
+  runs as the targum user. No spend, no new strings.
 - Possessive его is its own word, as её and их are, and spaCy's tag for a Russian word
   with ё is repaired where it read the ё wrong (targum-internal#683). His brother (его
   брата) was filed under он. Where spaCy calls его, её or их an object or a subject, that

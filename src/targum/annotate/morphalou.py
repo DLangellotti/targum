@@ -28,7 +28,8 @@ from __future__ import annotations
 import csv
 import functools
 import hashlib
-import io
+import os
+import shutil
 import zipfile
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from ..errors import TargumError
-from ..paths import ensure, model_dir, write_atomic
+from ..paths import ensure, model_dir
 
 #: ORTOLANG publishes the lexicon as numbered versions of one workspace; version 5 holds
 #: Morphalou 3.1. The file is the CSV with every form in one table, and the checksum is
@@ -233,40 +234,67 @@ def available() -> bool:
     return (directory() / TABLE).is_file()
 
 
-def _download(url: str, sha256: str) -> bytes:
+#: How much of a download or of the table is in memory at once.
+_CHUNK = 1 << 20
+
+
+def _download(url: str, sha256: str, into: Path) -> None:
+    """The file at `url`, streamed to `into` a chunk at a time and checked against its
+    checksum as it goes. The caller removes `into` when the check fails."""
     import httpx
 
+    digest = hashlib.sha256()
     try:
-        answer = httpx.get(url, timeout=300.0, follow_redirects=True)
-        answer.raise_for_status()
+        with httpx.stream("GET", url, timeout=300.0, follow_redirects=True) as answer:
+            answer.raise_for_status()
+            with into.open("wb") as out:
+                for chunk in answer.iter_bytes(_CHUNK):
+                    digest.update(chunk)
+                    out.write(chunk)
     except httpx.HTTPError as error:
         raise TargumError(f"Could not download {url}.", str(error)) from error
-    body = answer.content
-    got = hashlib.sha256(body).hexdigest()
+    got = digest.hexdigest()
     if got != sha256:
         raise TargumError(
             f"{url} is not the file this version of targum pins.",
             f"Expected sha256 {sha256}, got {got}. Nothing was written.",
         )
-    return body
 
 
 def fetch(notify: Callable[[str], None] | None = None) -> int:
     """The table and the licence, checked against their checksums, into the model
-    directory. Returns the table's size in bytes."""
+    directory. Returns the table's size in bytes.
+
+    Streamed to disk and never held whole (targum-internal#682): the box runs this on every
+    deploy beside the service, and reading the 38 MB zip into memory and decoding the
+    106 MB table out of it peaked at ~790 MB. The zip goes to a file beside the table, the
+    table is copied out of it a chunk at a time, and each lands under its own name by a
+    rename only once it is whole, the table last, since its presence is what `available`
+    asks. Whatever fails, the partial files are removed and nothing was written.
+    """
     say = notify or (lambda _message: None)
-    say(ARCHIVE)
-    archive = _download(SOURCE, SHA256)
-    say(LICENCE_FILE)
-    licence = _download(LICENCE_SOURCE, LICENCE_SHA256)
-    with zipfile.ZipFile(io.BytesIO(archive)) as bundle:
-        name = next(entry for entry in bundle.namelist() if entry.endswith(f"/{TABLE}"))
-        table = bundle.read(name).decode("utf-8")
     target = ensure(directory())
-    write_atomic(target / LICENCE_FILE, licence.decode("utf-8"))
-    write_atomic(target / TABLE, table)
+    part = f"{os.getpid()}.part"
+    archive = target / f".{ARCHIVE}.{part}"
+    licence = target / f".{LICENCE_FILE}.{part}"
+    table = target / f".{TABLE}.{part}"
+    try:
+        say(ARCHIVE)
+        _download(SOURCE, SHA256, archive)
+        say(LICENCE_FILE)
+        _download(LICENCE_SOURCE, LICENCE_SHA256, licence)
+        with zipfile.ZipFile(archive) as bundle:
+            name = next(entry for entry in bundle.namelist() if entry.endswith(f"/{TABLE}"))
+            with bundle.open(name) as source, table.open("wb") as out:
+                shutil.copyfileobj(source, out, _CHUNK)
+        size = table.stat().st_size
+        licence.replace(target / LICENCE_FILE)
+        table.replace(target / TABLE)
+    finally:
+        for leftover in (archive, licence, table):
+            leftover.unlink(missing_ok=True)
     load.cache_clear()
-    return len(table.encode("utf-8"))
+    return size
 
 
 def rows(lines: Iterable[str]) -> Iterator[tuple[str, str, str, Grammar, str]]:
