@@ -159,6 +159,17 @@ text it held, so a text another reader still holds keeps no trace of the one who
 (`ledger.documents_under`), so no annotation is parsed whole. `scores` rows have no
 owner and survive the deletion (criterion 5).
 
+**A purge the ledger refused is finished later** (targum-internal#679, 2026-11-11). Each
+departing home is written down before its account goes, beside the account store in
+`targum.db.departing/`: its document hashes and the account's `made`. The home is deleted
+on time whatever the ledger says, and the note is removed only once the folder is gone
+and `ledger.depart` has held; until then every start-up and every nightly purge tries
+again, after that night's own deletions. `ledger.depart` runs in one transaction and
+also forgets what `text_homes` says the home held, so a text whose file could not be
+read is not missed, and keeps any text another home holds there or on disk. A person id
+is never given twice (`person_high`), so whatever stands under a departed name is
+theirs, and a retry deletes it without asking whose it is.
+
 ## How the criteria get verified
 
 - **Criterion 1** (every stage writes rows, the cache reads from them, the four checks
