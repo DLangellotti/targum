@@ -4099,35 +4099,34 @@ def test_a_visitor_is_spoken_to_in_the_language_their_browser_asks_for(
 def test_a_visitor_gets_a_public_page_in_their_browsers_language(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Signed out, the about page answers in the language the browser prefers where there
-    is a catalogue, says so in `Vary`, and a reader page does not (targum-internal#184)."""
+    """Signed out, a public page answers in the language the browser prefers where there
+    is a catalogue, says so in `Vary`, and a reader page does not (targum-internal#184).
+    Asked of /credits since /about stays English for everybody (David, 2026-11-12)."""
     from targum import strings
 
     real = strings.catalogue
     monkeypatch.setattr(
         strings,
         "catalogue",
-        lambda code: (
-            {"about.page.targum-is-built-in-public": "targum строится"}
-            if code == "ru"
-            else real(code)
-        ),
+        lambda code: {"credits.page.heading": "Благодарности"} if code == "ru" else real(code),
     )
     monkeypatch.setattr(strings, "languages", lambda: ["en", "ru"])
     port, _, server = hosted(tmp_path)
     try:
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
-        connection.request("GET", "/about", headers={"Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"})
+        connection.request(
+            "GET", "/credits", headers={"Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"}
+        )
         response = connection.getresponse()
         page = response.read().decode("utf-8")
         assert response.status == 200
-        assert "targum строится" in page and '<html lang="ru"' in page
+        assert "Благодарности" in page and '<html lang="ru"' in page
         assert "Accept-Language" in (response.getheader("Vary") or "")
         connection.close()
         connection = HTTPConnection("127.0.0.1", port, timeout=5)
-        connection.request("GET", "/about", headers={"Accept-Language": "fr-FR"})
+        connection.request("GET", "/credits", headers={"Accept-Language": "fr-FR"})
         page = connection.getresponse().read().decode("utf-8")
-        assert "targum is built in public" in page and '<html lang="en"' in page
+        assert "Credits" in page and '<html lang="en"' in page
     finally:
         server.shutdown()
 
