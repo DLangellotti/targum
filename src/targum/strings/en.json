@@ -1411,6 +1411,8 @@
   "reader.grammar.noun": "noun",
   "reader.grammar.construct": "construct",
   "reader.grammar.adjective": "adjective",
+  "reader.grammar.short-form": "short form",
+  "reader.grammar.comparative": "comparative",
   "reader.grammar.pronoun": "pronoun",
   "reader.grammar.article": "article",
   "reader.grammar.determiner": "determiner",

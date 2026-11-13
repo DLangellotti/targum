@@ -1071,6 +1071,19 @@ def test_a_russian_word_says_its_case() -> None:
     assert grammar("UPOS=NUM|Case=Gen") == ["number · genitive"]
 
 
+def test_a_russian_short_form_and_comparative_say_so() -> None:
+    """A short form takes no case, and a comparative no gender, number or case: the card
+    says which it is where the case would stand (targum-internal#708)."""
+    assert grammar("UPOS=ADJ|Gender=Fem|Number=Sing|Variant=Short") == [
+        "adjective · short form · f"
+    ]
+    assert grammar("UPOS=ADJ|Number=Plur|Variant=Short") == ["adjective · short form · pl."]
+    assert grammar("UPOS=ADJ|Degree=Cmp") == ["adjective · comparative"]
+    assert grammar(
+        "UPOS=VERB|Aspect=Perf|Gender=Fem|Number=Sing|Tense=Past|VerbForm=Part|Variant=Short"
+    ) == ["past participle · perfective · f"]
+
+
 def test_a_russian_verb_says_its_aspect() -> None:
     """Aspect after the tense, and a past says its gender, since сказал is "m" whoever
     said it; a perfective present form is tagged future, and the card says so."""

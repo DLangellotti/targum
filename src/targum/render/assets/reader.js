@@ -4858,6 +4858,13 @@ var targumReader = function () {
     }
     if (pos === "ADJ") {
       var agree = [gt("reader.grammar.adjective", "adjective")];
+      // A Russian comparative (выше) has no gender, number or case, and a short form
+      // (строга, пусты) no case: what it is stands where the case would (#708).
+      if (feat(line, "Degree") === "Cmp") {
+        agree.push(gt("reader.grammar.comparative", "comparative"));
+        return agree.join(" · ");
+      }
+      if (feat(line, "Variant") === "Short") agree.push(gt("reader.grammar.short-form", "short form"));
       // Masculine singular is the form an adjective is looked up under, so it said
       // nothing — until a case came with it, when "adjective · genitive" needs the
       // gender to say which genitive.

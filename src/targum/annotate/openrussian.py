@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import csv
 import functools
+import re
 import urllib.request
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -63,6 +64,9 @@ VERB_COLUMNS = (
 
 #: The columns that hold an inflected form rather than a fact about the word.
 INFLECTED = ("sg_", "pl_", "decl_", "short_", "past_", "presfut_", "imperative_")
+#: An adjective's comparative, kept with its forms so a word can be found to be one
+#: (`russian_check`), but not among the spellings the stress stage marks from.
+COMPARATIVE = "comparative"
 
 #: How many forms a stress line quotes, the dictionary form included.
 STRESS_LINE = 3
@@ -152,6 +156,8 @@ class Entry:
     aspect: str = ""
     partners: tuple[str, ...] = ()
     forms: dict[str, list[str]] = field(default_factory=dict)
+    #: A noun's gender as the table writes it: m, f, n, pl, or "" where it says none.
+    gender: str = ""
 
 
 @dataclass
@@ -159,6 +165,28 @@ class Lexicon:
     entries: dict[str, list[Entry]] = field(default_factory=dict)
     #: Every written form, folded (`fold`), to the stressed spellings the tables give it.
     spellings: dict[str, set[str]] = field(default_factory=dict)
+    #: Every written form, folded, to the rows that have it and the column it is in, the
+    #: dictionary form under "bare"; built the first time `whose` is asked.
+    _whose: dict[str, set[tuple[str, str, str]]] | None = field(default=None, repr=False)
+
+    def whose(self, form: str) -> set[tuple[str, str, str]]:
+        """The (lemma, kind, column) of every row with `form` among its forms, the
+        lemma as `entries` files it."""
+        if self._whose is None:
+            index: dict[str, set[tuple[str, str, str]]] = {}
+            for lemma, rows in self.entries.items():
+                for row in rows:
+                    index.setdefault(fold(lemma), set()).add((lemma, row.kind, "bare"))
+                    for column, values in row.forms.items():
+                        for value in values:
+                            # A cell may hold variants as лу'чше;лу'чший, но'вы / новы'
+                            # or стро'ги строги'.
+                            for one in re.split(r"[;/\s]+", value):
+                                if one.strip():
+                                    found = index.setdefault(fold(one), set())
+                                    found.add((lemma, row.kind, column))
+            self._whose = index
+        return self._whose.get(fold(form), set())
 
     def rows(self, lemma: str, kind: str | None = None) -> list[Entry]:
         found = self.entries.get(lemma.lower().replace(ACUTE, ""), [])
@@ -252,7 +280,7 @@ def load(folder: Path | None = None) -> Lexicon:
             forms = {
                 column: _variants(value)
                 for column, value in row.items()
-                if column and value and column.startswith(INFLECTED)
+                if column and value and (column.startswith(INFLECTED) or column == COMPARATIVE)
             }
             partners = tuple(
                 p.strip()
@@ -265,9 +293,11 @@ def load(folder: Path | None = None) -> Lexicon:
                 aspect=(row.get("aspect") or "").strip(),
                 partners=partners if kind == "verb" else (),
                 forms={column: values for column, values in forms.items() if values},
+                gender=(row.get("gender") or "").strip() if kind == "noun" else "",
             )
             lexicon.entries.setdefault(word, []).append(entry)
-            for written in [entry.written, *(v for vs in entry.forms.values() for v in vs)]:
+            inflected = (vs for column, vs in entry.forms.items() if column != COMPARATIVE)
+            for written in [entry.written, *(v for vs in inflected for v in vs)]:
                 lexicon.spellings.setdefault(fold(written), set()).add(written)
     return lexicon
 
