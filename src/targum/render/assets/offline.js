@@ -130,7 +130,12 @@
   }
 
   function readIndex() {
-    if (!able) return Promise.resolve(empty());
+    // A browser that cannot save holds nothing saved: every text is away from it. The
+    // empty index is the page's too, or the marking below never ran on it.
+    if (!able) {
+      known = known || empty();
+      return Promise.resolve(known);
+    }
     return caches
       .open(STORE)
       .then(function (cache) {
@@ -1254,9 +1259,30 @@
     spot.hidden = !n;
   }
 
-  // Containers a text's link stands in, where the dimming and its reason go.
+  // Containers a text's link stands in, where the dimming and its reason go. Home's one
+  // card holds its pick in `.rc-body` and Upload under it: the pick is the text, and
+  // dimming the whole card dimmed Upload with it, under "Not on this device" (#695).
   function holderOf(link) {
-    return link.closest("li, article, tr, .row, .card") || link;
+    return link.closest("li, article, tr, .row, .rc-body, .card") || link;
+  }
+
+  // Where a holder's reason goes: a shelf row's is a line of the title's column, under
+  // its quiet line. Appended to the row it took a grid column of its own, 44px wide, and
+  // stood one word a line (#695).
+  function tagSpot(holder, link) {
+    // A link that is the card itself (the Library's shelf and portion cards): the reason
+    // is the card's own foot line. Beside it, in the list item, it fell under the card
+    // and pushed the portion row apart (#696 P1 5).
+    if (/(^|\s|-)card(\s|$)/.test(link.className || "")) return { parent: link, before: null };
+    if (holder === link) return { parent: link.parentNode, before: link.nextSibling };
+    var main = holder.querySelector(":scope > .row-main, :scope > .building > .row-main");
+    if (main) return { parent: main, before: null };
+    return { parent: holder, before: null };
+  }
+
+  // A link to Upload is no text: it is greyed with its own reason (`NEEDS`).
+  function uploadLink(link) {
+    return /^\/add(?:[?#]|$)/.test(link.getAttribute("href") || "");
   }
 
   /* Every link to a text on the page: dimmed with its reason where the text is not on
@@ -1274,7 +1300,7 @@
       }
       // The page of what is saved says so of every row already. A link within this text
       // is marked only where the text is kept in parts, chapter by chapter.
-      if (!id || link.closest(".saved-row")) return;
+      if (!id || link.closest(".saved-row") || uploadLink(link)) return;
       var item = known.items[id];
       if (id === textOf(location.href) && !(item && item.part)) return;
       var holder = holderOf(link);
@@ -1288,10 +1314,10 @@
         here ? t("offline.here", "On this device") : t("offline.not-here", "Not on this device")
       );
       tag.setAttribute("data-offline-tag", "");
-      (holder === link ? link.parentNode : holder).insertBefore(
-        tag,
-        holder === link ? link.nextSibling : null
-      );
+      var spot = tagSpot(holder, link);
+      if (spot.parent !== holder && spot.parent !== link.parentNode) tag.classList.add("is-line");
+      if (spot.parent === link) tag.classList.add("is-foot");
+      spot.parent.insertBefore(tag, spot.before);
       if (!here) {
         link.setAttribute("aria-disabled", "true");
         link.setAttribute(
@@ -1346,6 +1372,13 @@
         if (!node.getAttribute("title")) {
           node.setAttribute("title", need.why());
           node.setAttribute("data-offline-titled", "1");
+        }
+        // A press that says its reason beside it, as home's Upload your own does: the
+        // bar's Upload has the band's line; the card's had nothing (#695).
+        if (node.hasAttribute("data-offline-say")) {
+          var reason = element("p", "offline-tag is-line offline-reason", need.why());
+          reason.setAttribute("data-offline-tag", "");
+          node.parentNode.insertBefore(reason, node.nextSibling);
         }
       });
     });

@@ -1313,6 +1313,11 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   font-weight: 400;
 }
 .offline-tag.is-here { color: var(--leaf); }
+/* A reason on a line of its own: a shelf row's, under its quiet line, and a press's that
+   says why it is greyed (#695). */
+.offline-tag.is-line { display: block; margin-inline-start: 0; }
+/* Inside a card that is one link, its last line, pushed to the card's foot. */
+.offline-tag.is-foot { margin-block-start: auto; padding-block-start: 0.25rem; }
 .offline-off,
 .offline-off:hover { opacity: 0.5; cursor: not-allowed; }
 /* The pill is greyed by its colours, never by opacity, so the reason over it keeps full

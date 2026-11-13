@@ -663,6 +663,42 @@ def test_more_that_fit_is_three_to_six_library_texts_in_the_band(
     assert "more" not in got or got["more"] == []
 
 
+def test_more_that_fit_asked_again_holds_the_card_s_filter(
+    home: Any,  # noqa: F811
+    on: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """More that fit you listed six videos under Texts (design, #695 P1 5): asked again
+    with the card's medium and length, only what passes them; with a topic, none."""
+    from targum.chat import tools as chat_tools
+
+    def row(n: int, **more: Any) -> dict[str, Any]:
+        return {"id": f"t{n}", "title": "ספר", "fit": "band", "minutes": 8,
+                "reason": {"key": "suggest.known", "share": 95}, **more}  # fmt: skip
+
+    offered = [row(n, kind="talk", video=True) for n in range(6)] + [
+        row(10 + n, kind="article") for n in range(3)
+    ]
+    asked: list[dict[str, Any]] = []
+
+    def suggest_next(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+        asked.append(args)
+        return {"suggestions": offered}
+
+    monkeypatch.setattr(chat_tools, "suggest_next", suggest_next)
+    cookie = sign_in(home.port, home.postbox)
+    ask = {"more_fit": True, "language": "he", "done": ["gone"]}
+    status, got, _ = call(home.port, "POST", "/find", {**ask, "medium": "read"}, cookie=cookie)
+    assert status == 200 and [one["id"] for one in got["more"]] == ["t10", "t11", "t12"], got
+    assert asked[-1]["skip"] == ["gone"] and asked[-1]["limit"] == 40
+    status, got, _ = call(home.port, "POST", "/find", {**ask, "medium": "watch"}, cookie=cookie)
+    assert [one["id"] for one in got["more"]] == [f"t{n}" for n in range(6)], got
+    status, got, _ = call(home.port, "POST", "/find", {**ask, "length": "short"}, cookie=cookie)
+    assert got["more"] == [], "nothing under 5 min"
+    status, got, _ = call(home.port, "POST", "/find", {**ask, "topics": ["sport"]}, cookie=cookie)
+    assert got["more"] == [], "the library's texts carry no topic"
+
+
 # -- show me something harder (David, 2026-11-02; design.md §12) ------------------------
 
 # 85% and 70% of their running words known: under the floor, the first the nearer miss.

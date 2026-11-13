@@ -639,7 +639,12 @@
         ? t("shelf.length.video", "{n} min video", { n: minutes })
         : t("shelf.length.audio", "{n} min audio", { n: minutes });
     }
-    return reader.minutes ? t("shelf.length.read", "{n} min read", { n: reader.minutes }) : "";
+    if (!reader.minutes) return "";
+    // A video or a recording timed by its reading length is still watched or heard: a
+    // Khan video's row said "9 min read" (#695).
+    if (reader.video) return t("shelf.length.video", "{n} min video", { n: reader.minutes });
+    if (reader.heard) return t("shelf.length.audio", "{n} min audio", { n: reader.minutes });
+    return t("shelf.length.read", "{n} min read", { n: reader.minutes });
   }
 
   /* New, a part count while reading, or Finished: read off what the reader's own pages

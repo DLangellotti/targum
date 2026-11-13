@@ -933,7 +933,7 @@ def test_filter_holds_medium_length_and_topic_and_the_press_names_them(browser, 
                                 ["Over 15 min", "false"]], field  # fmt: skip
     assert field["labels"] == ["How long", "Topic"] and field["press"] == "Filter", field
     assert not field["tonal"] and not field["sideways"], field
-    asks = [body for body in posted if "medium" in body]
+    asks = [body for body in posted if "medium" in body and not body.get("more_fit")]
     assert asks[0]["medium"] == "watch" and "length" not in asks[0], asks
     assert asks[1]["medium"] == "watch" and asks[1]["length"] == "mid", asks
     assert asks[1]["near"]["medium"] == "watch" and asks[1]["near"]["length"] == "mid"
