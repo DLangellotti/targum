@@ -298,6 +298,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   word-level override; it stays on the card. No spend, no new strings.
   The same version also lets both nuns of נתן go in לָתֵת: the page-time check refused
   נתן under לתת, so a reader's "to give" was a gap (found by builder-3 on #590).
+- How it works, the credits, `/connect` signed out and `/aliyah` load their files the way
+  About does (targum-internal#484). They were left out of `PUBLIC_PAGES`, so each carried
+  its faces inline in its head (67 to 96 kB gzipped), and ops measured `/how` at 1.54 s
+  on Slow 4G with the other three near the line. Now a first visit gets each page whole
+  with the faces put on after `load`, and a second visit names its files by address.
+  The public warm-up set grows by their stylesheets and `/connect`'s script: 158 → 204 kB
+  gzipped in English, 244 → 289 kB in Russian. design.md §12's 2026-10-28 entry says so.
+  No new strings, no spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

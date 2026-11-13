@@ -122,7 +122,8 @@ def test_the_page_loads_one_stylesheet_and_it_is_the_front_doors() -> None:
     template = (
         Path(__file__).resolve().parents[1] / "src/targum/render/templates/aliyah.html.j2"
     ).read_text(encoding="utf-8")
-    assert "asset('landing.css')" in template
+    # By address since 2026-11-13, like the front door's own (targum-internal#484).
+    assert "styles('landing.css')" in template
     assert "asset('reader.css')" not in template, "both sheets collide on .lines and .thread"
 
 

@@ -384,6 +384,33 @@ def test_a_public_page_warms_only_what_the_public_pages_use(language: str) -> No
     assert set(builder.public_files("en")) < set(files) and kept.endswith(asset_set())
 
 
+#: The four public pages that still carried their faces inline in `<head>` until
+#: 2026-11-13 (targum-internal#484, ops' Slow 4G pass: /how 1.54 s, the others near it).
+LATE_JOINERS = {
+    "how": lambda language: builder.how_page(language, "https://targum.page"),
+    "credits": lambda language: builder.credits_page(language, "https://targum.page"),
+    "connect": lambda language: builder.connect_page(language, "https://targum.page"),
+    "aliyah": lambda language: builder.aliyah_page(language, "https://targum.page"),
+}
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+@pytest.mark.parametrize("page", sorted(LATE_JOINERS))
+def test_how_credits_connect_and_aliyah_are_public_pages(page: str, language: str) -> None:
+    """Each names its files like /about, so a first visit is sent it whole with the faces
+    put on after `load`, and warms the public set in its language, nothing of the desk's."""
+    html = LATE_JOINERS[page](language)
+    assert names_files(html), f"/{page} names its files"
+    assert 'data-files="public"' in html[: html.index(">", html.index("<html")) + 1]
+    assert "font/woff2;base64" not in html, "no face carried in place"
+    whole = first_visit(html)
+    assert "font/woff2;base64" not in _without_late_faces(whole), "the faces wait for load"
+    files, kept = _warmed(whole)
+    assert set(files) == set(builder.public_files(language)), files
+    assert not [one for one in files if "catalogue" in one or "/home." in one], files
+    assert kept == f"{KEPT_ROUTE}?set={builder.public_set(language)}"
+
+
 def test_a_public_set_keeps_the_public_pages_and_no_desk_page(
     served: tuple[int, str, Path],
 ) -> None:

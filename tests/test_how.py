@@ -99,7 +99,7 @@ def test_it_names_its_address_in_each_language(page: str) -> None:
     assert '<link rel="canonical" href="https://targum.page/how">' in page
     assert 'hreflang="ru" href="https://targum.page/how?lang=ru"' in page
     russian = how_page("ru", address="https://targum.page")
-    assert '<html lang="ru">' in russian
+    assert '<html lang="ru"' in russian
     assert "Как targum читает иврит" in russian
 
 

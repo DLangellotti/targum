@@ -6,7 +6,8 @@ immutable. Everything else still carries its files inline and fetches nothing: r
 contents pages, the series pages, a card in a host's frame, a printed page, and
 Saved on this device, the one desk page a worker keeps for offline. The public pages in
 front of the account (the front door, a text's page, About, the legal pages) joined the
-desk on 2026-10-28 (targum-internal#549), and the public Library on 2026-10-29 (#558)."""
+desk on 2026-10-28 (targum-internal#549), the public Library on 2026-10-29 (#558), and
+How it works, the credits, /connect signed out and /aliyah on 2026-11-13 (#484)."""
 
 from __future__ import annotations
 
@@ -54,9 +55,7 @@ STAYS_INLINE = {
     "card-text.html.j2",
     "series.html.j2",
     "weekly-note.html.j2",
-    "how.html.j2",
     "holding.html.j2",
-    "connect.html.j2",
     "approve.html.j2",
     "connect_refused.html.j2",
     "backoffice.html.j2",
