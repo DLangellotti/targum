@@ -3017,6 +3017,13 @@ under `no-store`, again on every page a visitor opened.
   been left off the list, so they still carried 65 kB of faces and 119 kB of CSS on every
   visit. At 1.17 s on the phone it was the public page nearest the line. It is never
   opened off a disk either, and it warms and keeps the same public set.
+- **How it works, the credits, `/connect` signed out and `/aliyah` joined them on
+  2026-11-13** (targum-internal#484, from ops' Slow 4G pass of the live site). They had
+  been missed the same way, so each still carried 67 to 96 kB of faces in its head, and
+  nothing painted until those had arrived: `/how` at 1.54 s, the other three at 1.22 to
+  1.31 s. None of them is opened off a disk, framed by a host or kept by the worker. They
+  warm and keep the same public set, which grows by their own stylesheets and
+  `/connect`'s script: 158 to 204 kB in English and 244 to 289 kB in Russian.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
   pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches

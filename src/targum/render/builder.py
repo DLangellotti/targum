@@ -986,9 +986,22 @@ ASSET_ROUTE = "/assets/"
 #: `no-store`. A first visit still gets each of them whole (`first_visit`).
 #: The public Library and its kind pages (`shelf.html.j2`) joined them on 2026-10-29
 #: (targum-internal#558): missed in #549, so it still carried 65 kB of faces and 119 kB of
-#: CSS on every visit, the public page nearest §14's 1.5 s on a phone.
+#: CSS on every visit, the public page nearest §14's 1.5 s on a phone. How it works, the
+#: credits, /connect signed out and /aliyah joined on 2026-11-13 (targum-internal#484):
+#: missed the same way, they carried 67 to 96 kB of faces in `<head>`, and /how was over
+#: 1.5 s on Slow 4G. None of them is opened off a disk, framed or kept by the worker.
 PUBLIC_PAGES = frozenset(
-    {"about.html.j2", "landing.html.j2", "legal.html.j2", "shelf.html.j2", "text.html.j2"}
+    {
+        "about.html.j2",
+        "aliyah.html.j2",
+        "connect.html.j2",
+        "credits.html.j2",
+        "how.html.j2",
+        "landing.html.j2",
+        "legal.html.j2",
+        "shelf.html.j2",
+        "text.html.j2",
+    }
 )
 
 #: What a public page says on its `<html>`, so a first visit to it warms only the files
@@ -1306,6 +1319,10 @@ def public_files(language: str) -> tuple[str, ...]:
     pages = [
         front_page(language),
         about_page(language),
+        how_page(language),
+        credits_page(language),
+        connect_page(language),
+        aliyah_page(language),
         text_page(entry, language=language),
         shelf_page(language=language),
         *(legal_page(which) for which in LEGAL),
