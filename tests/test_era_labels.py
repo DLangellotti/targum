@@ -45,9 +45,9 @@ def entry(register: Register, author: str = "", language: str = "he") -> Entry:
             Register.revival,
             "מיכה יוסף ברדיצ'בסקי, 1896",
             "Revival-era Hebrew, 1890s",
-            "Иврит эпохи Возрождения, 1890-е",
+            "Возрождённый иврит, 1890-е",
         ),
-        (Register.revival, "יוסף חיים ברנר", "Revival-era Hebrew", "Иврит эпохи Возрождения"),
+        (Register.revival, "יוסף חיים ברנר", "Revival-era Hebrew", "Возрождённый иврит"),
         (
             Register.rabbinic,
             "משה בן מימון, 1180 · ספר המדע",
@@ -103,7 +103,7 @@ def test_the_text_page_says_the_era_under_the_byline() -> None:
     revival = entry(Register.revival, "יוסף חיים ברנר, 1906")
     html = text_page(revival, ADDRESS)
     assert '<p class="era" lang="en">Revival-era Hebrew, 1900s</p>' in html
-    assert "Иврит эпохи Возрождения, 1900-е" in text_page(revival, ADDRESS, language="ru")
+    assert "Возрождённый иврит, 1900-е" in text_page(revival, ADDRESS, language="ru")
 
 
 def test_a_modern_text_page_is_unchanged() -> None:
@@ -122,7 +122,7 @@ def test_the_contents_page_and_the_reader_ask_the_catalogue(
     rows = {revival.source: revival, modern.source: modern}
     monkeypatch.setattr(catalogue, "matching", lambda source: rows.get(source))
     assert builder._era_of_source(revival.source, "en") == "Revival-era Hebrew, 1890s"
-    assert builder._era_of_source(revival.source, "ru") == "Иврит эпохи Возрождения, 1890-е"
+    assert builder._era_of_source(revival.source, "ru") == "Возрождённый иврит, 1890-е"
     assert builder._era_of_source(modern.source, "en") == ""
     assert builder._era_of_source("upload:mine", "en") == ""
 
@@ -169,4 +169,4 @@ def test_the_text_card_says_the_era_in_the_pages_language() -> None:
         "Revival-era Hebrew",
         "Revival-era Hebrew, {decade}s",
     ]
-    assert eras_on(build_text_card("ru"))["revival"][1] == "Иврит эпохи Возрождения, {decade}-е"
+    assert eras_on(build_text_card("ru"))["revival"][1] == "Возрождённый иврит, {decade}-е"
