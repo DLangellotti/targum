@@ -443,9 +443,35 @@ def test_a_year_old_chrome_gets_no_text_unless_signed_in(
         assert status == 403, shelf
         assert b"out of date" in body
     assert ask(port, "/library/il-declaration", "targum.page", agent=current)[0] == 200
-    assert ask(port, "/library/il-declaration", "targum.page", session, old)[0] == 200
+    # Signed in, a text's page is the desk's door onto it (targum-internal#696): a 302 to
+    # `/open/`, never the out-of-date refusal.
+    assert ask(port, "/library/il-declaration", "targum.page", session, old)[0] == 302
     for door in ("/", "/robots.txt"):
         assert ask(port, door, "targum.page", agent=old)[0] == 200, door
+
+
+def test_a_signed_in_reader_is_sent_from_a_texts_page_to_its_door(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#696, P1-1: `/library/<id>` drew the stranger's page for somebody
+    signed in, with Join the waitlist, Sign in, no share known and two primaries. They
+    are sent through `/open/<id>`, which lands in the reader or on the Library card; a
+    stranger still gets the page about the text."""
+    port, session = hosted
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("GET", "/library/il-declaration?lang=ru", skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.putheader("Cookie", f"targum_session={session}")
+    conn.endheaders()
+    response = conn.getresponse()
+    body = response.read()
+    conn.close()
+    assert response.status == 302
+    assert response.getheader("Location", "").endswith("/open/il-declaration?lang=ru")
+    assert b"Join the waitlist" not in body
+    stranger = ask(port, "/library/il-declaration", "targum.page")
+    assert stranger[0] == 200 and b"The Land of Israel" in stranger[1]
 
 
 def test_an_ai_finds_targum_and_does_not_train_on_its_shelves(

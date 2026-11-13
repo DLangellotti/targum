@@ -389,3 +389,33 @@ def test_on_a_phone_it_is_the_whole_screen(browser) -> None:
     page.click("#palette-back")
     assert not _up(page), "the way back closes it"
     context.close()
+
+
+def test_on_a_phone_the_language_pill_never_covers_the_tabs(browser) -> None:
+    """targum-internal#696, P1-6: at 390 the In Hebrew pill ran from y 120 to 164 and the
+    tabs started at 145, so All and Library showed at half height. The column squeezed
+    the row of tabs, which scrolls sideways on a phone and so has no height of its own to
+    keep. The field and the tabs keep theirs; the results scroll."""
+    context, page, _ = _open(browser, width=390, height=844)
+    page.evaluate("() => window.TargumPalette.show(true)")
+    page.fill("#palette-find", "ירושלם")
+    page.wait_for_selector(".palette-group[data-group='library']")
+    page.wait_for_timeout(400)
+    boxes = page.evaluate(
+        """() => {
+          const pill = document.getElementById('palette-lang').getBoundingClientRect();
+          const tabs = [...document.querySelectorAll('#palette-filters .tab')]
+            .filter(t => t.getClientRects().length)
+            .map(t => t.getBoundingClientRect());
+          return {pill: pill.bottom, tops: tabs.map(r => r.top),
+                  heights: tabs.map(r => r.height),
+                  natural: [...document.querySelectorAll('#palette-filters .tab')]
+                    .filter(t => t.getClientRects().length)
+                    .map(t => parseFloat(getComputedStyle(t).minHeight) || 36)};
+        }"""
+    )
+    assert boxes["tops"], "the tabs are drawn"
+    assert min(boxes["tops"]) >= boxes["pill"], boxes
+    for height, natural in zip(boxes["heights"], boxes["natural"], strict=True):
+        assert height >= natural - 0.5, boxes
+    context.close()

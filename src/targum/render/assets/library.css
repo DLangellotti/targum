@@ -1596,6 +1596,11 @@
 .band-item.asking .band-known { display: none; }
 .band-item.asking .row-state { margin-block-start: auto; }
 .band-ask { display: flex; flex-wrap: wrap; gap: 0.375rem; padding: 0 0.75rem 0.75rem; }
+/* A pressed row's Cancel (targum-internal#696, P1-3): Home's control from `cancel.js`,
+   beside the row's press. On a card it sits in the card's foot; on a See all row it
+   takes the row's end like the ask's presses do. */
+.band-item > .row-cancel { padding: 0 0.75rem 0.5rem; }
+.see-rows > li > .row-cancel { flex: none; }
 .portions { margin: 0 0 1rem; }
 .portions-head { font-family: var(--reading); font-size: 1.5rem; font-weight: 500; }
 
@@ -1894,7 +1899,9 @@ body.is-seeing .page-head { display: none; }
   .see-rows > li > .row-open { grid-template-columns: 4rem minmax(0, 1fr) auto; column-gap: 0.75rem; }
   .see-pic { grid-row: 1 / span 2; }
   .see-rows .what { grid-column: 2 / -1; }
-  .see-length { grid-column: 2; padding: 0; font-size: 0.8125rem; }
+  /* Wraps rather than running into the figure beside it: "1,129 wordsAbout 90%"
+     (targum-internal#696, P2-9). */
+  .see-length { grid-column: 2; padding: 0; font-size: 0.8125rem; white-space: normal; min-inline-size: 0; }
   .see-known { grid-column: 3; padding: 0; }
   .see-known .meter { display: none; }
   .see-rows .row-english { flex: 1 1 100%; }
@@ -1957,3 +1964,5 @@ body.is-seeing .page-head { display: none; }
 .band-known .estimate-ours,
 .see-known-say .estimate-ours { font-weight: 400; color: var(--ink-soft); }
 .see-known-say.is-estimate { white-space: normal; }
+/* The figure holds together; only the label wraps (targum-internal#696, P2-9). */
+.estimate-figure { white-space: nowrap; }

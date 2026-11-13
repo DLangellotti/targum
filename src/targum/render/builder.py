@@ -4865,6 +4865,25 @@ def beside_credits(entry: Entry | None, language: str = "en") -> list[Credited]:
     return out
 
 
+def _all_hebrew(said: str) -> bool:
+    """Whether a line has Hebrew letters and no Latin or Cyrillic ones."""
+    letters = [c for c in said if c.isalpha()]
+    return bool(letters) and all(
+        "\u0590" <= c <= "\u05ff" or "\ufb1d" <= c <= "\ufb4f" for c in letters
+    )
+
+
+def _medium_of(entry: Entry) -> str:
+    """ "watch", "listen" or "read": what a reader does with this text, as the shelf says it."""
+    from ..spoken import is_video
+
+    if is_video(entry.source):
+        return "watch"
+    if entry.kind.value == "talk":
+        return "listen"
+    return "read"
+
+
 def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
     """One text, for somebody who has not signed in.
 
@@ -4908,6 +4927,9 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             # A book's place ("Ketuvim · Ruth") in the page's language, as the shelf says
             # it (targum-internal#523, from #477's polish).
             byline=_place_in(entry.author, _page_language(language)),
+            # A byline written in Hebrew says so, upright and right to left: ויקימסע stood
+            # in italic under `lang=en` (targum-internal#696, P2-13; design.md §14.3).
+            byline_hebrew=_all_hebrew(_place_in(entry.author, _page_language(language))),
             era=era_said(entry, language),
             credit=credit,
             # Which edition the text is, and what is read beside it, each with its licence
@@ -4932,6 +4954,14 @@ def text_page(entry: Entry, address: str = "", language: str = "en") -> str:
             ],
             sample_language=credit.shown,
             minutes=max(1, round(entry.words / 130)),
+            # Read, listen or watch (design.md §6; targum-internal#696, P1-2): a video's
+            # page said "Read it" and "minutes of reading", where its shelf card says
+            # "Video · 11 min". The verb and the length follow the medium, as the
+            # Library's own press does (`library.js` `confirmBuild`).
+            medium=_medium_of(entry),
+            spoken_minutes=max(1, entry.minutes),
+            # "1,129 words", as the shelf says it, not "1129" (#696, P2-15).
+            words=_grouped(entry.words, _page_language(language)),
             # For the front door's bar (beta review PUB-06, 2026-11-03): this page's path
             # for its language links, and the language carried on its other links.
             here=f"/library/{entry.id}",

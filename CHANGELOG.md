@@ -14,6 +14,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- The Library's finish bar (targum-internal#696, design's §14 pass). Signed in,
+  `/library/<id>` no longer serves the stranger's page (Join the waitlist, no share known,
+  two primaries): it sends the reader through `/open/<id>`, into the reader or onto the
+  Library card. A stranger's page about a video or a talk says Watch it or Listen to it
+  and its minutes, not "minutes of reading", groups its word count ("1,129 words"), and
+  sets a Hebrew byline upright under `lang="he"`. A pressed build follows its job as
+  Home's waiting card does: "Waiting behind n builds" in line, the job's own line while it
+  runs, Cancel beside the press (`cancel.js`), and on cancelled, failed or blocked the
+  poll stops and the row can be pressed again. See all's Language menu names the shelf
+  on show and offers every language the account learns. On a phone the search's tabs
+  keep their height under the language pill. "About 93%" no longer breaks in the %
+  column, and a phone row's length wraps instead of running into it. Nine new strings,
+  Russian included. No spend.
 - /how and /credits weigh less before they paint (targum-internal#484, step 2). /how
   carried all of `reader.css`, 208 kB, for its examples' few rules; it now loads
   `public-page.css` like /about, the text and legal pages, with /how's rules added by
