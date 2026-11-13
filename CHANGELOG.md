@@ -14,6 +14,20 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- A podcast episode or a video says where it is from (targum-internal#691). Home's pick
+  names the show first under the title, with who makes it and the day ("השעה הבינלאומית ↗
+  · כאן · 9 Nov"), its tile is the show's letter, and the link opens the episode's own
+  page where the feed gave one rather than the bare audio file. Pressing Listen carries
+  the episode's title, show and who into the job, so the card waiting for it is named by
+  the episode, never the audio file's address, wears the show's letter, and says where it
+  came from: Suggested, Subscribed, Library or Uploaded · getting ready. A video's
+  channel and a subscription's show ride the same way. The reader writes `from.json`
+  beside itself at build and draws a head from it (the post head's anatomy: the show's
+  letter, the show, who and the day, and "The original ↗"), and the listening view names
+  the show before the part. Two columns on `find` (`page`, `author`; schema 64); a find
+  kept before them reads who off `podcasts.json`. A host's own name is not in the
+  reviewed list and is not fetched. `/prepare` drops a request's `named`. No spend; four new
+  strings, Russian listed in the PR.
 - Home's one card has one Listen (targum-internal#692). With a podcast picked and Listen
   chosen in the filter the row read Listen · Something else · Listen ▾ in the same pill,
   and the filled Upload under it was the heaviest press on the card. The filter now says

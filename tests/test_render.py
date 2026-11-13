@@ -485,6 +485,39 @@ def test_a_shared_copy_links_its_own_source_and_licence_and_nothing_else(
     assert f'href="{source}"' not in html
 
 
+def test_a_podcast_reader_says_its_show_who_and_day_and_links_its_page(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """targum-internal#691: an episode's reader names where it is from at its head — the
+    show in the disc as a letter (nothing fetched), who makes it, the day, and the
+    episode's own page as its one link of its own. A folder without `from.json` says and
+    links none of it."""
+    from targum.render.builder import keep_from
+
+    page_url = "https://www.kan.org.il/content/kan/podcasts/p-1234/56789/"
+    keep_from(
+        tmp_path,
+        {"show": "השעה הבינלאומית", "by": "כאן", "date": 1794211200000, "page": page_url},
+    )
+    document = Document(source="x.mp3", title="פרק", language="he", blocks=[], content_hash="h")
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert 'class="post from-head"' in html
+    assert '<bdi class="post-name" dir="auto">השעה הבינלאומית</bdi>' in html
+    assert '<bdi class="post-handle" dir="auto">כאן</bdi>' in html
+    assert '<time datetime="2026-11-09"' in html and "9 November 2026" in html
+    assert f'<a class="post-home" href="{page_url}" target="_blank"' in html
+    assert "<img" not in html.split('class="post from-head"')[1].split("</section>")[0]
+    for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
+        address = match.group(0)
+        assert address.startswith(OUTBOUND) or address == page_url, address
+
+    (tmp_path / "from.json").unlink()
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    html = page.read_text(encoding="utf-8")
+    assert "from-head" not in html and page_url not in html
+
+
 def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
     """Instagram's address takes no time, so the control is not marked for one and does
     not promise the line — it names the service and opens the reel."""

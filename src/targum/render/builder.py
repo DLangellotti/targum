@@ -6500,6 +6500,70 @@ def _rides_late(entry: dict[str, Any], key: str, drawn_at: int) -> bool:
     return bool(entry.get("companion")) and bool(entry.get("commented")) and key != f"t{drawn_at}"
 
 
+#: Where a podcast episode or a video is from, beside its reader (targum-internal#691).
+FROM_FILE = "from.json"
+
+
+def keep_from(folder: Path, known: dict[str, Any]) -> None:
+    """Write what a build already knew of where its source is from — the show or
+    channel, who makes it, its day and its own page — beside the reader, for its head.
+    Nothing is fetched to make it; a failure here never fails the build."""
+    fields = {
+        key: known[key]
+        for key in ("show", "by", "date", "page")
+        if key in known and known[key] not in ("", 0, None)
+    }
+    if not fields.get("show"):
+        return
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / FROM_FILE).write_text(
+            json.dumps(fields, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+    except OSError:
+        return
+
+
+def from_card(folder: Path | None, language: str) -> dict[str, str] | None:
+    """The reader's head for a podcast episode or a video (targum-internal#691): the
+    show, who makes it, the day in the page's language and the episode's own page, from
+    `from.json`. None where the folder has none, as every text that is not one has."""
+    from ..strings import said_day
+
+    if folder is None:
+        return None
+    path = folder / FROM_FILE
+    if not path.is_file():
+        return None
+    try:
+        said = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(said, dict):
+        return None
+    show = str(said.get("show") or "").strip()
+    if not show:
+        return None
+    by = str(said.get("by") or "").strip()
+    page = str(said.get("page") or "").strip()
+    day = stamp = ""
+    try:
+        at = int(said.get("date") or 0)
+    except (TypeError, ValueError):
+        at = 0
+    if at > 0:
+        when = datetime.fromtimestamp(at / 1000, tz=UTC).date()
+        day, stamp = said_day(when, language, year=True), when.isoformat()
+    return {
+        "show": show,
+        "by": by if by.casefold() != show.casefold() else "",
+        "letter": show[:1].upper(),
+        "day": day,
+        "stamp": stamp,
+        "page": page if page.startswith(("https://", "http://")) else "",
+    }
+
+
 def text_credit_in(folder: Path | None) -> dict[str, str] | None:
     """A shared copy's credit (`credit.json`): the outlet, the original's address, the
     licence and its address. None for every other folder, and for one whose addresses are
@@ -6950,6 +7014,9 @@ def render(
     # pictures and the link home, and the rows the head takes the place of.
     chrome_language = translations[0].target_language if translations else "en"
     post, post_covers = post_card(folder, segmented, chrome_language)
+    # Where a podcast episode or a video is from, at the head of every part
+    # (targum-internal#691). A post's head already says whose it is.
+    heard_from = None if post else from_card(folder, chrome_language)
     # Read once for the whole text, so a switch thrown mid-build cannot give one chapter
     # the list and the next none.
     from .preread import SHOWN as PREREAD_SHOWN
@@ -7028,6 +7095,8 @@ def render(
         post["day"] = pieces.each(
             lambda code: (post_card(folder, segmented, code)[0] or {}).get("day", "")
         )
+    if heard_from is not None and heard_from.get("day"):
+        heard_from["day"] = pieces.each(lambda code: (from_card(folder, code) or {}).get("day", ""))
     offered = next_after(document)
     offers = offers_in(offered, chrome, said=pieces.words(page_words))
     shared = {
@@ -7829,6 +7898,7 @@ def render(
             preread_shown=PREREAD_SHOWN,
             # The post's card, on the page that opens the text (a post is one page).
             post=post if section.number == 1 else None,
+            heard_from=heard_from,
             # And where a film's caption starts, on whichever page it falls.
             post_caption=post["caption_from"] if post else "",
             verses=verses,

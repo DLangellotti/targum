@@ -741,7 +741,7 @@ def _into(store: Store, person_id: int) -> str:
 def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
     """One round: settle what finished, then get the due items ready, inside the cap."""
     from . import plans
-    from .serve import Job
+    from .serve import NAMED, Job, named
 
     report = Readied(settled=_settle(store))
     month_from = int(library._month_from())
@@ -788,6 +788,12 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
                     "via": "subscription",
                     "subscription": sub_id,
                     "item": key,
+                    # The show or channel subscribed to, and the item's day: what its
+                    # card and its reader say it is from (targum-internal#691).
+                    NAMED: named(
+                        show=str(item.get("sub_name") or ""),
+                        date=int(item.get("published") or 0),
+                    ),
                 },
                 owner=person.id,
                 admin=bool(person.admin),

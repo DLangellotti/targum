@@ -108,10 +108,18 @@ def _row(name: str) -> dict[str, Any]:
 Answer = Callable[[dict[str, Any]], Any]
 
 
-def home(browser, width: int, find: Answer, suggest: Answer | None = None):
+def home(
+    browser,
+    width: int,
+    find: Answer,
+    suggest: Answer | None = None,
+    jobs: list[dict[str, Any]] | None = None,
+    language: str = "en",
+):
     """Home with one text on the shelf; `/find` and `/suggest` answer by `find` and
-    `suggest`, each given the posted body. Every body posted to `/find` is kept."""
-    html = list_page(TOKEN, "texts")
+    `suggest`, each given the posted body, and `/jobs` with `jobs`. Every body posted to
+    `/find` is kept."""
+    html = list_page(TOKEN, "texts", language)
     posted: list[dict[str, Any]] = []
     went: list[str] = []
 
@@ -130,6 +138,8 @@ def home(browser, width: int, find: Answer, suggest: Answer | None = None):
         body = json.loads(request.post_data or "{}") if request.method == "POST" else {}
         if path == "/readers":
             said: Any = {"readers": [_row("one")], "shared": [], "trash": []}
+        elif path == "/jobs":
+            said = {"jobs": jobs or []}
         elif path == "/account/places":
             return route.fulfill(status=401, content_type="application/json", body="{}")
         elif path == "/account/me":
@@ -998,3 +1008,128 @@ def test_the_card_has_one_listen_and_upload_is_not_its_press(browser, width: int
         assert got["filterGap"] >= 16, "the filter stands apart from the pick's presses"
     if width < 640:
         assert got["uploadHeight"] >= 44, got
+
+
+# -- where a podcast episode is from (targum-internal#691) ---------------------------
+
+AUDIO = "https://traffic.omny.fm/d/clips/23f697a0-aaaa/bbbb/cccc/audio.mp3"
+EPISODE_PAGE = "https://www.kan.org.il/content/kan/podcasts/p-1234/56789/"
+SHOW = "השעה הבינלאומית"
+EPISODE = {
+    **WEB_PICK,
+    "id": "find-44",
+    "find": 44,
+    "title": "9.11.2026 - השעה הבינלאומית עם ערן סיקורל",
+    "kind": "podcast",
+    "collection": "find:podcast",
+    "host": "kan.org.il",
+    "minutes": 48,
+    "credits": 48,
+    # 9 November 2026, nine in the morning in Jerusalem.
+    "source_line": {"name": SHOW, "url": EPISODE_PAGE, "date": 1794207600000, "by": "כאן"},
+}
+
+
+EPISODE_CARD = """() => {
+  const what = document.querySelector('#try-next .rc-what');
+  const show = document.querySelector('#try-next .rc-source');
+  return {
+    tile: (document.querySelector('#try-next .rc-pick .glyph') || {}).textContent || '',
+    order: [...what.children].map((e) => e.className),
+    show: show && show.textContent,
+    href: show && show.querySelector('a') && show.querySelector('a').getAttribute('href'),
+    size: show ? parseFloat(getComputedStyle(show).fontSize) : 0,
+    sideways: document.documentElement.scrollWidth > window.innerWidth,
+  };
+}"""
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+def test_a_podcast_pick_names_its_show_and_who_under_its_title(browser, width: int) -> None:
+    """David, 2026-11-13: the source was one small link line. The show is the first thing
+    under the title now, with who makes it and the day, and the tile is the show's letter
+    rather than the "9" a dated episode title gave; the link is the episode's page."""
+
+    def suggest(body: dict[str, Any]) -> Any:
+        return {"suggestion": EPISODE, "library": True, "more": []}
+
+    context, page, thrown, _, _ = home(browser, width, lambda body: {"pick": None}, suggest)
+    page.wait_for_selector("#try-next .rc-source")
+    got = page.evaluate(EPISODE_CARD)
+    shot(page, "podcast-pick", width)
+    context.close()
+    assert not thrown, thrown
+    assert got["tile"] == "ה", got
+    assert got["order"][:2] == ["home-card-title", "rc-source is-show"], got
+    assert got["show"] == f"{SHOW}↗ · כאן · 9 Nov", got
+    assert got["href"] == EPISODE_PAGE
+    assert got["size"] >= 14, "the show reads at the facts' size, not the 13px it was"
+    assert not got["sideways"]
+
+
+BUILDING = """() => [...document.querySelectorAll('.home-card.is-building')].map((card) => ({
+  tile: (card.querySelector('.glyph') || {}).textContent || '',
+  tag: (card.querySelector('.home-tag') || {}).textContent || '',
+  title: (card.querySelector('.home-card-title') || {}).textContent || '',
+  from: (card.querySelector('.home-card-from') || {}).textContent || '',
+}))"""
+
+
+def job(**fields: Any) -> dict[str, Any]:
+    return {
+        "id": fields.pop("id", "j1"),
+        "source": AUDIO,
+        "language": "he",
+        "stage": "running",
+        "done": 0,
+        "total": 0,
+        "made": 1794211200,
+        **fields,
+    }
+
+
+@pytest.mark.parametrize("width", WIDTHS)
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_a_building_card_names_its_episode_and_says_where_it_came_from(
+    browser, width: int, language: str
+) -> None:
+    """David's second screenshot: the waiting card's title was the audio file's address,
+    its tile "h" and its badge "Uploaded". Now the episode's title and its show, the
+    show's letter, and a badge that says it was suggested. A bare audio link with
+    nothing known is named by its site, never its address, and its tile is no "h"."""
+    jobs = [
+        job(id="a", title=EPISODE["title"], came="suggested", show=SHOW, by="כאן"),
+        job(id="b", title=AUDIO, came="uploaded"),
+        job(id="c", title="ערוץ ראשון", came="subscribed", show="גיקונומי"),
+    ]
+    context, page, thrown, _, _ = home(
+        browser, width, lambda body: {"pick": None}, jobs=jobs, language=language
+    )
+    page.wait_for_selector(".home-card.is-building")
+    page.wait_for_function("document.querySelectorAll('.home-card.is-building').length === 3")
+    got = {card["title"]: card for card in page.evaluate(BUILDING)}
+    rows = page.evaluate(
+        "() => [...document.querySelectorAll('li.row.is-building')].map((li) => ["
+        "(li.querySelector('.book-title') || {}).textContent || '',"
+        "(li.querySelector('.glyph') || {}).textContent || ''])"
+    )
+    shot(page, f"building-{language}", width)
+    context.close()
+    assert not thrown, thrown
+    suggested = got[EPISODE["title"]]
+    assert suggested["tile"] == "ה" and suggested["from"] == f"{SHOW} · כאן", suggested
+    bare = got["traffic.omny.fm"]
+    assert bare["tile"] == "" and "http" not in bare["title"], bare
+    subscribed = got["ערוץ ראשון"]
+    tags = {
+        "en": (
+            "Suggested · getting ready",
+            "Uploaded · getting ready",
+            "Subscribed · getting ready",
+        ),
+        "ru": ("Предложено · готовим", "Загружено · готовим", "Подписка · готовим"),
+    }[language]
+    assert (suggested["tag"], bare["tag"], subscribed["tag"]) == tags
+    # The list under Continue names them the same way, and draws no "h" either.
+    assert ["traffic.omny.fm", ""] in rows, rows
+    assert not any(title.startswith("http") for title, _ in rows), rows

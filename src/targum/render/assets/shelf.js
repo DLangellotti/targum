@@ -236,6 +236,17 @@
     return t("shelf.stage.working", "We're getting it ready…");
   }
 
+  /* A build is never named by an address where anything else is known
+     (targum-internal#691): its title, else the show it is from, else the site's name;
+     and its tile is the show's letter or the title's, never an address's "h". */
+  var ADDRESS = /^[a-z][a-z0-9+.-]*:\/\/([^/?#:]+)/i;
+  function buildingName(job) {
+    var title = String(job.title || "").trim();
+    if (title && !ADDRESS.test(title)) return title;
+    var site = ADDRESS.exec(title || String(job.source || ""));
+    return job.show || (site ? site[1].replace(/^www\./, "") : "") || title;
+  }
+
   function buildingRow(job) {
     var item = document.createElement("li");
     item.className = "row is-building";
@@ -243,9 +254,11 @@
     item.setAttribute("role", "status");
     var box = document.createElement("span");
     box.className = "building";
+    var named = buildingName(job);
+    var titled = !!job.title && !ADDRESS.test(String(job.title).trim());
     box.appendChild(
       window.TargumCovers.picture(
-        { title: job.title, language: job.language, kind: job.kind },
+        { title: job.show || (titled ? named : "\u00b7"), language: job.language, kind: job.kind },
         { keyed: keyed, className: "thumb row-thumb" }
       )
     );
@@ -253,9 +266,9 @@
     var what = document.createElement("span");
     what.className = "book-what row-main";
     var title = document.createElement("bdi");
-    title.setAttribute("lang", job.language || "und");
+    title.setAttribute("lang", titled ? job.language || "und" : "und");
     title.className = "book-title";
-    title.textContent = job.title;
+    title.textContent = named;
     what.appendChild(title);
     var line = document.createElement("span");
     line.className = "book-facts";
