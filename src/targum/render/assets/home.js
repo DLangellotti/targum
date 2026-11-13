@@ -507,7 +507,26 @@
     }
     if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
     item.appendChild(bar(job.total > 0 ? job.done / job.total : 0.1, true));
-    item.appendChild(el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready")));
+    var waiting = el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready"));
+    item.appendChild(waiting);
+    // Cancel, where it is the reader's to cancel (targum-internal#694): a quiet press
+    // under the card's line, never its primary. Once it has left the line the card goes,
+    // after its line has been read.
+    var undo = window.TargumCancel
+      ? window.TargumCancel.control(job, {
+          gone: function () {
+            waiting.hidden = true;
+            setTimeout(function () {
+              if (item.parentNode) item.parentNode.removeChild(item);
+              if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+            }, 4000);
+          },
+        })
+      : null;
+    if (undo) {
+      undo.classList.add("home-card-cancel");
+      item.appendChild(undo);
+    }
     return item;
   }
 
@@ -2476,6 +2495,8 @@
     mayArrive: mayArrive,
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
+    // And one getting-ready card, as Continue draws it (targum-internal#694).
+    buildCard: buildCard,
     next: nextUnfinished,
     places: mergePlaces,
     // The account's places as asked when the page opened, for `yours.js`'s shelf.

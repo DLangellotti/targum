@@ -179,7 +179,8 @@
   }
 
   function live(job) {
-    return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked";
+    // `cancelled`: its reader cancelled or stopped it (targum-internal#694).
+    return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" && job.stage !== "cancelled";
   }
 
   /* --- A build opened in place (David, 2026-10-06: "I want to be able to click on one
