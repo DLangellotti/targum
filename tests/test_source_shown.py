@@ -268,6 +268,18 @@ def test_a_prepare_request_keeps_only_what_a_page_sends(
     options = seen[0].options
     assert not set(SERVER_WRITES) & set(options), options
     assert options == {"source": "https://news.example/cheap", "to": "en", "words": True}
+
+    # A glossary of the whole text is never priced by the quote, so it is never bought
+    # from here either: the field a page sends stays, and always says no.
+    seen.clear()
+    call(
+        home.port,
+        "POST",
+        "/prepare",
+        {"source": "https://news.example/cheap", "to": "en", "gloss": True},
+        cookie=cookie,
+    )
+    assert seen and seen[0].options["gloss"] is False, seen[0].options
     assert seen[0].kind == "build" and home.library.stoppable(seen[0]), "nothing run acts on first"
 
 

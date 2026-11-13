@@ -16920,6 +16920,10 @@ class Handler(BaseHTTPRequestHandler):
         payload = {key: value for key, value in payload.items() if key in PREPARE_FIELDS}
         if not isinstance(payload.get("brought"), dict):
             payload.pop("again", None)
+        # Never a glossary of the whole text from here: no page asks for one, and the
+        # quote never prices it (qa-claude on targum#1209). `targum build --gloss` does.
+        if "gloss" in payload:
+            payload["gloss"] = False
 
         # A picker is not a boundary. The page offers three languages in and two out
         # because those are the pairs an upload has been taken end to end in; a request
