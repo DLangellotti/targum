@@ -1133,3 +1133,40 @@ def test_a_building_card_names_its_episode_and_says_where_it_came_from(
     # The list under Continue names them the same way, and draws no "h" either.
     assert ["traffic.omny.fm", ""] in rows, rows
     assert not any(title.startswith("http") for title, _ in rows), rows
+
+
+@pytest.mark.parametrize("width", [WIDTHS[0]])
+def test_a_podcast_pick_and_its_waiting_card_name_the_presenter_then_the_maker(
+    browser, width: int
+) -> None:
+    """targum-internal#691, the follow-up to #1197: who presents the show, as its feed
+    said, then who makes it, on Home's pick and on the card waiting for the build."""
+    pick = {
+        **EPISODE,
+        "source_line": {**EPISODE["source_line"], "presenter": "ערן סיקורל"},
+    }
+
+    def suggest(body: dict[str, Any]) -> Any:
+        return {"suggestion": pick, "library": True, "more": []}
+
+    jobs = [
+        job(
+            id="a",
+            title=EPISODE["title"],
+            came="suggested",
+            show=SHOW,
+            presenter="ערן סיקורל",
+            by="כאן",
+        )
+    ]
+    context, page, thrown, _, _ = home(
+        browser, width, lambda body: {"pick": None}, suggest, jobs=jobs
+    )
+    page.wait_for_selector("#try-next .rc-source")
+    page.wait_for_selector(".home-card.is-building .home-card-from")
+    got = page.evaluate(EPISODE_CARD)
+    cards = page.evaluate(BUILDING)
+    context.close()
+    assert not thrown, thrown
+    assert got["show"] == f"{SHOW}↗ · ערן סיקורל · כאן · 9 Nov", got
+    assert cards[0]["from"] == f"{SHOW} · ערן סיקורל · כאן", cards

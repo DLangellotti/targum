@@ -820,7 +820,7 @@
     <span class="post-face letter" aria-hidden="true" lang="{{ source_language }}">{{ heard_from.letter }}</span>
     <span class="post-who">
       <bdi class="post-name" dir="auto">{{ heard_from.show }}</bdi>
-      {% if heard_from.by or heard_from.day %}<span class="post-meta">{% if heard_from.by %}<bdi class="post-handle" dir="auto">{{ heard_from.by }}</bdi>{% endif %}{% if heard_from.day %}{% if heard_from.by %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ heard_from.stamp }}" dir="auto">{{ heard_from.day }}</time>{% endif %}</span>{% endif %}
+      {% if heard_from.presenter or heard_from.by or heard_from.day %}<span class="post-meta">{% if heard_from.presenter %}<bdi class="post-handle post-presenter" dir="auto">{{ heard_from.presenter }}</bdi>{% if heard_from.by %}<span aria-hidden="true">·</span>{% endif %}{% endif %}{% if heard_from.by %}<bdi class="post-handle" dir="auto">{{ heard_from.by }}</bdi>{% endif %}{% if heard_from.day %}{% if heard_from.presenter or heard_from.by %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ heard_from.stamp }}" dir="auto">{{ heard_from.day }}</time>{% endif %}</span>{% endif %}
     </span>
     {% if heard_from.page and not spoken_home %}
     <a class="post-home" href="{{ heard_from.page }}" target="_blank" rel="noreferrer noopener">{{ t("reader.bar.the-original", "The original") }}<span aria-hidden="true"> ↗</span></a>

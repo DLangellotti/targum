@@ -1450,11 +1450,20 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
 NAMED = "named"
 
 
-def named(*, show: str = "", by: str = "", date: int = 0, page: str = "") -> dict[str, Any]:
-    """The `named` option, with what is empty left out and only a web address kept."""
+def named(
+    *, show: str = "", presenter: str = "", by: str = "", date: int = 0, page: str = ""
+) -> dict[str, Any]:
+    """The `named` option, with what is empty left out and only a web address kept.
+    `presenter` is who presents a podcast as its feed said, kept where it says something
+    the show and `by` do not (`source_line.presenter_of`)."""
+    from .source_line import presenter_of
+
     out: dict[str, Any] = {}
     if show.strip():
         out["show"] = show.strip()[:160]
+    presents = presenter_of(presenter, show=show, by=by)[:160]
+    if presents:
+        out["presenter"] = presents
     if by.strip() and by.strip().casefold() != show.strip().casefold():
         out["by"] = by.strip()[:160]
     if date and int(date) > 0:
@@ -1609,6 +1618,7 @@ class Job:
             # #691): the waiting card's badge and its line under the title.
             "came": came_of(self, catalogued=entry is not None),
             "show": str((self.options.get(NAMED) or {}).get("show") or ""),
+            "presenter": str((self.options.get(NAMED) or {}).get("presenter") or ""),
             "by": str((self.options.get(NAMED) or {}).get("by") or ""),
             # The subtitle in the reader's own language where the catalogue has one,
             # as the Library says it (beta review, 2026-11-03, R8).
@@ -16989,6 +16999,7 @@ class Handler(BaseHTTPRequestHandler):
 
         from .chat import tools as tools_module
         from .finds import pool as finds_pool
+        from .finds import provider as finds_provider
         from .translate.prompts import INTO
 
         person = self._person()
@@ -17021,7 +17032,10 @@ class Handler(BaseHTTPRequestHandler):
                 "find": found.id,
                 NAMED: named(
                     show=found.publisher if found.medium != "text" else "",
-                    by=found.author,
+                    presenter=found.presenter,
+                    # Who makes the show; a find kept before that was, off the
+                    # reviewed list, as Home's line says it (`provider.maker`).
+                    by=finds_provider.maker(found),
                     date=found.published,
                     page=found.page or (found.url if found.medium == "video" else ""),
                 ),

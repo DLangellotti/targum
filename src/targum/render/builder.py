@@ -6510,7 +6510,7 @@ def keep_from(folder: Path, known: dict[str, Any]) -> None:
     Nothing is fetched to make it; a failure here never fails the build."""
     fields = {
         key: known[key]
-        for key in ("show", "by", "date", "page")
+        for key in ("show", "presenter", "by", "date", "page")
         if key in known and known[key] not in ("", 0, None)
     }
     if not fields.get("show"):
@@ -6545,6 +6545,9 @@ def from_card(folder: Path | None, language: str) -> dict[str, str] | None:
     if not show:
         return None
     by = str(said.get("by") or "").strip()
+    # Who presents it, as its feed said (targum-internal#691); "" in a from.json
+    # written before that was, whose head then says who makes it alone, as it did.
+    presenter = str(said.get("presenter") or "").strip()[:160]
     page = str(said.get("page") or "").strip()
     day = stamp = ""
     try:
@@ -6556,6 +6559,7 @@ def from_card(folder: Path | None, language: str) -> dict[str, str] | None:
         day, stamp = said_day(when, language, year=True), when.isoformat()
     return {
         "show": show,
+        "presenter": presenter if presenter.casefold() != show.casefold() else "",
         "by": by if by.casefold() != show.casefold() else "",
         "letter": show[:1].upper(),
         "day": day,

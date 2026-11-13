@@ -518,6 +518,25 @@ def test_a_podcast_reader_says_its_show_who_and_day_and_links_its_page(
     assert "from-head" not in html and page_url not in html
 
 
+def test_a_podcast_reader_names_its_presenter_before_who_makes_it(
+    tmp_path: Path, segmented: SegmentedDocument, translation: Translation
+) -> None:
+    """targum-internal#691, the follow-up to #1197: who presents it, as its feed said,
+    then who makes the show, each in its own isolate."""
+    from targum.render.builder import keep_from
+
+    keep_from(tmp_path, {"show": "השעה הבינלאומית", "presenter": "ערן סיקורל", "by": "כאן"})
+    document = Document(source="x.mp3", title="פרק", language="he", blocks=[], content_hash="h")
+    page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
+    head = (
+        page.read_text(encoding="utf-8").split('class="post from-head"')[1].split("</section>")[0]
+    )
+    presenter = '<bdi class="post-handle post-presenter" dir="auto">ערן סיקורל</bdi>'
+    maker = '<bdi class="post-handle" dir="auto">כאן</bdi>'
+    assert presenter in head and maker in head
+    assert head.index(presenter) < head.index(maker)
+
+
 def test_a_reel_links_home_at_its_start(tmp_path: Path) -> None:
     """Instagram's address takes no time, so the control is not marked for one and does
     not promise the line — it names the service and opens the reel."""

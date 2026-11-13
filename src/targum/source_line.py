@@ -50,9 +50,36 @@ def for_find(row: dict[str, Any]) -> dict[str, Any] | None:
         return None
     line: dict[str, Any] = {"name": name, "url": url, "date": int(row.get("published") or 0)}
     by = str(row.get("author") or "").strip()
+    presenter = presenter_of(str(row.get("presenter") or ""), show=name, by=by)
+    if presenter:
+        line["presenter"] = presenter
     if by and by.casefold() != name.casefold():
         line["by"] = by
     return line
+
+
+def _words(said: str) -> tuple[str, ...]:
+    return tuple("".join(ch if ch.isalnum() else " " for ch in said.casefold()).split())
+
+
+def _within(part: tuple[str, ...], whole: tuple[str, ...]) -> bool:
+    size = len(part)
+    return bool(part) and any(whole[at : at + size] == part for at in range(len(whole) - size + 1))
+
+
+def presenter_of(presenter: str, *, show: str, by: str) -> str:
+    """Who presents a podcast, as its feed said (targum-internal#691), where that says
+    something the show's name and who makes it do not: a channel's `itunes:author` is
+    often the broadcaster again ("כאן | תאגיד השידור הישראלי" beside כאן), and then it is
+    not said twice. "" for that, and for nothing."""
+    presenter = " ".join(presenter.split())
+    said = _words(presenter)
+    if not said:
+        return ""
+    for other in (_words(show), _words(by)):
+        if other and (_within(other, said) or _within(said, other)):
+            return ""
+    return presenter
 
 
 def _site_of_host(row: dict[str, Any]) -> str:

@@ -28,6 +28,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   kept before them reads who off `podcasts.json`. A host's own name is not in the
   reviewed list and is not fetched. `/prepare` drops a request's `named`. No spend; four new
   strings, Russian listed in the PR.
+- A podcast says who presents it (targum-internal#691, after #1197). The nightly pool
+  keeps the feed's `itunes:author` off the feed it already reads: the item's own where a
+  show has several presenters, else the channel's, as plain text of at most 120
+  characters. Home's pick, the card waiting for a build and the reader's head now say
+  "presenter · maker" ("השעה הבינלאומית ↗ · ערן סיקורל · כאן · 9 Nov"), each name in its
+  own isolate. A presenter that only repeats the show or who makes it ("כאן | תאגיד
+  השידור") is not said twice. One column on `find` (`presenter`; schema 66), kept apart
+  from `author`, which stays who makes the show. A find kept before it says the maker,
+  as it did, and the Listen press now takes that maker off the reviewed list too. No new
+  fetch, no spend, no new strings.
 - Texts by level no longer says Easy for you above the Reading level card
   (targum-internal#693). A Hebrew reader at dalet, about B2, saw every row from A1 to C2
   ticked and Past C2 as Next. C2 had one measured text and it was readable, so C2 counted
