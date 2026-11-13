@@ -1739,6 +1739,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on purpose, so an article already on a shelf read again keeps its stored text and buys
   nothing: only new imports have captions. A shelf copy of a find leaves the pictures
   behind, since a picture's licence is its own.
+- The waitlist and a new account say which link brought somebody, so the Duolingo
+  test's channel is counted without any pixel (targum-internal#676, step 4). A page opened
+  with `?from=<tag>`, or `utm_source` and `utm_campaign` (`meta.after-duolingo`), says
+  the tag in its forms' existing `from` field in place of its own page, on `/` and
+  `/aliyah`, and through a try. `joined_from` keeps a bare tag of `[a-z0-9._-]`, at most
+  32, beside the pages it knew; anything else is still unknown. The open door's signup
+  keeps it on the new account, and somebody let in from the waitlist keeps their row's
+  (`person.came_from`, accounts schema 63, one added column). The back office counts
+  accounts by it under the waitlist's "Joined from". The privacy notice's clause 3.10
+  says so, in a sentence David approved on 13 November; the notice is dated 12 November
+  2026. No spend, no new strings.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner

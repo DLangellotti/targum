@@ -41,6 +41,10 @@
             is the reason to join (2026-09-30). -#}
         <div class="try" id="try">
           <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
+            {%- if joined_from != "/" %}
+            {#- The tag the page was opened with, carried through a try (#676). #}
+            <input type="hidden" name="from" value="{{ joined_from }}">
+            {%- endif %}
             <label class="field">
               <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>
               <button class="btn tonal" type="submit">{{ t("landing.try.button", "Try it") }}</button>

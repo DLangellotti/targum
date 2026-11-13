@@ -340,6 +340,30 @@ def test_a_link_tried_at_the_front_door_waits_in_upload(
     assert "next" not in parse_qs(urlparse(links[-1][1]).query)
 
 
+def test_a_signup_keeps_the_tag_of_the_link_it_came_by(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#676: with the door open nobody waits, so the page or link tag
+    the form stood on is kept on the new account; anything else is kept as unknown, and
+    an account that was already there keeps what brought it first."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    _switched(monkeypatch, OPEN)
+
+    def came(address: str) -> str:
+        row = store.db.execute(
+            "SELECT came_from FROM person WHERE email = ?", (address,)
+        ).fetchone()
+        return str(row["came_from"])
+
+    assert _sign_up(port, email="new@example.com", **{"from": "meta.after-duolingo"})[0] == 200
+    assert came("new@example.com") == "meta.after-duolingo"
+    assert _sign_up(port, email="odd@example.com", **{"from": "<script>"})[0] == 200
+    assert came("odd@example.com") == ""
+    assert _sign_up(port, email="new@example.com", **{"from": "/aliyah"})[0] == 200
+    assert came("new@example.com") == "meta.after-duolingo"
+
+
 def test_the_open_door_s_form_keeps_the_sign_in_s_gates(
     tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
