@@ -363,6 +363,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   pressed again (a new quote is a new id); a page that last saw a build waiting asks
   before it stops one that has since started (qa-claude's read). No reordering, no
   spend; 19 new strings, Russian listed in the PR.
+- A recording stopped part way is credited to its retry (targum-internal#694; David,
+  2026-11-13). Starting it again hears the stopped minutes from the cache, so the new
+  build claims only the seconds the reader has not already paid for in their stopped
+  attempts at the same source since their last build of it that went ahead: summed across
+  every stopped attempt, never below nothing, never another reader's or another source's,
+  used once. Taken off the claim's own `length` inside `Store.claim`'s transaction
+  (`Store.prepaid`), so two retries pressed together share one credit; a credited retry
+  that is stopped again is charged no more than it claimed, and one that hears less than
+  was paid refunds nothing. No second counter, no spend, no new strings.
 - A reader's baked stylesheets and scripts lose their indentation as well as their
   comments (targum-internal#670). What a word waits for on a portion page fell from
   119.3 kB gzipped, 3 bytes under its 119.3 kB budget, to 113.4 kB; the budget stays where

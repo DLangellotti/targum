@@ -1583,6 +1583,10 @@ class Job:
     #: cancel takes, so a waiting cancel and the worker never both win: one that lost to
     #: the worker is a stop, never a refund for a build that is about to spend.
     taken: bool = False
+    #: Seconds of this recording the reader already paid for in builds of it they
+    #: stopped, taken off its claim (targum-internal#694, "credit the retry"). Never
+    #: stored: the claim's `length` is the record, and this only caps a stop's receipt.
+    credited: float = 0.0
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -2475,7 +2479,10 @@ class Library:
         metered = job.audio and not job.gift
         job.stage = "cancelled"
         job.message = ""
-        self.settle(job, length=min(heard, job.seconds) if metered else None)
+        # Never more than it claimed: a retry credited with what an earlier stop paid
+        # for (#694) claimed less than its seconds.
+        claimed = max(0.0, job.seconds - job.credited)
+        self.settle(job, length=min(heard, claimed) if metered else None)
         self.remember(job)
 
     def can_mail(self, owner: int | None) -> bool:
@@ -5173,16 +5180,28 @@ class Library:
                 length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.allowance(),
                 gift=job.gift,
+                # A recording the reader stopped part way and started again pays only
+                # for what they have not paid for yet (David, 2026-11-13).
+                credit_from=job.source if job.audio and not job.gift else None,
             )
             if not refused:
+                job.credited = self._credited(job)
                 return ""
             if refused == "hours" and self._held_to_free(job):
                 return self._plan_refusal(job)
             if refused == "hours" and job.owner is not None:
                 allowed = self.allowance() or 0.0
                 used = self.store.hours_used(job.owner, self._month_from())
+                credit = (
+                    self.store.prepaid(job.owner, job.source, job.id)
+                    if job.audio and not job.gift
+                    else 0.0
+                )
                 return self._out_of(
-                    refused, job.ui, need=job.seconds, left=max(0.0, allowed - used)
+                    refused,
+                    job.ui,
+                    need=max(0.0, job.seconds - credit),
+                    left=max(0.0, allowed - used),
                 )
             return self._out_of(refused, job.ui)
         with self.lock:
@@ -5190,6 +5209,14 @@ class Library:
             if not blocked:
                 self._committed += job.estimate
             return blocked
+
+    def _credited(self, job: Job) -> float:
+        """What the claim took off a recording's seconds: its seconds less the `length`
+        the row holds now. Zero for everything else."""
+        if self.store is None or not job.audio or job.gift:
+            return 0.0
+        row = self.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()
+        return max(0.0, job.seconds - float(row["length"])) if row else 0.0
 
     def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float, str]:
         """Claim every build in a set, or none (#365, design.md §12: one press takes a

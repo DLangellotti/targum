@@ -7306,6 +7306,7 @@ class Store:
         per_month_length: float | None = None,
         kind: str | None = None,
         gift: bool = False,
+        credit_from: str | None = None,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -7342,8 +7343,15 @@ class Store:
 
         `gift` marks the row as targum's to pay (targum-internal#543): the one place a
         gift says so, since it claims no length.
+
+        `credit_from` is a recording's source (targum-internal#694; David, 2026-11-13:
+        "credit the retry"). The seconds this reader already paid for it in builds they
+        stopped part way come off `length`, in this transaction, so two retries pressed
+        together share one credit: `prepaid` reads the rows.
         """
         with self.write() as db:
+            if credit_from is not None and owner is not None and length > 0:
+                length = max(0.0, length - self.prepaid(owner, credit_from, job_id, db=db))
             if per_account is not None:
                 narrowed = " AND kind = ?" if kind is not None else ""
                 params: tuple[Any, ...] = (since, owner, kind) if kind else (since, owner)
@@ -7378,6 +7386,31 @@ class Store:
                 (amount, length, int(gift), job_id),
             )
             return ""
+
+    def prepaid(
+        self, owner: int, source: str, job_id: str = "", *, db: sqlite3.Connection | None = None
+    ) -> float:
+        """Seconds of `source` this reader has paid for in builds they stopped part way
+        and has not yet had back (targum-internal#694): the `length` of their `cancelled`
+        rows of it since the last of their builds of it that took a claim and was not
+        cancelled. That build was credited with them, so a credit is used once; a build
+        cancelled while it waited heard nothing and holds no length. Another reader's
+        rows and another source's never count. Read from the rows the claims wrote: no
+        second counter."""
+        db = db or self.db
+        last = db.execute(
+            "SELECT COALESCE(MAX(made), -1) AS at FROM job WHERE owner = ? AND source = ? "
+            "AND id != ? AND stage != 'cancelled' AND claimed > 0 "
+            "AND kind IN ('build', 'subscription')",
+            (owner, source, job_id),
+        ).fetchone()
+        paid = db.execute(
+            "SELECT COALESCE(SUM(length), 0) AS paid FROM job WHERE owner = ? AND source = ? "
+            "AND id != ? AND stage = 'cancelled' AND length > 0 AND made > ? "
+            "AND kind IN ('build', 'subscription')",
+            (owner, source, job_id, int(last["at"])),
+        ).fetchone()
+        return float(paid["paid"])
 
     def claim_all(
         self,
