@@ -1441,6 +1441,8 @@
   "reader.grammar.noun": "сущ.",
   "reader.grammar.construct": "смихут",
   "reader.grammar.adjective": "прил.",
+  "reader.grammar.short-form": "краткая форма",
+  "reader.grammar.comparative": "сравн. степень",
   "reader.grammar.pronoun": "местоимение",
   "reader.grammar.article": "артикль",
   "reader.grammar.determiner": "определитель",

@@ -95,8 +95,11 @@ OCCURRENCES = "occurrences.json"
 #: and not יש, תשכח under שכח, מכובד under itself and ליד under ליד (targum-internal#697,
 #: #699); 15 reads `lemma_check` 6 and `verb_roots` 4, so השיניים is counted under
 #: שיניים, היום under היום, אין with no root and מציע under הציע of י־צ־ע
-#: (targum-internal#698, #700, #702).
-VERSION = 15
+#: (targum-internal#698, #700, #702); 16 reads `russian_check` 1, so a Russian word is
+#: counted under the lemma and the grammar OpenRussian witnesses: пирах under пир, будет
+#: as a future, войди as an imperative and строга with no case (targum-internal#708,
+#: #709, #710).
+VERSION = 16
 
 
 @dataclass(frozen=True)
@@ -243,6 +246,7 @@ def count_text(folder: Path) -> Occurrences | None:
     text has no word-level annotation or no segments — not counted, which is a different
     claim from a text with no words.
     """
+    from .annotate import russian_check
     from .annotate.base import NOT_A_WORD, not_vocabulary
     from .annotate.lemma_check import applies, mend_rows
     from .annotate.mishkal import key_of
@@ -264,6 +268,11 @@ def count_text(folder: Path) -> Occurrences | None:
         # Counted under the lemma the page shows, not one the word does not spell
         # (`annotate.lemma_check`), so the card and the count agree.
         checking = applies(str(read.get("annotator") or ""), str(read.get("language") or ""))
+        # Russian is checked against OpenRussian the same way, the text whole, since a
+        # name is told from a common word by how the rest of the text uses it
+        # (`annotate.russian_check`).
+        if russian_check.applies(str(read.get("language") or "")):
+            tokens = russian_check.mend_tokens(tokens, russian_check.texts_of(segmented))
     except (OSError, json.JSONDecodeError, AttributeError):
         return None
     del read

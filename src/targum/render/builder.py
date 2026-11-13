@@ -6754,7 +6754,7 @@ def render(
         # the root, the family and the conjugations all follow it (`annotate.lemma_check`).
         from ..annotate.lemma_check import mended
 
-        annotation = mended(annotation)
+        annotation = mended(annotation, segmented)
 
     from ..renderings import (
         EMPTY,

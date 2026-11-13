@@ -948,9 +948,15 @@ def mend_token(token: Token, objected: bool = False, title: str = "") -> Token:
     return token
 
 
-def mended(annotation: Annotation) -> Annotation:
+def mended(annotation: Annotation, segmented: Any = None) -> Annotation:
     """The annotation with every lemma checked; the same object where nothing changes,
-    and where the annotation is not DICTA's Hebrew."""
+    and where the annotation is neither DICTA's Hebrew nor Russian. Russian is checked
+    against OpenRussian's tables (`russian_check`), with the text's segments, which say
+    where a sentence starts, where they are given."""
+    from . import russian_check
+
+    if russian_check.applies(annotation.language):
+        return russian_check.mended(annotation, segmented)
     if not applies(annotation.annotator, annotation.language):
         return annotation
     changed = False

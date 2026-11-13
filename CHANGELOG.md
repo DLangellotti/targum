@@ -14,6 +14,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Russian words are checked against OpenRussian's tables at page-build and count time
+  (`annotate.russian_check`; targum-internal#708, #709, #710, from ling-ru's analyser read
+  of 2026-11-13). A short adjective or participle no longer has a case (строга, пусты,
+  подписаны), and the card says "short form"; a comparative (выше) says "comparative".
+  будет and будешь are future, a perfective's present-future is its future, and a form the
+  table has only as an imperative is one, even where it was tagged as a name (Бери, Пей)
+  or a future (войди). A lemma the table can witness replaces an invented or wrong one
+  (пирах under пир, "в уху" under уха, "еще вина" under вино), a hyphen particle leaves the
+  lemma (плакать-то), and a word tagged as a name that the table knows as a common word
+  takes that word. The page (`lemma_check.mended`) and the counts (`occurrences.VERSION`
+  16, a free recount) read the same mended rows; nothing is re-annotated, no annotator is
+  renamed, and a machine without the tables builds as before. Over the laptop's 245,368
+  Russian tokens ling-ru's detectors on the kinds this touches fall from 4,564 hits to
+  1,433, and her 814 hand-read tokens from 65 errors to 39 (80 to 48 per 1,000).
+  Two new strings, Russian included. No spend.
 - The reader's finish bar (targum-internal#703, design's §14 pass). "Done, and mark n
   words known" is the quiet link beside Done that design.md §12 (2026-10-13) asks for, at
   the end of a text and under a picture, where it had been an outlined pill and the

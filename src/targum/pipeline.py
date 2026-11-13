@@ -2487,7 +2487,7 @@ class Build:
             # what the annotator said (`annotate.lemma_check`).
             from .annotate.lemma_check import mended
 
-            annotation = mended(annotation)
+            annotation = mended(annotation, segmented)
         # And the words of a commentary beside it, so Rashi is tapped like the Torah is.
         commentary_words = self.annotate_commentaries(segmented, translations)
         # Russian's marks come the other way round: after the words, which settle a
