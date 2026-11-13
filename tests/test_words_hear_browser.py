@@ -28,20 +28,32 @@ def browser(chromium):
     return chromium.browser()
 
 
-def words_page(browser, width: int, language: str, said: list[dict], two: bool = False):
+def words_page(
+    browser,
+    width: int,
+    language: str,
+    said: list[dict],
+    two: bool = False,
+    held: list | None = None,
+):
+    """Your Words with `/say-word` answered here. Each word's clip is told apart by a
+    parameter in its data URL. With `held`, the first `/say-word` is not answered until
+    the test calls what it put there, so a later press can overtake it."""
     html = list_page(TOKEN, "words")
 
     def answer(route, request):
         if request.resource_type == "document":
             return route.fulfill(status=200, content_type="text/html", body=html)
         if "/say-word" in request.url:
-            said.append(
-                {
-                    "body": json.loads(request.post_data or "{}"),
-                    "key": request.headers.get("x-targum-key"),
-                }
-            )
-            body = json.dumps({"audio": SILENT})
+            asked = json.loads(request.post_data or "{}")
+            said.append({"body": asked, "key": request.headers.get("x-targum-key")})
+            clip = SILENT.replace(";base64", f";word={len(said)};base64") if two else SILENT
+            body = json.dumps({"audio": clip})
+            if held is not None and len(said) == 1:
+                held.append(
+                    lambda: route.fulfill(status=200, content_type="application/json", body=body)
+                )
+                return None
         else:
             body = "{}"
         route.fulfill(status=200, content_type="application/json", body=body)
@@ -140,11 +152,42 @@ def test_a_second_word_stops_the_first(browser) -> None:
     said: list[dict] = []
     context, page = words_page(browser, 1280, "he", said, two=True)
     presses = page.locator("#word-rows tr .word-cell .hear")
+    # Waited on, not slept on (targum-internal#713): 150 ms a press once left CI with
+    # the second clip still on its way.
     presses.nth(0).click()
-    page.wait_for_timeout(150)
+    page.wait_for_function("window.__voices.length === 1")
     presses.nth(1).click()
-    page.wait_for_timeout(150)
+    page.wait_for_function("window.__voices.length === 2")
     voices = page.evaluate("window.__voices")
     context.close()
     assert len(said) == 2
     assert len(voices) == 2 and voices[0]["paused"] and not voices[1]["paused"], voices
+
+
+def test_a_slow_first_word_does_not_cut_off_the_second(browser) -> None:
+    """The first word's clip coming back after the second was pressed is kept, not
+    played: the word said is the one pressed last (targum-internal#713). It used to play
+    whichever answer arrived last, so a slow first answer stopped the second word and
+    said the first."""
+    said: list[dict] = []
+    held: list = []
+    context, page = words_page(browser, 1280, "he", said, two=True, held=held)
+    presses = page.locator("#word-rows tr .word-cell .hear")
+    presses.nth(0).click()
+    deadline = 0
+    while not held and deadline < 10_000:
+        page.wait_for_timeout(20)
+        deadline += 20
+    assert held, "the first press never asked for its clip"
+    presses.nth(1).click()
+    page.wait_for_function("window.__voices.length === 1")
+    held[0]()
+    # The first answer is back once its button stops being busy; nothing else marks it.
+    page.wait_for_function(
+        "!document.querySelectorAll('#word-rows tr .word-cell .hear')[0].hasAttribute('aria-busy')"
+    )
+    voices = page.evaluate("window.__voices")
+    context.close()
+    assert len(said) == 2
+    assert len(voices) == 1 and ";word=2;" in voices[0]["src"], voices
+    assert not voices[0]["paused"], "the second word was cut off by the first"
