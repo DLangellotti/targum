@@ -632,7 +632,10 @@
             leaving[job.id] = { job: job, words: words || "", until: Date.now() + LEAVING_MS };
             setTimeout(function () {
               delete leaving[job.id];
-              var drawn = document.querySelectorAll('#continue-cards [data-job="' + String(job.id).replace(/"/g, "") + '"]');
+              // This card, and any later draw of it that the shelf's redraws made.
+              if (item.parentNode) item.parentNode.removeChild(item);
+              var list = document.getElementById("continue-cards");
+              var drawn = list ? list.querySelectorAll('[data-job="' + String(job.id).replace(/"/g, "") + '"]') : [];
               Array.prototype.forEach.call(drawn, function (one) {
                 if (one.parentNode) one.parentNode.removeChild(one);
               });
