@@ -786,7 +786,7 @@
   <header class="post-head">
     <span class="post-face{% if not post.avatar %} letter{% endif %}" aria-hidden="true">{% if post.avatar %}<img src="{{ post.avatar }}" alt="" width="48" height="48">{% else %}{{ post.letter }}{% endif %}</span>
     <span class="post-who">
-      {% if post.name %}<bdi class="post-name" dir="auto">{{ post.name }}</bdi>{% endif %}
+      {% if post.name %}<bdi class="post-name" dir="auto"{{ post.name|lang_if_written(source_language) }}>{{ post.name }}</bdi>{% endif %}
       {#- Each piece its own isolate, so a Latin handle and an English date on a Hebrew
           page keep their own order, and a narrow window wraps between them, not inside. -#}
       {#- Facebook gives no handle a reader would know its pages by, only a number, so a
@@ -819,8 +819,8 @@
   <header class="post-head">
     <span class="post-face letter" aria-hidden="true" lang="{{ source_language }}">{{ heard_from.letter }}</span>
     <span class="post-who">
-      <bdi class="post-name" dir="auto">{{ heard_from.show }}</bdi>
-      {% if heard_from.presenter or heard_from.by or heard_from.day %}<span class="post-meta">{% if heard_from.presenter %}<bdi class="post-handle post-presenter" dir="auto">{{ heard_from.presenter }}</bdi>{% if heard_from.by %}<span aria-hidden="true">·</span>{% endif %}{% endif %}{% if heard_from.by %}<bdi class="post-handle" dir="auto">{{ heard_from.by }}</bdi>{% endif %}{% if heard_from.day %}{% if heard_from.presenter or heard_from.by %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ heard_from.stamp }}" dir="auto">{{ heard_from.day }}</time>{% endif %}</span>{% endif %}
+      <bdi class="post-name" dir="auto"{{ heard_from.show|lang_if_written(source_language) }}>{{ heard_from.show }}</bdi>
+      {% if heard_from.presenter or heard_from.by or heard_from.day %}<span class="post-meta">{% if heard_from.presenter %}<bdi class="post-handle post-presenter" dir="auto"{{ heard_from.presenter|lang_if_written(source_language) }}>{{ heard_from.presenter }}</bdi>{% if heard_from.by %}<span aria-hidden="true">·</span>{% endif %}{% endif %}{% if heard_from.by %}<bdi class="post-handle" dir="auto"{{ heard_from.by|lang_if_written(source_language) }}>{{ heard_from.by }}</bdi>{% endif %}{% if heard_from.day %}{% if heard_from.presenter or heard_from.by %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ heard_from.stamp }}" dir="auto">{{ heard_from.day }}</time>{% endif %}</span>{% endif %}
     </span>
     {% if heard_from.page and not spoken_home %}
     <a class="post-home" href="{{ heard_from.page }}" target="_blank" rel="noreferrer noopener">{{ t("reader.bar.the-original", "The original") }}<span aria-hidden="true"> ↗</span></a>

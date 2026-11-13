@@ -1537,6 +1537,11 @@ body.paged:not(.last-page) .foot { display: none; }
   color: var(--ink-soft);
 }
 .turn[hidden] { display: none; }
+/* Where the measure is the window's, the arrows stood on its very edges, their circles
+   and shadows cut by the glass (targum-internal#703): inset by the page's gutter. */
+@media (max-width: 60rem) {
+  .turn { padding-inline: 1rem; }
+}
 /* The open list takes a column of the window, and the page — arrows included — moves
    over to make room, the same way `body.list-open` moves the text. */
 @media (min-width: 60.01rem) and (max-width: 101rem) {
@@ -1726,8 +1731,8 @@ body.film-ended:not(.in-list):has(#film-next) .foot-go {
   min-block-size: 2.75rem;
   padding: 0;
   background: none;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
+  color: var(--ink);
+  font-size: 0.875rem;
   font-weight: 400;
   text-decoration: underline;
   text-underline-offset: 0.2em;
@@ -3551,6 +3556,15 @@ body.film-quiet .video-tap { cursor: none; }
 /* Alone on the glass: the page's own paper behind it, not the browser's black. */
 html:fullscreen { background: var(--paper); }
 
+/* The title in a phone's bar is the way to the text's contents, and it measured 33px tall
+   under a thumb (targum-internal#703, §8). It grows by padding rather than by a box
+   round it: the title clips its own overflow for the ellipsis, and a reach drawn outside
+   it would be cut. The padding is given back by the margin, so the bar keeps its height. */
+@media (max-width: 60rem) and (hover: none) and (pointer: coarse) {
+  .bar > .bar-title { padding-block: 0.75rem; margin-block: -0.75rem; }
+  .bar > .bar-title .up { padding-block: 0.75rem; }
+}
+
 /* --- the phone: one band at the foot, one thing in it -------------------------
 
    Under 60rem there is no width for a column beside the text and no height for a pile
@@ -3765,6 +3779,26 @@ html:fullscreen { background: var(--paper); }
 
   /* --- the page, above the lot --- */
   body { padding-block-end: var(--foot, 0px); }
+  /* Under a picture the transcript scrolls, so no page is cut above the band and the
+     words tab stood over whichever line passed under it (targum-internal#703, design.md
+     §14.2). The band is reserved here the way the bar reserves the top: paper from the
+     tab's top edge to the foot, a hairline over it as under the picture, and the
+     transcript goes under it rather than under the tab. The body is padded by it, so the
+     last line still scrolls clear. */
+  body.film:has(#list-tab:not([hidden])) {
+    padding-block-end: calc(var(--foot, 0px) + 0.75rem);
+  }
+  body.film:has(#list-tab:not([hidden]))::after {
+    content: "";
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: 0;
+    z-index: 13;
+    block-size: calc(var(--foot, 0px) + 0.5rem);
+    border-block-start: 1px solid var(--rule);
+    background: var(--paper);
+    pointer-events: none;
+  }
 
 
   /* --- how it moves --- */
@@ -6128,20 +6162,25 @@ body.list-ended .list-end .list-end-over {
   align-items: center;
   gap: 0.75rem;
 }
-/* The marking finish beside the press, a line press (`.btn.ghost.outline`'s look). */
+/* The marking finish beside the press, in the quiet link style (design.md §12, "Done
+   marks nothing; knowing them all is a choice", 2026-10-13, which turned the 2026-10-09
+   board's line press round: Done leads, marking is the choice beside it). It was still
+   drawn as the line press, and under a picture, where Done steps down to a link for
+   Next part, the marking press was the biggest thing on the card (targum-internal#703).
+   A thumb tall all the same (§8). */
 .foot .foot-plain:not(.foot-more, .foot-stay) {
   display: inline-flex;
   align-items: center;
   min-block-size: 2.75rem;
-  padding: 0 1.2rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  color: var(--ink);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  text-decoration: none;
+  padding: 0;
+  border: 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
-.foot .foot-plain:not(.foot-more, .foot-stay):hover { border-color: var(--ink-soft); }
+.foot .foot-plain:not(.foot-more, .foot-stay):hover { color: var(--ink); }
 /* The line press above outweighs `.foot-plain[hidden]`: hidden showed an empty pill. */
 .foot .foot-plain[hidden] { display: none; }
 .foot-more { color: var(--teal); text-decoration: none; }
@@ -6156,14 +6195,7 @@ body.film-theatre .film-end { margin-inline: auto; }
   .film-end-head { font-size: 1.0625rem; }
   .foot-press { flex-direction: column; align-items: stretch; gap: 0; }
   .foot-stay { align-self: stretch; min-block-size: 2.75rem; text-align: center; }
-  .foot .foot-plain:not(.foot-more, .foot-stay) {
-    justify-content: center;
-    min-block-size: 2.75rem;
-    border: 0;
-    font-size: 0.875rem;
-    font-weight: 400;
-    color: var(--ink-soft);
-  }
+  .foot .foot-plain:not(.foot-more, .foot-stay) { justify-content: center; }
 }
 /* The chips read from the card's start, the word then what it means, whatever way the
    text runs: the card is English chrome (board ReaderTheatreEnd). */
