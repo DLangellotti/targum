@@ -75,10 +75,12 @@
       <li lang="{{ rendering.language }}">
         <b>{{ rendering.name }}</b>
         {%- if rendering.publisher %}<span class="publisher">{{ rendering.publisher }}</span>{% endif %}
-        {#- A catalogue note is written in English, and only English: on another page's
-            language it was an English sentence in a Russian credit (design's #477 pass,
-            P2-10). The credit still names the work, its publisher and its licence. -#}
-        {%- if rendering.note and page_language == 'en' %}<span class="note">{{ rendering.note }}</span>{% endif %}
+        {#- A catalogue note in the page's language, and none where it has none: on another
+            page's language the English was an English sentence in a Russian credit
+            (design's #477 pass, P2-10). The credit still names the work, its publisher and
+            its licence. -#}
+        {%- set noted = rendering.note_in(page_language) %}
+        {%- if noted %}<span class="note" lang="{{ page_language }}">{{ noted }}</span>{% endif %}
         {%- if rendering.licence %}{% set said = licence_said(rendering.licence, rendering.licence_url) %}<span class="licence">{% if said[1] %}<a href="{{ said[1] }}" rel="noopener">{{ said[0] }}</a>{% else %}{{ said[0] }}{% endif %}</span>{% endif %}
       </li>
       {%- endfor %}
