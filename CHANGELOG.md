@@ -289,6 +289,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   changes 223 of 396,475 Hebrew tokens and 7 of 39,525 in the children's books and
   dialogues. קולה pointed קוֹלָהּ, "her voice", for cola is the menaked's reading and has no
   word-level override; it stays on the card. No spend, no new strings.
+  The same version also lets both nuns of נתן go in לָתֵת: the page-time check refused
+  נתן under לתת, so a reader's "to give" was a gap (found by builder-3 on #590).
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

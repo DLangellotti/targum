@@ -17,8 +17,9 @@ or runs a model, and the annotation on disk keeps what the annotator said.
 
 **The check.** The same letters-in-order test as `dicta.unrelated`, with a nun let go
 only where Hebrew lets it go: first in the root (נפל → יפול, נתן → תן), or last before a
-suffix's ת (נתן → נתתי). A nun in the middle or at the end of anything else stays a
-letter the word has to spell. A participle's מ left on the lemma is let go as before.
+suffix's ת (נתן → נתתי), or both (נתן → לתת). A nun in the middle or at the end of
+anything else stays a letter the word has to spell. A participle's מ left on the lemma
+is let go as before.
 
 **What a refused lemma becomes.** For a verb, the CC0 paradigm table's verb, where the
 word as written (under its prefixes) is a form of exactly one verb there: נשתיק is a form
@@ -101,8 +102,11 @@ def refused(lemma: str, base: str) -> bool:
         return False
     if any(_in_order(letters, word) for letters in tries):
         return False
-    # A last nun taken into a suffix's ת: נָתַתִּי is נתן's.
-    return not (len(strong) > 2 and strong[-1] == "נ" and _then(strong[:-1], word, "ת"))
+    # A last nun taken into a ת after it: נָתַתִּי is נתן's, and so is לָתֵת, which drops
+    # both its nuns.
+    if len(strong) < 3:
+        return True
+    return not any(letters[-1] == "נ" and _then(letters[:-1], word, "ת") for letters in tries)
 
 
 def _table_verb(base: str) -> tuple[str, str] | None:
