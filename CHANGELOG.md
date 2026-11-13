@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Two connector test files no longer leave the connector on for the files after them
+  (targum-internal#690). `test_oauth_serve.py` and `test_mcp_http.py` each set
+  `TARGUM_CONNECTOR=1` bare in a module fixture and never put it back, so
+  `test_hosted::test_llms_txt_names_no_connector_that_is_shut` failed whenever it ran
+  after either one in the same process. Both fixtures now hold it on a
+  `pytest.MonkeyPatch` that is undone when the file ends, and the "every door is shut"
+  test clears it with `monkeypatch`. Tests only. No spend, no new strings.
 - The front door's four P1s from design's §14 finish bar (targum-internal#477,
   2026-11-12). On a text page, the edition, licence and publisher links are now teal, not
   the browser's blue. /about, /how and /credits now have the front door's bar (the mark,
