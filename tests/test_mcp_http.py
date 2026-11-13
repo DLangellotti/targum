@@ -10,11 +10,10 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import os
 import secrets
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from http.client import HTTPConnection
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,7 +34,9 @@ CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 
 
 @pytest.fixture(scope="module")
-def box(tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]) -> tuple[int, str]:
+def box(
+    tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]
+) -> Iterator[tuple[int, str]]:
     tmp = tmp_path_factory.mktemp("mcp")
     OUT.append(tmp / "out")
     store_path = tmp / "targum.db"
@@ -44,29 +45,35 @@ def box(tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]) 
     assert signed_in is not None
     port = free_port()
     # Armed, the way `targum.env` arms it on the box: the connector ships dark
-    # and these tests are about what it does once somebody has turned it on.
-    os.environ["TARGUM_CONNECTOR"] = "1"
-    threading.Thread(
-        target=lambda: serve.start(
-            out=tmp / "out",
-            port=port,
-            open_browser=False,
-            store=store_path,
-            require_account=True,
-            public_address=PUBLIC,
-        ),
-        daemon=True,
-    ).start()
-    for _ in range(60):
-        try:
-            probe = HTTPConnection("127.0.0.1", port, timeout=1)
-            probe.request("GET", "/health")
-            probe.getresponse().read()
-            probe.close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    return port, signed_in[1]
+    # and these tests are about what it does once somebody has turned it on. The switch
+    # is read per request, so it is held for this file only and put back at its end:
+    # set bare, it stayed on for every file after this one (targum-internal#690).
+    armed = pytest.MonkeyPatch()
+    armed.setenv("TARGUM_CONNECTOR", "1")
+    try:
+        threading.Thread(
+            target=lambda: serve.start(
+                out=tmp / "out",
+                port=port,
+                open_browser=False,
+                store=store_path,
+                require_account=True,
+                public_address=PUBLIC,
+            ),
+            daemon=True,
+        ).start()
+        for _ in range(60):
+            try:
+                probe = HTTPConnection("127.0.0.1", port, timeout=1)
+                probe.request("GET", "/health")
+                probe.getresponse().read()
+                probe.close()
+                break
+            except OSError:
+                time.sleep(0.1)
+        yield port, signed_in[1]
+    finally:
+        armed.undo()
 
 
 def send(

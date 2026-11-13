@@ -5,6 +5,10 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-12
+In Russian, его as in его брата, his brother, has a card of its own, apart from он.
+The page on how targum works can be read in Russian.
+
 2026-11-11
 In Hebrew, Your Progress shows how much of each topic you can read, with common words counting for more.
 A Russian word written with ё keeps its own dictionary form on its card, so ёлке is ёлка.

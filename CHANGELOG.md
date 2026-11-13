@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Two connector test files no longer leave the connector on for the files after them
+  (targum-internal#690). `test_oauth_serve.py` and `test_mcp_http.py` each set
+  `TARGUM_CONNECTOR=1` bare in a module fixture and never put it back, so
+  `test_hosted::test_llms_txt_names_no_connector_that_is_shut` failed whenever it ran
+  after either one in the same process. Both fixtures now hold it on a
+  `pytest.MonkeyPatch` that is undone when the file ends, and the "every door is shut"
+  test clears it with `monkeypatch`. Tests only. No spend, no new strings.
 - The front door's four P1s from design's §14 finish bar (targum-internal#477,
   2026-11-12). On a text page, the edition, licence and publisher links are now teal, not
   the browser's blue. /about, /how and /credits now have the front door's bar (the mark,
@@ -276,6 +283,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   link just now. Try again." with the clay mark, where it said "We can't reach targum": the
   proxy's HTML page threw on `response.json()` and fell into the connection's catch. One
   new string, `signin.server-fault`, with its Russian. No spend.
+- A participle's מ and an infinitive's ל are the word's own again (targum-internal#689).
+  Pointed in ktiv haser, the Shoelace Seller's מֻשְׁפָּלוֹת reached DICTA as משפלות and came
+  back as "מ from + שפלות", a qal of שפל with no meaning; it is now the huf'al הושפל of
+  ש־פ־ל, unsplit. לִמְכֹּר came back as "ל to + מכר", a noun, under the meaning "to sell";
+  it is now the verb מכר, qal, with no "to +". `annotate.own_letter` gives the letter
+  back where DICTA cut it untagged and a verb stands behind it: for a מ, a present of one
+  verb in the CC0 table, its vowel agreeing with the binyan where pointed; for a ל, a verb
+  DICTA read as an infinitive, or a word pointed as one beside its verb's future. It runs
+  in `lemma_check`, so pages and counts get it at the next page build with no annotator
+  rename (`lemma_check` 4, `occurrences` 13, a free recount). On the laptop's shelf it
+  changes 223 of 396,475 Hebrew tokens and 7 of 39,525 in the children's books and
+  dialogues. קולה pointed קוֹלָהּ, "her voice", for cola is the menaked's reading and has no
+  word-level override; it stays on the card. No spend, no new strings.
+  The same version also lets both nuns of נתן go in לָתֵת: the page-time check refused
+  נתן under לתת, so a reader's "to give" was a gap (found by builder-3 on #590).
 - How it works, the credits, `/connect` signed out and `/aliyah` load their files the way
   About does (targum-internal#484). They were left out of `PUBLIC_PAGES`, so each carried
   its faces inline in its head (67 to 96 kB gzipped), and ops measured `/how` at 1.54 s

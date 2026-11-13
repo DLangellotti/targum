@@ -17,8 +17,9 @@ or runs a model, and the annotation on disk keeps what the annotator said.
 
 **The check.** The same letters-in-order test as `dicta.unrelated`, with a nun let go
 only where Hebrew lets it go: first in the root (נפל → יפול, נתן → תן), or last before a
-suffix's ת (נתן → נתתי). A nun in the middle or at the end of anything else stays a
-letter the word has to spell. A participle's מ left on the lemma is let go as before.
+suffix's ת (נתן → נתתי), or both (נתן → לתת). A nun in the middle or at the end of
+anything else stays a letter the word has to spell. A participle's מ left on the lemma
+is let go as before.
 
 **What a refused lemma becomes.** For a verb, the CC0 paradigm table's verb, where the
 word as written (under its prefixes) is a form of exactly one verb there: נשתיק is a form
@@ -50,8 +51,10 @@ if TYPE_CHECKING:
 #: lemma becomes is a new number, carried by every count that reads it. 2 gives an
 #: inflected verb that stands as its own lemma the table's verb, in ktiv male, past
 #: ling-he's reviewed lists (targum-internal#660); 3 keeps a yod beside a mater single
-#: in that ktiv male (היה, not הייה) and writes ציווה with its yod.
-VERSION = 3
+#: in that ktiv male (היה, not הייה) and writes ציווה with its yod; 4 gives a participle's
+#: מ and an infinitive's ל that DICTA cut off as a prefix back to the word
+#: (`own_letter`, targum-internal#689).
+VERSION = 4
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -99,8 +102,11 @@ def refused(lemma: str, base: str) -> bool:
         return False
     if any(_in_order(letters, word) for letters in tries):
         return False
-    # A last nun taken into a suffix's ת: נָתַתִּי is נתן's.
-    return not (len(strong) > 2 and strong[-1] == "נ" and _then(strong[:-1], word, "ת"))
+    # A last nun taken into a ת after it: נָתַתִּי is נתן's, and so is לָתֵת, which drops
+    # both its nuns.
+    if len(strong) < 3:
+        return True
+    return not any(letters[-1] == "נ" and _then(letters[:-1], word, "ת") for letters in tries)
 
 
 def _table_verb(base: str) -> tuple[str, str] | None:
@@ -356,8 +362,57 @@ def checked(
     return Mend(word.lower(), "", "")
 
 
+def _upos(feats: str | None, pos: str) -> str:
+    """`feats` saying `pos` as its part of speech (`hebrew.kept_feats` leads with it)."""
+    rest = [part for part in (feats or "").split("|") if part and not part.startswith("UPOS=")]
+    return "|".join([f"UPOS={pos}", *rest])
+
+
+def _given_back(token: Token) -> Token:
+    """The token with a participle's מ or an infinitive's ל that DICTA cut off given back
+    to it (`own_letter`, targum-internal#689); the same object where nothing changes."""
+    from .own_letter import own_letter
+
+    syntax = token.syntax
+    if syntax is None or not syntax.lead:
+        return token
+    own = own_letter(
+        token.surface,
+        token.lemma,
+        token.pos,
+        token.built,
+        syntax.lead,
+        syntax.prefixes,
+        token.feats,
+    )
+    if own is None:
+        return token
+    update: dict[str, Any] = {
+        "built": own.built,
+        "split": own.built is not None,
+        "pos": own.pos,
+        "feats": _upos(token.feats, own.pos),
+        "syntax": syntax.model_copy(update={"lead": own.lead}),
+    }
+    if own.lemma and own.lemma != token.lemma:
+        # The table's verb, with its root and binyan; each of the rest was the other word's.
+        update |= {
+            "lemma": own.lemma,
+            "root": own.root or None,
+            "binyan": own.binyan or None,
+            "headword": None,
+            "lexeme": None,
+            "word_register": None,
+        }
+    elif own.lemma and token.pos != own.pos:
+        # The same lemma, a verb now: the table's root and binyan, where the noun had none.
+        update |= {"root": token.root or own.root or None, "binyan": own.binyan or None}
+    return token.model_copy(update=update)
+
+
 def mend_token(token: Token) -> Token:
     """The token with its lemma checked; the same object where nothing changes."""
+    token = _given_back(token)
     lead = token.syntax.lead if token.syntax is not None else 0
     mend = checked(token.lemma, token.surface, lead, token.pos, token.feats)
     if mend is None:
@@ -394,6 +449,7 @@ def mended(annotation: Annotation) -> Annotation:
 def mend_row(row: dict[str, Any]) -> dict[str, Any]:
     """A token as `annotation.json` stores it, with its lemma checked: for the counts,
     which read the file rather than the model. The same dict where nothing changes."""
+    row = _row_given_back(row)
     syntax = row.get("syntax") or {}
     mend = checked(
         str(row.get("lemma") or ""),
@@ -405,3 +461,36 @@ def mend_row(row: dict[str, Any]) -> dict[str, Any]:
     if mend is None:
         return row
     return row | {"lemma": mend.lemma, "root": mend.root or None, "binyan": mend.binyan or None}
+
+
+def _row_given_back(row: dict[str, Any]) -> dict[str, Any]:
+    """`_given_back` for a stored row; the same dict where nothing changes."""
+    from .own_letter import own_letter
+
+    syntax = row.get("syntax") or {}
+    lead = int(syntax.get("lead") or 0)
+    if not lead:
+        return row
+    own = own_letter(
+        str(row.get("surface") or ""),
+        str(row.get("lemma") or ""),
+        row.get("pos"),
+        row.get("built"),
+        lead,
+        tuple(syntax.get("prefixes") or ()),
+        str(row.get("feats") or ""),
+    )
+    if own is None:
+        return row
+    out = row | {
+        "built": own.built,
+        "split": own.built is not None,
+        "pos": own.pos,
+        "feats": _upos(row.get("feats"), own.pos),
+        "syntax": syntax | {"lead": own.lead},
+    }
+    if own.lemma and own.lemma != row.get("lemma"):
+        out |= {"lemma": own.lemma, "root": own.root or None, "binyan": own.binyan or None}
+    elif own.lemma and row.get("pos") != own.pos:
+        out |= {"root": row.get("root") or own.root or None, "binyan": own.binyan or None}
+    return out

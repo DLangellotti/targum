@@ -40,6 +40,8 @@ def test_prefixes_are_cut_before_the_table_is_asked() -> None:
     [
         ("נתן", "נתתי"),  # a last nun taken into the suffix's ת
         ("נתן", "תן"),  # a first nun that assimilated
+        ("נתן", "לתת"),  # both nuns: לָתֵת
+        ("נתן", "תת"),  # and under an infinitive's ל cut off as a prefix
         ("נפל", "יפול"),
         ("לקח", "קח"),  # suppletive
         ("התקין", "התקנו"),  # the root's nun written once before נו
