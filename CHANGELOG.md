@@ -14,6 +14,36 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- On Your Words, the word said is the last one pressed (targum-internal#713). `vocab.js`
+  played whichever `/say-word` clip came back last, so a slow answer for the first word
+  stopped the second and said the first. A clip that comes back after another word was
+  pressed is now kept for next time but not played. Four browser tests that slept for a
+  fixed time and then asserted, and that failed once each on CI between 2026-11-10 and
+  11-13, now wait for the response or the page's state instead: the Add page's pairing
+  (and the three other tests that price on Add), the reader's Look it up, two Hear presses
+  on Your Words, and the account page's held `/account/me`, which could stay held for good
+  when Playwright handed the route over after `goto` returned. Each passed 20 of 20 alone.
+  #649 and #663 did not recur. No spend, no new strings.
+- Your Progress passes more of design's §14 finish bar (targum-internal#714).
+  - A reader fresh from the words check, with no word marked, sees the level the check
+    gave ("From your words check") and Texts by level, the first-visit line under them.
+    It said "Your progress starts with the first word you mark" (design.md §12,
+    2026-11-04).
+  - Past 3 s the wait says "This is taking longer than usual." with Try again, and How
+    much Hebrew you understand draws on its own answer instead of waiting for the story.
+  - A failed story is said once, with Try again and Tell us. What next hides instead of
+    repeating it, and the cards that loaded stay.
+  - With the account unreached and no initials held, the bar no longer says "Sign in" to a
+    reader who may be signed in.
+  - French, Russian and Italian "Texts at your level now" leave out a text under the
+    card's 95% (`touchstones.at_level(floor=)`).
+  - Words you knew labels its points and its 100% line. A weekly's English level is no
+    longer inside its Hebrew title. Week one points What next at the beginner texts.
+    Aramaic offers Open the Library and stops promising a measurement. Russian «Считаем с
+    30 окт.» has one full stop. The week axis names every week by its date, an open topic
+    is a wash instead of a second ring, and the phone's experimental note lines up with
+    the title.
+  - Four new strings in English and Russian. No spend.
 - Russian words are checked against OpenRussian's tables at page-build and count time
   (`annotate.russian_check`; targum-internal#708, #709, #710, from ling-ru's analyser read
   of 2026-11-13). A short adjective or participle no longer has a case (строга, пусты,
@@ -480,6 +510,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- `deploy/README.md` has a deploy step by step (ops, after four deploys on 2026-11-12 and
+  13), each step saying what you should see: confirming a merge GitHub answered with a
+  502, telling a free recount from an annotator rename in the diff, checking the accounts
+  migration is added columns and finding the database copy's line, the laptop's heavy lock
+  holding a deploy behind another run, the read-only checks after, and the parasha and
+  daily re-cut a change to the reader's stylesheet or head needs (888 stale readers back
+  to 6). Docs only.
 - In the text on its own, a recorded line's ▶ also opens its translation (targum-internal#539,
   LingQ parity; design's spec of 2026-11-13, the free version). One press plays the line
   and shows its translation under it, drawn as Under draws one, one line at a time; it

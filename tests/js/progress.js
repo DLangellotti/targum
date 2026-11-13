@@ -33,7 +33,26 @@ install({
     betaNote: () => "",
   },
   TargumVocab: { migrate: () => {}, editor: () => element("div") },
+  /* The account, where a test says who is signed in on a browser holding nothing: it
+     has answered, and brought no word (targum-internal#714). */
+  TargumSync: payload.sync
+    ? {
+        who: payload.sync.who || null,
+        reached: payload.sync.reached !== false,
+        settled: () => Promise.resolve(false),
+        onChange: () => {},
+        start: () => Promise.resolve(false),
+      }
+    : undefined,
 });
+
+/* A story held past the slow line's three seconds: the page's own timer, run at once
+   rather than waited for (targum-internal#714). */
+if (payload.slow) {
+  const later = global.setTimeout;
+  global.setTimeout = global.window.setTimeout = (fn, ms) =>
+    ms >= 3000 ? later(fn, 0) : later(fn, ms);
+}
 
 /* `collect()` walks localStorage by index, which the shared stub does not offer: it
    reports a length of zero and hands back null for every key. The page cannot be run at
@@ -161,6 +180,11 @@ function reading() {
     empty: empty,
     failed: at("reading-failed").hidden === false,
     focusable: picture && !empty ? picture.getAttribute("tabindex") : "",
+    figures: picture && !empty
+      ? picture.children
+          .filter((node) => String(node.getAttribute && node.getAttribute("class")).split(" ")[0] === "understand-figure")
+          .map((node) => node.textContent)
+      : [],
     titles: picture && !empty
       ? picture.children
           .filter((node) => String(node.getAttribute && node.getAttribute("class")) === "reading-point")
@@ -289,6 +313,9 @@ function report() {
       goHref: at("where-go").hidden === false ? at("where-go").href : "",
       shown: at("ladder").hidden === false,
       grid: at("level-grid").hidden === false,
+      lead: at("level-lead").hidden === false,
+      fromCheck: global.document.body.classList.contains("progress-from-check"),
+      page: at("page").hidden === false,
       note: at("where-note").hidden === false ? at("where-note").textContent : "",
       mark: at("level-mark").hidden === false
         ? {
@@ -340,7 +367,9 @@ function report() {
       met: rows("met-rows"),
       metEmpty: at("met-empty").hidden === false ? at("met-empty").textContent : "",
       waiting: at("where-wait").hidden === false,
+      slow: at("where-slow").hidden === false,
       failed: at("where-failed").hidden === false,
+      shown: at("next").hidden === false,
       practise: at("practise").hidden === false,
       textsTitle: at("next-texts-title").textContent,
       level: rows("level-rows"),

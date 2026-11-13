@@ -298,6 +298,25 @@ def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
     assert got[1]["english"] == "A report"
 
 
+def test_a_floor_keeps_texts_under_it_off_the_list() -> None:
+    """French, Russian and Italian hold "Texts at your level now" to the card's 95%:
+    Бирюк at 93% sat under a card that calls anything under 95% "Not yet"
+    (targum-internal#714, P2-5)."""
+    index = index_of(
+        {
+            "a1": {f"ww{n}": 1 for n in range(100)},
+            "t1": {f"ww{n}": 1 for n in range(107)},
+        }
+    )
+    marked = {f"ww{n}": KNOWN for n in range(100)}
+    unheld = touchstones.at_level(shelf(), index, marked, "he", ui_language="en")
+    assert ("t1", 93) in [(text["id"], text["known"]) for text in unheld]
+    held = touchstones.at_level(
+        shelf(), index, marked, "he", ui_language="en", floor=touchstones.STRETCH
+    )
+    assert [text["id"] for text in held] == ["a1"]
+
+
 def test_a_word_met_once_is_not_one_you_keep_meeting() -> None:
     met = {"often": 4, "twice": 2, "once": 1}
     got = touchstones.met_often(

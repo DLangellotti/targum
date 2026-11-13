@@ -577,6 +577,10 @@
   // One voice for every Hear on the page: a second press stops the first word rather
   // than saying two at once (qa on #844).
   var voice = null;
+  // The word of the last Hear pressed on the page. A clip that comes back after another
+  // word was pressed is kept for next time but not played: the word pressed last is the
+  // one said, even when the first word's answer is the slower one (targum-internal#713).
+  var wanted = null;
 
   function sayClip(clip) {
     if (voice) {
@@ -622,6 +626,7 @@
     button.addEventListener("click", function (event) {
       // A row or a card under the press opens or closes on a click; this one is the word's.
       event.stopPropagation();
+      wanted = clip;
       if (heard[clip]) return play(heard[clip]);
       if (button.getAttribute("aria-busy") === "true") return;
       button.setAttribute("aria-busy", "true");
@@ -648,7 +653,7 @@
               licence: answer.by.licence || "",
             });
           }
-          play(answer.audio);
+          if (wanted === clip) play(answer.audio);
         })
         .catch(function () {
           failed("");

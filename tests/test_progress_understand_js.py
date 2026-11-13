@@ -168,3 +168,28 @@ def test_a_point_is_never_rounded_into_a_lie() -> None:
         understand=understand(began, news=entry(99, 0.004, (date.today(), 0.992))),
     )["understand"]
     assert card["figures"] == ["1%", "99%"], "above none is never 0%, under all never 100%"
+
+
+def test_the_week_axis_names_every_week_one_way() -> None:
+    """Read "Oct 26" beside "Last week" and "This week" on one axis (targum-internal#714,
+    polish): every week is named by its first day. A point still says its words."""
+    began = date.today() - timedelta(days=21)
+    card = draw(
+        HEBREW,
+        understand=understand(began, news=entry(60, 0.5, (began + timedelta(days=8), 0.05))),
+        raw={"targum.progress.understand-by": "week"},
+    )["understand"]
+    assert card["by"] == "week" and len(card["months"]) >= 3
+    assert not {"Last week", "This week"} & set(card["months"])
+    assert card["titles"][-1].startswith("This week")
+
+
+def test_a_short_month_brings_its_own_full_stop_in_russian() -> None:
+    """«Считаем с 30 окт..» (targum-internal#714, P2-8)."""
+    card = draw(
+        HEBREW,
+        understand=understand(date.today() - timedelta(days=20), news=entry(60, 0.6)),
+        strings={"language": "ru", "strings": {"progress.understand.since": "Считаем с {date}."}},
+    )["understand"]
+    assert card["since"].startswith("Считаем с ") and card["since"].endswith(".")
+    assert not card["since"].endswith(".."), card["since"]

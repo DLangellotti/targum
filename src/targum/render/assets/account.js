@@ -83,6 +83,14 @@
     open.appendChild(document.createTextNode(initials || "?"));
   }
 
+  function heldInitials() {
+    try {
+      return localStorage.getItem(HELD) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
   try {
     var held = localStorage.getItem(HELD);
     if (held) {
@@ -300,7 +308,14 @@
   window.TargumSync.onChange(function () {
     // Unreached is not signed out: the corner keeps the initials it held rather than
     // offering Sign in to a reader on a train (targum-internal#469, B1).
-    if (!window.TargumSync.who && window.TargumSync.unreached) return;
+    // With no initials held either, the account's state is unknown, and "Sign in" would
+    // claim it is signed out: the corner says nothing until the account answers
+    // (targum-internal#714, §6).
+    if (!window.TargumSync.who && window.TargumSync.unreached) {
+      if (!heldInitials()) open.hidden = true;
+      return;
+    }
+    open.hidden = false;
     draw(window.TargumSync.who);
   });
 

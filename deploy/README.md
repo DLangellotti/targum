@@ -66,14 +66,15 @@ year — also invited them to four pages that change every night.
 recordings root is `cwd/targum-out/recordings`, so a build from a worktree finds no
 chanted audio and ships the portions without it, silently — caught on 2026-09-20 only by
 diffing against a backup. `--out` does not govern it and neither does
-`TARGUM_PARASHA_DIR`.
+`TARGUM_PARASHA_DIR`; `TARGUM_RECORDING_DIR` does, which is how the re-cut below runs
+from a worktree and still finds the main checkout's recordings.
 
 **A rebuild does not reach every reader.** `targum rebuild` rewrites what has artifacts
 beside it; the parasha corpus and the daily window keep none, and the four shared Russian
 texts are skipped by design. After any change to reader CSS or JS those stay as they were
 cut, and `deploy.sh` used to say "done" over them — three times. `targum preflight` now
 counts them (`stale readers`), so the gap is a line in the deploy rather than something
-found weeks later. Re-cut and ship what it names.
+found weeks later. Re-cut and ship what it names ("After: the re-cut", below).
 
 Daily learning. `ship-daily.sh` carries the rolling window of `/mishna-yomi` and its
 three siblings. Unlike `ship-parasha.sh` it wants running **nightly**, and that is the
@@ -90,6 +91,154 @@ Caddy needs no change: chunked uploads stay 8 MiB under the 48 MB body ceiling, 
 responses stream, so the reader's Range requests pass through. Hosted video transcodes
 on the box at roughly real-time ÷ 4 per part. The box never fetches from YouTube —
 that import is CLI-only, on purpose.
+
+## A deploy, step by step
+
+Written after four deploys on 2026-11-12 and 13. Each step says what you should see; a
+step that shows something else is where you stop. `<live>` is the SHA the box runs now
+(the last deploy's note says it) and `<new>` is the one you are about to send.
+
+**Before: every PR is merged, really.** `gh pr merge` once answered with a GitHub 502
+and left the merge half done (2026-11-13). Run the same `gh pr merge` again, then
+
+```
+gh pr view <n> --json state,mergeCommit
+git fetch origin && git merge-base --is-ancestor <its mergeCommit> <new> && echo in
+```
+
+You should see `"state":"MERGED"` and `in`. Anything else, and that PR is not in this
+deploy.
+
+**Before: what the diff will cost.** One line says whether the rebuild is minutes or
+hours:
+
+```
+git diff -U0 <live> <new> -- src/targum | awk '/^\+\+\+ /{f=substr($2,3)} /^[-+](LANGUAGES|FEATURES|NAME|VERSION|SCHEMA_VERSION) = /{print f": "$0}'
+```
+
+Read each file it names:
+
+- `annotate/lemma_check.py`, `annotate/verb_roots.py`, `annotate/russian_check.py`,
+  `occurrences.py`: page-build and count time only. A free recount; the 2026-11-13
+  deploys carried these and the rebuild behind them took 40 minutes.
+- `annotate/base.py` `LANGUAGES`, `annotate/dicta.py` or `annotate/lemma.py` `FEATURES`,
+  `annotate/russian.py` `VERSION`, a `NAME` under `annotate/` or `segment/`: an annotator
+  rename. Every text in that language is read again on a box with no GPU: 86 minutes for
+  grammar/8 (2026-10-27), 5–7 hours for a `languages` rename (2026-09). Do not press at
+  the end of a day: schedule it, and never two renames in one release.
+- `models.py` `SCHEMA_VERSION`: stop. It is the cache key for every stage and re-buys
+  every translation (the repo's CLAUDE.md).
+- `accounts.py` `SCHEMA_VERSION`: the database moves (next step).
+- Anything else (`finds/`, `units.py`, `topics.py` `LANGUAGES`): settings, not names.
+
+When a constant the list does not cover moves under `annotate/` or `segment/`, treat it as
+a rename until you have found where it goes: one that ends up in a `def name` is one.
+
+**Before: the accounts database.** `accounts.SCHEMA_VERSION` moved 61 → 66 over those
+four deploys, and every step was an added column with a default:
+
+```
+git diff <live> <new> -- src/targum/accounts.py | grep -E '^\+.*(ALTER|CREATE|DROP|DELETE|UPDATE)'
+```
+
+You should see only `ALTER TABLE … ADD COLUMN … DEFAULT …` (and `CREATE … IF NOT
+EXISTS`). Those are safe to step back over ([`ROLLBACK.md`](ROLLBACK.md): older code
+leaves the new columns alone). A `DROP`, a rewrite of rows, or a table rebuilt is not this
+case: stop and read `ROLLBACK.md` before pressing. Either way `deploy.sh` copies the
+database before it installs anything; the line is under `== ship ==`.
+
+**Before: the laptop's heavy lock.** A deploy runs under `/tmp/targum-heavy.lock`, like
+every heavy job on the laptop, and a wrapper that waits on it waits silently: on
+2026-11-13 a deploy sat 30 minutes behind somebody else's run. Look first:
+
+```
+cat /tmp/targum-heavy.lock/owner 2>/dev/null || echo free
+```
+
+`free`, or a line naming who holds it and since when. If it is held, say in the deploy
+note that it is waiting and on what. Never remove a lock you did not take.
+
+**Before: nothing is deploying already.**
+
+```
+ssh root@targum.page 'systemctl is-active targum-deploy'
+```
+
+You should see `inactive`. `active` is the last deploy's rebuild, still running:
+`journalctl -u targum-deploy -f` says how far, and `deploy.sh` would refuse anyway.
+
+**Press**, from a clean tree at exactly `<new>`, with the lock held:
+
+```
+TARGUM_CHECKED=<new> TARGUM_HOST=root@targum.page nice -n 15 ./deploy/deploy.sh
+```
+
+The log says, in order: `suite: passed by CI`, the keys, the wheel, then under
+`== ship ==`
+
+```
+   database copied and checked: /var/lib/targum/backups/targum.db.before-<sha12>-<stamp>
+```
+
+with `<sha12>` the first twelve of `<new>`. No such line, or `could not be copied` or
+`did not check out`, and nothing was installed: that deploy stopped, which is correct.
+Then `== live now; rebuilding the shelf behind it ==` (the new code serves within seconds;
+the rebuild runs behind it), a `still running after Nm` line every five minutes, and at
+the end `https://targum.page/health is ok`, the preflight, and `Deployed.`
+
+**After: the read-only checks.** None of them changes the box.
+
+```
+curl -sS -m 10 https://targum.page/health
+curl -sS -m 10 -o /dev/null -w '%{http_code}\n' https://targum.page/library
+ssh root@targum.page 'systemd-run --quiet --wait --pipe --collect --uid=targum --gid=targum --setenv=HOME=/srv/targum -p EnvironmentFile=/etc/targum/targum.env /usr/local/bin/targum preflight --store /var/lib/targum/targum.db --out /var/lib/targum/targums'
+ssh root@targum.page 'ls -1t /var/lib/targum/backups/ | grep before- | head -1'
+```
+
+You should see `"ok": true`, `200`, every preflight line `ok` or `warn` and none `FAIL`,
+and the `before-<sha12>` copy this deploy made. The preflight goes through
+`systemd-run` as targum, never as root: root-owned files under the service's tree break
+the next deploy's install. Then read the deploy log's own `warn` lines and compare them
+with the last deploy's. Known after the 2026-11-12 and 13 deploys: 6 Hebrew texts behind,
+the topics lexicon short of 95%, and `stale readers` at 6. A number that grew is this
+deploy's.
+
+**After: the re-cut, when the reader's look changed.** The preflight's `stale readers`
+counts pages that do not carry today's `tokens.css`, `shared.css` and `reader.css`. A
+change to those, or to `reader.html.j2` (both on 2026-11-13: Cancel's rules in
+`shared.css`, and #1197's source line in the reader's head), leaves every parasha and
+daily page as it was cut, which preflight counts only for the stylesheets: 888 of 2,781
+that day.
+You can tell before pressing:
+
+```
+git diff --stat <live> <new> -- src/targum/render/assets/tokens.css src/targum/render/assets/shared.css src/targum/render/assets/reader.css src/targum/render/templates/reader.html.j2
+```
+
+Anything listed means a re-cut after the deploy. It runs on the laptop, from the main
+checkout, under the heavy lock: a worktree at the deployed SHA, so the pages are cut by
+the code that is live, with the private half copied in (`parasha leyning` cuts a doubled
+week with `recording.attach`, and the eight modules exist only in the main checkout) and
+pointed at the main checkout's `targum-out`:
+
+```
+until mkdir /tmp/targum-heavy.lock 2>/dev/null; do sleep 20; done; echo "<you> recut $(date +%H:%M)" > /tmp/targum-heavy.lock/owner
+M=$PWD; W=$M/../targum-wt/recut-<new>
+git -C $M worktree add --detach $W <new> && cd $W
+for f in dialogue/write recording/attach recording/cut weekly/facts weekly/prompts weekly/sources weekly/voice weekly/write; do cp $M/src/targum/$f.py src/targum/$f.py; done
+uv sync --frozen --inexact --extra difficulty --extra phonetics --extra covers --extra bring --extra mcp --extra speech-align
+export PYTHONPATH=$PWD/src TARGUM_PARASHA_DIR=$M/targum-out/parasha TARGUM_DAILY_DIR=$M/targum-out/parasha/daily TARGUM_RECORDING_DIR=$M/targum-out/recordings
+nice -n 15 .venv/bin/python -m targum parasha build --out $M/targum-out
+nice -n 15 .venv/bin/python -m targum parasha leyning --out $M/targum-out
+nice -n 15 .venv/bin/python -m targum daily build --out $M/targum-out
+TARGUM_HOST=root@targum.page ./deploy/ship-parasha.sh
+TARGUM_HOST=root@targum.page ./deploy/ship-daily.sh
+```
+
+The ships end `/parasha 200` and the four daily routes `200`. Then the preflight above
+again: `stale readers` should be back to the handful it was (888 → 6 on 2026-11-13).
+Then remove the worktree, which holds the private half, and your lock:
+`git -C $M worktree remove --force $W && rm -rf /tmp/targum-heavy.lock`.
 
 ## What the box installs
 

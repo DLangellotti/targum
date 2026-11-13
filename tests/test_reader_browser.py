@@ -1202,10 +1202,12 @@ def test_a_word_looked_up_stays_looked_up(browser, built: Path) -> None:
     page.wait_for_selector(".pair")
 
     word = page.evaluate(TAP_ANY)
-    page.wait_for_timeout(300)
+    # Waited on, not slept on (targum-internal#713): 300 ms after Look it up was once
+    # too short on CI, and the card was read while the answer was still on its way.
+    page.wait_for_function(f"() => {{ const card = ({CARD})(); return card && card.asking; }}")
     assert page.evaluate(CARD)["asking"], "the card was not offering to look the word up"
     page.eval_on_selector(".look-up", "button => button.click()")
-    page.wait_for_timeout(300)
+    page.wait_for_function(f"() => {{ const card = ({CARD})(); return card && !card.asking; }}")
     assert page.evaluate(CARD) == {"meaning": MEANING, "asking": False}
 
     page.reload()

@@ -20,6 +20,7 @@ let changed = null;
 install({
   TargumSync: {
     who: payload.who || null,
+    unreached: !!payload.unreached,
     onChange: (handler) => {
       changed = handler;
     },
@@ -56,6 +57,7 @@ process.stdout.write(
     rate: line("account-rate"),
     first: first,
     corner: corner(),
+    cornerShown: !byId["account-open"].hidden,
     held: localStorage.getItem("targum:initials"),
   })
 );
