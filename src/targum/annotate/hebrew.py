@@ -175,8 +175,8 @@ _WEAK_HIFIL = (
     "הניא נוא · הטיל טול · "
     # Three letters, a geminate or I-nun hif'il (targum-internal#590): the lemma is ה and
     # two radicals, and `dicta._binyan_of` read every three-letter lemma as a qal whose
-    # root is the lemma itself, so הכה was ה־כ־ה. ling-he's list from §0 of the sublexical
-    # research (2026-10-30), each already denied at page build in `verb_roots.WRONG`.
+    # root is the lemma itself, so הכה was ה־כ־ה. ling-he's list from the sublexical
+    # research's short version (2026-10-30), each denied at page build in `verb_roots.WRONG`.
     "הקל קלל · החל חלל · הכה נכה · הפר פרר · הטה נטה · הסב סבב · הגן גנן · העז עזז · "
     "הרע רעע · הצל נצל · האט אטט"
 )

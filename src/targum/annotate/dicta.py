@@ -332,9 +332,9 @@ def _binyan_of(lemma: str) -> str | None:
 
 
 # Three letters that are no qal past, so not their own root (targum-internal#590, from
-# ling-he's §0 of the sublexical research, 2026-10-30): an infinitive (דעת is ידע's), a
-# hif'il present (מכה, מטה, מגן, מקל, מצר) and nouns DICTA tagged a verb. Each was given
-# itself as its root and is denied at page build in `verb_roots.WRONG`. A gap now.
+# the short version of ling-he's sublexical research, 2026-10-30): an infinitive (דעת is
+# ידע's), a hif'il present (מכה, מטה, מגן, מקל, מצר) and nouns DICTA tagged a verb. Each
+# was given itself as its root and is denied at page build in `verb_roots.WRONG`. A gap.
 NOT_QAL = frozenset(
     {
         "דעת",
