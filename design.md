@@ -409,6 +409,15 @@ the words to learn first" (2026-11-05), which named the media Read, Watch and Li
   so if the card's copy still pulls the eye the next step is to take it off the card;
   that is David's call, not this entry's.
 
+### In the text on its own, a line's play opens its translation — 2026-11-13
+
+From the LingQ comparison of 2026-10-27, which David started before Launch (targum-internal#539). LingQ's sentence mode is one sentence heard and translated in one press. In Beside and Under, a line's ▶ already did that, and in the text on its own the translation was a whole-page switch away.
+
+- **The press is the line's own ▶.** In the text on its own it plays the line and opens that line's translation under it, drawn as Under draws one. One line is told at a time. It stays after the voice so it can be read, and goes on the next line, Esc, or a change of view. Beside and Under are unchanged. No new control, no second player.
+- **Hear first holds the translation back with the line** and gives both back when it ends.
+- **Step line by line steps lines.** ⋯'s ‹ › went a word or five seconds while the row said "line by line". They now go to the line before or after and play it. The strip keeps its word step. `h` hears the line you're on. ↑ ↓ stay the film's, because in the long scroll they scroll.
+- **It plays only audio the page has, so it spends nothing.** A silent section's audio still comes from Hear this section, the reader's own press, with its cost said, on `Library.claim_turn` (kind `voice`). A ▶ that voices one silent line is not offered. Voicing a sentence is a spend no existing path makes (a word is a gift up to four words, and a section is a priced press), and it waits for David (#539).
+
 ### Topics in What next are weighed by how common a word is — 2026-11-11
 
 targum-internal#608 fills the Topics slot "What next leads with your biggest grammar gap"

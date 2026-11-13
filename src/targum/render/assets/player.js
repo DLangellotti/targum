@@ -752,9 +752,10 @@ var targumPlayer = function () {
   /* A step either side. One word where the recording was aligned word by word, five
      seconds where it was not — and the label says which, because a control whose size
      changes silently is a control that lies. */
-  // The strip's, and ⋯'s for while the picture is up (#422).
-  var stepBacks = Array.prototype.slice.call(document.querySelectorAll(".player-back, .more-back"));
-  var stepOns = Array.prototype.slice.call(document.querySelectorAll(".player-on, .more-on"));
+  // The strip's. ⋯'s pair shared these until #539: its row says "Step line by line",
+  // and since 2026-11-13 it does, further down (`stepLines`).
+  var stepBacks = Array.prototype.slice.call(document.querySelectorAll(".player-back"));
+  var stepOns = Array.prototype.slice.call(document.querySelectorAll(".player-on"));
   var wordStarts = null;
 
   function starts() {
@@ -1051,16 +1052,107 @@ var targumPlayer = function () {
     tick();
   }
 
-  /* One line. */
-  document.addEventListener("click", function (event) {
-    var button = event.target.closest ? event.target.closest(".say") : null;
-    if (!button) return;
+  /* A line told (targum-internal#539, design.md §12 2026-11-13). In the text on its own
+     a line's ▶ plays the line and opens its translation under it, drawn as Under draws
+     one, so one press is the sentence heard and understood. One line at a time; it stays
+     after the voice so it can be read, and goes on the next line told, Esc, or a change
+     of view. Beside and Under already show every translation, so nothing is told there.
+     Hear first holds it back with the line (`.pair.told.hearing`, the stylesheet). */
+  var told = null;
+  var tellings = 0;
+  function onItsOwn() {
+    return document.body.classList.contains("mode-source");
+  }
+  function untell() {
+    if (!told) return false;
+    var was = told;
+    told = null;
+    was.classList.remove("told");
+    var press = was.querySelector(".say");
+    if (press) press.removeAttribute("aria-describedby");
+    var reader = window.TargumReader;
+    if (reader && reader.relayout) reader.relayout(was);
+    return true;
+  }
+  function tell(pair) {
+    if (!pair || !onItsOwn()) return;
+    var tr = pair.querySelector(".tr");
+    // A text with no translation only plays.
+    if (!tr) return;
+    if (told === pair) return;
+    untell();
+    told = pair;
+    pair.classList.add("told");
+    if (!tr.id) tr.id = "told-" + ++tellings;
+    var press = pair.querySelector(".say");
+    if (press) press.setAttribute("aria-describedby", tr.id);
+    /* Opening it can make the line taller than its page: the page is laid out again
+       around the line, and the line kept in front of the reader. */
+    var reader = window.TargumReader;
+    if (reader && reader.relayout) reader.relayout(pair);
+    if (reader && reader.turnToPair) reader.turnToPair(pair);
+    keepClear(tr);
+  }
+  /* In the long scroll nothing is laid out around the strip, so a translation opened
+     under a line near the foot is brought up clear of it, as `mark` brings a line. */
+  function keepClear(el) {
+    var box = el.getBoundingClientRect();
+    if (!box.height) return;
+    var floor = window.innerHeight - 12;
+    if (player && !player.hidden) {
+      var seat = player.getBoundingClientRect();
+      if (seat.height) floor = Math.min(floor, seat.top - 12);
+    }
+    var band = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--foot"));
+    if (band > 0) floor = Math.min(floor, window.innerHeight - band - 12);
+    if (box.bottom <= floor) return;
+    var topBar = document.querySelector(".bar");
+    var ceiling = Math.max(64, topBar ? topBar.getBoundingClientRect().bottom + 8 : 0);
+    var line = told ? sayingLine(told) || told : el;
+    // As far as the translation needs, and never the line itself off the top.
+    var by = Math.min(box.bottom - floor, line.getBoundingClientRect().top - ceiling);
+    if (by > 1) window.scrollBy({ top: by, behavior: behaviour() });
+  }
+  /* The ▶'s name says both things it does where it does both (#539). */
+  function nameThePresses() {
+    var both = onItsOwn();
+    Array.prototype.forEach.call(document.querySelectorAll("#reader .pair .say"), function (press) {
+      var tells = both && !!press.closest(".pair").querySelector(".tr");
+      press.setAttribute(
+        "aria-label",
+        tells
+          ? t("reader.page.play-this-line-told", "Play this line and show its translation")
+          : t("reader.page.play-this-line", "Play this line")
+      );
+    });
+  }
+  nameThePresses();
+  var wasOnItsOwn = onItsOwn();
+  if (typeof MutationObserver === "function" && document.body) {
+    new MutationObserver(function () {
+      var now = onItsOwn();
+      if (now === wasOnItsOwn) return;
+      wasOnItsOwn = now;
+      untell();
+      nameThePresses();
+    }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  //: The last line said on its own, for `h` with no word walked to and for the step.
+  var lastLine = "";
+
+  /* One line: its ▶, a step of ⋯, and `h` all come here. `again` is what a second press
+     on the line that is playing does (`twice`): the ▶ stops it, the step and `h` say it
+     again. */
+  function sayLine(button, twice) {
     var span = spans[button.getAttribute("data-id")];
-    if (!span) return;
-    var again = playing === button;
+    if (!span) return false;
+    var same = playing === button;
     halt();
-    if (again) return;
+    if (same && twice === "stop") return true;
     var line = button.getAttribute("data-id") || "";
+    lastLine = line;
+    tell(button.closest ? button.closest(".pair") : null);
     if (askedFor[line] && window.TargumEvents) {
       window.TargumEvents.note({ kind: "replay", medium: pictureUp() ? "watch" : "listen", segment: line });
     }
@@ -1077,12 +1169,88 @@ var targumPlayer = function () {
     follow(button.getAttribute("data-id"));
     // Wall-clock, so the span's length is divided by the speed it is played at.
     stopAt = setTimeout(halt, Math.max(0, ((span[1] - span[0]) * 1000) / audio.playbackRate));
+    return true;
+  }
+  function pressOf(id) {
+    return id ? document.querySelector('#reader .say[data-id="' + CSS.escape(id) + '"]') : null;
+  }
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest ? event.target.closest(".say") : null;
+    if (button) sayLine(button, "stop");
   });
+
+  /* ⋯ → Step line by line (#539): the line before or after, played, and in the text on
+     its own told, which is the line's own ▶ pressed. Back from more than a second and a
+     half into a line is the top of that line, the rule ↑ keeps under a film. The strip's
+     ‹ › keep their word or five seconds above. */
+  function lineNow() {
+    if (playing) return playing.getAttribute("data-id");
+    var now = audio.currentTime;
+    // A line said on its own stops where the next begins: that is still the line.
+    var last = spans[lastLine];
+    if (last && now >= last[0] && now <= last[1] + 0.05) return lastLine;
+    return now > 0 ? lineAt(now) : "";
+  }
+  function stepLines(by) {
+    if (!order.length) return;
+    var id = lineNow();
+    var i = -1;
+    for (var n = 0; n < order.length; n++) {
+      if (order[n].id === id) {
+        i = n;
+        break;
+      }
+    }
+    var to;
+    if (i < 0) to = order[0];
+    else {
+      var into = audio.currentTime - order[i].start;
+      if (by < 0 && into > 1.5 && audio.currentTime < order[i].end - 0.05) by = 0;
+      to = order[Math.max(0, Math.min(order.length - 1, i + by))];
+    }
+    var button = pressOf(to.id);
+    if (button) sayLine(button, "again");
+    else seek(to.start + 0.01);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".more-back"), function (key) {
+    key.addEventListener("click", function () { stepLines(-1); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".more-on"), function (key) {
+    key.addEventListener("click", function () { stepLines(1); });
+  });
+
+  /* `h` (#539): the line you are on. The line of the word walked to, handed in by the
+     keys; else the line last said; else the first recorded line in view. Again, said
+     again. False where there is no such line, so the key goes back to the page. */
+  function inView() {
+    var voiced = document.querySelectorAll("#reader .pair.voiced");
+    var topBar = document.querySelector(".bar");
+    var ceiling = topBar ? topBar.getBoundingClientRect().bottom : 0;
+    for (var i = 0; i < voiced.length; i++) {
+      if (voiced[i].hidden) continue;
+      var box = voiced[i].getBoundingClientRect();
+      if (box.height && box.bottom > ceiling && box.top < window.innerHeight) return voiced[i];
+    }
+    return null;
+  }
+  function hearLine(pair) {
+    var id = pair ? pair.getAttribute("data-id") : "";
+    if (!id) id = playing ? playing.getAttribute("data-id") : lastLine;
+    if (!id) {
+      var seen = inView();
+      id = seen ? seen.getAttribute("data-id") : "";
+    }
+    var button = pressOf(id);
+    return button ? sayLine(button, "again") : false;
+  }
 
   /* One word, or one run of them, for the cards. The audio and its timers live in this
      closure, so this window is the whole bridge — and it only exists on a page with a
      recording, which is how a card on a silent page finds no ear to offer. */
   window.TargumSpeech = {
+    // For the keys (`reader-rest.js`): `h`, and Esc's layer for a line's translation.
+    hearLine: hearLine,
+    untell: untell,
     /* Where a tapped span's sound sits: the clocks of every written word it overlaps,
        breathing a little either side — the chapter cutter's move — but never into the
        neighbouring word. Null where the recording never said it. */

@@ -1382,6 +1382,13 @@ body[data-lens="suffix"] .w.pron-end {
    a hovered line from touching its own text. */
 .mode-source .pair { margin-block-end: 0; padding-block: 0.1rem; }
 
+/* A line told (targum-internal#539, design.md §12 2026-11-13): its ▶ pressed in the text
+   on its own opens its translation under it, drawn as Under draws one — the same ink,
+   type and spacing — one line at a time. Hear first holds it back with the line. */
+.mode-source .pair.told .tr { display: block; max-width: none; margin-block-start: 0.25rem; }
+.mode-source .pair.told { margin-block-end: 0.6rem; }
+.pair.told.hearing .tr { visibility: hidden; }
+
 /* --- interlinear --------------------------------------------------------- */
 
 /* Each word carries its dictionary meaning underneath, the way a study edition sets

@@ -480,6 +480,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- In the text on its own, a recorded line's ▶ also opens its translation (targum-internal#539,
+  LingQ parity; design's spec of 2026-11-13, the free version). One press plays the line
+  and shows its translation under it, drawn as Under draws one, one line at a time; it
+  stays after the voice and goes on the next line, Esc or a change of view. Hear first
+  holds it back with the line. Beside and Under are unchanged. ⋯ → Step line by line now
+  steps lines and plays them (it stepped a word or five seconds under that name); the
+  strip's ‹ › keep their word step. `h` hears the line you're on. In paged layout the
+  page is laid out again around the told line; in the long scroll it is brought clear of
+  the strip. It plays only audio the page already has: no route, no claim, no spend, and
+  it works in a saved copy offline. A silent section still has Hear this section; a ▶
+  that voices one silent line waits for David (#539). New strings: four keys and the Esc
+  line of the Keys card, in English and Russian.
 - `scripts/merge_topics.py` takes ling-he's decisions keyed by lemma
   (`--lemma-decisions`, targum-internal#606) for lemmas no run's review file holds, such as
   the 588 conversation lemmas the 2026-11-09 gap run left untagged for want of a gloss.
