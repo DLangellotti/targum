@@ -38,12 +38,16 @@
   //: How often a stopping build is asked after, until it has stopped.
   var POLL = 2000;
 
-  function post(id) {
+  // `waiting`: the page last saw it waiting, so a press that finds it started is not a
+  // stop; the server says so and the page asks first (qa-claude on #1199).
+  function post(id, waiting) {
+    var body = { id: id };
+    if (waiting) body.waiting = true;
     return fetch(keyed("/jobs/cancel"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
-      body: JSON.stringify({ id: id }),
+      body: JSON.stringify(body),
     }).then(function (r) {
       return r.json().then(
         function (answer) {
@@ -150,12 +154,17 @@
       say((answer && answer.error) || t("building.cancel.failed", "We couldn't cancel it. Try again in a moment."), "cancel-said", true);
     }
 
-    function send(press) {
+    function send(press, waiting) {
       if (press) press.disabled = true;
-      post(job.id).then(
+      post(job.id, waiting).then(
         function (answer) {
           if (answer.cancelled) return gone({ id: job.id, stage: "cancelled" }, t("building.cancel.cancelled", "Cancelled. Nothing was used."));
           if (answer.stopping) return stopping();
+          if (answer.started) {
+            // It started since the page last looked: a stop now asks first.
+            job.stage = "working";
+            return ask();
+          }
           refused(answer);
         },
         function () {
@@ -190,7 +199,7 @@
       var press = button("ghost outline", settings.label || t("building.cancel.press", "Cancel"));
       if (job.title) press.setAttribute("aria-label", t("building.cancel.named", "Cancel {title}", { title: job.title }));
       press.onclick = function () {
-        if (job.stage === "queued" && !job.stopping) return send(press);
+        if (job.stage === "queued" && !job.stopping) return send(press, true);
         ask();
       };
       box.appendChild(press);

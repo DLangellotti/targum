@@ -356,7 +356,7 @@ def test_a_waiting_build_is_cancelled_at_one_quiet_press(place: str) -> None:
     assert press["text"] == "Cancel" and press["label"] == "Cancel Un film"
     assert "ghost outline" in press["className"] and "filled" not in press["className"]
     assert [one for one in said["asked"] if one["path"] == "/jobs/cancel"] == [
-        {"path": "/jobs/cancel", "method": "POST", "body": {"id": "w1"}}
+        {"path": "/jobs/cancel", "method": "POST", "body": {"id": "w1", "waiting": True}}
     ], "no question first: nothing is lost"
     assert said["gone"], "and it leaves the list"
 
@@ -421,3 +421,132 @@ def test_the_waiting_card_draws_cancel() -> None:
     watch = watch[: watch.index("/* --- a post, brought by hand")]
     assert "undo.ahead(state" in watch and "undo.control(" in watch
     assert 'end.stage === "cancelled"' in watch
+
+
+# -- qa-claude on #1199 ----------------------------------------------------------------
+
+
+def test_a_waiting_cancel_keeps_what_reading_the_pictures_cost(tmp_path: Path) -> None:
+    """`_read_pages` reads pictures before the press and settles them to their receipt
+    on the job's own row. A waiting cancel gives back what was held and not spent: the
+    credits and the build's claim, never the dollars the pictures already cost."""
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    job = Job(id="pic", source="pic.jpg", owner=person.id, home=library.home(person))
+    library.jobs[job.id] = job
+    library.remember(job)
+    job.estimate = 0.30  # as `_read_pages` reserves, reads and settles
+    assert library.claim(job) == ""
+    job.reading = job.spent = 0.22
+    job.estimate = 0.0
+    library.settle(job)
+    job.stage = "ready"
+    job.estimate = 0.15
+    assert library.press(job) == ""
+    assert store.committed(0, person.id) == pytest.approx(0.15)
+
+    assert library.cancel(job) == "cancelled"
+
+    row = _row(store, "pic")
+    assert row["claimed"] == pytest.approx(0.22) and row["spent"] == pytest.approx(0.22)
+    assert row["length"] == 0
+    assert store.committed(0, person.id) == pytest.approx(0.22), "the pictures stay paid for"
+
+
+def test_a_stopped_build_pressed_again_keeps_its_receipt(tmp_path: Path, monkeypatch: Any) -> None:
+    """A press on a cancelled build would claim over its receipt. It is left as it is;
+    starting it again is a new quote with a new id."""
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    job = _recording("again", person.id, library.home(person))
+    _claimed(library, job)
+    library.queue.get_nowait()  # the worker's take, run by hand below
+    monkeypatch.setattr(Library, "_builder", lambda _self, _job: Halfway(library, job))
+    library.run(job)
+    receipt = _row(store, "again")
+    assert receipt["stage"] == "cancelled" and receipt["length"] == pytest.approx(120.0)
+
+    assert library.press(job) == ""
+    assert job.stage == "cancelled" and library.queue.empty(), "not back in the line"
+    assert _row(store, "again") == receipt, "the receipt stands"
+
+    waiting = _recording("gone", person.id, library.home(person))
+    _claimed(library, waiting)
+    library.queue.get_nowait()
+    assert library.cancel(waiting) == "cancelled"
+    assert library.press(waiting) == "" and waiting.stage == "cancelled"
+    assert _row(store, "gone")["claimed"] == 0 and library.queue.empty()
+
+
+def test_a_page_that_saw_it_waiting_is_asked_before_a_stop(tmp_path: Path) -> None:
+    """The page's last look said waiting; the worker took it since. The press is not a
+    stop: the server says it started, and the page asks its one question first."""
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    job = _recording("st", person.id, library.home(person))
+    _claimed(library, job)
+    assert library._take(job)
+    assert library.cancel(job, waiting=True) == "started"
+    assert not job.stop
+    job.stage = "working"
+    assert library.cancel(job, waiting=True) == "started" and not job.stop
+    assert library.cancel(job) == "stopping" and job.stop, "the answer to the question stops it"
+
+
+@pytest.mark.parametrize("stage", ["failed", "blocked", "ready", "reading"])
+def test_a_build_that_is_not_being_made_says_so_and_changes_nothing(
+    tmp_path: Path, stage: str
+) -> None:
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    job = _recording("end", person.id, library.home(person))
+    _claimed(library, job)
+    job.spent = 0.31
+    library.settle(job)
+    job.stage = stage
+    library.remember(job)
+    before = _row(store, "end")
+    assert library.cancel(job) == "over"
+    assert _row(store, "end") == before and job.stage == stage
+
+
+def test_the_server_says_started_and_over_in_its_own_words(two: Any) -> None:
+    port, library, store, mine, _theirs = two
+    owner = store.whoever(mine)
+    job = _recording("h1", owner.id, library.home(owner))
+    _claimed(library, job)
+    library._take(job)
+    connection = HTTPConnection("127.0.0.1", port, timeout=5)
+    connection.request(
+        "POST",
+        "/jobs/cancel?k=k",
+        json.dumps({"id": "h1", "waiting": True}).encode(),
+        {"Content-Type": "application/json", "Cookie": f"targum_session={mine}"},
+    )
+    response = connection.getresponse()
+    assert response.status == 409 and json.loads(response.read())["started"] is True
+    connection.close()
+    assert not job.stop
+    failed = Job(id="f1", source="s", owner=owner.id, stage="failed")
+    library.jobs[failed.id] = failed
+    status, answer = _cancel(port, "f1", mine)
+    assert status == 409 and "nothing to cancel" in answer["error"]
+    assert "finished" not in answer["error"]
+
+
+def test_a_card_that_finds_its_build_started_asks_before_stopping() -> None:
+    for place in ("row", "card"):
+        said = _drawn(
+            place=place,
+            job=WAITING,
+            press=["Cancel"],
+            answers={"/jobs/cancel": {"started": True, "stage": "working"}},
+        )
+        assert "Stop this build? You'll still pay for what's done so far." in said["after"]["words"]
+        assert [p["text"] for p in said["after"]["presses"]] == ["Stop it", "Keep building"]
+        posts = [one["body"] for one in said["asked"] if one["path"] == "/jobs/cancel"]
+        assert posts == [{"id": "w1", "waiting": True}], "one look, and no stop yet"

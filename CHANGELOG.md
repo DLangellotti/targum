@@ -348,8 +348,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   so no half-written reader looks finished. Only builds that make a reader or hear a part
   stop running; chapters, voices, covers and corrections are cancelled while they wait.
   `POST /jobs/cancel`, the owner's only (anybody else's is not found); a new stage,
-  `cancelled`; the worker skips one under the lock a press takes. No reordering, no
-  spend; 18 new strings, Russian listed in the PR.
+  `cancelled`; the worker skips one under the lock a press takes. A waiting build that
+  already paid to read its pictures keeps that receipt; a cancelled build cannot be
+  pressed again (a new quote is a new id); a page that last saw a build waiting asks
+  before it stops one that has since started (qa-claude's read). No reordering, no
+  spend; 19 new strings, Russian listed in the PR.
 - A reader's baked stylesheets and scripts lose their indentation as well as their
   comments (targum-internal#670). What a word waits for on a portion page fell from
   119.3 kB gzipped, 3 bytes under its 119.3 kB budget, to 113.4 kB; the budget stays where

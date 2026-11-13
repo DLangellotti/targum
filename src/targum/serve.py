@@ -2399,13 +2399,21 @@ class Library:
             "stopping": running and job.stop,
         }
 
-    def cancel(self, job: Job) -> str:
+    def cancel(self, job: Job, *, waiting: bool = False) -> str:
         """The reader's Cancel on one of their own builds (targum-internal#694; the
         caller has checked it is theirs). Returns what happened: `cancelled` (it was
         waiting: every credit and dollar it held goes back, through `release`, the
         road a refused build takes), `stopping` (it is running: it stops at its next
         checkpoint and settles to its receipt, `_stopped`), `finished` (it got there
-        first), or `unstoppable` (it is running and is not a build that can stop).
+        first), `over` (it failed, was refused, or was never pressed: nothing is
+        running), `started` (the page thought it was waiting, `waiting`, and it has
+        started since: the page asks its question before a stop), or `unstoppable` (it
+        is running and is not a build that can stop).
+
+        A waiting build that already paid for something (reading its pictures, which
+        `_read_pages` settles before the press) keeps that on the rails: it is settled to
+        what it spent, with no credits, as `_blame` does (qa-claude on #1199). Only what
+        was held and not spent goes back.
 
         Under `_pressing`, which `press` and the worker's `_take` hold too, so a press, a
         take and a cancel decide once between them. Nothing is reordered; whoever was
@@ -2415,17 +2423,24 @@ class Library:
             if job.stage == "queued" and not job.taken:
                 job.stage = "cancelled"
                 job.message = ""
-                self.release(job)
+                if job.spent > 0:
+                    self.settle(job, length=0.0)
+                else:
+                    self.release(job)
                 self.remember(job)
                 return "cancelled"
             if job.stage == "working" or (job.stage == "queued" and job.taken):
                 if not self.stoppable(job):
                     return "unstoppable"
+                if waiting and not job.stop:
+                    return "started"
                 job.stop = True
                 return "stopping"
             if job.stage == "cancelled":
                 return "cancelled"
-            return "finished"
+            if job.stage == "done":
+                return "finished"
+            return "over"
 
     def _checkpoint(self, job: Job) -> None:
         """Where a running build stops once its reader asked (targum-internal#694): at
@@ -5220,7 +5235,10 @@ class Library:
             return blocked, 0.0, "everyone" if blocked else ""
 
     #: The stages a pressed job is in. A press on one of these has already happened.
-    PRESSED = frozenset({"queued", "working", "done"})
+    #: `cancelled` too (qa-claude on #1199): a press on a cancelled or stopped build
+    #: would claim over its receipt, so it is left as it is, and starting it again is a
+    #: new quote with a new id.
+    PRESSED = frozenset({"queued", "working", "done", "cancelled"})
 
     def press(self, job: Job) -> str:
         """A reader's press on a quote: claim it, then queue it. The blocking sentence, or "".
@@ -17808,7 +17826,22 @@ class Handler(BaseHTTPRequestHandler):
         job = self._own_job(str(payload.get("id") or ""))
         if job is None:
             return self._json({"error": "not found"}, 404)
-        said = self.library.cancel(job)
+        said = self.library.cancel(job, waiting=bool(payload.get("waiting")))
+        if said == "started":
+            # The page last saw it waiting and it has started since: nothing is done,
+            # and the page asks its one question before a stop (qa-claude on #1199).
+            return self._json({"started": True, "stage": "working"}, 409)
+        if said == "over":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cancel.over",
+                        "It isn't being made any more, so there's nothing to cancel.",
+                    ),
+                    "stage": job.stage,
+                },
+                409,
+            )
         if said == "unstoppable":
             return self._json(
                 {

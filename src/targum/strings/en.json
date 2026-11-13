@@ -4793,5 +4793,6 @@
   "job.said.cancelled": "You cancelled it. Nothing was used.",
   "job.said.stopped": "You stopped it. You paid for what was done.",
   "serve.cancel.unstoppable": "This one can't be stopped once it has started. It won't be long.",
-  "serve.cancel.finished": "It finished before we could stop it."
+  "serve.cancel.finished": "It finished before we could stop it.",
+  "serve.cancel.over": "It isn't being made any more, so there's nothing to cancel."
 }
