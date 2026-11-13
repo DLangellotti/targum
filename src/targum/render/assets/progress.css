@@ -523,10 +523,12 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .understand .understand-tick { inline-size: 0.875rem; }
 .understand .understand-name { flex: 1; }
 .understand .understand-option .understand-figure { font-size: 0.875rem; font-weight: 400; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.understand .understand-top { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 4; }
+/* The 100% line and each point's figure, on both lines: Words you knew carries them as
+   How much Hebrew you understand does (targum-internal#714). */
+.reading .understand-top { stroke: var(--rule); stroke-width: 1; stroke-dasharray: 3 4; }
 .understand .understand-area { fill: color-mix(in srgb, var(--leaf) 10%, transparent); stroke: none; }
-.understand svg .understand-figure { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.understand svg .understand-figure.now { font-size: 0.8125rem; font-weight: 600; fill: color-mix(in srgb, var(--leaf) 70%, var(--ink)); }
+.reading svg .understand-figure { font-family: var(--chrome); font-size: 0.6875rem; fill: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.reading svg .understand-figure.now { font-size: 0.8125rem; font-weight: 600; fill: color-mix(in srgb, var(--leaf) 70%, var(--ink)); }
 .understand .understand-words p { margin: 0.5rem 0 0; }
 .understand .understand-said b { font-weight: 600; }
 .understand .understand-read,
@@ -677,7 +679,10 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 }
 .progress button.topic-bar { cursor: pointer; }
 .progress button.topic-bar:hover { box-shadow: inset 0 0 0 1px var(--ink-soft); }
-.progress button.topic-bar[aria-expanded="true"] { box-shadow: inset 0 0 0 2px var(--ink); }
+/* The open topic is said by its wash and its name's weight, not by a second ring beside
+   the weakest's teal outline (targum-internal#714, polish). */
+.progress button.topic-bar[aria-expanded="true"] { background: var(--teal-wash); box-shadow: none; }
+.progress button.topic-bar[aria-expanded="true"] .topic-name { font-weight: 600; }
 .progress .topic-name { font-size: 0.875rem; line-height: 1.3; }
 .progress .topic-track {
   display: block;
@@ -742,6 +747,8 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .progress .grammar-name { display: block; }
   .progress .topic-bar { grid-template-columns: minmax(0, 8.5rem) minmax(3rem, 1fr) 2.75rem; column-gap: 0.5rem; }
   .progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem; font-size: 1.75rem; }
+  /* The experimental note under it starts where the title does (targum-internal#714). */
+  .progress .beta-note { padding-inline: 1rem; }
   /* The phone board's three: on your list, known, finished; the rest are the desk's. */
   .progress .ledger .counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .progress .ledger .counts > :not(.count-saved, .count-known, .count-finished) { display: none; }
@@ -764,7 +771,12 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 }
 .next-more[hidden] { display: none; }
 .story-wait[hidden],
-.story-failed[hidden] { display: none; }
+.story-failed[hidden],
+.story-slow[hidden],
+.progress .level-lead[hidden],
+.progress #next[hidden] { display: none; }
+/* Slow: the second line under the first, its Try again beside it (targum-internal#714). */
+.story-slow { display: block; margin-block-start: 0.25rem; }
 /* Polish 6: a time figure on one line at 390. */
 .spent-amount { white-space: nowrap; }
 /* Under 40rem the two figures stand side by side where a time figure fits on its line —
@@ -775,6 +787,12 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
   .spent-figures { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
 }
 
+/* Fresh from the words check with nothing marked (targum-internal#714, P1): the level
+   and Texts by level, and the first-visit card under them; the totals, How you got here
+   and What next would each be a row of noughts. */
+.progress-from-check #ledger,
+.progress-from-check #how,
+.progress-from-check #next { display: none; }
 /* First visit (polish 8, targum-internal#471): the line and the one filled press, in a
    card on the desk rather than text on the desk ground. */
 section.panel.nothing { max-inline-size: 40rem; margin: 3rem auto; padding: 1.5rem 1.75rem; text-align: start; }

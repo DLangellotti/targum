@@ -4546,7 +4546,6 @@
   "progress.level.next.writings": "Your next step is the Aramaic of the Writings.",
   "progress.level.start.writings": "Start with the Aramaic of the Writings.",
   "progress.next.loading": "We're finding the words and texts for you.",
-  "progress.next.texts-arc": "We'll list Aramaic texts at your level once we've measured the library's Aramaic.",
   "progress.page.open-the-library": "Open the Library",
   "reader.page.meanings-from": "Meanings from",
   "reader.page.shortened-by-targum": "shortened by targum",
@@ -4810,5 +4809,9 @@
   "home.card.known-estimate.video": "You know about {share}% of the whole video (our estimate)",
   "home.card.known-estimate.audio": "You know about {share}% of the whole recording (our estimate)",
   "building.waiting-behind.one": "Waiting behind {n} build",
-  "building.waiting-behind.other": "Waiting behind {n} builds"
+  "building.waiting-behind.other": "Waiting behind {n} builds",
+  "progress.where.unmeasured-arc": "We don't place Aramaic texts by level yet.",
+  "progress.next.texts-arc-all": "Every Aramaic text is in the Library.",
+  "progress.next.texts-first": "Start with the beginner conversations.",
+  "progress.next.texts-first-easiest": "Start with the easiest texts in the Library."
 }

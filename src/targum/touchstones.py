@@ -370,6 +370,7 @@ def at_level(
     registers: frozenset[str] | None = None,
     offset: float = 0.0,
     built: Mapping[str, tuple[float, bool]] | None = None,
+    floor: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Texts this reader could read now, chosen as Home's card chooses them
     (`choose.key`; design.md §12, "What to read next is chosen on running words",
@@ -405,6 +406,11 @@ def at_level(
     card chooses it on the same figure (targum-internal#664). A row is on this list when
     it is on its language's shelf by any of the languages it is written in (`in_language`),
     as the card counts it.
+
+    `floor`, a percent, leaves out a text whose printed figure is under it: French,
+    Russian and Italian pass `STRETCH`, so "Texts at your level now" never offers a text
+    the card beside it calls "Not yet: under 95%" (targum-internal#714; design.md §12,
+    "Progress leads with what you can read", 2026-11-08).
     """
     from . import catalogue as catalogue_module
     from . import choose, estimate
@@ -434,6 +440,8 @@ def at_level(
             chosen_on = measured.known if expected is None else expected
             figure = estimate.shown(measured.known, expected)
         else:
+            continue
+        if floor and (figure[0] is None or figure[0] * 100 < floor):
             continue
         medium = choose.medium_of(
             str(getattr(entry, "kind", "")), source=str(getattr(entry, "source", ""))

@@ -58,11 +58,19 @@
     {#- Until the account answers, one quiet line, and on a failure Try again: an empty
         card said nothing, and What next said "None yet" to a reader with a record
         (targum-internal#471, B2). -#}
-    <p class="quiet-line story-wait" id="where-wait" role="status">{{ t("progress.where.loading", "We're working out your level.") }}</p>
+    {#- Past three seconds a second line says it is slow, with Try again (§14.1, slow;
+        targum-internal#714). -#}
+    <p class="quiet-line story-wait" id="where-wait" role="status">{{ t("progress.where.loading", "We're working out your level.") }}
+      <span class="story-slow" id="where-slow" hidden>{{ t("you.page.taking-longer", "This is taking longer than usual.") }}
+      <button type="button" class="btn ghost outline story-again" id="story-slow-again">{{ t("fault.try-again", "Try again") }}</button></span></p>
+    {#- A failed story is said here once, with Try again and Tell us; What next hides
+        rather than say it again, and the cards that did load stay (§8;
+        targum-internal#714). -#}
     <p class="quiet-line story-failed" id="where-failed" hidden>{{ t("progress.story.failed", "We couldn't load this part.") }}
-      <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button></p>
+      <button type="button" class="btn ghost outline story-again" id="story-again">{{ t("fault.try-again", "Try again") }}</button>
+      <button type="button" class="btn ghost outline story-again" data-tell-us>{{ t("fault.tell-us", "Tell us") }}</button></p>
     <div class="level-grid" id="level-grid" hidden>
-      <div class="card level-lead">
+      <div class="card level-lead" id="level-lead">
         {#- Visible, as the ladder's and the chart's heads are, and the one heading: the
             hidden h2 it replaces is gone (§12, "The level card says Reading level"). -#}
         <h2 class="level-title" id="where-section">{{ t("progress.level.title", "Reading level") }}</h2>

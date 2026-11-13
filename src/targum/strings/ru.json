@@ -4783,7 +4783,6 @@
   "progress.level.next.writings": "Следующий шаг — арамейский перевод Писаний.",
   "progress.level.start.writings": "Начните с арамейского перевода Писаний.",
   "progress.next.loading": "Подбираем для вас слова и тексты.",
-  "progress.next.texts-arc": "Арамейские тексты вашего уровня появятся здесь, когда мы измерим арамейскую часть библиотеки.",
   "progress.page.open-the-library": "Открыть Библиотеку",
   "serve.give-a-link": "Вставьте ссылку.",
   "reader.chapter.uses-credits.other": "Займёт {n} балла",
@@ -5196,5 +5195,9 @@
   "building.waiting-behind.one": "В очереди перед ним {n} текст",
   "building.waiting-behind.few": "В очереди перед ним {n} текста",
   "building.waiting-behind.many": "В очереди перед ним {n} текстов",
-  "building.waiting-behind.other": "В очереди перед ним {n} текста"
+  "building.waiting-behind.other": "В очереди перед ним {n} текста",
+  "progress.where.unmeasured-arc": "Мы пока не распределяем арамейские тексты по уровням.",
+  "progress.next.texts-arc-all": "Все арамейские тексты — в Библиотеке.",
+  "progress.next.texts-first": "Начните с диалогов для начинающих.",
+  "progress.next.texts-first-easiest": "Начните с самых простых текстов в Библиотеке."
 }

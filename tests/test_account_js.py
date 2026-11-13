@@ -73,3 +73,15 @@ def test_the_corner_says_who_you_are_from_the_first_paint() -> None:
 
     gone = drawn(who=None, stored={"targum:initials": "RE"})
     assert gone["corner"] == "Sign in" and gone["held"] is None
+
+
+def test_an_account_not_reached_is_not_signed_out() -> None:
+    """A server fault or an offline load put "Sign in" in a signed-in reader's bar when
+    the browser held no initials (targum-internal#714, P2-4; §6). Unknown says nothing;
+    held initials stay; a real answer of nobody still says Sign in."""
+    unknown = drawn(unreached=True)
+    assert not unknown["cornerShown"]
+    held = drawn(unreached=True, stored={"targum:initials": "RE"})
+    assert held["cornerShown"] and held["corner"] == "RE"
+    nobody = drawn()
+    assert nobody["cornerShown"] and nobody["corner"] == "Sign in"

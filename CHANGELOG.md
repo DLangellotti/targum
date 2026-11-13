@@ -14,6 +14,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Your Progress passes more of design's §14 finish bar (targum-internal#714).
+  - A reader fresh from the words check, with no word marked, sees the level the check
+    gave ("From your words check") and Texts by level, the first-visit line under them.
+    It said "Your progress starts with the first word you mark" (design.md §12,
+    2026-11-04).
+  - Past 3 s the wait says "This is taking longer than usual." with Try again, and How
+    much Hebrew you understand draws on its own answer instead of waiting for the story.
+  - A failed story is said once, with Try again and Tell us. What next hides instead of
+    repeating it, and the cards that loaded stay.
+  - With the account unreached and no initials held, the bar no longer says "Sign in" to a
+    reader who may be signed in.
+  - French, Russian and Italian "Texts at your level now" leave out a text under the
+    card's 95% (`touchstones.at_level(floor=)`).
+  - Words you knew labels its points and its 100% line. A weekly's English level is no
+    longer inside its Hebrew title. Week one points What next at the beginner texts.
+    Aramaic offers Open the Library and stops promising a measurement. Russian «Считаем с
+    30 окт.» has one full stop. The week axis names every week by its date, an open topic
+    is a wash instead of a second ring, and the phone's experimental note lines up with
+    the title.
+  - Four new strings in English and Russian. No spend.
 - Russian words are checked against OpenRussian's tables at page-build and count time
   (`annotate.russian_check`; targum-internal#708, #709, #710, from ling-ru's analyser read
   of 2026-11-13). A short adjective or participle no longer has a case (строга, пусты,
