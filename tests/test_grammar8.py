@@ -55,7 +55,9 @@ def test_the_patterns_alone_still_refuse_a_weak_root() -> None:
 
 
 def test_the_list_is_the_size_ling_he_reviewed() -> None:
-    assert 90 <= len(WEAK_ROOTS) <= 100
+    # 93 from grammar/8, and 14 from ling-he's list of wrong roots (targum-internal#590):
+    # הטיל, the eleven three-letter hif'ils and the two nif'als.
+    assert 100 <= len(WEAK_ROOTS) <= 110
 
 
 def _said(*words: tuple[str, str, str, tuple[str, ...]], feats: dict[str, str] | None = None):

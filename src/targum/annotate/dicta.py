@@ -106,6 +106,12 @@ REVISION = "3c3c27067bb73a45e99c36bd90b3b3dbc10fda12"
 # Tense is filed under its past (`mend_pointed`, `_surface_present`: אוֹמֵר is אמר's); and
 # a qal passive participle keeps its word and gets its root (`PASSIVE_PARTICIPLES`: נָתוּן
 # is נ־ת־ן, not a nif'al of תון).
+#
+# Waiting for the next rename, with none of its own (targum-internal#590): the verb roots
+# `verb_roots.WRONG` hides at page build (`_not_qal`, `hebrew.WEAK_ROOTS`' three-letter
+# hif'ils, the nun-root `PASSIVE_PARTICIPLES`, `nifal_shown`'s yod) and the nun rule in
+# `unrelated`. The rename that carries them also removes from `verb_roots.WRONG` what the
+# annotator no longer writes and bumps `verb_roots.VERSION`.
 FEATURES = "roots+everyword+entities+syntax+grammar/8"
 
 # Sentences handed to the model at once. One call pads every sentence in it to the
@@ -313,7 +319,7 @@ def _binyan_of(lemma: str) -> str | None:
     """
     letters = [ch for ch in lemma.translate(FINALS) if "א" <= ch <= "ת"]
     pattern = None
-    if len(letters) == 3:
+    if len(letters) == 3 and not _not_qal("".join(letters)):
         pattern = "PAAL"
     elif letters[:2] == ["ה", "ת"] and len(letters) == 5 and letters[3] != "י":
         # הת is not always התפעל: הפעיל spells itself ה + C + C + י + C, so התחיל and
@@ -323,6 +329,47 @@ def _binyan_of(lemma: str) -> str | None:
     # The Hebrew name, not the tag: `root_of` and the card both read what `BINYANIM`
     # maps Stanza's values to, and handing either the raw tag drops the root silently.
     return BINYANIM.get(pattern) if pattern else None
+
+
+# Three letters that are no qal past, so not their own root (targum-internal#590, from
+# the short version of ling-he's sublexical research, 2026-10-30): an infinitive (דעת is
+# ידע's), a hif'il present (מכה, מטה, מגן, מקל, מצר) and nouns DICTA tagged a verb. Each
+# was given itself as its root and is denied at page build in `verb_roots.WRONG`. A gap.
+NOT_QAL = frozenset(
+    {
+        "דעת",
+        "מכה",
+        "מטה",
+        "מגנ",
+        "מקל",
+        "מצר",
+        "שמה",
+        "אוי",
+        "מעש",
+        "שבי",
+        "דיר",
+        "משא",
+        "גדי",
+        "מצע",
+        "חלי",
+        "שאת",
+        "מבט",
+    }
+)
+
+
+def _not_qal(letters: str) -> bool:
+    """Whether three letters, final forms folded, are a lemma that is no qal past.
+
+    `NOT_QAL`; a geminate or I-nun lemma the reviewed list files under another binyan
+    (`hebrew.WEAK_ROOTS`: הכה is a hif'il of נ־כ־ה); and a ו first, which is a conjunction
+    DICTA left on the lemma (ושב, "and returned"), since no qal has a root on ו
+    (targum-internal#590). Each gives a gap rather than the lemma as its root.
+    """
+    if letters in NOT_QAL or letters[:1] == "ו":
+        return True
+    listed = weak_root(letters)
+    return listed is not None and listed[0] != BINYANIM["PAAL"]
 
 
 def _pieces_of(seg: list[str], lemma: str, suffix: Any) -> str | None:
@@ -951,7 +998,8 @@ def _lemma(
 # strong letters do not all appear, in order, in the word it is the lemma of. What may
 # drop between a lemma and its forms is not counted as a letter:
 # - the weak letters, which come and go with the vowels;
-# - a nun, which assimilates: יִתֵּן, נָתַתִּי and לָתֵת are נתן's;
+# - a nun, where it assimilates: first in the root (יִתֵּן, לָתֵת are נתן's) or last
+#   before a suffix's ת (נָתַתִּי), and nowhere else (targum-internal#590);
 # - the second of a doubled root letter: וַיָּסֶב is סבב's;
 # - a plural ending on a lemma filed in the plural: פני is פנים's;
 # - the lamed of לקח, which assimilates like a nun: קַח and וַיִּקַּח;
@@ -979,15 +1027,33 @@ def unrelated(lemma: str, base: str) -> bool:
     if " " in lemma or lemma in SUPPLETIVE or not base or '"' in base or "'" in base:
         return False
     strong = _strong(lemma)
-    # And once more with every nun dropped, since any of them may have assimilated, and
-    # once without a participle's מ that DICTA left on the lemma: התעורר filed under
-    # מתעורר is the wrong headword but the right meaning (targum-internal#490). Not a
-    # relative ש: without it שעבד is עבד, and לעבוד is "enslaved" again.
-    tries = {strong, strong.replace("נ", ""), strong[1:] if strong[:1] == "מ" else strong}
+    word = base.translate(FINALS)
+    # And once more without a first nun, which assimilates (יפול is נפל's, תן נתן's), or
+    # without a participle's מ that DICTA left on the lemma: התעורר filed under מתעורר is
+    # the wrong headword but the right meaning (targum-internal#490). Not a relative ש:
+    # without it שעבד is עבד, and לעבוד is "enslaved" again.
+    tries = {strong}
+    if strong[:1] in "נמ":
+        tries.add(strong[1:])
     if any(len(letters) < 2 for letters in tries):
         return False
-    word = base.translate(FINALS)
-    return not any(_in_order(letters, word) for letters in tries)
+    if any(_in_order(letters, word) for letters in tries):
+        return False
+    # A last nun taken into a ת after it: נָתַתִּי is נתן's, and לָתֵת, which drops both its
+    # nuns. No other nun may drop: every nun dropped let התקין's ת־ק־נ stand as ת־ק under
+    # נשתיק, "we will silence" (targum-internal#590; the rule `lemma_check.refused` holds
+    # at page build until this is on every text).
+    return not any(letters[-1] == "נ" and _then(letters[:-1], word, "ת") for letters in tries)
+
+
+def _then(letters: str, word: str, after: str) -> bool:
+    """Whether `letters` are in `word` in order with `after` straight after the last."""
+    at = 0
+    for char in letters:
+        at = word.find(char, at) + 1
+        if not at:
+            return False
+    return word[at : at + 1] == after
 
 
 def _in_order(letters: str, word: str) -> bool:
@@ -1136,8 +1202,10 @@ def _nifal_future(letters: str, word: str) -> bool:
 
 
 # Pi'els of four letters that open with נ and look like a nif'al past letter for letter:
-# נִטְרֵל, נִרְמֵל. Named, since nothing unpointed tells them apart.
-NIFAL_LOOKALIKES = frozenset({"נטרל", "נרמל", "נקטר", "נשנש"})
+# נִטְרֵל, נִרְמֵל. Named, since nothing unpointed tells them apart. And two nouns DICTA
+# tags a verb, spelled like a III-he nif'al (נִבְנָה) and stripped of their own נ: נְקֵבָה
+# is נ־ק־ב's, נְשָׁמָה נ־שׁ־ם's (targum-internal#590).
+NIFAL_LOOKALIKES = frozenset({"נטרל", "נרמל", "נקטר", "נשנש", "נקבה", "נשמה"})
 
 
 def nifal_shown(lemma: str, base: str) -> bool:
@@ -1150,6 +1218,10 @@ def nifal_shown(lemma: str, base: str) -> bool:
     if len(letters) != 4 or letters[0] != "נ" or letters[1] in NIFAL_KEPT:
         return False
     if letters[:2] == letters[2:] or letters in NIFAL_LOOKALIKES:
+        return False
+    if letters[2] == "י":
+        # No nif'al past has a yod before its last letter: נָזִיר and נָעִים are
+        # adjectives, their נ their own root's (targum-internal#590).
         return False
     word = base.translate(FINALS)
     return word.startswith(("נ" + letters[1], "הי" + letters[1], "להי" + letters[1]))
@@ -1223,6 +1295,12 @@ PASSIVE_PARTICIPLES = {
         ("דרוש", "דרש"),
         ("זכור", "זכר"),
         ("סבור", "סבר"),
+        # A first-nun root, whose נ `root_of` stripped as a nif'al's (targum-internal#590).
+        ("נשוא", "נשא"),
+        ("נשוי", "נשא"),
+        ("נקוב", "נקב"),
+        ("נסוך", "נסך"),
+        ("נטול", "נטל"),
     )
 }
 

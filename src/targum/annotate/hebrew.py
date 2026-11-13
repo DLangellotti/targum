@@ -172,13 +172,21 @@ _WEAK_HIFIL = (
     "העיד עוד · האיר אור · העיר עור · הרים רום · הגיב גוב · המיר מור · הקיא קיא · "
     "הריע רוע · הניף נוף · הכיל כול · הפיח פוח · המיט מוט · הזין זון · הסית סות · "
     "הציק צוק · הפיץ פוץ · העיק עוק · הגיח גיח · הטיח טיח · הריק ריק · הפיג פוג · "
-    "הניא נוא"
+    "הניא נוא · הטיל טול · "
+    # Three letters, a geminate or I-nun hif'il (targum-internal#590): the lemma is ה and
+    # two radicals, and `dicta._binyan_of` read every three-letter lemma as a qal whose
+    # root is the lemma itself, so הכה was ה־כ־ה. ling-he's list from the sublexical
+    # research's short version (2026-10-30), each denied at page build in `verb_roots.WRONG`.
+    "הקל קלל · החל חלל · הכה נכה · הפר פרר · הטה נטה · הסב סבב · הגן גנן · העז עזז · "
+    "הרע רעע · הצל נצל · האט אטט"
 )
+# The nif'al of a doubled root, three letters for the same reason (#590): נָמַס is מ־ס־ס.
+_WEAK_NIFAL = "נמס מסס · נדם דמם"
 
 
 def _weak_table() -> dict[str, tuple[str, str]]:
     out: dict[str, tuple[str, str]] = {}
-    for binyan, listed in (("פעל", _WEAK_PAAL), ("הפעיל", _WEAK_HIFIL)):
+    for binyan, listed in (("פעל", _WEAK_PAAL), ("נפעל", _WEAK_NIFAL), ("הפעיל", _WEAK_HIFIL)):
         for pair in listed.split(" · "):
             lemma, root = pair.split()
             # Keyed with the final forms folded, the way `root_of` reads a lemma; the
@@ -282,6 +290,10 @@ def _nifal(letters: list[str]) -> list[str]:
     what makes the second.
     """
     if len(letters) == 4 and letters[:1] == ["נ"]:
+        if letters[2] == "י":
+            # No nif'al past has a yod before its last letter. נָזִיר and נָעִים are
+            # adjectives whose נ is their own root's (targum-internal#590).
+            return []
         if letters[1] == "ו":
             return ["י"] + letters[2:]
         if letters[1] == "י":
