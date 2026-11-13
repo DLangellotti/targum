@@ -3803,7 +3803,7 @@
   "chat.cannot-answer.fact": "Ваши тексты и библиотека по-прежнему открыты",
   "chat.cannot-answer.box": "Сейчас мы не можем ответить",
   "chat.cannot-answer.box-short": "Не сейчас",
-  "chat.ask-about-the-text": "Спросите или напишите {language:adv}",
+  "chat.ask-about-the-text": "Вопрос о тексте {language:adv}",
   "chat.ask-about-it": "Спросите…",
   "add.credits.none.fact": "Библиотека по-прежнему открыта",
   "fault.open-library": "Открыть библиотеку",
