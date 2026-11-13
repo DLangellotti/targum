@@ -41,7 +41,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from .dicta import GUARDED, SUPPLETIVE, _in_order, _strong
+from .dicta import GUARDED, PLURAL_LEMMAS, SUPPLETIVE, _in_order, _strong
 from .hebrew import FINALS
 
 if TYPE_CHECKING:
@@ -53,8 +53,12 @@ if TYPE_CHECKING:
 #: ling-he's reviewed lists (targum-internal#660); 3 keeps a yod beside a mater single
 #: in that ktiv male (היה, not הייה) and writes ציווה with its yod; 4 gives a participle's
 #: מ and an infinitive's ל that DICTA cut off as a prefix back to the word
-#: (`own_letter`, targum-internal#689).
-VERSION = 4
+#: (`own_letter`, targum-internal#689); 5 checks a lemma of one strong letter and an
+#: auxiliary's, files an unpointed qal future under its qal rather than its nif'al, a verb
+#: whose lemma is another of its forms under its verb, a whole infinitive under its verb, an
+#: adjective that is a participle under the participle, and a short list of closed-class
+#: words under their own lemma (targum-internal#697, #699).
+VERSION = 5
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -86,7 +90,34 @@ def _then(letters: str, word: str, after: str) -> bool:
     return word[at : at + 1] == after
 
 
-def refused(lemma: str, base: str) -> bool:
+#: The parts of speech whose lemma is checked: DICTA's guarded ones and the auxiliary,
+#: whose היו came back under יש and אין (targum-internal#697).
+CHECKED = GUARDED | {"AUX"}
+#: What a verb's lemma of one strong letter may leave out of a form: a vav or a yod, a
+#: last he (הָיָה, הָיִיתִי), and the hif'il's first he (הֵבִיא, אָבִיא).
+_ONE_WEAK = frozenset("וי")
+
+
+def _one_letter_refused(lemma: str, word: str, pos: str | None) -> bool:
+    """Whether a lemma of fewer than two strong letters cannot be `word`'s: its letters
+    but a vav or a yod, a last he, and a verb's first he must be in the word in order
+    (targum-internal#697). `dicta.unrelated` lets these by whatever the word, so היה came
+    back under הביא, היו under יש and אין, and טוב under בא, whose ב is in it."""
+    letters = lemma.translate(FINALS)
+    if len(letters) > 3 and letters.endswith(PLURAL_LEMMAS):
+        letters = letters[:-2]
+    if len(letters) > 1 and letters[-1] == "ה":
+        letters = letters[:-1]
+    letters = "".join(char for char in letters if char not in _ONE_WEAK)
+    if pos in ("VERB", "AUX") and len(letters) > 1 and letters[0] == "ה":
+        letters = letters[1:]
+    if not letters:
+        return False
+    tries = {letters, letters[1:]} if letters[0] == "נ" and len(letters) > 1 else {letters}
+    return not any(_in_order(one, word) for one in tries)
+
+
+def refused(lemma: str, base: str, pos: str | None = None) -> bool:
     """Whether `lemma` cannot be the lemma of `base`, the word under its prefixes."""
     if not lemma or " " in lemma or lemma in SUPPLETIVE:
         return False
@@ -94,6 +125,8 @@ def refused(lemma: str, base: str) -> bool:
         return False
     strong = _strong(lemma)
     word = base.translate(FINALS)
+    if len(strong) < 2:
+        return _one_letter_refused(lemma, word, pos)
     tries = {strong}
     if strong[:1] in "נמ":
         # A first nun that assimilated (יפול, תן), or a participle's מ on the lemma.
@@ -324,42 +357,244 @@ def _inflected_verb(surface: str, base: str, lead: int, feats: str) -> tuple[str
     return None
 
 
+#: The words after a verb that make it active: the object marker with its pronoun, or a
+#: dative pronoun before a noun ("לא אשכח אותך", "אמצא לך חדר"). A nif'al takes neither.
+OBJECTS = frozenset({"את", "אותי", "אותך", "אותו", "אותה", "אותנו", "אתכם", "אתכן", "אותם", "אותן"})
+DATIVES = frozenset({"לי", "לך", "לו", "לה", "לנו", "לכם", "לכן", "להם", "להן"})
+
+
+def object_after(after: list[tuple[str, str | None]]) -> bool:
+    """Whether the words after a verb, as (surface, part of speech), open on its object:
+    the object marker, or a dative pronoun and then a noun."""
+    if not after:
+        return False
+    first = _POINTS.sub("", after[0][0])
+    if first in OBJECTS:
+        return True
+    return first in DATIVES and len(after) > 1 and after[1][1] in ("NOUN", "PROPN")
+
+
+def _verbs_of(spelled: str, wanted: set[str] | None = None) -> set[str]:
+    """The table's verbs `spelled` is a form of: one whose features hold `wanted`, where
+    given."""
+    from .paradigms import bare, table
+
+    book = table()
+    return {
+        lid
+        for lid in book.by_form.get(spelled) or ()
+        if lid in book.verbs
+        and any(
+            bare(form.written) == spelled and (wanted is None or wanted <= set(form.features))
+            for form in book.verbs[lid].forms
+        )
+    }
+
+
+def _qal_future(
+    lemma: str, surface: str, base: str, lead: int, feats: str, objected: bool
+) -> tuple[str, str] | None:
+    """The qal an unpointed future DICTA filed under its nif'al is, as (lemma in ktiv male,
+    binyan) (targum-internal#697: תשכח under נשכח, "be forgotten"). Ktiv male writes a
+    nif'al future's yod after ת, י and נ (תישכח, יימצא), so where the table reads the
+    letters as the qal's future and not the nif'al's, they are the qal's. After א the
+    nif'al writes none (אשכח is both), and there an object after the verb settles it, as
+    it does wherever the table reads both. Pointed, the marks show a nif'al (`_nifal_future`)."""
+    from .paradigms import bare, table
+
+    letters = lemma.translate(FINALS)
+    if "Tense=Fut" not in feats or len(letters) != 4 or letters[0] != "נ":
+        return None
+    marked = _marked(surface)
+    under = marked[lead:] if 0 < lead < len(marked) else marked
+    if _nifal_future(under):
+        return None
+    book = table()
+    found = _verbs_of(base, {"future"})
+    qal = [lid for lid in found if bare(book.verbs[lid].lemma) == lemma[1:]]
+    nifal = [lid for lid in found if bare(book.verbs[lid].lemma) == lemma]
+    if not qal or (nifal and not objected):
+        return None
+    verb = _lemma_male(qal, book)
+    if verb is None:
+        return None
+    binyans = {book.binyan_of(lid) for lid in qal}
+    binyan = binyans.pop() if len(binyans) == 1 else None
+    return verb, binyan or ""
+
+
+def _infinitive(base: str, surface: str, feats: str) -> tuple[str, str] | None:
+    """The verb a ל-word with no person, gender or tense is the infinitive of, by its
+    marks or its letters (`own_letter.infinitive_of`)."""
+    from .own_letter import _FINITE, infinitive_of
+
+    if not base.startswith("ל") or any(part in feats for part in _FINITE):
+        return None
+    return infinitive_of(base, surface)
+
+
+def _same_lemma(said: str, verb: str) -> bool:
+    """Whether DICTA's lemma is the table's verb's, in any of the ways ktiv male writes it."""
+    from .own_letter import _same_word
+
+    return _same_word(said, verb)
+
+
+def _lemma_of_form(
+    lemma: str, surface: str, base: str, lead: int, feats: str
+) -> tuple[str, str] | None:
+    """The verb a lemma that is another form of it stands for, as (lemma in ktiv male,
+    binyan) (targum-internal#697, #699): תשאלי under the present שואל, רציתי under רוצה,
+    אבדוק under the future יבדוק. The lemma and the word must both be forms of exactly one
+    verb of the table, and the lemma none's own. Only where DICTA read a past, a future or
+    an imperative, or the word is an infinitive: a present keeps its participle, the wrong
+    headword with the right meaning (#490), and a word with no tense said is left alone."""
+    from .own_letter import _FINITE
+    from .paradigms import bare, table
+
+    infinitive = _infinitive(base, surface, feats)
+    shaped = base.startswith("ל") and not any(part in feats for part in _FINITE)
+    if not shaped and not any(f"Tense={tense}" in feats for tense in ("Past", "Fut", "Imp")):
+        return None
+    book = table()
+    as_lemma = _verbs_of(lemma)
+    if not as_lemma:
+        return None
+    as_word = _verbs_of(base)
+    marked = _marked(surface)
+    under = marked[lead:] if 0 < lead < len(marked) else marked
+    if any(marks for _, marks in under):
+        from .own_letter import _male
+
+        as_word |= _verbs_of(_male(under))
+    if infinitive is not None:
+        as_word |= {
+            lid
+            for lid in as_lemma
+            if _same_lemma(infinitive[0], male(book.verbs[lid].lemma))
+            or bare(book.verbs[lid].lemma) == infinitive[0]
+        }
+    both = sorted(as_lemma & as_word)
+    if not both:
+        return None
+    if any(lemma in (bare(book.verbs[lid].lemma), male(book.verbs[lid].lemma)) for lid in both):
+        return None
+    verb = _lemma_male(both, book)
+    if verb is None or _same_lemma(lemma, verb):
+        return None
+    binyans = {book.binyan_of(lid) for lid in both}
+    binyan = binyans.pop() if len(binyans) == 1 else None
+    return verb, binyan or ""
+
+
+#: The participle's מ.
+MEM = "מ"
+
+
+def _participle_adjective(lemma: str, surface: str, base: str, lead: int) -> str | None:
+    """The participle an adjective is, where DICTA filed it under its verb's past
+    (targum-internal#699: מכובד under כובד, "weight", מצוין under צוין, "was noted"). The
+    word must be a present of a verb of the table whose lemma is DICTA's; the lemma is then
+    that verb's masculine singular present, in ktiv male: the adjective's own."""
+    from .own_letter import _holam_male
+    from .own_letter import _male as own_male
+    from .paradigms import bare, table
+
+    if not base.startswith(MEM) or len(base) < 4:
+        return None
+    marked = _marked(surface)
+    under = marked[lead:] if 0 < lead < len(marked) else marked
+    pointed = any(marks for _, marks in under)
+    book = table()
+    found = _verbs_of(base, {"present"})
+    if pointed:
+        found |= _verbs_of(own_male(under), {"present"})
+    said = [
+        lid
+        for lid in found
+        if lemma
+        in {
+            bare(book.verbs[lid].lemma),
+            male(book.verbs[lid].lemma),
+            own_male(_marked(book.verbs[lid].lemma)),
+            "".join(one for one, _ in _holam_male(_marked(book.verbs[lid].lemma))),
+        }
+    ]
+    spelled = set()
+    for lid in said:
+        for form in book.verbs[lid].forms:
+            if {"present", "masculine", "singular"} <= set(form.features) and not form.ruled:
+                units = _marked(form.written)
+                spelled.add(own_male(units) if any(m for _, m in units) else bare(form.written))
+    if len(spelled) != 1:
+        return None
+    adjective = spelled.pop()
+    return adjective if adjective != lemma and adjective.startswith(MEM) else None
+
+
+#: The auxiliary verbs a refused or inflected auxiliary may be filed under: היו came
+#: back under יש and אין, and נהיה, "we will be", stood as its own lemma.
+AUXILIARIES = frozenset({"היה"})
+
+
 def checked(
-    lemma: str, surface: str, lead: int, pos: str | None, feats: str | None = None
+    lemma: str,
+    surface: str,
+    lead: int,
+    pos: str | None,
+    feats: str | None = None,
+    objected: bool = False,
 ) -> Mend | None:
     """What a token's lemma becomes, or None where it stands.
 
     `lead` is how many letters of `surface` DICTA cut off as prefixes (`Syntax.lead`);
     `feats` the features it read on the word, which an inflected verb standing as its own
-    lemma is matched on (`_inflected_verb`).
+    lemma is matched on (`_inflected_verb`); `objected` whether an object follows the
+    word (`object_after`), which settles a first-person future between qal and nif'al.
     """
-    if pos not in GUARDED:
+    if pos not in CHECKED:
         return None
+    feats = feats or ""
     word = _POINTS.sub("", surface or "")
     base = word[lead:] if 0 < lead < len(word) else word
     lemma = lemma or ""
     # A gap already: the annotator gave the word itself. A verb whose form the table
     # knows takes the table's verb; anything else stays the gap it is.
     if lemma in (word, word.lower(), base):
-        if pos != "VERB":
+        if pos not in ("VERB", "AUX"):
             return None
-        found = _inflected_verb(surface, base, lead, feats or "")
+        found = _infinitive(base, surface, feats) if pos == "VERB" else None
         if found is None:
+            found = _inflected_verb(surface, base, lead, feats)
+        if found is None or (pos == "AUX" and found[0] not in AUXILIARIES):
             return None
-        from .verb_roots import root_for
-
-        verb, binyan = found
-        return Mend(verb, root_for(verb, None, "VERB"), binyan)
-    if not refused(lemma, base):
+        return _verb_mend(found, pos)
+    if not refused(lemma, base, pos):
+        if pos == "VERB":
+            found = _qal_future(lemma, surface, base, lead, feats, objected)
+            if found is None:
+                found = _lemma_of_form(lemma, surface, base, lead, feats)
+            return _verb_mend(found, pos) if found is not None else None
+        if pos == "ADJ":
+            adjective = _participle_adjective(lemma, surface, base, lead)
+            return Mend(adjective, "", "") if adjective is not None else None
         return None
-    if pos == "VERB":
+    if pos in ("VERB", "AUX"):
         found = _table_verb(base)
-        if found is not None:
-            from .verb_roots import root_for
-
-            verb, binyan = found
-            return Mend(verb, root_for(verb, None, "VERB"), binyan)
+        if found is not None and (pos == "VERB" or found[0] in AUXILIARIES):
+            return _verb_mend(found, pos)
     return Mend(word.lower(), "", "")
+
+
+def _verb_mend(found: tuple[str, str], pos: str | None) -> Mend:
+    """The table's verb as a mend: with its root and binyan on a verb, bare on an
+    auxiliary, which the page gives neither."""
+    verb, binyan = found
+    if pos == "AUX":
+        return Mend(verb, "", "")
+    from .verb_roots import root_for
+
+    return Mend(verb, root_for(verb, None, "VERB"), binyan)
 
 
 def _upos(feats: str | None, pos: str) -> str:
@@ -410,11 +645,121 @@ def _given_back(token: Token) -> Token:
     return token.model_copy(update=update)
 
 
-def mend_token(token: Token) -> Token:
-    """The token with its lemma checked; the same object where nothing changes."""
-    token = _given_back(token)
+#: Closed-class words DICTA files under another word of the same letters, and what each
+#: is (targum-internal#697, ling-he's read of 2026-11-13). Keyed by the word under its
+#: prefixes, the part of speech DICTA gave and the lemma it gave; to the lemma, and the
+#: part of speech where it changes. יכול is "able", not יכולת "ability"; ליד is
+#: "beside", not יד "hand"; בינינו is בין's, not ביניים "interim"; נוכל, "we will be
+#: able", is יכול's, not "swindler"; אותה before a noun, "the same", is no "you
+#: (feminine)", which DICTA's pronoun reading of it gave.
+#: יָכוֹל and its forms, which DICTA files under יכולת, "ability", as often as not.
+ABLE = (
+    "יכול",
+    "יכולה",
+    "יכולים",
+    "יכולות",
+    "יכולתי",
+    "יכלה",
+    "יכלו",
+    "יוכל",
+    "תוכל",
+    "תוכלי",
+    "תוכלו",
+    "יוכלו",
+    "נוכל",
+)
+CLOSED_CLASS: dict[tuple[str, str, str], tuple[str, str]] = {
+    ("ליד", "ADP", "יד"): ("ליד", "ADP"),
+    ("בינינו", "ADP", "ביניים"): ("בין", "ADP"),
+    ("נוכל", "AUX", "נוכל"): ("יכול", "AUX"),
+    ("נוכל", "VERB", "נוכל"): ("יכול", "AUX"),
+    **{(able, pos, "יכולת"): ("יכול", "AUX") for able in ABLE for pos in ("AUX", "VERB")},
+    ("אותו", "PRON", "את"): ("אותו", "PRON"),
+    ("אותה", "PRON", "את"): ("אותו", "PRON"),
+    ("אותם", "PRON", "את"): ("אותו", "PRON"),
+    ("אותן", "PRON", "את"): ("אותו", "PRON"),
+}
+#: אפשר with no person or tense is "possible", not the pi'el אִפְשֵׁר "enabled", which a
+#: segol under its alef rules out where the word is pointed.
+POSSIBLE = "אפשר"
+SEGOL = "\u05b6"
+
+
+def closed_class(
+    surface: str, lemma: str, pos: str | None, built: str | None, lead: int, feats: str
+) -> tuple[str, str, bool] | None:
+    """What a closed-class word DICTA filed under another word becomes, as (lemma, part
+    of speech, whether its split comes off); None where it stands."""
+    word = _POINTS.sub("", surface or "")
+    base = word[lead:] if 0 < lead < len(word) else word
+    found = CLOSED_CLASS.get((base, pos or "", lemma))
+    if found is None and lemma == "יד" and pos == "ADP" and word == "ליד":
+        # DICTA cut it "ל to + יד" as often as not.
+        found = ("ליד", "ADP")
+    if found is not None:
+        whole = word == "ליד" and lead > 0 and (built or "").startswith("ל ")
+        return found[0], found[1], whole
+    if base == POSSIBLE and lemma == POSSIBLE and pos == "VERB":
+        if any(part in feats for part in ("Person=", "Tense=")):
+            return None
+        marked = _marked(surface)
+        if any(marks for _, marks in marked) and SEGOL not in marked[0][1]:
+            return None
+        return POSSIBLE, "AUX", False
+    return None
+
+
+def _closed(token: Token) -> Token:
+    """`closed_class` on a token; the same object where nothing changes."""
     lead = token.syntax.lead if token.syntax is not None else 0
-    mend = checked(token.lemma, token.surface, lead, token.pos, token.feats)
+    found = closed_class(
+        token.surface, token.lemma, token.pos, token.built, lead, token.feats or ""
+    )
+    if found is None:
+        return token
+    lemma, pos, whole = found
+    update: dict[str, Any] = {"lemma": lemma, "pos": pos, "feats": _upos(token.feats, pos)}
+    if lemma != token.lemma:
+        update |= {"headword": None, "lexeme": None, "word_register": None}
+    if pos != token.pos:
+        update |= {"binyan": None, "root": None}
+    if whole and token.syntax is not None:
+        update |= {
+            "built": None,
+            "split": False,
+            "syntax": token.syntax.model_copy(update={"lead": 0}),
+        }
+    return token.model_copy(update=update)
+
+
+def _row_closed(row: dict[str, Any]) -> dict[str, Any]:
+    """`_closed` for a stored row; the same dict where nothing changes."""
+    syntax = row.get("syntax") or {}
+    found = closed_class(
+        str(row.get("surface") or ""),
+        str(row.get("lemma") or ""),
+        row.get("pos"),
+        row.get("built"),
+        int(syntax.get("lead") or 0),
+        str(row.get("feats") or ""),
+    )
+    if found is None:
+        return row
+    lemma, pos, whole = found
+    out = row | {"lemma": lemma, "pos": pos, "feats": _upos(row.get("feats"), pos)}
+    if pos != row.get("pos"):
+        out |= {"binyan": None, "root": None}
+    if whole:
+        out |= {"built": None, "split": False, "syntax": syntax | {"lead": 0}}
+    return out
+
+
+def mend_token(token: Token, objected: bool = False) -> Token:
+    """The token with its lemma checked; the same object where nothing changes.
+    `objected` says an object follows it (`object_after`)."""
+    token = _given_back(_closed(token))
+    lead = token.syntax.lead if token.syntax is not None else 0
+    mend = checked(token.lemma, token.surface, lead, token.pos, token.feats, objected)
     if mend is None:
         return token
     return token.model_copy(
@@ -438,7 +783,12 @@ def mended(annotation: Annotation) -> Annotation:
     changed = False
     tokens: dict[str, list[Token]] = {}
     for segment_id, run in annotation.tokens.items():
-        out = [mend_token(token) for token in run]
+        out = [
+            mend_token(
+                token, object_after([(one.surface, one.pos) for one in run[at + 1 : at + 3]])
+            )
+            for at, token in enumerate(run)
+        ]
         changed = changed or any(new is not old for new, old in zip(out, run, strict=True))
         tokens[segment_id] = out
     if not changed:
@@ -446,10 +796,28 @@ def mended(annotation: Annotation) -> Annotation:
     return annotation.model_copy(update={"tokens": tokens})
 
 
-def mend_row(row: dict[str, Any]) -> dict[str, Any]:
+def mend_rows(run: list[Any]) -> list[Any]:
+    """A segment's tokens as `annotation.json` stores them, each checked with the words
+    after it in view (`object_after`), as `mended` checks them for the page."""
+    out: list[Any] = []
+    for at, row in enumerate(run):
+        if not isinstance(row, dict):
+            out.append(row)
+            continue
+        after = [
+            (str(one.get("surface") or ""), one.get("pos"))
+            for one in run[at + 1 : at + 3]
+            if isinstance(one, dict)
+        ]
+        out.append(mend_row(row, object_after(after)))
+    return out
+
+
+def mend_row(row: dict[str, Any], objected: bool = False) -> dict[str, Any]:
     """A token as `annotation.json` stores it, with its lemma checked: for the counts,
-    which read the file rather than the model. The same dict where nothing changes."""
-    row = _row_given_back(row)
+    which read the file rather than the model. The same dict where nothing changes.
+    `objected` says an object follows it; `mend_rows` works it out for a segment."""
+    row = _row_given_back(_row_closed(row))
     syntax = row.get("syntax") or {}
     mend = checked(
         str(row.get("lemma") or ""),
@@ -457,6 +825,7 @@ def mend_row(row: dict[str, Any]) -> dict[str, Any]:
         int(syntax.get("lead") or 0),
         row.get("pos"),
         str(row.get("feats") or ""),
+        objected,
     )
     if mend is None:
         return row

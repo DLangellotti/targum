@@ -389,6 +389,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   The public warm-up set grows by their stylesheets and `/connect`'s script: 158 → 204 kB
   gzipped in English, 244 → 289 kB in Russian. design.md §12's 2026-10-28 entry says so.
   No new strings, no spend.
+- The analyser's lemma check reaches the words ling-he's A1–B1 read found it missing
+  (targum-internal#697, #699). A lemma of one strong letter is checked now, and so is an
+  auxiliary's: היה is no longer filed under הביא "brought", היו under יש or אין, or
+  טוֹב under בא "come". An unpointed future without the nif'al's yod is the qal (תשכח
+  under שכח, not נשכח "be forgotten"; after א only with an object after it, so "לא
+  אשכח אותך" and "אמצא לך חדר" read right and a bare אשכח keeps its nif'al). A verb
+  filed under another of its forms takes its verb on a past, future or infinitive
+  (רָצִיתִי under רצה, not רוצה; אֶבְדּוֹק under בדק, not יבדוק), a whole infinitive takes
+  its verb (להכין, לשמור, למצוא), and לסייר is no longer "ל to + סייר". An adjective
+  that is a participle is filed under the participle (מכובד, not כובד "weight"; מצוין,
+  not "was noted"). A short closed list: יכול and its forms not "ability", נוכל not
+  "swindler", ליד not "hand", בינינו under בין, אותו/אותה before a noun not "you",
+  and אפשר with no tense "possible" rather than "enabled". `lemma_check` 5,
+  `occurrences` 14: a free recount at the next page build, no annotator rename, no
+  `SCHEMA_VERSION` change. Over ling-he's 12,533 tokens it changes 211, 206 for the
+  better and none for the worse (5 are ASR garble going from a wrong meaning to a gap);
+  her hand-read errors go from 116 to 84 per 1,000. Unpointed נעשה keeps its nif'al, as
+  reviewed on targum#1135. No spend, no new strings.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
