@@ -276,6 +276,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   link just now. Try again." with the clay mark, where it said "We can't reach targum": the
   proxy's HTML page threw on `response.json()` and fell into the connection's catch. One
   new string, `signin.server-fault`, with its Russian. No spend.
+- A participle's מ and an infinitive's ל are the word's own again (targum-internal#689).
+  Pointed in ktiv haser, the Shoelace Seller's מֻשְׁפָּלוֹת reached DICTA as משפלות and came
+  back as "מ from + שפלות", a qal of שפל with no meaning; it is now the huf'al הושפל of
+  ש־פ־ל, unsplit. לִמְכֹּר came back as "ל to + מכר", a noun, under the meaning "to sell";
+  it is now the verb מכר, qal, with no "to +". `annotate.own_letter` gives the letter
+  back where DICTA cut it untagged and a verb stands behind it: for a מ, a present of one
+  verb in the CC0 table, its vowel agreeing with the binyan where pointed; for a ל, a verb
+  DICTA read as an infinitive, or a word pointed as one beside its verb's future. It runs
+  in `lemma_check`, so pages and counts get it at the next page build with no annotator
+  rename (`lemma_check` 4, `occurrences` 13, a free recount). On the laptop's shelf it
+  changes 223 of 396,475 Hebrew tokens and 7 of 39,525 in the children's books and
+  dialogues. קולה pointed קוֹלָהּ, "her voice", for cola is the menaked's reading and has no
+  word-level override; it stays on the card. No spend, no new strings.
+  The same version also lets both nuns of נתן go in לָתֵת: the page-time check refused
+  נתן under לתת, so a reader's "to give" was a gap (found by builder-3 on #590).
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
