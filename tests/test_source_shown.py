@@ -184,6 +184,105 @@ def test_a_prepare_request_cannot_name_its_own_source(
     assert seen and NAMED not in seen[0].options, answered
 
 
+def test_a_prepare_request_cannot_say_it_came_from_a_find_or_a_subscription(
+    home: Any,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`via`, `find`, `subscription` and `item` are the server's to write (targum-internal
+    #706): a reader who posted `find: N` could have any shared find retired for everyone
+    by making their own link fail, and `via: "find"` alone counted as a find opened."""
+    found = episode(home.store)
+    cookie = sign_in(home.port, home.postbox)
+    seen: list[Any] = []
+
+    def prepare(job: Any) -> None:
+        seen.append(job)
+        job.stage = "ready"
+
+    monkeypatch.setattr(home.library, "prepare", prepare)
+    answered = call(
+        home.port,
+        "POST",
+        "/prepare",
+        {
+            "source": "https://news.example/mine",
+            "via": "find",
+            "find": found,
+            "subscription": 1,
+            "item": "x",
+            "to": "en",
+        },
+        cookie=cookie,
+    )
+    assert seen, answered
+    options = seen[0].options
+    assert not {"via", "find", "subscription", "item"} & set(options), options
+    assert options.get("to") == "en", "what the Add page sends is kept"
+
+
+#: What `Library.run` acts on before the source, each written by the server at its own
+#: route and never sent by a page (qa-claude on targum#1209).
+SERVER_WRITES = {
+    "voice": True,
+    "folder": "someone-else",
+    "section": 3,
+    "parts": [2],
+    "chapters": True,
+    "cover": True,
+    "plan": "x",
+    "words_again": True,
+    "again": ["s1"],
+    "rewrite": {"rung": 1},
+    "rewritten": "/etc/passwd",
+    "transcript": "/etc/passwd",
+    "post": {"kept": "/etc/passwd"},
+    "pdf_pages": [1],
+    "door": "x",
+}
+
+
+def test_a_prepare_request_keeps_only_what_a_page_sends(
+    home: Any,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`/prepare` keeps an allow-list (targum-internal#706): `voice` with a `folder` and
+    a `section` made a build that claimed nothing for its seconds and voiced the section
+    in `Library.run`, past `/voice`'s own claim. A forged voice build is a plain build of
+    the link it names, priced as one."""
+    cookie = sign_in(home.port, home.postbox)
+    seen: list[Any] = []
+
+    def prepare(job: Any) -> None:
+        seen.append(job)
+        job.stage = "ready"
+
+    monkeypatch.setattr(home.library, "prepare", prepare)
+    answered = call(
+        home.port,
+        "POST",
+        "/prepare",
+        {"source": "https://news.example/cheap", "to": "en", "words": True, **SERVER_WRITES},
+        cookie=cookie,
+    )
+    assert seen, answered
+    options = seen[0].options
+    assert not set(SERVER_WRITES) & set(options), options
+    assert options == {"source": "https://news.example/cheap", "to": "en", "words": True}
+
+    # A glossary of the whole text is never priced by the quote, so it is never bought
+    # from here either: the field a page sends stays, and always says no.
+    seen.clear()
+    call(
+        home.port,
+        "POST",
+        "/prepare",
+        {"source": "https://news.example/cheap", "to": "en", "gloss": True},
+        cookie=cookie,
+    )
+    assert seen and seen[0].options["gloss"] is False, seen[0].options
+    assert seen[0].kind == "build" and home.library.stoppable(seen[0]), "nothing run acts on first"
+
+
 # -- the reader: what it is from, beside it ------------------------------------------
 
 

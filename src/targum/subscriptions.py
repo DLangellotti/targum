@@ -162,6 +162,7 @@ def shown(
     language: str = "en",
 ) -> list[dict[str, Any]]:
     """Every subscription of this reader's that is not stopped, as the tab draws it."""
+    _settle(store, person_id)
     series_rows = _series_rows(schedule, public, language)
     out = []
     for row in store.subscriptions(person_id):
@@ -251,6 +252,7 @@ def one(
     row = store.subscription(person_id, sub_id)
     if row is None:
         return None
+    _settle(store, person_id)
     row = {**row, "latest": None, "new": 0}
     series_rows = _series_rows(schedule, public, language)
     out = _shown_row(store, person_id, row, series_rows, month_from=month_from, now_ms=now_ms)
@@ -701,10 +703,15 @@ class Readied:
         )
 
 
-def _settle(store: Store) -> int:
-    """Items whose build has ended: ready to open, or failed. Read off the job rows."""
+def _settle(store: Store, person_id: int | None = None) -> int:
+    """Items whose build has ended: ready to open, failed, or cancelled by its reader.
+    Read off the job rows. With `person_id`, only that reader's: what their tab and a
+    subscription's page do before they draw, so a build cancelled a minute ago is not
+    drawn as building until the next round (#707)."""
     done = 0
     for item in store.sub_items_in(("building",)):
+        if person_id is not None and int(item["person"]) != person_id:
+            continue
         job = store.job(str(item["job"])) if item["job"] else None
         if job is None:
             continue
@@ -723,6 +730,15 @@ def _settle(store: Store) -> int:
                 str(item["key"]),
                 state="failed",
                 why=str(job["error"] or job["blocked"] or "")[:200],
+            )
+            done += 1
+        elif stage == "cancelled":
+            # The reader cancelled it while it waited, or stopped it part way
+            # (targum-internal#694, #707): listed with a press, as a pause lists what
+            # waits, and never built again by itself. What it settled to — nothing, or
+            # the seconds it heard — is on its job row, so the cap already counts it.
+            store.set_sub_item(
+                int(item["subscription"]), str(item["key"]), state="listed", why="cancelled"
             )
             done += 1
     return done
@@ -770,6 +786,11 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
             report.waiting.append((key, "cap"))
             continue
         job = library.jobs.get(str(item["job"])) if item["job"] else None
+        if job is not None and job.stage == "cancelled":
+            # Cancelled between rounds, before it was marked building (#707): the
+            # reader's word stands, and it waits for their own press.
+            store.set_sub_item(sub_id, key, state="listed", why="cancelled")
+            continue
         if job is not None and job.stage in library.PRESSED:
             store.set_sub_item(sub_id, key, state="building")
             continue

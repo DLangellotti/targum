@@ -720,7 +720,12 @@ def test_a_find_whose_video_was_refused_is_retired_for_everyone(store: Store) ->
     url = "https://www.youtube.com/watch?v=lTIVoa-PMNc"
     found = keep(store, url, {"בית": 96, "ספר": 4}, medium="video")
     library = SimpleNamespace(store=store)
-    job = SimpleNamespace(options={"via": "find", "find": found})
+    # A job naming the find whose source is somewhere else retires nothing
+    # (targum-internal#706): only a refusal of the find's own address does.
+    elsewhere = SimpleNamespace(source="https://evil.example/v", options={"find": found})
+    Library._unpool(library, elsewhere, youtube.Refused("Private video."))  # type: ignore[arg-type]
+    assert pool.get(store, found) is not None, "another address never retires a find"
+    job = SimpleNamespace(source=url, options={"via": "find", "find": found})
     Library._unpool(library, job, youtube.EgressDown("We can't reach YouTube right now."))  # type: ignore[arg-type]
     assert pool.get(store, found) is not None
     Library._unpool(library, job, youtube.Refused("Private video."))  # type: ignore[arg-type]

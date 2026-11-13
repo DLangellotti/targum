@@ -331,24 +331,52 @@ class Speaker:
 
 def credits(language: str = "he") -> list[Speaker]:
     """Every speaker whose recordings targum keeps, most words first, with each file:
-    what `/credits` lists. A speaker under two licences is two rows."""
-    manifest = load(language)
-    if manifest is None:
-        return []
-    groups: dict[tuple[str, str, str], list[Recording]] = {}
-    for one in manifest.recordings:
-        if one.path(language).is_file():
-            groups.setdefault((one.speaker, one.licence, one.licence_url), []).append(one)
-    rows = [
-        Speaker(name, name_licence, url, tuple(sorted(found, key=lambda r: r.word)))
-        for (name, name_licence, url), found in groups.items()
-    ]
-    return sorted(rows, key=lambda row: (-len(row.recordings), row.name, row.licence))
+    what `/credits` lists. A speaker under two licences is two rows.
+
+    Worked out once per manifest and per set of files on disk (targum-internal#704):
+    `/credits/words` is open to strangers, and reading the manifest and asking for every
+    file each call let a loop of requests keep a core busy. The folder's own stamp
+    changes when a recording is added or removed, so a file gone is heard without a
+    restart, as `index` hears a new manifest."""
+    found = _credited(language)
+    return list(found[0]) if found else []
 
 
 def credited(key: str, language: str = "he") -> Speaker | None:
     """One row of `credits` by its `Speaker.key`, or None for a key no row has."""
-    return next((row for row in credits(language) if row.key == key), None)
+    found = _credited(language)
+    return found[1].get(key) if found else None
+
+
+def _credited(language: str) -> tuple[tuple[Speaker, ...], dict[str, Speaker]] | None:
+    path = manifest_path(language)
+    try:
+        stat = path.stat()
+        files = path.parent.stat()
+    except OSError:
+        return None
+    return _credits(language, str(path), stat.st_mtime_ns, stat.st_size, files.st_mtime_ns)
+
+
+@cache
+def _credits(
+    language: str, where: str, stamp: int, size: int, files: int
+) -> tuple[tuple[Speaker, ...], dict[str, Speaker]] | None:
+    manifest = load(language)
+    if manifest is None:
+        return None
+    groups: dict[tuple[str, str, str], list[Recording]] = {}
+    for one in manifest.recordings:
+        if one.path(language).is_file():
+            groups.setdefault((one.speaker, one.licence, one.licence_url), []).append(one)
+    rows = sorted(
+        (
+            Speaker(name, name_licence, url, tuple(sorted(found, key=lambda r: r.word)))
+            for (name, name_licence, url), found in groups.items()
+        ),
+        key=lambda row: (-len(row.recordings), row.name, row.licence),
+    )
+    return tuple(rows), {row.key: row for row in rows}
 
 
 # --- fetching (the laptop, once) ---------------------------------------------------------

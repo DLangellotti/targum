@@ -1452,6 +1452,37 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
 #: description — and never taken from a request (`/prepare` drops it).
 NAMED = "named"
 
+#: Every field a page sends `/prepare` (targum-internal#706), and nothing else: the Add
+#: page (`add.js` `options`, `withTranslation`, `withTranscript`, the post form, Read
+#: the pictures), `bring.js` and the Library's Build (`library.js`). Everything else on a
+#: job is the server's to write, and a request naming it was obeyed: `find` retired a
+#: shared find for everyone, `via` counted as a find opened, and `voice` with `folder`
+#: and `section` voiced a section as a build that claimed no credits, past `/voice`'s
+#: own claim. The chat and the connector make their jobs in-process, never through here.
+PREPARE_FIELDS = frozenset(
+    {
+        "to",
+        "from",
+        "words",
+        "gloss",
+        "source",
+        "name",
+        "content",
+        "upload",
+        "uploads",
+        "came_from",
+        "force_machine",
+        "translations",
+        "translationName",
+        "translationContent",
+        "transcriptName",
+        "transcriptContent",
+        "brought",
+        "again",
+        "pictures",
+    }
+)
+
 
 def named(
     *, show: str = "", presenter: str = "", by: str = "", date: int = 0, page: str = ""
@@ -6410,6 +6441,11 @@ class Library:
         try:
             from .finds import pool as finds_pool
 
+            # Only a refusal of the find's own address (targum-internal#706): a job that
+            # names a find and fetched something else says nothing about that find.
+            kept = finds_pool.get(self.store, int(found))
+            if kept is None or kept.url != job.source:
+                return
             if finds_pool.retire(self.store, int(found), "refused"):
                 log.info("find %s retired: %s", found, error.message)
         except Exception:  # noqa: BLE001 - the reader's sentence matters more
@@ -10858,8 +10894,9 @@ class Handler(BaseHTTPRequestHandler):
         # The posts that mail a link to an address the post chose
         # (targum-internal#688). A form on another site could send one, which mails a
         # link nobody asked for and counts it against the visitor's address. A current
-        # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser or curl
-        # sends nothing and is let through, since the header is what tells them apart.
+        # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser names
+        # its `Origin` instead (#705), and curl sends neither and is let through.
+        # `_cross_site` says why `Origin: null` passes.
         # Both refusals leave the body unread, so the connection closes after them.
         if route in MAILING_POSTS and self._cross_site():
             self.close_connection = True
@@ -14362,10 +14399,35 @@ class Handler(BaseHTTPRequestHandler):
         return "he"
 
     def _cross_site(self) -> bool:
-        """Whether the browser says this request came from another site. Same-origin,
-        same-site, `none` (typed or bookmarked) and an absent header are all ours to
-        answer."""
-        return (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site"
+        """Whether the browser says this request came from another site.
+
+        `Sec-Fetch-Site` decides wherever a browser sends it: `cross-site` is another
+        site, and same-origin, same-site and `none` (typed or bookmarked) are ours. It is
+        never second-guessed by `Origin`, because every page here sends
+        `Referrer-Policy: no-referrer`, under which a browser's own same-origin form post
+        says `Origin: null` (qa-claude on targum#1209: Chromium, Firefox and WebKit).
+
+        A browser that sends no `Sec-Fetch-Site` — Safari before 16.4, older Firefox and
+        Chromium — still names a cross-origin post's `Origin` (targum-internal#705), so
+        there an `Origin` that is present and is not one of our names is another site.
+        `null` passes there: the same old Safari says it for our own forms under
+        no-referrer, and cannot be told from a sandboxed frame. No `Origin` (curl) passes.
+        """
+        fetched = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if fetched:
+            return fetched == "cross-site"
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin or origin.lower() == "null":
+            return False
+        try:
+            host = urlparse(origin).hostname or ""
+        except ValueError:
+            return True
+        if not host:
+            return True
+        asked = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip().lower()
+        named = {host, f"[{host}]"}  # `urlparse` drops an IPv6 address's brackets
+        return not named & self.hosts and asked not in named
 
     def _json_body(self) -> bool:
         """Whether the post names its body as JSON, whatever parameters follow."""
@@ -16852,6 +16914,17 @@ class Handler(BaseHTTPRequestHandler):
         """Price a build, and say what it will take before anything is spent."""
         from .translate.prompts import INTO, READING
 
+        # Only what a page sends (`PREPARE_FIELDS`, targum-internal#706). `again` names
+        # the brought post whose pictures are read, and means nothing without `brought`:
+        # on its own it would be `run_again`'s list of lines.
+        payload = {key: value for key, value in payload.items() if key in PREPARE_FIELDS}
+        if not isinstance(payload.get("brought"), dict):
+            payload.pop("again", None)
+        # Never a glossary of the whole text from here: no page asks for one, and the
+        # quote never prices it (qa-claude on targum#1209). `targum build --gloss` does.
+        if "gloss" in payload:
+            payload["gloss"] = False
+
         # A picker is not a boundary. The page offers three languages in and two out
         # because those are the pairs an upload has been taken end to end in; a request
         # naming anything else is refused here rather than half-built.
@@ -16987,9 +17060,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
-        # What a source is called and whose it is (targum-internal#691) is written by the
-        # server from what it already holds, never taken from a request.
-        payload = {key: value for key, value in payload.items() if key != NAMED}
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),

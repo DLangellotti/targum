@@ -275,6 +275,40 @@ def test_a_due_item_is_claimed_as_a_subscription_job_through_the_press(
     assert item["state"] == "ready" and item["reader"] == "/reader/a-video/reader/index.html"
 
 
+def test_a_cancelled_or_stopped_build_settles_its_item(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A subscription build its reader cancelled or stopped (#694) ends as `cancelled`,
+    and its item never stayed `building` for good (targum-internal#707): it is listed
+    with a press, as a pause lists what waits, and never built again by itself. The cap
+    counts what the build settled to — nothing for a cancel, the seconds heard for a
+    stop."""
+    library, store, me = a_library(tmp_path, monkeypatch)
+    sub = due(store, me, "v1", "v2")
+    assert subs.get_ready(library, store).started == ["v1", "v2"]
+    jobs = {item["key"]: item["job"] for item in store.sub_items(sub)}
+    # v1 is cancelled while it waits: everything it held goes back.
+    assert library.cancel(library.jobs[jobs["v1"]]) == "cancelled"
+    # v2 was stopped part way, settled at the minute it heard (`_stopped`).
+    with store.write() as db:
+        db.execute("UPDATE job SET stage = 'cancelled', length = 60 WHERE id = ?", (jobs["v2"],))
+    library.jobs[jobs["v2"]].stage = "cancelled"
+    # Its page says so at once, not at the next round.
+    page = subs.one(store, me, sub, month_from=library._month_from(), now_ms=NOW)
+    assert page is not None
+    assert [(one["state"], one["building"]) for one in page["items"]] == [("listed", False)] * 2
+    with store.write() as db:
+        db.execute("UPDATE sub_item SET state = 'building' WHERE subscription = ?", (sub,))
+    readied = subs.get_ready(library, store)
+    assert readied.settled == 2 and readied.started == []
+    states = {item["key"]: (item["state"], item["why"]) for item in store.sub_items(sub)}
+    assert states == {"v1": ("listed", "cancelled"), "v2": ("listed", "cancelled")}
+    assert store.month_credits(me, sub, library._month_from()) == 1
+    again = subs.get_ready(library, store)
+    assert again.started == [] and again.settled == 0, "never built again by itself"
+    assert {item["state"] for item in store.sub_items(sub)} == {"listed"}
+
+
 def test_an_item_past_the_cap_waits_and_goes_when_the_cap_is_raised(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
