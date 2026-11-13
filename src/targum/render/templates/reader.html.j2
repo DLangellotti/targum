@@ -809,6 +809,24 @@
   </div>
   {% endif %}
 </section>
+{% elif heard_from %}
+{#- Where a podcast episode or a video is from (targum-internal#691; design.md §12, "A
+    suggested text says where it comes from"): the post head's anatomy — the show's
+    letter in the disc, never a picture fetched from its site; the show; who makes it and
+    the day; and the episode's own page, where the feed gave one. A film already links
+    its home under the picture, so its head does not say it twice. -#}
+<section class="post from-head" aria-label="{{ t("reader.from.label", "Where it's from") }}">
+  <header class="post-head">
+    <span class="post-face letter" aria-hidden="true" lang="{{ source_language }}">{{ heard_from.letter }}</span>
+    <span class="post-who">
+      <bdi class="post-name" dir="auto">{{ heard_from.show }}</bdi>
+      {% if heard_from.by or heard_from.day %}<span class="post-meta">{% if heard_from.by %}<bdi class="post-handle" dir="auto">{{ heard_from.by }}</bdi>{% endif %}{% if heard_from.day %}{% if heard_from.by %}<span aria-hidden="true">·</span>{% endif %}<time datetime="{{ heard_from.stamp }}" dir="auto">{{ heard_from.day }}</time>{% endif %}</span>{% endif %}
+    </span>
+    {% if heard_from.page and not spoken_home %}
+    <a class="post-home" href="{{ heard_from.page }}" target="_blank" rel="noreferrer noopener">{{ t("reader.bar.the-original", "The original") }}<span aria-hidden="true"> ↗</span></a>
+    {% endif %}
+  </header>
+</section>
 {% endif %}
 {#- A chapter nobody has paid for yet. It says so, once, above the text, and offers to
     get it; the source is still there to read and mark. The translation column is left
@@ -971,7 +989,7 @@
       <span class="lv-cover" aria-hidden="true"><span class="lv-letter" lang="{{ source_language }}">{{ (title or "·")[:1] }}</span></span>
       <p class="lv-title" lang="{{ source_language }}" dir="{{ source_direction }}">{{ title }}</p>
       <p class="lv-sub" dir="ltr">
-        <span class="lv-place"><span class="lv-where">{% if english %}<bdi lang="{{ english_lang|default('en') }}">{{ english }}</bdi>{% if not standalone %} · {% endif %}{% endif %}{% if not standalone %}{{ part_word }}{% endif %}</span><span class="lv-paused" hidden> · {{ t("reader.listen.paused", "paused") }}</span></span>
+        <span class="lv-place"><span class="lv-where">{% if heard_from %}<bdi class="lv-show" dir="auto">{{ heard_from.show }}</bdi>{% if english or not standalone %} · {% endif %}{% endif %}{% if english %}<bdi lang="{{ english_lang|default('en') }}">{{ english }}</bdi>{% if not standalone %} · {% endif %}{% endif %}{% if not standalone %}{{ part_word }}{% endif %}</span><span class="lv-paused" hidden> · {{ t("reader.listen.paused", "paused") }}</span></span>
         <span class="lv-saved" hidden><svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="7.5"></circle><path d="M6.5 10.2l2.4 2.4 4.6-4.8"></path></svg>{{ t("reader.listen.saved", "Saved") }}</span>
       </p>
     </div>

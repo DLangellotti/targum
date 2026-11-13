@@ -58,7 +58,9 @@ SCHEMA = """
 -- `series`, `part` and `season` say which numbered part of a series a find is (design.md
 -- §12, "A suggestion never starts a series in the middle", 2026-11-03; `parts.py`): `part`
 -- 0 where it is none, and -1 on a row kept before it was worked out, which is then read
--- off the title.
+-- off the title. `page` is a podcast episode's own page as its feed links it, where `url`
+-- is its audio, and `author` who makes the show as the reviewed list names them
+-- (targum-internal#691); both empty where nothing said.
 CREATE TABLE IF NOT EXISTS find (
   id         INTEGER PRIMARY KEY,
   language   TEXT    NOT NULL,
@@ -85,7 +87,9 @@ CREATE TABLE IF NOT EXISTS find (
   licence_from TEXT  NOT NULL DEFAULT '',
   series     TEXT    NOT NULL DEFAULT '',
   part       INTEGER NOT NULL DEFAULT -1,
-  season     INTEGER NOT NULL DEFAULT 0
+  season     INTEGER NOT NULL DEFAULT 0,
+  page       TEXT    NOT NULL DEFAULT '',
+  author     TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS find_pick ON find (language, screen, rung, expires);
 CREATE INDEX IF NOT EXISTS find_digest ON find (digest);
@@ -198,6 +202,10 @@ class Find:
     #: Which numbered part of a series it is, or None (`parts.py`, design.md §12,
     #: 2026-11-03).
     part: parts.Part | None = None
+    #: A podcast episode's own page, where its feed linked one, and who makes the show
+    #: (targum-internal#691); "" where nothing said.
+    page: str = ""
+    author: str = ""
     bag: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     @property
@@ -212,7 +220,7 @@ class Find:
 _COLUMNS = (
     "id, language, source, url, title, host, publisher, published, medium, seconds, tokens,"
     " unresolved, credits, topics, rung, found, expires, rate, licence, licence_url, licence_from,"
-    " series, part, season"
+    " series, part, season, page, author"
 )
 
 
@@ -240,6 +248,8 @@ def _find(row: sqlite3.Row, bag: Mapping[str, int] | None = None) -> Find:
         licence_url=str(row["licence_url"] or ""),
         licence_from=str(row["licence_from"] or ""),
         part=_part(row),
+        page=str(row["page"] or ""),
+        author=str(row["author"] or ""),
         bag=bag or {},
     )
 
@@ -338,6 +348,8 @@ def add(
     licence_url: str = "",
     licence_from: str = "",
     part: parts.Part | None | Literal["title"] = "title",
+    page: str = "",
+    author: str = "",
     at: int | None = None,
 ) -> int:
     """Keep one find and its lemma counts, in one transaction. Its id; or 0 where the
@@ -355,8 +367,9 @@ def add(
             cursor = db.execute(
                 "INSERT INTO find (language, source, url, digest, title, host, publisher,"
                 " published, medium, seconds, tokens, unresolved, credits, topics, rung, found,"
-                " expires, screen, rate, licence, licence_url, licence_from, series, part, season)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " expires, screen, rate, licence, licence_url, licence_from, series, part, season,"
+                " page, author)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     language,
                     source,
@@ -383,6 +396,8 @@ def add(
                     series,
                     number,
                     season,
+                    page[:500] if page.startswith(("https://", "http://")) else "",
+                    author[:120],
                 ),
             )
         except sqlite3.IntegrityError:

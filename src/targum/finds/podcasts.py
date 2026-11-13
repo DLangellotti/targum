@@ -38,6 +38,7 @@ never its words, which were never kept.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -197,6 +198,26 @@ def shows(path: Path | None = None) -> list[Show]:
     return out
 
 
+def _page(link: str, audio: str) -> str:
+    """An episode's own page: the feed item's `<link>` where it is a web page and not the
+    audio again, else ""."""
+    link = (link or "").strip()
+    if not link.startswith(("https://", "http://")) or link == (audio or "").strip():
+        return ""
+    return link
+
+
+@functools.lru_cache(maxsize=1)
+def _authors() -> dict[str, str]:
+    return {show.name: show.publisher for show in shows() if show.publisher}
+
+
+def author_of(name: str) -> str:
+    """Who makes the show of this name, as the reviewed list says, or "": for a find
+    kept before `find.author` was (targum-internal#691). Read once a process."""
+    return _authors().get(name, "") if name else ""
+
+
 # -- shows to propose ----------------------------------------------------------------
 
 #: Apple's public podcast directory search (plan §1.3): free, no key, JSON.
@@ -349,6 +370,10 @@ class Episode:
     season: int = 0
     episode_type: str = ""
     show_type: str = ""
+    #: The episode's own page, as the feed's `<link>` names it, or "" (targum-internal
+    #: #691): where the card's line and the reader's head send a reader, rather than to
+    #: the bare audio file.
+    page: str = ""
 
     @property
     def part(self) -> parts.Part | None:
@@ -711,6 +736,7 @@ def refresh(
                 season=item.season,
                 episode_type=item.episode_type,
                 show_type=kind,
+                page=_page(item.link, item.enclosure),
             )
             if pool.known(store, episode.url):
                 # Kept before parts were worked out: the feed says now what the title
@@ -866,6 +892,8 @@ def _keep(
         licence_url=show.feed if show.licence else "",
         licence_from="publisher" if show.licence else "",
         part=episode.part,
+        page=episode.page,
+        author=show.publisher,
         at=when,
     )
     if added:
