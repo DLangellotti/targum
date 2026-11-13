@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- On Your Words, the word said is the last one pressed (targum-internal#713). `vocab.js`
+  played whichever `/say-word` clip came back last, so a slow answer for the first word
+  stopped the second and said the first. A clip that comes back after another word was
+  pressed is now kept for next time but not played. Four browser tests that slept for a
+  fixed time and then asserted, and that failed once each on CI between 2026-11-10 and
+  11-13, now wait for the response or the page's state instead: the Add page's pairing
+  (and the three other tests that price on Add), the reader's Look it up, two Hear presses
+  on Your Words, and the account page's held `/account/me`, which could stay held for good
+  when Playwright handed the route over after `goto` returned. Each passed 20 of 20 alone.
+  #649 and #663 did not recur. No spend, no new strings.
 - Russian words are checked against OpenRussian's tables at page-build and count time
   (`annotate.russian_check`; targum-internal#708, #709, #710, from ling-ru's analyser read
   of 2026-11-13). A short adjective or participle no longer has a case (строга, пусты,

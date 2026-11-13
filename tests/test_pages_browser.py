@@ -205,6 +205,18 @@ def test_the_add_page_wires_its_button(browser, tmp_path: Path) -> None:
 PRICED = {"id": "j1", "title": "A text", "cost": 0.02, "chapters": 1, "buying": 1, "words": 4}
 
 
+def _press_and_wait_for_the_price(page, press: str = "#go") -> None:
+    """Press `press` and return once `/prepare` has been answered.
+
+    Waited on, not slept on (targum-internal#713): a fixed 400–500 ms after the press failed
+    once on a slow runner with `/prepare` never asked, because the page reads the files
+    it was given before it asks. The route's answer is what puts the request in `asked`,
+    so the response is the moment the assertions can read it. A press that never asks
+    still fails, as Playwright's timeout."""
+    with page.expect_response(lambda response: "/prepare" in response.url):
+        page.click(press)
+
+
 def test_pasted_text_reaches_the_server_when_the_button_is_pressed(browser, tmp_path: Path) -> None:
     """The whole of what a reader does on this page, end to end on the client's side.
 
@@ -233,8 +245,7 @@ def test_pasted_text_reaches_the_server_when_the_button_is_pressed(browser, tmp_
     open_page.route("http://add.test/**", answer)
     open_page.goto("http://add.test/add")
     open_page.fill("#given", "בארץ־ישראל קם העם היהודי")
-    open_page.click("#go")
-    open_page.wait_for_timeout(400)
+    _press_and_wait_for_the_price(open_page)
     context.close()
 
     assert asked, "pressing Add asked for nothing"
@@ -312,8 +323,7 @@ def test_a_link_in_the_box_is_priced_as_a_link(browser) -> None:
     open_page.fill("#given", "https://www.kan.org.il/content/kan/podcasts/p-1/12345/")
     said = open_page.text_content("#understood")
     summary = open_page.is_visible("#summary")
-    open_page.click("#go")
-    open_page.wait_for_timeout(400)
+    _press_and_wait_for_the_price(open_page)
     context.close()
 
     assert said and said.startswith("Thanks for the link"), said
@@ -365,10 +375,11 @@ def test_a_text_and_its_translation_are_paired_by_their_script(browser) -> None:
             {"name": "hebrew.txt", "mimeType": "text/plain", "buffer": HEBREW},
         ],
     )
-    open_page.wait_for_timeout(300)
+    # Both files are read before the box can pair them; it says so by pressing I have one
+    # (a button in a row that need not be open, so attached rather than visible).
+    open_page.wait_for_selector('[data-how="mine"][aria-pressed="true"]', state="attached")
     mine = open_page.get_attribute('[data-how="mine"]', "aria-pressed")
-    open_page.click("#go")
-    open_page.wait_for_timeout(500)
+    _press_and_wait_for_the_price(open_page)
     context.close()
 
     assert mine == "true", "the box pressed I have one"
@@ -420,8 +431,7 @@ def test_a_paste_is_read_in_the_language_chosen(browser) -> None:
     open_page.click("#change")
     open_page.click('[data-how="mine"]')
     note = open_page.text_content("#how-note")
-    open_page.click("#go")
-    open_page.wait_for_timeout(400)
+    _press_and_wait_for_the_price(open_page)
     context.close()
 
     assert got["from"] == "it", got

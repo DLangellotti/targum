@@ -121,6 +121,15 @@ def open_account(chromium, answers: list[Any]):
     page = context.new_page()
     page.route(f"{SITE}/**", answer)
     page.goto(SITE + "/you")  # returns at `load`: every script on the page has run
+    # The page has asked by now, but Playwright may not yet have handed the route to
+    # `answer`: on a slow runner the callback ran after `goto` returned, nothing was held
+    # yet, and the question stayed out until `networkidle` gave up at 30 s
+    # (targum-internal#713). So wait until it is held, then answer it.
+    waited = 0
+    while not held and waited < 10_000:
+        page.wait_for_timeout(20)
+        waited += 20
+    assert held, "the page never asked who was signed in"
     for reply in held:
         reply()
     page.wait_for_load_state("networkidle")
