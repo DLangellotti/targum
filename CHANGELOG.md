@@ -14,6 +14,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- The Russian interface reads better in 49 places (ling-ru's sweep, loop item 16 of
+  2026-11-13). "Known" is «знаю» or «вы знаете» everywhere, never «знакомо» or
+  «известно» (21); Revival-era Hebrew is «Возрождённый иврит», no longer «эпохи
+  Возрождения», which is the Renaissance (4); eight errors and hints get back the next
+  step the Russian had dropped; Telegram's «ваша полка» is «Ваши тексты», and chat, Your
+  Progress and full screen have one name each across the pages. One binyan label had a
+  Latin "h" in it. English is unchanged, so `strings/from/ru.json` is too. No spend.
 - On Your Words, the word said is the last one pressed (targum-internal#713). `vocab.js`
   played whichever `/say-word` clip came back last, so a slow answer for the first word
   stopped the second and said the first. A clip that comes back after another word was
