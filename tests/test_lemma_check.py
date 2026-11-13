@@ -273,3 +273,347 @@ def test_a_lemma_is_written_in_ktiv_male(pointed: str, written: str) -> None:
     from targum.annotate.lemma_check import male
 
     assert male(pointed) == written
+
+
+# -- ling-he's analyser read of 2026-11-13 (targum-internal#697) ------------------------
+#
+# Each row is a token exactly as DICTA stored it in the laptop's targum-out: surface,
+# lemma, part of speech, binyan, root, built, feats, lead and prefixes.
+
+Row = tuple[str, str, str, str | None, str | None, str | None, str, int, list[str]]
+
+
+def _sentence(*rows: Row) -> list[Token]:
+    """A segment's tokens as DICTA stored them, mended for the page."""
+    tokens = [
+        Token(
+            start=0,
+            end=len(surface),
+            surface=surface,
+            lemma=lemma,
+            band=3,
+            split=built is not None,
+            pos=pos,
+            binyan=binyan,
+            root=root,
+            built=built,
+            feats=feats,
+            syntax=Syntax(head=-1, relation="root", lead=lead, prefixes=tuple(prefixes)),
+        )
+        for surface, lemma, pos, binyan, root, built, feats, lead, prefixes in rows
+    ]
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator=DICTA,
+        method="frequency",
+        method_note="",
+        tokens={"s1": tokens},
+    )
+    return mended(annotation).tokens["s1"]
+
+
+def _rows(*rows: Row) -> list[dict[str, object]]:
+    """The same tokens as `annotation.json` stores them, mended for the counts."""
+    from targum.annotate.lemma_check import mend_rows
+
+    return mend_rows(
+        [
+            {
+                "surface": surface,
+                "lemma": lemma,
+                "pos": pos,
+                "binyan": binyan,
+                "root": root,
+                "built": built,
+                "feats": feats,
+                "syntax": {"lead": lead, "prefixes": prefixes},
+            }
+            for surface, lemma, pos, binyan, root, built, feats, lead, prefixes in rows
+        ]
+    )
+
+
+PAST_3MS = "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Past"
+PAST_3MP = "UPOS=VERB|Person=3|Gender=Masc|Number=Plur|Tense=Past"
+FUT_3MS = "UPOS=VERB|Person=3|Gender=Masc|Number=Sing|Tense=Fut"
+FUT_1MS = "UPOS=VERB|Person=1|Gender=Masc|Number=Sing|Tense=Fut"
+
+
+# a. A lemma of one strong letter is checked like any other.
+
+
+@pytest.mark.parametrize(
+    ("lemma", "word", "pos", "feats", "wanted"),
+    [
+        ("הביא", "היה", "VERB", PAST_3MS, Mend("היה", "היה", "פעל")),
+        ("אין", "היה", "AUX", PAST_3MS, Mend("היה", "", "")),
+        ("יש", "היו", "AUX", PAST_3MP, Mend("היה", "", "")),
+        ("בא", "טוֹב", "ADJ", "UPOS=ADJ|Gender=Masc|Number=Sing", Mend("טוב", "", "")),
+    ],
+)
+def test_a_lemma_of_one_strong_letter_is_checked(
+    lemma: str, word: str, pos: str, feats: str, wanted: Mend
+) -> None:
+    assert refused(lemma, word, pos)
+    assert checked(lemma, word, 0, pos, feats) == wanted
+
+
+@pytest.mark.parametrize(
+    ("lemma", "word", "lead", "pos"),
+    [
+        ("בא", "הבאה", 1, "ADJ"),  # "the next"
+        ("בא", "תבוא", 0, "VERB"),
+        ("הביא", "אביא", 0, "VERB"),  # the hif'il's he, gone in the future
+        ("הביא", "להביא", 0, "VERB"),
+        ("היה", "יהיה", 0, "AUX"),
+        ("היה", "הייתי", 0, "AUX"),
+        ("היה", "להיות", 0, "AUX"),
+        ("ראה", "לראות", 0, "VERB"),
+        ("יצא", "לצאת", 0, "VERB"),
+        ("הודה", "מודה", 0, "VERB"),
+        ("איש", "אנשים", 0, "NOUN"),
+        ("יום", "ימים", 0, "NOUN"),
+        ("אח", "אחיו", 0, "NOUN"),
+        ("פה", "פי", 0, "NOUN"),
+        ("חי", "לחיות", 0, "VERB"),
+    ],
+)
+def test_a_lemma_of_one_strong_letter_the_word_spells_stands(
+    lemma: str, word: str, lead: int, pos: str
+) -> None:
+    base = word[lead:]
+    assert not refused(lemma, base, pos)
+
+
+def test_haya_is_not_brought_in_its_sentences() -> None:
+    # "היה כאן מישהו", סימן טוב: היה came back as הביא, "brought".
+    was, here, someone = _sentence(
+        ("היה", "הביא", "VERB", "הפעיל", "בוא", None, PAST_3MS, 0, []),
+        ("כאן", "כאן", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("מישהו", "מישהו", "NOUN", None, None, None, "UPOS=NOUN|Number=Sing", 0, []),
+    )
+    assert (was.lemma, was.binyan, was.root) == ("היה", "פעל", "היה")
+    assert (here.lemma, someone.lemma) == ("כאן", "מישהו")
+
+
+def test_there_were_is_haya_not_there_is_not() -> None:
+    # "והיו ספסלים" under אין, "there is not"; "היו עצים" under יש.
+    were, benches = _sentence(
+        ("והיו", "אין", "AUX", "פעל", "אין", "ו and + היו", PAST_3MP, 1, ["CCONJ"]),
+        ("ספסלים", "ספסל", "NOUN", None, None, None, "UPOS=NOUN|Number=Plur", 0, []),
+    )
+    assert (were.lemma, were.binyan, were.root, were.pos) == ("היה", None, None, "AUX")
+    assert were.built == "ו and + היו", "the conjunction stays cut"
+    assert benches.lemma == "ספסל"
+    (were,) = _sentence(("היו", "יש", "AUX", None, None, None, PAST_3MP, 0, []))
+    assert were.lemma == "היה"
+
+
+def test_good_morning_is_not_come() -> None:
+    # "בּוֹקֶר טוֹב", בבית-קפה: טוֹב under בא, "come; arrive", whose ב is in it.
+    morning, good = _sentence(
+        ("בּוֹקֶר", "בוקר", "NOUN", None, None, None, "UPOS=NOUN|Number=Sing", 0, []),
+        ("טוֹב", "בא", "ADJ", None, None, None, "UPOS=ADJ|Gender=Masc|Number=Sing", 0, []),
+    )
+    assert (morning.lemma, good.lemma) == ("בוקר", "טוב")
+
+
+# b. An unpointed qal future filed under its nif'al.
+
+
+def test_an_unpointed_future_without_the_nifals_yod_is_the_qal() -> None:
+    # Ktiv male writes a nif'al future's yod after ת, י and נ: תישכח. תשכח is שכח's.
+    found = checked("נשכח", "תשכח", 0, "VERB", FUT_3MS)
+    assert found == Mend("שכח", "שכח", "פעל")
+
+
+def test_a_first_person_future_needs_its_object() -> None:
+    # After א the nif'al writes no yod: אשכח is both, and an object settles it.
+    assert checked("נשכח", "אשכח", 0, "VERB", FUT_1MS) is None
+    found = checked("נשכח", "אשכח", 0, "VERB", FUT_1MS, objected=True)
+    assert found is not None and found.lemma == "שכח"
+
+
+def test_a_pointed_nifal_future_stays_the_nifal() -> None:
+    assert checked("נשכח", "תִּשָּׁכַח", 0, "VERB", FUT_3MS) is None
+
+
+def test_i_will_not_forget_you() -> None:
+    # "לא אשכח אותך", סימון התנין: under נשכח, "be forgotten".
+    _, forget, you = _sentence(
+        ("לא", "לא", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("אשכח", "נשכח", "VERB", None, None, None, FUT_1MS, 0, []),
+        ("אותך", "את", "ADP", None, None, "אותך + with a pronoun on the end", "UPOS=ADP", 0, []),
+    )
+    assert (forget.lemma, forget.binyan, forget.root) == ("שכח", "פעל", "שכח")
+    assert you.lemma == "את"
+
+
+def test_do_not_forget_me() -> None:
+    # "אל תשכח אותי", סימון התנין.
+    _, forget, _ = _sentence(
+        ("אל", "אל", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("תשכח", "נשכח", "VERB", None, None, None, FUT_3MS, 0, []),
+        ("אותי", "את", "ADP", None, None, "אותי + with a pronoun on the end", "UPOS=ADP", 0, []),
+    )
+    assert forget.lemma == "שכח"
+
+
+def test_i_will_find_you_a_room() -> None:
+    # "אני אמצא לך חדר", סימן טוב: under נמצא, "is located". A dative and a noun after.
+    rows: tuple[Row, ...] = (
+        ("אני", "אני", "PRON", None, None, None, "UPOS=PRON|Person=1", 0, []),
+        ("אמצא", "נמצא", "VERB", "נפעל", "מצא", None, FUT_3MS, 0, []),
+        ("לך", "ל", "ADP", None, None, "לך + with a pronoun on the end", "UPOS=ADP", 0, ["ADP"]),
+        ("חדר", "חדר", "NOUN", None, None, None, "UPOS=NOUN|Number=Sing", 0, []),
+    )
+    find = _sentence(*rows)[1]
+    assert (find.lemma, find.binyan, find.root) == ("מצא", "פעל", "מצא")
+    assert _rows(*rows)[1]["lemma"] == "מצא", "and the count files it the same"
+
+
+def test_a_first_person_future_alone_keeps_the_nifal() -> None:
+    # "אשכח אבוא": no object, and אשכח is the nif'al's too.
+    forget, _ = _sentence(
+        ("אשכח", "נשכח", "VERB", None, None, None, FUT_1MS, 0, []),
+        ("אבוא", "בא", "VERB", None, None, None, FUT_1MS, 0, []),
+    )
+    assert forget.lemma == "נשכח"
+
+
+def test_we_will_not_be_friends() -> None:
+    # "לא נהיה חברים", ארי האריה: נהיה, "we will be", stood as its own lemma, which is
+    # the nif'al "became". DICTA read the future; the nif'al's would be ניהיה.
+    _, be, friends = _sentence(
+        ("לא", "לא", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("נהיה", "נהיה", "AUX", None, None, None, "UPOS=AUX|Person=1|Number=Plur|Tense=Fut", 0, []),
+        ("חברים", "חבר", "NOUN", None, None, None, "UPOS=NOUN|Number=Plur", 0, []),
+    )
+    assert (be.lemma, be.pos, be.binyan) == ("היה", "AUX", None)
+    assert friends.lemma == "חבר"
+
+
+# c. Closed-class words filed under another word of the same letters.
+
+
+def test_able_is_not_ability() -> None:
+    (able,) = _sentence(("יָכוֹל", "יכולת", "AUX", None, None, None, "UPOS=AUX|Number=Sing", 0, []))
+    assert able.lemma == "יכול"
+    (able,) = _sentence(("יְכוֹלָה", "יכולת", "AUX", None, None, None, "UPOS=AUX|Number=Sing", 0, []))
+    assert able.lemma == "יכול"
+
+
+def test_we_will_be_able_is_not_a_swindler() -> None:
+    # "וְלֹא נוּכַל לְפַרְסֵם", במערכת: under נוכל, "swindler, con artist".
+    _, able, _ = _sentence(
+        ("וְלֹא", "לא", "ADV", None, None, "ו and + לא", "UPOS=ADV", 1, ["CCONJ"]),
+        ("נוּכַל", "נוכל", "AUX", None, None, None, "UPOS=AUX|Person=1|Number=Plur|Tense=Fut", 0, []),
+        ("לְפַרְסֵם", "פרסם", "VERB", "פיעל", "פרסם", None, "UPOS=VERB", 0, []),
+    )
+    assert (able.lemma, able.pos) == ("יכול", "AUX")
+
+
+def test_beside_is_not_hand() -> None:
+    # "לְיַד הַדּוּכָן", ילד בחוף: "ל to + יד", "hand".
+    (beside,) = _sentence(("לְיַד", "יד", "ADP", None, None, "ל to + יד", "UPOS=ADP", 1, []))
+    assert (beside.lemma, beside.built, beside.split) == ("ליד", None, False)
+    assert beside.syntax is not None and beside.syntax.lead == 0
+    (beside,) = _sentence(("לְיַד", "יד", "ADP", None, None, None, "UPOS=ADP", 0, []))
+    assert beside.lemma == "ליד"
+
+
+def test_between_us_is_between() -> None:
+    (between,) = _sentence(
+        (
+            "בינינו",
+            "ביניים",
+            "ADP",
+            None,
+            None,
+            "בינינו + with a pronoun on the end",
+            "UPOS=ADP",
+            0,
+            [],
+        )
+    )
+    assert between.lemma == "בין"
+
+
+def test_the_same_question_is_not_you() -> None:
+    # "לֹא אוֹתָהּ שָׁאֵלָה", עורך הדין: under את, "you (feminine)".
+    _, same, question = _sentence(
+        ("לֹא", "לא", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("אוֹתָהּ", "את", "PRON", None, None, None, "UPOS=PRON|Person=3|Gender=Fem", 0, []),
+        ("שָׁאֵלָה", "שאלה", "NOUN", None, None, None, "UPOS=NOUN|Number=Sing", 0, []),
+    )
+    assert (same.lemma, same.pos, question.lemma) == ("אותו", "PRON", "שאלה")
+
+
+def test_her_after_a_verb_stays_the_object_marker() -> None:
+    (her,) = _sentence(
+        ("אוֹתָהּ", "את", "ADP", None, None, "אותה + with a pronoun on the end", "UPOS=ADP", 0, [])
+    )
+    assert her.lemma == "את"
+
+
+def test_possible_is_not_enabled() -> None:
+    # "אפשר לומר", סימון התנין: אפשר, "possible", under the pi'el "enabled".
+    possible, say = _sentence(
+        ("אפשר", "אפשר", "VERB", "פיעל", "פשר", None, "UPOS=VERB", 0, []),
+        ("לומר", "אומר", "VERB", None, None, None, "UPOS=VERB", 0, []),
+    )
+    assert (possible.lemma, possible.pos, possible.binyan, possible.root) == (
+        "אפשר",
+        "AUX",
+        None,
+        None,
+    )
+    assert possible.glossed_as == "אפשר"
+    assert (say.lemma, say.binyan) == ("אמר", "פעל")
+
+
+def test_enabled_with_its_tense_or_its_hiriq_stays_the_verb() -> None:
+    (enabled,) = _sentence(("אפשר", "אפשר", "VERB", "פיעל", "פשר", None, PAST_3MS, 0, []))
+    assert enabled.pos == "VERB"
+    (enabled,) = _sentence(("אִפְשֵׁר", "אפשר", "VERB", "פיעל", "פשר", None, "UPOS=VERB", 0, []))
+    assert enabled.pos == "VERB"
+
+
+# d. A verb whose lemma is another of its forms.
+
+
+@pytest.mark.parametrize(
+    ("lemma", "word", "feats", "verb"),
+    [
+        ("שואל", "תֵּשְׁאֲלִי", "UPOS=VERB|Person=3|Number=Plur|Tense=Fut", "שאל"),
+        ("רוצה", "רָצִיתִי", "UPOS=VERB|Person=1|Number=Sing|Tense=Past", "רצה"),
+        ("אומר", "לומר", "UPOS=VERB", "אמר"),
+        ("מכין", "להכין", "UPOS=VERB", "הכין"),
+        ("יבדוק", "אֶבְדּוֹק", "UPOS=VERB|Person=1|Number=Sing|Tense=Fut", "בדק"),
+    ],
+)
+def test_a_verb_under_another_of_its_forms_takes_its_verb(
+    lemma: str, word: str, feats: str, verb: str
+) -> None:
+    found = checked(lemma, word, 0, "VERB", feats)
+    assert found is not None and found.lemma == verb
+
+
+def test_a_present_keeps_its_participle() -> None:
+    # The wrong headword with the right meaning, and the word's own tense (#490).
+    present = "UPOS=VERB|Person=1|Number=Sing|Tense=Pres"
+    assert checked("רוצה", "רוֹצִים", 0, "VERB", present) is None
+    assert checked("רוצה", "רָצִיתִי", 0, "VERB") is None, "no tense said"
+
+
+def test_a_verb_under_its_own_lemma_stands() -> None:
+    assert checked("רצה", "רָצִיתִי", 0, "VERB", "UPOS=VERB|Person=1|Tense=Past") is None
+    assert checked("אמר", "לומר", 0, "VERB", "UPOS=VERB") is None
+    assert checked("שמר", "לשמור", 0, "VERB", "UPOS=VERB") is None
+
+
+@pytest.mark.parametrize("able", ["תּוּכַל", "יוּכַל", "יָכְלָה", "יָכוֹלְתִּי"])
+def test_every_form_of_able_is_able(able: str) -> None:
+    (word,) = _sentence((able, "יכולת", "AUX", None, None, None, "UPOS=AUX", 0, []))
+    assert (word.lemma, word.pos) == ("יכול", "AUX")

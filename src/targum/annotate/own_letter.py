@@ -235,6 +235,72 @@ def _infinitive_of(under: list[tuple[str, str]]) -> tuple[str, str] | None:
     return _named(list(found)) if found else None
 
 
+#: The binyanim with no infinitive of their own: יוּמַר, "it will be said", is no לומר.
+_PASSIVE = frozenset({"פועל", "הופעל"})
+#: The last letters a qal infinitive writes with a holam its future does not have:
+#: לִמְצֹא beside יִמְצָא, לִשְׁמֹעַ beside יִשְׁמַע (targum-internal#699).
+_GUTTURAL_LAST = frozenset("אהחע")
+
+
+@lru_cache(maxsize=1)
+def _future_spellings() -> dict[str, tuple[str, ...]]:
+    """Every he-future of the CC0 table as ktiv male writes it (יִשְׁמֹר → ישמור, יְסַיֵּר →
+    יסייר), to the verbs it is a form of: what an unpointed infinitive is read beside."""
+    from .paradigms import bare, table
+
+    book = table()
+    out: dict[str, set[str]] = {}
+    for lid, verb in book.verbs.items():
+        for form in verb.forms:
+            if not _HE_FUTURE <= set(form.features) or form.ruled:
+                continue
+            units = _marked(form.written)
+            if len(units) < 3 or units[0][0] not in _FUTURE:
+                continue
+            spelled = _male(units) if any(marks for _, marks in units) else bare(form.written)
+            out.setdefault(spelled, set()).add(lid)
+    return {spelled: tuple(sorted(lids)) for spelled, lids in out.items()}
+
+
+def spelled_infinitive(word: str) -> tuple[str, str] | None:
+    """The one verb an unpointed ל-word is the infinitive of, as (lemma in ktiv male,
+    binyan), read beside its he-future in ktiv male (targum-internal#699): ל in place of
+    the future's prefix (לשמור, ישמור; לסייר, יסייר), or לה in place of it for a hif'il,
+    nif'al or hitpa'el (להכין, יכין; להיכנס, ייכנס; להתלבש, יתלבש). A qal whose last
+    letter is a guttural writes a holam its future has not (למצוא, ימצא). None where the
+    word is no infinitive by these, or one of more than one verb."""
+    from .paradigms import table
+
+    if len(word) < 4 or word[0] != LAMED or word in NOT_INFINITIVES:
+        return None
+    book = table()
+    index = _future_spellings()
+    found: set[str] = set()
+    stem = word[1:]
+    for lid in index.get("י" + stem, ()):
+        if book.binyan_of(lid) not in _WITH_HE | _PASSIVE:
+            found.add(lid)
+    if len(stem) >= 4 and stem[-2] == "ו" and stem[-1] in _GUTTURAL_LAST:
+        for lid in index.get("י" + stem[:-2] + stem[-1], ()):
+            if book.binyan_of(lid) == "פעל":
+                found.add(lid)
+    if word.startswith("לה") and len(word) > 4:
+        for lid in index.get("י" + word[2:], ()):
+            if book.binyan_of(lid) in _WITH_HE or book.binyan_of(lid) is None:
+                found.add(lid)
+    return _named(sorted(found)) if found else None
+
+
+def infinitive_of(word: str, surface: str) -> tuple[str, str] | None:
+    """The one verb a ל-word is the infinitive of: by its marks where `surface` is
+    pointed, by its letters (`spelled_infinitive`) where it is not."""
+    marked = _marked(surface)
+    if any(marks for _, marks in marked):
+        under = marked[len(marked) - len(word) :] if len(word) <= len(marked) else marked
+        return _infinitive_of(under) if under and under[0][0] == LAMED else None
+    return spelled_infinitive(word)
+
+
 def _rebuilt(built: str | None, letter: str) -> str | None:
     """`built` with the clitic `letter` given back to the piece after it, or None where
     the line does not end its prefixes on that letter. "" where the word is left alone,
@@ -294,13 +360,15 @@ def own_letter(
     `lead` is how many letters DICTA cut off (`Syntax.lead`), `prefixes` what it tagged
     them (`Syntax.prefixes`), `feats` the features the token carries.
     """
-    if lead < 1 or ADP in prefixes or pos not in ("VERB", "NOUN", "ADJ"):
+    if lead < 1 or pos not in ("VERB", "NOUN", "ADJ"):
         return None
     marked = _marked(surface)
     if len(marked) - lead < 2:
         return None
     letter, marks = marked[lead - 1]
     if letter not in (MEM, LAMED):
+        return None
+    if ADP in prefixes and not _tagged_infinitive(marked, lead, pos, prefixes, feats, surface):
         return None
     rebuilt = _rebuilt(built, letter)
     if rebuilt is None:
@@ -346,6 +414,26 @@ def own_letter(
 
         root = root_for(new_lemma, None, "VERB")
     return Own(rebuilt or None, lead - 1, "VERB", new_lemma, root, binyan)
+
+
+def _tagged_infinitive(
+    marked: list[tuple[str, str]],
+    lead: int,
+    pos: str | None,
+    prefixes: tuple[str, ...] | list[str],
+    feats: str | None,
+    surface: str,
+) -> bool:
+    """Whether a ל DICTA tagged a preposition is an infinitive's own all the same
+    (targum-internal#699: לסייר came back "ל to + סייר"): a verb with no person, gender
+    or tense, the ל its last prefix, and the word from the ל on the infinitive of one
+    verb of the table."""
+    if marked[lead - 1][0] != LAMED or pos != "VERB" or list(prefixes)[-1:] != [ADP]:
+        return False
+    if any(part in (feats or "") for part in _FINITE):
+        return False
+    word = "".join(letter for letter, _ in marked[lead - 1 :])
+    return infinitive_of(word, surface) is not None
 
 
 def _not_infinitive(under: list[tuple[str, str]]) -> bool:

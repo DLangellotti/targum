@@ -205,3 +205,108 @@ def test_forever_is_never_an_infinitive_and_to_win_is() -> None:
     for written in ("לְנַצֵּחַ", "לנצח"):
         word = _mended(_token(written, "ניצח", "VERB", "ל to + נצח", "UPOS=VERB"))
         assert (word.pos, word.built, word.lemma) == ("VERB", None, "ניצח")
+
+
+# -- ling-he's analyser read of 2026-11-13 (targum-internal#699) ------------------------
+
+ADJ_MS = "UPOS=ADJ|Gender=Masc|Number=Sing"
+
+
+def _sentence(*tokens: Token) -> list[Token]:
+    annotation = Annotation(
+        document_hash="h",
+        language="he",
+        annotator=DICTA,
+        method="frequency",
+        method_note="",
+        tokens={"s1": list(tokens)},
+    )
+    return mended(annotation).tokens["s1"]
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "lead", "built", "adjective"),
+    [
+        ("ומכובד", "כובד", 1, "ו and + מכובד", "מכובד"),  # not כובד, "weight"
+        ("מצוין", "צוין", 0, None, "מצוין"),  # not "was noted"
+        ("מְצוּיָּן", "צוין", 0, None, "מצוין"),
+        ("מוּכָּר", "הוכר", 0, None, "מוכר"),
+        ("המיועד", "יועד", 1, "ה the + מיועד", "מיועד"),
+        ("מסודרות", "סודר", 0, None, "מסודר"),  # not סודר, "scarf"
+        ("מַצְחִיק", "הצחיק", 0, None, "מצחיק"),
+    ],
+)
+def test_an_adjective_that_is_a_participle_is_filed_under_the_participle(
+    surface: str, lemma: str, lead: int, built: str | None, adjective: str
+) -> None:
+    prefixes = ("CCONJ",) if lead and surface.startswith("ו") else ("DET",) if lead else ()
+    word = _mended(_token(surface, lemma, "ADJ", built, ADJ_MS, lead=lead, prefixes=prefixes))
+    assert (word.lemma, word.pos, word.binyan, word.root) == (adjective, "ADJ", None, None)
+    assert word.built == built, "only the lemma moves"
+
+
+def test_an_adjective_the_table_does_not_hold_keeps_its_lemma() -> None:
+    # מְקוּבָּל under קובל: the table has no קובל, so nothing here can say which it is.
+    word = _mended(_token("מְקוּבָּל", "קובל", "ADJ", None, ADJ_MS, lead=0))
+    assert word.lemma == "קובל"
+
+
+def test_one_alone_and_respected() -> None:
+    # "אני אחד יחיד ומכובד", ארי האריה מחפש חבר.
+    one, alone, respected = _sentence(
+        _token("אחד", "אחד", "NUM", None, "UPOS=NUM", lead=0),
+        _token("יחיד", "יחיד", "ADJ", None, ADJ_MS, lead=0),
+        _token("ומכובד", "כובד", "ADJ", "ו and + מכובד", ADJ_MS, prefixes=("CCONJ",)),
+    )
+    assert (one.lemma, alone.lemma, respected.lemma) == ("אחד", "יחיד", "מכובד")
+    assert respected.built == "ו and + מכובד"
+
+
+def test_excellent_now_right() -> None:
+    # "מצוין, עכשיו ימינה".
+    excellent, now = _sentence(
+        _token("מצוין", "צוין", "ADJ", None, "UPOS=ADJ", lead=0),
+        _token("עכשיו", "עכשיו", "ADV", None, "UPOS=ADV", lead=0),
+    )
+    assert (excellent.lemma, now.lemma) == ("מצוין", "עכשיו")
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "verb", "binyan"),
+    [
+        ("להכין", "להכין", "הכין", ""),  # "החל להכין תוכנית עצלה"
+        ("לשמור", "לשמור", "שמר", "פעל"),  # "לשמור על הילדים"
+        ("למצוא", "ימצא", "מצא", "פעל"),  # "למצוא משהו זול"
+    ],
+)
+def test_a_whole_infinitive_is_filed_under_its_verb(
+    surface: str, lemma: str, verb: str, binyan: str
+) -> None:
+    word = _mended(_token(surface, lemma, "VERB", None, "UPOS=VERB", lead=0))
+    assert (word.lemma, word.pos, word.binyan or "") == (verb, "VERB", binyan)
+    assert word.built is None
+
+
+def test_a_future_standing_as_the_lemma_takes_its_verb() -> None:
+    # "אֶבְדּוֹק" under the future יבדוק.
+    feats = "UPOS=VERB|Person=3|Number=Sing|Tense=Fut"
+    word = _mended(_token("אֶבְדּוֹק", "יבדוק", "VERB", None, feats, lead=0))
+    assert (word.lemma, word.binyan) == ("בדק", "פעל")
+
+
+def test_to_patrol_is_not_to_plus_patrol() -> None:
+    # "וחייך קייאה לסייר בלש", סימון התנין: DICTA tagged the ל a preposition.
+    _, patrol, detective = _sentence(
+        _token("קייאה", "קייאה", "VERB", None, "UPOS=VERB", lead=0),
+        _token("לסייר", "סייר", "VERB", "ל to + סייר", "UPOS=VERB", prefixes=("ADP",)),
+        _token("בלש", "בלש", "NOUN", None, "UPOS=NOUN", lead=0),
+    )
+    assert (patrol.built, patrol.split, patrol.lemma) == (None, False, "סייר")
+    assert patrol.syntax is not None and patrol.syntax.lead == 0
+    assert detective.lemma == "בלש"
+
+
+def test_a_tagged_preposition_on_a_finite_verb_or_a_noun_stays_cut() -> None:
+    past = "UPOS=VERB|Person=3|Number=Sing|Tense=Past"
+    assert own_letter("לסייר", "סייר", "VERB", "ל to + סייר", 1, ("ADP",), past) is None
+    assert own_letter("לסייר", "סייר", "NOUN", "ל to + סייר", 1, ("ADP",), "UPOS=NOUN") is None

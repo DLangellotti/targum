@@ -91,8 +91,10 @@ OCCURRENCES = "occurrences.json"
 #: adds each Russian token's squares on Your Progress's Russian grammar (`grammar`,
 #: `gaps_ru.classify`, targum-internal#639), with the form met, read off the stored feats;
 #: 13 reads `lemma_check` 4, so מֻשְׁפָּלוֹת is counted under הושפל and לִמְכֹּר under the
-#: verb מכר (targum-internal#689).
-VERSION = 13
+#: verb מכר (targum-internal#689); 14 reads `lemma_check` 5, so היו is counted under היה
+#: and not יש, תשכח under שכח, מכובד under itself and ליד under ליד (targum-internal#697,
+#: #699).
+VERSION = 14
 
 
 @dataclass(frozen=True)
@@ -240,7 +242,7 @@ def count_text(folder: Path) -> Occurrences | None:
     claim from a text with no words.
     """
     from .annotate.base import NOT_A_WORD, not_vocabulary
-    from .annotate.lemma_check import applies, mend_row
+    from .annotate.lemma_check import applies, mend_rows
     from .annotate.mishkal import key_of
     from .annotate.root_card import HEBREW_KINDS, family_root, hebrew_shape
     from .annotate.verb_roots import root_for, said_roots
@@ -282,9 +284,8 @@ def count_text(folder: Path) -> Occurrences | None:
     said = said_roots(
         (str(row.get("lemma") or ""), row.get("root"))
         for run in tokens.values()
-        for token in run
-        if isinstance(token, dict)
-        for row in ((mend_row(token) if checking else token),)
+        for row in (mend_rows(run) if checking else run)
+        if isinstance(row, dict)
     )
     for segment in segmented.segments:
         found = tokens.get(segment.id)
@@ -294,7 +295,7 @@ def count_text(folder: Path) -> Occurrences | None:
         key = (section_of.get(segment.id, 1), segment.ref or "")
         language = segment.language_in(segmented.language)
         if checking:
-            found = [mend_row(token) for token in found]
+            found = mend_rows(found)
         # Russian's squares are read off the segment whole: a compound future and a
         # preposition's word need their neighbours (`gaps_ru.classify`).
         squares = classify(found) if language.split("-")[0] == "ru" else None
