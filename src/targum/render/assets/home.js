@@ -1253,15 +1253,18 @@
 
   /* Filter (design.md §12, "Home's one card offers the words to learn first, and a pick
      moves easier or harder", 2026-11-05; targum-internal#615): one press in Topic's
-     place, and one field holding Read · Watch · Listen, How long, and the forty topics,
+     place, and one field holding Texts · Videos · Audio, How long, and the forty topics,
      each the same `.tab` pills, the chosen one filled. Nothing pressed means any, and a
      chosen pill pressed again lets it go. A press picks again at once, as a topic did,
-     and the press then names what is chosen ("Watch · 5–15 min · Science"), in tonal.
-     Listen is drawn only once the pool holds something to listen to. */
+     and the press then names what is chosen ("Videos · 5–15 min · Science"), in tonal.
+     Audio is drawn only once the pool holds something to listen to. The media are said
+     as the kinds they show, Texts · Videos · Audio, never as the verbs the pick's own
+     press says: with Listen chosen the card had two Listens (David, 2026-11-13; §12,
+     "A filter names what it shows, and Upload is not the card's press"). */
   var MEDIA = [
-    ["read", "home.card.filter.read", "Read"],
-    ["watch", "home.card.filter.watch", "Watch"],
-    ["listen", "home.card.filter.listen", "Listen"],
+    ["read", "home.card.filter.read", "Texts"],
+    ["watch", "home.card.filter.watch", "Videos"],
+    ["listen", "home.card.filter.listen", "Audio"],
   ];
   var LENGTHS = [
     ["short", "home.card.filter.short", "Under 5 min"],
@@ -1338,7 +1341,7 @@
     field.id = "rc-topics";
     field.hidden = !oneCard.open;
     var media = el("ul", "tabs on-field rc-media");
-    media.setAttribute("aria-label", t("home.card.filter.media", "Read, watch or listen"));
+    media.setAttribute("aria-label", t("home.card.filter.media", "Texts, videos or audio"));
     var group = el("div");
     group.appendChild(media);
     field.appendChild(group);
@@ -1682,13 +1685,13 @@
           : t("home.card.read", "Read");
     var open;
     if (row.find) {
-      open = el("button", "btn tonal rc-open", verb);
+      open = el("button", "btn filled rc-open", verb);
       open.type = "button";
       open.addEventListener("click", function () {
         openPick(row);
       });
     } else {
-      open = el("a", "btn tonal rc-open", verb);
+      open = el("a", "btn filled rc-open", verb);
       open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
       open.addEventListener("click", function () {
         suggestOpened(row);

@@ -384,6 +384,31 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A filter names what it shows, and Upload is not the card's press — 2026-11-13
+
+David, 2026-11-13, on Home's one card with a podcast picked and Listen chosen in the
+filter: "you can't tell what button to press to listen, there are two listens", and
+"user might accidentally hit upload". The row read Listen · Something else · Listen ▾, the
+two Listens in the same tonal pill, and under the hairline the filled Upload was the
+heaviest thing on the card. This amends "Home's one card finds what fits you"
+(2026-11-01), which made Upload "the page's one filled press", and "Home's one card offers
+the words to learn first" (2026-11-05), which named the media Read, Watch and Listen.
+
+- **The filter says the kinds it shows: Texts · Videos · Audio.** A verb belongs to the
+  press that does it (§6, "a control names what the person will do"), and a filter is not
+  doing anything; so the media are nouns, and the press names them ("Audio", "Videos ·
+  5–15 min"). No two controls on the card say the same word.
+- **The filter stands at the end of the row**, apart from the pick's verb and Something
+  else, so it reads as what the card shows rather than one more thing to do.
+- **The pick's verb is the card's one filled press** (§9; §12, "The desk's controls are
+  one layer"): Read, Watch or Listen.
+- **Upload is the reader's own, not the suggestion's.** It stays under the hairline,
+  further down, as a quiet line press (`.btn.ghost.outline`) that says "Upload your own",
+  with a thumb's 44px. A press by mistake only opens the Upload page, where nothing is
+  made or spent until the reader confirms. Upload also stands in the bar on every page,
+  so if the card's copy still pulls the eye the next step is to take it off the card;
+  that is David's call, not this entry's.
+
 ### Topics in What next are weighed by how common a word is — 2026-11-11
 
 targum-internal#608 fills the Topics slot "What next leads with your biggest grammar gap"

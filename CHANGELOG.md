@@ -14,6 +14,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Home's one card has one Listen (targum-internal#692). With a podcast picked and Listen
+  chosen in the filter the row read Listen · Something else · Listen ▾ in the same pill,
+  and the filled Upload under it was the heaviest press on the card. The filter now says
+  the kinds it shows, Texts · Videos · Audio, and stands at the row's end; the pick's verb
+  is the card's one filled press; Upload is a quiet line press, "Upload your own", further
+  down with a thumb's 44px. design.md §12, 2026-11-13.
 - Two connector test files no longer leave the connector on for the files after them
   (targum-internal#690). `test_oauth_serve.py` and `test_mcp_http.py` each set
   `TARGUM_CONNECTOR=1` bare in a module fixture and never put it back, so
