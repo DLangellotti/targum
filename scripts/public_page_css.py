@@ -4,7 +4,7 @@
     .venv/bin/python scripts/public_page_css.py            # writes the file
     .venv/bin/python scripts/public_page_css.py --check    # exits 1 if it is out of date
 
-A public text page, the four legal pages and /about used to carry all of `shared.css` and
+A public text page, the four legal pages, /about and /how used to carry all of `shared.css` and
 `reader.css`, about 315 kB, for a few dozen rules. This renders each of those pages in
 Chromium with the two sheets in place, and keeps every rule whose selector matches an
 element there once its states are taken off (`:hover`, `:focus-visible`, `::before` …, so
@@ -32,8 +32,8 @@ SOURCES = ("shared.css", "reader.css")
 
 HEAD = """/* public-page.css — written by scripts/public_page_css.py; do not edit by hand.
 
-   The rules of shared.css and reader.css that a public text page, the legal pages or
-   /about match, in those sheets' own order (targum-internal#550). The pages load this in
+   The rules of shared.css and reader.css that a public text page, the legal pages,
+   /about or /how match, in those sheets' own order (targum-internal#550). The pages load this in
    the two sheets' place: about 315 kB became this file. Change the rule in shared.css or
    reader.css and run the script again; tests/test_public_page_css_browser.py says when. */
 """
@@ -121,7 +121,7 @@ def pages() -> dict[str, tuple[str, str]]:
     from unittest import mock
 
     from targum.catalogue import CATALOGUE, Entry, Line
-    from targum.render.builder import about_page, legal_page, text_page
+    from targum.render.builder import about_page, how_page, legal_page, text_page
 
     address = "https://targum.page"
     # A text page's opening lines come from the catalogue file, which a public checkout
@@ -156,6 +156,10 @@ def pages() -> dict[str, tuple[str, str]]:
         **texts,
         "about-en": (about_page("en", address), "about.css"),
         "about-ru": (about_page("ru", address), "about.css"),
+        # /how (targum-internal#484, step 2): it carried all of reader.css, 208 kB, for
+        # its examples' few rules, and was over 1.5 s on Slow 4G.
+        "how-en": (how_page("en", address), "about.css"),
+        "how-ru": (how_page("ru", address), "about.css"),
     }
     for entry in CATALOGUE:
         if entry.id.startswith("scene-"):

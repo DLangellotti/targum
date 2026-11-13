@@ -2731,7 +2731,7 @@ def about_page(language: str = "en", address: str = "") -> str:
     )
 
 
-def credits_page(language: str = "en", address: str = "") -> str:
+def credits_page(language: str = "en", address: str = "", opened: str = "") -> str:
     """Whose work targum uses, and under what licence (targum-internal#610; design.md §12,
     "A word is said by a person where one recorded it", 2026-10-31).
 
@@ -2740,6 +2740,12 @@ def credits_page(language: str = "en", address: str = "") -> str:
     and a card that plays one links here. Read from the manifest beside the files
     (`voices.credits`), so only a recording on disk is credited and every one that is.
     An address for each language, like /about.
+
+    Each speaker's words are drawn only for the row `opened` names (its `Speaker.key`,
+    `?speaker=`), and fetched from `/credits/words` when a row is opened (`credits.js`;
+    targum-internal#484, step 2). Drawn whole, the page carried every word's Commons link,
+    3,546 of them and 863 kB, in front of anything else. Every file's credit is still a
+    press away, and without a script the row's link opens the page with that row drawn.
     """
     from .. import voices
 
@@ -2759,6 +2765,7 @@ def credits_page(language: str = "en", address: str = "") -> str:
             ),
             language="he",
             speakers=voices.credits("he"),
+            opened=opened,
             canonical=here,
             alternates=alternates,
             asked=_asked_for(language),

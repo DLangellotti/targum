@@ -671,6 +671,9 @@ OPEN_TO_STRANGERS = frozenset(
         # Whose recordings a word card plays, and their licences (targum-internal#610):
         # a credit has to be readable by anybody who hears one.
         "/credits",
+        # One speaker's words, which the credits page fetches when a row is opened
+        # (targum-internal#484, step 2): the same credits, asked for one at a time.
+        "/credits/words",
         "/account/signin",
         "/account/enter",
         "/account/sign-in",
@@ -10462,8 +10465,29 @@ class Handler(BaseHTTPRequestHandler):
             page = about_page(address=self.address)
             return self._send(200, page.encode("utf-8"), HTML)
         if route == "/credits":
-            page = credits_page(language=self._public_language(), address=self.address)
+            # `?speaker=` draws that row's words in place: where a row's link goes in a
+            # browser that runs no script (targum-internal#484, step 2).
+            opened = parse_qs(urlparse(self.path).query).get("speaker", [""])[0]
+            page = credits_page(
+                language=self._public_language(), address=self.address, opened=opened
+            )
             return self._send(200, page.encode("utf-8"), HTML)
+        if route == "/credits/words":
+            # One speaker's words with each file's page and credit, for the row of
+            # /credits that was opened. Public, as the page is.
+            key = parse_qs(urlparse(self.path).query).get("speaker", [""])[0]
+            row = voices.credited(key, "he") if key else None
+            if row is None:
+                return self._json({"error": "No such speaker."}, 404)
+            return self._json(
+                {
+                    "language": "he",
+                    "words": [
+                        {"word": one.word, "page": one.page, "attribution": one.attribution}
+                        for one in row.recordings
+                    ],
+                }
+            )
         if route == "/how":
             # `?lang=` like every page with the foot's EN / RU (targum-internal#188).
             page = how_page(language=self._public_language(), address=self.address)

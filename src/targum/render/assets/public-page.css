@@ -1,7 +1,7 @@
 /* public-page.css — written by scripts/public_page_css.py; do not edit by hand.
 
-   The rules of shared.css and reader.css that a public text page, the legal pages or
-   /about match, in those sheets' own order (targum-internal#550). The pages load this in
+   The rules of shared.css and reader.css that a public text page, the legal pages,
+   /about or /how match, in those sheets' own order (targum-internal#550). The pages load this in
    the two sheets' place: about 315 kB became this file. Change the rule in shared.css or
    reader.css and run the script again; tests/test_public_page_css_browser.py says when. */
 
@@ -17,6 +17,8 @@
 @media (hover: none) and (pointer: coarse) {
   .btn, .btn.small, .seg > *, .sheet-grab { min-block-size: 44px; }
 }
+.w, .list-tab { touch-action: manipulation; }
+.w:active { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 main { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 0px auto; padding: 3rem 1.25rem 6rem; }
 .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--gap); margin-block-end: 0.35rem; padding: 0.35rem 0.6rem; border-radius: 5px; outline: none; transition: background-color 200ms; scroll-margin-block-start: var(--ceiling, 4rem); }
 .pair:target { background: var(--paper-raised); }
@@ -24,6 +26,8 @@ main { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 0px auto; paddi
 .pair:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
 .pair p { margin: 0px; }
 .byline { color: var(--ink-soft); font-style: italic; margin-block-start: -0.75rem; }
+.w { border-radius: 4px; cursor: pointer; }
+.w.looked-up, body:not(.no-hover) .w:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
 @media (prefers-reduced-motion: reduce) {
   .modes button, .pair { transition: none; }
 }
@@ -35,6 +39,9 @@ main { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 0px auto; paddi
 @media print {
   body { background: rgb(251, 249, 245); color: rgb(28, 26, 23); }
 }
+.credits { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 2rem auto 0px; padding: 0.9rem 1.25rem 0px; border-block-start: 1px solid var(--rule); font-family: var(--ui); font-size: 0.8125rem; line-height: 1.5; color: var(--ink-soft); }
+.credits .credit { margin: 0px 0px 0.4rem; }
+.credits a { color: inherit; }
 @media (max-height: 40rem) {
   main { padding-block: 1.25rem 4rem; }
 }

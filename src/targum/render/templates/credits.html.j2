@@ -25,20 +25,30 @@
     <p class="lede">{{ t("credits.page.voices-intro", "Where a word card plays a person rather than our voice, the recording is theirs. They made it for Lingua Libre and shared it on Wikimedia Commons. Thank you.") }}</p>
     <p class="lede">{{ t("credits.page.voices-copies", "We play Commons' own MP3 copy of each file. A file under CC BY-SA stays under CC BY-SA, and its page on Commons has the original.") }}</p>
     {% if speakers %}
+    {#- A speaker's words are drawn only when their row is opened (targum-internal#484,
+        step 2): `credits.js` asks `/credits/words` for them, from this origin only.
+        Drawn whole, the page carried all 3,546 Commons links, 863 kB, before anything
+        else. Without a script the row's link opens this page with that row drawn. -#}
+    {%- set also = '&lang=' ~ asked if asked|default('') else '' %}
     <ul class="speakers">
       {% for row in speakers %}
-      <li class="speaker">
-        <details>
+      <li class="speaker" id="speaker-{{ row.key }}">
+        <details data-words="/credits/words?speaker={{ row.key }}"{% if row.key == opened %} open{% endif %}>
           <summary><b>{{ row.name }}</b> <span class="terms">· <a href="{{ row.licence_url }}" rel="license">{{ row.licence }}</a> · {{ tn("credits.page.words", row.recordings|length, "{n} word", "{n} words") }}</span></summary>
+          {% if row.key == opened %}
           <ul lang="{{ language }}" dir="rtl">
             {% for one in row.recordings %}
             <li><a href="{{ one.page }}" title="{{ one.attribution }}">{{ one.word }}</a></li>
             {% endfor %}
           </ul>
+          {% else %}
+          <p class="words-link"><a href="/credits?speaker={{ row.key }}{{ also }}#speaker-{{ row.key }}">{{ t("credits.page.show-words", "Show the words and their files") }}</a></p>
+          {% endif %}
         </details>
       </li>
       {% endfor %}
     </ul>
+    {{ script('credits.js') }}
     {% else %}
     <p class="lede">{{ t("credits.page.none", "No recordings are kept here yet.") }}</p>
     {% endif %}
