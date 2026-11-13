@@ -480,6 +480,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- `deploy/README.md` has a deploy step by step (ops, after four deploys on 2026-11-12 and
+  13), each step saying what you should see: confirming a merge GitHub answered with a
+  502, telling a free recount from an annotator rename in the diff, checking the accounts
+  migration is added columns and finding the database copy's line, the laptop's heavy lock
+  holding a deploy behind another run, the read-only checks after, and the parasha and
+  daily re-cut a change to the reader's stylesheet or head needs (888 stale readers back
+  to 6). Docs only.
 - `scripts/merge_topics.py` takes ling-he's decisions keyed by lemma
   (`--lemma-decisions`, targum-internal#606) for lemmas no run's review file holds, such as
   the 588 conversation lemmas the 2026-11-09 gap run left untagged for want of a gloss.
