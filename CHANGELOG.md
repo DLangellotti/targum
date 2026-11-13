@@ -28,6 +28,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   kept before them reads who off `podcasts.json`. A host's own name is not in the
   reviewed list and is not fetched. `/prepare` drops a request's `named`. No spend; four new
   strings, Russian listed in the PR.
+- Texts by level no longer says Easy for you above the Reading level card
+  (targum-internal#693). A Hebrew reader at dalet, about B2, saw every row from A1 to C2
+  ticked and Past C2 as Next. C2 had one measured text and it was readable, so C2 counted
+  as easy, and the climb ticked every row under it. On the page, a row's text state won
+  over its "{n} words to go". A level is now decided by its texts only with 10 or more
+  measured texts (`touchstones.SAMPLE`), and more than half of them must be readable. A
+  level the reader's words reach, with fewer texts than that, is easy by the words. A
+  level they do not reach is never Easy or Next, so it says its words to go, and C1's
+  number is the card's. A reader whose level comes from the words check is reached up to
+  that level. No spend, no new strings.
 - Home's one card has one Listen (targum-internal#692). With a podcast picked and Listen
   chosen in the filter the row read Listen · Something else · Listen ▾ in the same pill,
   and the filled Upload under it was the heaviest press on the card. The filter now says
