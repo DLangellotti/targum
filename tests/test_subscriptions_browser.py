@@ -1122,3 +1122,56 @@ def test_one_subscription_s_way_back_and_titles_answer_a_thumb(browser) -> None:
     assert len(found) == 2, found
     short = [one["what"] for one in found if not (one["tall"] and one["wide"])]
     assert not short, short
+
+
+def test_waiting_for_the_cap_is_never_said_in_the_error_red(browser) -> None:
+    """#716 P2-12: "Waiting for December 1" and Raise the cap were clay, which §4 keeps
+    for faults and destructive acts. Waiting is muted ink, and Raise the cap teal."""
+    context = browser.new_context(viewport={"width": 1280, "height": 1600})
+    page = context.new_page()
+    answer = {
+        "signedIn": True,
+        "subscription": _capped_one(),
+        "credits": {"left": 354, "back": "December 1"},
+    }
+    serve(page, {"/subscriptions/2": subscription_page(""), "/subscriptions/2.json": answer}, [])
+    page.goto(f"{SITE}/subscriptions/2")
+    page.wait_for_selector(".sub-item .sub-waiting")
+    got = page.evaluate(
+        """() => {
+          const probe = (name) => {
+            const span = document.createElement('span');
+            span.style.color = `var(${name})`;
+            document.body.appendChild(span);
+            const color = getComputedStyle(span).color;
+            span.remove();
+            return color;
+          };
+          const raise = document.querySelector('.sub-item .sub-act');
+          return {
+            waiting: getComputedStyle(document.querySelector('.sub-waiting')).color,
+            raise: getComputedStyle(raise).color,
+            raiseDanger: raise.classList.contains('danger'),
+            clay: probe('--clay'),
+            soft: probe('--ink-soft'),
+          };
+        }"""
+    )
+    context.close()
+    assert got["waiting"] == got["soft"] and got["waiting"] != got["clay"], got
+    assert not got["raiseDanger"] and got["raise"] != got["clay"], got
+
+
+def test_a_paused_subscription_promises_no_mail(browser) -> None:
+    """#716 P2-6: the paused note said no mail comes while the Mail card beside it said
+    one a day. While it is paused there is no Mail card."""
+    context = browser.new_context(viewport={"width": 1280, "height": 1600})
+    page = context.new_page()
+    one = dict(ROWS[3], items=[], caps=[30, 60, 120, 240])
+    answer = {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "December 1"}}
+    serve(page, {"/subscriptions/4": subscription_page(""), "/subscriptions/4.json": answer}, [])
+    page.goto(f"{SITE}/subscriptions/4")
+    page.wait_for_selector(".sub-paused-note")
+    mail = page.evaluate("() => document.querySelectorAll('.sub-mail').length")
+    context.close()
+    assert mail == 0

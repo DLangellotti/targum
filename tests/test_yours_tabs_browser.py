@@ -309,8 +309,9 @@ def test_a_series_begun_and_not_finished_says_started(browser, tmp_path: Path) -
 
 def test_a_reader_with_nothing_is_told_what_will_appear_here(browser, tmp_path: Path) -> None:
     """The FirstRun boards (design.md §12, 2026-10-08): with nothing on the shelf, home
-    says what will appear here and offers the upload; the tabs and the shelf, which have
-    nothing to show, stay away."""
+    says what will appear here and offers the upload; the shelf, which has nothing to
+    show, stays away. The tabs stay, at the top: a reader with playlists or subscriptions
+    and no text yet reaches them from here (§12 2026-09-27; #716 P2-3)."""
     page_file = tmp_path / "texts.html"
     page_file.write_text(carried(list_page("test-key", "texts")), encoding="utf-8")
     context = browser.new_context(viewport={"width": 390, "height": 900})
@@ -323,9 +324,10 @@ def test_a_reader_with_nothing_is_told_what_will_appear_here(browser, tmp_path: 
     page.wait_for_selector("#first-home:not([hidden])")
     upload = page.locator(".upload-card").is_visible()
     tabs = page.locator("#yours-tabs").is_visible()
+    on_top = page.evaluate("() => !!document.querySelector('#yours-top #yours-tabs')")
     shelf_shown = page.locator("#shelf-panel").is_visible()
     context.close()
-    assert upload and not tabs and not shelf_shown
+    assert upload and tabs and on_top and not shelf_shown
 
 
 def test_a_row_s_picture_is_the_board_s_square(browser, tmp_path: Path) -> None:

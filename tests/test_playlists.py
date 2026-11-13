@@ -229,6 +229,9 @@ def test_the_door_changes_it(box: tuple[int, str, str]) -> None:
         port, "POST", f"/playlists/{pid}", {"do": "move", "position": 1, "by": -1}, mine
     )
     assert [i["reader"] for i in moved["items"]] == ["b", "a"]
+    # A change says the language it keeps to, as a load does: without it the titles
+    # still getting ready lost their `lang` after a move (#716 P2-8).
+    assert "language" in moved
     _, renamed = send(port, "POST", f"/playlists/{pid}", {"do": "rename", "name": "Two"}, mine)
     assert renamed["name"] == "Two"
     _, dropped = send(port, "POST", f"/playlists/{pid}", {"do": "drop", "position": 0}, mine)

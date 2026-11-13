@@ -13331,12 +13331,16 @@ class Handler(BaseHTTPRequestHandler):
         filled as languages come up, so a page of playlists asks once per language.
         """
         from . import coverage as coverage_module
+        from . import spoken
 
         answer = playlist_answer(found)
         home = self._home()
         seconds = 0.0
         known_words = 0.0
+        figure_words = 0.0
         words = 0
+        any_estimated = False
+        estimates: dict[str, Any] = {}
         ready = waiting = failed = 0
         unconfirmed = 0
         credits = 0
@@ -13351,8 +13355,16 @@ class Handler(BaseHTTPRequestHandler):
                     language = str(row.get("language") or "")
                     if language and language not in vocabulary:
                         vocabulary[language] = self.store.marked(person, language)
+                    # With the reader's estimate, so a row sends the one figure its shelf
+                    # row, its Continue card and its own page print (design.md §12, "A
+                    # text's figure is our estimate until your marks settle it",
+                    # 2026-11-04; targum-internal#716 P1-1).
+                    if language and language not in estimates:
+                        estimates[language] = self._estimate(person, language)
                     measured = (
-                        coverage_module.running_against(root / name, vocabulary[language])
+                        coverage_module.running_against(
+                            root / name, vocabulary[language], estimates[language]
+                        )
                         if language
                         else None
                     )
@@ -13361,6 +13373,17 @@ class Handler(BaseHTTPRequestHandler):
                     break
             if item.get("failed"):
                 failed += 1
+                # What it was, so its row names it by its medium rather than calling a
+                # podcast a text (#716 P2-7).
+                gone = self._own_job(str(item["job"])) if item.get("job") else None
+                if gone is not None:
+                    item["medium"] = (
+                        "watch"
+                        if spoken.is_video(gone.source)
+                        else "listen"
+                        if gone.audio
+                        else "read"
+                    )
             elif item.get("open"):
                 ready += 1
             else:
@@ -13375,7 +13398,11 @@ class Handler(BaseHTTPRequestHandler):
             length = float(row.get("seconds") or 0) or float(row.get("minutes") or 0) * 60
             seconds += length
             if isinstance(row.get("known"), (int, float)) and row.get("words"):
+                # Each text weighs in at the figure its row prints.
+                figure = row.get("estimated", row["known"])
+                any_estimated = any_estimated or "estimated" in row
                 known_words += float(row["known"]) * int(row["words"])
+                figure_words += float(figure) * int(row["words"])
                 words += int(row["words"])
             item["facts"] = {
                 key: row.get(key)
@@ -13394,6 +13421,8 @@ class Handler(BaseHTTPRequestHandler):
                     "sections",
                 )
             }
+            if "estimated" in row:
+                item["facts"]["estimated"] = row["estimated"]
             item["facts"]["chapters"] = len(row.get("chapters") or [])
             item["facts"]["document"] = row.get("document") or ""
         # Where the reader stopped in the one they are on (board PlaylistDetail: "You're
@@ -13431,6 +13460,12 @@ class Handler(BaseHTTPRequestHandler):
             "covers": covers,
             "seconds": round(seconds),
             "known": round(known_words / words, 4) if words else None,
+            # Our estimate where any of its texts is one, said as ours on the page.
+            **(
+                {"estimated": level_module.page_share(figure_words / words)}
+                if words and any_estimated
+                else {}
+            ),
             "ready": ready,
             "waiting": waiting,
             "failed": failed,
@@ -13906,7 +13941,16 @@ class Handler(BaseHTTPRequestHandler):
         else:
             return self._json({"error": "bad request"}, 400)
         found = self.store.playlist(person.id, playlist_id)
-        return self._json(self._playlist_facts(person, found, {}) if found else {"gone": True})
+        if not found:
+            return self._json({"gone": True})
+        # The language it keeps to, as the page's own load sends it: without it a move
+        # left the titles still getting ready `lang=en` (#716 P2-8).
+        return self._json(
+            {
+                **self._playlist_facts(person, found, {}),
+                "language": self.library.playlist_language(self._home(), found),
+            }
+        )
 
     def _playing_by_language(self, person_id: int) -> dict[str, dict[str, Any]]:
         """For each language, the unfinished playlist in it the reader was in last."""
@@ -19733,6 +19777,17 @@ class Handler(BaseHTTPRequestHandler):
                     fresh = len({lemma for lemma in lemmas if lemma not in marked})
                     known[number] = (len(lemmas), hits, fresh)
                 state["known"] = known
+            if language:
+                # The whole text's one figure, measured as its shelf row, its playlist row
+                # and its Continue card measure it (`_measure`; targum-internal#716 P1-1):
+                # our estimate even before the first mark, as theirs is.
+                measured = coverage_module.running_against(
+                    folder, marked, self._estimate(person, language)
+                )
+                if measured is not None:
+                    whole = measured.state()
+                    if marked or "estimated" in whole:
+                        state["whole"] = whole
         cover = str(manifest.get("cover") or "")
         html = contents_page(
             manifest,

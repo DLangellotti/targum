@@ -477,6 +477,20 @@
      Not where home may yet send this reader on to the arrival (`home.js`, `arriving`),
      which takes the shelf to decide: a page shown and then left is a flash. */
   var subsDrawnFirst = false;
+  /* The tabs on their own, over the wait or the fault, while the page under them is not
+     drawn (#716 P2-3: a slow or failed `/readers` hid them with the page). `on` false puts
+     the holder away; the strip is moved back by whoever draws the page. */
+  function tabsAlone(on) {
+    var holder = document.getElementById("yours-tabs-alone");
+    var tabStrip = document.getElementById("yours-tabs");
+    if (!holder || !tabStrip) return;
+    if (on) {
+      if (tabStrip.parentNode !== holder) holder.appendChild(tabStrip);
+      tabStrip.hidden = false;
+    }
+    holder.hidden = !on;
+  }
+
   function subscriptionsFirst() {
     if (view.tab !== "subscriptions") return;
     var home = window.TargumHome;
@@ -488,6 +502,7 @@
     panel.hidden = false;
     document.getElementById("shelf-panel").hidden = true;
     if (tabStrip) {
+      tabsAlone(false);
       tabStrip.hidden = false;
       if (top && tabStrip.parentNode !== top) top.appendChild(tabStrip);
     }
@@ -546,7 +561,6 @@
       var tabStrip = document.getElementById("yours-tabs");
       // Subscriptions answer even with nothing on the shelf: a reader may subscribe
       // before they open anything (design.md §12, 2026-10-09).
-      if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
       document.getElementById("shelf-panel").hidden = nothingYet;
       var grid = document.querySelector(".home-grid");
       if (grid) grid.classList.toggle("is-empty", nothingYet);
@@ -576,11 +590,17 @@
          page's whole width with nothing of Continue's beside it (board SubsTab). */
       var top = document.getElementById("yours-top");
       var head = document.getElementById("yours-head");
+      // With nothing on the shelf the card of rows is not drawn, so the tabs stand at the
+      // top as they do on Subscriptions: a reader with playlists or subscriptions and no
+      // text yet still reaches them (§12 2026-09-27; #716 P2-3).
       function placeTabs(subscribing) {
         if (!tabStrip || !top || !head) return;
-        var host = subscribing ? top : head;
+        tabsAlone(false);
+        var atTop = subscribing || nothingYet;
+        var host = atTop ? top : head;
         if (tabStrip.parentNode !== host) host.appendChild(tabStrip);
-        top.hidden = !subscribing;
+        tabStrip.hidden = false;
+        top.hidden = !atTop;
         if (document.body && document.body.classList) document.body.classList.toggle("is-subscribing", subscribing);
       }
 
@@ -588,7 +608,6 @@
         var subscribing = view.tab === "subscriptions";
         if (subsPanel) subsPanel.hidden = !subscribing;
         document.getElementById("shelf-panel").hidden = subscribing || nothingYet;
-        if (tabStrip) tabStrip.hidden = nothingYet && !subscribing;
         placeTabs(subscribing);
         if (subscribing) {
           drawSubscriptions();
@@ -685,6 +704,8 @@
         lang.switcher(document.getElementById("langs"), codes, names, code, show);
         // No ceiling: this page is the whole of it, which is what it is for.
         if (!nothingYet || view.tab === "subscriptions") render();
+        // With nothing yet the rows are not drawn, but the tabs still stand (#716 P2-3).
+        else placeTabs(false);
         // The head of home, in the same language; the page is shown once it is drawn, so
         // a reader sent on to the arrival never sees it flash first.
         var drawn = home ? home.draw(code, readers, building) : Promise.resolve(true);
@@ -758,7 +779,6 @@
         });
         codes = lang.order(found, names);
         nothingYet = !readers.length && !building.length && !elsewhere.length;
-        if (tabStrip) tabStrip.hidden = nothingYet && view.tab !== "subscriptions";
         document.getElementById("shelf-panel").hidden = nothingYet;
         if (grid) grid.classList.toggle("is-empty", nothingYet);
         // In the language the account last chose, as the reload opened in.
@@ -911,6 +931,7 @@
     var waiting = document.getElementById("home-waiting");
     if (waiting) waiting.hidden = true;
     couldNot(why);
+    if (which === "texts") tabsAlone(true);
     document.getElementById("nothing").hidden = false;
   });
 
@@ -927,7 +948,10 @@
   }
   var slowly = setTimeout(function () {
     var waiting = document.getElementById("home-waiting");
-    if (waiting && !waiting.hidden) waiting.textContent = stillOpening();
+    if (waiting && !waiting.hidden) {
+      waiting.textContent = stillOpening();
+      if (which === "texts") tabsAlone(true);
+    }
   }, 3000);
   drawing.then(function () {
     clearTimeout(slowly);

@@ -390,6 +390,10 @@
 {#- While the shelf is asked for, and when it could not be (2026-09-14): a page that stood
     blank until `/readers` answered, or said "Nothing here yet" to a reader with a shelf
     whose connection dropped, was saying the wrong thing. -#}
+{#- The tabs while the shelf is slow or could not be loaded (targum-internal#716 P2-3): a
+    reader with playlists or subscriptions still reaches them from here. `yours.js` moves
+    the one strip in, and back into the page once it is drawn. -#}
+<div class="yours-top yours-tabs-alone" id="yours-tabs-alone" hidden></div>
 <p class="learn-waiting" id="home-waiting" role="status">{{ t("learn.page.opening-your-texts", "Opening your targums…") }}</p>
 {#- Home QA (2026-10-18; design.md §14, line 1): the wait is said again past three
     seconds, and a page that could not load offers the press that asks again rather than

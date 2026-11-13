@@ -260,15 +260,18 @@
 
   /* How much of it the reader knows, in leaf (§4: green is progress), with its share
      written beside the bar. Nothing at all where nothing was measured: "0% known" and
-     "not measured" are different claims. */
-  function knownBar(share, className) {
-    if (typeof share !== "number") return null;
-    var whole = Math.round(share * 100);
-    var box = element("span", "pl-known" + (className ? " " + className : ""));
+     "not measured" are different claims. `row` is what the server sent for a text or a
+     playlist, `known` and, where our estimate is the figure, `estimated`: the one figure
+     the text's row, its Continue card and its own page say too (`TargumStrings.figure`,
+     targum-internal#716 P1-1), "About 93% (our estimate)" where it is ours. */
+  function knownBar(row, className) {
+    var found = row && window.TargumStrings.figure ? window.TargumStrings.figure(row) : null;
+    if (!found) return null;
+    var box = element("span", "pl-known" + (className ? " " + className : "") + (found.estimated ? " is-estimate" : ""));
     var bar = element("span", "meter pl-bar");
     bar.setAttribute("aria-hidden", "true");
     var fill = element("span", "");
-    fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
+    fill.style.setProperty("--done", String(found.share));
     bar.appendChild(fill);
     box.appendChild(bar);
     // In a row the column's head says Known, so the share is the number alone.
@@ -276,9 +279,11 @@
       element(
         "span",
         "pl-share",
-        className === "is-row"
-          ? t("playlists.share", "{share}%", { share: whole })
-          : t("playlists.known", "{share}% known", { share: whole })
+        window.TargumStrings.figureSaid(found, function (n) {
+          return className === "is-row"
+            ? t("playlists.share", "{share}%", { share: n })
+            : t("playlists.known", "{share}% known", { share: n });
+        })
       )
     );
     return box;
@@ -477,7 +482,7 @@
       facts.push(textCount(one.count));
       if (one.seconds) facts.push(length(one.seconds));
       what.appendChild(element("span", "pl-facts", facts.join(" · ")));
-      var known = knownBar(one.known);
+      var known = knownBar(one);
       if (known) what.appendChild(known);
       item.appendChild(what);
       var press = button(t("playlists.open", "Open"), function () {
@@ -508,16 +513,28 @@
       return line;
     }
     if (one.waiting) {
-      return element(
-        "span",
-        "pl-foot pl-getting-ready",
-        t("playlists.ready-of", "Getting ready · {ready} of {count} done", {
-          ready: one.ready || 0,
-          count: one.count || 0,
-        })
-      );
+      // One that could not be got ready is counted apart: counted in, the line read
+      // "5 of 7 done" and could never reach 7 (#716 P2-7).
+      var failed = Number(one.failed || 0);
+      var said = t("playlists.ready-of", "Getting ready · {ready} of {count} done", {
+        ready: one.ready || 0,
+        count: Math.max(0, (one.count || 0) - failed),
+      });
+      if (failed > 0) said += " · " + tn("playlists.failed-count", failed, "{n} failed", "{n} failed");
+      return element("span", "pl-foot pl-getting-ready", said);
     }
     return null;
+  }
+
+  /* Whether a playlist holds a text that is built, which is all Save for offline could
+     save: an empty one, or one still getting ready, offered it for nothing (#716 P2-15). */
+  function hasBuilt(one) {
+    if (one.items) {
+      return one.items.some(function (item) {
+        return !!item.open;
+      });
+    }
+    return Number(one.ready || 0) > 0;
   }
 
   /* Where the offline slice puts "Saved for offline" on a card and on a playlist's page
@@ -526,7 +543,7 @@
      to draw in, and answers whether it drew. */
   function offlineSlot(one, where) {
     var offline = window.TargumOffline;
-    if (!offline || !offline.playlist) return null;
+    if (!offline || !offline.playlist || !hasBuilt(one)) return null;
     var slot = element("span", "pl-offline");
     return offline.playlist(one, slot, where) ? slot : null;
   }
@@ -560,7 +577,7 @@
     var facts = [byline(one.made_by), textCount(one.count)];
     if (one.seconds) facts.push(length(one.seconds));
     box.appendChild(element("p", "pl-facts", facts.join(" · ")));
-    var known = knownBar(one.known);
+    var known = knownBar(one);
     if (known) box.appendChild(known);
     var foot = waitingLine(one) || offlineSlot(one, "card");
     if (foot) box.appendChild(foot);
@@ -701,9 +718,12 @@
   var refocus = null;
 
   // A change that worked clears whatever an earlier one said went wrong.
+  // The language of the playlist drawn last, kept for an answer that leaves it out.
+  var drawnLanguage = "";
   function change(id, body) {
     return ask("/playlists/" + id, body).then(function (answer) {
       say("one-said", answer.error ? plainly(answer) : "", !!answer.error);
+      if (!answer.error && answer.items && !answer.language && drawnLanguage) answer.language = drawnLanguage;
       if (!answer.error && answer.items) return drawOne(answer);
       load();
     });
@@ -826,8 +846,13 @@
       under.classList.add("is-here");
       under.textContent = hereLine(item);
     } else if (!item.open) {
+      // A failed one is named by its medium: a podcast is not a text (§6; #716 P2-7).
       under.textContent = item.failed
-        ? t("playlists.could-not", "We couldn't get this text ready. Remove it, then add it again.")
+        ? item.medium === "watch"
+          ? t("playlists.could-not.video", "We couldn't get this video ready. Remove it, then add it again.")
+          : item.medium === "listen"
+            ? t("playlists.could-not.audio", "We couldn't get this recording ready. Remove it, then add it again.")
+            : t("playlists.could-not", "We couldn't get this text ready. Remove it, then add it again.")
         : t("playlists.getting-ready", "Getting ready");
       under.classList.add("item-state");
     } else {
@@ -836,8 +861,13 @@
     // On a phone the columns fold into this line (board PlaylistDetailPhone).
     var folded = [];
     if (itemSeconds(facts)) folded.push(length(itemSeconds(facts)));
-    if (facts && typeof facts.known === "number") {
-      folded.push(t("playlists.known", "{share}% known", { share: Math.round(facts.known * 100) }));
+    var figure = facts && window.TargumStrings.figure ? window.TargumStrings.figure(facts) : null;
+    if (figure) {
+      folded.push(
+        window.TargumStrings.figureSaid(figure, function (n) {
+          return t("playlists.known", "{share}% known", { share: n });
+        })
+      );
     }
     if (folded.length) {
       under.appendChild(element("span", "item-folded", " · " + folded.join(" · ")));
@@ -847,7 +877,7 @@
 
     row.appendChild(element("span", "item-length", length(itemSeconds(facts))));
     var cell = element("span", "item-known");
-    var known = knownBar(facts && facts.known, "is-row");
+    var known = knownBar(facts, "is-row");
     if (known) cell.appendChild(known);
     row.appendChild(cell);
 
@@ -1002,6 +1032,7 @@
   }
 
   function drawOne(one) {
+    if (one.language) drawnLanguage = one.language;
     at("one").hidden = false;
     var body = at("one-body");
     body.textContent = "";
@@ -1022,7 +1053,7 @@
     var facts = [textCount(one.items.length)];
     if (one.seconds) facts.push(length(one.seconds));
     line.appendChild(document.createTextNode(facts.join(" · ")));
-    var known = knownBar(one.known);
+    var known = knownBar(one);
     if (known) line.appendChild(known);
     said.appendChild(line);
 
@@ -1050,6 +1081,7 @@
       credits: one.credits,
       waiting: one.waiting,
       ready: one.ready,
+      failed: one.failed,
       count: one.items.length,
     });
     if (waiting) presses.appendChild(waiting);
@@ -1067,7 +1099,17 @@
     // What the grip does, on the page where a mouse is: its title is never shown to a
     // keyboard (targum-internal#474, B5). Only where there is more than one to move.
     if (one.items.length > 1) {
-      body.appendChild(element("p", "pl-reorder-note", t("playlists.reorder-note", "Drag to reorder, or Alt+↑/↓.")));
+      // A phone has no Alt key to press: it is told what its finger does (§6; #716 P2-14).
+      var touch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+      body.appendChild(
+        element(
+          "p",
+          "pl-reorder-note",
+          touch
+            ? t("playlists.reorder-note-touch", "Drag ≡ to reorder.")
+            : t("playlists.reorder-note", "Drag to reorder, or Alt+↑/↓.")
+        )
+      );
     }
     var table = element("div", "card pl-table");
     if (one.items.length) {
