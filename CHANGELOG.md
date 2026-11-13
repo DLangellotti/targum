@@ -14,6 +14,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- The Hebrew annotator no longer writes the wrong verb roots `verb_roots.WRONG` hides at
+  page build (targum-internal#590). Rides the next Hebrew annotator rename, which takes
+  it to every text; nothing here renames it. A three-letter lemma that is no qal is no
+  longer its own root: a geminate or I-nun hif'il gets its root from the reviewed list
+  (הכה is נ־כ־ה, הקל ק־ל־ל, החל ח־ל־ל) and an infinitive, a hif'il present or a noun gets
+  none (דעת, מגן, מבט). A qal passive participle on a nun root keeps its nun (נשוא is
+  נ־שׂ־א), and no word with a yod before its last letter is read as a nif'al (נזיר,
+  נעים). הטיל is ט־ו־ל, and the dictionary no longer fills a root the reviewed list
+  contradicts. A three-letter lemma starting with a conjunction's ו gets no root. A nun
+  in a lemma may drop only first in the root or last before a ת, as `lemma_check`
+  already holds at page build: התקין is refused for נשתיק, and לתת stays נתן's. No
+  spend, no new strings.
 - The front door's four P1s from design's §14 finish bar (targum-internal#477,
   2026-11-12). On a text page, the edition, licence and publisher links are now teal, not
   the browser's blue. /about, /how and /credits now have the front door's bar (the mark,

@@ -40,6 +40,7 @@ from .dicta import mend_pointed, verb_shape
 from .dictionary import Entry as DictionaryEntry
 from .frequency import FrequencyBands
 from .frequency import available as frequency_available
+from .hebrew import weak_root
 from .lemma import StanzaLemmatizer
 from .moves import letters as _letters
 from .moves import shared as _shared
@@ -400,6 +401,12 @@ class Annotator:
         """
         entry = self.dictionary.get(token.lemma)
         if entry is None or token.pos != "VERB":
+            return {}
+        listed = weak_root(token.lemma)
+        if listed and entry.root and _letters(entry.root) != _letters(listed[1]):
+            # The reviewed list is the word on its own lemmas, and a root it contradicts
+            # is not filled: the dictionary said נ־ט־ל for הטיל, which is ט־ו־ל
+            # (targum-internal#590).
             return {}
         found: dict[str, object] = {}
         if entry.root and not token.root and _spells(entry.root, token.surface):
