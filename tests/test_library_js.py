@@ -2220,3 +2220,140 @@ def test_dialogues_is_a_door_among_browse_by_kind(tmp_path: Path) -> None:
     assert ids.index("dialogue") == (1 if ids[0] == "tanakh" else 0), "first after the Tanakh"
     door = drawn["kindDoors"][ids.index("dialogue")]
     assert door["href"] == "#see/kind/dialogue" and door["says"] == ["Conversations"]
+
+
+BUILD_HARNESS = HERE / "js" / "library_build.js"
+
+
+def press_and_follow(
+    tmp_path: Path, jobs: list[dict[str, Any]], **press: Any
+) -> list[dict[str, Any]]:
+    """A row's build pressed and followed through `/job/<id>` answers given in order
+    (targum-internal#696, P1-3): what the row says after each poll."""
+    from targum.catalogue import CATALOGUE, collections
+
+    catalogue = [entry.state() for entry in CATALOGUE]
+    first = next(row for row in catalogue if row["language"].startswith("he"))
+    payload = {
+        "catalogue": catalogue,
+        "collections": [group.state() for group in collections()],
+        "view": {"shape": "list"},
+        "press": {
+            "id": first["id"],
+            "prepare": {"id": "j1", "estimate": 0.5, "total": 50},
+            "jobs": jobs,
+            **press,
+        },
+    }
+    where = tmp_path / "press.json"
+    where.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    done = subprocess.run(
+        ["node", str(BUILD_HARNESS), str(where)], capture_output=True, text=True, timeout=60
+    )
+    assert done.returncode == 0, done.stderr
+    return list(json.loads(done.stdout)["ticks"])
+
+
+def test_a_pressed_build_in_line_says_how_many_are_ahead_and_offers_cancel(
+    tmp_path: Path,
+) -> None:
+    """It said "Almost there…" whatever the build was doing, and had no Cancel, though
+    Home's waiting card has had one since #694."""
+    ticks = press_and_follow(
+        tmp_path,
+        [
+            {"id": "j1", "stage": "queued", "behind": 2, "cancellable": True},
+            {
+                "id": "j1",
+                "stage": "working",
+                "said": "12 of 50 sentences ready.",
+                "cancellable": True,
+            },
+        ],
+        ticks=2,
+    )
+    assert ticks[0]["says"] == "Waiting behind 2 builds"
+    assert ticks[0]["cancel"] == "Cancel", "Home's control, beside the row's press"
+    assert ticks[0]["polling"] and not ticks[0]["pressable"]
+    assert ticks[1]["says"] == "12 of 50 sentences ready.", (
+        "the job's own line, as the bell says it"
+    )
+
+
+def test_a_cancelled_build_stops_polling_and_can_be_pressed_again(tmp_path: Path) -> None:
+    """A build cancelled elsewhere (Home, the bell) said "Almost there…" for ever, with
+    its press disabled: the watch knew no end but done and a failure."""
+    ticks = press_and_follow(
+        tmp_path,
+        [
+            {
+                "id": "j1",
+                "stage": "queued",
+                "behind": 0,
+                "said": "It's about to start.",
+                "cancellable": True,
+            },
+            {"id": "j1", "stage": "cancelled", "said": "You cancelled it. Nothing was used."},
+        ],
+        ticks=3,
+    )
+    assert ticks[0]["says"] == "It's about to start."
+    assert ticks[1] == {
+        "says": "You cancelled it. Nothing was used.",
+        "cancel": None,
+        "polling": False,
+        "pressable": True,
+    }
+    assert ticks[2] == ticks[1], "and nothing polls after it"
+
+
+def test_cancel_on_the_row_cancels_and_ends_the_watch(tmp_path: Path) -> None:
+    ticks = press_and_follow(
+        tmp_path,
+        [{"id": "j1", "stage": "queued", "behind": 1, "cancellable": True}],
+        ticks=2,
+        cancelAt=0,
+        cancel={"cancelled": True},
+    )
+    after = ticks[1]
+    assert after["pressed"] == "cancel"
+    assert after["cancel"] == "Cancelled. Nothing was used."
+    assert after["says"] == "", "said once, by the control"
+    assert not after["polling"] and after["pressable"]
+
+
+def test_see_alls_language_menu_names_the_shelf_on_show_and_offers_every_language(
+    tmp_path: Path,
+) -> None:
+    """targum-internal#696, P1-4: "All Russian texts" stood over "Language: Hebrew", and
+    the menu offered Hebrew alone to a reader learning Hebrew, Russian, Italian and
+    French, because it listed only languages with a text built or words kept in this
+    browser. It offers the languages the account says they learn."""
+    names = {"he": "Hebrew", "ru": "Russian", "it": "Italian", "fr": "French"}
+    drawn = draw(tmp_path, language="ru", learning=["he", "ru", "it", "fr"], names=names)
+    assert drawn["languageValue"] == "Russian"
+    assert drawn["languageOn"] == "Russian"
+    assert sorted(drawn["languages"]) == ["French", "Hebrew", "Italian", "Russian"]
+
+    alone = draw(tmp_path, language="fr", learning=["he"], names=names)
+    assert alone["languageValue"] == "French", "the shelf on show, even where it is not offered"
+    assert "French" in alone["languages"]
+
+
+def test_our_estimates_figure_is_one_piece_beside_its_label(tmp_path: Path) -> None:
+    """targum-internal#696, P2-9: the % column wrapped "About 93% (our estimate)" between
+    "About" and "93%". The figure is its own element, which the stylesheet keeps whole,
+    and the label after it may wrap."""
+    from targum.catalogue import CATALOGUE
+
+    first = next(entry for entry in CATALOGUE if entry.language.startswith("he"))
+    drawn = draw(
+        tmp_path,
+        catalogueKnown={first.id: {"known": 0.93, "estimated": 0.93}},
+        unfolded=True,
+    )
+    row = next(row for row in drawn["rows"] if row["title"] == first.title)
+    assert row["known"] == "About 93% (our estimate)"
+    assert row["knownFigure"].strip() == "About 93%"
+    css = (ASSETS / "library.css").read_text(encoding="utf-8")
+    assert ".estimate-figure { white-space: nowrap; }" in css

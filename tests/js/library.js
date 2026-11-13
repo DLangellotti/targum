@@ -27,7 +27,7 @@ const byId = install({
   TARGUM_COLLECTIONS: payload.collections || [],
   // targum's own playlists, a shelf of their own (design.md §12, 2026-10-09).
   TARGUM_SETS: payload.sets || [],
-  TARGUM_LANGUAGES: { he: "Hebrew", ru: "Russian" },
+  TARGUM_LANGUAGES: payload.names || { he: "Hebrew", ru: "Russian" },
   // The page's words in a reader's language, as the builder hands them over; none is English.
   TARGUM_STRINGS: payload.strings,
   // A first visit is a browser with no view remembered at all; every other run hands
@@ -45,6 +45,8 @@ const byId = install({
     HOME: "he",
     order: (codes) => codes,
     current: () => payload.language || "he",
+    // The languages the account says this reader learns (`lang.js` `learning`).
+    learning: () => payload.learning || ["he"],
     // The switcher draws; the caller remembers. Both are asked for now.
     set: () => {},
     into: () => "",
@@ -245,6 +247,8 @@ setTimeout(() => {
       length: find("see-length-said").textContent,
       kind: find("see-length-kind").textContent.replace(/ · $/, ""),
       known: find("see-known-say").textContent,
+      // The figure's own element, which holds together while its label wraps (#696).
+      knownFigure: ((find("see-known-say").children || []).find((c) => wearing(c, "estimate-figure")) || {}).textContent || "",
       near: wearing(find("see-known"), "near"),
       meter: !!below(find("see-known"), "meter"),
       state: open.children[open.children.length - 1].textContent,
@@ -292,6 +296,8 @@ setTimeout(() => {
       // The band the list is under, as its chip names it, or "" for every band (#554).
       fitOn: bandChip ? bandChip.children[0].textContent : "",
       languageOn: menu("language").on,
+      languageValue: menu("language").value,
+      languages: menu("language").options,
       menus: menus.map((m) => m.id),
       levelChip: levelChip ? { text: levelChip.textContent, label: levelChip.getAttribute("aria-label") } : null,
       bandChip: bandChip ? { text: bandChip.textContent, label: bandChip.getAttribute("aria-label") } : null,

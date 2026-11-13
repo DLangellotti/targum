@@ -10338,6 +10338,15 @@ class Handler(BaseHTTPRequestHandler):
         if reading_at is not None:
             query = urlparse(self.path).query
             return self._sent_on(reading_at + (f"?{query}" if query else ""))
+        # A text's own page is the stranger's (targum-internal#696, P1-1): the waitlist,
+        # Sign in, no share known and two black presses. Somebody signed in is sent
+        # through `/open/`, the one door onto a catalogue text, which lands in its reader
+        # where it is built and on its Library card with the press up where it is not:
+        # the desk's bar, the share they know and the press by medium. A 302 for the
+        # reason a portion's is one. The weekly keeps its own address below.
+        if named is not None and weekly_url(named.group(1)) is None and self._authorised():
+            query = urlparse(self.path).query
+            return self._sent_on(f"/open/{named.group(1)}" + (f"?{query}" if query else ""))
         daily_cycle = DAILY_ROUTE.match(route) if shelves_are_public() else None
         if daily_cycle is not None:
             return self._serve_daily(daily_cycle.group(1), daily_cycle.group(2) or "")

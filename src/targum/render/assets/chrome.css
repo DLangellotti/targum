@@ -1124,6 +1124,11 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .palette-lang-row[aria-checked="true"] { font-weight: 600; color: var(--teal); }
 .palette-lang-count { margin-inline-start: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .palette-filters { margin-block: 1rem 0.25rem; }
+/* The field and the tabs keep their height; the results are what scrolls. On a phone a
+   row of tabs scrolls sideways (`.tabs`), which let the column shrink it to nothing under
+   the language pill: All and Library at half height (targum-internal#696, P1-6). */
+.palette > .palette-top,
+.palette > .palette-filters { flex: none; }
 .palette-filters .tab.is-empty { opacity: 0.55; }
 .palette-filters .tab:disabled { cursor: default; }
 .palette-level {
@@ -1338,7 +1343,8 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .palette-esc { display: none; }
   .palette-scope { order: 3; }
   .palette-langs { inset-inline: 0 auto; }
-  .palette-filters { margin-block: 0.5rem 0; }
+  /* Its own row under the language, past `.tabs`' phone margin of -3px. */
+  .palette > .palette-filters { margin-block: 0.5rem 0; }
   .palette-filters .tab.is-empty { display: none; }
   .palette-level { display: none; }
   .palette-body { margin-inline: -1rem; padding: 0.25rem 1rem 6rem; }

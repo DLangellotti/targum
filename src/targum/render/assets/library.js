@@ -489,7 +489,10 @@
     if (!estimatedOf(row)) {
       return el("span", className, t("library.known-share", "{share}% known", { share: Math.floor(share * 100) }));
     }
-    var line = el("span", className + " is-estimate", t("known.estimate.about", "About {n}%", { n: Math.round(share * 100) }) + " ");
+    // The figure in a span of its own that never breaks (targum-internal#696, P2-9): the
+    // column wrapped "About 93%" between its two words; the label may wrap under it.
+    var line = el("span", className + " is-estimate");
+    line.appendChild(el("span", "estimate-figure", t("known.estimate.about", "About {n}%", { n: Math.round(share * 100) }) + " "));
     line.appendChild(el("span", "estimate-ours", t("known.estimate.ours", "(our estimate)")));
     return line;
   }
@@ -2105,7 +2108,11 @@
         redraw();
       })
     );
-    var languages = (codes || [code]).map(function (one) {
+    // The value is the shelf on show, always among the choices: a menu whose value was
+    // not in its list fell back to its first, and said Hebrew over a Russian shelf.
+    var choices = (codes || []).slice();
+    if (choices.indexOf(code) < 0) choices.unshift(code);
+    var languages = choices.map(function (one) {
       return [one, names[one] || one];
     });
     host.appendChild(
@@ -2225,28 +2232,100 @@
     return state;
   }
 
+  /* What a pressed row says while its build is under way (targum-internal#696, P1-3),
+     at parity with Home's waiting card (#694): in line, how many are ahead; running, the
+     job's own line, the one the bell and a host say; cancelled or stopped, what the
+     server said became of it. "Almost there…" only where none of those has arrived. */
+  function progressLine(job) {
+    if (job.stage === "queued" && Number(job.behind) > 0) {
+      return tn("library.build.behind", Number(job.behind), "Waiting behind {n} build", "Waiting behind {n} builds");
+    }
+    if (job.stage === "queued" || job.stage === "working" || job.stage === "cancelled") {
+      if (job.said) return job.said;
+    }
+    return say(job.message) || t("library.build.almost", "Almost there…");
+  }
+
+  //: Stages a build does not come back from; the watch ends on each (serve.py `SETTLED`).
+  var SETTLED = { done: true, failed: true, blocked: true, cancelled: true };
+
   function watch(id, state, open) {
     return new Promise(function (resolve) {
-      var timer = setInterval(function () {
+      var item = open.parentNode;
+      var undo = null;
+      var held = null;
+      var over = false;
+      var timer = null;
+      // Ends the watch once, whichever of the poll and the Cancel sees the end first: a
+      // cancelled build is never polled again, and its row can be pressed again.
+      function finish(text) {
+        if (over) return false;
+        over = true;
+        clearInterval(timer);
+        if (text !== null) tell(state, text);
+        open.disabled = false;
+        resolve();
+        return true;
+      }
+      function drop() {
+        if (undo && undo.parentNode) undo.parentNode.removeChild(undo);
+        undo = null;
+      }
+      // Cancel, where the build is the reader's to cancel: Home's control (`cancel.js`),
+      // beside the row's press and never inside it, a button inside a button being
+      // nothing a browser presses.
+      function offer(job) {
+        if (undo || over || !window.TargumCancel || !item) return;
+        undo = window.TargumCancel.control(job, {
+          gone: function () {
+            // Its own words stay in the control; the row's line makes way for them.
+            finish("");
+          },
+        });
+        if (!undo) return;
+        undo.classList.add("row-cancel");
+        item.insertBefore(undo, open.nextSibling);
+      }
+      function look() {
         ask("/job/" + id).then(function (job) {
+          if (over) return;
           // A failure or a refusal ends the watch, and the row can be pressed again: the
           // sentence usually says to start it again.
           var problem = job.error || (job.stage === "blocked" && job.blocked);
           if (problem) {
-            clearInterval(timer);
-            tell(state, problem);
-            open.disabled = false;
-            resolve();
+            drop();
+            finish(problem);
             return;
           }
-          tell(state, say(job.message) || t("library.build.almost", "Almost there…"));
+          if (job.stage === "cancelled") {
+            drop();
+            finish(progressLine(job));
+            return;
+          }
           if (job.stage === "done") {
-            clearInterval(timer);
+            drop();
+            finish(null);
             window.location.href = keyed("/reader/" + job.reader.split("/").map(encodeURIComponent).join("/"));
-            resolve();
+            return;
+          }
+          if (SETTLED[job.stage]) {
+            drop();
+            finish(progressLine(job));
+            return;
+          }
+          tell(state, progressLine(job));
+          // The control keeps the row it was drawn with, so it learns where the build
+          // has got to: a press on one that has started since asks before it stops it.
+          if (held) {
+            held.stage = job.stage;
+            held.cancellable = job.cancellable;
+          } else if (job.cancellable || job.stopping) {
+            held = { id: job.id || id, stage: job.stage, title: job.title, cancellable: job.cancellable, stopping: job.stopping };
+            offer(held);
           }
         });
-      }, 700);
+      }
+      timer = setInterval(look, 700);
     });
   }
 
@@ -3572,6 +3651,13 @@
     // who had never touched it — which is the opposite of what this switcher is for.
     function languagesHad() {
       var had = [lang.HOME];
+      // And every language the account says they learn (targum-internal#696, P1-4): a
+      // reader learning Russian with nothing built and no words kept in this browser was
+      // shown the Russian shelf under "Language: Hebrew", with Hebrew the only choice.
+      ((lang.learning && lang.learning()) || []).forEach(function (one) {
+        var code = base(one);
+        if (code && had.indexOf(code) < 0) had.push(code);
+      });
       readers.concat(kept()).forEach(function (thing) {
         var codes = thing.languages && thing.languages.length ? thing.languages : [thing.language];
         codes.forEach(function (one) {

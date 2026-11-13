@@ -24,7 +24,7 @@
       a Russian sentence marked `lang="en"` is read aloud in an English voice and indexed
       as English, which is the opposite of what this page is for (targum-internal#188). -#}
   {% if named %}<p class="english" lang="{{ page_language }}" dir="ltr">{{ named }}</p>{% endif %}
-  <p class="byline">{{ byline }}</p>
+  {% if byline_hebrew %}<p class="byline" lang="he" dir="rtl">{{ byline }}</p>{% else %}<p class="byline">{{ byline }}</p>{% endif %}
   {#- Which older Hebrew, for a text in one (David, 2026-10-25; design.md §12, "An older
       Hebrew says which it is"). -#}
   {% if era %}<p class="era" lang="{{ page_language }}">{{ era }}</p>{% endif %}
@@ -108,7 +108,13 @@
   </section>
   {%- endif %}
 
-  <p class="facts">{{ t("text.page.facts", "{words} words, about {minutes} minutes of reading.", words=entry.words | int, minutes=minutes) }}</p>
+  {%- if medium == 'watch' %}
+  <p class="facts">{{ t("text.page.facts-video", "Video, about {minutes} minutes.", minutes=spoken_minutes) }}</p>
+  {%- elif medium == 'listen' %}
+  <p class="facts">{{ t("text.page.facts-audio", "Audio, about {minutes} minutes.", minutes=spoken_minutes) }}</p>
+  {%- else %}
+  <p class="facts">{{ t("text.page.facts", "{words} words, about {minutes} minutes of reading.", words=words, minutes=minutes) }}</p>
+  {%- endif %}
 
   {%- if door_is_open() %}
   {#- The door is open (design.md §12, 2026-11-10): the press is Sign up, carrying the
@@ -128,8 +134,8 @@
   <p class="door-in">{{ t("text.page.invited-already", "Already invited?") }} <a href="{{ door }}">{{ t("text.page.sign-in-to-read-it", "Sign in to read it") }}</a></p>
   {%- else %}
   <p class="door">
-    <a class="go" href="{{ door }}">{{ t("text.page.read-it", "Read it") }}</a>
-    <span class="free">{{ t("text.page.someone-has-already-translated-this-one", "Someone has already translated this one.") }}</span>
+    <a class="go" href="{{ door }}">{% if medium == 'watch' %}{{ t("text.page.watch-it", "Watch it") }}{% elif medium == 'listen' %}{{ t("text.page.listen-to-it", "Listen to it") }}{% else %}{{ t("text.page.read-it", "Read it") }}{% endif %}</a>
+    <span class="free">{% if medium == 'read' %}{{ t("text.page.someone-has-already-translated-this-one", "Someone has already translated this one.") }}{% else %}{{ t("text.page.its-words-are-already-translated", "Its words are already translated.") }}{% endif %}</span>
   </p>
   {%- endif %}
 </main>

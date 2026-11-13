@@ -1087,6 +1087,53 @@ def test_while_the_front_door_is_open_a_text_page_offers_the_waitlist(
     assert "Read it" in text_page(entry, "https://targum.page")
 
 
+def test_a_videos_page_says_watch_and_its_minutes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """targum-internal#696, P1-2: a video's page said "Read it", "about 11 minutes of
+    reading" and "Someone has already translated this one." where its shelf card says
+    "Video · 11 min". The verb and the length follow the medium (design.md §6), and a
+    text's count of words is grouped as the shelf groups it (P2-15)."""
+    import dataclasses
+
+    import targum.spoken as spoken
+    from targum.catalogue import Kind, everything
+    from targum.render.builder import text_page
+
+    entry = dataclasses.replace(next(iter(everything())), kind=Kind.talk)
+    monkeypatch.setattr(spoken, "is_video", lambda source: source == entry.source)
+    page = strip(text_page(entry, ADDRESS))
+    assert "Watch it" in page and "Read it" not in page
+    assert f"Video, about {max(1, entry.minutes)} minutes." in page
+    assert "minutes of reading" not in page and "Someone has already translated" not in page
+    russian = strip(text_page(entry, ADDRESS, language="ru"))
+    assert "Смотреть" in russian and "Читать" not in russian
+
+    monkeypatch.setattr(spoken, "is_video", lambda source: False)
+    heard = strip(text_page(entry, ADDRESS))
+    assert "Listen to it" in heard and "Audio, about" in heard
+
+    long = next(e for e in everything() if e.kind.value != "talk" and e.words >= 1000)
+    assert f"{long.words:,} words, about" in strip(text_page(long, ADDRESS))
+
+
+def test_a_hebrew_byline_says_it_is_hebrew_and_stands_upright() -> None:
+    """targum-internal#696, P2-13: the byline ויקימסע was set in italic under the page's
+    `lang=en`. A byline written in Hebrew carries `lang="he"` and `dir="rtl"`, and
+    Hebrew is never slanted; an English one is left as it was."""
+    import dataclasses
+    from pathlib import Path
+
+    from targum.catalogue import everything
+
+    entry = dataclasses.replace(next(iter(everything())), author="ויקימסע")
+    assert '<p class="byline" lang="he" dir="rtl">ויקימסע</p>' in text_page(entry, ADDRESS)
+    english = dataclasses.replace(entry, author="Wikivoyage")
+    assert '<p class="byline">Wikivoyage</p>' in text_page(english, ADDRESS)
+    css = (
+        Path(__file__).resolve().parent.parent / "src/targum/render/assets/public-page.css"
+    ).read_text(encoding="utf-8")
+    assert ".byline:lang(he) { font-style: normal; }" in css
+
+
 # -- what a shared link shows -------------------------------------------------
 
 
