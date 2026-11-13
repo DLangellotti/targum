@@ -433,10 +433,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    and who makes the show as the reviewed list names them (targum-internal#691). Two
 #    added columns with defaults, so two ALTERs; empty on every find before them.
 #
+# 64→65: job.credited_to — the retry a stopped build's heard seconds were credited to
+#    (targum-internal#694; David, 2026-11-13, "credit the retry"). Empty on every row
+#    before it: nothing was credited then. One added column with a default, so one ALTER.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 64
+SCHEMA_VERSION = 65
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -929,6 +933,8 @@ MIGRATIONS: tuple[str, ...] = (
     # A podcast episode's own page and who makes the show (schema 64, targum-internal
     # #691): what Home's line and the reader's head link and name. Empty before it.
     "ALTER TABLE find ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    # Which retry a stopped build's heard seconds went to (schema 65, #694).
+    "ALTER TABLE job ADD COLUMN credited_to TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN author TEXT NOT NULL DEFAULT ''",
 )
 
@@ -1282,7 +1288,10 @@ CREATE TABLE IF NOT EXISTS job (
   -- every row written before this column existed.
   finished    INTEGER NOT NULL DEFAULT 0,
   -- 1 where targum paid rather than the reader's month (schema 48).
-  gift        INTEGER NOT NULL DEFAULT 0
+  gift        INTEGER NOT NULL DEFAULT 0,
+  -- A stopped build's heard seconds, taken off the claim of the retry named here
+  -- (schema 65, targum-internal#694). Empty while they are still the reader's to use.
+  credited_to TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -7306,6 +7315,7 @@ class Store:
         per_month_length: float | None = None,
         kind: str | None = None,
         gift: bool = False,
+        credit_from: str | None = None,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -7342,8 +7352,21 @@ class Store:
 
         `gift` marks the row as targum's to pay (targum-internal#543): the one place a
         gift says so, since it claims no length.
+
+        `credit_from` is a recording's source (targum-internal#694; David, 2026-11-13:
+        "credit the retry"). The seconds this reader already paid for it in builds they
+        stopped part way, and that no other claim has taken (`prepaid`), come off
+        `length`; once the claim is taken those rows name this job in `credited_to`, in
+        this transaction, so a credit is used by one claim however its build ends up
+        settled, and two retries pressed together share one. A claim that is given back
+        gives its credit back (`unclaim`, `return_credit`).
         """
         with self.write() as db:
+            crediting: list[str] = []
+            if credit_from is not None and owner is not None and length > 0:
+                rows = self._unused(db, owner, credit_from, job_id)
+                crediting = [str(row["id"]) for row in rows]
+                length = max(0.0, length - sum(float(row["length"]) for row in rows))
             if per_account is not None:
                 narrowed = " AND kind = ?" if kind is not None else ""
                 params: tuple[Any, ...] = (since, owner, kind) if kind else (since, owner)
@@ -7377,7 +7400,34 @@ class Store:
                 "UPDATE job SET claimed = ?, length = ?, gift = ? WHERE id = ?",
                 (amount, length, int(gift), job_id),
             )
+            for credited in crediting:
+                db.execute("UPDATE job SET credited_to = ? WHERE id = ?", (job_id, credited))
             return ""
+
+    @staticmethod
+    def _unused(db: sqlite3.Connection, owner: int, source: str, job_id: str) -> list[Any]:
+        """This reader's stopped builds of `source` whose heard seconds no claim has
+        taken yet (targum-internal#694). A build cancelled while it waited heard
+        nothing and holds no length; another reader's or another source's never count."""
+        return db.execute(
+            "SELECT id, length FROM job WHERE owner = ? AND source = ? AND id != ? "
+            "AND stage = 'cancelled' AND length > 0 AND credited_to = '' "
+            "AND kind IN ('build', 'subscription')",
+            (owner, source, job_id),
+        ).fetchall()
+
+    def prepaid(self, owner: int, source: str, job_id: str = "") -> float:
+        """Seconds of `source` this reader paid for in builds they stopped part way and
+        has not had back on a claim yet: what `claim` would take off a retry's length."""
+        return sum(float(row["length"]) for row in self._unused(self.db, owner, source, job_id))
+
+    def return_credit(self, job_id: str) -> None:
+        """A claim given back, or a build stopped before it went ahead, gives back the
+        credit it took (targum-internal#694): those seconds are the reader's to use again.
+        A stopped retry's own heard seconds are credited beside them, so a chain of
+        stops pays for the recording once."""
+        with self.write() as db:
+            db.execute("UPDATE job SET credited_to = '' WHERE credited_to = ?", (job_id,))
 
     def claim_all(
         self,
@@ -7475,6 +7525,8 @@ class Store:
         """
         with self.write() as db:
             db.execute("UPDATE job SET claimed = 0, length = 0 WHERE id = ?", (job_id,))
+            # And the credit it took, if it was a retry (targum-internal#694).
+            db.execute("UPDATE job SET credited_to = '' WHERE credited_to = ?", (job_id,))
 
     def interrupt_running(self) -> list[str]:
         """Mark builds that were mid-flight when the process died.
@@ -7499,6 +7551,12 @@ class Store:
         """
         with self.write() as db:
             rows = db.execute("SELECT id FROM job WHERE stage IN ('working', 'queued')").fetchall()
+            # A retry that never went ahead gives back the credit it took (#694): its
+            # length goes back below, and so do the stopped seconds it was credited.
+            db.execute(
+                "UPDATE job SET credited_to = '' WHERE credited_to IN "
+                "(SELECT id FROM job WHERE stage IN ('working', 'queued'))"
+            )
             db.execute(
                 "UPDATE job SET stage = 'failed', error = ?, length = 0 WHERE stage = 'working'",
                 (
