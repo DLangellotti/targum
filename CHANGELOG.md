@@ -14,6 +14,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- The reader's finish bar (targum-internal#703, design's §14 pass). "Done, and mark n
+  words known" is the quiet link beside Done that design.md §12 (2026-10-13) asks for, at
+  the end of a text and under a picture, where it had been an outlined pill and the
+  biggest thing on Theatre's end card. On a phone the words tab under a video stands in a
+  band of paper at the foot, as the bar stands at the top, so the transcript goes under
+  the band and not under the tab, and the last line still scrolls clear. Hebrew in a
+  podcast's or a video's head, in the end card's chips and in the forms table says its own
+  language and direction. The speed under the picture, the bar's title, the Listening view
+  and a line's own play reach 44px under a thumb, and a phone's page arrows stand inside
+  its edges. A Latin name in a Hebrew line ("Yair Lapid") is no longer drawn and counted
+  as a word to learn. No new strings, no spend.
 - The Library's finish bar (targum-internal#696, design's §14 pass). Signed in,
   `/library/<id>` no longer serves the stranger's page (Join the waitlist, no share known,
   two primaries): it sends the reader through `/open/<id>`, into the reader or onto the

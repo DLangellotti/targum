@@ -1804,6 +1804,8 @@ var targumPlayer = function () {
           chip.className = "film-end-word";
           var word = document.createElement("span");
           word.className = "film-end-he";
+          // Its own direction: the list is laid out ltr from the card's start (#703).
+          word.setAttribute("dir", endWords.getAttribute("dir") || "auto");
           word.textContent = one.word;
           chip.appendChild(word);
           if (one.gloss) {
