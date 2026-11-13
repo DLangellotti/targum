@@ -617,3 +617,146 @@ def test_a_verb_under_its_own_lemma_stands() -> None:
 def test_every_form_of_able_is_able(able: str) -> None:
     (word,) = _sentence((able, "יכולת", "AUX", None, None, None, "UPOS=AUX", 0, []))
     assert (word.lemma, word.pos) == ("יכול", "AUX")
+
+
+# -- ling-he's analyser read of 2026-11-13 (targum-internal#698, #700, #702) -----------
+
+
+def test_the_lemma_drops_a_prefix_the_line_already_shows() -> None:
+    # "ה the + שיניים" over the lemma השיניים: the card had no meaning to give.
+    (teeth,) = _sentence(
+        ("השיניים", "השיניים", "NOUN", None, None, "ה the + שיניים", "UPOS=NOUN", 1, ["DET"])
+    )
+    assert (teeth.lemma, teeth.built) == ("שיניים", "ה the + שיניים")
+    (tiger,) = _sentence(
+        (
+            "והנמר",
+            "והנמר",
+            "NOUN",
+            None,
+            None,
+            "ו and + ה the + נמר",
+            "UPOS=NOUN",
+            2,
+            ["DET", "CCONJ"],
+        )
+    )
+    assert tiger.lemma == "נמר"
+    (other,) = _sentence(
+        ("הזולת", "הזולת", "NOUN", None, None, "ה the + זולת", "UPOS=NOUN", 1, ["DET"])
+    )
+    assert other.lemma == "זולת"
+
+
+def test_a_verb_under_its_prefix_takes_its_verb() -> None:
+    # שֶׁתֵּלְכִי under שתלכי: the ש comes off. Pointed, the prefix's tsere is a nif'al's
+    # to `_nifal_future`, so it stays the gap תלכי; unpointed, תלכי is הלך's.
+    fut = "UPOS=VERB|Person=3|Gender=Fem|Number=Sing|Tense=Fut"
+    (go,) = _sentence(("שֶׁתֵּלְכִי", "שתלכי", "VERB", None, None, "ש that + תלכי", fut, 1, ["SCONJ"]))
+    assert (go.lemma, go.built) == ("תלכי", "ש that + תלכי")
+    (go,) = _sentence(("שתלכי", "שתלכי", "VERB", None, None, "ש that + תלכי", fut, 1, ["SCONJ"]))
+    assert go.lemma == "הלך"
+
+
+@pytest.mark.parametrize(
+    ("surface", "lemma", "pos", "built", "lead"),
+    [
+        ("הַיּוֹם", "יום", "ADV", "ה the + יום", 1),  # "today", not "the day"
+        ("היום", "יום", "ADV", None, 0),
+        ("הֲכִי", "הכי", "ADV", "ה the + כי", 1),  # "most"
+        ("למשל", "משל", "CCONJ", "ל to + משל", 1),  # "for example", not "proverb"
+        ("בִּכְלָל", "כלל", "ADV", None, 0),  # "at all"
+    ],
+)
+def test_a_fixed_word_stays_whole(
+    surface: str, lemma: str, pos: str, built: str | None, lead: int
+) -> None:
+    (word,) = _sentence((surface, lemma, pos, None, None, built, f"UPOS={pos}", lead, []))
+    bare = "".join(char for char in surface if "א" <= char <= "ת")
+    assert (word.lemma, word.built, word.split) == (bare, None, False)
+    assert word.syntax is not None and word.syntax.lead == 0
+
+
+def test_the_day_as_a_noun_keeps_its_article() -> None:
+    (day,) = _sentence(("הַיּוֹם", "יום", "NOUN", None, None, "ה the + יום", "UPOS=NOUN", 1, ["DET"]))
+    assert (day.lemma, day.built) == ("יום", "ה the + יום")
+
+
+def test_yours_is_of_with_a_pronoun_not_that_to() -> None:
+    # שלכן came back "ש that + ל to + כן + with a pronoun on the end".
+    built = "ש that + ל to + כן + with a pronoun on the end"
+    (yours,) = _sentence(("שלכן", "של", "ADP", None, None, built, "UPOS=ADP", 2, []))
+    assert (yours.lemma, yours.built) == ("של", "שלכן + with a pronoun on the end")
+    assert yours.syntax is not None and yours.syntax.lead == 0
+
+
+def test_there_is_not_has_no_root_or_binyan() -> None:
+    # Every existential אין drew pa'al and א־י־ן, and "All forms of" a verb that is none.
+    (none,) = _sentence(("אֵין", "אין", "AUX", "פעל", "אין", None, "UPOS=VERB", 0, []))
+    assert (none.lemma, none.root, none.binyan) == ("אין", None, None)
+    _, none = _sentence(
+        ("לא", "לא", "ADV", None, None, None, "UPOS=ADV", 0, []),
+        ("ואין", "אין", "AUX", "פעל", "אין", "ו and + אין", "UPOS=VERB", 1, ["CCONJ"]),
+    )
+    assert (none.root, none.binyan) == (None, None)
+    rows = _rows(("שֶׁאֵין", "אין", "AUX", "פעל", "אין", "ש that + אין", "UPOS=VERB", 1, ["SCONJ"]))
+    assert (rows[0]["root"], rows[0]["binyan"]) == (None, None), "and the counts the same"
+
+
+def test_offering_is_of_y_ts_a() -> None:
+    # "אז מה את מציעה?": מציע drew י־ע־ץ, "advise".
+    (offer,) = _sentence(
+        ("מַצִּיעָה", "מציע", "VERB", "הפעיל", "יעץ", None, "UPOS=VERB|Tense=Pres", 0, [])
+    )
+    assert (offer.lemma, offer.root, offer.binyan) == ("הציע", "יצע", "הפעיל")
+    from targum.annotate.verb_roots import root_for
+
+    assert root_for("הציע", "יעץ", "VERB") == ""
+
+
+def test_a_names_lemma_that_is_another_word_goes_back_to_the_name() -> None:
+    # ללאו, "to Leo", under ללא "without"; קירשנבל under היפוגליקמיה.
+    (leo,) = _sentence(("ללאו", "ללא", "PROPN", None, None, "ל to + לאו", "UPOS=PROPN", 1, ["ADP"]))
+    assert (leo.lemma, leo.built) == ("לאו", "ל to + לאו")
+    (name,) = _sentence(("קירשנבל", "היפוגליקמיה", "PROPN", None, None, None, "UPOS=PROPN", 0, []))
+    assert name.lemma == "קירשנבל"
+
+
+def test_a_names_lemma_the_word_spells_stands() -> None:
+    assert checked('ד"ר', "ד", 0, "PROPN") is None, "an abbreviation's lemma"
+    assert checked("משה", "למשה", 1, "PROPN") is None
+
+
+def test_doctors_resh_is_the_doctors() -> None:
+    # "אמרה ד״ר עינת": ד״ר came back ד, lemma ד"ר, and ר, which the card called the letter.
+    dr, resh, name = _sentence(
+        ("ד", 'ד"ר', "PROPN", None, None, None, "UPOS=PROPN", 0, []),
+        ("ר", "ר", "PROPN", None, None, None, "UPOS=PROPN", 0, []),
+        ("עינת", "עינת", "PROPN", None, None, None, "UPOS=PROPN", 0, []),
+    )
+    assert (dr.lemma, resh.lemma, name.lemma) == ('ד"ר', 'ד"ר', "עינת")
+    _, resh = _sentence(
+        ("אני", "אני", "PRON", None, None, None, "UPOS=PRON", 0, []),
+        ("ר", "ר", "PROPN", None, None, None, "UPOS=PROPN", 0, []),
+    )
+    assert resh.lemma == "ר", "only after the title's first letter"
+
+
+@pytest.mark.parametrize(
+    ("surface", "built", "prefixes"),
+    [
+        ("בְּסֵדֶר", "ב in + סדר", ["ADP"]),  # "okay": a preposition in front, a fixed phrase
+        ("בבקשה", "ב in + בקשה", ["ADP"]),  # "please"
+        ("הֲפָרָה", "ה the + פרה", ["DET"]),  # "breach", not "the cow": a hataf, no article
+        ("וַעַד", "ו and + עד", ["CCONJ"]),  # "committee": a patach, no conjunction
+        ("הרגל", "ה the + רגל", ["DET"]),  # "habit", as the scenes point it wrongly
+        ("כשהשכן", "כ as + ש that + ה the + שכן", []),  # cut, but nothing tagged
+    ],
+)
+def test_a_whole_word_dicta_meant_stays_the_lemma(
+    surface: str, built: str, prefixes: list[str]
+) -> None:
+    bare = "".join(char for char in surface if "א" <= char <= "ת")
+    lead = built.count(" + ")
+    (word,) = _sentence((surface, bare, "NOUN", None, None, built, "UPOS=NOUN", lead, prefixes))
+    assert word.lemma == bare

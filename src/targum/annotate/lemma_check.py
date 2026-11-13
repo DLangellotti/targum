@@ -57,8 +57,12 @@ if TYPE_CHECKING:
 #: auxiliary's, files an unpointed qal future under its qal rather than its nif'al, a verb
 #: whose lemma is another of its forms under its verb, a whole infinitive under its verb, an
 #: adjective that is a participle under the participle, and a short list of closed-class
-#: words under their own lemma (targum-internal#697, #699).
-VERSION = 5
+#: words under their own lemma (targum-internal#697, #699); 6 takes a prefix the line
+#: already shows off the lemma, keeps a fixed word (היום, הכי, למשל) and של's pronoun
+#: whole, gives an auxiliary and אין no binyan or root, files מציע under הציע of
+#: י־צ־ע, checks a name's lemma, and gives a title's split-off letter the title's
+#: (targum-internal#698, #700, #702).
+VERSION = 6
 
 #: The annotator this checks: DICTA, and nothing that put a hand tagging in front of it.
 DICTA = "dicta/"
@@ -552,12 +556,16 @@ def checked(
     lemma is matched on (`_inflected_verb`); `objected` whether an object follows the
     word (`object_after`), which settles a first-person future between qal and nif'al.
     """
+    if pos == "PROPN":
+        return _name(lemma or "", surface, lead)
     if pos not in CHECKED:
         return None
     feats = feats or ""
     word = _POINTS.sub("", surface or "")
     base = word[lead:] if 0 < lead < len(word) else word
     lemma = lemma or ""
+    if pos == "VERB" and lemma in PARTICIPLE_HEADWORDS:
+        return Mend(*PARTICIPLE_HEADWORDS[lemma])
     # A gap already: the annotator gave the word itself. A verb whose form the table
     # knows takes the table's verb; anything else stays the gap it is.
     if lemma in (word, word.lower(), base):
@@ -584,6 +592,24 @@ def checked(
         if found is not None and (pos == "VERB" or found[0] in AUXILIARIES):
             return _verb_mend(found, pos)
     return Mend(word.lower(), "", "")
+
+
+#: Participles DICTA files a verb under, with a root read off the participle's own
+#: letters: מציע came out of י־ע־ץ, "advise", where it is הציע of י־צ־ע, "offer", as
+#: הציע itself is (targum-internal#700).
+PARTICIPLE_HEADWORDS: dict[str, tuple[str, str, str]] = {"מציע": ("הציע", "יצע", "הפעיל")}
+
+
+def _name(lemma: str, surface: str, lead: int) -> Mend | None:
+    """A name whose lemma is another word, put back to the name under its prefixes
+    (targum-internal#702: ללאו under ללא "without", קירשנבל under היפוגליקמיה). The
+    letters test `refused` makes of any lemma; an abbreviation's lemma (ד"ר) is left
+    alone, since its letters are not the word's."""
+    word = _POINTS.sub("", surface or "")
+    base = word[lead:] if 0 < lead < len(word) else word
+    if not lemma or lemma in (word, base) or '"' in lemma or "'" in lemma:
+        return None
+    return Mend(base, "", "") if refused(lemma, base, "PROPN") else None
 
 
 def _verb_mend(found: tuple[str, str], pos: str | None) -> Mend:
@@ -754,25 +780,172 @@ def _row_closed(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def mend_token(token: Token, objected: bool = False) -> Token:
+#: Words DICTA cuts that are one word: "today", "most", "for example", "sometimes", "at
+#: all" (targum-internal#698). To the parts of speech the word is that one in, where it
+#: is another in some other: הַיּוֹם the noun is "the day" and keeps its ה.
+WHOLE_WORDS: dict[str, frozenset[str] | None] = {
+    "היום": frozenset({"ADV"}),
+    "הכי": None,
+    "למשל": None,
+    "לפעמים": None,
+    "בכלל": frozenset({"ADV"}),
+}
+#: של, which with a pronoun on the end is never ש "that" + ל "to" (שלכן).
+OF = "של"
+PRONOUN_END = "with a pronoun on the end"
+
+
+def reshaped(
+    surface: str,
+    lemma: str,
+    pos: str | None,
+    built: str | None,
+    lead: int,
+    title: str = "",
+    prefixes: tuple[str, ...] | list[str] = (),
+) -> dict[str, Any] | None:
+    """What a token's lemma and line become where DICTA cut a word that is one, kept a
+    prefix on the lemma that the line already shows, or split a title; None where they
+    stand (targum-internal#698, #702). The keys are `lemma`, `built` and `lead`.
+
+    `title` is the lemma of the word before, where that word is the start of a title
+    whose abbreviation this token finishes (ד, then ר of ד״ר)."""
+    word = _POINTS.sub("", surface or "")
+    if word in WHOLE_WORDS:
+        kinds = WHOLE_WORDS[word]
+        if (kinds is None or pos in kinds) and (lemma != word or built or lead):
+            return {"lemma": word, "built": None, "lead": 0}
+        return None
+    pieces = (built or "").split(" + ")
+    if lemma == OF and lead and pieces[:2] == ["ש that", "ל to"] and pieces[-1] == PRONOUN_END:
+        return {"lemma": OF, "built": f"{word} + {PRONOUN_END}", "lead": 0}
+    if title and len(word) == 1 and '"' in title:
+        return {"lemma": title, "built": built, "lead": lead}
+    base = word[lead:] if 0 < lead < len(word) else word
+    if (
+        lead
+        and built
+        and lemma == word
+        and base != word
+        and len(base) > 1
+        and _cut_as_said(surface, word, lead, prefixes)
+    ):
+        # The line shows the prefixes already: ה the + שיניים under השיניים.
+        return {"lemma": base, "built": built, "lead": lead}
+    return None
+
+
+#: Words whose first letter DICTA cut as a prefix and is the word's own, as the laptop's
+#: scenes point them: הֶרְגֵּל "habit", הֲפָרָה "breach", הֲכָנוֹת "preparations", וָרֹד
+#: "pink", וַעַד "committee".
+KEEP_WHOLE = frozenset({"הרגל", "הפרה", "הכנות", "ורוד", "ועד", "ועדה"})
+#: The marks under a cut ה or ו that say it is no article or conjunction: a hataf or a
+#: shva under ה (הֲפָרָה), a patach, qamats or hataf under ו (וַעַד, וָרֹד).
+_NOT_ARTICLE = frozenset("\u05b0\u05b1\u05b2\u05b3")
+_NOT_AND = frozenset("\u05b7\u05b8\u05b1\u05b2\u05b3")
+
+
+def _cut_as_said(surface: str, word: str, lead: int, prefixes: tuple[str, ...] | list[str]) -> bool:
+    """Whether DICTA's cut of a word it gave whole as its lemma stands as the prefixes it
+    says: the article, the conjunction or ש, each tagged, and none a preposition. A ב, ל,
+    מ or כ in front is a fixed phrase as often as not (בסדר, בבקשה, מחוץ, לרוב), and the
+    whole word is the lemma DICTA meant; so is one in `KEEP_WHOLE`. Pointed, the cut ה
+    and ו must carry the article's and the conjunction's vowels."""
+    if not prefixes or "ADP" in prefixes or word in KEEP_WHOLE:
+        return False
+    from .own_letter import _marked as marked_of
+
+    for letter, marks in marked_of(surface)[:lead]:
+        if letter == "ה" and set(marks) & _NOT_ARTICLE:
+            return False
+        if letter == "ו" and set(marks) & _NOT_AND:
+            return False
+    return True
+
+
+def title_before(run: list[tuple[str, str]], at: int) -> str:
+    """The title's lemma a one-letter token finishes, read off the word before it as
+    (surface, lemma): ד, lemma ד"ר, then ר. "" where there is none."""
+    if at < 1:
+        return ""
+    surface, lemma = run[at - 1]
+    here = _POINTS.sub("", run[at][0])
+    before = _POINTS.sub("", surface)
+    return lemma if lemma.replace('"', "") == before + here and '"' in lemma else ""
+
+
+def _reshaped(token: Token, title: str) -> Token:
+    """`reshaped` on a token; the same object where nothing changes."""
+    syntax = token.syntax
+    lead = syntax.lead if syntax is not None else 0
+    prefixes = syntax.prefixes if syntax is not None else ()
+    found = reshaped(token.surface, token.lemma, token.pos, token.built, lead, title, prefixes)
+    if found is None:
+        return token
+    update: dict[str, Any] = {"lemma": found["lemma"], "built": found["built"]}
+    if found["lemma"] != token.lemma:
+        update |= {"headword": None, "lexeme": None, "word_register": None}
+    if found["built"] is None:
+        update["split"] = False
+    if syntax is not None and found["lead"] != lead:
+        update["syntax"] = syntax.model_copy(update={"lead": found["lead"]})
+    return token.model_copy(update=update)
+
+
+def _row_reshaped(row: dict[str, Any], title: str) -> dict[str, Any]:
+    """`_reshaped` for a stored row; the same dict where nothing changes."""
+    syntax = row.get("syntax") or {}
+    lead = int(syntax.get("lead") or 0)
+    found = reshaped(
+        str(row.get("surface") or ""),
+        str(row.get("lemma") or ""),
+        row.get("pos"),
+        row.get("built"),
+        lead,
+        title,
+        tuple(syntax.get("prefixes") or ()),
+    )
+    if found is None:
+        return row
+    out = row | {"lemma": found["lemma"], "built": found["built"]}
+    if found["built"] is None:
+        out["split"] = False
+    if found["lead"] != lead:
+        out["syntax"] = syntax | {"lead": found["lead"]}
+    return out
+
+
+def rootless(lemma: str, pos: str | None) -> bool:
+    """Whether a word has no root and no binyan to draw: an auxiliary, and the
+    existential אין and יש whatever DICTA tagged them (targum-internal#700: every
+    existential אין drew pa'al and א־י־ן, and "All forms of" a verb that is none)."""
+    from .base import NEVER_A_VERB
+
+    return pos == "AUX" or lemma in NEVER_A_VERB
+
+
+def mend_token(token: Token, objected: bool = False, title: str = "") -> Token:
     """The token with its lemma checked; the same object where nothing changes.
-    `objected` says an object follows it (`object_after`)."""
-    token = _given_back(_closed(token))
+    `objected` says an object follows it (`object_after`), `title` the title its letter
+    finishes (`title_before`)."""
+    token = _closed(_reshaped(_given_back(token), title))
     lead = token.syntax.lead if token.syntax is not None else 0
     mend = checked(token.lemma, token.surface, lead, token.pos, token.feats, objected)
-    if mend is None:
-        return token
-    return token.model_copy(
-        update={
-            "lemma": mend.lemma,
-            "root": mend.root or None,
-            "binyan": mend.binyan or None,
-            # Each of these was the refused word's, not this one's.
-            "headword": None,
-            "lexeme": None,
-            "word_register": None,
-        }
-    )
+    if mend is not None:
+        token = token.model_copy(
+            update={
+                "lemma": mend.lemma,
+                "root": mend.root or None,
+                "binyan": mend.binyan or None,
+                # Each of these was the refused word's, not this one's.
+                "headword": None,
+                "lexeme": None,
+                "word_register": None,
+            }
+        )
+    if rootless(token.lemma, token.pos) and (token.root or token.binyan):
+        token = token.model_copy(update={"root": None, "binyan": None})
+    return token
 
 
 def mended(annotation: Annotation, segmented: Any = None) -> Annotation:
@@ -789,9 +962,12 @@ def mended(annotation: Annotation, segmented: Any = None) -> Annotation:
     changed = False
     tokens: dict[str, list[Token]] = {}
     for segment_id, run in annotation.tokens.items():
+        said = [(one.surface, one.lemma) for one in run]
         out = [
             mend_token(
-                token, object_after([(one.surface, one.pos) for one in run[at + 1 : at + 3]])
+                token,
+                object_after([(one.surface, one.pos) for one in run[at + 1 : at + 3]]),
+                title_before(said, at),
             )
             for at, token in enumerate(run)
         ]
@@ -806,6 +982,12 @@ def mend_rows(run: list[Any]) -> list[Any]:
     """A segment's tokens as `annotation.json` stores them, each checked with the words
     after it in view (`object_after`), as `mended` checks them for the page."""
     out: list[Any] = []
+    said = [
+        (str(one.get("surface") or ""), str(one.get("lemma") or ""))
+        if isinstance(one, dict)
+        else ("", "")
+        for one in run
+    ]
     for at, row in enumerate(run):
         if not isinstance(row, dict):
             out.append(row)
@@ -815,15 +997,16 @@ def mend_rows(run: list[Any]) -> list[Any]:
             for one in run[at + 1 : at + 3]
             if isinstance(one, dict)
         ]
-        out.append(mend_row(row, object_after(after)))
+        out.append(mend_row(row, object_after(after), title_before(said, at)))
     return out
 
 
-def mend_row(row: dict[str, Any], objected: bool = False) -> dict[str, Any]:
+def mend_row(row: dict[str, Any], objected: bool = False, title: str = "") -> dict[str, Any]:
     """A token as `annotation.json` stores it, with its lemma checked: for the counts,
     which read the file rather than the model. The same dict where nothing changes.
-    `objected` says an object follows it; `mend_rows` works it out for a segment."""
-    row = _row_given_back(_row_closed(row))
+    `objected` says an object follows it and `title` the title its letter finishes;
+    `mend_rows` works both out for a segment."""
+    row = _row_closed(_row_reshaped(_row_given_back(row), title))
     syntax = row.get("syntax") or {}
     mend = checked(
         str(row.get("lemma") or ""),
@@ -833,9 +1016,17 @@ def mend_row(row: dict[str, Any], objected: bool = False) -> dict[str, Any]:
         str(row.get("feats") or ""),
         objected,
     )
-    if mend is None:
-        return row
-    return row | {"lemma": mend.lemma, "root": mend.root or None, "binyan": mend.binyan or None}
+    if mend is not None:
+        row = row | {
+            "lemma": mend.lemma,
+            "root": mend.root or None,
+            "binyan": mend.binyan or None,
+        }
+    if rootless(str(row.get("lemma") or ""), row.get("pos")) and (
+        row.get("root") or row.get("binyan")
+    ):
+        row = row | {"root": None, "binyan": None}
+    return row
 
 
 def _row_given_back(row: dict[str, Any]) -> dict[str, Any]:
