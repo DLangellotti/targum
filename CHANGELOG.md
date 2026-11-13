@@ -14,6 +14,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Upload passes more of design's §14 finish bar (targum-internal#715).
+  - Stopping a build no longer says the reader paid. The question says a recording's
+    done part still uses credits and a text uses none; the end says what the stop's own
+    receipt used ("You stopped it. It used 2 credits.", or "Nothing was used"), from a
+    new `used` on the job, read back from the row's `length` after a restart.
+  - A recording that needs more credits than are left is refused at its quote, in the
+    words the claim would use, rather than at Confirm (`Library.short_of_month`). The
+    claim already refused it; nothing anybody is charged changed.
+  - A video's or podcast's quote says how much you know when "What we found" can't, and
+    names the show and who presents it under the title.
+  - One filled press on "in the Library" and on done; the line under the box goes away
+    when the card or the can't-reach band answers it.
+  - Hebrew titles carry their language in the Library line, "Yours, ahead of it" and the
+    description search. Waiting says it once, in "text", and the card's Cancel says
+    Cancel. Cancelled and stopped end with "Upload something else".
+  - Change labels its picker once, under "Translations in"; with nothing new to make,
+    the notice has Your targums and the file controls are off with Upload.
+  - Russian: the balance says «Баллов осталось в этом месяце: 480», and sizes say КБ/МБ.
+  No spend. New strings in English and Russian (ling-ru's first pass in the PR).
 - The Russian interface reads better in 44 places (ling-ru's sweep, loop item 16 of
   2026-11-13). "Known" is «знаю» or «вы знаете» in the app, never «знакомо» or
   «известно» (17; the front page's demo keeps «знакомо N%», a stranger's figure is

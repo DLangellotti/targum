@@ -28,7 +28,12 @@
   <div class="add-left">
 
   {% if no_key %}
-  <p class="notice card" role="status">{{ no_key }}</p>
+  {#- What still works, as a press (design.md §14.1, #715): the notice was a sentence
+      with nowhere to go. -#}
+  <div class="notice card" role="status">
+    <p>{{ no_key }}</p>
+    <a class="btn text" href="/">{{ t("add.wait.yours", "Your targums") }}</a>
+  </div>
   {% endif %}
 
   {#- One box, for any medium (design.md §12, 2026-09-13, targum-internal#249), drawn as
@@ -57,7 +62,7 @@
         </p>
       </div>
       <div class="drop-row">
-        <button type="button" id="choose" class="btn ghost outline bring-choose">{{ t("add.page.choose-a-file", "Choose a file") }}</button>
+        <button type="button" id="choose" class="btn ghost outline bring-choose"{% if no_key %} disabled{% endif %}>{{ t("add.page.choose-a-file", "Choose a file") }}</button>
         {#- Something the reader records themselves (targum-internal#254; back on the board's
             card since 2026-10-10, design.md §12). Hidden until the script says this browser
             can record, so the page never offers what it cannot do — the composer's Speak
@@ -67,7 +72,7 @@
         {#- A post from a platform targum does not fetch from, or will not today: the
             reader brings it by hand (targum-internal#158). The board draws a post as a
             thing dropped here; a post typed in by hand stays a press of its own. -#}
-        <button type="button" id="post-open" class="btn text small bring-post" aria-expanded="false" aria-controls="post-form">{{ t("add.page.bring-a-post", "Bring a post") }}</button>
+        <button type="button" id="post-open" class="btn text small bring-post" aria-expanded="false" aria-controls="post-form"{% if no_key %} disabled{% endif %}>{{ t("add.page.bring-a-post", "Bring a post") }}</button>
       </div>
     </div>
     <input type="file" id="file" multiple
@@ -151,19 +156,19 @@
       apply to what is in the box are hidden. -#}
   <section class="card options" id="options" aria-label="{{ t("add.page.choices", "Choices") }}" hidden>
     <div class="option-row">
-      <h2>{{ t("add.page.translations-in", "Translations in") }}</h2>
+      <h2 id="translations-in">{{ t("add.page.translations-in", "Translations in") }}</h2>
       <div class="option-body">
         <div class="pickers">
           {#- Three in and two out, each one saying how far along it is. Narrower than
               what the rest of the app can show: these are the pairs an upload has been
               taken end to end in. -#}
+          {#- Labelled by its row's heading, not again in the field (#715). -#}
           <label class="field short">
-            <span>{{ t("add.page.translations-in", "Translations in") }}</span>
             {# No `selected` here: which language you read into is a choice you have
                already made, and `add.js` restores it. Marking the first one selected made
                the page forget it on every visit, which for anyone who reads into anything
                but English was a wrong answer waiting to be submitted. -#}
-            <select id="to">
+            <select id="to" aria-labelledby="translations-in">
               {% for one in into %}<option value="{{ one.code }}">{{ one.name }}{% if one.label %} ({{ one.label }}){% endif %}</option>{% endfor %}
             </select>
           </label>

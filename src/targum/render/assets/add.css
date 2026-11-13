@@ -29,6 +29,8 @@
 
 /* Nothing new can be made, said before anything is chosen. */
 .notice { margin: 0; font-size: 0.875rem; line-height: 1.55; }
+.notice p { margin: 0; }
+.drop-say[aria-disabled="true"] { cursor: default; opacity: 0.55; }
 
 /* --- the box: one card, a field, a dashed place to drop, the language and Upload -- */
 /* The track starts at nothing, or `field-sizing: content` lets one unbroken link set its
@@ -245,6 +247,8 @@
 }
 .quote-title:is(:lang(he), :lang(yi), :lang(arc)) { font-family: var(--reading-hebrew); }
 .quote-known { margin: 0; color: var(--ink-soft); font-size: 0.875rem; }
+/* The show or channel and who presents it, quiet under the title (#691, #715). */
+.quote-from { margin: 0; color: var(--ink-soft); font-size: 0.8125rem; }
 .quote-spend {
   display: flex;
   flex-wrap: wrap;
