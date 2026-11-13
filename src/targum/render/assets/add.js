@@ -2148,6 +2148,14 @@
     said.className = "wait-said";
     said.hidden = true;
     progress.appendChild(said);
+    // Cancel (targum-internal#694): this build's own, and each of the reader's builds
+    // ahead of it; how many ahead are other people's, which only they can cancel. Drawn
+    // again only when what can be pressed changes, so an open question is not wiped by
+    // the next poll.
+    var cancelling = document.createElement("div");
+    cancelling.className = "wait-cancel";
+    progress.appendChild(cancelling);
+    var cancelDrawn = "";
     box.appendChild(progress);
 
     var note = document.createElement("p");
@@ -2175,6 +2183,26 @@
       bar.setAttribute("aria-valuenow", String(Math.round(share * 100)));
       said.textContent = state.said || "";
       said.hidden = !state.said;
+      drawCancel(state);
+    }
+
+    function drawCancel(state) {
+      var undo = window.TargumCancel;
+      if (!undo) return;
+      var ahead = (state.ahead || []).map(function (one) {
+        return [one.id, one.stage, Boolean(one.cancellable), Boolean(one.stopping)].join(":");
+      });
+      var now = [state.stage, Boolean(state.cancellable), Boolean(state.stopping), ahead.join(","), state.ahead_others || 0].join("|");
+      if (now === cancelDrawn) return;
+      cancelDrawn = now;
+      cancelling.textContent = "";
+      var others = state.stage === "queued" ? undo.ahead(state, { changed: function () { cancelDrawn = ""; } }) : null;
+      if (others) cancelling.appendChild(others);
+      var own = undo.control(
+        { id: job.id, stage: state.stage, cancellable: state.cancellable, stopping: state.stopping },
+        { label: t("add.wait.cancel", "Cancel this build") }
+      );
+      if (own) cancelling.appendChild(own);
     }
 
     function stop(state) {
@@ -2236,6 +2264,17 @@
       })
       .then(function (end) {
         if (end.stage === "done" && end.reader) return opening(end);
+        if (end.stage === "cancelled") {
+          // Cancelled while it waited, or stopped (targum-internal#694): the server's
+          // own line says which, and whether anything was used.
+          progress.textContent = "";
+          var over = line(end.said || t("building.cancel.cancelled", "Cancelled. Nothing was used."));
+          over.className = "wait-stage";
+          over.setAttribute("role", "status");
+          progress.appendChild(over);
+          note.hidden = true;
+          return;
+        }
         if (end.error || end.blocked || end.stage === "failed" || end.stage === "blocked") return stop(end);
         // Lost sight of it: the connection went, or the server stopped answering. The
         // build goes on without this page, and the note says where it will be.

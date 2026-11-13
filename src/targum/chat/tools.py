@@ -3854,7 +3854,7 @@ def _mark(job: Any) -> tuple[Any, ...]:
 
 def _hold(job: Any, seconds: float) -> None:
     """Wait until the job moves, ends, or `seconds` pass, whichever is first."""
-    if seconds <= 0 or job.stage in ("done", "failed", "blocked"):
+    if seconds <= 0 or job.stage in ("done", "failed", "blocked", "cancelled"):
         return
     seen = _mark(job)
     until = _clock() + seconds
@@ -3955,6 +3955,14 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
         if job.spent <= 0:
             said += " " + said_in(language, "job.said.nothing-used", "Nothing was used.")
         return said
+    if job.stage == "cancelled":
+        # The reader cancelled it while it waited, or stopped it running
+        # (targum-internal#694): nothing was used, or what was done was paid for.
+        if job.spent > 0:
+            return said_in(
+                language, "job.said.stopped", "You stopped it. You paid for what was done."
+            )
+        return said_in(language, "job.said.cancelled", "You cancelled it. Nothing was used.")
     if job.stage == "blocked":
         # A page draws the refusal's quiet line beside it (design.md §12, 2026-10-09);
         # said in words, it follows the sentence.

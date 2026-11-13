@@ -162,7 +162,7 @@
   // 2026-10-11). Its refusal is the bell's to say.
   function building(jobs) {
     return (jobs || []).filter(function (job) {
-      return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" &&
+      return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" && job.stage !== "cancelled" &&
         !job.error && !job.blocked && job.title;
     });
   }
@@ -306,12 +306,26 @@
     box.appendChild(pill);
     box.appendChild(meter(job.total > 0 ? job.done / job.total : 0.1, "is-building"));
     item.appendChild(box);
-    // The end and the controls' columns, empty: nothing on a build can be pressed.
+    // The end column empty; the controls' column holds Cancel where the build is the
+    // reader's to cancel (targum-internal#694), its words under the title. Once it has
+    // left the line the row goes, after its line has been read.
     var end = document.createElement("span");
     end.className = "row-end";
     item.appendChild(end);
     var controls = document.createElement("span");
     controls.className = "row-controls";
+    var undo = window.TargumCancel
+      ? window.TargumCancel.control(job, {
+          host: what,
+          gone: function () {
+            setTimeout(function () {
+              if (item.parentNode) item.parentNode.removeChild(item);
+              if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+            }, 4000);
+          },
+        })
+      : null;
+    if (undo) controls.appendChild(undo);
     item.appendChild(controls);
     return item;
   }
@@ -1044,5 +1058,7 @@
     ago: ago,
     base: base,
     kind: kindWord,
+    // For the tests: one building row, as Your targums draws it (targum-internal#694).
+    buildingRow: buildingRow,
   };
 })();

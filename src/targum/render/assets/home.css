@@ -751,3 +751,8 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   .rc-steps li.now .dot::before { animation: none; }
   .rc-presses .chev, .rc-words-press .chev { transition: none; }
 }
+
+/* Cancel on a getting-ready card (targum-internal#694): under its line, quiet, and above
+   the card's surface so it is pressed and not the card. */
+.home-card-cancel { position: relative; z-index: 1; align-self: flex-start; }
+#library-list .row-controls .cancel { justify-content: flex-end; }
