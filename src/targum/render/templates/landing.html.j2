@@ -34,67 +34,7 @@
       <div class="headline">
         <h1>{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</h1>
           <p class="lede">{{ t("landing.page.you-learn-hebrew-by-understanding-it-so-everything", "Everything here arrives ready to read. Every word has its vowels (nikkud) and every line has its English beside it. Tap any word and we’ll explain it.") }}</p>
-        {#- Try the door (targum-internal#399): paste a link and be told what it is, in
-            the Add box's own sentence. A plain post, so it works with JavaScript off;
-            the answer comes back on this page. Nothing is built and nothing is spent,
-            and no percentage is shown: "you know X%" needs a record, and getting one
-            is the reason to join (2026-09-30). -#}
-        <div class="try" id="try">
-          <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
-            {%- if joined_from != "/" %}
-            {#- The tag the page was opened with, carried through a try (#676). #}
-            <input type="hidden" name="from" value="{{ joined_from }}">
-            {%- endif %}
-            <label class="field">
-              <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>
-              <button class="btn tonal" type="submit">{{ t("landing.try.button", "Try it") }}</button>
-            </label>
-          </form>
-          {%- if tried %}
-          <div class="tried" role="status">
-            {%- if tried.refused %}
-            <p class="tried-what">{{ tried.refused }}</p>
-            {%- else %}
-            {#- The thing they pasted leads (David, 2026-10-02: the answer read as a form
-                letter): a mark for its kind, drawn like the tiles in "Your own Hebrew", its
-                title in the reading face, then the one sentence the Add box would say. -#}
-            {%- set kind = 'video' if tried.door in ('youtube', 'instagram', 'tiktok', 'facebook') else ('post' if tried.door in ('x', 'instagram-post') else ('podcast' if tried.door == 'podcast' else 'page')) %}
-            <div class="tried-card">
-              <span class="tried-mark" aria-hidden="true">
-                {%- if kind == 'video' %}<svg viewBox="0 0 24 24"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>
-                {%- elif kind == 'post' %}<svg viewBox="0 0 24 24"><circle cx="7" cy="8" r="2.2" fill="currentColor"/><rect x="11" y="6.8" width="7.5" height="2.2" rx="1.1" fill="currentColor"/><rect x="5" y="12.6" width="13.5" height="2.2" rx="1.1" fill="currentColor"/><rect x="5" y="16.6" width="9" height="2.2" rx="1.1" fill="currentColor"/></svg>
-                {%- elif kind == 'podcast' %}<svg viewBox="0 0 24 24"><g fill="currentColor"><rect x="4" y="10" width="2" height="4" rx="1"/><rect x="8" y="7" width="2" height="10" rx="1"/><rect x="12" y="4.5" width="2" height="15" rx="1"/><rect x="16" y="8" width="2" height="8" rx="1"/><rect x="20" y="10.5" width="2" height="3" rx="1"/></g></svg>
-                {%- else %}<svg viewBox="0 0 24 24"><rect x="5.5" y="3.5" width="13" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><g fill="currentColor"><rect x="8.5" y="7.5" width="7" height="1.6" rx="0.8"/><rect x="8.5" y="11" width="7" height="1.6" rx="0.8"/><rect x="8.5" y="14.5" width="4.5" height="1.6" rx="0.8"/></g></svg>{% endif -%}
-              </span>
-              <div class="tried-body">
-                {%- if tried.title %}
-                <p class="tried-title" dir="auto">{{ tried.title }}</p>
-                {%- endif %}
-                <p class="tried-what">
-                  {%- if tried.door == 'youtube' %}{{ t("landing.try.youtube", "That’s a YouTube video") }}
-                  {%- elif tried.door == 'instagram' %}{{ t("landing.try.instagram", "That’s an Instagram reel") }}
-                  {%- elif tried.door == 'instagram-post' %}{{ t("landing.try.instagram-post", "That’s an Instagram post") }}
-                  {%- elif tried.door == 'tiktok' %}{{ t("landing.try.tiktok", "That’s a TikTok video") }}
-                  {%- elif tried.door == 'facebook' %}{{ t("landing.try.facebook", "That’s a Facebook video") }}
-                  {%- elif tried.door == 'x' %}{{ t("landing.try.x", "That’s a post on X") }}
-                  {%- elif tried.door == 'podcast' %}{{ t("landing.try.podcast", "That’s a podcast episode") }}
-                  {%- else %}{{ t("landing.try.page", "That’s a page from {site}", site=tried.site) }}{% endif %}
-                  {%- if tried.minutes %}, {{ tn("landing.try.minutes", tried.minutes, "{n} minute", "{n} minutes") }}{% endif %}
-                  {%- if tried.sentences %}, {{ tn("landing.try.sentences", tried.sentences, "{n} sentence", "{n} sentences") }}{% endif %}
-                  {%- if tried.subtitles %}, {{ t("landing.try.subtitles", "Hebrew subtitles written by a person") }}{% endif %}.</p>
-                {#- No wait here (beta review PUB-02, 2026-11-03): the address joins a waitlist,
-                    and the build comes when the operator lets them in, which may be weeks.
-                    "Ready in about 4 minutes" promised what the door cannot keep (§6).
-                    With the door open (design.md §12, 2026-11-10) the link waits for them
-                    in Upload instead, got ready on their own press: nothing is built here. -#}
-              </div>
-            </div>
-            <p class="tried-keep">{% if door_is_open() %}{{ t("open-door.link-waiting-for-you", "Sign up and this link will be waiting for you.") }}{% else %}{{ t("landing.try.turned-into-a-lesson", "Join the waitlist and we’ll have this ready for you when your turn comes.") }}{% endif %}</p>
-            {% with note = false, link = tried.link %}{% include '_join_form.html.j2' %}{% endwith %}
-            {%- endif %}
-          </div>
-          {%- endif %}
-        </div>
+        {% include '_try_box.html.j2' %}
         {#- One call to action in the hero, the box (David, 2026-10-02): its answer carries
             the waitlist, and the bar keeps Join the waitlist. Under it, only the reasons. -#}
         <ul class="facts">

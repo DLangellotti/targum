@@ -136,13 +136,16 @@ def test_the_files_are_named_by_their_bytes() -> None:
         "css": "text/css",
         "jpg": "image/jpeg",
         "json": "application/json",
+        # A public page's short film (targum-internal#676), named by its bytes as a
+        # picture is; served in ranges from the same route (`_asset_file`).
+        "mp4": "video/mp4",
     }
     for address, (body, kind, name) in files.items():
         # A picture is named by its folder (`scroll/columns.jpg`) and served by its name.
         stem, _, ext = name.rpartition("/")[2].rpartition(".")
         digest = hashlib.sha256(body).hexdigest()[:16]
         assert address == f"{ASSET_ROUTE}{stem}.{digest}.{ext}", "named by its own bytes"
-        named = r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css|jpg|json)"
+        named = r"/assets/[a-z0-9-]+\.[0-9a-f]{16}\.(js|css|jpg|json|mp4)"
         assert re.fullmatch(named, address), address
         assert kind.startswith(kinds[ext])
         assert body

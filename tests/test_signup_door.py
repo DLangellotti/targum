@@ -98,6 +98,17 @@ PAGES: list[tuple[str, str, Callable[[str], str]]] = [
         lambda lang: builder.front_page(lang, ADDRESS, _asked(lang), tried=_too_often(lang)),
     ),
     ("aliyah", "aliyah.html.j2", lambda lang: builder.aliyah_page(lang, ADDRESS, _asked(lang))),
+    # English only (targum-internal#676): the language is ignored, and both walks see it.
+    (
+        "after-duolingo-hebrew",
+        "after_duolingo.html.j2",
+        lambda lang: builder.after_duolingo_page(ADDRESS),
+    ),
+    (
+        "after-duolingo-hebrew, a link tried",
+        "after_duolingo.html.j2",
+        lambda lang: builder.after_duolingo_page(ADDRESS, tried=TRIED),
+    ),
     ("about", "about.html.j2", lambda lang: builder.about_page(lang, ADDRESS)),
     ("how", "how.html.j2", lambda lang: builder.how_page(lang, ADDRESS)),
     ("credits", "credits.html.j2", lambda lang: builder.credits_page(lang, ADDRESS)),

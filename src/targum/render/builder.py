@@ -990,9 +990,12 @@ ASSET_ROUTE = "/assets/"
 #: credits, /connect signed out and /aliyah joined on 2026-11-13 (targum-internal#484):
 #: missed the same way, they carried 67 to 96 kB of faces in `<head>`, and /how was over
 #: 1.5 s on Slow 4G. None of them is opened off a disk, framed or kept by the worker.
+#: /after-duolingo-hebrew joined with them (targum-internal#676), on the same terms: only
+#: ever served, and it wears the front door's own files.
 PUBLIC_PAGES = frozenset(
     {
         "about.html.j2",
+        "after_duolingo.html.j2",
         "aliyah.html.j2",
         "connect.html.j2",
         "credits.html.j2",
@@ -1117,7 +1120,7 @@ def asset_files() -> dict[str, tuple[bytes, str, str]]:
     asset they are. Read once, so `targum serve` answers from memory; an address that is
     not here is a 404. The worker is left out: it is served from the root, and only there
     (`worker_script`)."""
-    return {**_read_files(), **_pictures(), **_GENERATED}
+    return {**_read_files(), **_pictures(), **_films(), **_GENERATED}
 
 
 def asset_set() -> str:
@@ -1143,6 +1146,28 @@ def _pictures() -> dict[str, tuple[bytes, str, str]]:
             name = f"{folder}/{path.name}"
             found[picture_address(name)] = (path.read_bytes(), "image/jpeg", name)
     return found
+
+
+#: The short films a public page plays (targum-internal#676): a few seconds of an openly
+#: licensed video, cut small, served from targum's own origin by a hash address and kept
+#: for a year, as the pictures are. Each folder's README says where each one is from.
+FILM_FOLDER = "films"
+
+
+@cache
+def _films() -> dict[str, tuple[bytes, str, str]]:
+    """Every film `picture_address` can name, by its address."""
+    found: dict[str, tuple[bytes, str, str]] = {}
+    for path in sorted((ASSETS / FILM_FOLDER).glob("*.mp4")):
+        name = f"{FILM_FOLDER}/{path.name}"
+        found[picture_address(name)] = (path.read_bytes(), "video/mp4", name)
+    return found
+
+
+def asset_source(name: str) -> Path:
+    """Where one of the assets is on disk, by the name `asset_files` gives it: what a
+    film is answered from, in ranges."""
+    return ASSETS / name
 
 
 @cache
@@ -1323,6 +1348,8 @@ def public_files(language: str) -> tuple[str, ...]:
         credits_page(language),
         connect_page(language),
         aliyah_page(language),
+        # English only, so it names English's faces and is read for English's set alone.
+        *([after_duolingo_page()] if language == "en" else []),
         text_page(entry, language=language),
         shelf_page(language=language),
         *(legal_page(which) for which in LEGAL),
@@ -2926,6 +2953,251 @@ def aliyah_page(
             canonical=here,
             alternates=alternates,
             joined_from=came or here,
+        )
+    )
+
+
+#: The three first texts /after-duolingo-hebrew offers (targum-internal#676): real library rows,
+#: modern, measured A1 or A2, each a few minutes, and none of them about life in Israel
+#: (the page assumes no country). A video, a story and a learners' TV episode, so the
+#: page shows that a video is read as a text is. A row the catalogue on this machine
+#: does not hold is left out rather than drawn from memory.
+AFTER_DUOLINGO_FIRSTS: tuple[str, ...] = (
+    "kan-small-cola",
+    "yatziv-shoelace-seller",
+    "kan-simantov-room-for-two",
+)
+
+#: The first text whose own link the page offers to try (David, 2026-11-12): a video,
+#: because a video is what the page says to paste, so one press shows the box's real
+#: answer to a real link ("That's a YouTube video, 3 minutes, Hebrew subtitles written
+#: by a person").
+AFTER_DUOLINGO_TRY = "kan-small-cola"
+
+#: The first text whose opening lines the page's reader shows, drawn in the template:
+#: a public-domain story, so its words may stand on a page (design's spec, 2026-11-12).
+AFTER_DUOLINGO_STORY = "yatziv-shoelace-seller"
+
+#: What the page's own forms and links say about where somebody came from: the form's
+#: `from` field (`serve.joined_from`) and `?from=` on the links out of it.
+AFTER_DUOLINGO_FROM = "after-duolingo-hebrew"
+
+
+def after_duolingo_firsts() -> list[dict[str, Any]]:
+    """The first texts, as the page draws them: English title, Hebrew title, level, kind,
+    minutes and the library's own blurb, read off the catalogue so the page and the
+    library never say two things about one text."""
+    from ..catalogue import by_id
+    from ..levelmap import text_level
+
+    firsts: list[dict[str, Any]] = []
+    for entry_id in AFTER_DUOLINGO_FIRSTS:
+        entry = by_id(entry_id)
+        if entry is None:
+            continue
+        video = entry.source.startswith("video:")
+        firsts.append(
+            {
+                "id": entry.id,
+                "english": entry.english or entry.title,
+                "hebrew": entry.title,
+                "level": text_level(entry),
+                "kind": "Video" if video else "Story" if entry.kind.value == "story" else "Text",
+                "verb": "Watch" if video else "Read",
+                "minutes": entry.minutes,
+                "blurb": entry.blurb,
+                "href": f"/library/{entry.id}?from={AFTER_DUOLINGO_FROM}",
+            }
+        )
+    return firsts
+
+
+#: The Shoelace Seller's four lines with each word as targum reads it (design's spec,
+#: 2026-11-12; David: "tapping any word ... opens it in the word card"): a snapshot of a
+#: local build of the public-domain story, so the page's reader answers a tap with what
+#: the library's reader would say, and the page carries no build of its own.
+AFTER_DUOLINGO_STORY_WORDS = Path(__file__).parent / "after_duolingo_story.json"
+
+_HEBREW_RUN = re.compile(r"[\u0590-\u05FF]+")
+
+
+def _with_hebrew_marked(text: str) -> Markup:
+    """A line of the card, escaped, its Hebrew runs in the Hebrew face and direction."""
+    out = Markup("")
+    at = 0
+    for run in _HEBREW_RUN.finditer(text):
+        out += escape(text[at : run.start()])
+        out += Markup('<span class="he" lang="he" dir="rtl">{}</span>').format(run.group())
+        at = run.end()
+    return out + escape(text[at:])
+
+
+#: A few seconds of the cola video with each word's clock (David, 2026-11-12: "a real
+#: video playing"), for the "People talk fast" card: the film beside the page's assets,
+#: its lines as targum's reader holds them, every word timed by targum's own aligner.
+AFTER_DUOLINGO_CLIP = Path(__file__).parent / "after_duolingo_clip.json"
+
+
+@cache
+def after_duolingo_clip() -> dict[str, Any]:
+    """The clip as the page draws it: the film's address, the credit its licence asks
+    for, and its lines, each word with the seconds it is lit for."""
+    held: dict[str, Any] = json.loads(AFTER_DUOLINGO_CLIP.read_text(encoding="utf-8"))
+    return {**held, "src": picture_address(held["film"])}
+
+
+_POINTS = re.compile(r"[\u0591-\u05BD\u05BF-\u05C7]")
+
+
+def _built_here(built: str, sense: str) -> Markup:
+    """How a word is built here, as the front page's card says it: the pieces in Hebrew,
+    then what each means on a line of its own (`.here-gloss`). targum says it as
+    "ל to + בית": a prefix with its meaning, the word itself, and a note for an ending
+    that has no letters of its own ("with a pronoun on the end"). The word's own meaning
+    is the first of its meanings."""
+    if not _HEBREW_RUN.search(built):
+        # Hand-set for this page (design.md §12, 2026-11-12): what it means here, said
+        # in English alone, because the word is not split.
+        return Markup('<span class="here-gloss">{}</span>').format(built)
+    hebrew: list[str] = []
+    english: list[str] = []
+    for piece in built.split(" + "):
+        letters, _, said = piece.partition(" ")
+        if not _HEBREW_RUN.fullmatch(letters):
+            english.append(piece)
+            continue
+        hebrew.append(letters)
+        own = said or sense.split(";")[0].strip()
+        if own:
+            english.append(own)
+    return Markup(
+        '<span class="he" lang="he" dir="rtl">{}</span><span class="here-gloss">{}</span>'
+    ).format(" + ".join(hebrew), " + ".join(english))
+
+
+@cache
+def after_duolingo_story() -> dict[str, Any]:
+    """The reader's four lines, as parts the template draws (text, or a word by its id),
+    and every word's card, as the page draws it with no script and as `landing.js` draws
+    it on a tap. The card leads with the word as it stands in the line, as the reader's
+    own card does, then the infinitive a verb is cited by, its meaning and part of speech,
+    and the facts: how it is built here, its dictionary form where that is another
+    spelling, the binyan and the root."""
+    held = json.loads(AFTER_DUOLINGO_STORY_WORDS.read_text(encoding="utf-8"))
+    words: dict[str, dict[str, Any]] = {}
+    for word_id, word in held["words"].items():
+        facts: list[list[str]] = []
+        for label, value in word["facts"]:
+            if label == "Here":
+                facts.append([label, str(_built_here(value, word["sense"]))])
+            else:
+                facts.append([str(escape(label)), str(_with_hebrew_marked(value))])
+        if word["head"] != _POINTS.sub("", word["he"]).replace("\u05be", ""):
+            # The reader calls it "Dictionary" (`reader.card.dictionary`).
+            at = 1 if facts and facts[0][0] == "Here" else 0
+            facts.insert(at, ["Dictionary", str(_with_hebrew_marked(word["head"]))])
+        words[word_id] = {
+            "he": word["he"],
+            "head": str(escape(word["he"])),
+            "inf": str(escape(word["inf"])),
+            "sense": str(escape(word["sense"])),
+            "pos": str(escape(word["pos"])),
+            "facts": facts,
+        }
+    return {"open": held["open"], "lines": held["lines"], "words": words}
+
+
+def after_duolingo_try() -> dict[str, str] | None:
+    """The link the page offers to try: `AFTER_DUOLINGO_TRY`'s own source, read off the
+    catalogue, as somebody would paste it, and as the chip shows it. None where this
+    machine's catalogue does not hold the row, so the page offers nothing it cannot back."""
+    from ..catalogue import by_id
+
+    entry = by_id(AFTER_DUOLINGO_TRY)
+    if entry is None:
+        return None
+    if entry.source.startswith("video:"):
+        link = f"https://www.youtube.com/watch?v={entry.source.removeprefix('video:')}"
+    elif entry.source.startswith(("https://", "http://")):
+        link = entry.source
+    else:
+        return None
+    return {"link": link, "shown": link.split("://", 1)[1].removeprefix("www.")}
+
+
+def after_duolingo_page(
+    address: str = "",
+    signed_in: bool = False,
+    tried: dict[str, Any] | None = None,
+    linked: bool = True,
+    came: str = "",
+) -> str:
+    """The page for somebody who has finished Duolingo Hebrew, or a course like it, at
+    `/after-duolingo-hebrew` (targum-internal#676, step 3).
+
+    The landing for stage 1 of the go-to-market (David, 2026-11-10). It is drawn as the
+    front page is (design's spec, 2026-11-12): the hero with the front page's own box
+    (`_try_box.html.j2`, answered by `Library.describe`, which never spends), the word
+    card beside it and the reader under both, showing a word every course teaches inside
+    a real sentence; then why course Hebrew and real Hebrew feel different, each reason
+    shown in the How cards' pictures; then three graded first texts as the Library's own
+    cards. Duolingo is named, and the page says once
+    that targum is not affiliated with it; nothing on it is Duolingo's, and no word list
+    of theirs is marked known.
+
+    English only for now. It is rendered in English whatever the browser asks, so a
+    Russian visitor reads one language rather than half of each; the bar's RU goes to the
+    Russian front page. Drawn from the front door's parts and held to its rules: every
+    file baked in, nothing fetched from anybody else's origin.
+
+    `signed_in` takes the waitlist off the page, as on `/aliyah`. `tried` is the box's
+    answer when a link was tried here (`serve._try_post` with `on=after-duolingo-hebrew`).
+    `linked` is whether a stranger can open a library text (`serve.shelves_are_public`):
+    where not, the first texts are named without links that would end at a refusal.
+
+    `came` is the tag the link to the page carried (`serve.came_from`, #1186), as on the
+    front page: the forms say it, and the sign-in link carries it. With none, the page
+    names itself (`after-duolingo-hebrew`, counted as `/after-duolingo-hebrew`).
+    """
+    words = page_words("en")
+    # A narrowed tag, or a family's path from a try's `from`; the sign-in link wants the
+    # bare tag either way.
+    tag = came.strip("/") or AFTER_DUOLINGO_FROM
+    here = f"{address.rstrip('/')}/after-duolingo-hebrew" if address else ""
+    firsts = after_duolingo_firsts()
+    # The reader at the top shows four lines of this one, and its foot opens it.
+    story = next((first for first in firsts if first["id"] == AFTER_DUOLINGO_STORY), None)
+    return (
+        _environment()
+        .get_template("after_duolingo.html.j2")
+        .render(
+            t=words,
+            tn=page_counts("en"),
+            page_language="en",
+            # The page is English, so every form on it asks for English answers and mail.
+            asked="en",
+            signed_in=signed_in,
+            title="After Duolingo Hebrew: what to read next — targum",
+            description=(
+                "You finished Duolingo Hebrew. Now learn from real Hebrew. Paste a link to "
+                "a video or an article and read it with English beside every line and the "
+                "vowels whenever you want them."
+            ),
+            canonical=here,
+            alternates=[],
+            joined_from=tag,
+            try_on=AFTER_DUOLINGO_FROM,
+            came_from=tag,
+            tried=tried,
+            try_this=after_duolingo_try(),
+            story_words=after_duolingo_story(),
+            clip=after_duolingo_clip(),
+            story_json=embed_json(
+                {"open": after_duolingo_story()["open"], "words": after_duolingo_story()["words"]}
+            ),
+            firsts=firsts,
+            story=story,
+            linked=linked,
         )
     )
 

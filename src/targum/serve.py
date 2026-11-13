@@ -77,10 +77,12 @@ from .render.builder import (
     LINK_PREVIEW,
     LINK_PREVIEW_ROUTE,
     about_page,
+    after_duolingo_page,
     aliyah_page,
     approve_page,
     asset_files,
     asset_set,
+    asset_source,
     back_office_page,
     connect_page,
     connect_refused_page,
@@ -697,6 +699,9 @@ OPEN_TO_STRANGERS = frozenset(
         # The olim's own door (targum-internal#385): a page in front of the door, read
         # by somebody who has no account yet, like the front door it stands beside.
         "/aliyah",
+        # The page for somebody who has finished Duolingo Hebrew or a course like it
+        # (targum-internal#676): in front of the door, like /aliyah.
+        "/after-duolingo-hebrew",
         # The front page's box (targum-internal#399): a stranger pastes a link and is
         # told what it is. Describes and builds nothing.
         "/try",
@@ -976,7 +981,7 @@ def joined_from(said: str) -> str:
     post brought somebody through is counted without any pixel. A tag is never a free
     text: anything else in the field is a path or nothing.
     """
-    families = {"aliyah", "connect", "weekly", "parasha", "siddur"} | {
+    families = {"aliyah", "after-duolingo-hebrew", "connect", "weekly", "parasha", "siddur"} | {
         cycle.slug for cycle in daily_cycles()
     }
     slug = said.strip().lower()
@@ -8406,7 +8411,10 @@ class Handler(BaseHTTPRequestHandler):
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
-        said = self._public_language()
+        # /after-duolingo-hebrew is English only (targum-internal#676), so a try pressed there is
+        # answered in English whatever the browser asks for.
+        on_guide = form.get("on") == "after-duolingo-hebrew"
+        said = "en" if on_guide else self._public_language()
         link = (form.get("link") or "").strip()
         tried: dict[str, Any]
         if not link:
@@ -8452,12 +8460,24 @@ class Handler(BaseHTTPRequestHandler):
                     )
                 }
         # The tag the page was opened with rides through a try (targum-internal#676).
+        came = joined_from(form.get("from", ""))
+        # The box stands on /after-duolingo-hebrew too (targum-internal#676), and answers on the
+        # page it was pressed on. That page is English only, so its answer is too (`said`).
+        if on_guide:
+            page = after_duolingo_page(
+                address=self.address,
+                signed_in=self._person() is not None,
+                tried=tried,
+                linked=shelves_are_public(),
+                came=came,
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
         page = front_page(
             language=said,
             address=self.address,
             asked=self._asked(),
             tried=tried,
-            came=joined_from(form.get("from", "")),
+            came=came,
         )
         return self._send(200, page.encode("utf-8"), HTML)
 
@@ -8976,7 +8996,7 @@ class Handler(BaseHTTPRequestHandler):
         # "targum ChatGPT" is how somebody finds out this exists at all (#80).
         paths = ["/", "/about", "/how", "/library"]
         if front_door_is_open():
-            paths.append("/aliyah")
+            paths += ["/aliyah", "/after-duolingo-hebrew"]
         if connector_is_open():
             paths.append("/connect")
         if legal_is_public():
@@ -10247,6 +10267,20 @@ class Handler(BaseHTTPRequestHandler):
                 address=self.address,
                 asked=self._asked(),
                 signed_in=self._person() is not None,
+                came=came_from(urlparse(self.path).query),
+            )
+            return self._send(200, page.encode("utf-8"), HTML)
+        # The page for course graduates (targum-internal#676), on /aliyah's terms: there
+        # while the front door is, because its one ask is the door's.
+        if route == "/after-duolingo-hebrew":
+            if not front_door_is_open():
+                return self._send(404, b"not found", "text/plain")
+            # The tag the link carried (`came_from`, #1186), so an ad's utm_source rides
+            # in the page's forms; with none, the page names itself.
+            page = after_duolingo_page(
+                address=self.address,
+                signed_in=self._person() is not None,
+                linked=shelves_are_public(),
                 came=came_from(urlparse(self.path).query),
             )
             return self._send(200, page.encode("utf-8"), HTML)
@@ -19181,7 +19215,11 @@ class Handler(BaseHTTPRequestHandler):
         found = asset_files().get(route)
         if found is None:
             return self._send(404, b"not found", "text/plain")
-        body, kind, _ = found
+        body, kind, name = found
+        # A film is asked for in ranges, and Safari refuses one that is not answered in
+        # them (`_send_file`), so it is answered from its file as a reader's part is.
+        if kind.startswith("video/"):
+            return self._send_file(asset_source(name), kind, cache=self.ASSET_CACHE)
         return self._send(200, body, kind, cache=self.ASSET_CACHE)
 
     def _clip(self, name: str) -> None:

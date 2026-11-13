@@ -11,6 +11,8 @@
       which the other pages load, styles `.bar` sixty-odd times for the reader's own bar.
     - `home` — the landing's own address for its places, "" on the landing itself (the
       places are anchors on the page) and "/" elsewhere.
+    - `faq` — where FAQ goes, where the page has questions of its own (/after-duolingo-hebrew);
+      the front door's otherwise.
     - `here` — this page's path, for the language links; the landing's is "/".
     - `asked` — a language the visitor chose, carried to sign-in as the landing does.
     - `signed_in` — a reader with an account, who is not asked to join (§6).
@@ -37,7 +39,7 @@
       <a href="{{ home }}#own">{{ t("landing.page.your-own-hebrew", "Your own Hebrew") }}</a>
       <a href="{{ home }}#how">{{ t("landing.page.how-you-learn", "How you learn") }}</a>
       <a href="{{ home }}#talk">{{ t("landing.page.ai-assistant", "AI assistant") }}</a>
-      <a href="{{ home }}#questions">{{ t("landing.page.faq", "FAQ") }}</a>
+      <a href="{{ faq|default(home ~ '#questions') }}">{{ t("landing.page.faq", "FAQ") }}</a>
     </nav>
     <div class="end">
       {#- The page's own language, and nothing else's: two links, because a stranger

@@ -858,3 +858,122 @@ html { overflow-x: clip; }
 .how.four > :last-child { grid-column: auto; }
 @media (max-width: 56rem) { .top.olim { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "card"; } .top.olim > .hero { align-self: start; } .top.olim > .letters { margin-block-end: var(--space-7); } }
 @media (max-width: 40rem) { .how.four { grid-template-columns: minmax(0, 1fr); } }
+
+/* /after-duolingo-hebrew (targum-internal#676; design's spec, 2026-11-12): the front
+   page's top drawn still, since the page carries no script. The card and the reader are
+   the front page's own; these rules only take out what a still reader has no use for
+   (the time column, the pointer) and lay out the "why" cards' pictures. No new value. */
+.try-else { font-size: 0.875rem; color: var(--muted); }
+.try-else a { color: var(--ink); }
+/* "Try this one" (David, 2026-11-12): a first text's own link, offered as a quiet pill
+   under the box, the link shown as it would be pasted. */
+.try-this { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); margin-block-start: calc(-1 * var(--space-2)); }
+.try-chip { color: var(--ink); background: var(--card); box-shadow: var(--shadow-rest); max-inline-size: 100%; }
+.try-chip:hover { background: var(--card); box-shadow: var(--shadow-raised); }
+.try-chip svg { inline-size: 0.75rem; block-size: 0.75rem; color: var(--teal); flex: none; }
+.try-link { font-weight: 400; color: var(--muted); overflow: hidden; text-overflow: ellipsis; min-inline-size: 0; }
+.reader.still .reader-head { border-block-end: 1px solid var(--hairline); }
+.reader.still .lines { padding: var(--space-3) var(--space-3) var(--space-4); }
+.reader.still .pair { grid-template-columns: minmax(0, 1fr); padding: var(--space-2) var(--space-3); }
+.reader.still .line-en { grid-column: 1; }
+.reader.still .reader-foot a { font-weight: 600; }
+mark.w { color: inherit; }
+.reader.still .w, .how-vis .w { cursor: default; }
+/* With `landing.js` the still reader's words answer a tap (targum-internal#676); without
+   it they are words on a page, and nothing about them says otherwise. */
+.reader.still.live .w { cursor: pointer; }
+.reader.still:not(.live) .w:hover { background: none; }
+.reader.still .reader-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2) var(--space-4); }
+.reader.still .tap-hint { color: var(--muted); }
+/* The vowel switch, live: one line the switch turns (landing.js), the still picture's
+   second line and its motion put away. The letters' own settling is the front page's. */
+.vowels-vis.vs-live > .vs-with { display: none; }
+.vowels-vis.vs-live > div, .vowels-vis.vs-live > .vs-as .label, .vowels-vis.vs-live > .vs-as .vs-line { animation: none; }
+.vowels-vis .vs-l > .bare { text-decoration: none; }
+/* The glued word, live: the picture is the press. Closed, its pieces stand together at
+   the word's own size with their English hidden; apart, they ease open (landing.js). */
+.glued-vis.glued-live { cursor: pointer; }
+.glued-live .how-word { display: none; }
+.how-card .glued-live .glued .he { font-size: 1.75rem; line-height: 1.6; }
+.glued-live .glued, .glued-live .glued li > span:not(.he) { animation: none; }
+.glued-live .glued { transition: gap var(--in) var(--ease); }
+.glued-live .glued li > span:not(.he) { transition: opacity var(--in) var(--ease); }
+.glued-live:not(.apart) .glued { gap: 0; }
+.glued-live:not(.apart) .glued li > span:not(.he) { opacity: 0; }
+.how-vis .pair { padding: var(--space-2); background: var(--card); }
+/* The clip in "People talk fast" (targum-internal#676): a few seconds of the cola video
+   over its two lines, the line being said in the reader's teal wash and each word lit in
+   the reader's teal as it is said. */
+.clip { position: relative; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: var(--ink); }
+.clip video { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.clip-play { position: absolute; inset-block-end: var(--space-2); inset-inline-end: var(--space-2); display: grid; place-items: center; inline-size: 2rem; block-size: 2rem; padding: 0; border: 0; border-radius: 999px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-rest); cursor: pointer; }
+.clip-play svg { inline-size: 0.875rem; block-size: 0.875rem; }
+.clip-play .g-pause, .clip.playing .clip-play .g-play { display: none; }
+.clip.playing .clip-play .g-pause { display: inline; }
+.clip-lines { display: grid; gap: var(--space-1); }
+.how-vis.clip-vis .pair { grid-template-columns: minmax(0, 1fr); padding: var(--space-1) var(--space-2); background: none; }
+.how-vis.clip-vis .pair.now { background: var(--teal-wash); }
+.clip-vis .line-en { grid-column: 1; }
+.clip-credit { font-size: 0.8125rem; line-height: 1.4; color: var(--muted); }
+.how-card .clip-credit { font-size: 0.8125rem; }
+.clip-credit a { color: inherit; text-decoration: underline; text-underline-offset: 0.15em; }
+@media (hover: none) and (pointer: coarse) {
+  .clip-play { inline-size: 44px; block-size: 44px; }
+}
+.how-vis .pair .at { cursor: default; }
+.how-vis .line-he { font-size: 1.0625rem; line-height: 1.8; }
+.vowels-vis { gap: var(--space-1); }
+.how-card .vowels-vis .vs-line { font-size: 1.5rem; line-height: 1.8; }
+.vowels-vis > div { display: grid; gap: var(--space-1); }
+.vowels-vis > .vs-with { margin-block-start: var(--space-2); }
+.glued { display: flex; justify-content: center; gap: var(--space-5); }
+.glued li { display: grid; justify-items: center; gap: 0.1rem; }
+.how-card .glued .he { font-size: 1.25rem; line-height: 1.5; }
+/* Each piece's English hangs centred under it without widening it, so the pieces can
+   close up into the word they are and open out again. */
+.glued li > span:not(.he) { inline-size: 0; display: flex; justify-content: center; white-space: nowrap; font: 400 0.8125rem/1.3 var(--reading); color: var(--muted); direction: ltr; }
+.how-card .he { font-size: 1.0625rem; }
+.how-card p .he { white-space: nowrap; }
+.how-card .how-vis .how-word { font-size: 1.75rem; }
+.how-card .how-vis p.he { color: var(--ink); }
+@media (max-width: 40rem) { .how-card .vowels-vis .vs-line { font-size: 1.25rem; } }
+.lib-name { display: grid; gap: 0.1rem; }
+
+/* Small living details (David, 2026-11-12: the page "feels so dead"). Each happens only
+   where motion is allowed, and the scrolled ones only where the browser can tie an
+   animation to scrolling; anywhere else the page stands exactly as drawn (§8). */
+@media (prefers-reduced-motion: no-preference) {
+  /* The vowels come and go on the written line: the two lines share one place, the
+     pointed one fades over the bare one, and the bare letters step aside only while the
+     pointed letters cover them, so no letter is drawn twice at rest. */
+  .vowels-vis > .vs-as, .vowels-vis > .vs-with { grid-area: 1 / 1; margin: 0; }
+  .vowels-vis > .vs-with { animation: vs-points 7s var(--ease) infinite; }
+  .vowels-vis > .vs-as .label { animation: vs-label 7s var(--ease) infinite; }
+  .vowels-vis > .vs-as .vs-line { animation: vs-letters 7s linear infinite; }
+  @keyframes vs-points { 0%, 40% { opacity: 0; } 50%, 85% { opacity: 1; } 95%, 100% { opacity: 0; } }
+  @keyframes vs-label { 0%, 40% { opacity: 1; } 50%, 85% { opacity: 0; } 95%, 100% { opacity: 1; } }
+  @keyframes vs-letters { 0%, 49.9% { color: var(--ink); } 50%, 84.9% { color: transparent; } 85%, 100% { color: var(--ink); } }
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* לבית־הספר comes apart as it comes into view: closed up into the word, then its
+       pieces ease apart and their English arrives under them. */
+    .glued { animation: glued-apart linear both; animation-timeline: view(); animation-range: entry 80% cover 55%; }
+    .glued li > span:not(.he) { animation: glued-say linear both; animation-timeline: view(); animation-range: entry 100% cover 60%; }
+    @keyframes glued-apart { from { gap: 0; } }
+    @keyframes glued-say { from { opacity: 0; } }
+    /* The ladder climbs as it comes into view, one rung after another. */
+    .how-bars { view-timeline: --ladder block; }
+    .how-bars i { transform-origin: 50% 100%; animation: ladder-climb linear both; animation-timeline: --ladder; animation-range: entry 0% entry 50%; }
+    .how-bars i:nth-child(2) { animation-range: entry 10% entry 60%; }
+    .how-bars i:nth-child(3) { animation-range: entry 20% entry 70%; }
+    .how-bars i:nth-child(4) { animation-range: entry 30% entry 80%; }
+    .how-bars i:nth-child(5) { animation-range: entry 40% entry 90%; }
+    .how-bars i:nth-child(6) { animation-range: entry 50% entry 100%; }
+    @keyframes ladder-climb { from { scale: 1 0.06; } }
+  }
+}
+/* Beside the clip the ladder's box is as tall as the film's (the cards share their rows),
+   so the ladder grows to fill it rather than leaving a field of nothing over it. */
+.how.four .how-vis:has(.how-bars) { align-content: stretch; grid-template-rows: auto minmax(3rem, 1fr); }
+.how.four .how-vis .how-bars { block-size: auto; }

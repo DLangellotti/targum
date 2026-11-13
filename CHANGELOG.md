@@ -1810,6 +1810,64 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   accounts by it under the waitlist's "Joined from". The privacy notice's clause 3.10
   says so, in a sentence David approved on 13 November; the notice is dated 12 November
   2026. No spend, no new strings.
+- `/after-duolingo-hebrew`, a page for people who have finished Duolingo Hebrew or a
+  course like it, anywhere (targum-internal#676, step 3; David, 2026-11-10). It is drawn
+  as the front page is (design's spec, 2026-11-12): the hero with the front page's own
+  box (now one partial, `_try_box.html.j2`, answered on the page it was pressed on and
+  still spending nothing), the front page's word card beside it, open on
+  לְבֵית־הַסֵּפֶר, and the reader under both with four lines of "The Shoelace Seller".
+  Then why the Hebrew of a course and the Hebrew of a video feel so different, each
+  reason shown in a How card's picture (a line with and without vowels, a glued word
+  taken apart, a line lit as it's said, the word count). Then three first texts as the
+  signed-out Library's own cards, read off the catalogue: "Why does a small cola cost
+  more than a big one?" (A1, video), "The Shoelace Seller" (A1, story) and "Hebrew with
+  Simantov: A Room for Two" (A2, video). Its one ask is the front door's, the waitlist
+  or Sign up by the switch, and every form on it says `from=after-duolingo-hebrew`, so
+  `waiting.page` counts it as `/after-duolingo-hebrew`. Duolingo is named and the page
+  says once that targum is not affiliated with it; no Duolingo word list is marked
+  known. English only, light only like every page in front of the door, and nothing
+  loaded from another origin. No spend, no new catalogue strings.
+  It moves a little, as David asked of it (2026-11-12: "it feels so dead"), and only
+  where motion is allowed: the vowels come and go on the "As written" line every few
+  seconds, לבית־הספר eases apart into its pieces as it scrolls into view, and the
+  2,140-word ladder climbs as it enters. CSS alone, the scrolled two only where the
+  browser ties an animation to scrolling (`animation-timeline: view()`); with reduced
+  motion, or anywhere else, the page stands as it was drawn.
+  Under the box, "Try this one" offers the cola video's own YouTube link: one press
+  posts it to the same box and shows the box's real answer, described and never built
+  (`Library.describe`, no job written, nothing spent). Its own plain form, so it works
+  with JavaScript off, and it is drawn only where the catalogue holds the row.
+  And it answers a touch, with the front page's own `landing.js`, which now runs without
+  its film (the film's parts, the Torah demo and the fold each run only where their page
+  draws them, so the front page behaves exactly as before): every word of the Shoelace
+  Seller's four lines opens in the word card beside it, by tap or by the arrows and
+  Enter; the vowel card's switch turns the line's vowels on and off; and לבית־הספר comes
+  apart into its pieces once it is in view, and closes or opens again on a tap. Each word
+  is as targum reads it (dictionary form, meaning, how it is built here, binyan, root),
+  held in `render/after_duolingo_story.json` from a local build of the public-domain
+  story with nothing translated or bought; the card here keeps no list, so it offers no
+  Learning, Known or Ask. Without JavaScript the page stands as drawn.
+  And "People talk fast" plays a real video now, in place of the front page's borrowed
+  shakshuka line: 4.9 seconds of Kan's "Why does a small cola cost more than a big one?"
+  (CC BY 3.0, credited under it with its link and licence), muted, its two lines under
+  it with each word lit as it is said and the line being said in the reader's wash. The
+  words and English are the ones targum's reader holds for that video; each word's clock
+  is targum's own forced aligner (`ctc-xlsr-he/2`, local and unpaid) run on the clip. The
+  clip is 113 kB in `render/assets/films/`, served from targum's own origin by a hash
+  address and in ranges (`_asset_file` answers a film from its file, as a reader's part
+  is), and kept for a year. It plays while in view, never by itself under reduced
+  motion, and its one key plays or pauses it; without JavaScript the browser's own
+  controls stand.
+  The page's word data is a small fixed snapshot of targum output, public by David's
+  one-off exception (design.md §12, 2026-11-12), and three readings in it are set by hand
+  for this page from ling-he, each marked `hand`: מֻשְׁפָּלוֹת (huf'al passive participle of
+  ש־פ־ל, "lowered"), לִמְכֹּר (one word, "to sell") and the clip's קולה and מקולה ("cola").
+  And the tag a link to it carries counts as it does on `/` and `/aliyah` (#1186):
+  `?from=<tag>` or `utm_source`/`utm_campaign` is said in the page's forms, its try box
+  and its sign-in link in place of `after-duolingo-hebrew`, and rides through a try.
+  It loads its files as `/aliyah` does since #1193 (`PUBLIC_PAGES`, design.md §12,
+  2026-10-28): named by address, sent whole to a first visit with the faces after load,
+  and read into English's public set; its film is not one of the files warmed.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner

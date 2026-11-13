@@ -411,6 +411,22 @@ def test_how_credits_connect_and_aliyah_are_public_pages(page: str, language: st
     assert kept == f"{KEPT_ROUTE}?set={builder.public_set(language)}"
 
 
+def test_after_duolingo_hebrew_is_a_public_page() -> None:
+    """/after-duolingo-hebrew names its files like /aliyah (targum-internal#676): a first
+    visit gets it whole with the faces after `load`, and warms English's public set, which
+    is read off it too. Its film is not a file a first visit warms."""
+    html = builder.after_duolingo_page("https://targum.page")
+    assert names_files(html), "it names its files"
+    assert 'data-files="public"' in html[: html.index(">", html.index("<html")) + 1]
+    assert "font/woff2;base64" not in html, "no face carried in place"
+    whole = first_visit(html)
+    assert "font/woff2;base64" not in _without_late_faces(whole), "the faces wait for load"
+    files, kept = _warmed(whole)
+    assert set(files) == set(builder.public_files("en")), files
+    assert not [one for one in files if one.endswith(".mp4") or "/home." in one], files
+    assert kept == f"{KEPT_ROUTE}?set={builder.public_set('en')}"
+
+
 def test_a_public_set_keeps_the_public_pages_and_no_desk_page(
     served: tuple[int, str, Path],
 ) -> None:

@@ -1,0 +1,266 @@
+{#- The page for somebody who has finished Duolingo Hebrew, or a course like it, at
+    `/after-duolingo-hebrew` (targum-internal#676, step 3; David, 2026-11-10).
+
+    The end of a course is a moment people search for, so this page answers it, drawn as
+    the front page is (design's spec, 2026-11-12): the front page's own box to try a link
+    of theirs beside a word card, a real first text in the reader under both, why the
+    Hebrew of a course and the Hebrew of a video feel so different (shown, in the How
+    cards' pictures), and three graded first texts as the Library draws them.
+    Everything is drawn in the markup, and the front page's `landing.js` makes it answer:
+    a tapped word opens in the card, the vowels switch, the glued word comes apart. Its one
+    ask is the front door's, the waitlist or Sign up, and the form says it was pressed
+    here (`from=after-duolingo-hebrew`).
+
+    Duolingo is named (David lifted "competitors never named" for this audience on
+    2026-11-10), and the page says once, in its questions, that targum is not affiliated
+    with it. Nothing on it is Duolingo's: no logo, colour or character, and no list of
+    their words is marked known.
+
+    English only. Its lines are written here rather than through the catalogue: a key in
+    `en.json` with no Russian beside it fails `test_strings.py`, and a Russian edition is
+    ling-ru's to write, so the page waits for one rather than carrying half of each.
+
+    Drawn from the front door's parts and held to its rules (§12, 2026-10-30): every file
+    baked in or named on targum's own origin, nothing from anybody else's. -#}
+<!doctype html>
+<html lang="en">
+<head>
+{% include '_public_head.html.j2' %}
+{{ styles('landing.css', 'shelf.css') }}
+{{ hebrew_face() }}
+{{ chrome_face() }}
+</head>
+<body class="landing">
+<a class="skip" href="#top">{{ t("landing.page.skip-to-the-page", "Skip to the page") }}</a>
+{#- The bar's places are the front door's, so `home` is its address. Its RU goes to the
+    Russian front page: this page has no Russian yet. Sign in and Sign up carry where the
+    visitor came from. -#}
+{% with bar_class = 'bar', home = '/', faq = '#questions', here = '/', join = '#join', signin = '/account/signin?lang=en&from=' ~ came_from %}{% include '_front_bar.html.j2' %}{% endwith %}
+
+<main id="top">
+  {#- The front page's top (design's spec, 2026-11-12): the hero, the word card beside it
+      where the front page's card stands, and the reader the full width under both. Drawn
+      in the markup, so nothing drawn here is a press that does nothing without a script. -#}
+  <div class="col top">
+    <div class="hero">
+      <div class="headline">
+        <p class="label">After Duolingo</p>
+        <h1>You finished Duolingo Hebrew. Now learn from real Hebrew.</h1>
+        <p class="lede">Paste a link to a Hebrew video or article and read it with English beside every line and the vowels whenever you want them.</p>
+        {% include '_try_box.html.j2' %}
+        {#- One of the first texts' own links, offered to try (David, 2026-11-12): one
+            press posts it to the same box, and the answer is the box's real one
+            (`Library.describe`, which never builds and never spends). Its own form, so
+            it works with JavaScript off; gone once a link has been tried. -#}
+        {%- if try_this and not tried %}
+        <form class="try-this" id="tryThis" method="post" action="/try?lang=en#try">
+          <input type="hidden" name="on" value="{{ try_on }}">
+          <input type="hidden" name="from" value="{{ joined_from }}">
+          <input type="hidden" name="link" value="{{ try_this.link }}">
+          <span class="try-else">Nothing to paste yet?</span>
+          <button class="btn ghost small try-chip" type="submit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10l8-5z" fill="currentColor"/></svg>Try this one <span class="try-link" dir="ltr">{{ try_this.shown }}</span></button>
+        </form>
+        {%- endif %}
+      </div>
+    </div>
+
+    {#- The card stands open on the word the reader's third line has open, drawn here so
+        it is there with no script; `landing.js` turns it to any word that is tapped.
+        Every word is as targum reads it (`after_duolingo_story`). -#}
+    {%- set opened = story_words.words[story_words.open] %}
+    <aside class="card" id="card" aria-label="{{ t("landing.page.word-card", "Word card") }}">
+      <div class="card-head">
+        <span class="label">{{ t("landing.page.word-card", "Word card") }}</span>
+        <p class="card-word" lang="he" dir="rtl">{{ opened.head|safe }}</p>
+        <p class="card-sense">{% if opened.inf %}<span class="he inf" lang="he" dir="rtl">{{ opened.inf|safe }}</span> {% endif %}{{ opened.sense|safe }}{% if opened.pos %} <span class="pos">{% if opened.sense %}· {% endif %}{{ opened.pos|safe }}</span>{% endif %}</p>
+      </div>
+      {%- if opened.facts %}
+      <dl class="facts-list">
+        {%- for label, value in opened.facts %}
+        <dt>{{ label|safe }}</dt>
+        <dd>{{ value|safe }}</dd>
+        {%- endfor %}
+      </dl>
+      {%- endif %}
+    </aside>
+    <p class="sr-only" id="cardSaid" aria-live="polite"></p>
+
+    <div class="showcase">
+      {#- Four lines of a real first text (`yatziv-shoelace-seller`, public domain), as the
+          library points them, with the English under each. A story, not a recording, so
+          no line carries a time. Each word is one targum read; `landing.js` makes them
+          answer a tap, and without it they are the page's words and nothing more. -#}
+      <article class="reader still" id="story" aria-label="Example: The Shoelace Seller in the reader">
+        <div class="reader-head">
+          <div>
+            <p class="reader-title">The Shoelace Seller</p>
+            <p class="reader-meta">A story · 3 minutes · A1</p>
+          </div>
+        </div>
+        <div class="lines" id="storyLines">
+          {%- for line in story_words.lines %}
+          <div class="pair{% if loop.index == 3 %} now{% endif %}">
+            <p class="line-he" lang="he" dir="rtl">{% for part in line.parts %}{% if part is string %}{{ part }}{% else %}<span class="w{% if part.w == story_words.open %} open{% endif %}" data-id="{{ part.w }}">{{ part.he }}</span>{% endif %}{% endfor %}</p>
+            <p class="line-en">{{ line.en }}</p>
+          </div>
+          {%- endfor %}
+        </div>
+        <p class="reader-foot">
+          <span class="tap-hint" hidden>Tap any word.</span>
+          {%- if linked and story %}
+          <a href="{{ story.href }}">Read it in the library</a>
+          {%- endif %}
+        </p>
+      </article>
+    </div>
+  </div>
+
+  <section class="part" id="why">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">After a course</p>
+        <h2>Why real Hebrew feels harder</h2>
+        <p>A course builds every sentence around words you’ve just practised. A news clip or a TV show doesn’t wait for you, so Hebrew you already know can look new.</p>
+      </div>
+      {#- The front page's How cards, each with a picture that shows its point, so the
+          words under each heading can be few. -#}
+      <ul class="how four">
+        <li class="how-card">
+          <h3>Most Hebrew has no vowels.</h3>
+          <p>Here you can turn them on for the whole text whenever you need them, and off again when you don’t.</p>
+          {#- The line as written and the line pointed. Still, they stand one under the
+              other; with motion allowed they share one place and the vowels come and go
+              on the written line every few seconds (landing.css, `.vowels-vis`). -#}
+          <div class="how-vis vowels-vis">
+            <div class="vs-as">
+              <p class="label">As written</p>
+              <p class="he vs-line" id="vsRecipe" data-pointed="מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?" lang="he" dir="rtl">מדוע אינך הולך לבית־הספר?</p>
+            </div>
+            <div class="vs-with">
+              <p class="label">With vowels</p>
+              <p class="he vs-line" lang="he" dir="rtl">מַדּוּעַ אֵינְךָ הוֹלֵךְ לְבֵית־הַסֵּפֶר?</p>
+            </div>
+            {#- The front page's switch, shown by `landing.js`, which is what makes it work. -#}
+            <button class="switch" id="swVowels" type="button" role="switch" aria-checked="false" hidden><span class="knob" aria-hidden="true"></span>{{ t("landing.page.vowels", "Vowels") }}</button>
+          </div>
+        </li>
+        <li class="how-card">
+          <h3>Small words get glued on.</h3>
+          <p>“And”, “the”, “in” and “to” join the front of the next word, so <span class="he" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</span> doesn’t look like <span class="he" lang="he" dir="rtl">בית ספר</span>. Tap it and you see the word you already know.</p>
+          {#- `landing.js` makes this picture the press: closed up into the word, it comes
+              apart as it comes into view, and a tap closes or opens it. -#}
+          <div class="how-vis center glued-vis">
+            <p class="he how-word" lang="he" dir="rtl">לְבֵית־הַסֵּפֶר</p>
+            <ol class="glued" dir="rtl">
+              <li><span class="he" lang="he" dir="rtl">לְ</span><span>to</span></li>
+              <li><span class="he" lang="he" dir="rtl">בֵית</span><span>house of</span></li>
+              <li><span class="he" lang="he" dir="rtl">הַ</span><span>the</span></li>
+              <li><span class="he" lang="he" dir="rtl">סֵּפֶר</span><span>book</span></li>
+            </ol>
+          </div>
+        </li>
+        <li class="how-card">
+          <h3>People talk fast.</h3>
+          <p>Videos and podcasts are written out word by word and timed to the voice, so each word lights up as it’s said.</p>
+          {#- A few seconds of a real video from the first texts, muted, its words lit as
+              they are said by the clocks targum's aligner gave them (David, 2026-11-12).
+              Served from targum's own origin, and credited as its licence asks. Without a
+              script it is a video with the browser's own controls and its lines under it;
+              `landing.js` plays it while it is in view, lights the words, and gives it
+              one key to pause, never playing by itself under reduced motion. -#}
+          <div class="how-vis clip-vis">
+            <div class="clip">
+              <video id="clipFilm" src="{{ clip.src }}" muted playsinline loop preload="auto" controls aria-label="A scene from Kan’s video, muted"></video>
+              <button class="clip-play" type="button" aria-label="Play" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path class="g-play" d="M5 3v10l8-5z" fill="currentColor"/><g class="g-pause" fill="currentColor"><rect x="4" y="3" width="3" height="10" rx="0.8"/><rect x="9" y="3" width="3" height="10" rx="0.8"/></g></svg></button>
+            </div>
+            <div class="clip-lines">
+              {%- for line in clip.lines %}
+              <div class="pair{% if loop.first %} now{% endif %}">
+                <p class="line-he" lang="he" dir="rtl">{% for part in line.parts %}{% if part is string %}{{ part }}{% else %}<span class="w" data-at="{{ part.at[0] }} {{ part.at[1] }}">{{ part.he }}</span>{% endif %}{% endfor %}</p>
+                <p class="line-en">{{ line.en }}</p>
+              </div>
+              {%- endfor %}
+            </div>
+            <p class="clip-credit">From <a href="{{ clip.home }}" rel="noopener">{{ clip.credit }}, “{{ clip.title }}”</a>, <a href="{{ clip.licence_url }}" rel="license noopener">{{ clip.licence }}</a>. Cut short and muted.</p>
+          </div>
+        </li>
+        <li class="how-card">
+          <h3>There’s no list to finish.</h3>
+          <p>Read anything you like. We keep count of every word you learn, and each text tells you how much of it you already know.</p>
+          {#- The front page's own Your Progress figure (its "Watch your Hebrew grow"). -#}
+          <div class="how-vis">
+            <div class="how-count"><span class="v">2,140</span><span>{{ t("landing.page.words-known", "words known ·") }} {{ t("progress.where.most.article", "You'd follow most of a news article") }}</span></div>
+            <div class="how-bars"><i class="h30 on"></i><i class="h42 on"></i><i class="h54 part"></i><i class="h66"></i><i class="h78"></i><i class="h90"></i></div>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  {#- Three real texts from the library, measured A1 or A2 (`AFTER_DUOLINGO_FIRSTS`),
+      drawn as the signed-out Library draws a row (`shelf.css`), three across. -#}
+  <section class="part" id="firsts">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">First texts</p>
+        <h2>Start with one of these.</h2>
+        <p>All three are in the library, free to read.</p>
+      </div>
+      <ul class="texts lib-rows">
+        {%- for first in firsts %}
+        <li class="lib-row">
+          {#- The whole card opens the text's page in the library where the library is open
+              to strangers; where it is not, it is named without a link that would end at a
+              refusal. -#}
+          {%- if linked %}
+          <a href="{{ first.href }}">
+          {%- else %}
+          <div class="lib-name">
+          {%- endif %}
+            <bdi class="lib-title" lang="he" dir="rtl">{{ first.hebrew }}</bdi>
+            <span class="english" lang="en" dir="ltr">{{ first.english }}</span>
+          {%- if linked %}
+          </a>
+          {%- else %}
+          </div>
+          {%- endif %}
+          <span class="byline">{% if first.level %}{{ first.level }} · {% endif %}{{ first.kind }} · {{ tn("landing.try.minutes", first.minutes, "{n} minute", "{n} minutes") }}</span>
+          <span class="blurb">{{ first.blurb }}</span>
+        </li>
+        {%- endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <section class="part" id="questions">
+    <div class="col">
+      <div class="part-head">
+        <p class="label">{{ t("landing.page.questions", "Questions") }}</p>
+        <h2>{{ t("landing.page.before-you-join", "Before you join.") }}</h2>
+      </div>
+      <div class="faq">
+        <details><summary>Will targum know the words I learned on Duolingo?</summary><p>Not by itself. When you join, we show you some Hebrew words and you mark the ones you know.</p></details>
+        <details><summary>Do I need to finish the whole course first?</summary><p>No. If you can read the letters and know a few hundred words, the A1 texts are a good place to start.</p></details>
+        <details><summary>Is targum part of Duolingo?</summary><p>No. targum isn’t affiliated with Duolingo. We built it for learners who have finished a course like it.</p></details>
+        <details><summary>{{ t("landing.page.what-will-it-cost", "What will it cost?") }}</summary><p>{{ t("landing.page.the-library-is-free-to-read-and-stays", "The library is free to read and stays free. There’ll be a paid plan for reading your own Hebrew: the videos, podcasts and books you bring us.") }}</p></details>
+        {% if not door_is_open() %}
+        <details><summary>{{ t("landing.page.when-does-it-open", "When does it open?") }}</summary><p>{{ t("landing.page.we-re-opening-in-small-groups-rather-than", "We’re opening in small groups. Join the waitlist and we’ll email you when your turn comes.") }}</p></details>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {%- if not signed_in|default(false) %}
+  {% include '_join_end.html.j2' %}
+  {%- endif %}
+</main>
+
+{% with signin = true %}{% include '_public_foot.html.j2' %}{% endwith %}
+{#- The front page's own script, which runs here without its film (targum-internal#676,
+    David, 2026-11-12): the reader's words answer a tap, the vowel switch switches and the
+    glued word comes apart. The words it opens are the page's own, below. -#}
+<script type="application/json" id="landingWords">{{ story_json }}</script>
+{{ script('report.js', data_build=build()) }}
+{{ script('landing.js') }}
+</body>
+</html>

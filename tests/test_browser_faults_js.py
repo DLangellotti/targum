@@ -39,7 +39,9 @@ def node(script: str) -> Any:
 
 def rounded_source() -> str:
     text = (ASSETS / "landing.js").read_text(encoding="utf-8")
-    found = re.search(r"\n  function rounded\(.*?\n  }\n", text, re.S)
+    # At whatever depth the film's code sits (the after-duolingo page's restructure,
+    # targum-internal#676, put it one block deeper); the function ends at its own indent.
+    found = re.search(r"\n( +)function rounded\(.*?\n\1}\n", text, re.S)
     assert found, "landing.js draws its rounded rectangle through one function"
     return found.group(0)
 

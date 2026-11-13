@@ -409,6 +409,28 @@ the words to learn first" (2026-11-05), which named the media Read, Watch and Li
   so if the card's copy still pulls the eye the next step is to take it off the card;
   that is David's call, not this entry's.
 
+### /after-duolingo-hebrew carries a small fixed snapshot of targum output — 2026-11-12
+
+David's call, 2026-11-12. The page's reader and clip are touchable and lit
+(targum-internal#676), and what they show is targum's own output, held in the public repo
+beside the page:
+
+- **What it is.** `render/after_duolingo_story.json` holds the four Shoelace Seller lines'
+  analysis: each word's dictionary form, meaning, how it is built, binyan and root.
+  `render/after_duolingo_clip.json` holds the cola clip's lines and each word's clock from
+  the aligner. Both come from local builds, nothing bought, and they are fixed: a rebuild
+  does not refresh them.
+- **Why it may be public.** The page shows exactly these words to every visitor, so the
+  repo holds nothing the page does not already give away.
+- **Hand-set where targum slipped.** Three readings are corrected by hand for this page
+  only, from ling-he, and each is marked `hand` in the data: מֻשְׁפָּלוֹת and לִמְכֹּר on the
+  reader's cards, and קולה and מקולה in the clip's data (the clip's words open no card,
+  and its lines stay unpointed, as the subtitles write them). The analyser's bugs are
+  their own card.
+- **Not a precedent.** Library content and the code that makes it stay out of the public
+  repo (the catalogue split: types public, data private). This is one page's fixed example, and nothing else may
+  cite it as a reason to commit library output.
+
 ### Topics in What next are weighed by how common a word is — 2026-11-11
 
 targum-internal#608 fills the Topics slot "What next leads with your biggest grammar gap"
@@ -3049,6 +3071,11 @@ under `no-store`, again on every page a visitor opened.
   1.31 s. None of them is opened off a disk, framed by a host or kept by the worker. They
   warm and keep the same public set, which grows by their own stylesheets and
   `/connect`'s script: 158 to 204 kB in English and 244 to 289 kB in Russian.
+- **`/after-duolingo-hebrew` joined them** (targum-internal#676, 2026-11-13), on the same
+  terms as `/aliyah`: only ever served, never opened off a disk, framed or kept by the
+  worker. It is English only, so it is read into English's public set alone. Its short
+  film is not one of the files a first visit warms: it is fetched only by the page that
+  plays it.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
   pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches
