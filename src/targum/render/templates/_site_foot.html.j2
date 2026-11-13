@@ -33,7 +33,10 @@
           public page, which runs no `lang.js`, keeps the Hebrew line. -#}
       <p class="sf-tag" data-foot-line="he">{{ t("landing.page.learn-modern-and-biblical-hebrew-from-videos-podcasts", "Learn modern and biblical Hebrew from videos, podcasts and books.") }}</p>
       <p class="sf-tag" data-foot-line="other" hidden>{{ t("foot.motto", "Learn languages from anything.") }}</p>
-      {%- if public and front_door_is_open() %}
+      {#- Not on a note (`weekly-note.html.j2` sets `asked_to_join` false): the waitlist's own answer
+          asked "Join the waitlist →" of somebody who had just joined (design's #477
+          pass, P2-14, 2026-11-12). -#}
+      {%- if public and front_door_is_open() and asked_to_join|default(true) %}
       {%- if door_is_open() %}
       {#- The door is open (design.md §12, 2026-11-10): Sign up, where Sign in goes. -#}
       <a class="sf-join" href="/account/signin">{{ t("open-door.sign-up", "Sign up") }} <span aria-hidden="true">→</span></a>

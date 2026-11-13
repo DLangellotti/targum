@@ -14,6 +14,69 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Two connector test files no longer leave the connector on for the files after them
+  (targum-internal#690). `test_oauth_serve.py` and `test_mcp_http.py` each set
+  `TARGUM_CONNECTOR=1` bare in a module fixture and never put it back, so
+  `test_hosted::test_llms_txt_names_no_connector_that_is_shut` failed whenever it ran
+  after either one in the same process. Both fixtures now hold it on a
+  `pytest.MonkeyPatch` that is undone when the file ends, and the "every door is shut"
+  test clears it with `monkeypatch`. Tests only. No spend, no new strings.
+- The front door's four P1s from design's §14 finish bar (targum-internal#477,
+  2026-11-12). On a text page, the edition, licence and publisher links are now teal, not
+  the browser's blue. /about, /how and /credits now have the front door's bar (the mark,
+  EN / RU, Sign in and the waitlist) in place of a lone Sign in. /how and /credits answer
+  `?lang=ru`. /about stays English for everybody (David, 2026-11-12): its RU goes to the
+  front door in Russian, and the sitemap makes no Russian claim for it. If the try box's
+  link would not open, the box now says "We couldn't open that link. Check it and try
+  again." (`door.no-answer`). It used to say Upload's "Paste its text here instead",
+  under a box that takes only a link. On /how, ספר is a blank filled with
+  `<span lang="he" dir="rtl">`. It was in the English and Russian sentence with no
+  `lang`. A brand test now refuses Hebrew letters in any string a template says. No
+  spend, no new strings. One string, `how.spelling.said`, has its Hebrew word swapped for
+  a `{word}` blank in English and Russian.
+- The front door's P2s from design's §14 finish bar (targum-internal#477, 2026-11-12).
+  Offline, Try it and Join no longer drop the visitor on the browser's error page: the
+  popup stays and says `door.offline`; only a server that answered with nothing to read
+  falls back to the plain post. The landing, /aliyah and /connect sell one figure, the
+  Hebrew shelf's exact count, the number /library's Hebrew heading says, in three new
+  counted keys; the three stale "hundreds" / "more than 700" keys are gone. The word
+  card's Here row says the form and its meaning on one line and the grammar quieter under
+  them, so "crack" no longer sits alone. /connect's demo says "this learner knows 91% of
+  the words" (`connect.example.known`). The Torah demo's last line is keyed
+  (`landing.demo.that-aliyah-is-on-your-progress`), and the unkeyed-English test now
+  catches a sentence on either half of a ternary. The try box's waiting tile draws a
+  link and holds still under reduced motion. /account/signin carries the public head
+  (description, canonical, og:image). A note page (the JS-off waitlist answers, the
+  weekly's confirm) no longer asks "Join the waitlist →" in its foot. A row whose title
+  is in the page's language draws no English gloss under it, and a catalogue translation
+  note is said only on an English page. Under a coarse pointer /connect's bar and email
+  field, the text page's credit links, the legal pages' mark and /credits' rows reach
+  44px. No spend. New strings: `door.offline`, `connect.example.known`,
+  `landing.demo.that-aliyah-is-on-your-progress`, and the counted
+  `landing.page.free-hebrew-texts-and-videos`, `landing.page.library-count` and
+  `connect.page.library-count`, in English and Russian (ling-en, ling-ru).
+- /how no longer says the reader takes the vowels off (targum-internal#477, 2026-11-13).
+  A text targum pointed opens without vowels and the reader turns them on; only one whose
+  source brought them opens pointed. `how.vowels.said` now says so in English and Russian,
+  and the page's own example, the weekly's, opens bare as it would in a reader. The
+  Grammar tab's rules (`practice.rule.*`) said ה, יו and the other endings inside an
+  English or Russian sentence with no `lang` or `dir`: each Hebrew run is now its own
+  `<span lang="he" dir="rtl">`, built as DOM, never parsed as markup. The letters left the
+  catalogue for `{letter}`, `{one}` and `{two}` blanks the server fills
+  (`practices._RULE_HEBREW`), and a brand test now refuses Hebrew letters in any string
+  Python says, as it does for the templates. No spend. Eleven strings changed in English
+  and Russian: `how.vowels.said` (new Russian, ling-ru) and ten `practice.rule.*` keys
+  (blanks only).
+- French difficulty picks Morphalou up when it lands, and the fetch streams it
+  (targum-internal#682). deploy.sh restarts the service before `targum models fetch
+  morphalou`, so on a fresh or restored box the first French words were measured without
+  the lexicon and that absence was cached until the next restart. A missing table is now
+  looked for again on the next word, and a band measured without it is never reused once
+  it is there. The fetch no longer holds the zip in memory or decodes the 106 MB table out
+  of it: both are streamed to disk a megabyte at a time and renamed into place whole, the
+  table last. Peak memory on a laptop fetch, from a local copy: 623–634 MB before, 93 MB
+  after, of which 75 MB is Python and its imports. The deploy test also checks the step
+  runs as the targum user. No spend, no new strings.
 - Possessive его is its own word, as её and их are, and spaCy's tag for a Russian word
   with ё is repaired where it read the ё wrong (targum-internal#683). His brother (его
   брата) was filed under он. Where spaCy calls его, её or их an object or a subject, that
@@ -220,6 +283,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   link just now. Try again." with the clay mark, where it said "We can't reach targum": the
   proxy's HTML page threw on `response.json()` and fell into the connection's catch. One
   new string, `signin.server-fault`, with its Russian. No spend.
+- A participle's מ and an infinitive's ל are the word's own again (targum-internal#689).
+  Pointed in ktiv haser, the Shoelace Seller's מֻשְׁפָּלוֹת reached DICTA as משפלות and came
+  back as "מ from + שפלות", a qal of שפל with no meaning; it is now the huf'al הושפל of
+  ש־פ־ל, unsplit. לִמְכֹּר came back as "ל to + מכר", a noun, under the meaning "to sell";
+  it is now the verb מכר, qal, with no "to +". `annotate.own_letter` gives the letter
+  back where DICTA cut it untagged and a verb stands behind it: for a מ, a present of one
+  verb in the CC0 table, its vowel agreeing with the binyan where pointed; for a ל, a verb
+  DICTA read as an infinitive, or a word pointed as one beside its verb's future. It runs
+  in `lemma_check`, so pages and counts get it at the next page build with no annotator
+  rename (`lemma_check` 4, `occurrences` 13, a free recount). On the laptop's shelf it
+  changes 223 of 396,475 Hebrew tokens and 7 of 39,525 in the children's books and
+  dialogues. קולה pointed קוֹלָהּ, "her voice", for cola is the menaked's reading and has no
+  word-level override; it stays on the card. No spend, no new strings.
+  The same version also lets both nuns of נתן go in לָתֵת: the page-time check refused
+  נתן under לתת, so a reader's "to give" was a gap (found by builder-3 on #590).
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
@@ -1662,8 +1740,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   keeps it on the new account, and somebody let in from the waitlist keeps their row's
   (`person.came_from`, accounts schema 63, one added column). The back office counts
   accounts by it under the waitlist's "Joined from". The privacy notice's clause 3.10
-  says so, in a sentence that waits on David; the notice is dated 12 November 2026.
-  No spend, no new strings.
+  says so, in a sentence David approved on 13 November; the notice is dated 12 November
+  2026. No spend, no new strings.
 - Your Progress's What next draws a bar for each shown topic (targum-internal#608;
   design.md §12, "Topics in What next are weighed by how common a word is"): the exact
   share of the topic's words in the yardsticks' top 20,000 that you know, the commoner

@@ -123,8 +123,11 @@ def test_a_refused_line_is_not_drawn_and_the_day_keeps_its_others(
     assert "The page remembers where you stopped." in page
     assert '<time datetime="2026-09-02">2 September</time>' in page
     assert '<time datetime="2025-12-31">31 December 2025</time>' in page
+    # Read in the page's own sheet: the front door's bar above it says "Join the
+    # waitlist" (#477), which is the bar's, not a line of the log.
+    sheet = page[page.index('<main class="sheet">') : page.index("</main>")]
     for unsaid in ("backup", "waitlist", 'datetime="2026-09-01"', "left out", "a note to"):
-        assert unsaid not in page, f"{unsaid!r} reached the page"
+        assert unsaid not in sheet, f"{unsaid!r} reached the page"
 
 
 def test_the_page_stands_without_the_log(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

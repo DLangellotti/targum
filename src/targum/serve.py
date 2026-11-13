@@ -1730,6 +1730,27 @@ def unreadable(error: Exception, ui: str = "en") -> str:
     )
 
 
+#: The refusals written for Upload, whose box takes text as well as a link: each asks
+#: for the text, which the front door's link-only box cannot take (#477, P1-3).
+PASTE_THE_TEXT = (
+    ("job.unreadable.other", "We couldn't read that page. Paste its text here instead."),
+    (
+        "job.unreadable.refused",
+        "That site won't let us read the page. Copy the text and paste it here instead.",
+    ),
+    ("fetch.needs-a-sign-in.hint", "Copy the text and paste it here."),
+)
+
+
+def asks_for_text(refused: str, ui: str) -> bool:
+    """Whether a refusal asks the reader to paste the text, in English or in `ui`."""
+    return bool(refused) and any(
+        said_in(code, key, english) in refused
+        for key, english in PASTE_THE_TEXT
+        for code in {"en", ui}
+    )
+
+
 class Jobs(dict[str, Job]):
     """Every job the process knows about, with the ones that can be in a line indexed.
 
@@ -8167,6 +8188,18 @@ class Handler(BaseHTTPRequestHandler):
             }
         else:
             tried = tried_for(self.library.describe(link, said), said)
+            # The fetcher's refusal is Upload's, and Upload takes text: "Paste its text
+            # here instead" under a box that takes only a link asks for what the box
+            # cannot hold (§6; design's #477 finish bar, P1-3, 2026-11-12). The box's own
+            # sentence says what it can take.
+            if asks_for_text(str(tried.get("refused") or ""), said):
+                tried = {
+                    "refused": said_in(
+                        said,
+                        "door.no-answer",
+                        "We couldn't open that link. Check it and try again.",
+                    )
+                }
         # The tag the page was opened with rides through a try (targum-internal#676).
         page = front_page(
             language=said,
@@ -10162,10 +10195,13 @@ class Handler(BaseHTTPRequestHandler):
         # which is a stronger claim than the key it would otherwise be asked for. It
         # has to work from a mail client, hours later, possibly after a restart.
         if route == "/about":
-            page = about_page(language=self._page_language(), address=self.address)
+            # English for everybody (David, 2026-11-12): no Russian version, so the
+            # bar's RU there goes to the front door's Russian rather than a `?lang=` this
+            # page would not answer.
+            page = about_page(address=self.address)
             return self._send(200, page.encode("utf-8"), HTML)
         if route == "/credits":
-            page = credits_page(language=self._page_language(), address=self.address)
+            page = credits_page(language=self._public_language(), address=self.address)
             return self._send(200, page.encode("utf-8"), HTML)
         if route == "/how":
             # `?lang=` like every page with the foot's EN / RU (targum-internal#188).
@@ -10188,6 +10224,7 @@ class Handler(BaseHTTPRequestHandler):
                 signin_page(
                     language=self._public_language(),
                     asked=self._asked(),
+                    address=self.address,
                     back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
                     # "New here? Join the waitlist" up front (beta review PUB-05,
                     # 2026-11-03), where an address has to have been invited and the

@@ -13,53 +13,21 @@ body.about {
   font-family: var(--chrome);
 }
 
-.about .corner {
-  position: absolute;
-  inset-block-start: 1rem;
-  inset-inline-end: 1.5rem;
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-/* A call to action is ink (§9). */
-.about .corner .enter {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 2.25rem;
-  padding: 0.4rem 1rem;
-  border-radius: 999px;
-  background: linear-gradient(var(--gloss), transparent) var(--ink-max, #121110);
-  color: var(--page-max, #fffdf9);
-  font-weight: 600;
-  font-size: 0.9375rem;
-  text-decoration: none;
-}
+/* The front door's bar (design's #477 finish bar, P1-2, 2026-11-12) runs to the
+   window's edges over this body's gutter, which is 1rem here and not the 1.5rem
+   `front-bar.css` undoes on a text page. */
+.about .front-bar { margin-inline: -1rem; }
 
-/* The wordmark on the ground, and what it says on a card under it. */
+/* The card under the bar. */
 /* `main`'s own padding in reader.css is the reader's measure, not this page's; the body
-   keeps the gutter, so the card, the wordmark and the foot share one edge. */
-.sheet { max-width: 40rem; margin: 0 auto; padding: 4.5rem 0 0; }
+   keeps the gutter, so the card and the foot share one edge. */
+.sheet { max-width: 40rem; margin: 0 auto; padding: 2rem 0 0; }
 .about .card {
   padding: 1.5rem 1.25rem;
   border-radius: var(--radius-card);
   background: var(--card);
   box-shadow: var(--shadow-raised);
 }
-
-.about .brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-block-end: 1.25rem;
-  margin-inline-start: 0.25rem;
-  color: var(--ink);
-  text-decoration: none;
-  font-family: var(--reading);
-  font-weight: 600;
-  font-size: 1.25rem;
-  letter-spacing: -0.01em;
-}
-.about .brand-mark { width: 0.85em; height: 1.1em; }
 
 .about h1 {
   margin: 0 0 0.8rem;
@@ -71,7 +39,7 @@ body.about {
 }
 /* §4 rations the accent to the single primary action in a view. On a page that is
    nothing but prose, putting it on every inline link made the accent the body-text
-   colour — the one thing §10 names outright. The corner button keeps it. */
+   colour — the one thing §10 names outright. The bar's call to action is ink (§9). */
 .about .card a {
   color: var(--teal);
   text-decoration: none;
@@ -165,6 +133,13 @@ body.about {
 .speakers { list-style: none; margin: 1rem 0 0; padding: 0; border-block-start: 1px solid var(--rule); }
 .speaker { padding-block: 0.75rem; border-block-end: 1px solid var(--rule); }
 .speaker summary { cursor: pointer; font-size: 0.9375rem; line-height: 1.45; }
+/* §8 under a thumb: a row was 22 tall (design's #477 pass, P2-9). The row's own padding
+   moves inside the summary, so the press is 46 and the list stands as tall as before. */
+@media (hover: none) and (pointer: coarse) {
+  .speaker { padding-block: 0; }
+  .speaker summary { padding-block: 0.75rem; }
+  .speaker details[open] { padding-block-end: 0.75rem; }
+}
 .speaker .terms { color: var(--ink-soft); }
 .speaker ul {
   display: flex;

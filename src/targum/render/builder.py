@@ -790,6 +790,13 @@ def _addressed_in(base: str, language: str) -> tuple[str, list[tuple[str, str]]]
     return address(_page_language(language)), alternates
 
 
+def _asked_for(language: str) -> str:
+    """The language a public page carries on the front door's bar (`asked` in
+    `_front_bar.html.j2`): none for English, whose addresses carry no `?lang=`."""
+    code = _page_language(language)
+    return "" if code == "en" else code
+
+
 def page_words(language: str) -> Callable[..., Markup]:
     """A template's `t(key, English)` in `language` (targum-internal#184): that language's
     catalogue where it has the key, the English written in the template where not.
@@ -2654,8 +2661,8 @@ def about_page(language: str = "en", address: str = "") -> str:
     own words around them and marks the list as English.
 
     Indexed, and in the sitemap, so it names its own address like every other page a
-    crawler is sent to. One address for every language: this page reads the browser's
-    language rather than `?lang=`, so there is no second address to name.
+    crawler is sent to. One address, and English for everybody (David, 2026-11-12): the
+    front door's bar is on it, and its RU goes to the front door in Russian.
     """
     from ..about import DAYS, built, work
     from ..strings import said_day
@@ -2715,11 +2722,12 @@ def credits_page(language: str = "en", address: str = "") -> str:
     linked to its file's page on Commons: CC BY-SA asks for the credit on the file itself,
     and a card that plays one links here. Read from the manifest beside the files
     (`voices.credits`), so only a recording on disk is credited and every one that is.
-    One address for every language, like /about.
+    An address for each language, like /about.
     """
     from .. import voices
 
     said = page_words(language)
+    here, alternates = _addressed_in(f"{address.rstrip('/')}/credits" if address else "", language)
     return (
         _environment()
         .get_template("credits.html.j2")
@@ -2734,7 +2742,9 @@ def credits_page(language: str = "en", address: str = "") -> str:
             ),
             language="he",
             speakers=voices.credits("he"),
-            canonical=f"{address.rstrip('/')}/credits" if address else "",
+            canonical=here,
+            alternates=alternates,
+            asked=_asked_for(language),
         )
     )
 
@@ -2786,6 +2796,7 @@ def how_page(language: str = "en", address: str = "") -> str:
             alternates=alternates,
             how=examples,
             clock=clock,
+            asked=_asked_for(language),
         )
     )
 
@@ -2816,6 +2827,7 @@ def front_page(
     """
     from ..ingest import x as x_door
 
+    shelf_n = hebrew_shelf_size()
     words = page_words(language)
     _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
     return (
@@ -2839,6 +2851,8 @@ def front_page(
             joined_from=came or "/",
             tried=tried,
             tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
@@ -2871,6 +2885,7 @@ def aliyah_page(
 
     `came` is the tag the link to the page carried, as on the front page (#676).
     """
+    shelf_n = hebrew_shelf_size()
     words = page_words(language)
     here, alternates = _addressed_in(f"{address.rstrip('/')}/aliyah" if address else "", language)
     return (
@@ -2881,6 +2896,9 @@ def aliyah_page(
             page_language=_page_language(language),
             asked=asked,
             signed_in=signed_in,
+            tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             title=words("aliyah.head.title", "targum — Hebrew for life in Israel"),
             description=words(
                 "aliyah.head.description",
@@ -3628,6 +3646,7 @@ def signin_page(
     lost: bool = False,
     back: str = "",
     join: str = "",
+    address: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -3651,14 +3670,27 @@ def signin_page(
     `join` is where the waitlist is, for "New here? Join the waitlist" under the heading
     (beta review PUB-05, 2026-11-03): only where an address must have been invited and
     the front door takes one, so a stranger learns that before typing, not after.
+
+    `address` is the public origin, for the head every public page carries: its
+    canonical and the picture a shared link shows (design's #477 pass, P2-13).
     """
     from .. import google as google_module
 
+    words = page_words(language)
     return (
         _environment()
         .get_template("signin.html.j2")
         .render(
-            t=page_words(language),
+            t=words,
+            # What targum is, the front door's own line: the page a shared sign-in link
+            # opens says so to a stranger, as every other public page does.
+            description=words(
+                "landing.head.description",
+                "Learn modern and biblical Hebrew from videos, podcasts and books, or bring "
+                "your own. Vowels on every word, English beside every line, and any word "
+                "explained the moment you tap it.",
+            ),
+            canonical=f"{address.rstrip('/')}/account/signin" if address else "",
             page_language=_page_language(language),
             asked=asked,
             landing=landing,
@@ -3886,6 +3918,7 @@ def connect_page(
     waitlist, and a stranger sent to the steps would otherwise meet a sign-in door they
     cannot get through.
     """
+    shelf_n = hebrew_shelf_size()
     said = page_words(language)
     # Its own address per language, like every other public page (#188): a crawler
     # cannot be told two languages of this exist unless each has a URL.
@@ -3896,6 +3929,9 @@ def connect_page(
         .render(
             t=said,
             page_language=_page_language(language),
+            tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             title=said("connect.head.title", "targum in Claude and ChatGPT"),
             description=said(
                 "connect.head.description",
@@ -4201,7 +4237,9 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
     code = _page_language(language)
     rows = []
     for entry in entries:
-        named = entry.name_in(code)
+        # A title already in the page's language needs no gloss under it: a Russian
+        # conversation on a Russian page drew its English name (design's #477 pass, P2-10).
+        named = "" if entry.language == code else entry.name_in(code)
         blurb = entry.blurb_in(code)
         rows.append(
             _ShelfRow(
@@ -4320,6 +4358,18 @@ def _shelf_languages(
         if listed:
             shelves.append(_ShelfLanguage(code, names.get(code, code), listed, kinds))
     return shelves
+
+
+def hebrew_shelf_size() -> int:
+    """How many Hebrew texts and videos the public Library stands: the number its Hebrew
+    group's heading says ("Hebrew · 948 texts"), and the one figure the landing, /aliyah
+    and /connect sell (design's #477 pass, P2-7, 2026-11-12). Drawn from the shelf so it
+    never goes stale, and Hebrew only, since those pages sell Hebrew: a count of every
+    language would sell a Hebrew learner the French and Russian shelves (§6)."""
+    from ..catalogue import everything
+
+    kinds = {kind for kind, _ in _SHELF_KINDS}
+    return sum(1 for entry in everything() if entry.language == "he" and entry.shelf in kinds)
 
 
 def kind_address(language: str, kind: str) -> str:

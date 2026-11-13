@@ -454,8 +454,9 @@ h1, h2, h3 { text-wrap: balance; }
 .facts-list { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-2) var(--space-4); font-size: 0.875rem; align-items: baseline; }
 .facts-list dt { color: var(--muted); font-size: 0.8125rem; }
 .facts-list dd .he { font-size: 1.0625rem; }
-/* The Here row's meaning, on its own line under the form (#477, polish 4). */
-.facts-list dd .here-gloss { display: block; }
+/* The Here row: the form and its meaning first, the grammar quieter on its own line
+   under them, so no word is left alone looking wrapped (design, polish 4 and P2-8). */
+.facts-list dd .here-grammar { display: block; font-size: 0.8125rem; color: var(--muted); }
 .scripture { font-family: var(--scripture); font-size: 1.0625rem; direction: rtl; unicode-bidi: isolate; }
 .binyanim { display: flex; flex-wrap: wrap; gap: var(--space-1); }
 .binyanim span { background: var(--field); border-radius: 8px; padding: 0.1rem var(--space-2); font-size: 0.8125rem; }

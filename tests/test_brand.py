@@ -1501,6 +1501,91 @@ def test_every_hebrew_run_on_the_front_door_says_its_language(language: str) -> 
     assert not loose, "§14: Hebrew with no lang or no dir:\n" + "\n".join(loose)
 
 
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_every_hebrew_run_on_about_how_and_credits_says_its_language(language: str) -> None:
+    """§14, line 3, on the pages around the front door (design's #477 finish bar, P1-4,
+    2026-11-12): /how said ספר inside an English and a Russian sentence with no `lang`,
+    because the word was in the catalogue's string and no template tag carried it."""
+    from targum.render.builder import about_page, credits_page, how_page
+
+    loose = []
+    for name, page in (
+        ("about", about_page(language, "https://targum.page")),
+        ("how", how_page(language, "https://targum.page")),
+        ("credits", credits_page(language, "https://targum.page")),
+    ):
+        loose += [f"{name}: {run}" for run in hebrew_without_language(page)]
+    assert not loose, "§14: Hebrew with no language or direction:\n" + "\n".join(loose)
+
+
+def test_no_string_a_template_says_carries_hebrew_letters() -> None:
+    """§14, line 3, for the strings a template says through `t()`. A catalogue string is
+    said inside whatever element the template wrote, which speaks the page's language, so
+    Hebrew in one is a run with no `lang` and no `dir` that the template test above
+    cannot see. A Hebrew word goes in a blank, filled with its own tagged span (#477)."""
+    import json
+
+    strings = ROOT / "src/targum/strings"
+    said = {
+        key
+        for page in PAGES
+        for key in re.findall(r'\bt\(\s*"([\w.-]+)"', page.read_text(encoding="utf-8"))
+    }
+    assert said, "no template says a string through t()"
+    carrying = []
+    for code in ("en", "ru"):
+        catalogue = json.loads((strings / f"{code}.json").read_text(encoding="utf-8"))
+        for key in sorted(said):
+            value = catalogue.get(key)
+            if isinstance(value, str) and HEBREW_LETTER.search(value):
+                carrying.append(f"{code}: {key}")
+    assert not carrying, "§14: Hebrew letters inside a page's sentence:\n" + "\n".join(carrying)
+
+
+def test_no_string_python_says_carries_hebrew_letters() -> None:
+    """§14, line 3, for the strings the server says from Python (`strings.text`). The test
+    above reads the templates, so it never saw a key named in a `.py` file: the Grammar
+    tab's rules said ה and יו inside an English or a Russian sentence, drawn as text with
+    no `lang` and no `dir` (#477). A key is found as a literal anywhere in the package, a
+    dict of keys included; one built at run time from parts is not, which is a reason to
+    name keys whole. A Hebrew word goes in a blank, and what draws it tags the run."""
+    import json
+
+    strings = ROOT / "src/targum/strings"
+    english = json.loads((strings / "en.json").read_text(encoding="utf-8"))
+    named = re.compile(r'"([a-z][\w-]*(?:\.[\w-]+)+)"')
+    said = {
+        key
+        for module in (ROOT / "src/targum").rglob("*.py")
+        for key in named.findall(module.read_text(encoding="utf-8"))
+        if key in english
+    }
+    assert "practice.rule.suffix-3ms" in said, "the scan finds no key said from Python"
+    carrying = []
+    for code in ("en", "ru"):
+        catalogue = json.loads((strings / f"{code}.json").read_text(encoding="utf-8"))
+        for key in sorted(said):
+            value = catalogue.get(key)
+            if isinstance(value, str) and HEBREW_LETTER.search(value):
+                carrying.append(f"{code}: {key}")
+    assert not carrying, "§14: Hebrew letters in a sentence Python says:\n" + "\n".join(carrying)
+
+
+def test_the_text_pages_credit_links_are_teal() -> None:
+    """§4, §10 and §13 (design's #477 finish bar, P1-1, 2026-11-12): the edition, its
+    licence and the translation's publisher on every /library/<id> page drew the browser's
+    own blue, because nothing in `public.css` named a link inside the credits. Blue is
+    everyone's, never ours."""
+    text = (TEMPLATES / "text.html.j2").read_text(encoding="utf-8")
+    sections = re.findall(r'<section class="provenance[^"]*".*?</section>', text, re.S)
+    assert sections, "the text page has no credits"
+    links = [link for section in sections for link in re.findall(r"<a\b[^>]*>", section)]
+    assert len(links) >= 5, links
+    rules = re.findall(r"([^{}]+)\{([^{}]*)\}", _bare(ASSETS / "public.css"))
+    bodies = [b for selector, b in rules if selector.strip() == ".public .provenance a"]
+    assert any("color: var(--teal)" in b for b in bodies), "the credits' links have no colour"
+
+
 def test_a_hebrew_run_with_no_language_is_seen() -> None:
     """The check above, shown to catch what it is for, and to pass what is right."""
     bare = '<html lang="en"><body><p class="he">שָׁלוֹם</p></body></html>'
