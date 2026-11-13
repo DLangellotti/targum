@@ -509,6 +509,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - חוֹשֶׁבֶת as pu'al, מְצֻלֵּם as pi'el and joining ד״ר into one token wait for the next
     rename (targum#1192).
   - No spend, no new strings.
+- A published translation's note can be written in the page's language (targum-internal#477,
+  P2-10). `Rendering` keeps `notes` by language code beside the English `note`, as an entry
+  keeps `blurbs` beside `blurb`, and a text page's credit says the note in its own language.
+  A page with no note in its language still says none rather than the English one. The
+  Russian notes are private catalogue data and travel with the next deploy. No spend, no
+  new strings.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

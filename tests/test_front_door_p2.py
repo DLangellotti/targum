@@ -166,6 +166,45 @@ def test_a_translation_note_is_said_only_on_a_page_in_its_language(
     assert NOTE in words(text_page(entry, ADDRESS, language="en"))
 
 
+def test_a_translation_note_written_in_russian_is_said_on_a_russian_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from dataclasses import replace
+
+    entry = a_noted_row(monkeypatch)
+    said = "Подстрочный перевод, чтобы читать его рядом с ивритом."
+    entry = replace(entry, translations=[replace(entry.translations[0], notes={"ru": said})])
+    russian = words(text_page(entry, ADDRESS, language="ru"))
+    assert said in russian
+    assert NOTE not in russian
+    english = words(text_page(entry, ADDRESS, language="en"))
+    assert NOTE in english and said not in english
+
+
+def test_a_rendering_reads_its_notes_off_the_catalogue_file() -> None:
+    from targum.catalogue import _entry
+
+    raw = {
+        "id": "x",
+        "title": "x",
+        "language": "he",
+        "source": "sefaria:Ruth",
+        "translations": [
+            {
+                "name": "Metsudah",
+                "source": "sefaria:en:Ruth",
+                "note": NOTE,
+                "notes": {"ru": "Подстрочный перевод.", "bad code": "x", "fr": " "},
+            }
+        ],
+    }
+    rendering = _entry(raw).translations[0]
+    assert rendering.notes == {"ru": "Подстрочный перевод."}
+    assert rendering.note_in("ru-RU") == "Подстрочный перевод."
+    assert rendering.note_in("en") == NOTE
+    assert rendering.note_in("fr") == "", "no English note on a page in another language"
+
+
 # -- P2-13: sign-in wears the public head -----------------------------------------------
 
 

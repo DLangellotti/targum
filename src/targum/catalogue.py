@@ -342,6 +342,20 @@ class Rendering:
     publisher: str = ""
     licence: str = ""
     licence_url: str = ""
+    #: The note in the other languages a page is read in, by code, as `Entry.blurbs`
+    #: keeps a blurb (targum-internal#477, P2-10). English lives in `note`. Empty means
+    #: none is written, and a page in that language says no note rather than an English
+    #: one: the credit still names the work, its publisher and its licence.
+    #:
+    #: Out of the hash, not out of equality: a rendering is frozen and hashed (a credit
+    #: drops a repeat with `dict.fromkeys`), and a dict cannot be. Two equal renderings
+    #: still hash alike, since the hash is taken over the other fields.
+    notes: dict[str, str] = field(default_factory=dict, hash=False)
+
+    def note_in(self, code: str) -> str:
+        """The note in `code`, English for an English page, and "" where none is written."""
+        base = code.split("-")[0].lower()
+        return self.note if base == "en" else self.notes.get(base, "")
 
     @property
     def language(self) -> str:
@@ -935,6 +949,7 @@ def _entry(raw: dict[str, Any]) -> Entry:
                 name=str(t["name"]),
                 source=str(t["source"]),
                 note=str(t.get("note", "")),
+                notes=_said_in(t.get("notes")),
                 publisher=str(t.get("publisher", "")),
                 licence=str(t.get("licence", "")),
                 licence_url=str(t.get("licence_url", "")),
