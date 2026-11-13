@@ -41,8 +41,9 @@ if TYPE_CHECKING:
 
 #: The version of what this module answers. A change to `WRONG`, the ו rule or the fill
 #: is a new number, so the `roots` table counts every text again under it. 3: a hollow
-#: verb the table files under both ו and י is one root (targum-internal#601).
-VERSION = 3
+#: verb the table files under both ו and י is one root (targum-internal#601). 4: מציע
+#: and הציע are never of י־ע־ץ (targum-internal#700).
+VERSION = 4
 
 
 def _letters(text: str) -> str:
@@ -109,6 +110,8 @@ WRONG: dict[str, frozenset[str]] = _table(
         # A weak root read as the wrong one.
         "הטיל": "נטל",  # ט־ו־ל
         "אפשר": "פשר",  # א־פ־שׁ־ר
+        "מציע": "יעץ",  # י־צ־ע (targum-internal#700)
+        "הציע": "יעץ",  # י־צ־ע
         "שכנע": "כנע",  # שׁ־כ־נ־ע
         "מימש": "מממש",  # מ־מ־שׁ
         # What the CC0 fill would give and is wrong: a lemma spelled like another verb's

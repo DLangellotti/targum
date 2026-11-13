@@ -155,6 +155,27 @@ def isolate(text: str, direction: str, lang: str = "") -> Markup:
     return Markup("".join(parts))
 
 
+#: A letter of another alphabet, Latin or Cyrillic, and a Hebrew letter.
+_FOREIGN_LETTER = re.compile(r"[A-Za-z\u00C0-\u024F\u0400-\u04FF]")
+_HEBREW_LETTER = re.compile(r"[\u05D0-\u05EA\uFB1D-\uFB4F]")
+
+
+def _foreign_letters_only(surface: str) -> bool:
+    """Whether a token in a Hebrew-script text is written in another alphabet and none of
+    its own: a Latin or Cyrillic name in a Hebrew line, never a number or a mark."""
+    return bool(_FOREIGN_LETTER.search(surface)) and not _HEBREW_LETTER.search(surface)
+
+
+def _lang_if_written(text: str, lang: str) -> Markup:
+    """` lang="he"` on a run written in the text's own right-to-left script, and nothing on
+    one that is not: a show, a presenter or a maker in a head may be either ("עושים
+    פוליטיקה", "Yair Lapid"), and a Hebrew one under the page's `lang="en"` was read in
+    the English voice (targum-internal#703, design.md §14.3)."""
+    if not lang or not _RTL_RUN.search(text or ""):
+        return Markup("")
+    return Markup(f' lang="{escape(lang)}"')
+
+
 def _dress(text: str, direction: str, cuts: list[shape.Cut] | None = None) -> Markup:
     """A line isolated as `isolate` does it, with the shape its edition gives it."""
     return shape.dress(text, direction, cuts, isolate)
@@ -610,6 +631,7 @@ def _environment() -> Environment:
     env.template_class = _Page
     env.filters["isolate"] = isolate
     env.filters["dress"] = _dress
+    env.filters["lang_if_written"] = _lang_if_written
     env.globals["asset"] = _asset
     # A page's own files: by address on a desk page, inline everywhere else (`DESK_PAGES`).
     env.globals["script"] = _script
@@ -7071,6 +7093,12 @@ def render(
     unwordly: dict[str, list[tuple[int, int]]] = {}
     from ..ingest.post import inside
 
+    # A run with no letter of the text's own script in a Hebrew-script text — "Yair Lapid"
+    # in an uploaded podcast's title — is not a word to learn, and was drawn and counted
+    # as one (targum-internal#703). At render, as the post's names are, so nothing is
+    # annotated again for it.
+    hebrew_script = segmented.language.split("-")[0].lower() in {"he", "arc", "yi"}
+
     if post is not None:
         from ..ingest.post import unwordly as unwordly_in
 
@@ -7445,10 +7473,15 @@ def render(
                 if not tokens or sid in post_covers:
                     continue
                 rows: list[list[int]] = []
+                # A Hebrew line, where a run in another alphabet is a name and not a word.
+                hebrew_line = hebrew_script and bool(
+                    _HEBREW_LETTER.search(as_written.get(sid, "") or "")
+                )
                 on_row = [
                     token
                     for token in chips(tokens)
                     if not (sid in unwordly and inside(token.start, token.end, unwordly[sid]))
+                    and not (hebrew_line and _foreign_letters_only(token.surface))
                 ]
                 # Which preposition each verb takes here, and which verb each preposition
                 # goes with (Hebrew's fourth hard spot, `annotate.governed`), said on the

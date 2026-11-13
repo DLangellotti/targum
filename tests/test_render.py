@@ -503,8 +503,8 @@ def test_a_podcast_reader_says_its_show_who_and_day_and_links_its_page(
     page = render(document, segmented, [translation], tmp_path / "reader", folder=tmp_path)[0]
     html = page.read_text(encoding="utf-8")
     assert 'class="post from-head"' in html
-    assert '<bdi class="post-name" dir="auto">השעה הבינלאומית</bdi>' in html
-    assert '<bdi class="post-handle" dir="auto">כאן</bdi>' in html
+    assert '<bdi class="post-name" dir="auto" lang="he">השעה הבינלאומית</bdi>' in html
+    assert '<bdi class="post-handle" dir="auto" lang="he">כאן</bdi>' in html
     assert '<time datetime="2026-11-09"' in html and "9 November 2026" in html
     assert f'<a class="post-home" href="{page_url}" target="_blank"' in html
     assert "<img" not in html.split('class="post from-head"')[1].split("</section>")[0]
@@ -531,8 +531,8 @@ def test_a_podcast_reader_names_its_presenter_before_who_makes_it(
     head = (
         page.read_text(encoding="utf-8").split('class="post from-head"')[1].split("</section>")[0]
     )
-    presenter = '<bdi class="post-handle post-presenter" dir="auto">ערן סיקורל</bdi>'
-    maker = '<bdi class="post-handle" dir="auto">כאן</bdi>'
+    presenter = '<bdi class="post-handle post-presenter" dir="auto" lang="he">ערן סיקורל</bdi>'
+    maker = '<bdi class="post-handle" dir="auto" lang="he">כאן</bdi>'
     assert presenter in head and maker in head
     assert head.index(presenter) < head.index(maker)
 
@@ -653,7 +653,7 @@ def test_a_facebook_video_kept_as_a_post_says_on_facebook_with_no_handle(
     html = page.read_text(encoding="utf-8")
     assert f'class="post-home" href="{home}"' in html and ">On Facebook</a>" in html
     assert 'class="post-handle' not in html and ">@<" not in html
-    assert '<bdi class="post-name" dir="auto">כאן חדשות</bdi>' in html
+    assert '<bdi class="post-name" dir="auto" lang="he">כאן חדשות</bdi>' in html
     assert '<time datetime="2026-09-30"' in html
     for match in re.finditer(r"https?://[^\s\"'\\)]+", html):
         assert match.group(0).startswith(OUTBOUND), match.group(0)

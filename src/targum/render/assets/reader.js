@@ -1814,6 +1814,9 @@ var targumReader = function () {
       chip.className = "film-end-word";
       var word = document.createElement("span");
       word.className = "film-end-he";
+      // The chips are laid out from the card's start (`direction: ltr` on the list), so
+      // the word says its own direction, or a Hebrew word computed ltr (#703, §14.3).
+      word.setAttribute("dir", list.getAttribute("dir") || "auto");
       word.textContent = one.word;
       chip.appendChild(word);
       if (one.gloss) {
@@ -5795,6 +5798,10 @@ var targumReader = function () {
         line.className = "conj-form";
         var written = document.createElement("span");
         written.className = "he";
+        // Its own language and direction, inside a card whose chrome is English
+        // (targum-internal#703, design.md §14.3): the table is Hebrew's, from Pealim.
+        written.setAttribute("lang", language);
+        written.setAttribute("dir", "rtl");
         written.textContent = form.written;
         // The one the reader is looking at, marked rather than moved: a table that
         // reorders itself around the tapped word is a table you cannot learn the shape

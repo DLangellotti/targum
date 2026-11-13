@@ -688,6 +688,22 @@ table.rows tr:hover .copy,
      speed's is by the strip's: the list that gave it its reach is an `:is()` with the
      weight of its most specific selector. */
   #video .film-ctl .film-play::after { inset-inline: min(0px, calc(50% - 22px)); }
+  /* The rest the reader's §14 pass measured short under a thumb (targum-internal#703,
+     2026-11-13): the speed in the row under the picture (37px across), the strip's
+     Listening view (36), and a line's own play (32), each reaching across as the film's
+     play does. A line's play stands in the row over its line, so its reach crosses the
+     row and not the words; a verse's has its own reach in reader.css, which this leaves. */
+  #video .film-ctl .film-rate::after { inset-inline: min(0px, calc(50% - 22px)); }
+  .player > .player-listen { position: relative; }
+  .player > .player-listen::after {
+    content: "";
+    position: absolute;
+    inset-inline: min(0px, calc(50% - 22px));
+    inset-block: 0;
+    margin-block: auto;
+    block-size: max(100%, 44px);
+  }
+  .pair.voiced:not(.verse) .say::after { inset-inline: min(-0.25rem, calc(50% - 22px)); }
   /* "Add your meaning", a line of teal in the card: 44px tall for the thumb, centred on
      it, between the scale's legend above and the card's foot below. */
   #gloss-card .note-open { position: relative; }
