@@ -2429,6 +2429,8 @@ class Library:
                 job.message = ""
                 if job.spent > 0:
                     self.settle(job, length=0.0)
+                    if self.store is not None:
+                        self.store.return_credit(job.id)
                 else:
                     self.release(job)
                 self.remember(job)
@@ -2483,6 +2485,10 @@ class Library:
         # for (#694) claimed less than its seconds.
         claimed = max(0.0, job.seconds - job.credited)
         self.settle(job, length=min(heard, claimed) if metered else None)
+        # It did not go ahead: what it was credited is the reader's again, beside the
+        # seconds it heard itself (#694).
+        if self.store is not None:
+            self.store.return_credit(job.id)
         self.remember(job)
 
     def can_mail(self, owner: int | None) -> bool:

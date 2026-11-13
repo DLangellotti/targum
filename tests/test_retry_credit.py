@@ -220,3 +220,81 @@ def test_a_credit_that_makes_room_lets_the_retry_through(world: World) -> None:
     world.stop(world.build("a", reader), heard=LONG - 60.0)
     again = world.build("b", reader)
     assert again.stage == "queued" and _length(world.store, "b") == pytest.approx(60.0)
+
+
+# -- qa-claude on #1200 ----------------------------------------------------------------
+
+
+def _quote(world: World, job_id: str, person: Any, made: int) -> Job:
+    """A quote opened at `made` and not pressed yet: a paste in another tab."""
+    job = Job(
+        id=job_id,
+        source=SOURCE,
+        owner=person.id,
+        home=world.library.home(person),
+        audio=True,
+        seconds=LONG,
+        estimate=0.40,
+        made=made,
+    )
+    world.library.jobs[job.id] = job
+    world.library.remember(job)
+    return job
+
+
+def test_a_quote_opened_before_the_stop_and_pressed_after_frees_no_second_credit(
+    world: World,
+) -> None:
+    """A quote's `made` is when it was opened, not pressed: the credit is decided by
+    which claim took it, not by when anything was made."""
+    reader = _person(world.store, "reader@example.com")
+    old = _quote(world, "old", reader, made=1_500)
+    world.stop(world.build("a", reader), heard=120.0)
+    assert world.library.press(old) == ""
+    assert _length(world.store, "old") == pytest.approx(LONG - 120.0)
+    world.finish(old)
+    world.build("d", reader)
+    assert _length(world.store, "d") == pytest.approx(LONG)
+
+
+def test_a_retry_that_finished_for_nothing_still_used_the_credit(world: World) -> None:
+    """Every part came from the cache, so it settled at $0: it went ahead all the same."""
+    reader = _person(world.store, "reader@example.com")
+    world.stop(world.build("a", reader), heard=120.0)
+    retry = world.build("b", reader)
+    retry.stage = "done"
+    retry.spent = 0.0
+    world.library.settle(retry)
+    world.library.remember(retry)
+    world.build("c", reader)
+    assert _length(world.store, "c") == pytest.approx(LONG)
+
+
+def test_a_fully_credited_retry_that_went_ahead_used_it(world: World) -> None:
+    reader = _person(world.store, "reader@example.com")
+    world.stop(world.build("a", reader), heard=LONG)
+    retry = world.build("b", reader)
+    assert _length(world.store, "b") == 0.0
+    retry.spent = 0.0
+    world.finish(retry)
+    world.build("c", reader)
+    assert _length(world.store, "c") == pytest.approx(LONG)
+
+
+def test_a_credited_retry_given_back_gives_its_credit_back(world: World) -> None:
+    """Cancelled while it waited, failed with nothing spent, or lost to a restart: it
+    never went ahead, so the stopped seconds are the reader's again."""
+    reader = _person(world.store, "reader@example.com")
+    world.stop(world.build("a", reader), heard=120.0)
+    waiting = world.build("b", reader)
+    assert world.library.cancel(waiting) == "cancelled"
+    failed = world.build("c", reader)
+    assert _length(world.store, "c") == pytest.approx(LONG - 120.0)
+    world.library.release(failed)
+    restarted = world.build("d", reader)
+    assert _length(world.store, "d") == pytest.approx(LONG - 120.0)
+    restarted.stage = "working"
+    world.library.remember(restarted)
+    world.store.interrupt_running()
+    world.build("e", reader)
+    assert _length(world.store, "e") == pytest.approx(LONG - 120.0)
