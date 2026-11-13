@@ -1443,6 +1443,50 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
         return None
 
 
+#: The job option holding what a source is called and whose it is (targum-internal#691):
+#: the show or channel, who makes it, its day and its own page. Written by the server
+#: from what it already holds — a find's pool row, a subscription's name, a video host's
+#: description — and never taken from a request (`/prepare` drops it).
+NAMED = "named"
+
+
+def named(*, show: str = "", by: str = "", date: int = 0, page: str = "") -> dict[str, Any]:
+    """The `named` option, with what is empty left out and only a web address kept."""
+    out: dict[str, Any] = {}
+    if show.strip():
+        out["show"] = show.strip()[:160]
+    if by.strip() and by.strip().casefold() != show.strip().casefold():
+        out["by"] = by.strip()[:160]
+    if date and int(date) > 0:
+        out["date"] = int(date)
+    if page.strip().startswith(("https://", "http://")):
+        out["page"] = page.strip()[:500]
+    return out
+
+
+def _upload_day(said: str) -> int:
+    """yt-dlp's `upload_date` (YYYYMMDD) as milliseconds, or 0."""
+    try:
+        day = datetime.strptime(said, "%Y%m%d").replace(tzinfo=UTC)
+    except ValueError:
+        return 0
+    return int(day.timestamp() * 1000)
+
+
+def came_of(job: Job, catalogued: bool = False) -> str:
+    """Where a build came from, for the card that waits for it (targum-internal#691):
+    `suggested` (Home's pick), `subscribed`, `library`, or `uploaded` — what the reader
+    brought themselves, and anything that cannot be named."""
+    via = str(job.options.get("via") or "")
+    if via == "find":
+        return "suggested"
+    if via == "subscription" or job.kind == "subscription":
+        return "subscribed"
+    if catalogued:
+        return "library"
+    return "uploaded"
+
+
 @dataclass
 class Job:
     id: str
@@ -1543,6 +1587,11 @@ class Job:
             "id": self.id,
             "made": self.made,
             "title": self.title,
+            # Where it came from, and the show or channel it is from (targum-internal
+            # #691): the waiting card's badge and its line under the title.
+            "came": came_of(self, catalogued=entry is not None),
+            "show": str((self.options.get(NAMED) or {}).get("show") or ""),
+            "by": str((self.options.get(NAMED) or {}).get("by") or ""),
             # The subtitle in the reader's own language where the catalogue has one,
             # as the Library says it (beta review, 2026-11-03, R8).
             "english": (named or entry.english) if entry else "",
@@ -4795,7 +4844,8 @@ class Library:
             job.stage = "failed"
             return
         try:
-            found = from_ytdlp(described(job.source))
+            info = described(job.source)
+            found = from_ytdlp(info)
         except TargumError as refusal:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
@@ -4828,7 +4878,16 @@ class Library:
             job.stage = "failed"
             return
 
-        job.title = found.title.strip() or job.source
+        job.title = found.title.strip() or job.title or job.source
+        # Whose video it is, as the host said it: the channel (targum-internal#691). A
+        # find's own naming, written when it was pressed, stands.
+        channel = str(info.get("channel") or info.get("uploader") or "").strip()
+        if channel and not (job.options.get(NAMED) or {}).get("show"):
+            job.options[NAMED] = named(
+                show=channel,
+                date=_upload_day(str(info.get("upload_date") or "")),
+                page=str(info.get("webpage_url") or ""),
+            )
         # Charged against the hours, like every other recording: `claim` spends
         # `job.seconds` against the month's allowance when `job.audio` is set, so the
         # rate limit this needed is the one the pricing page already promised rather
@@ -4908,7 +4967,9 @@ class Library:
         from .transcribe import PRICES, default_name
         from .transcribe import build as build_transcriber
 
-        job.title = found.title or job.source
+        # A title already known (a find's, a subscription item's) beats the address an
+        # audio file's link is named by when it says nothing of itself.
+        job.title = found.title or job.title or job.source
         job.audio = True
         job.seconds = float(found.seconds or 0.0) or TARGET_MINUTES_GUESS * 60.0
         job.parts = max(1, round(job.seconds / 720))
@@ -6265,6 +6326,13 @@ class Library:
             build.beside = lambda folder, document: self.keep_post(job, folder, document)
             if said.get("film"):
                 build.caption = str(said.get("caption") or "")
+        elif job.options.get(NAMED):
+            # Where it is from, beside the reader, for its head (targum-internal#691).
+            # A post keeps its own head, so this is for everything else.
+            from .render.builder import keep_from
+
+            known = dict(job.options[NAMED])
+            build.beside = lambda folder, document: keep_from(folder, known)
         return build
 
 
@@ -16680,6 +16748,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
+        # What a source is called and whose it is (targum-internal#691) is written by the
+        # server from what it already holds, never taken from a request.
+        payload = {key: value for key, value in payload.items() if key != NAMED}
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),
@@ -16751,6 +16822,9 @@ class Handler(BaseHTTPRequestHandler):
             ui=self._page_language(),
             id=secrets.token_hex(8),
             source=found.url,
+            # The card's own title, so the card that waits for it says the same thing
+            # and never the audio file's address (targum-internal#691).
+            title=found.title,
             options={
                 "to": into,
                 "from": found.language,
@@ -16760,6 +16834,12 @@ class Handler(BaseHTTPRequestHandler):
                 # back office counts finds opened off this, and the pool id with it.
                 "via": "find",
                 "find": found.id,
+                NAMED: named(
+                    show=found.publisher if found.medium != "text" else "",
+                    by=found.author,
+                    date=found.published,
+                    page=found.page or (found.url if found.medium == "video" else ""),
+                ),
             },
             owner=person.id,
             admin=bool(person.admin),

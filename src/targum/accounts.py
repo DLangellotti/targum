@@ -429,10 +429,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    copied from its waitlist row where it had one (targum-internal#676). One added
 #    column with a default, so the migration is one ALTER.
 #
+# 63→64: find.page and find.author — a podcast episode's own page as its feed links it,
+#    and who makes the show as the reviewed list names them (targum-internal#691). Two
+#    added columns with defaults, so two ALTERs; empty on every find before them.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 63
+SCHEMA_VERSION = 64
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -922,6 +926,10 @@ MIGRATIONS: tuple[str, ...] = (
     # channel is counted whether the door was open or the account was let in. Empty on
     # every account before it, and on any that came in some other way.
     "ALTER TABLE person ADD COLUMN came_from TEXT NOT NULL DEFAULT ''",
+    # A podcast episode's own page and who makes the show (schema 64, targum-internal
+    # #691): what Home's line and the reader's head link and name. Empty before it.
+    "ALTER TABLE find ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE find ADD COLUMN author TEXT NOT NULL DEFAULT ''",
 )
 
 
@@ -3508,7 +3516,7 @@ class Store:
         holes = ", ".join("?" for _ in wanted)
         rows = self.db.execute(
             "SELECT i.*, s.person AS person, s.kind AS kind, s.cap AS cap, s.state AS sub_state,"
-            " s.language AS language, s.said AS said"
+            " s.language AS language, s.said AS said, s.name AS sub_name"
             f" FROM sub_item i JOIN subscription s ON s.id = i.subscription"
             f" WHERE i.state IN ({holes}) ORDER BY i.published, i.found",
             wanted,

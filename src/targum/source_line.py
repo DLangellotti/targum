@@ -39,12 +39,20 @@ def _web(address: str) -> str:
 
 
 def for_find(row: dict[str, Any]) -> dict[str, Any] | None:
-    """A web find's line: its publisher (or site) and its day, linking to the find."""
-    url = _web(str(row.get("url") or ""))
+    """A web find's line: its publisher (or site) and its day, linking to the find.
+
+    A podcast episode's line names its show, who makes it where that is another name
+    (`by`), and links the episode's own page where the feed gave one rather than its
+    audio file, which opens as a bare player (targum-internal#691)."""
+    url = _web(str(row.get("page") or "")) or _web(str(row.get("url") or ""))
     name = str(row.get("publisher") or "").strip() or _site(url) or _site_of_host(row)
     if not name:
         return None
-    return {"name": name, "url": url, "date": int(row.get("published") or 0)}
+    line: dict[str, Any] = {"name": name, "url": url, "date": int(row.get("published") or 0)}
+    by = str(row.get("author") or "").strip()
+    if by and by.casefold() != name.casefold():
+        line["by"] = by
+    return line
 
 
 def _site_of_host(row: dict[str, Any]) -> str:
