@@ -16046,8 +16046,22 @@ class Handler(BaseHTTPRequestHandler):
             if (rungs or every) and index.texts
             else None
         )
+        # What the reader's words reach, and the one level on the page (below), come first:
+        # Texts by level never says Easy or Next above the level the Reading level card
+        # shows (targum-internal#693).
+        found = self._snapshot(person, language)
+        foot = self._foot_level(person, language, found) or self._checked_level(
+            person, language, found
+        )
+        reached = (
+            touchstones.reached_by(
+                found, str(foot.get("cefr") or "") if foot and foot.get("from") else None
+            )
+            if found is not None
+            else None
+        )
         answer.update(
-            touchstones.standing(rungs, known_of)
+            touchstones.standing(rungs, known_of, reached)
             if rungs and known_of is not None
             else {"ladder": [], "here": None, "next": None}
         )
@@ -16061,7 +16075,6 @@ class Handler(BaseHTTPRequestHandler):
             }
         # What the reader's words say of each row: reached, or the words left to it
         # (design.md §12, "Your level, v3", 2026-10-29).
-        found = self._snapshot(person, language)
         if found is not None:
             touchstones.words_to_go(answer["ladder"], found)
         # Whether the shelf has conversations, which week one offers as the first pick.
@@ -16074,9 +16087,7 @@ class Handler(BaseHTTPRequestHandler):
         # reach one, the rung their words check put them at, labelled so (design.md §12,
         # "Your level comes from your words check until your marks reach one",
         # 2026-11-04). Never the rung they only said.
-        answer["level"] = self._foot_level(person, language, found) or self._checked_level(
-            person, language, found
-        )
+        answer["level"] = foot
         # Week one: no rung yet, and the words left to the first (design.md §12, "Your
         # level, v3"): the bar and "{n} words to א׳" on the Start card. Not for a reader
         # whose words check gave them a level: "Start with beginner texts" contradicted

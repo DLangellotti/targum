@@ -236,7 +236,19 @@ def percent(share: float) -> int:
     return max(0, min(100, int(share * 100)))
 
 
-def standing(rungs: list[Rung], known_of: Callable[[str], float | None]) -> dict[str, Any]:
+#: A level is called easy by its texts only on this many measured texts or more
+#: (targum-internal#693, 2026-11-13). One readable C2 text out of one made C2 "Easy for
+#: you", and the climb then ticked every row under it, for a reader at B2. Below it, a
+#: level the reader's words reach is easy by the words, as a level with no texts at it
+#: always was; a level they do not reach is not easy at all.
+SAMPLE = 10
+
+
+def standing(
+    rungs: list[Rung],
+    known_of: Callable[[str], float | None],
+    reached: Callable[[str], bool] | None = None,
+) -> dict[str, Any]:
     """The ladder as the page draws it: each row easy, the next step or not yet, and how
     many of its texts the reader could read now.
 
@@ -246,29 +258,58 @@ def standing(rungs: list[Rung], known_of: Callable[[str], float | None]) -> dict
     than half its measured texts are on that shelf, and so is every row below the hardest
     easy one: the ladder climbs. The next step is the row after it, or the first row where
     none is easy yet.
+
+    `reached`, for a language with a word ladder, says whether the level the page's
+    Reading level card shows reaches a row (`reached_by`). Then the two panels agree
+    (targum-internal#693): a row it does not reach is never easy and never the next step,
+    since it says its words to go; texts decide a row only on `SAMPLE` measured texts or
+    more, and a reached row with fewer is easy by the words. The next step is the first
+    reached row past the hardest easy one that texts decide against, if there is one.
     """
     counts: list[int] = []
+    measured_at: list[int] = []
     easy: list[bool] = []
     for rung in rungs:
         shares = [known_of(entry_id) for entry_id in rung.texts]
         measured = [share for share in shares if share is not None]
         readable = sum(1 for share in measured if share * 100 >= NEARLY)
         counts.append(readable)
+        measured_at.append(len(measured))
         easy.append(bool(measured) and readable * 2 > len(measured))
 
     here: int | None = None
-    for at, yes in enumerate(easy):
-        if yes:
-            here = at
     following: int | None
-    if here is None:
-        following = 0 if rungs else None
+    if reached is None:
+        for at, yes in enumerate(easy):
+            if yes:
+                here = at
+        if here is None:
+            following = 0 if rungs else None
+        else:
+            following = here + 1 if here + 1 < len(rungs) else None
+        last_easy = here
     else:
-        following = here + 1 if here + 1 < len(rungs) else None
+        reach = [reached(rung.kind) for rung in rungs]
+        for at, yes in enumerate(easy):
+            if yes and reach[at] and measured_at[at] >= SAMPLE:
+                here = at
+        # Above the hardest level its texts call easy, a reached level too thin to decide
+        # by texts is easy by the words, until one its texts decide against: the next step.
+        last_easy = here
+        following = None
+        start = 0 if here is None else here + 1
+        for at in range(start, len(rungs)):
+            if not reach[at]:
+                break
+            if measured_at[at] >= SAMPLE:
+                following = at
+                break
+            last_easy = at
+        here = last_easy
 
     out = []
     for at, rung in enumerate(rungs):
-        if here is not None and at <= here:
+        if last_easy is not None and at <= last_easy:
             state = "easy"
         elif at == following:
             state = "next"
@@ -284,6 +325,37 @@ def standing(rungs: list[Rung], known_of: Callable[[str], float | None]) -> dict
             }
         )
     return {"ladder": out, "here": here, "next": following}
+
+
+def reached_by(found: Any, check: str | None = None) -> Callable[[str], bool]:
+    """Whether the level on the Reading level card reaches a row of Texts by level.
+
+    `found` is the reader's `level.snapshot`: a row is reached where their known words
+    reach its threshold (`level.words_to` is 0, as `words_to_go` marks it `covered`), and
+    Past C2 only at the ladder's top rung. `check` is the CEFR level the words check gave
+    (`_checked_level`'s `cefr`), which the card shows until the marks reach a rung: every
+    row up to it is reached too.
+    """
+    from .level import ladder_for, words_to
+    from .levelmap import rung_at
+
+    ladder = ladder_for(getattr(found, "language", "") or "") if found is not None else None
+    ceiling = -1
+    if check:
+        plain = check.rstrip("+")
+        ceiling = LEVELS.index(plain) if plain in LEVELS else -1
+
+    def reached(kind: str) -> bool:
+        if kind in LEVELS and LEVELS.index(kind) <= ceiling:
+            return True
+        if ladder is None:
+            return False
+        at = rung_at(ladder, kind)
+        if at is None:
+            return getattr(found, "here", None) == ladder.rungs[-1]
+        return words_to(found, at) == 0
+
+    return reached
 
 
 def at_level(
