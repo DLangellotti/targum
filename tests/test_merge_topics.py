@@ -203,3 +203,61 @@ def test_the_listed_lemmas_come_only_from_the_tables(tmp_path: Path) -> None:
         ("w-noun", "NOUN", 9),
     ]
     assert missing == ["w-bare"], "no gloss: listed apart; never counted: never asked"
+
+
+def test_a_lemma_decision_tags_a_lemma_no_review_row_holds() -> None:
+    merge = _script("merge_topics")
+    full = [_row(0, "w-agreed", "food", "food", "food")]
+    full.append(_row(1, "w-split", "school", "general", ""))
+    full[1].update(decision="school", who="ling-he", at="2026-11-09", why="")
+    gap = [_row(0, "g-agreed", "family", "family", "family")]
+    base = {"w-agreed": ["food"], "w-held": ["law"]}
+    by_lemma = [
+        {"lemma": "n-new", "topics": ["people"], "confidence": "high", "note": ""},
+        {"lemma": "n-two", "topics": ["law", "health"], "confidence": "low", "note": "x"},
+        {"lemma": "w-split", "topics": ["general"], "confidence": "high"},
+        {"lemma": "g-agreed", "topics": ["food"], "confidence": "high"},
+        {"lemma": "w-held", "topics": ["general"], "confidence": "high"},
+    ]
+    got = merge.merge(base, full, [], gap, by_lemma, at="2026-11-13")
+    assert got.lemmas["n-new"] == ["people"]
+    assert got.lemmas["n-two"] == ["law", "health"]
+    assert got.lemmas["w-split"] == ["school"], "a review row's decision stands"
+    assert got.lemmas["g-agreed"] == ["family"], "a review row is decided in review.tsv"
+    assert got.lemmas["w-held"] == ["law"], "never replaces what the lexicon holds"
+    assert got.counts["lemma_decided"] == 2
+    assert got.counts["lemma_has_review_row"] == 2
+    assert got.counts["lemma_already_held"] == 1
+
+
+def test_a_decision_outside_the_topic_set_is_refused() -> None:
+    import pytest
+
+    merge = _script("merge_topics")
+    for bad in (["sport"], [], ["general", "food"], ["food", "law", "work"], ["food", "food"]):
+        with pytest.raises(ValueError):
+            merge.merge({}, [], [], [], [{"lemma": "n", "topics": bad}])
+    with pytest.raises(ValueError, match="twice"):
+        merge.merge(
+            {}, [], [], [], [{"lemma": "n", "topics": ["food"]}, {"lemma": "n", "topics": ["law"]}]
+        )
+    full = [_row(1, "w-split", "school", "general", "")]
+    with pytest.raises(ValueError):
+        merge.merge({}, full, [{"id": 1, "lemma": "w-split", "topics": ["sport"]}])
+
+
+def test_a_lemma_decisions_file_is_ling_hes(tmp_path: Path) -> None:
+    import pytest
+
+    merge = _script("merge_topics")
+    file = tmp_path / "d.json"
+    file.write_text(
+        json.dumps(
+            {"who": "ling-he", "at": "2026-11-13", "rows": [{"lemma": "n", "topics": ["food"]}]}
+        ),
+        encoding="utf-8",
+    )
+    assert merge.read_lemma_decisions(file) == [{"lemma": "n", "topics": ["food"]}]
+    file.write_text(json.dumps({"who": "someone", "rows": []}), encoding="utf-8")
+    with pytest.raises(ValueError, match="ling-he"):
+        merge.read_lemma_decisions(file)

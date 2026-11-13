@@ -12,6 +12,13 @@ Free: it reads files and the tables' counts, and runs no model.
 - An incremental run over the lemmas the lexicon missed (`--gap`, `scripts/tag_topics.py
   --only`) adds its agreed rows. Its disagreements are filed `general` for now and
   listed, with its low-confidence rows, for ling-he (`--for-review`).
+- ling-he's decisions keyed by lemma (`--lemma-decisions`) tag the lemmas no run's review
+  file holds a row for, such as the ones a run left untagged for want of a gloss. They
+  never replace a review row's decision or a lemma the lexicon holds already: those are
+  decided in review.tsv.
+
+Every decision, by id or by lemma, is checked against the closed list (`topics.TOPICS`
+or `general` alone, at most `topics.MOST`), and a file with one outside it is refused.
 
 Every decision is written into its run's review.tsv (decision, who, at, why), after a
 backup copy, and a decision a person made there is never overwritten: the next merge
@@ -26,7 +33,8 @@ the numbers are printed. Nothing is deployed.
     .venv/bin/python scripts/merge_topics.py \\
         --decisions ~/targum-team/ling-he/keep/topics-606-decisions-2026-11-09.json \\
         --gap 2026-11-09-gap --tables ~/.targum/corpus.db --yardsticks DIR \\
-        --for-review ~/targum-team/ling-he/keep/topics-606-gap-review-2026-11-09.json
+        --for-review ~/targum-team/ling-he/keep/topics-606-gap-review-2026-11-09.json \\
+        --lemma-decisions ~/targum-team/ling-he/keep/topics-606-untagged-decisions-2026-11-13.json
 """
 
 from __future__ import annotations
@@ -52,6 +60,8 @@ RULE = "rule"
 DECISION = ("decision", "who", "at", "why")
 WHY_BELOW = "below the top 5k with no shared topic: general, by the card's rule"
 WHY_GAP = "the two models disagreed: general for now, listed for ling-he"
+#: The one seat whose decisions keyed by lemma the merge takes.
+LEMMA_WHO = "ling-he"
 
 
 @dataclass
@@ -89,18 +99,35 @@ def _low(row: Mapping[str, str]) -> bool:
     return any(row.get(f"{name}_confidence") == "low" for name in _model_columns(row))
 
 
+def checked(lemma: str, codes: Sequence[str]) -> list[str]:
+    """A decision's topics, if they are on the closed list: one to `topics.MOST` of
+    `topics.TOPICS`, or `general` alone. Anything else is refused."""
+    got = [str(one) for one in codes]
+    if (
+        not got
+        or len(got) > topics.MOST
+        or len(set(got)) != len(got)
+        or any(one not in topics.TOPICS and one != topics.GENERAL for one in got)
+        or (topics.GENERAL in got and len(got) > 1)
+    ):
+        raise ValueError(f"{lemma}: {got} is not a decision on the topic list")
+    return got
+
+
 def merge(
     base: Mapping[str, Sequence[str]],
     full: Iterable[Mapping[str, str]],
     decisions: Iterable[Mapping[str, Any]],
     gap: Iterable[Mapping[str, str]] = (),
+    by_lemma: Iterable[Mapping[str, Any]] = (),
     *,
     who: str = "ling-he",
     at: str = "",
     top: int = TOP,
 ) -> Merged:
-    """The merge, on rows as the review files hold them (strings), and the decisions as
-    ling-he's file lists them (`id`, `lemma`, `topics`, `confidence`, `note`)."""
+    """The merge, on rows as the review files hold them (strings), the decisions as
+    ling-he's file lists them (`id`, `lemma`, `topics`, `confidence`, `note`), and her
+    decisions keyed by lemma for lemmas no review row holds (`lemma`, `topics`)."""
     lemmas = {str(k): list(v) for k, v in base.items()}
     full_rows = [dict(row) for row in full]
     gap_rows = [dict(row) for row in gap]
@@ -115,7 +142,18 @@ def merge(
         "gap_low": 0,
         "gap_unanswered": 0,
         "gap_already_held": 0,
+        "lemma_decided": 0,
+        "lemma_has_review_row": 0,
+        "lemma_already_held": 0,
     }
+    by_lemma = list(by_lemma)
+    seen: set[str] = set()
+    for one in by_lemma:
+        lemma = str(one["lemma"])
+        if lemma in seen:
+            raise ValueError(f"{lemma}: decided twice in the lemma decisions")
+        seen.add(lemma)
+        checked(lemma, one["topics"])
 
     by_id = {row["id"]: row for row in full_rows}
     for one in decisions:
@@ -123,6 +161,7 @@ def merge(
         if row is None or row["lemma"] != one["lemma"]:
             counts["decision_mismatch"] += 1
             continue
+        codes = checked(row["lemma"], one["topics"])
         if _decided_by_a_person(row):
             # Already decided in review.tsv: that stands, whatever the file says now.
             counts["decided_kept"] += 1
@@ -131,7 +170,7 @@ def merge(
         if one.get("confidence") == "low":
             note = f"unsure: {note}" if note else "unsure"
         row.update(
-            decision=",".join(one["topics"]),
+            decision=",".join(codes),
             who=str(one.get("who") or who),
             at=str(one.get("at") or at),
             why=note,
@@ -187,6 +226,18 @@ def merge(
         lemmas[row["lemma"]] = [topics.GENERAL]
         counts["gap_disagreed"] += 1
         review.append({**listed, "kind": "disagreement", "filed": topics.GENERAL})
+
+    in_review = {row["lemma"] for row in (*full_rows, *gap_rows)}
+    for one in by_lemma:
+        lemma = str(one["lemma"])
+        if lemma in in_review:
+            # A review row's lemma is decided in its review.tsv, never here.
+            counts["lemma_has_review_row"] += 1
+        elif lemma in lemmas:
+            counts["lemma_already_held"] += 1
+        else:
+            lemmas[lemma] = checked(lemma, one["topics"])
+            counts["lemma_decided"] += 1
     return Merged(lemmas, full_rows, gap_rows, review, counts)
 
 
@@ -198,6 +249,15 @@ def read_review(file: Path) -> tuple[list[str], list[dict[str, str]]]:
         reader = csv.DictReader(handle, delimiter="\t")
         rows = [dict(row) for row in reader]
         return list(reader.fieldnames or []), rows
+
+
+def read_lemma_decisions(file: Path) -> list[dict[str, Any]]:
+    """ling-he's decisions keyed by lemma: the file's rows, refused unless the file is
+    hers."""
+    held = json.loads(file.read_text(encoding="utf-8"))
+    if held.get("who") != LEMMA_WHO:
+        raise ValueError(f"{file}: lemma decisions are {LEMMA_WHO}'s, not {held.get('who')!r}")
+    return [dict(one) for one in held["rows"]]
 
 
 def write_review(file: Path, header: Sequence[str], rows: Sequence[Mapping[str, str]]) -> None:
@@ -255,6 +315,11 @@ def main() -> int:
     parser.add_argument("--tables", type=Path, help="The tables to screen against.")
     parser.add_argument("--yardsticks", type=Path, help="Where the yardsticks are.")
     parser.add_argument("--for-review", type=Path, help="Where to list the gap run's rows.")
+    parser.add_argument(
+        "--lemma-decisions",
+        type=Path,
+        help="ling-he's decisions keyed by lemma, for lemmas no review file holds.",
+    )
     parser.add_argument("--at", default=datetime.date.today().isoformat())
     args = parser.parse_args()
 
@@ -264,6 +329,7 @@ def main() -> int:
         {**one, "who": one.get("who") or held.get("who"), "at": one.get("at") or held.get("at")}
         for one in held["rows"]
     ]
+    by_lemma = read_lemma_decisions(args.lemma_decisions) if args.lemma_decisions else []
     full_file = topics.RESEARCH / args.full / "review.tsv"
     full_header, full_rows = read_review(full_file)
     gap_header: list[str] = []
@@ -273,7 +339,7 @@ def main() -> int:
         gap_header, gap_rows = read_review(gap_file)
 
     before = merge(base_file["lemmas"], full_rows, decisions, at=args.at)
-    merged = merge(base_file["lemmas"], full_rows, decisions, gap_rows, at=args.at)
+    merged = merge(base_file["lemmas"], full_rows, decisions, gap_rows, by_lemma, at=args.at)
     print(json.dumps(merged.counts, indent=1))
 
     measured_before = measure(before.lemmas, args.tables, args.yardsticks)
@@ -283,7 +349,10 @@ def main() -> int:
         if now is None:
             print(f"  {register}: no yardstick here, not measured")
         else:
-            print(f"  {register}: {was:.2%} without the gap run, {now:.2%} with it")
+            print(
+                f"  {register}: {was:.2%} without the gap run or lemma decisions,"
+                f" {now:.2%} with them"
+            )
 
     write_review(full_file, full_header, merged.full)
     if gap_file is not None:
@@ -324,6 +393,7 @@ def main() -> int:
             "at": args.at,
             "base": str(args.base),
             "decisions": str(args.decisions),
+            **({"lemma_decisions": str(args.lemma_decisions)} if args.lemma_decisions else {}),
             "coverage": {k: None if v is None else round(v, 4) for k, v in measured.items()},
             **merged.counts,
         },

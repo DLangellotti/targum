@@ -345,6 +345,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- `scripts/merge_topics.py` takes ling-he's decisions keyed by lemma
+  (`--lemma-decisions`, targum-internal#606) for lemmas no run's review file holds, such as
+  the 588 conversation lemmas the 2026-11-09 gap run left untagged for want of a gloss.
+  Before, a decision reached the lexicon only through a review row, so they could not.
+  The file must be ling-he's; a lemma with a review row is decided in its review.tsv and
+  one the lexicon holds already is never replaced. Every decision, by id or by lemma, is
+  checked against the closed list (one or two of `topics.TOPICS`, or `general` alone) and
+  a file with one outside it is refused. No spend, no new strings.
 - A reader can cancel their own builds, waiting or running (targum-internal#694; David,
   2026-11-13). Cancel is a quiet line press on the waiting card (for this build, and for
   each of the reader's own builds ahead of it, with how many ahead are other people's,
