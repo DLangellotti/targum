@@ -4384,7 +4384,11 @@ def test_escape_takes_the_panel_off_before_it_takes_your_place() -> None:
     # A panel of the bar (Aa, print, the reading; targum-internal#421) is outermost of
     # all, and it gives focus back to the press that opened it.
     assert escape.index("closeAnyPop(true)") < escape.index("showMore(false);")
-    assert escape.count("return;") == 8
+    # A line's translation opened in the text on its own (targum-internal#539) is a layer
+    # on the text too: after the panel, before your place.
+    assert escape.index("showList(false);") < escape.index("untell()")
+    assert escape.index("untell()") < escape.index("leaveQueue();")
+    assert escape.count("return;") == 9
 
 
 def test_the_ring_does_not_outlive_the_focus_that_drew_it() -> None:
