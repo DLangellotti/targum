@@ -16509,6 +16509,8 @@ class Handler(BaseHTTPRequestHandler):
             offset=choose_module.offset_for(self.store, person.id, language),
             # A built copy's own figure, the one the card above counts the text by.
             built=built,
+            # And where that card counts, nothing it calls "Not yet" (targum-internal#714).
+            floor=touchstones.STRETCH if language in touchstones.COVERAGE_LANGUAGES else 0.0,
         )
 
         # The words still being learned that they keep meeting, met the way the card

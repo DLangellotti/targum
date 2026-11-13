@@ -178,6 +178,7 @@
       window.TargumSync.settled().then(function (changed) {
         if (changed && codes.length) return;
         if (window.TargumSync.reached === false) couldNot();
+        else if (window.TargumSync.who) fromCheck();
         else document.getElementById("nothing").hidden = false;
       });
     } else {
@@ -189,6 +190,50 @@
 
   // Which language everything below is drawn for. The menu moves it.
   var currentCode = window.TargumLang.current(codes);
+
+  /* Signed in with no word in this browser or on the account: the words check keeps no
+     word on the list, so a reader fresh from it would be told "Your progress starts with
+     the first word you mark" while the account holds the rung the check put them at
+     (design.md §12, "Your level comes from your words check until your marks reach one",
+     2026-11-04; targum-internal#714, P1). So the story is asked first, and where it
+     carries a level the Reading level card and Texts by level draw, the empty line under
+     them rather than in their place. Totals, How you got here and What next stay hidden:
+     each would be a row of noughts. */
+  var checkOnly = false;
+  function fromCheck() {
+    var code = currentCode;
+    var nothing = document.getElementById("nothing");
+    if (!window.fetch) {
+      nothing.hidden = false;
+      return;
+    }
+    fetch(keyed("/account/story?language=" + encodeURIComponent(code)), { credentials: "same-origin" })
+      .then(function (answer) {
+        if (answer.ok === false) throw new Error(String(answer.status));
+        return answer.json();
+      })
+      .then(function (said) {
+        // Words arrived meanwhile: the page is drawn from them, as before.
+        if (codes.length) return;
+        if (!said || said.signedIn === false || !said.level) {
+          nothing.hidden = false;
+          return;
+        }
+        signedIn = true;
+        story[code] = said;
+        storyAsked[code] = true;
+        checkOnly = true;
+        codes = [code];
+        document.body.classList.add("progress-from-check");
+        document.getElementById("page").hidden = false;
+        nothing.hidden = false;
+        show(code);
+      })
+      .catch(function () {
+        // Not known to hold a level: said as before, nothing claimed.
+        if (!codes.length) nothing.hidden = false;
+      });
+  }
 
   // 1,000 rather than 1000. The counts are the point of the page and they get read.
   function grouped(count) {
@@ -436,6 +481,17 @@
     cefr.hidden = !cefr.textContent;
   }
 
+  /* The grid is drawn where any card in it is: the story's card and ladder, or the
+     reading line and How much Hebrew you understand, which answer on their own. */
+  function levelGrid() {
+    var grid = document.getElementById("level-grid");
+    if (!grid) return;
+    grid.hidden = !["level-lead", "ladder", "can-read", "reading", "understand"].some(function (id) {
+      var card = document.getElementById(id);
+      return card && !card.hidden;
+    });
+  }
+
   function drawWhere(code) {
     var grid = document.getElementById("level-grid");
     var head = document.getElementById("where-title");
@@ -462,15 +518,21 @@
     drawToward(null);
     var said = story[code];
 
+    var lead = document.getElementById("level-lead");
     if (signedIn === false) {
+      if (lead) lead.hidden = false;
       grid.hidden = false;
       head.textContent = t("progress.level.signed-out", "Sign in to see which texts you can read on your own.");
       return;
     }
     if (!said) {
-      grid.hidden = true;
+      // The card waits for the story, and only the card: How much Hebrew you understand
+      // has an answer of its own and draws when it comes (targum-internal#714).
+      if (lead) lead.hidden = true;
+      levelGrid();
       return;
     }
+    if (lead) lead.hidden = false;
     grid.hidden = false;
     var ladder = said.ladder || [];
     var level = said.level || null;
@@ -512,8 +574,17 @@
       });
       note.textContent = !said.library
         ? t("progress.where.no-library", "The Library has nothing in this language yet, so we can't show which texts you can read.")
-        : t("progress.where.unmeasured", "We'll show which texts you can read on your own once we've measured the Library.");
+        : code === "arc"
+          ? t("progress.where.unmeasured-arc", "We don't place Aramaic texts by level yet.")
+          : t("progress.where.unmeasured", "We'll show which texts you can read on your own once we've measured the Library.");
       note.hidden = false;
+      // Aramaic says what it is today and offers its shelf, the one thing to do next
+      // (targum-internal#714, §14.1): it promised a measurement nobody has scheduled.
+      if (code === "arc" && said.library) {
+        go.textContent = t("progress.page.open-the-library", "Open the Library");
+        go.href = keyed("/library");
+        go.hidden = false;
+      }
       return;
     }
 
@@ -707,12 +778,21 @@
   // Whether the story for a language has answered, and whether its asking failed.
   var storyFailed = {};
 
+  //: Past this long the wait says it is slow (design.md §14.1, "slow (past 3 s)").
+  var SLOW_MS = 3000;
+  var slowTimer = 0;
+
   function storyState(code) {
     var wait = document.getElementById("where-wait");
     var failed = document.getElementById("where-failed");
+    var slow = document.getElementById("where-slow");
     var answered = signedIn === false || !!story[code];
     if (wait) wait.hidden = answered || !!storyFailed[code];
     if (failed) failed.hidden = answered || !storyFailed[code];
+    if (slow && (answered || storyFailed[code])) {
+      clearTimeout(slowTimer);
+      slow.hidden = true;
+    }
   }
 
   function askStory(code) {
@@ -720,6 +800,14 @@
     storyAsked[code] = true;
     storyFailed[code] = false;
     storyState(code);
+    var slow = document.getElementById("where-slow");
+    clearTimeout(slowTimer);
+    if (slow) {
+      slow.hidden = true;
+      slowTimer = setTimeout(function () {
+        if (code === currentCode && !story[code] && !storyFailed[code]) slow.hidden = false;
+      }, SLOW_MS);
+    }
     fetch(keyed("/account/story?language=" + encodeURIComponent(code)), { credentials: "same-origin" })
       .then(function (answer) {
         if (answer.ok === false && answer.status !== 401) throw new Error(String(answer.status));
@@ -1101,6 +1189,18 @@
       if (entry.words[n].lemma === lemma) return entry.words[n];
     }
     return null;
+  }
+
+  /* A title and the English level some carry after it, as the Library splits a row's
+     (`splitLevel`), with an empty segment between two dots left out. */
+  function titleParts(text) {
+    var clean = String(text || "")
+      .replace(/(\s·\s*)+·\s/g, " · ")
+      .replace(/\s·\s*$/, "")
+      .trim();
+    var found = /^(.*[\u0590-\u05FF].*?) · ([A-Za-z][^\u0590-\u05FF]*)$/.exec(clean);
+    var title = found ? found[1] : clean;
+    return { title: title.replace(/\s·\s*$/, ""), level: found ? found[2] : "" };
   }
 
   function row(host, main, mainLang, aside, end, href, endLeaf) {
@@ -2396,15 +2496,11 @@
       metEmpty.textContent = nextWait;
       metEmpty.hidden = false;
     }
-    // When the asking failed, each half says so under its heading rather than standing
-    // empty; part 1 carries the Try again (targum-internal#522).
-    if (!answered && storyFailed[code]) {
-      var failedLine = t("progress.story.failed", "We couldn't load this part.");
-      metEmpty.textContent = failedLine;
-      metEmpty.hidden = false;
-      levelEmpty.textContent = failedLine;
-      levelEmpty.hidden = false;
-    }
+    // When the asking failed it is said once, at the top, with Try again and Tell us; the
+    // part hides rather than say it twice more under a heading standing over nothing
+    // (targum-internal#714, §8).
+    var nextPart = document.getElementById("next");
+    if (nextPart) nextPart.hidden = !answered && !!storyFailed[code];
     found.forEach(function (one) {
       var word = meaningOf(code, one.lemma);
       row(
@@ -2462,10 +2558,7 @@
     // list, and this half says so, once, and offers the Library (polish 10).
     if (code === "arc" && !texts.length && !(said && said.ladder && said.ladder.length)) {
       if (answered) {
-        levelEmpty.textContent = t(
-          "progress.next.texts-arc",
-          "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
-        );
+        levelEmpty.textContent = t("progress.next.texts-arc-all", "Every Aramaic text is in the Library.");
         levelEmpty.hidden = false;
       }
       return;
@@ -2475,11 +2568,15 @@
     // quiet beside the number (design.md §12, "A text's figure is our estimate until your
     // marks settle it", 2026-11-04).
     texts.forEach(function (one) {
+      // A weekly's title carries its level in English ("… · Easy · 1,000 words"): the
+      // Hebrew run holds the title alone, and the level is its own quiet label in an
+      // English page, as the Library draws it (targum-internal#714, §14.3).
+      var parts = titleParts(one.title);
       var item = row(
         level,
-        one.title,
+        parts.title,
         code,
-        "",
+        parts.level && pageLanguage() === "en" ? parts.level : "",
         one.estimated
           ? t("known.estimate.about", "About {n}%", { n: one.known }) + " "
           : t("progress.next.known", "{n}% known", { n: one.known }),
@@ -2494,11 +2591,21 @@
         }
       }
     });
+    // Week one points where the card points, the beginner texts, never at "Hard for now"
+    // under a card that says to start with beginner texts (targum-internal#714, §6).
+    var weekOne = !!(said && said.first && !said.level);
+    if (weekOne && !texts.length && signedIn !== false) {
+      more.href = said.conversations ? keyed("/library#see/kind/dialogue") : keyed("/library");
+    }
     if (!texts.length && answered) {
       levelEmpty.textContent =
         signedIn === false
           ? t("progress.next.texts-signed-out", "Sign in and we'll find the texts at your level.")
-          : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's “Hard for now” shelf has the closest.");
+          : weekOne
+            ? said.conversations
+              ? t("progress.next.texts-first", "Start with the beginner conversations.")
+              : t("progress.next.texts-first-easiest", "Start with the easiest texts in the Library.")
+            : t("progress.next.texts-none", "Nothing is quite at your level yet. The Library's “Hard for now” shelf has the closest.");
       levelEmpty.hidden = false;
     }
   }
@@ -2807,6 +2914,12 @@
       }),
     });
     picture.appendChild(svg("line", { class: "reading-base", x1: 0, y1: H - pad.bottom + 2, x2: W, y2: H - pad.bottom + 2 }));
+    // Its scale and its figures, as How much Hebrew you understand draws them: a bare
+    // line said nothing of where it stood (targum-internal#714; §12, 2026-10-29/30).
+    picture.appendChild(svg("line", { class: "understand-top", x1: 0, y1: pad.top, x2: W, y2: pad.top }));
+    var top = svg("text", { class: "reading-month understand-full", x: 0, y: pad.top - 3 });
+    top.textContent = "100%";
+    picture.appendChild(top);
     var line = points
       .map(function (point, index) {
         return (index ? "L" : "M") + px(point) + " " + py(share(point));
@@ -2827,6 +2940,16 @@
       title.textContent = spoken(point);
       dot.appendChild(title);
       picture.appendChild(dot);
+      if (points.length <= 6 || index === 0 || index === points.length - 1) {
+        var figure = svg("text", {
+          class: "understand-figure" + (index === points.length - 1 ? " now" : ""),
+          x: px(point),
+          y: py(share(point)) - 10,
+          "text-anchor": index === 0 ? "start" : index === points.length - 1 ? "end" : "middle",
+        });
+        figure.textContent = percentOf(point) + "%";
+        picture.appendChild(figure);
+      }
       return dot;
     });
 
@@ -2945,10 +3068,12 @@
         if (typeof said.measurable === "number") readingMeasurable = said.measurable;
         drawReading(currentCode);
         drawUnderstand(currentCode);
+        levelGrid();
       })
       .catch(function () {
         readingFailed = true;
         drawReading(currentCode);
+        levelGrid();
       });
   }
 
@@ -3183,11 +3308,10 @@
           start: week,
           share: shareBy(isoDay(now ? today : weekEnd)),
           isNow: now,
-          when: now
-            ? t("progress.understand.this-week", "This week")
-            : lastWeek
-              ? t("progress.understand.last-week", "Last week")
-              : shortDay(week),
+          // The axis names every week by its first day: "Oct 26" beside "Last week" and
+          // "This week" was two ways of counting on one line (targum-internal#714).
+          // What a point says when pressed keeps the words.
+          when: shortDay(week),
           whenFull: now
             ? t("progress.understand.this-week", "This week")
             : lastWeek
@@ -3320,7 +3444,11 @@
       var beganDay = mine.began ? localDay(new Date(mine.began)) : "";
       since_.hidden = !beganDay || points.length >= UNDERSTAND_SPAN;
       if (!since_.hidden) {
-        since_.textContent = t("progress.understand.since", "Counted since {date}.", { date: shortDay(dayOf(beganDay)) });
+        // A month cut short brings its own stop («30 окт.»), so the sentence's is dropped
+        // after it rather than doubled (targum-internal#714).
+        since_.textContent = t("progress.understand.since", "Counted since {date}.", {
+          date: shortDay(dayOf(beganDay)),
+        }).replace(/\.\.$/, ".");
       }
     }
 
@@ -3566,6 +3694,7 @@
     drawWhere(code);
     drawReading(code);
     drawUnderstand(code);
+    levelGrid();
     drawHowTitle(code);
     drawHow(code);
     drawNext(code);
@@ -3575,6 +3704,14 @@
   var again = document.getElementById("story-again");
   if (again) {
     again.addEventListener("click", function () {
+      askStory(currentCode);
+    });
+  }
+  // Slow: asked again. Whichever answer lands first draws; the other draws the same.
+  var slowAgain = document.getElementById("story-slow-again");
+  if (slowAgain) {
+    slowAgain.addEventListener("click", function () {
+      storyAsked[currentCode] = false;
       askStory(currentCode);
     });
   }
@@ -3603,6 +3740,11 @@
       meant = {};
       readingDays = charts.days();
       codes = window.TargumLang.order(Object.keys(data), names);
+      if (!codes.length && checkOnly) return;
+      if (codes.length && checkOnly) {
+        checkOnly = false;
+        document.body.classList.remove("progress-from-check");
+      }
       document.getElementById("nothing").hidden = codes.length > 0;
       document.getElementById("page").hidden = codes.length === 0;
       if (!codes.length) return;

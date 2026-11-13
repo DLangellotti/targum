@@ -49,6 +49,8 @@ def draw(
     totals: list[dict[str, Any]] | None = None,
     story_fails: bool = False,
     story_held: bool = False,
+    slow: bool = False,
+    sync: dict[str, Any] | None = None,
     reading_fails: bool = False,
     raw: dict[str, str] | None = None,
     words: dict[str, Any] | None = None,
@@ -70,6 +72,8 @@ def draw(
                     "story": story,
                     "storyFails": story_fails,
                     "storyHeld": story_held,
+                    "slow": slow,
+                    "sync": sync,
                     "readingFails": reading_fails,
                     # Stored as written, the way the page writes a remembered choice.
                     "raw": raw or {},
@@ -454,6 +458,20 @@ def test_months_of_reading_draw_a_line_said_as_an_exact_percentage() -> None:
     assert drawn["months"] == ["June 2025", "July 2025", "August 2025"]
     assert drawn["focusable"] == "0", "the line is one tab stop"
     assert drawn["label"] == "Words you knew, June 2025 to August 2025"
+
+
+def test_words_you_knew_labels_its_points_and_its_scale() -> None:
+    """Russian's Words you knew was a bare line, with no figure and no scale, beside
+    Hebrew's labelled one (targum-internal#714, P2-6)."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        reading=reading_of(
+            month_day(2025, 6, 52),
+            month_day(2025, 7, 61, sections=1),
+            month_day(2025, 8, 70, sections=4),
+        ),
+    )["reading"]
+    assert drawn["figures"] == ["52%", "61%", "70%"]
 
 
 def test_weeks_and_months_are_summed_from_days_by_words_not_shares() -> None:
@@ -906,13 +924,13 @@ def test_aramaic_unmeasured_shows_known_words_and_says_why() -> None:
     )
     assert drawn["where"]["head"] == "You know 12 words so far"
     assert not drawn["where"]["shown"]
-    assert "once we've measured the Library" in drawn["where"]["note"]
+    # What it is today, and its shelf: it promised a measurement nobody has scheduled,
+    # with no press (targum-internal#714, P2-12).
+    assert drawn["where"]["note"] == "We don't place Aramaic texts by level yet."
+    assert drawn["where"]["go"] == "Open the Library"
     assert drawn["how"] == "Reading"
     assert drawn["next"]["wordsTitle"].startswith("Words you keep meeting, from your Aramaic list")
-    # Part 3 says the texts wait on the measuring, not that Aramaic is never placed.
-    assert drawn["next"]["levelEmpty"] == (
-        "We'll list Aramaic texts at your level once we've measured the library's Aramaic."
-    )
+    assert drawn["next"]["levelEmpty"] == "Every Aramaic text is in the Library."
     assert drawn["next"]["level"] == []
 
 
@@ -1028,13 +1046,132 @@ def test_while_the_story_is_asked_nothing_false_is_said() -> None:
     assert drawn["next"]["levelEmpty"] == ""
 
 
-def test_a_story_that_cannot_be_reached_says_so_with_try_again() -> None:
-    """Part 1 says it with Try again, and What next's two halves each say it under their
-    heading rather than standing empty (targum-internal#522, §14.1)."""
+def test_a_story_that_cannot_be_reached_says_so_once() -> None:
+    """Part 1 says it with Try again and Tell us, and What next hides rather than say it
+    twice more under its two halves (targum-internal#714, §8; it said it three times)."""
     drawn = draw({"targum:vocab:he": vocab(known=3, learning=2)}, story_fails=True)
     assert drawn["next"]["failed"] and not drawn["next"]["waiting"]
-    assert drawn["next"]["metEmpty"] == "We couldn't load this part."
-    assert drawn["next"]["levelEmpty"] == "We couldn't load this part."
+    assert not drawn["next"]["shown"], "What next hides"
+    assert drawn["next"]["metEmpty"] == ""
+    assert drawn["next"]["levelEmpty"] == ""
+
+
+def test_a_weeklys_level_is_not_inside_its_hebrew_title() -> None:
+    """Reads "Easy · · 2026 בספטמבר 21 · מבט שבועי 1,000 words": the English level in the
+    Hebrew run, and an empty segment (targum-internal#714, P2-9). The title alone in the
+    Hebrew run, the level its own quiet label."""
+    drawn = story(
+        texts=[
+            {
+                "id": "weekly:2026-09-21:aleph",
+                "title": "מבט שבועי · 21 בספטמבר 2026 ·  · Easy · 1,000 words",
+                "known": 96,
+            }
+        ]
+    )["next"]
+    # The term, then the aside: the stub joins a link's two runs with nothing between.
+    assert drawn["level"][0]["text"] == "מבט שבועי · 21 בספטמבר 2026Easy · 1,000 words | 96% known"
+
+
+def test_week_one_points_what_next_at_the_beginner_texts() -> None:
+    """The card said "Start with beginner texts" and What next "Hard for now has the
+    closest" (targum-internal#714, P2-11)."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        story={
+            "known": 3,
+            "ladder": [{"kind": "A1", "name": "A1", "texts": 4, "readable": 0, "state": "ahead"}],
+            "here": None,
+            "next": 0,
+            "level": None,
+            "first": {"letter": "א", "name": "aleph", "scale": 0.1, "toward": 0.1, "toGo": 190},
+            "conversations": True,
+            "texts": [],
+            "words": [],
+        },
+    )["next"]
+    assert drawn["levelEmpty"] == "Start with the beginner conversations."
+    assert drawn["moreHref"].endswith("#see/kind/dialogue")
+
+
+def _understand_series() -> dict[str, Any]:
+    """One yardstick, news at 87%, counted since today."""
+    began = int(datetime.combine(date.today(), time(12)).timestamp() * 1000)
+    news = {"percent": 87, "base": 0.87, "days": []}
+    return {"he": {"began": began, "registers": {"news": news}}}
+
+
+def test_a_failed_story_keeps_the_understand_card() -> None:
+    """How much Hebrew you understand has its own answer: a story that failed hid it with
+    the level card's grid (targum-internal#714, P2-3)."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        story_fails=True,
+        understand=_understand_series(),
+    )
+    assert drawn["understand"]["shown"]
+    assert drawn["where"]["grid"], "the grid stands for the card that loaded"
+    assert not drawn["where"]["lead"], "and the level card waits for the story"
+
+
+def test_a_slow_story_says_so_past_three_seconds() -> None:
+    """§14.1, slow: past 3 s a second line under "We're working out your level", which
+    read the same at 1.2 s and 4.7 s (targum-internal#714, P2-2)."""
+    quick = draw({"targum:vocab:he": vocab(known=3)}, story_held=True)
+    assert quick["next"]["waiting"] and not quick["next"]["slow"]
+    slow = draw({"targum:vocab:he": vocab(known=3)}, story_held=True, slow=True)
+    assert slow["next"]["waiting"] and slow["next"]["slow"]
+
+
+def test_the_understand_card_does_not_wait_for_the_story() -> None:
+    """It drew only once the story answered, though its data is separate (P2-2)."""
+    drawn = draw(
+        {"targum:vocab:he": vocab(known=3)},
+        story_held=True,
+        understand=_understand_series(),
+    )
+    assert drawn["understand"]["shown"]
+    assert drawn["where"]["grid"] and not drawn["where"]["lead"]
+
+
+def test_a_reader_fresh_from_the_words_check_sees_its_level() -> None:
+    """The check keeps no word on the list, so a reader fresh from it was told "Your
+    progress starts with the first word you mark" (targum-internal#714, P1; design.md
+    §12, "Your level comes from your words check until your marks reach one",
+    2026-11-04). The story is asked first, and its level drawn, the empty line under it."""
+    drawn = draw(
+        {},
+        chosen="he",
+        sync={"who": {"signedIn": True, "email": "a@example.com"}},
+        story={
+            "known": 0,
+            "ladder": [{"kind": "A1", "name": "A1", "texts": 4, "readable": 0, "state": "next"}],
+            "here": None,
+            "next": 0,
+            "level": {"letter": "ב", "name": "bet", "cefr": "A2", "from": "check"},
+            "first": None,
+            "texts": [],
+            "words": [],
+        },
+    )
+    assert any("/account/story?language=he" in url for url in drawn["asked"])
+    assert drawn["where"]["page"] and drawn["where"]["fromCheck"]
+    assert drawn["where"]["step"] == "From your words check"
+    assert drawn["where"]["shown"], "Texts by level"
+    assert drawn["nothing"], "the empty line stays, under the level"
+
+
+def test_a_signed_in_reader_with_no_check_still_gets_the_empty_page() -> None:
+    """No level from a check: the page as before (§12 2026-11-04, "Never the rung only
+    said")."""
+    drawn = draw(
+        {},
+        chosen="he",
+        sync={"who": {"signedIn": True, "email": "a@example.com"}},
+        story={"known": 0, "ladder": [], "level": None, "first": None, "texts": [], "words": []},
+    )
+    assert drawn["nothing"]
+    assert not drawn["where"]["fromCheck"]
 
 
 def test_nothing_to_practise_offers_no_practise_press() -> None:
@@ -1393,3 +1530,19 @@ def test_the_words_are_drawn_with_the_record_of_use_stopped() -> None:
 def test_signed_out_the_part_is_not_drawn() -> None:
     drawn = draw({"targum:vocab:he": vocab(known=3)})["effort"]
     assert not drawn["shown"]
+
+
+def test_an_open_topic_is_not_a_second_ring_beside_the_weakest() -> None:
+    """The open bar's inset ink ring stood beside the weakest bar's teal outline, two
+    outlined bars and nothing saying which was open (targum-internal#714, polish)."""
+    rule = re.search(r'button\.topic-bar\[aria-expanded="true"\] \{([^}]*)\}', CSS)
+    assert rule and "var(--teal-wash)" in rule.group(1) and "box-shadow: none" in rule.group(1)
+
+
+def test_the_experimental_note_starts_where_the_phone_title_does() -> None:
+    """At 390 the note sat 12px left of the title, which Progress insets by 1rem
+    (targum-internal#714, polish)."""
+    text = CSS
+    title = ".progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem;"
+    phone = text[text.index(title) :]
+    assert ".progress .beta-note { padding-inline: 1rem; }" in phone[:400]

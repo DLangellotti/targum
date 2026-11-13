@@ -208,6 +208,9 @@ html:lang(ru) .site-nav .nav-place { text-transform: lowercase; }
   text-overflow: ellipsis;
 }
 .account > button:hover { color: var(--bar-ink); background: rgb(255 253 249 / 0.08); }
+/* An account that could not be reached, with no initials held: nothing in the corner
+   rather than a false "Sign in" (targum-internal#714). */
+.account > button[hidden] { display: none; }
 
 /* Signed in, the button is a circle rather than a name: an address is too long for a
    corner and is nobody else's business on a shared screen. A picture fills it where a
