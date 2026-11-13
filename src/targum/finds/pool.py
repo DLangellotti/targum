@@ -38,6 +38,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from .. import parts
+from ..weekly.feeds import plain_name
 
 if TYPE_CHECKING:
     from ..accounts import Store
@@ -60,7 +61,9 @@ SCHEMA = """
 -- 0 where it is none, and -1 on a row kept before it was worked out, which is then read
 -- off the title. `page` is a podcast episode's own page as its feed links it, where `url`
 -- is its audio, and `author` who makes the show as the reviewed list names them
--- (targum-internal#691); both empty where nothing said.
+-- (targum-internal#691); both empty where nothing said. `presenter` is who presents a
+-- podcast as its feed says (`itunes:author`, the item's else the channel's), a meaning of
+-- its own beside `author`; empty on every find kept before it.
 CREATE TABLE IF NOT EXISTS find (
   id         INTEGER PRIMARY KEY,
   language   TEXT    NOT NULL,
@@ -89,7 +92,8 @@ CREATE TABLE IF NOT EXISTS find (
   part       INTEGER NOT NULL DEFAULT -1,
   season     INTEGER NOT NULL DEFAULT 0,
   page       TEXT    NOT NULL DEFAULT '',
-  author     TEXT    NOT NULL DEFAULT ''
+  author     TEXT    NOT NULL DEFAULT '',
+  presenter  TEXT    NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS find_pick ON find (language, screen, rung, expires);
 CREATE INDEX IF NOT EXISTS find_digest ON find (digest);
@@ -206,6 +210,8 @@ class Find:
     #: (targum-internal#691); "" where nothing said.
     page: str = ""
     author: str = ""
+    #: Who presents a podcast, as its feed says (`itunes:author`), or "".
+    presenter: str = ""
     bag: Mapping[str, int] = field(default_factory=dict, compare=False)
 
     @property
@@ -220,7 +226,7 @@ class Find:
 _COLUMNS = (
     "id, language, source, url, title, host, publisher, published, medium, seconds, tokens,"
     " unresolved, credits, topics, rung, found, expires, rate, licence, licence_url, licence_from,"
-    " series, part, season, page, author"
+    " series, part, season, page, author, presenter"
 )
 
 
@@ -250,6 +256,7 @@ def _find(row: sqlite3.Row, bag: Mapping[str, int] | None = None) -> Find:
         part=_part(row),
         page=str(row["page"] or ""),
         author=str(row["author"] or ""),
+        presenter=str(row["presenter"] or ""),
         bag=bag or {},
     )
 
@@ -350,6 +357,7 @@ def add(
     part: parts.Part | None | Literal["title"] = "title",
     page: str = "",
     author: str = "",
+    presenter: str = "",
     at: int | None = None,
 ) -> int:
     """Keep one find and its lemma counts, in one transaction. Its id; or 0 where the
@@ -368,8 +376,8 @@ def add(
                 "INSERT INTO find (language, source, url, digest, title, host, publisher,"
                 " published, medium, seconds, tokens, unresolved, credits, topics, rung, found,"
                 " expires, screen, rate, licence, licence_url, licence_from, series, part, season,"
-                " page, author)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " page, author, presenter)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     language,
                     source,
@@ -398,6 +406,7 @@ def add(
                     season,
                     page[:500] if page.startswith(("https://", "http://")) else "",
                     author[:120],
+                    plain_name(presenter),
                 ),
             )
         except sqlite3.IntegrityError:

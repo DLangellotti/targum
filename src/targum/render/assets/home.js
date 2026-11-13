@@ -490,7 +490,8 @@
     item.appendChild(coverFor(null, tileOf, job.language));
     item.appendChild(tag(buildTag(job), "building"));
     item.appendChild(titled(name, job.title && !addressed(job.title) ? job.language : "und"));
-    var from = [job.show, job.by].filter(Boolean);
+    // The show, who presents it where its feed said, and who makes it.
+    var from = [job.show, job.presenter, job.by].filter(Boolean);
     if (from.length && from[0] !== name) {
       var line = el("span", "home-card-facts home-card-from");
       from.forEach(function (one, at) {
@@ -1271,14 +1272,16 @@
       name.setAttribute("dir", "auto");
     }
     host.appendChild(name);
-    // Who makes the show, where that is another name (targum-internal#691): כאן beside
-    // השעה הבינלאומית, in its own isolate.
-    if (line.by) {
+    // Who presents it, as its feed said, then who makes the show where that is another
+    // name (targum-internal#691): ערן סיקורל · כאן beside השעה הבינלאומית, each in its
+    // own isolate, so a Latin name beside a Hebrew one keeps its order.
+    [[line.presenter, "source-presenter"], [line.by, "source-by"]].forEach(function (said) {
+      if (!said[0]) return;
       host.appendChild(document.createTextNode(" \u00b7 "));
-      var by = el("bdi", "source-by", line.by);
-      by.setAttribute("dir", "auto");
-      host.appendChild(by);
-    }
+      var who = el("bdi", said[1], said[0]);
+      who.setAttribute("dir", "auto");
+      host.appendChild(who);
+    });
     var day = line.date ? sourceDay(line.date) : "";
     if (day) host.appendChild(document.createTextNode(" \u00b7 " + day));
     return host;

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+  <channel>
+    <title>תוכנית לדוגמה</title>
+    <link>https://show.example/</link>
+    <language>he</language>
+    <itunes:author>מגיש הערוץ</itunes:author>
+    <itunes:owner>
+      <itunes:name>בעלים לדוגמה</itunes:name>
+      <itunes:email>owner@show.example</itunes:email>
+    </itunes:owner>
+    <item>
+      <title>פרק עם מגישה אורחת</title>
+      <guid>ep-guest</guid>
+      <pubDate>Fri, 30 Oct 2026 08:00:00 +0000</pubDate>
+      <author>editor@show.example (העורכת)</author>
+      <enclosure url="https://audio.example/show/ep-guest.mp3" length="28800000" type="audio/mpeg"/>
+      <itunes:duration>30:00</itunes:duration>
+      <itunes:author><![CDATA[<b>מגישה</b>&nbsp;אורחת]]></itunes:author>
+    </item>
+    <item>
+      <title>פרק של הערוץ</title>
+      <guid>ep-channel</guid>
+      <pubDate>Thu, 29 Oct 2026 08:00:00 +0000</pubDate>
+      <author>editor@show.example (העורכת)</author>
+      <enclosure url="https://audio.example/show/ep-channel.mp3" length="38400000" type="audio/mpeg"/>
+      <itunes:duration>00:40:00</itunes:duration>
+    </item>
+  </channel>
+</rss>

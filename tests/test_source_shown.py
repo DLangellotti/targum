@@ -194,6 +194,7 @@ def test_from_json_is_kept_beside_the_reader_and_read_back_for_its_head(tmp_path
     head = from_card(tmp_path, "en")
     assert head == {
         "show": SHOW,
+        "presenter": "",
         "by": "כאן",
         "letter": "ה",
         "day": "9 November 2026",

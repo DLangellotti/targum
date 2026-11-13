@@ -16,6 +16,7 @@ from __future__ import annotations
 import html
 import re
 import threading
+import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -46,6 +47,10 @@ FULL_TEXT = ("encoded", "full-text")
 #: WordPress feed's `content:encoded` can carry a long read, and the box holds fifteen
 #: items of every followed feed in memory.
 MAX_FULL_TEXT = 64_000
+
+#: The most of a name kept off a feed, in characters (targum-internal#691): who presents
+#: a podcast is a name or two, never a paragraph.
+MAX_NAME = 120
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,11 @@ class Item:
     episode: int = 0
     season: int = 0
     episode_type: str = ""
+    #: Who presents the episode, where a podcast feed says it on the item
+    #: (`<itunes:author>`), as plain text; "" where it does not. A show with several
+    #: presenters says it here; one with one says it on the channel (`author`). RSS's own
+    #: `<author>` is an e-mail address and is not read (targum-internal#691).
+    author: str = ""
 
 
 def _name(tag: str) -> str:
@@ -125,6 +135,27 @@ def _plain(raw: str) -> str:
 _BLOCK = re.compile(r"<\s*(?:br|/?p|/?div|/?h[1-6]|/?li|/?blockquote)\b[^>]*>", re.I)
 #: What is never text: a script, a style sheet, a figure's caption furniture.
 _NOT_TEXT = re.compile(r"<(script|style|figure)\b.*?</\1\s*>", re.I | re.S)
+
+
+def plain_name(raw: str) -> str:
+    """A name a feed states, safe to show: words only (`_plain`), no control or bidi
+    formatting characters, and at most `MAX_NAME` characters, cut at a word."""
+    said = "".join(
+        " " if unicodedata.category(ch) in ("Cc", "Cf", "Zl", "Zp") else ch for ch in _plain(raw)
+    )
+    said = " ".join(said.split())
+    if len(said) > MAX_NAME:
+        said = said[:MAX_NAME].rsplit(" ", 1)[0] if " " in said[:MAX_NAME] else said[:MAX_NAME]
+    return said.strip()
+
+
+def _itunes_author(holder: ElementTree.Element) -> str:
+    """A holder's own `<itunes:author>` (an item's or the channel's), as `plain_name`."""
+    for child in holder:
+        space, _, local = child.tag.rpartition("}")
+        if local.lower() == "author" and "itunes.com" in space.lower():
+            return plain_name(_text(child) or "".join(child.itertext()))
+    return ""
 
 
 def _full(element: ElementTree.Element | None) -> str:
@@ -313,6 +344,7 @@ def parse(xml: bytes) -> list[Item]:
                 episode=_count(_text(fields.get("episode"))),
                 season=_count(_text(fields.get("season"))),
                 episode_type=_text(fields.get("episodetype")).lower(),
+                author=_itunes_author(element),
             )
         )
     return items
@@ -341,6 +373,21 @@ def show_type(xml: bytes) -> str:
         if _name(element.tag) == "type":
             return _text(element).lower()
     return ""
+
+
+def author(xml: bytes) -> str:
+    """Who presents a podcast, as its channel says (`<itunes:author>`), as plain text; ""
+    where it does not, or for anything that is not a feed (targum-internal#691)."""
+    try:
+        root = ElementTree.fromstring(xml)
+    except ElementTree.ParseError:
+        return ""
+    holder = root
+    for element in root:
+        if _name(element.tag) == "channel":
+            holder = element
+            break
+    return _itunes_author(holder)
 
 
 def title(xml: bytes) -> str:

@@ -437,10 +437,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    (targum-internal#694; David, 2026-11-13, "credit the retry"). Empty on every row
 #    before it: nothing was credited then. One added column with a default, so one ALTER.
 #
+# 65→66: find.presenter — who presents a podcast, as its feed's `itunes:author` says (the
+#    item's, else the channel's; targum-internal#691). A meaning of its own beside
+#    find.author, who makes the show. One added column with a default, so one ALTER;
+#    empty on every find before it, which then says the maker alone, as it did.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 65
+SCHEMA_VERSION = 66
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -936,6 +941,8 @@ MIGRATIONS: tuple[str, ...] = (
     # Which retry a stopped build's heard seconds went to (schema 65, #694).
     "ALTER TABLE job ADD COLUMN credited_to TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN author TEXT NOT NULL DEFAULT ''",
+    # Who presents a podcast, as its feed says (schema 66, targum-internal#691).
+    "ALTER TABLE find ADD COLUMN presenter TEXT NOT NULL DEFAULT ''",
 )
 
 

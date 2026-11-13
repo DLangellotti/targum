@@ -155,7 +155,7 @@ def offered(
     return out
 
 
-def _author(find: pool.Find) -> str:
+def maker(find: pool.Find) -> str:
     """Who makes the show: as kept, or, for a podcast find kept before that was, as the
     reviewed list names them (`podcasts.author_of`)."""
     if find.author or find.medium != "podcast":
@@ -182,7 +182,9 @@ def row(scored: Scored) -> dict[str, Any]:
         "host": find.host,
         "publisher": find.publisher,
         # Who makes a podcast's show, and the episode's own page (targum-internal#691).
-        "author": _author(find),
+        "author": maker(find),
+        # Who presents it, as its feed said; "" on a find kept before that was.
+        "presenter": find.presenter,
         "page": find.page,
         "url": find.url,
         "minutes": find.minutes,

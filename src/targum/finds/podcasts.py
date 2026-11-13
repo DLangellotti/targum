@@ -374,6 +374,10 @@ class Episode:
     #: #691): where the card's line and the reader's head send a reader, rather than to
     #: the bare audio file.
     page: str = ""
+    #: Who presents it, as the feed says (`itunes:author`): the item's own, where a show
+    #: has several presenters, else the channel's; "" where neither says
+    #: (targum-internal#691).
+    presenter: str = ""
 
     @property
     def part(self) -> parts.Part | None:
@@ -711,6 +715,7 @@ def refresh(
             continue
         found.feeds += 1
         kind = feeds.show_type(body)
+        presents = feeds.author(body)
         mine: list[Episode] = []
         dated = [
             (int(item.published.timestamp() * 1000), item)
@@ -737,6 +742,7 @@ def refresh(
                 episode_type=item.episode_type,
                 show_type=kind,
                 page=_page(item.link, item.enclosure),
+                presenter=item.author or presents,
             )
             if pool.known(store, episode.url):
                 # Kept before parts were worked out: the feed says now what the title
@@ -894,6 +900,7 @@ def _keep(
         part=episode.part,
         page=episode.page,
         author=show.publisher,
+        presenter=episode.presenter,
         at=when,
     )
     if added:
