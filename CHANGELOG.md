@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- On Your Words, the word said is the last one pressed (targum-internal#713). `vocab.js`
+  played whichever `/say-word` clip came back last, so a slow answer for the first word
+  stopped the second and said the first. A clip that comes back after another word was
+  pressed is now kept for next time but not played. Four browser tests that slept for a
+  fixed time and then asserted, and that failed once each on CI between 2026-11-10 and
+  11-13, now wait for the response or the page's state instead: the Add page's pairing
+  (and the three other tests that price on Add), the reader's Look it up, two Hear presses
+  on Your Words, and the account page's held `/account/me`, which could stay held for good
+  when Playwright handed the route over after `goto` returned. Each passed 20 of 20 alone.
+  #649 and #663 did not recur. No spend, no new strings.
 - Your Progress passes more of design's §14 finish bar (targum-internal#714).
   - A reader fresh from the words check, with no word marked, sees the level the check
     gave ("From your words check") and Texts by level, the first-visit line under them.
@@ -500,6 +510,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   потрачено в этом месяце: 5 из 60», «Лимит баллов в месяц: 60»; 82 lines over 31 strings,
   each in the form its number takes. A video's length and a build's wait stay in minutes.
   No spend, no new strings.
+- `deploy/README.md` has a deploy step by step (ops, after four deploys on 2026-11-12 and
+  13), each step saying what you should see: confirming a merge GitHub answered with a
+  502, telling a free recount from an annotator rename in the diff, checking the accounts
+  migration is added columns and finding the database copy's line, the laptop's heavy lock
+  holding a deploy behind another run, the read-only checks after, and the parasha and
+  daily re-cut a change to the reader's stylesheet or head needs (888 stale readers back
+  to 6). Docs only.
 - `scripts/merge_topics.py` takes ling-he's decisions keyed by lemma
   (`--lemma-decisions`, targum-internal#606) for lemmas no run's review file holds, such as
   the 588 conversation lemmas the 2026-11-09 gap run left untagged for want of a gloss.
