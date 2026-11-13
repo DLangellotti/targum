@@ -4943,6 +4943,7 @@
   "credits.page.words.few": "{n} слова",
   "credits.page.words.many": "{n} слов",
   "credits.page.words.other": "{n} слова",
+  "credits.page.show-words": "Показать слова и их файлы",
   "credits.page.none": "Здесь пока нет записей.",
   "credits.page.counts-heading": "Подсчёт слов",
   "credits.page.counts-intro": "Насколько вы понимаете повседневную речь, классику или Библию, мы измеряем по списку самых частых слов каждой из них. Эти слова мы считаем сами по текстам ниже. Хранятся только числа, а не сам текст.",

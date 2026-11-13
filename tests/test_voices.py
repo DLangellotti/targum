@@ -259,7 +259,14 @@ def test_the_credits_page_is_open_and_names_every_speaker(tmp_path: Path, kept: 
         assert 'id="voices"' in page_text
         assert "YaronSh" in page_text and "Buffer" in page_text
         assert "CC BY-SA 4.0" in page_text and "CC0" in page_text
-        assert "אֶחָד" in page_text and "https://commons.wikimedia.org/wiki/File:1" in page_text
+        # Each speaker's words are fetched when their row is opened (#484, step 2): the
+        # page names the row's address on this origin and links to it, and carries no
+        # Commons link of its own.
+        yaron = next(row for row in voices.credits() if row.name == "YaronSh")
+        assert f'data-words="/credits/words?speaker={yaron.key}"' in page_text
+        assert f'href="/credits?speaker={yaron.key}#speaker-{yaron.key}"' in page_text
+        assert "commons.wikimedia.org/wiki/File:" not in page_text
+        assert "details[data-words]" in page_text or "/assets/credits." in page_text
         # The yardsticks' sources (design.md §12, 2026-11-01): the citation OPUS asks for
         # with its link, the volunteers Ben-Yehuda asks to be named, and OSHB's licence.
         assert 'id="word-counts"' in page_text
@@ -269,5 +276,33 @@ def test_the_credits_page_is_open_and_names_every_speaker(tmp_path: Path, kept: 
         assert 'href="https://benyehuda.org"' in page_text
         assert "Open Scriptures Hebrew Bible Project" in page_text
         assert "Westminster Leningrad Codex" in page_text
+    finally:
+        server.shutdown()
+
+
+def test_a_speakers_words_come_one_row_at_a_time(tmp_path: Path, kept: Path) -> None:
+    """/credits/words answers one speaker's words with each file's page and BY-SA credit,
+    and `?speaker=` draws that row in place for a browser without a script (#484)."""
+    port, _, server = hosted(tmp_path)
+    try:
+        buffer = next(row for row in voices.credits() if row.name == "Buffer")
+        status, body, _ = call(port, "GET", f"/credits/words?speaker={buffer.key}")
+        assert status == 200 and body["language"] == "he"
+        assert [one["word"] for one in body["words"]] == ["סַפָּר", "שָׁלוֹם"]
+        assert all(
+            one["page"].startswith("https://commons.wikimedia.org/wiki/File:")
+            for one in body["words"]
+        )
+        assert all(
+            "CC BY-SA 4.0" in one["attribution"] and "Buffer" in one["attribution"]
+            for one in body["words"]
+        )
+        status, body, _ = call(port, "GET", "/credits/words?speaker=nobody")
+        assert status == 404
+        status, body, _ = call(port, "GET", f"/credits?speaker={buffer.key}")
+        page_text = body if isinstance(body, str) else body.decode()
+        assert status == 200
+        assert page_text.count("commons.wikimedia.org/wiki/File:") == 2, "that row only"
+        assert "סַפָּר" in page_text and "<details data-words" in page_text and " open>" in page_text
     finally:
         server.shutdown()

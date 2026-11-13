@@ -14,6 +14,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- /how and /credits weigh less before they paint (targum-internal#484, step 2). /how
+  carried all of `reader.css`, 208 kB, for its examples' few rules; it now loads
+  `public-page.css` like /about, the text and legal pages, with /how's rules added by
+  `scripts/public_page_css.py`, and the browser test holds that every element on /how
+  computes the same style as with the two sheets. /credits drew every speaker's every word
+  linked to its Commons page, 3,546 links and 863 kB; a speaker's words are now fetched
+  from `/credits/words` on this origin when their row is opened (`credits.js`), and
+  without a script the row's link opens `/credits?speaker=` with that row drawn. Every
+  file's CC BY-SA credit is still on the page it was, one press later. No spend; one new
+  string, Russian listed in the PR.
 - A podcast episode or a video says where it is from (targum-internal#691). Home's pick
   names the show first under the title, with who makes it and the day ("השעה הבינלאומית ↗
   · כאן · 9 Nov"), its tile is the show's letter, and the link opens the episode's own

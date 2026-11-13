@@ -318,6 +318,16 @@ class Speaker:
     licence_url: str
     recordings: tuple[Recording, ...]
 
+    @property
+    def key(self) -> str:
+        """The row's name in an address, `/credits/words?speaker=<key>`: the same for the
+        same speaker under the same licence however many files they add, and nothing a
+        stranger could read a name out of that the page does not already say."""
+        import hashlib
+
+        said = f"{self.name}\n{self.licence}".encode()
+        return hashlib.sha256(said).hexdigest()[:12]
+
 
 def credits(language: str = "he") -> list[Speaker]:
     """Every speaker whose recordings targum keeps, most words first, with each file:
@@ -334,6 +344,11 @@ def credits(language: str = "he") -> list[Speaker]:
         for (name, name_licence, url), found in groups.items()
     ]
     return sorted(rows, key=lambda row: (-len(row.recordings), row.name, row.licence))
+
+
+def credited(key: str, language: str = "he") -> Speaker | None:
+    """One row of `credits` by its `Speaker.key`, or None for a key no row has."""
+    return next((row for row in credits(language) if row.key == key), None)
 
 
 # --- fetching (the laptop, once) ---------------------------------------------------------
