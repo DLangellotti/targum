@@ -418,6 +418,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   better and none for the worse (5 are ASR garble going from a wrong meaning to a gap);
   her hand-read errors go from 116 to 84 per 1,000. Unpointed נעשה keeps its nif'al, as
   reviewed on targum#1135. No spend, no new strings.
+- The rest of ling-he's analyser read is fixed at render time where a rule can reach it
+  (targum-internal#698, #700, #702).
+  - A lemma that keeps a prefix the line already shows loses it (השיניים under שיניים,
+    והנמר under נמר, שֶׁתֵּלְכִי under תלכי). This applies only where DICTA tagged the cut as
+    the article, the conjunction or ש. A ב, ל, מ or כ in front is a fixed phrase as often
+    as not (בסדר, בבקשה), and a pointed ה or ו with the wrong vowel is the word's own
+    (הֲפָרָה, וַעַד).
+  - היום "today", הכי, למשל, לפעמים and בכלל stay whole, and שלכן is של with a pronoun
+    rather than ש + ל.
+  - No auxiliary, and no אין or יש, draws a binyan or a root: every existential אין drew
+    pa'al and א־י־ן.
+  - מציע is filed under הציע of י־צ־ע, not י־ע־ץ.
+  - A name whose lemma is another word goes back to the name: ללאו is no longer ללא
+    "without", and קירשנבל is no longer היפוגליקמיה.
+  - The ר of a split ד״ר takes the title, not "letter resh".
+  - Versions: `lemma_check` 6, `verb_roots` 4 and `occurrences` 15. That is a free
+    recount at the next page build, with no annotator rename.
+  - Over ling-he's 12,533 tokens, 204 change: 181 better, 22 neutral (ASR garble) and 1
+    worse (והסבב now shows the verb's meaning on a noun, under a shared gloss key). Her
+    hand-read errors go from 84 to 54 per 1,000.
+  - חוֹשֶׁבֶת as pu'al, מְצֻלֵּם as pi'el and joining ד״ר into one token wait for the next
+    rename (targum#1192).
+  - No spend, no new strings.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

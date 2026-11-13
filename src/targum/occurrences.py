@@ -93,8 +93,10 @@ OCCURRENCES = "occurrences.json"
 #: 13 reads `lemma_check` 4, so מֻשְׁפָּלוֹת is counted under הושפל and לִמְכֹּר under the
 #: verb מכר (targum-internal#689); 14 reads `lemma_check` 5, so היו is counted under היה
 #: and not יש, תשכח under שכח, מכובד under itself and ליד under ליד (targum-internal#697,
-#: #699).
-VERSION = 14
+#: #699); 15 reads `lemma_check` 6 and `verb_roots` 4, so השיניים is counted under
+#: שיניים, היום under היום, אין with no root and מציע under הציע of י־צ־ע
+#: (targum-internal#698, #700, #702).
+VERSION = 15
 
 
 @dataclass(frozen=True)
