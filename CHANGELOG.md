@@ -24,6 +24,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   without a script the row's link opens `/credits?speaker=` with that row drawn. Every
   file's CC BY-SA credit is still on the page it was, one press later. No spend; one new
   string, Russian listed in the PR.
+- Home passes more of its finish bar (targum-internal#695, design's §14 pass of
+  2026-11-13). Offline, a row of All your targums says "Not on this device" on a line
+  under its title rather than one word a line in a column of its own; on the Library's
+  shelf and portion cards it is the card's own last line, not a gap between cards (#696
+  P1 5); and a browser that cannot save marks its links too. Upload your own is greyed
+  with "Uploading needs a connection." under it instead of being marked as a text. A build waiting in line says "Waiting behind 2 builds" with no bar, and one
+  running says the server's line ("12 of 40 sentences ready."). More that fit you is
+  asked again with the card's filter (`POST /find {"more_fit": true}`, held by
+  `filter_holds`; a topic holds none), never lists the pick on show, and is not drawn
+  where the card says nothing fits. The show, who presents it and who makes it carry
+  `lang` where their letters are Hebrew or Russian. Continue says one noun per text
+  (an article's parts, a book's chapters), "of the whole video" or "recording" where it
+  is one, and drops a Wikinews or Wikipedia suffix from a title; a video's row says
+  "9 min video". A cancelled build's card stays four seconds with what was said. A bare
+  link's tile is a link glyph and an episode keeps its colour once building. A building
+  row says Building once at a desk. Something else and Filter are text presses in teal,
+  and stay on one line in Russian. Start here says what the scene is, how long and its
+  share. Under a coarse pointer ⋯ and More's rows answer over 44px. A desk row's meter
+  column is narrower, so a Russian row keeps its length. No spend; six new strings and two
+  Russian lines changed, listed in the PR.
 - A podcast episode or a video says where it is from (targum-internal#691). Home's pick
   names the show first under the title, with who makes it and the day ("השעה הבינלאומית ↗
   · כאן · 9 Nov"), its tile is the show's letter, and the link opens the episode's own

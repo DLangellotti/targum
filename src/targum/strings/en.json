@@ -4795,5 +4795,11 @@
   "job.said.stopped": "You stopped it. You paid for what was done.",
   "serve.cancel.unstoppable": "This one can't be stopped once it has started. It won't be long.",
   "serve.cancel.finished": "It finished before we could stop it.",
-  "serve.cancel.over": "It isn't being made any more, so there's nothing to cancel."
+  "serve.cancel.over": "It isn't being made any more, so there's nothing to cancel.",
+  "home.card.known.video": "You know {share}% of the whole video",
+  "home.card.known.audio": "You know {share}% of the whole recording",
+  "home.card.known-estimate.video": "You know about {share}% of the whole video (our estimate)",
+  "home.card.known-estimate.audio": "You know about {share}% of the whole recording (our estimate)",
+  "building.waiting-behind.one": "Waiting behind {n} build",
+  "building.waiting-behind.other": "Waiting behind {n} builds"
 }

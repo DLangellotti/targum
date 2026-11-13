@@ -1025,3 +1025,48 @@ def test_the_band_and_level_chips_are_legible_on_a_band_address(browser, page_ht
     assert ratios and all(ratio >= 4.5 for ratio in ratios), ratios
     assert not thrown
     context.close()
+
+
+def test_offline_the_note_is_each_card_s_own_foot_line(browser, page_html) -> None:
+    """Offline, "Not on this device" was drawn under each shelf card and in the gaps of
+    the Weekly portion row, pushing the portion cards apart, and at 390 the second left
+    the row (design, #696 P1 5; the same fault as #695 P1 1). It is the card's own last
+    line now, inside the card."""
+    portions = {
+        "portions": [
+            {"slug": slug, "id": f"portion-{slug}", "hebrew": hebrew, "name": slug.title(),
+             "summary": "Genesis", "href": f"/parasha/read/{slug}/reader/index.html",
+             "listed": True, "numbers": [n]}
+            for n, (slug, hebrew) in enumerate([("toldot", "תולדות"), ("vayetzei", "ויצא")], 6)
+        ],
+        "week": {"diaspora": "toldot", "israel": "toldot"},
+    }  # fmt: skip
+    answers = {
+        "/readers": {"readers": [], "shared": built(0.95, 40), "signedIn": True},
+        "/portions": portions,
+    }
+    context, page, thrown, _, url = library(browser, page_html, answers, phone=True)
+    page.goto(url)
+    page.locator("#shelves .band-card").first.wait_for()
+    page.locator("#portion-cards .portion-card").first.wait_for()
+    context.set_offline(True)
+    page.locator("#portion-cards .offline-tag").first.wait_for()
+    got = page.evaluate(
+        """() => ({
+          loose: [...document.querySelectorAll('.offline-tag')]
+            .filter((tag) => tag.parentElement.matches('li.band-item, li.portion-item'))
+            .length,
+          inCards: document.querySelectorAll(
+            '.band-card > .offline-tag, .portion-card > .offline-tag').length,
+          portions: [...document.querySelectorAll('#portion-cards .portion-item')].map((li) => {
+            const card = li.querySelector('.portion-card').getBoundingClientRect();
+            const row = li.parentElement.getBoundingClientRect();
+            return [Math.round(card.top - row.top), li.children.length];
+          }),
+        })"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert got["loose"] == 0 and got["inCards"] > 0, got
+    assert all(children == 1 for _, children in got["portions"]), got
+    assert len({top for top, _ in got["portions"]}) == 1, "the portions keep to one row"

@@ -12498,13 +12498,21 @@ class Handler(BaseHTTPRequestHandler):
     MORE_MOST = 6
 
     def _more_that_fit(
-        self, ctx: Any, done: list[str], shown: dict[str, Any] | None
+        self,
+        ctx: Any,
+        done: list[str],
+        shown: dict[str, Any] | None,
+        medium: str = "",
+        length: str = "",
     ) -> list[dict[str, Any]]:
         """Library texts at this reader's level, for the row under home's card
         (targum-internal#615; David, 2026-11-01): the shelf only, in the band, ranked by
         the same chooser as the card (`choose.key`), the card's own pick left out. Each
         row says its share known and its kind; the page draws the rest. Behind the find
-        button's switch, with the card it sits under."""
+        button's switch, with the card it sits under.
+
+        With the card's Filter, only what passes it (`filter_holds`): under Texts the
+        row listed six videos beside "No new text is 90% known for you yet." (#695)."""
         from . import choose
         from .chat import tools as chat_tools
         from .finds import button
@@ -12514,7 +12522,9 @@ class Handler(BaseHTTPRequestHandler):
         skip = list(done)
         if shown and shown.get("id"):
             skip.append(str(shown["id"]))
-        rows = chat_tools.suggest_next(ctx, {"limit": 10, "skip": skip}).get("suggestions") or []
+        # A filter leaves out most of the first ten, so more are asked for.
+        limit = 40 if (medium or length) else 10
+        rows = chat_tools.suggest_next(ctx, {"limit": limit, "skip": skip}).get("suggestions") or []
         out: list[dict[str, Any]] = []
         for row in rows:
             # A web find has the card; this row is the library's.
@@ -12522,6 +12532,7 @@ class Handler(BaseHTTPRequestHandler):
                 row.get("fit") == choose.BAND
                 and row.get("origin") in (None, "shelf")
                 and not row.get("held")
+                and filter_holds(row, medium, length)
             )
             reason = row.get("reason") or {}
             measured = reason.get("key") in ("suggest.known", "suggest.estimated") and reason.get(
@@ -17227,6 +17238,24 @@ class Handler(BaseHTTPRequestHandler):
             return [row for row in rows if filter_holds(row, way, long)]
 
         ctx = self.chats.context(person, self._home(), "", admin, spoken)
+        if payload.get("more_fit") is True:
+            # More that fit you, asked again once the card's Filter moves (#695): the
+            # same rows as `/suggest`'s `more`, held to the medium and length. A topic
+            # holds none: the library's texts carry no topic, so none is said to fit one.
+            from . import source_line
+
+            given_done = payload.get("done")
+            done_ids = (
+                [str(one)[:200] for one in given_done[: self.SUGGEST_SKIP_MOST]]
+                if isinstance(given_done, list)
+                else []
+            )
+            fitting = (
+                []
+                if chosen
+                else self._more_that_fit(ctx, done_ids, None, medium=medium, length=length)
+            )
+            return self._json({"more": [source_line.attach(row) or row for row in fitting]})
         # Each language's rung on its own ladder: the ulpan's for Hebrew, the CEFR's for
         # Russian (targum-internal#635), as the pool counts it.
         rung = chat_tools._rung(ctx.level) if code == "he" else button.rung_for(ctx.level, code)

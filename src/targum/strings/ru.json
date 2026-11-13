@@ -3424,7 +3424,7 @@
   "home.card.opens-when-ready": "Откроется, когда будет готово",
   "home.card.new-from": "Новое · {name}",
   "home.try.first": "С чего начать",
-  "home.try.next": "Что почитать дальше",
+  "home.try.next": "Что попробовать дальше",
   "home.try.scene.first": "Начните здесь",
   "home.try.scene.next": "Следующая сцена",
   "home.try.open": "Открыть",
@@ -5001,7 +5001,7 @@
   "home.card.left.few": "Сегодня осталось {n} поиска в интернете",
   "home.card.left.many": "Сегодня осталось {n} поисков в интернете",
   "home.card.left.other": "Сегодня осталось {n} поиска в интернете",
-  "home.card.known-short": "Знаю {n}%",
+  "home.card.known-short": "Вы знаете {n}%",
   "home.card.looking": "Ищем…",
   "home.card.failed": "Сейчас не получилось поискать в интернете.",
   "home.card.look-gone": "Поиск потерялся. Попробуйте ещё раз.",
@@ -5177,5 +5177,13 @@
   "job.said.stopped": "Вы остановили подготовку. Вы заплатили только за то, что мы успели сделать.",
   "serve.cancel.unstoppable": "Этот текст уже нельзя остановить. Осталось недолго.",
   "serve.cancel.finished": "Текст был готов раньше, чем мы успели его остановить.",
-  "serve.cancel.over": "Подготовка уже не идёт, отменять нечего."
+  "serve.cancel.over": "Подготовка уже не идёт, отменять нечего.",
+  "home.card.known.video": "Вы знаете {share}% всего видео",
+  "home.card.known.audio": "Вы знаете {share}% всей записи",
+  "home.card.known-estimate.video": "Вы знаете около {share}% всего видео (наша оценка)",
+  "home.card.known-estimate.audio": "Вы знаете около {share}% всей записи (наша оценка)",
+  "building.waiting-behind.one": "В очереди перед ним {n} текст",
+  "building.waiting-behind.few": "В очереди перед ним {n} текста",
+  "building.waiting-behind.many": "В очереди перед ним {n} текстов",
+  "building.waiting-behind.other": "В очереди перед ним {n} текста"
 }

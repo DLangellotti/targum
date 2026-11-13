@@ -121,6 +121,45 @@
     return (reader.chapters && reader.chapters.length) || reader.sections || 1;
   }
 
+  /* One noun for a text's parts, from one field, on every line that names them: a book's
+     are chapters, and an article's, a recording's or a video's are parts. The tag said
+     "Article · part 1 of 4" over "Pick up at chapter 1" (#695). */
+  var PARTED_KINDS = ["article", "dialogue", "talk"];
+  function chaptered(reader) {
+    return (
+      !!(reader && reader.chapters && reader.chapters.length) &&
+      mediumOf(reader) === "read" &&
+      PARTED_KINDS.indexOf(String(reader.kind || "")) < 0
+    );
+  }
+
+  /* A name drawn from data (a show, who presents it, who makes it, an outlet) in its own
+     isolate, and in the language of its letters where they are Hebrew's or Russian's:
+     the name's lang is what picks its face and its line breaking (design.md §14, line 3;
+     #695). */
+  function nameIn(node, text, language) {
+    node.setAttribute("dir", "auto");
+    var said = String(text || "");
+    var code = shelf.base(language || "");
+    if (/[\u0590-\u05FF]/.test(said)) node.setAttribute("lang", ["he", "yi", "arc"].indexOf(code) >= 0 ? code : "he");
+    else if (/[\u0400-\u04FF]/.test(said)) node.setAttribute("lang", "ru");
+    return node;
+  }
+
+  /* A page's title without its site's name after it, for a text built before the build
+     learned to leave it off (`ingest.url.without_site`, 2026-11-04): Continue said
+     "… – ויקיחדשות" where the Library says the headline (#695). Only these names: a
+     title that merely ends in a dash and a word is left as it is. */
+  var SITE_NAMES = ["ויקיחדשות", "ויקיפדיה", "Wikinews", "Wikipedia", "Викиновости", "Википедия"];
+  function withoutSite(title) {
+    var said = String(title || "");
+    for (var n = 0; n < SITE_NAMES.length; n++) {
+      var found = new RegExp("\\s+[-\u2013\u2014|\u00b7]\\s+" + SITE_NAMES[n] + "\\s*$").exec(said);
+      if (found && found.index > 0) return said.slice(0, found.index);
+    }
+    return said;
+  }
+
   // The share of a text's parts the reader has finished, 0 to 1, off `targum:docs`.
   function progress(reader, docs) {
     var record = reader.document ? docs[reader.document] : null;
@@ -409,13 +448,19 @@
     var total = partsOf(reader);
     var at = ahead && ahead.path ? ahead.n : partNumber(reader, place);
     var what = kindWord(reader);
-    if (total > 1 && at) what = t("home.card.part-of", "{kind} · part {n} of {total}", { kind: what, n: at, total: total });
+    var chapters = chaptered(reader);
+    if (total > 1 && at) {
+      what = chapters
+        ? t("home.back.chapter-of", "{kind} · chapter {n} of {total}", { kind: what, n: at, total: total })
+        : t("home.card.part-of", "{kind} · part {n} of {total}", { kind: what, n: at, total: total });
+    }
     // The tag is what it is and which part (board Main: "Video · part 4 of 4"), an
     // upload too; that it was yours is said in the line under the title (audit Q7).
     var upload = card.reader && !card.reader.entry && !card.reader.shared;
     item.appendChild(tag(what));
 
-    link.appendChild(titled(reader.title, reader.language));
+    var named = withoutSite(reader.title);
+    link.appendChild(titled(named, reader.language));
     item.appendChild(link);
 
     var facts = [];
@@ -435,7 +480,7 @@
     var medium = mediumOf(reader);
     if (place && place.seconds > 0 && medium !== "read" && !(ahead && ahead.path)) {
       go = t("home.card.pick-up-at-time", "Pick up at {time}", { time: clock(place.seconds) });
-    } else if (place && total > 1 && at && reader.chapters && reader.chapters.length) {
+    } else if (place && total > 1 && at && chapters) {
       // A book's or a Tanakh book's part is a chapter (board Main: "Pick up at chapter 2").
       go = t("home.card.pick-up-at-chapter", "Pick up at chapter {n}", { n: at });
     } else if (place && total > 1 && at) {
@@ -454,7 +499,7 @@
     press.setAttribute("aria-hidden", "true");
     item.appendChild(press);
     // The link says the whole of it to a screen reader: what, and where it picks up.
-    link.setAttribute("aria-label", reader.title + " — " + go);
+    link.setAttribute("aria-label", named + " — " + go);
     return item;
   }
 
@@ -480,14 +525,66 @@
     }[job.came] || t("home.card.getting-ready", "Uploaded · getting ready");
   }
 
+  /* A build that has just left the line, cancelled or stopped from its card: kept on
+     Continue with what was said about it until that has been read, and only then gone.
+     The shelf asks `/jobs` every three seconds while anything builds, and the next draw
+     dropped the card at once, so "Cancelled. Nothing was used." was never seen (#695). */
+  var LEAVING_MS = 4000;
+  var leaving = {};
+  function stillLeaving(building) {
+    var now = Date.now();
+    var there = {};
+    (building || []).forEach(function (job) {
+      there[job.id] = true;
+    });
+    var out = (building || []).slice();
+    Object.keys(leaving).forEach(function (id) {
+      var one = leaving[id];
+      if (one.until <= now) {
+        delete leaving[id];
+        return;
+      }
+      if (!there[id]) out.push(one.job);
+    });
+    return out;
+  }
+
+  // The tile's link glyph, for a build named by nothing but its address.
+  function linkGlyph() {
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "home-link-glyph");
+    svg.setAttribute("viewBox", "0 0 16 16");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    var path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M6.8 9.2a3 3 0 0 0 4.2 0l2-2a3 3 0 0 0-4.2-4.2l-.8.8M9.2 6.8a3 3 0 0 0-4.2 0l-2 2a3 3 0 0 0 4.2 4.2l.8-.8");
+    svg.appendChild(path);
+    return svg;
+  }
+
   function buildCard(job) {
     var item = el("li", "card home-card is-building");
     item.setAttribute("role", "status");
+    if (job.id) item.setAttribute("data-job", String(job.id));
     var name = buildName(job);
     // The tile is the show's letter where there is a show, else the title's; never an
-    // address's "h".
-    var tileOf = job.show || (name && !addressed(name) && name !== siteName(job.title || job.source) ? name : "") || "\u00b7";
-    item.appendChild(coverFor(null, tileOf, job.language));
+    // address's "h". On its kind's colour, as the pick that started it was: an episode
+    // was clay on the pick and grey once building (#695).
+    var tileOf = job.show || (name && !addressed(name) && name !== siteName(job.title || job.source) ? name : "");
+    var tile = covers.picture(
+      { title: tileOf || "\u00b7", language: job.language, kind: job.kind || (job.show ? "podcast" : "") },
+      { keyed: keyed }
+    );
+    // Named by nothing but its address: a link, drawn, never an empty grey block.
+    if (!tileOf) {
+      var glyph = tile.querySelector(".glyph");
+      if (glyph) {
+        glyph.textContent = "";
+        glyph.appendChild(linkGlyph());
+      }
+    }
+    item.appendChild(tile);
     item.appendChild(tag(buildTag(job), "building"));
     item.appendChild(titled(name, job.title && !addressed(job.title) ? job.language : "und"));
     // The show, who presents it where its feed said, and who makes it.
@@ -496,31 +593,51 @@
       var line = el("span", "home-card-facts home-card-from");
       from.forEach(function (one, at) {
         if (at) line.appendChild(document.createTextNode(" \u00b7 "));
-        var said = el("bdi", "", one);
-        said.setAttribute("dir", "auto");
-        line.appendChild(said);
+        line.appendChild(nameIn(el("bdi", "", one), one, job.language));
       });
       item.appendChild(line);
     }
-    var facts = [];
-    if (job.total > 1) {
-      facts.push(t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) }));
+    var gone = leaving[job.id];
+    if (gone) {
+      // Cancelled or stopped: what was said about it, and nothing to press.
+      var said = el("span", "home-card-facts home-card-said", gone.words || "");
+      item.appendChild(said);
+      return item;
     }
-    if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
-    item.appendChild(bar(job.total > 0 ? job.done / job.total : 0.1, true));
+    /* Where it has got to, as the bell and Upload's waiting card say it (design.md §12,
+       "A pressed card follows its build"): one waiting in line says how many are ahead
+       of it, with no bar, since nothing of it is done; one running says the server's
+       line, and the bar how far it has got. A queued build drew the running one's
+       sliver and the same words (#695). */
+    var queued = job.stage === "queued";
+    var where = "";
+    if (queued && Number(job.behind) > 0) {
+      where = tn("building.waiting-behind", Number(job.behind), "Waiting behind {n} build", "Waiting behind {n} builds");
+    } else if (job.said) {
+      where = String(job.said);
+    } else if (job.total > 1) {
+      where = t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) });
+    }
+    if (where) item.appendChild(el("span", "home-card-facts home-card-where", where));
+    if (!queued) item.appendChild(bar(job.total > 0 ? job.done / job.total : 0.1, true));
     var waiting = el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready"));
     item.appendChild(waiting);
     // Cancel, where it is the reader's to cancel (targum-internal#694): a quiet press
-    // under the card's line, never its primary. Once it has left the line the card goes,
-    // after its line has been read.
+    // under the card's line, never its primary. Once it has left the line the card stays
+    // with what was said, until that has been read.
     var undo = window.TargumCancel
       ? window.TargumCancel.control(job, {
-          gone: function () {
+          gone: function (state, words) {
             waiting.hidden = true;
+            leaving[job.id] = { job: job, words: words || "", until: Date.now() + LEAVING_MS };
             setTimeout(function () {
-              if (item.parentNode) item.parentNode.removeChild(item);
+              delete leaving[job.id];
+              var drawn = document.querySelectorAll('#continue-cards [data-job="' + String(job.id).replace(/"/g, "") + '"]');
+              Array.prototype.forEach.call(drawn, function (one) {
+                if (one.parentNode) one.parentNode.removeChild(one);
+              });
               if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
-            }, 4000);
+            }, LEAVING_MS);
           },
         })
       : null;
@@ -719,17 +836,17 @@
     var at = partNumber(reader, place);
     // A book's part is a chapter; a recording's or a video's is a part, as the board says.
     var medium = mediumOf(reader);
-    var chaptered = !!(reader.chapters && reader.chapters.length) && medium === "read";
+    var chapters = chaptered(reader);
     var when = dayOf(place.at);
     var line;
-    if (total > 1 && at && chaptered) {
+    if (total > 1 && at && chapters) {
       line = t("home.back.line-chapter", "Welcome back. You stopped at chapter {n} of {title} on {date}.", { n: at, date: when });
     } else if (total > 1 && at) {
       line = t("home.back.line-part", "Welcome back. You stopped at part {n} of {title} on {date}.", { n: at, date: when });
     } else {
       line = t("home.back.line", "Welcome back. You stopped in {title} on {date}.", { date: when });
     }
-    sentenceWith(document.getElementById("welcome-back-line"), line, reader.title, reader.language);
+    sentenceWith(document.getElementById("welcome-back-line"), line, withoutSite(reader.title), reader.language);
 
     var pick = document.getElementById("welcome-pick");
     pick.textContent = "";
@@ -751,7 +868,7 @@
     var what = el("div", "welcome-what");
     var kind = kindWord(reader);
     if (total > 1 && at) {
-      kind = chaptered
+      kind = chapters
         ? t("home.back.chapter-of", "{kind} · chapter {n} of {total}", { kind: kind, n: at, total: total })
         : t("home.card.part-of", "{kind} · part {n} of {total}", { kind: kind, n: at, total: total });
     }
@@ -759,7 +876,7 @@
     var title = el("h2", "welcome-title");
     title.setAttribute("lang", reader.language || "und");
     title.setAttribute("dir", "auto");
-    title.textContent = reader.title;
+    title.textContent = withoutSite(reader.title);
     what.appendChild(title);
     var facts = el("span", "welcome-facts");
     if (place.seconds > 0 && medium !== "read") {
@@ -1209,10 +1326,18 @@
     if (!share) return "";
     var percent = Math.max(1, Math.min(99, Math.round(share * 100)));
     if (share >= 1) percent = 100;
+    // Of the whole video, or the whole recording: a video is never called a text (§6;
+    // #695).
+    var medium = mediumOf(reader);
     if (typeof reader.estimated === "number" && reader.estimated > 0) {
+      if (medium === "watch") return t("home.card.known-estimate.video", "You know about {share}% of the whole video (our estimate)", { share: percent });
+      if (medium === "listen") return t("home.card.known-estimate.audio", "You know about {share}% of the whole recording (our estimate)", { share: percent });
       return t("home.card.known-estimate", "You know about {share}% of the whole text (our estimate)", { share: percent });
     }
-    return t("home.card.known", "You know {share}% of the whole text", { share: Math.round(share * 100) });
+    var whole = Math.round(share * 100);
+    if (medium === "watch") return t("home.card.known.video", "You know {share}% of the whole video", { share: whole });
+    if (medium === "listen") return t("home.card.known.audio", "You know {share}% of the whole recording", { share: whole });
+    return t("home.card.known", "You know {share}% of the whole text", { share: whole });
   }
 
   function siteOf(host) {
@@ -1257,9 +1382,7 @@
       name.href = line.url;
       name.target = "_blank";
       name.rel = "noopener noreferrer";
-      var said = el("bdi", "", line.name);
-      said.setAttribute("dir", "auto");
-      name.appendChild(said);
+      name.appendChild(nameIn(el("bdi", "", line.name), line.name, row.language));
       var arrow = el("span", "source-out", "\u2197");
       arrow.setAttribute("aria-hidden", "true");
       name.appendChild(arrow);
@@ -1268,8 +1391,7 @@
         t("home.source.open", "{outlet}, opens the original in a new tab", { outlet: line.name })
       );
     } else {
-      name = el("bdi", "", line.name);
-      name.setAttribute("dir", "auto");
+      name = nameIn(el("bdi", "", line.name), line.name, row.language);
     }
     host.appendChild(name);
     // Who presents it, as its feed said, then who makes the show where that is another
@@ -1278,9 +1400,7 @@
     [[line.presenter, "source-presenter"], [line.by, "source-by"]].forEach(function (said) {
       if (!said[0]) return;
       host.appendChild(document.createTextNode(" \u00b7 "));
-      var who = el("bdi", said[1], said[0]);
-      who.setAttribute("dir", "auto");
-      host.appendChild(who);
+      host.appendChild(nameIn(el("bdi", said[1], said[0]), said[0], row.language));
     });
     var day = line.date ? sourceDay(line.date) : "";
     if (day) host.appendChild(document.createTextNode(" \u00b7 " + day));
@@ -1371,7 +1491,7 @@
   }
 
   function topicPress(tonal) {
-    var press = el("button", "btn " + (tonal || filtered() ? "tonal" : "ghost") + " rc-topic");
+    var press = el("button", "btn " + (tonal || filtered() ? "tonal" : "text") + " rc-topic");
     press.type = "button";
     press.appendChild(document.createTextNode(filterLabel()));
     press.appendChild(chevron());
@@ -1739,13 +1859,16 @@
     // Our estimate shows on the first pick too: it is what the line above the card
     // promises, and a reader with no marks has it (David, 2026-11-03).
     var estimated = estimatedOf(row);
-    if (share && (row.harder || estimated || (!first && !row.scene))) {
+    // A scene says its share too, as any first pick does (design.md §12, 2026-11-04):
+    // "Start here" drew its title alone (#695).
+    if (share && (row.harder || estimated || row.scene || !first)) {
       var known = el("div", "rc-known-row");
       known.appendChild(shareLine({ name: "rc-known" }, share, estimated));
       known.appendChild(stepPresses(row, share));
       parts.what.appendChild(known);
     }
-    var facts = row.scene ? "" : factsOf(row);
+    // And a scene its one line, what it is and how long (2026-10-27).
+    var facts = factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
     var from = heard ? null : sourceLine(row, "rc-source");
     if (from) parts.what.appendChild(from);
@@ -1776,7 +1899,9 @@
       });
     }
     presses.appendChild(open);
-    var other = el("button", "btn ghost rc-else", t("home.try.else", "Something else"));
+    // A text press in the primary: muted grey was the only press on the desk that did
+    // not look like one (§9, §13; #695).
+    var other = el("button", "btn text rc-else", t("home.try.else", "Something else"));
     other.type = "button";
     other.addEventListener("click", function () {
       nextPick(row);
@@ -1787,6 +1912,7 @@
     topicsField(body);
     leftLine(body);
     suggestShown(row);
+    refreshMore();
     if (oneCard.taughtFor !== pickKey(row)) {
       oneCard.taughtFor = pickKey(row);
       oneCard.wordsOpen = false;
@@ -1881,6 +2007,8 @@
   // Nothing at the reader's level (David, 2026-11-02; design.md §12): where things stand,
   // and the press that opens the nearest text under the floor, named by its share known.
   function drawNone(got) {
+    // Nothing fits, so nothing is offered as fitting under it either (#695).
+    hideMore();
     var said = (got && got.message) || t("home.card.none", "No new text is {n}% known for you yet.", { n: floorPercent() });
     drawSaid(said, "topic", (got && got.nearest) || null);
   }
@@ -2074,7 +2202,7 @@
       .catch(function () {
         said.textContent = t("home.find.failed", "We couldn't open that one. Try again, or choose Something else.");
         var presses = el("div", "rc-presses");
-        var other = el("button", "btn ghost rc-else", t("home.try.else", "Something else"));
+        var other = el("button", "btn text rc-else", t("home.try.else", "Something else"));
         other.type = "button";
         other.addEventListener("click", function () {
           nextPick(row);
@@ -2095,15 +2223,46 @@
     );
   }
 
-  // More that fit you: three to six library texts at the reader's level, each with its
-  // share known and its kind. None at all where fewer than three fit.
+  /* More that fit you: three to six library texts at the reader's level, each with its
+     share known and its kind. None at all where fewer than three fit. They answer the
+     card's own question (design.md §12, "Home's one card finds what fits you"): its
+     filter, and never the pick on show. They went on listing videos under Texts and the
+     pick Harder had just drawn as their first row (#695). `more.key` is the filter the
+     rows were asked with; a filter that moves asks again. */
+  var more = { rows: [], key: "" };
+  function moreKey() {
+    return [oneCard.medium || "", oneCard.length || "", oneCard.chip || ""].join("|");
+  }
+  function hideMore() {
+    var host = document.getElementById("more-fit");
+    if (host) host.hidden = true;
+  }
+  function refreshMore() {
+    var key = moreKey();
+    if (more.key === key) return drawMore(more.rows);
+    more = { rows: [], key: key };
+    hideMore();
+    // A topic: the library's texts carry none, so none are said to fit it.
+    if (oneCard.chip) return;
+    var body = { more_fit: true, language: cardAsk.code, done: cardAsk.skip.concat(cardAsk.aside) };
+    if (oneCard.medium) body.medium = oneCard.medium;
+    if (oneCard.length) body.length = oneCard.length;
+    askWith("/find", body)
+      .then(function (got) {
+        if (more.key !== key) return;
+        more.rows = (got && got.more) || [];
+        if (oneCard.row) drawMore(more.rows);
+      })
+      .catch(function () {});
+  }
   function drawMore(rows) {
     var host = document.getElementById("more-fit");
     var list = document.getElementById("more-rows");
     if (!host || !list) return;
     list.textContent = "";
+    var showing = oneCard.row && oneCard.row.id ? String(oneCard.row.id) : "";
     rows = (rows || []).filter(function (row) {
-      return row && row.id && continuing.entries.indexOf(String(row.id)) < 0;
+      return row && row.id && String(row.id) !== showing && continuing.entries.indexOf(String(row.id)) < 0;
     });
     if (rows.length < 3) {
       host.hidden = true;
@@ -2273,9 +2432,10 @@
     asked
       .then(function (got) {
         if (code !== suggesting) return;
+        // What More holds is the first ask's, with no filter; the pick drawn next draws it.
+        if (ONE_CARD) more = { rows: (got && got.more) || [], key: moreKey() };
         drawTry(got && got.suggestion, first);
         drawNote(code, got ? got.library : undefined);
-        if (ONE_CARD) drawMore(got && got.more);
       })
       .catch(function () {
         if (code !== suggesting) return;
@@ -2392,7 +2552,7 @@
       var mine = ((all[3] && all[3].items) || []).filter(function (item) {
         return shelf.base(item.language) === code;
       });
-      var cards = gatherContinue(readers, places, building, opened, code, CONTINUE_AT_MOST + 1);
+      var cards = gatherContinue(readers, places, stillLeaving(building), opened, code, CONTINUE_AT_MOST + 1);
       var back = welcomeBack(places, cards);
       if (back) {
         cards = cards.filter(function (card) {
