@@ -55,6 +55,7 @@
         {%- if try_this and not tried %}
         <form class="try-this" id="tryThis" method="post" action="/try?lang=en#try">
           <input type="hidden" name="on" value="{{ try_on }}">
+          <input type="hidden" name="from" value="{{ joined_from }}">
           <input type="hidden" name="link" value="{{ try_this.link }}">
           <span class="try-else">Nothing to paste yet?</span>
           <button class="btn ghost small try-chip" type="submit"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3v10l8-5z" fill="currentColor"/></svg>Try this one <span class="try-link" dir="ltr">{{ try_this.shown }}</span></button>

@@ -89,8 +89,10 @@ OCCURRENCES = "occurrences.json"
 #: inflected verb that stood as its own lemma under its verb (`lemma_check` 2,
 #: targum-internal#660); 11 reads `lemma_check` 3, so היה is counted as היה again; 12
 #: adds each Russian token's squares on Your Progress's Russian grammar (`grammar`,
-#: `gaps_ru.classify`, targum-internal#639), with the form met, read off the stored feats.
-VERSION = 12
+#: `gaps_ru.classify`, targum-internal#639), with the form met, read off the stored feats;
+#: 13 reads `lemma_check` 4, so מֻשְׁפָּלוֹת is counted under הושפל and לִמְכֹּר under the
+#: verb מכר (targum-internal#689).
+VERSION = 13
 
 
 @dataclass(frozen=True)

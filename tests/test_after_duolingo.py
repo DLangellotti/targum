@@ -24,7 +24,12 @@ import pytest
 from targum.accounts import Store
 from targum.catalogue import Entry, Kind, Register
 from targum.mail import ConsoleMailer
-from targum.render.builder import AFTER_DUOLINGO_FIRSTS, after_duolingo_page, asset_files
+from targum.render.builder import (
+    AFTER_DUOLINGO_FIRSTS,
+    after_duolingo_page,
+    asset_address,
+    asset_files,
+)
 from targum.serve import Handler, Library, joined_from
 
 ADDRESS = "https://targum.page"
@@ -144,7 +149,10 @@ def test_the_page_loads_nothing_from_another_origin(shelf: None) -> None:
         "https://www.youtube.com/watch?v=NEoaePzDhGc",
         "https://creativecommons.org/licenses/by/3.0/",
     }, outbound
-    assert "<script src" not in page
+    # Its scripts are its own origin's files since it joined the public pages (#1193's
+    # rule): by address under /assets/, never from anybody else.
+    scripts = re.findall(r'<script\b[^>]*\bsrc="([^"]+)"', page)
+    assert scripts and all(src.startswith("/assets/") for src in scripts), scripts
 
 
 def test_the_page_names_duolingo_and_says_it_is_not_theirs(shelf: None) -> None:
@@ -245,9 +253,10 @@ def test_every_word_in_the_reader_has_targum_s_card(shelf: None) -> None:
     assert words["l4w4"]["sense"] == "to sell"
     assert all(label != "Here" for label, _ in words["l4w4"]["facts"])
     assert "data-set" not in page.split('<aside class="card"', 1)[1].split("</aside>", 1)[0]
-    # The front page's own script, inline (§12: nothing from another origin).
-    assert "<script src" not in page
-    assert 'var film = document.getElementById("film");' in page
+    # The front page's own script, by address on targum's own origin (§12).
+    address = asset_address("landing.js")
+    assert f'<script src="{address}"></script>' in page
+    assert b'var film = document.getElementById("film");' in asset_files()[address][0]
 
 
 def test_why_real_hebrew_feels_harder_is_shown(shelf: None) -> None:
@@ -319,7 +328,8 @@ def test_without_the_row_nothing_is_offered_to_try(monkeypatch: pytest.MonkeyPat
 
 def test_a_signed_in_reader_is_not_asked_to_join(shelf: None) -> None:
     page = after_duolingo_page(ADDRESS, signed_in=True)
-    assert '<input type="hidden" name="from"' not in page
+    # The try box still says where it stands (#1186); no form to join or sign up does.
+    assert 'action="/waitlist' not in page and "join-form" not in page
 
 
 # -- served ---------------------------------------------------------------------------
@@ -383,6 +393,41 @@ def test_a_try_here_answers_here_and_builds_nothing(
     )
     # Described, never built: no job was written for it.
     assert store.db.execute("SELECT COUNT(*) FROM job").fetchone()[0] == 0
+
+
+def test_a_link_s_tag_is_said_in_place_of_the_page_s_own(
+    served: tuple[int, Store], shelf: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ad's `utm_source` and `utm_campaign` (`came_from`, #1186) ride in every form,
+    the try box and the chip included, and in the bar's Sign in; and through a try."""
+    port, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, page = ask(
+        port, "GET", "/after-duolingo-hebrew?utm_source=meta&utm_campaign=after-duolingo"
+    )
+    assert status == 200
+    said = re.findall(r'<input type="hidden" name="from" value="([^"]*)">', page)
+    assert len(said) >= 3 and set(said) == {"meta.after-duolingo"}, said
+    assert 'href="/account/signin?lang=en&amp;from=meta.after-duolingo"' in page
+
+    def describe(url: str) -> dict[str, Any]:
+        return {"webpage_url": url, "title": "סביח", "duration": 540, "subtitles": {"he": [{}]}}
+
+    monkeypatch.setattr("targum.video.ytdlp_available", lambda: (True, "yt-dlp"))
+    monkeypatch.setattr("targum.video.youtube.describe", describe)
+    status, page = ask(
+        port,
+        "POST",
+        "/try?lang=en",
+        {
+            "link": "https://www.youtube.com/watch?v=abcdefghijk",
+            "on": "after-duolingo-hebrew",
+            "from": "meta.after-duolingo",
+        },
+    )
+    assert status == 200 and "You finished Duolingo Hebrew." in page
+    said = re.findall(r'<input type="hidden" name="from" value="([^"]*)">', page)
+    assert said and set(said) == {"meta.after-duolingo"}, said
 
 
 def test_try_this_one_is_the_box_s_real_answer_and_builds_nothing(

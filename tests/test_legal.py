@@ -324,3 +324,24 @@ def test_clause_3_6_names_what_a_finished_section_records() -> None:
         " the Service estimated the Data Subject to know when it was opened, and how many of"
         " its words were looked up."
     ) in notice
+
+
+def test_clause_3_10_names_the_tag_of_a_link_word_for_word() -> None:
+    """targum-internal#676, drafted 2026-11-12 for David's approval: the waitlist and a
+    new account keep which page, or which link's tag (`serve.came_from`), brought them,
+    so the channel an ad or a post brought somebody through is counted without a pixel.
+    Pinned word for word, as the notice's other sentences are."""
+    notice = said(legal_page("privacy"))
+    assert (
+        "for the waitlist, which page of the Service that was or, where the link by which"
+        " the person reached that page named where the Controller had published it, that"
+        " name, as a short tag, whether the address has been confirmed or withdrawn"
+    ) in notice
+    assert (
+        "That page or tag is also kept with the account of a person who creates one from"
+        " such a page, or who is admitted from the waitlist."
+    ) in notice
+    assert (
+        "of counting, in aggregate, how many persons each of the Controller's pages and"
+        " links brings, and of sending the digest."
+    ) in notice

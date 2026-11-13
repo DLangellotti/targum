@@ -425,10 +425,22 @@ REGISTRATIONS_PER_HOUR = 60
 #    (targum-internal#485). A new table, so `CREATE TABLE IF NOT EXISTS` is the whole
 #    migration.
 #
+# 62→63: person.came_from — which page, or which link's tag, a new account came in by,
+#    copied from its waitlist row where it had one (targum-internal#676). One added
+#    column with a default, so the migration is one ALTER.
+#
+# 63→64: find.page and find.author — a podcast episode's own page as its feed links it,
+#    and who makes the show as the reviewed list names them (targum-internal#691). Two
+#    added columns with defaults, so two ALTERs; empty on every find before them.
+#
+# 64→65: job.credited_to — the retry a stopped build's heard seconds were credited to
+#    (targum-internal#694; David, 2026-11-13, "credit the retry"). Empty on every row
+#    before it: nothing was credited then. One added column with a default, so one ALTER.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 62
+SCHEMA_VERSION = 65
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -913,24 +925,50 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE find ADD COLUMN series TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE find ADD COLUMN part INTEGER NOT NULL DEFAULT -1",
     "ALTER TABLE find ADD COLUMN season INTEGER NOT NULL DEFAULT 0",
+    # Which page, or which link's tag, an account came in by (schema 63,
+    # targum-internal#676): what `waiting.page` says of a row, said of an account, so a
+    # channel is counted whether the door was open or the account was let in. Empty on
+    # every account before it, and on any that came in some other way.
+    "ALTER TABLE person ADD COLUMN came_from TEXT NOT NULL DEFAULT ''",
+    # A podcast episode's own page and who makes the show (schema 64, targum-internal
+    # #691): what Home's line and the reader's head link and name. Empty before it.
+    "ALTER TABLE find ADD COLUMN page TEXT NOT NULL DEFAULT ''",
+    # Which retry a stopped build's heard seconds went to (schema 65, #694).
+    "ALTER TABLE job ADD COLUMN credited_to TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE find ADD COLUMN author TEXT NOT NULL DEFAULT ''",
 )
 
 
-def _open_account(db: sqlite3.Connection, address: str) -> None:
+def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> None:
     """An account for this address, unless it has one, under an id never given before.
 
     Inside the caller's write transaction. sqlite alone would give `max(id) + 1`, which
     is a deleted account's id again whenever the newest account was the one deleted;
-    `person_high` remembers past it (targum-internal#679)."""
+    `person_high` remembers past it (targum-internal#679).
+
+    `came_from` is the page or link tag the open door's form stood on, already narrowed
+    by the caller; where it says nothing, the waitlist row's `page` is kept instead, if
+    the row was confirmed or let in, so somebody let in is counted by the door they
+    joined at (targum-internal#676). Only a
+    new account takes it: an old one keeps what brought it first."""
     if db.execute("SELECT 1 FROM person WHERE email = ?", (address,)).fetchone() is not None:
         return
     row = db.execute(
         "SELECT MAX(COALESCE((SELECT MAX(id) FROM person), 0),"
         " COALESCE((SELECT id FROM person_high WHERE one = 1), 0)) + 1"
     ).fetchone()
+    if not came_from:
+        # Only from a place they confirmed or were let in from: a row never confirmed,
+        # or withdrawn, gave no consent to keep (qa-claude on targum#1186).
+        waited = db.execute(
+            "SELECT page FROM waiting WHERE email = ? AND (state = 'on' OR invited > 0)",
+            (address,),
+        ).fetchone()
+        came_from = str(waited["page"] or "") if waited is not None else ""
     db.execute(
-        "INSERT INTO person (id, email, made) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING",
-        (int(row[0]), address, now()),
+        "INSERT INTO person (id, email, made, came_from) VALUES (?, ?, ?, ?)"
+        " ON CONFLICT(email) DO NOTHING",
+        (int(row[0]), address, now(), came_from),
     )
 
 
@@ -1250,7 +1288,10 @@ CREATE TABLE IF NOT EXISTS job (
   -- every row written before this column existed.
   finished    INTEGER NOT NULL DEFAULT 0,
   -- 1 where targum paid rather than the reader's month (schema 48).
-  gift        INTEGER NOT NULL DEFAULT 0
+  gift        INTEGER NOT NULL DEFAULT 0,
+  -- A stopped build's heard seconds, taken off the claim of the retry named here
+  -- (schema 65, targum-internal#694). Empty while they are still the reader's to use.
+  credited_to TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS word_since   ON word   (person, revision);
@@ -3484,7 +3525,7 @@ class Store:
         holes = ", ".join("?" for _ in wanted)
         rows = self.db.execute(
             "SELECT i.*, s.person AS person, s.kind AS kind, s.cap AS cap, s.state AS sub_state,"
-            " s.language AS language, s.said AS said"
+            " s.language AS language, s.said AS said, s.name AS sub_name"
             f" FROM sub_item i JOIN subscription s ON s.id = i.subscription"
             f" WHERE i.state IN ({holes}) ORDER BY i.published, i.found",
             wanted,
@@ -4194,16 +4235,18 @@ class Store:
         ).fetchone()
         return row is not None
 
-    def start_sign_in(self, email: str) -> str:
+    def start_sign_in(self, email: str, came_from: str = "") -> str:
         """Mint a link for this address, making the account if there is not one.
 
         Signing up and signing in are the same act on purpose. There is no form to
         fill in, nothing to confirm, and no state where an account half exists.
+
+        `came_from` is kept on an account made here (`_open_account`, #676).
         """
         address = tidy(email)
         token = secrets.token_urlsafe(TOKEN_BYTES)
         with self.write() as db:
-            _open_account(db, address)
+            _open_account(db, address, came_from)
             row = db.execute("SELECT id FROM person WHERE email = ?", (address,)).fetchone()
             # Any link minted earlier is void: asking for a new one is what someone does
             # when the first did not arrive, and two live links is one more than needed.
@@ -4672,7 +4715,8 @@ class Store:
     def _settings_of(self, person: Person) -> dict[str, Any]:
         """The account's own settings, as the reader set them, for `everything`."""
         row = self.db.execute(
-            "SELECT address, interest, declared, events, granted FROM person WHERE id = ?",
+            "SELECT address, interest, declared, events, granted, came_from"
+            " FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
         return {
@@ -4683,6 +4727,8 @@ class Store:
             "declared": self.declared_map(str(row["declared"] or "")),
             "record": "off" if row["events"] == "off" else "kept",
             "granted": row["granted"],
+            # Which page, or which link's tag, the account came in by (#676).
+            "came_from": row["came_from"],
         }
 
     def everything(self, person: Person) -> dict[str, Any]:
@@ -4708,7 +4754,8 @@ class Store:
         list at all: it takes the database whole.
         """
         account = self.db.execute(
-            "SELECT email, name, picture, made FROM person WHERE id = ?", (person.id,)
+            "SELECT email, name, picture, made, came_from FROM person WHERE id = ?",
+            (person.id,),
         ).fetchone()
         out: dict[str, Any] = {
             "account": {
@@ -4718,6 +4765,9 @@ class Store:
                 # the plainest sense: they typed it.
                 "name": account["name"],
                 "picture": account["picture"],
+                # Which page, or which link's tag, they came in by: the privacy notice
+                # says it is kept with the account (clause 3.10, targum-internal#676).
+                "came_from": account["came_from"],
             },
             # What they said about their languages — which they are learning, which they
             # read — as the rows they wrote, not the defaulted sets `learning()` and
@@ -7265,6 +7315,7 @@ class Store:
         per_month_length: float | None = None,
         kind: str | None = None,
         gift: bool = False,
+        credit_from: str | None = None,
     ) -> str:
         """Take money from every budget, or say which one refused — in one transaction.
 
@@ -7301,8 +7352,21 @@ class Store:
 
         `gift` marks the row as targum's to pay (targum-internal#543): the one place a
         gift says so, since it claims no length.
+
+        `credit_from` is a recording's source (targum-internal#694; David, 2026-11-13:
+        "credit the retry"). The seconds this reader already paid for it in builds they
+        stopped part way, and that no other claim has taken (`prepaid`), come off
+        `length`; once the claim is taken those rows name this job in `credited_to`, in
+        this transaction, so a credit is used by one claim however its build ends up
+        settled, and two retries pressed together share one. A claim that is given back
+        gives its credit back (`unclaim`, `return_credit`).
         """
         with self.write() as db:
+            crediting: list[str] = []
+            if credit_from is not None and owner is not None and length > 0:
+                rows = self._unused(db, owner, credit_from, job_id)
+                crediting = [str(row["id"]) for row in rows]
+                length = max(0.0, length - sum(float(row["length"]) for row in rows))
             if per_account is not None:
                 narrowed = " AND kind = ?" if kind is not None else ""
                 params: tuple[Any, ...] = (since, owner, kind) if kind else (since, owner)
@@ -7336,7 +7400,34 @@ class Store:
                 "UPDATE job SET claimed = ?, length = ?, gift = ? WHERE id = ?",
                 (amount, length, int(gift), job_id),
             )
+            for credited in crediting:
+                db.execute("UPDATE job SET credited_to = ? WHERE id = ?", (job_id, credited))
             return ""
+
+    @staticmethod
+    def _unused(db: sqlite3.Connection, owner: int, source: str, job_id: str) -> list[Any]:
+        """This reader's stopped builds of `source` whose heard seconds no claim has
+        taken yet (targum-internal#694). A build cancelled while it waited heard
+        nothing and holds no length; another reader's or another source's never count."""
+        return db.execute(
+            "SELECT id, length FROM job WHERE owner = ? AND source = ? AND id != ? "
+            "AND stage = 'cancelled' AND length > 0 AND credited_to = '' "
+            "AND kind IN ('build', 'subscription')",
+            (owner, source, job_id),
+        ).fetchall()
+
+    def prepaid(self, owner: int, source: str, job_id: str = "") -> float:
+        """Seconds of `source` this reader paid for in builds they stopped part way and
+        has not had back on a claim yet: what `claim` would take off a retry's length."""
+        return sum(float(row["length"]) for row in self._unused(self.db, owner, source, job_id))
+
+    def return_credit(self, job_id: str) -> None:
+        """A claim given back, or a build stopped before it went ahead, gives back the
+        credit it took (targum-internal#694): those seconds are the reader's to use again.
+        A stopped retry's own heard seconds are credited beside them, so a chain of
+        stops pays for the recording once."""
+        with self.write() as db:
+            db.execute("UPDATE job SET credited_to = '' WHERE credited_to = ?", (job_id,))
 
     def claim_all(
         self,
@@ -7434,6 +7525,8 @@ class Store:
         """
         with self.write() as db:
             db.execute("UPDATE job SET claimed = 0, length = 0 WHERE id = ?", (job_id,))
+            # And the credit it took, if it was a retry (targum-internal#694).
+            db.execute("UPDATE job SET credited_to = '' WHERE credited_to = ?", (job_id,))
 
     def interrupt_running(self) -> list[str]:
         """Mark builds that were mid-flight when the process died.
@@ -7458,6 +7551,12 @@ class Store:
         """
         with self.write() as db:
             rows = db.execute("SELECT id FROM job WHERE stage IN ('working', 'queued')").fetchall()
+            # A retry that never went ahead gives back the credit it took (#694): its
+            # length goes back below, and so do the stopped seconds it was credited.
+            db.execute(
+                "UPDATE job SET credited_to = '' WHERE credited_to IN "
+                "(SELECT id FROM job WHERE stage IN ('working', 'queued'))"
+            )
             db.execute(
                 "UPDATE job SET stage = 'failed', error = ?, length = 0 WHERE stage = 'working'",
                 (

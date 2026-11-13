@@ -171,6 +171,11 @@ _UNKEYED = (
     r'\btitle\s*=\s*"[A-Z][a-z]+',
     r'\btell\(\s*"[A-Z][a-z]+\.?"\s*\)',
     r'\baction:\s*[^\n]*\?\s*"[A-Z][a-z]+"\s*:\s*"[A-Z]',
+    # Design's #477 pass (P2-6, 2026-11-12): "That aliyah is on your progress." stood on
+    # one side of a ternary with a keyed word on the other, and the pattern above wants a
+    # sentence on both. Either half alone is enough.
+    r'\?\s*"[A-Z][a-z]+\s[^"]*"\s*:',
+    r'\?\s*[\w.\[\]()]+\s*:\s*"[A-Z][a-z]+\s[^"]*"',
 )
 
 

@@ -975,16 +975,58 @@ def joined_from(said: str) -> str:
     to write whatever a request says, and nothing about where somebody was before
     targum is kept at all. `/siddur` is the one family that is not a page: the front page
     says it for a link of our own marked `?from=siddur-…`.
+
+    Or a bare tag, the one a link of ours carried (`came_from`, targum-internal#676):
+    lowercase letters, digits, `.`, `_` and `-`, at most 32, so the channel an ad or a
+    post brought somebody through is counted without any pixel. A tag is never a free
+    text: anything else in the field is a path or nothing.
     """
+    families = {"aliyah", "after-duolingo-hebrew", "connect", "weekly", "parasha", "siddur"} | {
+        cycle.slug for cycle in daily_cycles()
+    }
+    slug = said.strip().lower()
+    if CAME_FROM.fullmatch(slug):
+        # A tag that names a family is that family, and a link of ours marked
+        # `siddur-…` is the siddur, whether `landing.js` ran or not (qa-claude on
+        # targum#1186): one channel, one count.
+        if slug in families:
+            return f"/{slug}"
+        if slug.startswith("siddur-"):
+            return "/siddur"
+        return slug
     path = urlparse(said.strip()).path or ""
     first = path.strip("/").split("/", 1)[0]
     if path == "/":
         return "/"
-    if first in {"aliyah", "after-duolingo-hebrew", "connect", "weekly", "parasha", "siddur"}:
-        return f"/{first}"
-    if first and first in {cycle.slug for cycle in daily_cycles()}:
+    if first and first in families:
         return f"/{first}"
     return ""
+
+
+#: What a link's own tag may be (targum-internal#676): short, and nothing a reader could
+#: be shown as words.
+CAME_FROM = re.compile(r"[a-z0-9][a-z0-9._-]{0,31}")
+
+
+def came_from(query: str) -> str:
+    """The tag a link to one of our pages carried, for the waitlist form's `from`, or "".
+
+    `?from=<tag>` where the link has one, else `utm_source`, joined to `utm_campaign`
+    with a dot where both fit (`meta.after-duolingo`). Each is kept only if it is a tag
+    `CAME_FROM` allows, lowercased; nothing else in the address is read.
+    """
+    asked = parse_qs(query)
+
+    def tag(name: str) -> str:
+        said = (asked.get(name) or [""])[0].strip().lower()
+        return said if CAME_FROM.fullmatch(said) else ""
+
+    if tag("from"):
+        return tag("from")
+    source, campaign = tag("utm_source"), tag("utm_campaign")
+    if source and campaign and CAME_FROM.fullmatch(f"{source}.{campaign}"):
+        return f"{source}.{campaign}"
+    return source or campaign
 
 
 def kept_link(said: str) -> str:
@@ -1406,6 +1448,56 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
         return None
 
 
+#: The job option holding what a source is called and whose it is (targum-internal#691):
+#: the show or channel, who makes it, its day and its own page. Written by the server
+#: from what it already holds — a find's pool row, a subscription's name, a video host's
+#: description — and never taken from a request (`/prepare` drops it).
+NAMED = "named"
+
+
+def named(*, show: str = "", by: str = "", date: int = 0, page: str = "") -> dict[str, Any]:
+    """The `named` option, with what is empty left out and only a web address kept."""
+    out: dict[str, Any] = {}
+    if show.strip():
+        out["show"] = show.strip()[:160]
+    if by.strip() and by.strip().casefold() != show.strip().casefold():
+        out["by"] = by.strip()[:160]
+    if date and int(date) > 0:
+        out["date"] = int(date)
+    if page.strip().startswith(("https://", "http://")):
+        out["page"] = page.strip()[:500]
+    return out
+
+
+def _upload_day(said: str) -> int:
+    """yt-dlp's `upload_date` (YYYYMMDD) as milliseconds, or 0."""
+    try:
+        day = datetime.strptime(said, "%Y%m%d").replace(tzinfo=UTC)
+    except ValueError:
+        return 0
+    return int(day.timestamp() * 1000)
+
+
+class Stopped(Exception):  # noqa: N818 - it is what happened, not a fault
+    """Raised inside a build at its next checkpoint once its reader asked it to stop
+    (targum-internal#694). Not a `TargumError`: nothing went wrong, and no stage of the
+    pipeline that carries on past a `TargumError` should carry on past this."""
+
+
+def came_of(job: Job, catalogued: bool = False) -> str:
+    """Where a build came from, for the card that waits for it (targum-internal#691):
+    `suggested` (Home's pick), `subscribed`, `library`, or `uploaded` — what the reader
+    brought themselves, and anything that cannot be named."""
+    via = str(job.options.get("via") or "")
+    if via == "find":
+        return "suggested"
+    if via == "subscription" or job.kind == "subscription":
+        return "subscribed"
+    if catalogued:
+        return "library"
+    return "uploaded"
+
+
 @dataclass
 class Job:
     id: str
@@ -1488,6 +1580,18 @@ class Job:
     #: Whether `known_share` is our estimate rather than the marked share (design.md
     #: §12, "A text's figure is our estimate until your marks settle it", 2026-11-04).
     known_estimated: bool = False
+    #: The reader pressed Stop on it while it ran (targum-internal#694). Never stored: it
+    #: is read by the thread building it, at the build's own checkpoints, and a build
+    #: read back after a restart is not running anywhere to be stopped.
+    stop: bool = False
+    #: The worker has taken it off the line. Set under `Library._pressing`, the lock a
+    #: cancel takes, so a waiting cancel and the worker never both win: one that lost to
+    #: the worker is a stop, never a refund for a build that is about to spend.
+    taken: bool = False
+    #: Seconds of this recording the reader already paid for in builds of it they
+    #: stopped, taken off its claim (targum-internal#694, "credit the retry"). Never
+    #: stored: the claim's `length` is the record, and this only caps a stop's receipt.
+    credited: float = 0.0
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -1506,6 +1610,11 @@ class Job:
             "id": self.id,
             "made": self.made,
             "title": self.title,
+            # Where it came from, and the show or channel it is from (targum-internal
+            # #691): the waiting card's badge and its line under the title.
+            "came": came_of(self, catalogued=entry is not None),
+            "show": str((self.options.get(NAMED) or {}).get("show") or ""),
+            "by": str((self.options.get(NAMED) or {}).get("by") or ""),
             # The subtitle in the reader's own language where the catalogue has one,
             # as the Library says it (beta review, 2026-11-03, R8).
             "english": (named or entry.english) if entry else "",
@@ -1838,7 +1947,7 @@ class Jobs(dict[str, Job]):
         keep: list[Job] = []
         for key, job in list(self.builds.items()):
             gone = key not in self
-            settled = job.stage in ("done", "failed", "blocked") and job.made < cutoff
+            settled = job.stage in Library.SETTLED and job.made < cutoff
             if gone or settled:
                 self.builds.pop(key, None)
                 continue
@@ -2099,8 +2208,9 @@ class Library:
             reading=float(row["reading"] or 0.0),
         )
 
-    #: Stages a job does not come back from. Reaching one stamps `finished`.
-    SETTLED = ("done", "failed", "blocked")
+    #: Stages a job does not come back from. Reaching one stamps `finished`. `cancelled`
+    #: is a build its reader cancelled or stopped (targum-internal#694).
+    SETTLED = ("done", "failed", "blocked", "cancelled")
 
     def remember(self, job: Job) -> None:
         """Put a job's current state on disk. Cheap, and safe to call often."""
@@ -2172,7 +2282,7 @@ class Library:
             # (`drain`): a build that raised past `run` would otherwise hold every
             # deploy for the whole of `DRAIN_SECONDS`.
             try:
-                if job is not None and not self._owner_gone(job):
+                if job is not None and self._take(job) and not self._owner_gone(job):
                     try:
                         self.run(job)
                     finally:
@@ -2181,6 +2291,17 @@ class Library:
                 log.warning("worker: a build raised past run: %s", error)
             finally:
                 self.queue.task_done()
+
+    def _take(self, job: Job) -> bool:
+        """Take a job off the line to build it, unless its reader cancelled it while it
+        waited (targum-internal#694). Under the lock `cancel` takes, so the two decide
+        once between them: a cancel that comes after this is a stop, and a job cancelled
+        before it is skipped with its claim already handed back."""
+        with self._pressing:
+            if job.stage == "cancelled":
+                return False
+            job.taken = True
+            return True
 
     def _owner_gone(self, job: Job) -> bool:
         """Whether the account this build is for has been deleted since it was queued.
@@ -2236,23 +2357,144 @@ class Library:
         working = any(job.stage == "working" for job in builds)
         waiting = sorted((job for job in builds if job.stage == "queued"), key=lambda j: j.made)
         position = {job.id: index + (1 if working else 0) for index, job in enumerate(waiting)}
+        # What stands ahead of each waiting build, in line order: the one being worked
+        # on, then those queued before it (targum-internal#694). The waiting card offers
+        # to cancel the reader's own; another reader's is only counted, never named.
+        line = [job for job in builds if job.stage == "working"] + waiting
         out: list[dict[str, Any]] = []
         for job in sorted(builds, key=lambda j: j.made, reverse=True):
             if job.owner != owner:
                 continue
-            if job.stage in ("reading", "ready"):
+            if job.stage in ("reading", "ready", "cancelled"):
                 # Priced and not yet started: nothing is building, so there is nothing
-                # to follow. The page that asked for the price is still showing it.
+                # to follow. The page that asked for the price is still showing it. A
+                # cancelled build is gone from every list the moment it is cancelled.
                 continue
-            out.append(
-                {
-                    **job.state(),
-                    "behind": position.get(job.id, 0),
-                    # Whether putting the strip away can honestly promise an email.
-                    "mail": self.can_mail(owner),
-                }
-            )
+            row = {
+                **job.state(),
+                "behind": position.get(job.id, 0),
+                # Whether putting the strip away can honestly promise an email.
+                "mail": self.can_mail(owner),
+                **self.cancelling(job),
+            }
+            if job.stage == "queued" and job.id in position:
+                ahead = line[: line.index(job)]
+                row["ahead"] = [
+                    {"id": one.id, "title": one.title, "stage": one.stage, **self.cancelling(one)}
+                    for one in ahead
+                    if one.owner == owner
+                ]
+                row["ahead_others"] = sum(1 for one in ahead if one.owner != owner)
+            out.append(row)
         return out
+
+    #: What a running build can be stopped in: the builds that make a reader from
+    #: nothing (`run`) or hear one more part (`run_part`), whose every stage passes the
+    #: build's own checkpoints. A chapter, a voice, a cover or a correction rewrites a
+    #: reader that already exists, so it is cancelled while it waits and never stopped
+    #: half-way (targum-internal#694).
+    UNSTOPPABLE = ("cover", "chapters", "voice", "words_again", "again")
+
+    def stoppable(self, job: Job) -> bool:
+        return job.kind in BUILD_KINDS and not any(job.options.get(k) for k in self.UNSTOPPABLE)
+
+    def cancelling(self, job: Job) -> dict[str, Any]:
+        """What the page may offer on a build: `cancellable` while it waits, or while it
+        runs where it can be stopped, and `stopping` once a stop has been asked."""
+        waiting = job.stage == "queued" and not job.taken
+        running = job.stage == "working" or (job.stage == "queued" and job.taken)
+        return {
+            "cancellable": waiting or (running and self.stoppable(job) and not job.stop),
+            "stopping": running and job.stop,
+        }
+
+    def cancel(self, job: Job, *, waiting: bool = False) -> str:
+        """The reader's Cancel on one of their own builds (targum-internal#694; the
+        caller has checked it is theirs). Returns what happened: `cancelled` (it was
+        waiting: every credit and dollar it held goes back, through `release`, the
+        road a refused build takes), `stopping` (it is running: it stops at its next
+        checkpoint and settles to its receipt, `_stopped`), `finished` (it got there
+        first), `over` (it failed, was refused, or was never pressed: nothing is
+        running), `started` (the page thought it was waiting, `waiting`, and it has
+        started since: the page asks its question before a stop), or `unstoppable` (it
+        is running and is not a build that can stop).
+
+        A waiting build that already paid for something (reading its pictures, which
+        `_read_pages` settles before the press) keeps that on the rails: it is settled to
+        what it spent, with no credits, as `_blame` does (qa-claude on #1199). Only what
+        was held and not spent goes back.
+
+        Under `_pressing`, which `press` and the worker's `_take` hold too, so a press, a
+        take and a cancel decide once between them. Nothing is reordered; whoever was
+        behind a cancelled build moves up because `mine` counts only what is queued.
+        """
+        with self._pressing:
+            if job.stage == "queued" and not job.taken:
+                job.stage = "cancelled"
+                job.message = ""
+                if job.spent > 0:
+                    self.settle(job, length=0.0)
+                    if self.store is not None:
+                        self.store.return_credit(job.id)
+                else:
+                    self.release(job)
+                self.remember(job)
+                return "cancelled"
+            if job.stage == "working" or (job.stage == "queued" and job.taken):
+                if not self.stoppable(job):
+                    return "unstoppable"
+                if waiting and not job.stop:
+                    return "started"
+                job.stop = True
+                return "stopping"
+            if job.stage == "cancelled":
+                return "cancelled"
+            if job.stage == "done":
+                return "finished"
+            return "over"
+
+    def _checkpoint(self, job: Job) -> None:
+        """Where a running build stops once its reader asked (targum-internal#694): at
+        a stage's line, or a batch counted after it is written down. Only while it is
+        working: once its reader is drawn it is done, and nothing takes that back."""
+        if job.stop and job.stage == "working":
+            raise Stopped(job.id)
+
+    def _narrated(self, job: Job) -> Callable[[str], None]:
+        def notify(message: str) -> None:
+            self._checkpoint(job)
+            job.message = message
+
+        return notify
+
+    def _counted(self, job: Job) -> Callable[[int], None]:
+        def progress(done: int) -> None:
+            job.done += done
+            self._checkpoint(job)
+
+        return progress
+
+    def _stopped(self, job: Job, builder: Build, reading: float = 0.0) -> None:
+        """A build its reader stopped, settled to its receipt like any build (David,
+        2026-11-13: charged for what was done, never refunded in full). The money is
+        what the API said so far; the credits, for a recording, the seconds actually
+        heard in this run, never more than were claimed. A text uses none either way.
+        What was bought stays cached, so starting it again does not buy it twice."""
+        spent = builder.spent
+        job.spent = spent.cost() + reading
+        heard = sum(spent.seconds_by_model.values())
+        metered = job.audio and not job.gift
+        job.stage = "cancelled"
+        job.message = ""
+        # Never more than it claimed: a retry credited with what an earlier stop paid
+        # for (#694) claimed less than its seconds.
+        claimed = max(0.0, job.seconds - job.credited)
+        self.settle(job, length=min(heard, claimed) if metered else None)
+        # It did not go ahead: what it was credited is the reader's again, beside the
+        # seconds it heard itself (#694).
+        if self.store is not None:
+            self.store.return_credit(job.id)
+        self.remember(job)
 
     def can_mail(self, owner: int | None) -> bool:
         """Whether a finished build could reach this person by email at all: hosted,
@@ -2439,18 +2681,20 @@ class Library:
         said = said_in(ui, "date.month-day", "{month} {day}", month=named, day=1)
         return said.replace(" ", "\u00a0")
 
-    def settle(self, job: Job) -> None:
+    def settle(self, job: Job, length: float | None = None) -> None:
         """Swap what a build reserved for what it spent — and, for a turn of
-        conversation, the seconds it was reserved at for the seconds it ran to."""
+        conversation, the seconds it was reserved at for the seconds it ran to.
+        `length` is a stopped build's seconds heard (`_stopped`), never more than it
+        claimed."""
         if self.store is not None:
             # A turn of conversation and a voice made for a text both come out of the
             # hours, so both settle their seconds (targum-internal#246). A gift does not:
             # it claimed no length, and settling its seconds put them on the reader's
             # month after all (found for targum-internal#543).
             metered = job.kind in ("chat", "voice") and not job.gift
-            self.store.settle(
-                job.id, job.spent, length=job.seconds if metered else None, cache=job.cached
-            )
+            if length is None and metered:
+                length = job.seconds
+            self.store.settle(job.id, job.spent, length=length, cache=job.cached)
 
     def release(self, job: Job) -> None:
         """Give back what a failed build had claimed but never spent."""
@@ -4758,7 +5002,8 @@ class Library:
             job.stage = "failed"
             return
         try:
-            found = from_ytdlp(described(job.source))
+            info = described(job.source)
+            found = from_ytdlp(info)
         except TargumError as refusal:
             # An age gate, a private video, a region block — yt-dlp's own sentence is
             # better than anything written here, and a refusal travels on the job the
@@ -4791,7 +5036,16 @@ class Library:
             job.stage = "failed"
             return
 
-        job.title = found.title.strip() or job.source
+        job.title = found.title.strip() or job.title or job.source
+        # Whose video it is, as the host said it: the channel (targum-internal#691). A
+        # find's own naming, written when it was pressed, stands.
+        channel = str(info.get("channel") or info.get("uploader") or "").strip()
+        if channel and not (job.options.get(NAMED) or {}).get("show"):
+            job.options[NAMED] = named(
+                show=channel,
+                date=_upload_day(str(info.get("upload_date") or "")),
+                page=str(info.get("webpage_url") or ""),
+            )
         # Charged against the hours, like every other recording: `claim` spends
         # `job.seconds` against the month's allowance when `job.audio` is set, so the
         # rate limit this needed is the one the pricing page already promised rather
@@ -4871,7 +5125,9 @@ class Library:
         from .transcribe import PRICES, default_name
         from .transcribe import build as build_transcriber
 
-        job.title = found.title or job.source
+        # A title already known (a find's, a subscription item's) beats the address an
+        # audio file's link is named by when it says nothing of itself.
+        job.title = found.title or job.title or job.source
         job.audio = True
         job.seconds = float(found.seconds or 0.0) or TARGET_MINUTES_GUESS * 60.0
         job.parts = max(1, round(job.seconds / 720))
@@ -4935,16 +5191,28 @@ class Library:
                 length=job.seconds if job.audio and not job.gift else 0.0,
                 per_month_length=None if admin else self.allowance(),
                 gift=job.gift,
+                # A recording the reader stopped part way and started again pays only
+                # for what they have not paid for yet (David, 2026-11-13).
+                credit_from=job.source if job.audio and not job.gift else None,
             )
             if not refused:
+                job.credited = self._credited(job)
                 return ""
             if refused == "hours" and self._held_to_free(job):
                 return self._plan_refusal(job)
             if refused == "hours" and job.owner is not None:
                 allowed = self.allowance() or 0.0
                 used = self.store.hours_used(job.owner, self._month_from())
+                credit = (
+                    self.store.prepaid(job.owner, job.source, job.id)
+                    if job.audio and not job.gift
+                    else 0.0
+                )
                 return self._out_of(
-                    refused, job.ui, need=job.seconds, left=max(0.0, allowed - used)
+                    refused,
+                    job.ui,
+                    need=max(0.0, job.seconds - credit),
+                    left=max(0.0, allowed - used),
                 )
             return self._out_of(refused, job.ui)
         with self.lock:
@@ -4952,6 +5220,14 @@ class Library:
             if not blocked:
                 self._committed += job.estimate
             return blocked
+
+    def _credited(self, job: Job) -> float:
+        """What the claim took off a recording's seconds: its seconds less the `length`
+        the row holds now. Zero for everything else."""
+        if self.store is None or not job.audio or job.gift:
+            return 0.0
+        row = self.store.db.execute("SELECT length FROM job WHERE id = ?", (job.id,)).fetchone()
+        return max(0.0, job.seconds - float(row["length"])) if row else 0.0
 
     def claim_set(self, jobs: list[Job], ui: str = "en") -> tuple[str, float, str]:
         """Claim every build in a set, or none (#365, design.md §12: one press takes a
@@ -4997,7 +5273,10 @@ class Library:
             return blocked, 0.0, "everyone" if blocked else ""
 
     #: The stages a pressed job is in. A press on one of these has already happened.
-    PRESSED = frozenset({"queued", "working", "done"})
+    #: `cancelled` too (qa-claude on #1199): a press on a cancelled or stopped build
+    #: would claim over its receipt, so it is left as it is, and starting it again is a
+    #: new quote with a new id.
+    PRESSED = frozenset({"queued", "working", "done", "cancelled"})
 
     def press(self, job: Job) -> str:
         """A reader's press on a quote: claim it, then queue it. The blocking sentence, or "".
@@ -5201,10 +5480,9 @@ class Library:
             job.stage = "working"
             self.remember(job)
             builder = self._builder(job)
-            builder.notify = lambda message: setattr(job, "message", message)
-
-            def progress(done: int) -> None:
-                job.done += done
+            # The build's own lines and counts are where a stop is heard (#694).
+            builder.notify = self._narrated(job)
+            progress = self._counted(job)
 
             def ready(result: Result) -> None:  # noqa: D401
                 # The page is watching for this and navigates as soon as it sees it.
@@ -5237,6 +5515,8 @@ class Library:
             self.settle(job)
             self.remember(job)
             self.propose(job)
+        except Stopped:
+            self._stopped(job, builder, job.reading)
         except TargumError as error:
             self._unpool(job, error)
             self._blame(job, told(job.ui, error, hosted=self.hosted))
@@ -5778,7 +6058,7 @@ class Library:
                 )
             builder = self._builder(job)
             builder._resolved_out = folder
-            builder.notify = lambda message: setattr(job, "message", message)
+            builder.notify = self._narrated(job)
             wanted = [int(n) for n in job.options.get("parts") or []]
 
             def ready(result: Result) -> None:
@@ -5791,7 +6071,7 @@ class Library:
                 self.tell(job)
 
             result = builder.run(
-                on_progress=lambda done: setattr(job, "done", job.done + done),
+                on_progress=self._counted(job),
                 on_ready=ready,
                 chapters=FIRST_CHAPTERS,
                 also=wanted,
@@ -5799,6 +6079,8 @@ class Library:
             job.spent = result.spent.cost()
             self.settle(job)
             self.remember(job)
+        except Stopped:
+            self._stopped(job, builder)
         except TargumError as error:
             self._blame(job, told(job.ui, error, hosted=self.hosted))
         except Exception as error:
@@ -6228,6 +6510,13 @@ class Library:
             build.beside = lambda folder, document: self.keep_post(job, folder, document)
             if said.get("film"):
                 build.caption = str(said.get("caption") or "")
+        elif job.options.get(NAMED):
+            # Where it is from, beside the reader, for its head (targum-internal#691).
+            # A post keeps its own head, so this is for everything else.
+            from .render.builder import keep_from
+
+            known = dict(job.options[NAMED])
+            build.beside = lambda folder, document: keep_from(folder, known)
         return build
 
 
@@ -6947,14 +7236,18 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             row = dict(row)
             if "behind" not in row and job.stage == "queued":
-                row["behind"] = next(
-                    (
-                        int(mine.get("behind") or 0)
-                        for mine in self.library.mine(job.owner)
-                        if mine["id"] == job.id
-                    ),
-                    0,
+                # Its place, and what is ahead of it that the reader could cancel
+                # (targum-internal#694), from the same answer the list gives.
+                listed = next(
+                    (mine for mine in self.library.mine(job.owner) if mine["id"] == job.id),
+                    {},
                 )
+                row["behind"] = int(listed.get("behind") or 0)
+                for key in ("ahead", "ahead_others"):
+                    if key in listed:
+                        row[key] = listed[key]
+            if "cancellable" not in row:
+                row.update(self.library.cancelling(job))
             row.update(chat_tools.progress_of(job, int(row.get("behind") or 0), language))
             # Which text and which of its parts, so a recording's contents page can say
             # on each waiting row that it is being made and follow it live (2026-10-07):
@@ -8018,6 +8311,9 @@ class Handler(BaseHTTPRequestHandler):
         link = kept_link(form.get("link", ""))
         payload = {
             "email": email,
+            # Which page, or which link's tag, the form stood on: kept on a new account
+            # as the waitlist keeps it on a row (targum-internal#676).
+            "from": form.get("from", ""),
             "into": said,
             "next": "/add?source=" + quote(link, safe="") if link else "",
         }
@@ -8163,6 +8459,8 @@ class Handler(BaseHTTPRequestHandler):
                         "We couldn't open that link. Check it and try again.",
                     )
                 }
+        # The tag the page was opened with rides through a try (targum-internal#676).
+        came = joined_from(form.get("from", ""))
         # The box stands on /after-duolingo-hebrew too (targum-internal#676), and answers on the
         # page it was pressed on. That page is English only, so its answer is too (`said`).
         if on_guide:
@@ -8171,9 +8469,16 @@ class Handler(BaseHTTPRequestHandler):
                 signed_in=self._person() is not None,
                 tried=tried,
                 linked=shelves_are_public(),
+                came=came,
             )
             return self._send(200, page.encode("utf-8"), HTML)
-        page = front_page(language=said, address=self.address, asked=self._asked(), tried=tried)
+        page = front_page(
+            language=said,
+            address=self.address,
+            asked=self._asked(),
+            tried=tried,
+            came=came,
+        )
         return self._send(200, page.encode("utf-8"), HTML)
 
     def _waitlist_post(self, route: str, form: dict[str, str]) -> None:
@@ -9962,6 +10267,7 @@ class Handler(BaseHTTPRequestHandler):
                 address=self.address,
                 asked=self._asked(),
                 signed_in=self._person() is not None,
+                came=came_from(urlparse(self.path).query),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         # The page for course graduates (targum-internal#676), on /aliyah's terms: there
@@ -9969,12 +10275,13 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/after-duolingo-hebrew":
             if not front_door_is_open():
                 return self._send(404, b"not found", "text/plain")
-            # TODO(targum#1186): hand the page came_from(<this query>) or "after-duolingo-hebrew",
-            # so an ad's utm_source rides in the form; whichever PR merges second wires it.
+            # The tag the link carried (`came_from`, #1186), so an ad's utm_source rides
+            # in the page's forms; with none, the page names itself.
             page = after_duolingo_page(
                 address=self.address,
                 signed_in=self._person() is not None,
                 linked=shelves_are_public(),
+                came=came_from(urlparse(self.path).query),
             )
             return self._send(200, page.encode("utf-8"), HTML)
         if route in OAUTH_METADATA:
@@ -10150,7 +10457,10 @@ class Handler(BaseHTTPRequestHandler):
             # a page about the product and not a stand-in for one of its rooms.
             if route == "/" and front_door_is_open():
                 page = front_page(
-                    language=self._public_language(), address=self.address, asked=self._asked()
+                    language=self._public_language(),
+                    address=self.address,
+                    asked=self._asked(),
+                    came=came_from(urlparse(self.path).query),
                 )
                 return self._send(200, page.encode("utf-8"), HTML)
             # Every other room is a door back to itself (design.md §12, 2026-10-11; QA
@@ -10199,6 +10509,7 @@ class Handler(BaseHTTPRequestHandler):
                 signin_page(
                     language=self._public_language(),
                     asked=self._asked(),
+                    address=self.address,
                     back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
                     # "New here? Join the waitlist" up front (beta review PUB-05,
                     # 2026-11-03), where an address has to have been invited and the
@@ -10745,6 +11056,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._cover(payload)
         if route == "/jobs/watch":
             return self._watch_job(payload)
+        if route == "/jobs/cancel":
+            return self._cancel_job(payload)
         if route == "/trash":
             return self._trash(payload)
         if route == "/restore":
@@ -12052,7 +12365,7 @@ class Handler(BaseHTTPRequestHandler):
                 and other.home == home
                 and other.options.get("folder") == folder
                 and other.options.get("section") == number
-                and other.stage not in ("done", "failed", "blocked")
+                and other.stage not in Library.SETTLED
             ),
             None,
         )
@@ -14428,7 +14741,7 @@ class Handler(BaseHTTPRequestHandler):
                 429,
             )
         language = self._mail_language(email, payload.get("into"))
-        token = self.store.start_sign_in(email)
+        token = self.store.start_sign_in(email, joined_from(str(payload.get("from") or "")))
         link = f"{self.address}/account/enter?t={token}"
         # The room the reader was turned away from rides in the link itself (QA
         # 2026-10-11, D2), not in a cookie as a Connect does: a link opened on the phone
@@ -16020,8 +16333,22 @@ class Handler(BaseHTTPRequestHandler):
             if (rungs or every) and index.texts
             else None
         )
+        # What the reader's words reach, and the one level on the page (below), come first:
+        # Texts by level never says Easy or Next above the level the Reading level card
+        # shows (targum-internal#693).
+        found = self._snapshot(person, language)
+        foot = self._foot_level(person, language, found) or self._checked_level(
+            person, language, found
+        )
+        reached = (
+            touchstones.reached_by(
+                found, str(foot.get("cefr") or "") if foot and foot.get("from") else None
+            )
+            if found is not None
+            else None
+        )
         answer.update(
-            touchstones.standing(rungs, known_of)
+            touchstones.standing(rungs, known_of, reached)
             if rungs and known_of is not None
             else {"ladder": [], "here": None, "next": None}
         )
@@ -16035,7 +16362,6 @@ class Handler(BaseHTTPRequestHandler):
             }
         # What the reader's words say of each row: reached, or the words left to it
         # (design.md §12, "Your level, v3", 2026-10-29).
-        found = self._snapshot(person, language)
         if found is not None:
             touchstones.words_to_go(answer["ladder"], found)
         # Whether the shelf has conversations, which week one offers as the first pick.
@@ -16048,9 +16374,7 @@ class Handler(BaseHTTPRequestHandler):
         # reach one, the rung their words check put them at, labelled so (design.md §12,
         # "Your level comes from your words check until your marks reach one",
         # 2026-11-04). Never the rung they only said.
-        answer["level"] = self._foot_level(person, language, found) or self._checked_level(
-            person, language, found
-        )
+        answer["level"] = foot
         # Week one: no rung yet, and the words left to the first (design.md §12, "Your
         # level, v3"): the bar and "{n} words to א׳" on the Start card. Not for a reader
         # whose words check gave them a level: "Start with beginner texts" contradicted
@@ -16643,6 +16967,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
+        # What a source is called and whose it is (targum-internal#691) is written by the
+        # server from what it already holds, never taken from a request.
+        payload = {key: value for key, value in payload.items() if key != NAMED}
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),
@@ -16714,6 +17041,9 @@ class Handler(BaseHTTPRequestHandler):
             ui=self._page_language(),
             id=secrets.token_hex(8),
             source=found.url,
+            # The card's own title, so the card that waits for it says the same thing
+            # and never the audio file's address (targum-internal#691).
+            title=found.title,
             options={
                 "to": into,
                 "from": found.language,
@@ -16723,6 +17053,12 @@ class Handler(BaseHTTPRequestHandler):
                 # back office counts finds opened off this, and the pool id with it.
                 "via": "find",
                 "find": found.id,
+                NAMED: named(
+                    show=found.publisher if found.medium != "text" else "",
+                    by=found.author,
+                    date=found.published,
+                    page=found.page or (found.url if found.medium == "video" else ""),
+                ),
             },
             owner=person.id,
             admin=bool(person.admin),
@@ -17554,12 +17890,58 @@ class Handler(BaseHTTPRequestHandler):
         job = self._own_job(str(payload.get("id") or ""))
         if job is None:
             return self._json({"error": "not found"}, 404)
-        finished = job.stage in ("done", "failed", "blocked")
+        finished = job.stage in Library.SETTLED
         watching = self.library.can_mail(job.owner) and not finished
         if watching:
             job.options["mail"] = True
             self.library.remember(job)
         self._json({"watching": watching})
+
+    def _cancel_job(self, payload: dict[str, Any]) -> None:
+        """Cancel one of the reader's own builds, waiting or running (targum-internal
+        #694). Another reader's id is not found, as `/job/<id>` and `/jobs/watch` say of
+        it: a build is cancelled by whoever pressed for it and by nobody else."""
+        job = self._own_job(str(payload.get("id") or ""))
+        if job is None:
+            return self._json({"error": "not found"}, 404)
+        said = self.library.cancel(job, waiting=bool(payload.get("waiting")))
+        if said == "started":
+            # The page last saw it waiting and it has started since: nothing is done,
+            # and the page asks its one question before a stop (qa-claude on #1199).
+            return self._json({"started": True, "stage": "working"}, 409)
+        if said == "over":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cancel.over",
+                        "It isn't being made any more, so there's nothing to cancel.",
+                    ),
+                    "stage": job.stage,
+                },
+                409,
+            )
+        if said == "unstoppable":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cancel.unstoppable",
+                        "This one can't be stopped once it has started. It won't be long.",
+                    ),
+                    "stage": job.stage,
+                },
+                409,
+            )
+        if said == "finished":
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.cancel.finished", "It finished before we could stop it."
+                    ),
+                    "stage": job.stage,
+                },
+                409,
+            )
+        self._json({"cancelled": said == "cancelled", "stopping": said == "stopping"})
 
     def _trash(self, payload: dict[str, Any]) -> None:
         name = str(payload.get("name") or "")

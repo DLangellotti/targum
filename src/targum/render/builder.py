@@ -986,9 +986,25 @@ ASSET_ROUTE = "/assets/"
 #: `no-store`. A first visit still gets each of them whole (`first_visit`).
 #: The public Library and its kind pages (`shelf.html.j2`) joined them on 2026-10-29
 #: (targum-internal#558): missed in #549, so it still carried 65 kB of faces and 119 kB of
-#: CSS on every visit, the public page nearest §14's 1.5 s on a phone.
+#: CSS on every visit, the public page nearest §14's 1.5 s on a phone. How it works, the
+#: credits, /connect signed out and /aliyah joined on 2026-11-13 (targum-internal#484):
+#: missed the same way, they carried 67 to 96 kB of faces in `<head>`, and /how was over
+#: 1.5 s on Slow 4G. None of them is opened off a disk, framed or kept by the worker.
+#: /after-duolingo-hebrew joined with them (targum-internal#676), on the same terms: only
+#: ever served, and it wears the front door's own files.
 PUBLIC_PAGES = frozenset(
-    {"about.html.j2", "landing.html.j2", "legal.html.j2", "shelf.html.j2", "text.html.j2"}
+    {
+        "about.html.j2",
+        "after_duolingo.html.j2",
+        "aliyah.html.j2",
+        "connect.html.j2",
+        "credits.html.j2",
+        "how.html.j2",
+        "landing.html.j2",
+        "legal.html.j2",
+        "shelf.html.j2",
+        "text.html.j2",
+    }
 )
 
 #: What a public page says on its `<html>`, so a first visit to it warms only the files
@@ -1328,6 +1344,12 @@ def public_files(language: str) -> tuple[str, ...]:
     pages = [
         front_page(language),
         about_page(language),
+        how_page(language),
+        credits_page(language),
+        connect_page(language),
+        aliyah_page(language),
+        # English only, so it names English's faces and is read for English's set alone.
+        *([after_duolingo_page()] if language == "en" else []),
         text_page(entry, language=language),
         shelf_page(language=language),
         *(legal_page(which) for which in LEGAL),
@@ -2828,6 +2850,7 @@ def front_page(
     address: str = "",
     asked: str = "",
     tried: dict[str, Any] | None = None,
+    came: str = "",
 ) -> str:
     """The front door: what a stranger meets once there is something to meet them with.
 
@@ -2841,9 +2864,14 @@ def front_page(
     `tried` is what the box under the headline found in a link a visitor pasted
     (`serve.tried_for`, targum-internal#399): the page comes back with the answer in
     place of the box's empty state and the waitlist's form carrying the link.
+
+    `came` is the tag the link to the page carried (`serve.came_from`,
+    targum-internal#676), already narrowed: the forms say it as where they stand, so
+    joining counts the channel without any pixel.
     """
     from ..ingest import x as x_door
 
+    shelf_n = hebrew_shelf_size()
     words = page_words(language)
     _front_at = _addressed_in(address.rstrip("/") + "/" if address else "", language)
     return (
@@ -2864,9 +2892,11 @@ def front_page(
                 "your own. Vowels on every word, English beside every line, and any word "
                 "explained the moment you tap it.",
             ),
-            joined_from="/",
+            joined_from=came or "/",
             tried=tried,
             tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             canonical=_front_at[0],
             alternates=_front_at[1],
             strings=script_strings(language, "landing."),
@@ -2878,7 +2908,11 @@ def front_page(
 
 
 def aliyah_page(
-    language: str = "en", address: str = "", asked: str = "", signed_in: bool = False
+    language: str = "en",
+    address: str = "",
+    asked: str = "",
+    signed_in: bool = False,
+    came: str = "",
 ) -> str:
     """The olim's own door, at `/aliyah` (targum-internal#385, 2026-09-29).
 
@@ -2892,7 +2926,10 @@ def aliyah_page(
 
     `signed_in` takes the waitlist off the page, as it does on `/connect`: somebody who
     has already chosen targum is not asked to join (§6).
+
+    `came` is the tag the link to the page carried, as on the front page (#676).
     """
+    shelf_n = hebrew_shelf_size()
     words = page_words(language)
     here, alternates = _addressed_in(f"{address.rstrip('/')}/aliyah" if address else "", language)
     return (
@@ -2903,6 +2940,9 @@ def aliyah_page(
             page_language=_page_language(language),
             asked=asked,
             signed_in=signed_in,
+            tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             title=words("aliyah.head.title", "targum — Hebrew for life in Israel"),
             description=words(
                 "aliyah.head.description",
@@ -2912,6 +2952,7 @@ def aliyah_page(
             ),
             canonical=here,
             alternates=alternates,
+            joined_from=came or here,
         )
     )
 
@@ -3089,6 +3130,7 @@ def after_duolingo_page(
     signed_in: bool = False,
     tried: dict[str, Any] | None = None,
     linked: bool = True,
+    came: str = "",
 ) -> str:
     """The page for somebody who has finished Duolingo Hebrew, or a course like it, at
     `/after-duolingo-hebrew` (targum-internal#676, step 3).
@@ -3112,8 +3154,15 @@ def after_duolingo_page(
     answer when a link was tried here (`serve._try_post` with `on=after-duolingo-hebrew`).
     `linked` is whether a stranger can open a library text (`serve.shelves_are_public`):
     where not, the first texts are named without links that would end at a refusal.
+
+    `came` is the tag the link to the page carried (`serve.came_from`, #1186), as on the
+    front page: the forms say it, and the sign-in link carries it. With none, the page
+    names itself (`after-duolingo-hebrew`, counted as `/after-duolingo-hebrew`).
     """
     words = page_words("en")
+    # A narrowed tag, or a family's path from a try's `from`; the sign-in link wants the
+    # bare tag either way.
+    tag = came.strip("/") or AFTER_DUOLINGO_FROM
     here = f"{address.rstrip('/')}/after-duolingo-hebrew" if address else ""
     firsts = after_duolingo_firsts()
     # The reader at the top shows four lines of this one, and its foot opens it.
@@ -3136,9 +3185,9 @@ def after_duolingo_page(
             ),
             canonical=here,
             alternates=[],
-            joined_from=AFTER_DUOLINGO_FROM,
+            joined_from=tag,
             try_on=AFTER_DUOLINGO_FROM,
-            came_from=AFTER_DUOLINGO_FROM,
+            came_from=tag,
             tried=tried,
             try_this=after_duolingo_try(),
             story_words=after_duolingo_story(),
@@ -3355,7 +3404,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "8 November 2026"
+LEGAL_CHANGED = "12 November 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -3886,6 +3935,7 @@ def signin_page(
     lost: bool = False,
     back: str = "",
     join: str = "",
+    address: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -3909,14 +3959,27 @@ def signin_page(
     `join` is where the waitlist is, for "New here? Join the waitlist" under the heading
     (beta review PUB-05, 2026-11-03): only where an address must have been invited and
     the front door takes one, so a stranger learns that before typing, not after.
+
+    `address` is the public origin, for the head every public page carries: its
+    canonical and the picture a shared link shows (design's #477 pass, P2-13).
     """
     from .. import google as google_module
 
+    words = page_words(language)
     return (
         _environment()
         .get_template("signin.html.j2")
         .render(
-            t=page_words(language),
+            t=words,
+            # What targum is, the front door's own line: the page a shared sign-in link
+            # opens says so to a stranger, as every other public page does.
+            description=words(
+                "landing.head.description",
+                "Learn modern and biblical Hebrew from videos, podcasts and books, or bring "
+                "your own. Vowels on every word, English beside every line, and any word "
+                "explained the moment you tap it.",
+            ),
+            canonical=f"{address.rstrip('/')}/account/signin" if address else "",
             page_language=_page_language(language),
             asked=asked,
             landing=landing,
@@ -4144,6 +4207,7 @@ def connect_page(
     waitlist, and a stranger sent to the steps would otherwise meet a sign-in door they
     cannot get through.
     """
+    shelf_n = hebrew_shelf_size()
     said = page_words(language)
     # Its own address per language, like every other public page (#188): a crawler
     # cannot be told two languages of this exist unless each has a URL.
@@ -4154,6 +4218,9 @@ def connect_page(
         .render(
             t=said,
             page_language=_page_language(language),
+            tn=page_counts(language),
+            library_n=shelf_n,
+            library_count=_grouped(shelf_n, language),
             title=said("connect.head.title", "targum in Claude and ChatGPT"),
             description=said(
                 "connect.head.description",
@@ -4459,7 +4526,9 @@ def _shelf_rows(entries: Sequence[Entry], language: str) -> list[_ShelfRow]:
     code = _page_language(language)
     rows = []
     for entry in entries:
-        named = entry.name_in(code)
+        # A title already in the page's language needs no gloss under it: a Russian
+        # conversation on a Russian page drew its English name (design's #477 pass, P2-10).
+        named = "" if entry.language == code else entry.name_in(code)
         blurb = entry.blurb_in(code)
         rows.append(
             _ShelfRow(
@@ -4578,6 +4647,18 @@ def _shelf_languages(
         if listed:
             shelves.append(_ShelfLanguage(code, names.get(code, code), listed, kinds))
     return shelves
+
+
+def hebrew_shelf_size() -> int:
+    """How many Hebrew texts and videos the public Library stands: the number its Hebrew
+    group's heading says ("Hebrew · 948 texts"), and the one figure the landing, /aliyah
+    and /connect sell (design's #477 pass, P2-7, 2026-11-12). Drawn from the shelf so it
+    never goes stale, and Hebrew only, since those pages sell Hebrew: a count of every
+    language would sell a Hebrew learner the French and Russian shelves (§6)."""
+    from ..catalogue import everything
+
+    kinds = {kind for kind, _ in _SHELF_KINDS}
+    return sum(1 for entry in everything() if entry.language == "he" and entry.shelf in kinds)
 
 
 def kind_address(language: str, kind: str) -> str:
@@ -6691,6 +6772,70 @@ def _rides_late(entry: dict[str, Any], key: str, drawn_at: int) -> bool:
     return bool(entry.get("companion")) and bool(entry.get("commented")) and key != f"t{drawn_at}"
 
 
+#: Where a podcast episode or a video is from, beside its reader (targum-internal#691).
+FROM_FILE = "from.json"
+
+
+def keep_from(folder: Path, known: dict[str, Any]) -> None:
+    """Write what a build already knew of where its source is from — the show or
+    channel, who makes it, its day and its own page — beside the reader, for its head.
+    Nothing is fetched to make it; a failure here never fails the build."""
+    fields = {
+        key: known[key]
+        for key in ("show", "by", "date", "page")
+        if key in known and known[key] not in ("", 0, None)
+    }
+    if not fields.get("show"):
+        return
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / FROM_FILE).write_text(
+            json.dumps(fields, ensure_ascii=False, indent=1), encoding="utf-8"
+        )
+    except OSError:
+        return
+
+
+def from_card(folder: Path | None, language: str) -> dict[str, str] | None:
+    """The reader's head for a podcast episode or a video (targum-internal#691): the
+    show, who makes it, the day in the page's language and the episode's own page, from
+    `from.json`. None where the folder has none, as every text that is not one has."""
+    from ..strings import said_day
+
+    if folder is None:
+        return None
+    path = folder / FROM_FILE
+    if not path.is_file():
+        return None
+    try:
+        said = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(said, dict):
+        return None
+    show = str(said.get("show") or "").strip()
+    if not show:
+        return None
+    by = str(said.get("by") or "").strip()
+    page = str(said.get("page") or "").strip()
+    day = stamp = ""
+    try:
+        at = int(said.get("date") or 0)
+    except (TypeError, ValueError):
+        at = 0
+    if at > 0:
+        when = datetime.fromtimestamp(at / 1000, tz=UTC).date()
+        day, stamp = said_day(when, language, year=True), when.isoformat()
+    return {
+        "show": show,
+        "by": by if by.casefold() != show.casefold() else "",
+        "letter": show[:1].upper(),
+        "day": day,
+        "stamp": stamp,
+        "page": page if page.startswith(("https://", "http://")) else "",
+    }
+
+
 def text_credit_in(folder: Path | None) -> dict[str, str] | None:
     """A shared copy's credit (`credit.json`): the outlet, the original's address, the
     licence and its address. None for every other folder, and for one whose addresses are
@@ -7141,6 +7286,9 @@ def render(
     # pictures and the link home, and the rows the head takes the place of.
     chrome_language = translations[0].target_language if translations else "en"
     post, post_covers = post_card(folder, segmented, chrome_language)
+    # Where a podcast episode or a video is from, at the head of every part
+    # (targum-internal#691). A post's head already says whose it is.
+    heard_from = None if post else from_card(folder, chrome_language)
     # Read once for the whole text, so a switch thrown mid-build cannot give one chapter
     # the list and the next none.
     from .preread import SHOWN as PREREAD_SHOWN
@@ -7219,6 +7367,8 @@ def render(
         post["day"] = pieces.each(
             lambda code: (post_card(folder, segmented, code)[0] or {}).get("day", "")
         )
+    if heard_from is not None and heard_from.get("day"):
+        heard_from["day"] = pieces.each(lambda code: (from_card(folder, code) or {}).get("day", ""))
     offered = next_after(document)
     offers = offers_in(offered, chrome, said=pieces.words(page_words))
     shared = {
@@ -8020,6 +8170,7 @@ def render(
             preread_shown=PREREAD_SHOWN,
             # The post's card, on the page that opens the text (a post is one page).
             post=post if section.number == 1 else None,
+            heard_from=heard_from,
             # And where a film's caption starts, on whichever page it falls.
             post_caption=post["caption_from"] if post else "",
             verses=verses,

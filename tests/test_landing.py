@@ -488,6 +488,18 @@ def test_no_join_form_drops_the_language_that_was_pressed() -> None:
         ("/library/ruth", ""),
         ("/anything-at-all", ""),
         ("javascript:alert(1)", ""),
+        # A link's own tag (targum-internal#676): short, and of a closed alphabet.
+        ("after-duolingo", "after-duolingo"),
+        ("Meta.After-Duolingo", "meta.after-duolingo"),
+        ("a" * 33, ""),
+        ("two words", ""),
+        ("-dash-first", ""),
+        ("<b>hi</b>", ""),
+        # A tag that names a page family is that page, and the siddur's own links are the
+        # siddur, with JavaScript or without (qa-claude on targum#1186).
+        ("aliyah", "/aliyah"),
+        ("siddur-shacharit", "/siddur"),
+        ("siddur", "/siddur"),
     ],
 )
 def test_the_waitlist_keeps_only_a_page_of_targum_s_own(said: str, kept: str) -> None:
@@ -514,6 +526,62 @@ def test_the_front_door_says_which_page_its_form_is_on(
         "SELECT page FROM waiting WHERE email = ?", ("noa@example.com",)
     ).fetchone()
     assert row["page"] == "/"
+
+
+@pytest.mark.parametrize(
+    ("query", "tag"),
+    [
+        ("from=after-duolingo", "after-duolingo"),
+        ("from=after-duolingo&utm_source=meta", "after-duolingo"),
+        ("utm_source=meta&utm_campaign=after-duolingo", "meta.after-duolingo"),
+        ("utm_source=Meta", "meta"),
+        ("utm_campaign=after-duolingo", "after-duolingo"),
+        ("utm_source=meta&utm_campaign=" + "c" * 30, "meta"),
+        ("from=hello%20there", ""),
+        ("from=" + "x" * 40, ""),
+        ("lang=ru", ""),
+        ("", ""),
+    ],
+)
+def test_a_link_s_tag_is_read_off_the_page_s_address(query: str, tag: str) -> None:
+    """targum-internal#676: the channel is counted without any pixel, by the tag the
+    link to the page carried, and nothing else in the address is read."""
+    from targum.serve import came_from
+
+    assert came_from(query) == tag
+
+
+def test_the_tag_a_page_was_opened_with_is_kept_on_the_row(
+    served: tuple[int, Store, io.StringIO], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every form on the page says the tag in place of the page, the try box carries it
+    through, and joining keeps it (targum-internal#676)."""
+    port, store, _ = served
+    monkeypatch.setenv("TARGUM_FRONT_DOOR", "1")
+    status, page = get(port, "/?utm_source=meta&utm_campaign=after-duolingo")
+    assert status == 200
+    said = re.findall(r'<input type="hidden" name="from" value="([^"]*)">', page)
+    assert said and set(said) == {"meta.after-duolingo"}, said
+    post(port, "/waitlist", {"email": "noa@example.com", "from": said[0]})
+    row = store.db.execute(
+        "SELECT page FROM waiting WHERE email = ?", ("noa@example.com",)
+    ).fetchone()
+    assert row["page"] == "meta.after-duolingo"
+    # Through a try, the page comes back still carrying it: posted as the page's own try
+    # form would post it, so the form has to carry it (qa-claude on targum#1186).
+    try_form = re.search(r'<form class="try-form".*?</form>', page, re.S)
+    assert try_form is not None
+    fields = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)">', try_form[0]))
+    assert fields == {"from": "meta.after-duolingo"}
+    _, tried = post(port, "/try", {"link": "", **fields})
+    assert set(re.findall(r'<input type="hidden" name="from" value="([^"]*)">', tried)) == {
+        "meta.after-duolingo"
+    }
+    # The olim's door says it too; without a tag, both say their page as before.
+    _, aliyah = get(port, "/aliyah?from=ulpan-flyer")
+    assert '<input type="hidden" name="from" value="ulpan-flyer">' in aliyah
+    _, plain = get(port, "/?from=not%20a%20tag")
+    assert set(re.findall(r'<input type="hidden" name="from" value="([^"]*)">', plain)) == {"/"}
 
 
 def test_a_page_with_no_name_of_its_own_is_known_by_its_address() -> None:

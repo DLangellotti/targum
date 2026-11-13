@@ -11,11 +11,10 @@ import base64
 import hashlib
 import html
 import json
-import os
 import secrets
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -33,7 +32,7 @@ CALLBACK = "https://claude.ai/api/mcp/auth_callback"
 @pytest.fixture(scope="module")
 def connected(
     tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]
-) -> tuple[int, str, Path]:
+) -> Iterator[tuple[int, str, Path]]:
     """A hosted server with a reader signed in, as the deployment runs it."""
     tmp = tmp_path_factory.mktemp("connector")
     store_path = tmp / "targum.db"
@@ -43,29 +42,35 @@ def connected(
     assert signed_in is not None
     port = free_port()
     # Armed, the way `targum.env` arms it on the box: the connector ships dark
-    # and these tests are about what it does once somebody has turned it on.
-    os.environ["TARGUM_CONNECTOR"] = "1"
-    threading.Thread(
-        target=lambda: serve.start(
-            out=tmp / "out",
-            port=port,
-            open_browser=False,
-            store=store_path,
-            require_account=True,
-            public_address=PUBLIC,
-        ),
-        daemon=True,
-    ).start()
-    for _ in range(60):
-        try:
-            probe = HTTPConnection("127.0.0.1", port, timeout=1)
-            probe.request("GET", "/health")
-            probe.getresponse().read()
-            probe.close()
-            break
-        except OSError:
-            time.sleep(0.1)
-    return port, signed_in[1], store_path
+    # and these tests are about what it does once somebody has turned it on. The switch
+    # is read per request, so it is held for this file only and put back at its end:
+    # set bare, it stayed on for every file after this one (targum-internal#690).
+    armed = pytest.MonkeyPatch()
+    armed.setenv("TARGUM_CONNECTOR", "1")
+    try:
+        threading.Thread(
+            target=lambda: serve.start(
+                out=tmp / "out",
+                port=port,
+                open_browser=False,
+                store=store_path,
+                require_account=True,
+                public_address=PUBLIC,
+            ),
+            daemon=True,
+        ).start()
+        for _ in range(60):
+            try:
+                probe = HTTPConnection("127.0.0.1", port, timeout=1)
+                probe.request("GET", "/health")
+                probe.getresponse().read()
+                probe.close()
+                break
+            except OSError:
+                time.sleep(0.1)
+        yield port, signed_in[1], store_path
+    finally:
+        armed.undo()
 
 
 def get(
@@ -712,7 +717,9 @@ def test_a_token_is_never_in_the_account_answer(connected: tuple[int, str, Path]
 
 
 def test_every_door_is_shut_while_the_connector_is_off(
-    tmp_path_factory: pytest.TempPathFactory, free_port: Callable[[], int]
+    tmp_path_factory: pytest.TempPathFactory,
+    free_port: Callable[[], int],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """It ships dark, the way the front door does: the day it opens is one line in
     targum.env rather than a release."""
@@ -720,7 +727,7 @@ def test_every_door_is_shut_while_the_connector_is_off(
     store_path = tmp / "targum.db"
     Store(store_path)
     port = free_port()
-    was = os.environ.pop("TARGUM_CONNECTOR", None)
+    monkeypatch.delenv("TARGUM_CONNECTOR", raising=False)
     threading.Thread(
         target=lambda: serve.start(
             out=tmp / "out",
@@ -732,25 +739,21 @@ def test_every_door_is_shut_while_the_connector_is_off(
         ),
         daemon=True,
     ).start()
-    try:
-        for _ in range(60):
-            try:
-                probe = HTTPConnection("127.0.0.1", port, timeout=1)
-                probe.request("GET", "/health")
-                probe.getresponse().read()
-                probe.close()
-                break
-            except OSError:
-                time.sleep(0.1)
-        for route in [*serve.OAUTH_METADATA, "/connect", "/oauth/authorize", "/mcp"]:
-            assert get(port, route)[0] == 404, route
-        for route in serve.OAUTH_POSTS:
-            assert post(port, route, "")[0] == 404, route
-        assert post(port, "/mcp", '{"jsonrpc":"2.0","id":1,"method":"ping"}')[0] == 404
-        assert b"/connect" not in get(port, "/sitemap.xml")[1]
-    finally:
-        if was is not None:
-            os.environ["TARGUM_CONNECTOR"] = was
+    for _ in range(60):
+        try:
+            probe = HTTPConnection("127.0.0.1", port, timeout=1)
+            probe.request("GET", "/health")
+            probe.getresponse().read()
+            probe.close()
+            break
+        except OSError:
+            time.sleep(0.1)
+    for route in [*serve.OAUTH_METADATA, "/connect", "/oauth/authorize", "/mcp"]:
+        assert get(port, route)[0] == 404, route
+    for route in serve.OAUTH_POSTS:
+        assert post(port, route, "")[0] == 404, route
+    assert post(port, "/mcp", '{"jsonrpc":"2.0","id":1,"method":"ping"}')[0] == 404
+    assert b"/connect" not in get(port, "/sitemap.xml")[1]
 
 
 def test_the_approval_page_lets_the_press_reach_the_client(

@@ -393,3 +393,25 @@ def test_the_verdicts_are_said_in_russian(browser) -> None:
     assert page.title().startswith("Грамматика")
     assert not thrown
     context.close()
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_a_rules_hebrew_says_its_language(browser, language: str) -> None:
+    """§14, line 3 (targum-internal#477): a rule is said from Python, so no template tag
+    carries it, and its ו and יו were bare text inside an English or a Russian sentence."""
+    from targum import practices
+
+    rule = practices.rule("suffix", "3ms:his", language)
+    item = {**ITEM, "key": "k0", "example": True, "rule": rule}
+    answers = {"/account/practice": {**PRACTICE, "round": {"spot": "binyan", "items": [item]}}}
+    context, page, thrown, _, url = open_page(browser, "grammar", answers, language=language)
+    page.goto(url)
+    page.wait_for_selector(".grammar-rule")
+    runs = page.evaluate(
+        """() => [...document.querySelectorAll('.grammar-rule [lang="he"][dir="rtl"]')]
+             .map((e) => e.textContent)"""
+    )
+    assert runs == ["ו", "יו"]
+    assert page.locator(".grammar-rule").inner_text() == rule
+    assert not thrown
+    context.close()

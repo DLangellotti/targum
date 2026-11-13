@@ -165,6 +165,125 @@ def test_the_top_row_easy_has_no_next_step() -> None:
     assert got["here"] == 0 and got["next"] is None
 
 
+# -- Texts by level agrees with Reading level (targum-internal#693, 2026-11-13) ----------
+
+
+def reader_at(weighted: float, language: str = "he") -> Any:
+    """A reader's `level.snapshot` with this many weighted known words, nothing else."""
+    from targum.level import Level, ladder_for, standing
+
+    ladder = ladder_for(language)
+    assert ladder is not None
+    here, following = standing(weighted, ladder.rungs)
+    return Level(
+        language=language,
+        known=int(weighted),
+        learning=0,
+        weighted=weighted,
+        here=here,
+        next=following,
+        days=0,
+        streak=0,
+        longest=0,
+        sections=0,
+        texts=0,
+        per_word=1.3,
+    )
+
+
+def davids_shelf() -> tuple[list[touchstones.Rung], dict[str, float]]:
+    """Hebrew as David's Progress counted it on 2026-11-13: A1 179 readable, A2 67, B1 61,
+    B2 9, C1 1 and C2 1, out of many measured texts below C1 and very few above."""
+    measured = {"A1": 200, "A2": 100, "B1": 120, "B2": 69, "C1": 3, "C2": 1}
+    readable = {"A1": 179, "A2": 67, "B1": 61, "B2": 9, "C1": 1, "C2": 1}
+    entries: list[Entry] = []
+    level_of: dict[str, str] = {}
+    shares: dict[str, float] = {}
+    for level, n in measured.items():
+        for k in range(n):
+            entry_id = f"{level}-{k}"
+            entries.append(Entry(entry_id, "he", "article", 10))
+            level_of[entry_id] = level
+            shares[entry_id] = 0.97 if k < readable[level] else 0.7
+    rungs = touchstones.ladder(entries, "he", lambda entry: level_of[entry.id])
+    return rungs, shares
+
+
+def story(rungs: list[touchstones.Rung], shares: dict[str, float], found: Any) -> dict[str, Any]:
+    """The ladder as `/account/story` sends it: texts, then the reader's words."""
+    got = touchstones.standing(rungs, shares.get, touchstones.reached_by(found))
+    touchstones.words_to_go(got["ladder"], found)
+    return got
+
+
+def test_a_b2_reader_is_never_easy_at_c1_on_one_readable_text() -> None:
+    """David's case: the card says dalet, about B2, 410 words to hey, and the ladder ticked
+    every row to C2 because C2's one measured text was readable and the climb ticked
+    everything under it. Now C1 and C2 say their words to go, and B2, where 9 of 69 texts
+    are readable, is the next step."""
+    from targum.level import words_to
+
+    found = reader_at(9000 - 410 * 1.3)
+    assert found.here is not None and found.here.cefr == "B2"
+    assert found.next is not None
+    card = words_to(found, found.next.at)
+    assert card == 410
+    got = story(*davids_shelf(), found)
+    rows = {row["kind"]: row for row in got["ladder"]}
+    assert [(row["kind"], row["state"]) for row in got["ladder"]] == [
+        ("A1", "easy"),
+        ("A2", "easy"),
+        ("B1", "easy"),
+        ("B2", "next"),
+        ("C1", "ahead"),
+        ("C2", "ahead"),
+        ("past-C2", "ahead"),
+    ]
+    assert got["here"] == 2 and got["next"] == 3
+    # The C1 row's words to go are the card's.
+    assert rows["C1"]["toGo"] == card and rows["C1"]["covered"] is False
+    assert rows["C2"]["toGo"] > card
+    assert rows["B2"]["covered"] is True and rows["B2"]["readable"] == 9
+
+
+def test_no_row_above_the_readers_words_is_easy_whatever_its_texts_say() -> None:
+    """Every text readable at every level: the ladder still stops where the words do."""
+    rungs, shares = davids_shelf()
+    every = dict.fromkeys(shares, 0.99)
+    got = story(rungs, every, reader_at(7000))
+    assert [row["state"] for row in got["ladder"]] == ["easy"] * 4 + ["ahead"] * 3
+    assert got["here"] == 3 and got["next"] is None
+
+
+def test_a_level_with_too_few_measured_texts_is_decided_by_the_words() -> None:
+    """Under `SAMPLE` measured texts a level is not decided by its texts: reached by the
+    words, it is easy; not reached, it says its words to go."""
+    a1 = [Entry(f"a{k}", "he", "article", 10) for k in range(touchstones.SAMPLE)]
+    b1 = [Entry(f"b{k}", "he", "article", 10) for k in range(touchstones.SAMPLE - 1)]
+    levels = {**{e.id: "A1" for e in a1}, **{e.id: "B1" for e in b1}}
+    rungs = touchstones.ladder([*a1, *b1], "he", lambda entry: levels[entry.id])
+    # A1's texts are all hard, B1's few all hard too; the reader stands at gimel, B1.
+    shares = dict.fromkeys(levels, 0.5)
+    got = story(rungs, shares, reader_at(5000))
+    states = {row["kind"]: row["state"] for row in got["ladder"]}
+    # A1 has a full sample against it: the next step. A2 and B1 sit above it.
+    assert states["A1"] == "next" and states["A2"] == "ahead" and states["B1"] == "ahead"
+    # With A1 readable, A2 (no texts) and B1 (too few to judge) are easy by the words.
+    shares = {**shares, **dict.fromkeys((e.id for e in a1), 0.95)}
+    got = story(rungs, shares, reader_at(5000))
+    states = {row["kind"]: row["state"] for row in got["ladder"]}
+    assert [states[k] for k in ("A1", "A2", "B1", "B2")] == ["easy", "easy", "easy", "ahead"]
+
+
+def test_the_words_check_level_reaches_its_rows_until_the_marks_do() -> None:
+    """A reader whose card shows the words check's level (B1) has rows up to it decided
+    as a measured reader's are, and none above it easy."""
+    rungs, shares = davids_shelf()
+    every = dict.fromkeys(shares, 0.99)
+    got = touchstones.standing(rungs, every.get, touchstones.reached_by(reader_at(10), "B1"))
+    assert [row["state"] for row in got["ladder"]] == ["easy"] * 3 + ["ahead"] * 4
+
+
 def test_texts_at_your_level_are_ninety_and_up_nearest_the_line_first() -> None:
     index = index_of(
         {
@@ -261,11 +380,13 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
     assert said["library"] is True and said["known"] == 1
     # By running words, as the Library since 2026-11-01 ("The Library's bands count
     # running words"): d2 is all known, d1 nine in ten, a1 one in ten; t1 is not indexed.
-    # So A1's one text, d1, is readable now, and A2 is easy on d2.
+    # So A1's one text, d1, is readable now, and so is A2's d2. One text is no sample, and
+    # one known word reaches no level, so neither row is easy: they say their words to go,
+    # as the card says its words to aleph (targum-internal#693).
     assert said["ladder"][0] == {
         "kind": "A1",
         "name": "A1",
-        "state": "easy",
+        "state": "ahead",
         "texts": 1,
         "readable": 1,
         # One word known, weighing 1.0 with no band, and nothing marked in the last 30
@@ -274,7 +395,7 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
         "covered": False,
         "toGo": 312,
     }
-    assert said["ladder"][1]["readable"] == 1 and said["ladder"][1]["state"] == "easy"
+    assert said["ladder"][1]["readable"] == 1 and said["ladder"][1]["state"] == "ahead"
     # The rows above say their words to go, exact and growing down the ladder, and Past C2
     # has none.
     assert [row["toGo"] for row in said["ladder"]] == [
@@ -295,7 +416,7 @@ def test_the_story_places_a_reader_and_finds_what_they_keep_meeting(
         "toGo": 312,
     }
     assert said["conversations"] is True
-    assert said["here"] == 1 and said["next"] == 2
+    assert said["here"] is None and said["next"] is None
     # One word known is no rung of the ulpan's: no foot line until the first is reached.
     assert said["level"] is None
     # By running words, as Home's card chooses (design.md §12, 2026-10-31): d1 is 9 of

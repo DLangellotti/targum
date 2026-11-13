@@ -458,19 +458,75 @@
     return item;
   }
 
+  /* What a build waiting on Home is called (targum-internal#691): its title, never an
+     address where a title is known; where none is, the show it is from, or the site's
+     name — still never the address. */
+  function addressed(text) {
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(String(text || "").trim());
+  }
+  function siteName(text) {
+    var found = /^[a-z][a-z0-9+.-]*:\/\/([^/?#:]+)/i.exec(String(text || "").trim());
+    return found ? found[1].replace(/^www\./, "") : "";
+  }
+  function buildName(job) {
+    if (job.title && !addressed(job.title)) return job.title;
+    return job.show || siteName(job.title || job.source) || "";
+  }
+  function buildTag(job) {
+    return {
+      suggested: t("home.card.getting-ready-suggested", "Suggested · getting ready"),
+      subscribed: t("home.card.getting-ready-subscribed", "Subscribed · getting ready"),
+      library: t("home.card.getting-ready-library", "Library · getting ready"),
+    }[job.came] || t("home.card.getting-ready", "Uploaded · getting ready");
+  }
+
   function buildCard(job) {
     var item = el("li", "card home-card is-building");
     item.setAttribute("role", "status");
-    item.appendChild(coverFor(null, job.title, job.language));
-    item.appendChild(tag(t("home.card.getting-ready", "Uploaded · getting ready"), "building"));
-    item.appendChild(titled(job.title, job.language));
+    var name = buildName(job);
+    // The tile is the show's letter where there is a show, else the title's; never an
+    // address's "h".
+    var tileOf = job.show || (name && !addressed(name) && name !== siteName(job.title || job.source) ? name : "") || "\u00b7";
+    item.appendChild(coverFor(null, tileOf, job.language));
+    item.appendChild(tag(buildTag(job), "building"));
+    item.appendChild(titled(name, job.title && !addressed(job.title) ? job.language : "und"));
+    var from = [job.show, job.by].filter(Boolean);
+    if (from.length && from[0] !== name) {
+      var line = el("span", "home-card-facts home-card-from");
+      from.forEach(function (one, at) {
+        if (at) line.appendChild(document.createTextNode(" \u00b7 "));
+        var said = el("bdi", "", one);
+        said.setAttribute("dir", "auto");
+        line.appendChild(said);
+      });
+      item.appendChild(line);
+    }
     var facts = [];
     if (job.total > 1) {
       facts.push(t("shelf.building.share", "{n}% done", { n: Math.floor((job.done / job.total) * 100) }));
     }
     if (facts.length) item.appendChild(el("span", "home-card-facts", facts.join(" · ")));
     item.appendChild(bar(job.total > 0 ? job.done / job.total : 0.1, true));
-    item.appendChild(el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready")));
+    var waiting = el("span", "home-card-go is-waiting", t("home.card.opens-when-ready", "Opens when it’s ready"));
+    item.appendChild(waiting);
+    // Cancel, where it is the reader's to cancel (targum-internal#694): a quiet press
+    // under the card's line, never its primary. Once it has left the line the card goes,
+    // after its line has been read.
+    var undo = window.TargumCancel
+      ? window.TargumCancel.control(job, {
+          gone: function () {
+            waiting.hidden = true;
+            setTimeout(function () {
+              if (item.parentNode) item.parentNode.removeChild(item);
+              if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+            }, 4000);
+          },
+        })
+      : null;
+    if (undo) {
+      undo.classList.add("home-card-cancel");
+      item.appendChild(undo);
+    }
     return item;
   }
 
@@ -1215,9 +1271,24 @@
       name.setAttribute("dir", "auto");
     }
     host.appendChild(name);
+    // Who makes the show, where that is another name (targum-internal#691): כאן beside
+    // השעה הבינלאומית, in its own isolate.
+    if (line.by) {
+      host.appendChild(document.createTextNode(" \u00b7 "));
+      var by = el("bdi", "source-by", line.by);
+      by.setAttribute("dir", "auto");
+      host.appendChild(by);
+    }
     var day = line.date ? sourceDay(line.date) : "";
     if (day) host.appendChild(document.createTextNode(" \u00b7 " + day));
     return host;
+  }
+
+  // A podcast episode or a video names its show at a glance, under its title, and its
+  // tile is the show's letter rather than the episode's (targum-internal#691): an
+  // episode's title often opens with its date.
+  function heardFind(row) {
+    return !!(row && row.find && (row.kind === "podcast" || isVideo(row)) && row.source_line && row.source_line.name);
   }
 
   // The facts line: the kind for a library text, the site for a web find. Nothing else
@@ -1240,9 +1311,10 @@
 
   function pickBlock(row) {
     var pick = el("div", "rc-pick");
-    var reader = { id: row.id, entry: row.id, title: row.title, language: row.language || "he", kind: row.kind, register: row.register, drawn: row.drawn };
+    var tileOf = heardFind(row) ? row.source_line.name : row.title;
+    var reader = { id: row.id, entry: row.id, title: tileOf, language: row.language || "he", kind: row.kind, register: row.register, drawn: row.drawn };
     if (row.find) reader.picture = false;
-    pick.appendChild(coverFor(reader, row.title, row.language));
+    pick.appendChild(coverFor(reader, tileOf, row.language));
     var what = el("div", "rc-what");
     var title = titled(row.title, row.language || "he");
     title.setAttribute("dir", "auto");
@@ -1253,15 +1325,18 @@
 
   /* Filter (design.md §12, "Home's one card offers the words to learn first, and a pick
      moves easier or harder", 2026-11-05; targum-internal#615): one press in Topic's
-     place, and one field holding Read · Watch · Listen, How long, and the forty topics,
+     place, and one field holding Texts · Videos · Audio, How long, and the forty topics,
      each the same `.tab` pills, the chosen one filled. Nothing pressed means any, and a
      chosen pill pressed again lets it go. A press picks again at once, as a topic did,
-     and the press then names what is chosen ("Watch · 5–15 min · Science"), in tonal.
-     Listen is drawn only once the pool holds something to listen to. */
+     and the press then names what is chosen ("Videos · 5–15 min · Science"), in tonal.
+     Audio is drawn only once the pool holds something to listen to. The media are said
+     as the kinds they show, Texts · Videos · Audio, never as the verbs the pick's own
+     press says: with Listen chosen the card had two Listens (David, 2026-11-13; §12,
+     "A filter names what it shows, and Upload is not the card's press"). */
   var MEDIA = [
-    ["read", "home.card.filter.read", "Read"],
-    ["watch", "home.card.filter.watch", "Watch"],
-    ["listen", "home.card.filter.listen", "Listen"],
+    ["read", "home.card.filter.read", "Texts"],
+    ["watch", "home.card.filter.watch", "Videos"],
+    ["listen", "home.card.filter.listen", "Audio"],
   ];
   var LENGTHS = [
     ["short", "home.card.filter.short", "Under 5 min"],
@@ -1338,7 +1413,7 @@
     field.id = "rc-topics";
     field.hidden = !oneCard.open;
     var media = el("ul", "tabs on-field rc-media");
-    media.setAttribute("aria-label", t("home.card.filter.media", "Read, watch or listen"));
+    media.setAttribute("aria-label", t("home.card.filter.media", "Texts, videos or audio"));
     var group = el("div");
     group.appendChild(media);
     field.appendChild(group);
@@ -1654,6 +1729,9 @@
     if (row.find && oneCard.shown.indexOf(String(row.id)) < 0) oneCard.shown.push(String(row.id));
     if (row.harder && oneCard.harder.indexOf(String(row.id)) < 0) oneCard.harder.push(String(row.id));
     var parts = pickBlock(row);
+    // The show first, under the title, where it is one (targum-internal#691).
+    var heard = heardFind(row) ? sourceLine(row, "rc-source is-show") : null;
+    if (heard) parts.what.appendChild(heard);
     var share = percentOf(row);
     // Our estimate shows on the first pick too: it is what the line above the card
     // promises, and a reader with no marks has it (David, 2026-11-03).
@@ -1666,7 +1744,7 @@
     }
     var facts = row.scene ? "" : factsOf(row);
     if (facts) parts.what.appendChild(el("p", "home-card-facts", facts));
-    var from = sourceLine(row, "rc-source");
+    var from = heard ? null : sourceLine(row, "rc-source");
     if (from) parts.what.appendChild(from);
     if (row.find && row.credits) {
       parts.what.appendChild(el("p", "rc-credits", tn("home.find.uses-credits", row.credits, "Uses {n} credit", "Uses {n} credits")));
@@ -1682,13 +1760,13 @@
           : t("home.card.read", "Read");
     var open;
     if (row.find) {
-      open = el("button", "btn tonal rc-open", verb);
+      open = el("button", "btn filled rc-open", verb);
       open.type = "button";
       open.addEventListener("click", function () {
         openPick(row);
       });
     } else {
-      open = el("a", "btn tonal rc-open", verb);
+      open = el("a", "btn filled rc-open", verb);
       open.href = keyed(row.reader || "/open/" + encodeURIComponent(row.id));
       open.addEventListener("click", function () {
         suggestOpened(row);
@@ -2417,6 +2495,8 @@
     mayArrive: mayArrive,
     // For the tests: what Continue would hold, without the page.
     gather: gatherContinue,
+    // And one getting-ready card, as Continue draws it (targum-internal#694).
+    buildCard: buildCard,
     next: nextUnfinished,
     places: mergePlaces,
     // The account's places as asked when the page opened, for `yours.js`'s shelf.

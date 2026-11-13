@@ -384,6 +384,31 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A filter names what it shows, and Upload is not the card's press — 2026-11-13
+
+David, 2026-11-13, on Home's one card with a podcast picked and Listen chosen in the
+filter: "you can't tell what button to press to listen, there are two listens", and
+"user might accidentally hit upload". The row read Listen · Something else · Listen ▾, the
+two Listens in the same tonal pill, and under the hairline the filled Upload was the
+heaviest thing on the card. This amends "Home's one card finds what fits you"
+(2026-11-01), which made Upload "the page's one filled press", and "Home's one card offers
+the words to learn first" (2026-11-05), which named the media Read, Watch and Listen.
+
+- **The filter says the kinds it shows: Texts · Videos · Audio.** A verb belongs to the
+  press that does it (§6, "a control names what the person will do"), and a filter is not
+  doing anything; so the media are nouns, and the press names them ("Audio", "Videos ·
+  5–15 min"). No two controls on the card say the same word.
+- **The filter stands at the end of the row**, apart from the pick's verb and Something
+  else, so it reads as what the card shows rather than one more thing to do.
+- **The pick's verb is the card's one filled press** (§9; §12, "The desk's controls are
+  one layer"): Read, Watch or Listen.
+- **Upload is the reader's own, not the suggestion's.** It stays under the hairline,
+  further down, as a quiet line press (`.btn.ghost.outline`) that says "Upload your own",
+  with a thumb's 44px. A press by mistake only opens the Upload page, where nothing is
+  made or spent until the reader confirms. Upload also stands in the bar on every page,
+  so if the card's copy still pulls the eye the next step is to take it off the card;
+  that is David's call, not this entry's.
+
 ### /after-duolingo-hebrew carries a small fixed snapshot of targum output — 2026-11-12
 
 David's call, 2026-11-12. The page's reader and clip are touchable and lit
@@ -3039,6 +3064,18 @@ under `no-store`, again on every page a visitor opened.
   been left off the list, so they still carried 65 kB of faces and 119 kB of CSS on every
   visit. At 1.17 s on the phone it was the public page nearest the line. It is never
   opened off a disk either, and it warms and keeps the same public set.
+- **How it works, the credits, `/connect` signed out and `/aliyah` joined them on
+  2026-11-13** (targum-internal#484, from ops' Slow 4G pass of the live site). They had
+  been missed the same way, so each still carried 67 to 96 kB of faces in its head, and
+  nothing painted until those had arrived: `/how` at 1.54 s, the other three at 1.22 to
+  1.31 s. None of them is opened off a disk, framed by a host or kept by the worker. They
+  warm and keep the same public set, which grows by their own stylesheets and
+  `/connect`'s script: 158 to 204 kB in English and 244 to 289 kB in Russian.
+- **`/after-duolingo-hebrew` joined them** (targum-internal#676, 2026-11-13), on the same
+  terms as `/aliyah`: only ever served, never opened off a disk, framed or kept by the
+  worker. It is English only, so it is read into English's public set alone. Its short
+  film is not one of the files a first visit warms: it is fetched only by the page that
+  plays it.
 - **Amends** the "What it does not overturn" paragraph of 2026-10-18. Readers, contents
   pages, built indexes, the weekly and series pages, prints, cards in a host's
   frame and Saved on this device still carry their files inline. *A reader still fetches

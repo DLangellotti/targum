@@ -9,11 +9,18 @@
 
     `try_on` names the page the box stands on when it is not the front door. It rides in
     the form as `on`, so `/try` answers on that page, and the waitlist's form under an
-    answer says it was pressed there (`joined_from`). Empty is the front door. -#}
+    answer says it was pressed there (`joined_from`). Empty is the front door.
+
+    `joined_from`, where it is not the front door's `/`, rides in the form as `from`, so
+    the tag a link to the page carried (`serve.came_from`) survives a try. -#}
 <div class="try" id="try">
   <form class="try-form" method="post" action="/try{% if asked %}?lang={{ asked }}{% endif %}#try">
     {%- if try_on|default('') %}
     <input type="hidden" name="on" value="{{ try_on }}">
+    {%- endif %}
+    {%- if joined_from|default('/') != "/" %}
+    {#- The tag the page was opened with, carried through a try (#676). #}
+    <input type="hidden" name="from" value="{{ joined_from }}">
     {%- endif %}
     <label class="field">
       <input type="url" name="link" required inputmode="url" autocapitalize="off" spellcheck="false" placeholder="{{ t("landing.try.placeholder", "Paste a link to anything in Hebrew") }}" aria-label="{{ t("landing.try.label", "A link to try") }}"{% if tried and tried.link %} value="{{ tried.link }}"{% endif %}>

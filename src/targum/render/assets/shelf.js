@@ -162,7 +162,7 @@
   // 2026-10-11). Its refusal is the bell's to say.
   function building(jobs) {
     return (jobs || []).filter(function (job) {
-      return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" &&
+      return job.stage !== "done" && job.stage !== "failed" && job.stage !== "blocked" && job.stage !== "cancelled" &&
         !job.error && !job.blocked && job.title;
     });
   }
@@ -236,6 +236,17 @@
     return t("shelf.stage.working", "We're getting it ready…");
   }
 
+  /* A build is never named by an address where anything else is known
+     (targum-internal#691): its title, else the show it is from, else the site's name;
+     and its tile is the show's letter or the title's, never an address's "h". */
+  var ADDRESS = /^[a-z][a-z0-9+.-]*:\/\/([^/?#:]+)/i;
+  function buildingName(job) {
+    var title = String(job.title || "").trim();
+    if (title && !ADDRESS.test(title)) return title;
+    var site = ADDRESS.exec(title || String(job.source || ""));
+    return job.show || (site ? site[1].replace(/^www\./, "") : "") || title;
+  }
+
   function buildingRow(job) {
     var item = document.createElement("li");
     item.className = "row is-building";
@@ -243,9 +254,11 @@
     item.setAttribute("role", "status");
     var box = document.createElement("span");
     box.className = "building";
+    var named = buildingName(job);
+    var titled = !!job.title && !ADDRESS.test(String(job.title).trim());
     box.appendChild(
       window.TargumCovers.picture(
-        { title: job.title, language: job.language, kind: job.kind },
+        { title: job.show || (titled ? named : "\u00b7"), language: job.language, kind: job.kind },
         { keyed: keyed, className: "thumb row-thumb" }
       )
     );
@@ -253,9 +266,9 @@
     var what = document.createElement("span");
     what.className = "book-what row-main";
     var title = document.createElement("bdi");
-    title.setAttribute("lang", job.language || "und");
+    title.setAttribute("lang", titled ? job.language || "und" : "und");
     title.className = "book-title";
-    title.textContent = job.title;
+    title.textContent = named;
     what.appendChild(title);
     var line = document.createElement("span");
     line.className = "book-facts";
@@ -293,12 +306,26 @@
     box.appendChild(pill);
     box.appendChild(meter(job.total > 0 ? job.done / job.total : 0.1, "is-building"));
     item.appendChild(box);
-    // The end and the controls' columns, empty: nothing on a build can be pressed.
+    // The end column empty; the controls' column holds Cancel where the build is the
+    // reader's to cancel (targum-internal#694), its words under the title. Once it has
+    // left the line the row goes, after its line has been read.
     var end = document.createElement("span");
     end.className = "row-end";
     item.appendChild(end);
     var controls = document.createElement("span");
     controls.className = "row-controls";
+    var undo = window.TargumCancel
+      ? window.TargumCancel.control(job, {
+          host: what,
+          gone: function () {
+            setTimeout(function () {
+              if (item.parentNode) item.parentNode.removeChild(item);
+              if (window.TargumBuilding && window.TargumBuilding.ask) window.TargumBuilding.ask();
+            }, 4000);
+          },
+        })
+      : null;
+    if (undo) controls.appendChild(undo);
     item.appendChild(controls);
     return item;
   }
@@ -1031,5 +1058,7 @@
     ago: ago,
     base: base,
     kind: kindWord,
+    // For the tests: one building row, as Your targums draws it (targum-internal#694).
+    buildingRow: buildingRow,
   };
 })();

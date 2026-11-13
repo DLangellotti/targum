@@ -4,6 +4,7 @@ band a round is held in, the schedule, and `/account/practice` end to end."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -242,6 +243,27 @@ def test_a_pronoun_suffix_is_asked_whose_against_its_look_alike() -> None:
     assert list(practices.suffix_candidates(bare, "לפני", "s")) == []
     assert practices.REGISTERED["he"]["pronoun suffixes"].kind == "choice"
     assert practices.KEYS["pronoun suffixes"] == "suffix"
+
+
+@pytest.mark.parametrize("ui", ["en", "ru"])
+def test_a_rules_hebrew_is_a_blank_the_server_fills(ui: str) -> None:
+    """§14, line 3 (targum-internal#477): a rule says ה or יו inside an English or a
+    Russian sentence, and the Grammar tab tags each Hebrew run it draws. The letters are
+    not in the catalogue, where a translator could lose them and no test sees them: each
+    is a blank the server fills, so every rule still reaches the page whole."""
+    from targum import strings
+
+    hebrew = re.compile(r"[\u0590-\u05FF]")
+    for key, value in strings.catalogue(ui).items():
+        if key.startswith("practice.rule."):
+            assert not hebrew.search(value), f"{ui}: {key} carries Hebrew letters"
+    said = practices.rule("suffix", "3ms:his", ui)
+    assert re.findall(r"[\u0590-\u05FF]+", said) == ["ו", "יו"]
+    assert "{" not in said
+    for spot, code in (("construct", "Cons"), ("construct", "Def")):
+        assert re.findall(r"[\u0590-\u05FF]+", practices.rule(spot, code, ui)) == ["ה"]
+    for code in practices._SUFFIX_RULES:
+        assert "{" not in practices.rule("suffix", code, ui)
 
 
 def test_a_pronoun_suffix_is_asked_in_both_registers(tmp_path: Path) -> None:

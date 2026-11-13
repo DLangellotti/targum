@@ -155,6 +155,16 @@ def offered(
     return out
 
 
+def _author(find: pool.Find) -> str:
+    """Who makes the show: as kept, or, for a podcast find kept before that was, as the
+    reviewed list names them (`podcasts.author_of`)."""
+    if find.author or find.medium != "podcast":
+        return find.author
+    from .podcasts import author_of
+
+    return author_of(find.publisher)
+
+
 def row(scored: Scored) -> dict[str, Any]:
     """A find as a suggestion row: the fields the card draws, in the shape
     `chat.tools.suggest_next` gives a shelf text, with `origin` and `find` added."""
@@ -171,6 +181,9 @@ def row(scored: Scored) -> dict[str, Any]:
         "collection": f"find:{find.source}",
         "host": find.host,
         "publisher": find.publisher,
+        # Who makes a podcast's show, and the episode's own page (targum-internal#691).
+        "author": _author(find),
+        "page": find.page,
         "url": find.url,
         "minutes": find.minutes,
         "credits": find.credits,
