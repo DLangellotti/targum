@@ -26,8 +26,6 @@ main { max-width: calc(var(--measure) * 2 + var(--gap)); margin: 0px auto; paddi
 .pair:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
 .pair p { margin: 0px; }
 .byline { color: var(--ink-soft); font-style: italic; margin-block-start: -0.75rem; }
-/* Hebrew is never set in italic (targum-internal#696, P2-13). */
-.byline:lang(he) { font-style: normal; }
 .w { border-radius: 4px; cursor: pointer; }
 .w.looked-up, body:not(.no-hover) .w:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent); }
 @media (prefers-reduced-motion: reduce) {

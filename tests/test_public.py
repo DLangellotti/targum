@@ -1129,9 +1129,9 @@ def test_a_hebrew_byline_says_it_is_hebrew_and_stands_upright() -> None:
     english = dataclasses.replace(entry, author="Wikivoyage")
     assert '<p class="byline">Wikivoyage</p>' in text_page(english, ADDRESS)
     css = (
-        Path(__file__).resolve().parent.parent / "src/targum/render/assets/public-page.css"
+        Path(__file__).resolve().parent.parent / "src/targum/render/assets/public.css"
     ).read_text(encoding="utf-8")
-    assert ".byline:lang(he) { font-style: normal; }" in css
+    assert ".public .byline:lang(he) { font-style: normal; }" in css
 
 
 # -- what a shared link shows -------------------------------------------------
