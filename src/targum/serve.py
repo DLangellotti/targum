@@ -1452,6 +1452,13 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
 #: description — and never taken from a request (`/prepare` drops it).
 NAMED = "named"
 
+#: The job options only the server writes (targum-internal#706): what a source is called
+#: (#691), and where a press came from — a find (`_open_find`) or a subscription
+#: (`subscriptions.build_due`). Taken out of anything a request sends to `/prepare`: a
+#: reader who could post `find: N` could have any shared find retired for everyone by
+#: making their own link fail, and `via: "find"` alone counted as a find opened.
+SERVER_OWNED = frozenset({NAMED, "via", "find", "subscription", "item"})
+
 
 def named(
     *, show: str = "", presenter: str = "", by: str = "", date: int = 0, page: str = ""
@@ -6410,6 +6417,11 @@ class Library:
         try:
             from .finds import pool as finds_pool
 
+            # Only a refusal of the find's own address (targum-internal#706): a job that
+            # names a find and fetched something else says nothing about that find.
+            kept = finds_pool.get(self.store, int(found))
+            if kept is None or kept.url != job.source:
+                return
             if finds_pool.retire(self.store, int(found), "refused"):
                 log.info("find %s retired: %s", found, error.message)
         except Exception:  # noqa: BLE001 - the reader's sentence matters more
@@ -10858,8 +10870,8 @@ class Handler(BaseHTTPRequestHandler):
         # The posts that mail a link to an address the post chose
         # (targum-internal#688). A form on another site could send one, which mails a
         # link nobody asked for and counts it against the visitor's address. A current
-        # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser or curl
-        # sends nothing and is let through, since the header is what tells them apart.
+        # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser names
+        # its `Origin` instead (#705), and curl sends neither and is let through.
         # Both refusals leave the body unread, so the connection closes after them.
         if route in MAILING_POSTS and self._cross_site():
             self.close_connection = True
@@ -14364,8 +14376,27 @@ class Handler(BaseHTTPRequestHandler):
     def _cross_site(self) -> bool:
         """Whether the browser says this request came from another site. Same-origin,
         same-site, `none` (typed or bookmarked) and an absent header are all ours to
-        answer."""
-        return (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site"
+        answer.
+
+        A browser that sends no `Sec-Fetch-Site` — Safari before 16.4, older Firefox
+        and Chromium — still names a cross-origin post's `Origin` (targum-internal#705),
+        so an `Origin` that is present and not one of our names is another site too.
+        `null` is not ours: it is a sandboxed frame or a page opened from disk, which a
+        current browser already calls `cross-site`. No `Origin` at all (curl) passes."""
+        if (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
+            return True
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return False
+        try:
+            host = urlparse(origin).hostname or ""
+        except ValueError:
+            return True
+        if not host:
+            return True
+        asked = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip().lower()
+        named = {host, f"[{host}]"}  # `urlparse` drops an IPv6 address's brackets
+        return not named & self.hosts and asked not in named
 
     def _json_body(self) -> bool:
         """Whether the post names its body as JSON, whatever parameters follow."""
@@ -16987,9 +17018,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
-        # What a source is called and whose it is (targum-internal#691) is written by the
-        # server from what it already holds, never taken from a request.
-        payload = {key: value for key, value in payload.items() if key != NAMED}
+        # What a source is called and whose it is (targum-internal#691), and where a
+        # press came from (#706), are written by the server from what it already holds,
+        # never taken from a request.
+        payload = {key: value for key, value in payload.items() if key not in SERVER_OWNED}
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),

@@ -306,3 +306,36 @@ def test_a_speakers_words_come_one_row_at_a_time(tmp_path: Path, kept: Path) -> 
         assert "סַפָּר" in page_text and "<details data-words" in page_text and " open>" in page_text
     finally:
         server.shutdown()
+
+
+def test_the_credits_are_read_once_until_the_manifest_or_its_files_change(
+    kept: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """/credits/words is open to strangers (#1203), so a call must not re-read the
+    manifest and stat every file (targum-internal#704): the speakers are worked out once
+    per manifest and per set of files on disk, and a burst of calls, a key nobody has
+    among them, is a lookup."""
+    import os
+
+    reads = 0
+    real = voices.load
+
+    def counted(language: str = "he") -> Manifest | None:
+        nonlocal reads
+        reads += 1
+        return real(language)
+
+    monkeypatch.setattr(voices, "load", counted)
+    buffer = next(row for row in voices.credits() if row.name == "Buffer")
+    for _ in range(200):
+        assert voices.credited("nobody") is None
+        assert voices.credited(buffer.key) == buffer
+    assert reads == 1, "a burst is answered from what was read once"
+    # A file gone from disk is no longer credited: the folder changing is a new read.
+    (kept / buffer.recordings[0].file).unlink()
+    os.utime(kept, ns=(1, 1))
+    assert [one.word for one in voices.credited(buffer.key).recordings] == ["שָׁלוֹם"]  # type: ignore[union-attr]
+    assert reads == 2
+    # A new manifest is read again.
+    voices.manifest_path("he").write_text(Manifest(language="he").to_json(), encoding="utf-8")
+    assert voices.credits() == [] and reads == 3

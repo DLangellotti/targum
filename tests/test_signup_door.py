@@ -435,15 +435,24 @@ def test_a_try_refused_at_the_open_door_does_not_wait_to_be_invited(
 
 
 def _posted(
-    port: int, path: str, body: bytes, kind: str, fetched_from: str | None, visitor: int = 9
+    port: int,
+    path: str,
+    body: bytes,
+    kind: str,
+    fetched_from: str | None,
+    visitor: int = 9,
+    origin: str | None = None,
 ) -> tuple[int, str]:
-    """A post as a browser sends it, naming where it came from in `Sec-Fetch-Site`."""
+    """A post as a browser sends it, naming where it came from in `Sec-Fetch-Site`, and
+    in `Origin` where `origin` is given."""
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest("POST", path, skip_host=True)
     conn.putheader("Host", "targum.page")
     conn.putheader("X-Forwarded-For", f"203.0.113.{visitor}")
     if fetched_from is not None:
         conn.putheader("Sec-Fetch-Site", fetched_from)
+    if origin is not None:
+        conn.putheader("Origin", origin)
     conn.putheader("Content-Type", kind)
     conn.putheader("Content-Length", str(len(body)))
     conn.endheaders()
@@ -498,6 +507,39 @@ def test_a_mailing_post_from_another_site_is_refused(
         status, said = _posted(port, path, body(address), kind, fetched_from, visitor)
         assert status == 200, (fetched_from, status, said)
         assert links[-1][0] == address, fetched_from
+
+
+@pytest.mark.parametrize("path", sorted(MAILING))
+def test_a_mailing_post_from_another_origin_is_refused_without_sec_fetch_site(
+    path: str,
+    tmp_path: Path,
+    free_port: Callable[[], int],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Safari before 16.4 and older Firefox and Chromium send no `Sec-Fetch-Site`, but
+    every one of them names a cross-origin post's `Origin` (targum-internal#705). One
+    that is present and not ours is refused, `null` included (a sandboxed frame, or a
+    page opened from disk, which a current browser already calls `cross-site`); our
+    own origin, and no Origin at all (curl), still get through."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    _switched(monkeypatch, SHUT if path == "/waitlist" else OPEN)
+    monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
+    kind, body = MAILING[path]
+    for visitor, origin in enumerate(
+        ("https://evil.example", "null", "https://targum.page.evil.example"), 40
+    ):
+        address = f"refused{visitor}@example.com"
+        store.invite(address)
+        status, said = _posted(port, path, body(address), kind, None, visitor, origin)
+        assert status == 403, (origin, said)
+    assert links == []
+    for visitor, origin in enumerate(("https://targum.page", "http://targum.page:8080", None), 50):
+        address = f"guest{visitor}@example.com"
+        store.invite(address)
+        status, said = _posted(port, path, body(address), kind, None, visitor, origin)
+        assert status == 200, (origin, status, said)
+        assert links[-1][0] == address, origin
 
 
 def test_sign_in_takes_only_a_body_named_as_json(

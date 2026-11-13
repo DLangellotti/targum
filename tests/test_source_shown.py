@@ -184,6 +184,42 @@ def test_a_prepare_request_cannot_name_its_own_source(
     assert seen and NAMED not in seen[0].options, answered
 
 
+def test_a_prepare_request_cannot_say_it_came_from_a_find_or_a_subscription(
+    home: Any,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`via`, `find`, `subscription` and `item` are the server's to write (targum-internal
+    #706): a reader who posted `find: N` could have any shared find retired for everyone
+    by making their own link fail, and `via: "find"` alone counted as a find opened."""
+    found = episode(home.store)
+    cookie = sign_in(home.port, home.postbox)
+    seen: list[Any] = []
+
+    def prepare(job: Any) -> None:
+        seen.append(job)
+        job.stage = "ready"
+
+    monkeypatch.setattr(home.library, "prepare", prepare)
+    answered = call(
+        home.port,
+        "POST",
+        "/prepare",
+        {
+            "source": "https://news.example/mine",
+            "via": "find",
+            "find": found,
+            "subscription": 1,
+            "item": "x",
+            "to": "en",
+        },
+        cookie=cookie,
+    )
+    assert seen, answered
+    options = seen[0].options
+    assert not {"via", "find", "subscription", "item"} & set(options), options
+    assert options.get("to") == "en", "what the Add page sends is kept"
+
+
 # -- the reader: what it is from, beside it ------------------------------------------
 
 
