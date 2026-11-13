@@ -517,29 +517,46 @@ def test_a_mailing_post_from_another_origin_is_refused_without_sec_fetch_site(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Safari before 16.4 and older Firefox and Chromium send no `Sec-Fetch-Site`, but
-    every one of them names a cross-origin post's `Origin` (targum-internal#705). One
-    that is present and not ours is refused, `null` included (a sandboxed frame, or a
-    page opened from disk, which a current browser already calls `cross-site`); our
-    own origin, and no Origin at all (curl), still get through."""
+    every one of them names a cross-origin post's `Origin` (targum-internal#705). There,
+    one that is present and not ours is refused. Where `Sec-Fetch-Site` is sent it
+    decides: our pages send `Referrer-Policy: no-referrer`, so a browser's own form post
+    says `Sec-Fetch-Site: same-origin` with `Origin: null` (qa-claude on targum#1209),
+    and that is ours. `null` with no `Sec-Fetch-Site` is the same old Safari's own form,
+    and passes; so does no header at all (curl)."""
     links: list[tuple[str, str]] = []
     port, store = _box(tmp_path, free_port, links)
     _switched(monkeypatch, SHUT if path == "/waitlist" else OPEN)
     monkeypatch.setenv("TARGUM_PUBLIC_SHELVES", "1")
     kind, body = MAILING[path]
-    for visitor, origin in enumerate(
-        ("https://evil.example", "null", "https://targum.page.evil.example"), 40
-    ):
+    refused: list[tuple[str | None, str]] = [
+        (None, "https://evil.example"),
+        (None, "https://targum.page.evil.example"),
+        (None, "not a url"),
+        ("cross-site", "https://targum.page"),
+        ("cross-site", "null"),
+    ]
+    for visitor, (fetched_from, origin) in enumerate(refused, 40):
         address = f"refused{visitor}@example.com"
         store.invite(address)
-        status, said = _posted(port, path, body(address), kind, None, visitor, origin)
-        assert status == 403, (origin, said)
+        status, said = _posted(port, path, body(address), kind, fetched_from, visitor, origin)
+        assert status == 403, (fetched_from, origin, said)
     assert links == []
-    for visitor, origin in enumerate(("https://targum.page", "http://targum.page:8080", None), 50):
+    let_through: list[tuple[str | None, str | None]] = [
+        ("same-origin", "null"),  # what all three engines send for our own form post
+        ("same-site", "null"),
+        ("none", "null"),
+        ("same-origin", "https://targum.page"),
+        (None, "https://targum.page"),
+        (None, "http://targum.page:8080"),
+        (None, "null"),
+        (None, None),
+    ]
+    for visitor, (fetched_from, origin) in enumerate(let_through, 60):
         address = f"guest{visitor}@example.com"
         store.invite(address)
-        status, said = _posted(port, path, body(address), kind, None, visitor, origin)
-        assert status == 200, (origin, status, said)
-        assert links[-1][0] == address, origin
+        status, said = _posted(port, path, body(address), kind, fetched_from, visitor, origin)
+        assert status == 200, (fetched_from, origin, status, said)
+        assert links[-1][0] == address, (fetched_from, origin)
 
 
 def test_sign_in_takes_only_a_body_named_as_json(

@@ -20,10 +20,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   core busy): the speakers are worked out once per manifest and per set of files on disk,
   as `voices.index` is, and a call is a lookup (#704). A mailing post (sign-in, waitlist,
   signup, the weekly) from a browser that sends no `Sec-Fetch-Site` is refused when its
-  `Origin` is present and not ours, `null` included; curl, with neither, still passes
-  (#705). `/prepare` drops `via`, `find`, `subscription` and `item` from the request as it
-  dropped `named`, and a refused video retires a find only when it was the find's own
-  address, so a reader can no longer retire a shared find for everyone (#706). A
+  `Origin` is present and not ours; where `Sec-Fetch-Site` is sent it decides, since our
+  `no-referrer` pages make a browser's own form post say `Origin: null`, and curl, with
+  neither, still passes (#705). `/prepare` keeps only the fields a page sends (an
+  allow-list), so a request can no longer name a find to retire for everyone, count as a
+  find opened, or voice a section as a build that claims no credits; and a refused video
+  retires a find only when it was the find's own address (#706). A
   subscription build its reader cancelled or stopped no longer stays "building": its item
   is listed with a press and never built again by itself, and the cap counts what the
   build settled to (#707). No new strings, no spend.

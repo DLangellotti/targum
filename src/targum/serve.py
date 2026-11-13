@@ -1452,12 +1452,36 @@ def reader_estimate(store: Any, person_id: int | None, language: str) -> Any:
 #: description — and never taken from a request (`/prepare` drops it).
 NAMED = "named"
 
-#: The job options only the server writes (targum-internal#706): what a source is called
-#: (#691), and where a press came from — a find (`_open_find`) or a subscription
-#: (`subscriptions.build_due`). Taken out of anything a request sends to `/prepare`: a
-#: reader who could post `find: N` could have any shared find retired for everyone by
-#: making their own link fail, and `via: "find"` alone counted as a find opened.
-SERVER_OWNED = frozenset({NAMED, "via", "find", "subscription", "item"})
+#: Every field a page sends `/prepare` (targum-internal#706), and nothing else: the Add
+#: page (`add.js` `options`, `withTranslation`, `withTranscript`, the post form, Read
+#: the pictures), `bring.js` and the Library's Build (`library.js`). Everything else on a
+#: job is the server's to write, and a request naming it was obeyed: `find` retired a
+#: shared find for everyone, `via` counted as a find opened, and `voice` with `folder`
+#: and `section` voiced a section as a build that claimed no credits, past `/voice`'s
+#: own claim. The chat and the connector make their jobs in-process, never through here.
+PREPARE_FIELDS = frozenset(
+    {
+        "to",
+        "from",
+        "words",
+        "gloss",
+        "source",
+        "name",
+        "content",
+        "upload",
+        "uploads",
+        "came_from",
+        "force_machine",
+        "translations",
+        "translationName",
+        "translationContent",
+        "transcriptName",
+        "transcriptContent",
+        "brought",
+        "again",
+        "pictures",
+    }
+)
 
 
 def named(
@@ -10872,6 +10896,7 @@ class Handler(BaseHTTPRequestHandler):
         # link nobody asked for and counts it against the visitor's address. A current
         # browser names such a post `Sec-Fetch-Site: cross-site`; an old browser names
         # its `Origin` instead (#705), and curl sends neither and is let through.
+        # `_cross_site` says why `Origin: null` passes.
         # Both refusals leave the body unread, so the connection closes after them.
         if route in MAILING_POSTS and self._cross_site():
             self.close_connection = True
@@ -14374,19 +14399,25 @@ class Handler(BaseHTTPRequestHandler):
         return "he"
 
     def _cross_site(self) -> bool:
-        """Whether the browser says this request came from another site. Same-origin,
-        same-site, `none` (typed or bookmarked) and an absent header are all ours to
-        answer.
+        """Whether the browser says this request came from another site.
 
-        A browser that sends no `Sec-Fetch-Site` — Safari before 16.4, older Firefox
-        and Chromium — still names a cross-origin post's `Origin` (targum-internal#705),
-        so an `Origin` that is present and not one of our names is another site too.
-        `null` is not ours: it is a sandboxed frame or a page opened from disk, which a
-        current browser already calls `cross-site`. No `Origin` at all (curl) passes."""
-        if (self.headers.get("Sec-Fetch-Site") or "").strip().lower() == "cross-site":
-            return True
+        `Sec-Fetch-Site` decides wherever a browser sends it: `cross-site` is another
+        site, and same-origin, same-site and `none` (typed or bookmarked) are ours. It is
+        never second-guessed by `Origin`, because every page here sends
+        `Referrer-Policy: no-referrer`, under which a browser's own same-origin form post
+        says `Origin: null` (qa-claude on targum#1209: Chromium, Firefox and WebKit).
+
+        A browser that sends no `Sec-Fetch-Site` — Safari before 16.4, older Firefox and
+        Chromium — still names a cross-origin post's `Origin` (targum-internal#705), so
+        there an `Origin` that is present and is not one of our names is another site.
+        `null` passes there: the same old Safari says it for our own forms under
+        no-referrer, and cannot be told from a sandboxed frame. No `Origin` (curl) passes.
+        """
+        fetched = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if fetched:
+            return fetched == "cross-site"
         origin = (self.headers.get("Origin") or "").strip()
-        if not origin:
+        if not origin or origin.lower() == "null":
             return False
         try:
             host = urlparse(origin).hostname or ""
@@ -16883,6 +16914,13 @@ class Handler(BaseHTTPRequestHandler):
         """Price a build, and say what it will take before anything is spent."""
         from .translate.prompts import INTO, READING
 
+        # Only what a page sends (`PREPARE_FIELDS`, targum-internal#706). `again` names
+        # the brought post whose pictures are read, and means nothing without `brought`:
+        # on its own it would be `run_again`'s list of lines.
+        payload = {key: value for key, value in payload.items() if key in PREPARE_FIELDS}
+        if not isinstance(payload.get("brought"), dict):
+            payload.pop("again", None)
+
         # A picker is not a boundary. The page offers three languages in and two out
         # because those are the pairs an upload has been taken end to end in; a request
         # naming anything else is refused here rather than half-built.
@@ -17018,10 +17056,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"catalogue": {**shelved.state(), "shelved": True}})
 
         person = self._person()
-        # What a source is called and whose it is (targum-internal#691), and where a
-        # press came from (#706), are written by the server from what it already holds,
-        # never taken from a request.
-        payload = {key: value for key, value in payload.items() if key not in SERVER_OWNED}
         job = Job(
             ui=self._page_language(),
             id=secrets.token_hex(8),
