@@ -1475,6 +1475,15 @@ window.targumReaderRest = function (R) {
         if (!pictures || !pictures.turn || !pictures.turn()) return;
         break;
       }
+      // The line you are on, heard, and in the text on its own told (#539): the line of
+      // the word walked to, else the one last said, else the first in view. Handed back
+      // on a text with no recording, where there is nothing to hear.
+      case "h": {
+        var speech = window.TargumSpeech;
+        var walked = R.standing && R.standing.closest ? R.standing.closest(".pair") : null;
+        if (!speech || !speech.hearLine || !speech.hearLine(walked)) return;
+        break;
+      }
       case "?":
         showKeys(keysCard ? keysCard.hidden : false);
         return;
@@ -1517,6 +1526,11 @@ window.targumReaderRest = function (R) {
         if (listBox && !listBox.hidden) {
           showList(false);
           if (R.standing && R.standing.focus) R.standing.focus({ preventScroll: true });
+          return;
+        }
+        // Then a line's translation opened in the text on its own (#539): it is on the
+        // text the way the panel is, and goes before your place does.
+        if (window.TargumSpeech && window.TargumSpeech.untell && window.TargumSpeech.untell()) {
           return;
         }
         // Then out of the queue, back onto the sentence the word was in, so the arrows

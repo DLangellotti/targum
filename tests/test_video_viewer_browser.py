@@ -652,10 +652,9 @@ def test_every_thing_the_picture_had_is_still_under_more(browser, tmp_path) -> N
         assert page.locator("#fullscreen-group [data-fullscreen]").count() == 1
         page.click(".more-first")
         assert page.get_attribute(".player-first", "aria-pressed") == "true"
-        assert page.get_attribute(".more-back", "aria-label") in (
-            "Back a word",
-            "Back five seconds",
-        )
+        # A line either side since #539: the row says "Step line by line", and does.
+        assert page.get_attribute(".more-back", "aria-label") == "Line before"
+        assert page.get_attribute(".more-on", "aria-label") == "Next line"
     finally:
         context.close()
 

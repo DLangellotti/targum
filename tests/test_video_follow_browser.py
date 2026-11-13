@@ -192,7 +192,7 @@ def test_a_cue_shared_by_two_lines_is_split_by_their_letters(browser, tmp_path) 
 
 def test_a_cue_clock_lights_no_word(browser, tmp_path) -> None:  # noqa: F811
     """A clock five words share is not any one word's (design.md §12: the chip is where
-    the recording was aligned word by word), so no word is lit, and the step buttons say
+    the recording was aligned word by word), so no word is lit, and the strip's steps say
     five seconds rather than a word."""
     spans, words = cue_clocks()
     built = video_reader(tmp_path, spans=spans, texts=[LINE] * LINES, words=words)
@@ -203,7 +203,7 @@ def test_a_cue_clock_lights_no_word(browser, tmp_path) -> None:  # noqa: F811
             assert at(page, t)["word"] is None, t
             t += 0.25
         assert page.evaluate("() => window.__words") == []
-        assert page.get_attribute(".more-back", "aria-label") == "Back five seconds"
+        assert page.get_attribute(".player-back", "aria-label") == "Back five seconds"
     finally:
         context.close()
 
@@ -222,6 +222,6 @@ def test_a_word_with_its_own_clock_is_lit_as_it_is_said(browser, tmp_path) -> No
             assert seen["word"] == said[k], (k, seen["word"])
             assert seen["lit"] == line_id(0)
         assert page.evaluate("() => window.__words") == said
-        assert page.get_attribute(".more-back", "aria-label") == "Back a word"
+        assert page.get_attribute(".player-back", "aria-label") == "Back a word"
     finally:
         context.close()
