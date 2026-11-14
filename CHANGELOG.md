@@ -42,6 +42,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Spend: the quote for a subtitled YouTube video or a podcast with a transcript now
     prices the marks (`_punctuation_rate(..., written=True)`, about $0.006 a minute). The
     plan prices a track part's marks only, with no hearing and no guessed English.
+  - Marks are bought only where they were priced (qa-claude on #1238). A part is owed
+    them only when it is freshly written (`subtitles/2`) and has never been sent, and
+    only inside the parts the run was quoted for: the pressed parts, or a first build's
+    first part. A part that was built bare because no marks could be bought is recorded
+    as `+unmarked` and is never re-marked later. Parts written as `subtitles/1` before
+    this change are repaired only on purpose (`scripts/repair_unpunctuated.py`).
+  - Bought marks are cached on the track's words and the punctuator, so the same video
+    pasted into a new folder does not pay for them again. Laptop re-timing keeps the
+    `+punctuate/1` marker (`aligned_name`), so a part the model refused is not bought
+    again after it is re-timed.
+  - A track with commas but fewer than one sentence end in 100 words is owed marks too.
+    Direction marks (U+200E/F, U+202A–E, U+2066–9) no longer hide a full stop.
 - Your Progress no longer reads a failed sync as an empty account (targum-internal#726,
   the fault #725 fixed on Your Words). When `/account/me` answered and `/sync` failed, a
   browser with no saved words was told "Your progress starts with the first word you

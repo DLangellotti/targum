@@ -156,9 +156,7 @@ def refined_from(cues: list[Cue], *, language: str, offset: float = 0.0) -> Refi
             for cue in cues
         ]
     )
-    return Refined(
-        refiner="subtitles/1", provider="subtitles", language=language, paragraphs=paragraphs
-    )
+    return Refined(refiner=FRESH, provider="subtitles", language=language, paragraphs=paragraphs)
 
 
 #: A punctuated track is gathered into paragraphs of about this many words: each one
@@ -170,12 +168,44 @@ PARAGRAPH_WORDS = 60
 WALL_WORDS = 120
 
 
+#: What a track part is called when it is written down and nothing has been done to it
+#: since. `/2`: its paragraphs are `drawn`. Parts written as `subtitles/1` before
+#: targum-internal#727 were translated as they stood, so they are never owed marks by an
+#: ordinary build — that would re-buy their English on a press nobody priced for it —
+#: and are repaired only on purpose.
+FRESH = "subtitles/2"
+
+#: What a fresh part is marked when a run built it bare because it could buy no marks:
+#: it was translated as it stands, and is not re-marked by a later run.
+UNMARKED = "unmarked"
+
+#: Fewer sentence ends than one in this many words is a track that never stops, even
+#: where commas kept it above `SPARSE_WORDS`: conversational Hebrew runs 25 to 90 words
+#: to a full stop, so this is clear of it.
+LONGEST_SENTENCE_WORDS = 100
+
+#: Direction marks a track may put after a full stop (U+200E/F, U+202A–E, U+2066–9);
+#: left in, they hide the mark from every count here.
+_BIDI = dict.fromkeys([0x200E, 0x200F, *range(0x202A, 0x202F), *range(0x2066, 0x206A)])
+
+
 def owes_punctuation(refined: Refined) -> bool:
-    """Whether a written track came without the marks a reader needs, and has not had
-    them bought already (a part the model could not mark is not asked twice)."""
-    if "punctuate/" in refined.refiner:
+    """Whether a written track part is owed its full stops: freshly written, never sent
+    to the punctuator (a part the model could not mark is not asked twice, re-timed or
+    not), and either too bare of marks or too bare of sentence ends to be read."""
+    names = refined.refiner.split("+")
+    if names[0] != FRESH or UNMARKED in names or any(n.startswith("punctuate/") for n in names):
         return False
-    return needs_punctuation([word for p in refined.paragraphs for word in p.words])
+    words = [
+        word.model_copy(update={"text": word.text.translate(_BIDI)})
+        for paragraph in refined.paragraphs
+        for word in paragraph.words
+    ]
+    if needs_punctuation(words):
+        return True
+    tokens = [token for word in words for token in word.text.split()]
+    ends = sum(1 for token in tokens if _ends(token))
+    return len(tokens) >= LONGEST_SENTENCE_WORDS and ends * LONGEST_SENTENCE_WORDS < len(tokens)
 
 
 def punctuated(refined: Refined, punctuator: Punctuator) -> Refined:
@@ -268,7 +298,7 @@ def drawn(words: list[Word], opens: set[int] | None = None) -> list[RefinedParag
 
 
 def _ends(text: str) -> bool:
-    return text.rstrip(CLOSERS).endswith(ENDS)
+    return text.translate(_BIDI).rstrip(CLOSERS).endswith(ENDS)
 
 
 def _at_sentence_ends(word: Word) -> list[Word]:

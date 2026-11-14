@@ -1857,10 +1857,9 @@ class Build:
         if kept is None:
             return True
         if kept.provider == "subtitles":
-            # A written track is the source, not a refinement of a hearing — except
-            # that one typed the way it was heard never stops, and its full stops are
-            # bought the way a hearing's are (`ingest.subtitles.punctuated`).
-            return self._punctuates_subtitles(kept)
+            # A written track is the source, not a refinement of a hearing. What it may
+            # still owe is its full stops, and those are asked by `_owes_marks`.
+            return False
         if kept.provider == "aligned":
             # A supplied text is the source; there is nothing better to redo it with.
             return False
@@ -1873,12 +1872,19 @@ class Build:
         keeps = getattr(refiner, "keeps", None)
         return not (callable(keeps) and keeps(kept))
 
-    def _punctuates_subtitles(self, kept: Any) -> bool:
-        """Whether this build buys the full stops a written track came without: only
-        where it may buy punctuation at all (`_refiner`), and only once."""
+    def _owes_marks(self, workspace: Path, number: int) -> bool:
+        """Whether this build buys the full stops a written track part came without
+        (targum-internal#727): only where it may buy punctuation at all (`_refiner`),
+        only for a part written fresh and never sent before (`owes_punctuation`), and —
+        `_parts_owed` sees to it — only for a part inside what this run was priced for."""
+        from .ingest.audio import refined_path
         from .ingest.subtitles import owes_punctuation
+        from .transcribe.models import Refined, load
 
-        return getattr(self._refiner(), "punctuator", None) is not None and owes_punctuation(kept)
+        kept = load(Refined, refined_path(workspace, number))
+        if kept is None or kept.provider != "subtitles" or not owes_punctuation(kept):
+            return False
+        return getattr(self._refiner(), "punctuator", None) is not None
 
     def _refiner(self) -> Any:
         """The refiner for this build's hearings. Punctuation is bought only for a hearing
@@ -1907,12 +1913,49 @@ class Build:
         waiting = {
             span.number for span in drafted.parts if self._needs_hearing(workspace, span.number)
         }
+        every = [span.number for span in drafted.parts]
+        # A written track's marks are bought only for the parts this run was priced for:
+        # the parts pressed, or on a first build its first `chapters`. A part built
+        # before is never re-marked by a press for another one — its sentences would
+        # change and its English be bought again, on a claim that priced neither.
+        priced = self._priced_parts(every, chapters, also)
+        marks = {n for n in priced if self._owes_marks(workspace, n)}
         if chapters is None:
-            return sorted(waiting)
+            return sorted(waiting | marks)
         # The first `chapters` parts of the recording — not the first still waiting,
         # or asking for part nine would quietly buy part two as well.
-        first = [span.number for span in drafted.parts[:chapters]]
-        return sorted({*(n for n in first if n in waiting), *(n for n in also if n in waiting)})
+        first = every[:chapters]
+        return sorted(
+            {*(n for n in first if n in waiting), *(n for n in also if n in waiting), *marks}
+        )
+
+    @staticmethod
+    def _priced_parts(every: list[int], chapters: int | None, also: Sequence[int]) -> list[int]:
+        """The parts a run was priced for: those pressed, or on a first build its first
+        `chapters` (all of them from the command line)."""
+        return list(also) if also else every if chapters is None else every[:chapters]
+
+    def _settle_unmarked(self, chapters: int | None, also: Sequence[int]) -> None:
+        """A bare track part built by a run that could not buy marks (no key, or the free
+        transcriber) is translated as it stands, so it is written down as settled: a
+        later run must not re-mark it and re-buy its English on a quote for something
+        else. The words and paragraphs are untouched, so no segment moves."""
+        from .audio import parts as parts_module
+        from .ingest.audio import refined_path
+        from .ingest.subtitles import UNMARKED, owes_punctuation
+        from .transcribe.models import Refined, load
+        from .transcribe.models import write as write_model
+
+        workspace = self._audio_workspace()
+        drafted = parts_module.load(workspace)
+        if drafted is None or getattr(self._refiner(), "punctuator", None) is not None:
+            return
+        every = [span.number for span in drafted.parts]
+        for number in self._priced_parts(every, chapters, also):
+            path = refined_path(workspace, number)
+            kept = load(Refined, path)
+            if kept is not None and kept.provider == "subtitles" and owes_punctuation(kept):
+                write_model(path, kept.model_copy(update={"refiner": f"{kept.refiner}+{UNMARKED}"}))
 
     def transcribe_parts(self, wanted: Sequence[int]) -> bool:
         """Hear the named parts, and write down what was said. True if anything new was.
@@ -1936,7 +1979,9 @@ class Build:
         recording = self._audio_file(workspace)
         if found is None or drafted is None or recording is None:
             return False
-        owed = [n for n in wanted if self._needs_hearing(workspace, n)]
+        owed = [
+            n for n in wanted if self._needs_hearing(workspace, n) or self._owes_marks(workspace, n)
+        ]
         if not owed:
             return False
 
@@ -1962,12 +2007,7 @@ class Build:
             written = load_model(Refined, refined_path(workspace, number))
             if written is not None and written.provider == "subtitles":
                 # Owed only its full stops: the words are the track's, never heard.
-                from .ingest.subtitles import punctuated
-
-                self.notify(f"Punctuating part {number} of {len(drafted.parts)}…")
-                write_model(
-                    refined_path(workspace, number), punctuated(written, refiner.punctuator)
-                )
+                write_model(refined_path(workspace, number), self._marked(written, refiner))
                 heard = True
                 continue
             self.notify(f"Transcribing part {number} of {len(drafted.parts)}…")
@@ -2073,6 +2113,39 @@ class Build:
             drafted.language = code
             parts_module.write(workspace, drafted)
         return drafted
+
+    def _marked(self, written: Any, refiner: Any) -> Any:
+        """A written track part with its full stops, bought once per track and not per
+        folder: cached on its words and the punctuator, like a hearing's refinement, so
+        the same video pasted again after a trash pays nothing. An answer that cost
+        nothing (every request failed) is not kept, so a later build may try again."""
+        from .ingest.subtitles import punctuated
+        from .transcribe.models import Refined
+
+        punctuator = refiner.punctuator
+        key = self.cache.key(
+            "punctuate",
+            words=[
+                [w.text, w.start, w.end, w.speaker] for p in written.paragraphs for w in p.words
+            ],
+            refiner=written.refiner,
+            punctuator=punctuator.name,
+            model=punctuator.model,
+            language=written.language,
+        )
+        stored = self.cache.get("punctuate", key)
+        if isinstance(stored, dict):
+            try:
+                self.reused.append("punctuation")
+                return Refined.model_validate(stored)
+            except Exception:  # noqa: BLE001 - a malformed entry is a miss
+                pass
+        self.notify("Punctuating the subtitles…")
+        before = punctuator.spent.calls
+        done = punctuated(written, punctuator)
+        if punctuator.spent.calls > before:
+            self.cache.put("punctuate", key, done.model_dump(mode="json"))
+        return done
 
     def _refined(self, transcript: Any, refiner: Any) -> Any:
         """One transcript, refined, and never re-refined while nothing changed.
@@ -2447,6 +2520,8 @@ class Build:
             # What was heard is a new text with a new hash: withheld too, or every row
             # the stages below write of it would reach the ledger (qa-claude on #1122).
             self._withhold_if_private(plan)
+        if self.is_recording_source and self._resolved_out is not None:
+            self._settle_unmarked(chapters, also)
 
         # How much of a book to pay for now. `chapters=1` translates the first section
         # and leaves the rest waiting, which is what stops a reader who opens a novel and

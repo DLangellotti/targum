@@ -178,7 +178,7 @@ def test_a_part_that_matches_its_recording_badly_is_left_as_its_cues(tmp_path) -
     assert "matched its recording" in report.parts[0].skipped
     assert (built / "audio.json").read_text() == before
     kept = load_model(Refined, built / "audio" / "refined" / "part-001.json")
-    assert kept.refiner == "subtitles/1"
+    assert kept.refiner == "subtitles/2"
 
 
 def test_a_second_run_and_a_heard_part_are_left_alone(tmp_path) -> None:
