@@ -384,6 +384,72 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Sign in with Google goes live, and signup opens to anyone — 2026-11-14
+
+David, 2026-11-14. Continue with Google was built for invited readers whose mailed link
+died in spam or on the wrong device (targum-internal#304, #276), and it waited on a client.
+It goes live now. In the same decision signup opens to anyone, by Google and by the
+mailed link together. That reverses the "not yet" of 2026-11-12, which kept the beta
+invite-only after #485 shipped behind its switch. This entry amends "A stranger is told
+the door is by invitation before they knock" (2026-11-03), "When the door is open, every
+door says so" (2026-11-10) and "Your account is the board's sections" (2026-10-09), each
+in place.
+
+- **Google proves the address and is not a second identity.** The account is keyed on
+  the email address, as #304 built it. Continue with Google opens the account whose
+  address Google has verified, and never a second spelling of it. The scope is `openid
+  email` and nothing more. Our page holds an anchor to Google and no Google script,
+  widget or image (§11). We keep that Google is on for the account and when it was last
+  used. We never keep Google's account id, name, picture or tokens.
+- **Where it is drawn.** Continue with Google is a quiet outline press over "or" and the
+  email form, as #304 drew it, on three doors:
+  - /account/signin;
+  - the invitation's page (`?invited=1`, "The invitation's link leads with signing in",
+    the same day);
+  - the front door, under its form, only while signup is open. While the door is shut the
+    front door's one field joins the waitlist, and a Google press beside it could only
+    be refused, so a shut front door draws no Google.
+
+  It is drawn only where `google.configured()` holds, so a machine without a client shows
+  no door that would answer 404. The words are "Continue with Google". Sign in, Sign up and
+  the invitation all lead to one account, so one label serves them all.
+- **Account lists every way in** (targum-internal#502). In Account, the Email row
+  becomes "Ways to sign in", one row per way:
+  - **Email link** shows the address, with no press. It is always a way in and cannot be
+    removed. Changing the address stays undrawn, because nothing behind it exists.
+  - **Google** says "Linked", with the last day it was used and an Unlink press, or "Not
+    linked", with a Link press.
+  - **Link** goes through Google as sign-in does and returns to Account. It links only
+    when Google proves the account's own address. Any other address is refused in one
+    line that names the address Google returned and says to choose the account for this
+    one. Two addresses would make two accounts, and Link does not open a second one.
+  - **Unlink** asks nothing and says "Unlinked · Undo" for a few seconds. After that, a
+    Continue with Google for this address does not sign in. It is told "Google sign-in
+    is off for this account. Use the email link, or link Google again from Your account."
+    beside the email form.
+  - **The first Continue with Google links Google**, for an account that has never
+    unlinked it. Google proves the address as the mailed link does, so that press
+    consents to Google as a way in. An account that unlinked Google is linked again only
+    from Account.
+  - **The last way in cannot be removed.** Today email is always the last one, so the rule
+    never refuses anybody. It holds for any way in added later. The server refuses such a
+    removal, and the page does not draw that press.
+- **Signup opens to anyone, by both doors at once.** With `TARGUM_OPEN_SIGNUP` on, a
+  stranger's verified Google address opens an account as a mailed link does. Each door
+  draws its open copy as the 2026-11-10 entry says, with Google added as above. Google and
+  the email link are never open one without the other. With the switch off, Google signs
+  in only an address that may join, which is the guest list and the invited, and refuses
+  any other address with the shut door's line, as #304 built it.
+- **The open door has the same safety at both doors.** The throwaway-domain refusal, the
+  hour's cap on new accounts and the per-domain count apply to a Google sign-in as they do
+  to a pressed link. A new account is free and spends on the free plan through
+  `Library.claim`, inside the box ceiling. Opening signup changes no spend rail.
+- **The order.** First #477's finish items, then a live test of both doors on the box with
+  a Google client and the switch on. The Privacy Notice must name Google as a way to sign
+  in, and say what it receives, before the button is drawn on the box. The switch goes on
+  only on David's word, after that test. Until then the code and the copy merge with the
+  switch off, and every page stays as the 2026-11-03 entry draws it, Google aside.
+
 ### Connecting an app again replaces its older grant, and a grant left alone ends — 2026-11-14
 
 David, 2026-11-14 (targum-internal#722), on what builder-3 found and qa-claude confirmed
@@ -673,6 +739,10 @@ waitlist asks it.
 - **With the switch off, every page is as the 2026-11-03 entry says**, byte for byte, and
   so it is with the switch asked for and plans off. A render test pins both. The Russian
   is ling-ru's, for David's read.
+- *(Amended 2026-11-14: David decided to open signup, and Google opens with the mailed
+  link. With the switch on, /account/signin, the invitation's page and the front door's
+  form also draw Continue with Google. The front door draws it only while open. See "Sign
+  in with Google goes live, and signup opens to anyone".)*
 
 ### Russian says every credit amount in points, and minutes only for a duration — 2026-11-09
 
@@ -1557,6 +1627,10 @@ found the front door promising what it could not keep. David decided the same da
 the beta stays invitation-only for now: the waitlist and his Let in, no open sign-up
 (#485 waits). So every door a stranger reaches says that, and says it first. With open
 signup on, "When the door is open, every door says so" (2026-11-10, above) holds instead.
+*(Amended 2026-11-14: David opened signup to anyone, by Google and the mailed link
+together. The switch goes on only on his word, after #477's finish items and a live test.
+Until then this entry still draws the doors. See "Sign in with Google goes live, and
+signup opens to anyone".)*
 
 - **The try box promises no wait.** "Ready in about 4 minutes" went with a link a stranger
   pasted, beside a form that only joins a waitlist; the build comes when they are let in,
@@ -5313,7 +5387,9 @@ for each section:
   app" leads to /connect.
 - **Your prompts** and **Telegram** are unchanged in what they do, and drawn on the
   desk's components.
-- **Account**: the address; Saved on this device, with Open; Export your data, with
+- **Account**: the address *(amended 2026-11-14: "Ways to sign in", one row for the email
+  link and one for Google with Link or Unlink; see "Sign in with Google goes live, and
+  signup opens to anyone")*; Saved on this device, with Open; Export your data, with
   Download (the instant download, `/account/export`); "What we record as you go" with
   its two controls, where the box keeps such a record; Correcting a meaning, with its one
   press and the grant; Sign out; and Delete your account, set apart, in clay, with the
