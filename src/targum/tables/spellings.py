@@ -73,14 +73,16 @@ def _hebrew(word: str) -> bool:
 
 
 def _glossed_as(token: Mapping[str, Any]) -> str:
-    from ..models import Token
+    from ..models import Syntax, Token
 
+    syntax = token.get("syntax")
     return Token.model_construct(
         lemma=str(token.get("lemma") or ""),
         pos=token.get("pos"),
         headword=token.get("headword"),
         surface=str(token.get("surface") or ""),
         built=token.get("built"),
+        syntax=Syntax.model_validate(syntax) if isinstance(syntax, Mapping) else None,
     ).glossed_as
 
 

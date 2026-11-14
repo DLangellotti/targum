@@ -583,6 +583,7 @@ def test_a_homograph_the_part_of_speech_separates_is_filed_apart() -> None:
     assert _word("אחר", "ADJ").glossed_as == "אחר (adjective)"
     assert _word("אחר", "ADP").glossed_as == "אחר (preposition)"
     assert _word("שבע", "NUM").glossed_as == "שבע (number)"
+    assert _word("שבע", "NOUN").glossed_as == "שבע", "שבעות and לשבע are no noun of their own"
     assert _word("חדשה", "NOUN").glossed_as == "חדשה (noun)"
     assert _word("לבוש", "ADJ").glossed_as == "לבוש (adjective)"
     assert _word("ועד", "NOUN").glossed_as == "ועד (noun)"
@@ -609,6 +610,9 @@ def test_a_participle_used_as_a_noun_is_filed_apart_from_its_verb() -> None:
     assert _word("קול", "NOUN", "מקול").glossed_as == "קול", "nor is a pu'al's shape"
     assert _word("מנהל", "NOUN", "מנהל").glossed_as == "מנהל", "a participle's own lemma"
     assert _word("טיפל", "NOUN", "טיפולים").glossed_as == "טיפל"
+    assert _word("הטה", "NOUN", "מטה").glossed_as == "הטה", "a ל״ה verb's מ-word is a noun"
+    assert _word("השקה", "NOUN", "משקה").glossed_as == "השקה"
+    assert _word("גילה", "NOUN", "המגלה", lead=1).glossed_as == "גילה"
 
 
 def test_every_word_off_the_701_lists_keeps_the_key_its_meaning_is_cached_under() -> None:

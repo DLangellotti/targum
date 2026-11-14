@@ -64,7 +64,7 @@ _ADJ, _DET, _NUM, _PART = (WORD_MARKS[pos] for pos in ("ADJ", "DET", "NUM", "PAR
 #: where they are one word: the ADV, CCONJ and DET אף are all "even; also", and only the
 #: NOUN is "nose". The 2026-11-14 additions are the homographs ling-he's A1-B1 read found
 #: sharing one meaning (targum-internal#701): פה "mouth" read on "here", שום "garlic" on
-#: "any", כלל "rule" on "at all", מי "water" on "who", חדשה "month" on "new". Only where
+#: "any", כלל "rule" on "at all", מי "water" on "who", רבה "rabbi" on "much". Only where
 #: the part of speech is what tells the senses apart; a spelling the tagger gives one
 #: part of speech for both words (the verbs) is the pointed headword's to split.
 SPLIT_BY_POS: dict[str, dict[str, str]] = {
@@ -79,7 +79,7 @@ SPLIT_BY_POS: dict[str, dict[str, str]] = {
     "רב": {"NOUN": _NOUN, "ADJ": _ADJ, "ADV": _ADV},
     "רבה": {"NOUN": _NOUN, "ADJ": _ADJ, "ADV": _ADV},
     "אחר": {"ADP": _ADP, "ADV": _ADV, "ADJ": _ADJ},
-    "שבע": {"NUM": _NUM, "ADJ": _ADJ, "NOUN": _NOUN},
+    "שבע": {"NUM": _NUM, "ADJ": _ADJ},
     "חדש": {"ADJ": _ADJ, "NOUN": _NOUN},
     "חדשה": {"ADJ": _ADJ, "NOUN": _NOUN},
     "זמן": {"NOUN": _NOUN},
@@ -103,8 +103,10 @@ def participle_of(stem: str, lemma: str) -> bool:
     מ-participles, whose stem says the verb outright: a pi'el's yod becomes the מ's
     vowel (טיפל, מטפל) and a hif'il's or hitpa'el's ה becomes the מ (העסיק, מעסיק). The
     pu'al's (סודר, מסודר) is left out, because it is also any word read with its מ
-    "from" still on (מקול)."""
-    if len(lemma) < 3 or lemma[0] == "מ" or not stem.startswith("מ"):
+    "from" still on (מקול). So is a verb whose lemma ends in ה: its מ-word is a noun of
+    its own more often than the participle (מטה "bed" under הטה, משקה "a drink" under
+    השקה, מראה, מעלה, מחנה, מגלה), and those keep the verb's key."""
+    if len(lemma) < 3 or lemma[0] == "מ" or lemma[-1] == "ה" or not stem.startswith("מ"):
         return False
     stems = {stem} | {
         stem[: -len(ending)]
