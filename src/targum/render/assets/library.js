@@ -255,11 +255,35 @@
      `language` is the row's, kept where it is one of the Hebrew-letter languages. */
   //: Its first letter is a Hebrew one: an English sentence naming one Hebrew word stays English.
   var HEBREW_LETTERS = /^[^A-Za-z\u00c0-\u024f\u0400-\u04ff\u0590-\u05ff]*[\u0590-\u05ff]/;
+  //: A run of Hebrew words inside another language's line: Hebrew letters, and the
+  //: spaces, marks and punctuation between two of them.
+  var HEBREW_WORDS = /[\u0590-\u05ff](?:[\u0590-\u05ff\s"'\u05f3\u05f4\u05be,-]*[\u0590-\u05ff])?/g;
   function hebrewRun(node, text, language) {
-    if (!node || !HEBREW_LETTERS.test(text || "")) return node;
     var code = String(language || "").split("-")[0];
-    node.setAttribute("lang", code === "arc" || code === "yi" ? code : "he");
-    node.setAttribute("dir", "auto");
+    code = code === "arc" || code === "yi" ? code : "he";
+    if (!node || !text) return node;
+    if (HEBREW_LETTERS.test(text)) {
+      node.setAttribute("lang", code);
+      node.setAttribute("dir", "auto");
+      return node;
+    }
+    // An English (or Russian) line that names Hebrew words keeps its own language, and
+    // each Hebrew run in it says its own (targum-internal#696 P2-13): "built on רוצה,
+    // יכול" was read out in English, Hebrew and all.
+    if (!/[\u0590-\u05ff]/.test(text) || node.textContent !== text) return node;
+    node.textContent = "";
+    var at = 0;
+    text.replace(HEBREW_WORDS, function (run, where) {
+      if (where > at) node.appendChild(document.createTextNode(text.slice(at, where)));
+      var inner = document.createElement("bdi");
+      inner.setAttribute("lang", code);
+      inner.setAttribute("dir", "rtl");
+      inner.textContent = run;
+      node.appendChild(inner);
+      at = where + run.length;
+      return run;
+    });
+    if (at < text.length) node.appendChild(document.createTextNode(text.slice(at)));
     return node;
   }
 

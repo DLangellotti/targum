@@ -3753,6 +3753,7 @@
   "offline.talk-needs": "Chat needs a connection.",
   "offline.upload-needs": "Uploading needs a connection.",
   "offline.change-needs": "This needs a connection.",
+  "offline.build-needs": "Getting a text ready needs a connection.",
   "reader.card.met-when-back": "Where else you've met it shows when you're back online.",
   "reader.card.looking-later": "We'll look it up when you're back.",
   "reader.card.needs-connection": "Looking this word up needs the connection.",

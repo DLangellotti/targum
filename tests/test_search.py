@@ -137,8 +137,11 @@ def hosted(
     return port, signed_in[1], tmp
 
 
-def _built(folder: Path, title: str, lemmas: list[str], surfaces: list[str]) -> None:
-    """A built text with one sentence a word, and the word annotated."""
+def _built(
+    folder: Path, title: str, lemmas: list[str], surfaces: list[str], source: str = ""
+) -> None:
+    """A built text with one sentence a word, and the word annotated; `source` makes it
+    a copy of the catalogue entry with that source."""
     (folder / "reader").mkdir(parents=True, exist_ok=True)
     (folder / "reader" / "index.html").write_text("<html></html>", encoding="utf-8")
     (folder / "reader" / "sec-0001.html").write_text(
@@ -146,7 +149,10 @@ def _built(folder: Path, title: str, lemmas: list[str], surfaces: list[str]) -> 
         encoding="utf-8",
     )
     (folder / "document.json").write_text(
-        json.dumps({"title": title, "language": "he", "content_hash": folder.name}),
+        json.dumps(
+            {"title": title, "language": "he", "content_hash": folder.name}
+            | ({"source": source} if source else {})
+        ),
         encoding="utf-8",
     )
     (folder / "segments.json").write_text(
@@ -311,8 +317,8 @@ def test_a_text_of_yours_carries_its_one_figure(
     (`_measure`), the row carries it beside the marked share, banded by it."""
     real = serve.Handler._measure
 
-    def measured(self: Any, home: Path, readers: list[dict[str, Any]]) -> None:
-        real(self, home, readers)
+    def measured(self: Any, home: Path, readers: list[dict[str, Any]], *more: Any) -> None:
+        real(self, home, readers, *more)
         for reader in readers:
             if "known" in reader:
                 reader["estimated"] = 0.97
@@ -324,3 +330,41 @@ def test_a_text_of_yours_carries_its_one_figure(
     row = _group(answer, "yours")["rows"][0]
     assert row["known"] == 0.5 and row["estimated"] == 0.97
     assert row["band"] == search.band(0.97)
+
+
+def test_a_library_row_says_its_band_and_figure_as_the_shelf_does(
+    hosted: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#696 P2-10: the one search's Library rows said no band and no share,
+    beside a shelf that said "About 93%" of the same text: a row was measured only on the
+    catalogue's index, and a copy on the shared shelf, which is what the Library measures
+    it by, was never asked. Measured as the Library measures it now, with our estimate
+    where it is the figure, and banded by that figure."""
+    port, session, tmp = hosted
+    copy = tmp / "out" / "shared" / "psalms-he"
+    _built(copy, "תהילים", ["ירושלים", "שמש"], ["ירושלים", "שמש"], source="test:psalms")
+    try:
+        status, answer, _ = ask(port, "/search.json?lang=he&q=tehillim", session)
+        assert status == 200
+        psalms = next(r for r in _group(answer, "library")["rows"] if r["entry"] == "psalms")
+        # One of its two words is marked known: the copy's own measure, banded.
+        assert psalms["known"] == 0.5 and psalms["band"] == "hard", psalms
+        assert psalms["bandWord"] == "Hard for now"
+
+        real = serve.Handler._measure
+
+        def measured(self: Any, home: Path, readers: list[dict[str, Any]], *more: Any) -> None:
+            real(self, home, readers, *more)
+            for reader in readers:
+                if "known" in reader:
+                    reader["estimated"] = 0.93
+
+        monkeypatch.setattr(serve.Handler, "_measure", measured)
+        _, answer, _ = ask(port, "/search.json?lang=he&q=tehillim", session)
+        psalms = next(r for r in _group(answer, "library")["rows"] if r["entry"] == "psalms")
+        assert psalms["known"] == 0.5 and psalms["estimated"] == 0.93, psalms
+        assert psalms["band"] == search.band(0.93), "the band is the figure's"
+    finally:
+        import shutil
+
+        shutil.rmtree(copy)

@@ -247,6 +247,12 @@ def test_command_k_and_slash_open_it_and_it_starts_with_what_you_searched(browse
     context.close()
 
 
+def _level(page, band: str) -> None:
+    """Pick a level from the search's own Level menu."""
+    page.click("#palette-level-pick")
+    page.click(f"#palette-levels [data-level='{band}']")
+
+
 def test_what_it_finds_is_grouped_counted_and_filtered(browser) -> None:
     context, page, asked = _open(browser)
     page.click("#palette-open")
@@ -276,7 +282,7 @@ def test_what_it_finds_is_grouped_counted_and_filtered(browser) -> None:
     assert first.locator(".meter").count() == 1
     assert first.locator(".row-thumb").count() == 1, "every row has its picture"
     # The level narrows to one band.
-    page.select_option(".palette-level-pick", "now")
+    _level(page, "now")
     assert page.eval_on_selector_all(".palette-group", "els => els.map(e => e.dataset.group)") == [
         "yours",
         "words",
@@ -284,7 +290,7 @@ def test_what_it_finds_is_grouped_counted_and_filtered(browser) -> None:
     # Searched in Hebrew, with all languages one press away.
     assert "Searched in Hebrew." in page.inner_text(".palette-foot")
     # Enter opens the first, and the search is kept on the device.
-    page.select_option(".palette-level-pick", "")
+    _level(page, "")
     page.focus("#palette-find")
     page.keyboard.press("Enter")
     page.wait_for_url("**/reader/**", timeout=5000)
@@ -438,3 +444,51 @@ def test_a_text_of_yours_says_its_one_figure(browser, monkeypatch: pytest.Monkey
     context.close()
     assert said == "About 97% (our estimate)"
     assert done == "0.97"
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_the_level_is_the_desks_own_menu_at_every_width(browser, width: int) -> None:
+    """targum-internal#696 P2-11: the Level filter was a native `<select>` at 1440 and was
+    not drawn at all at 390. It is the desk's own menu, the language pill's twin, beside
+    the tabs at both widths, and its sheet is never clipped by the row of tabs, which
+    scrolls sideways on a phone."""
+    context, page, _ = _open(browser, width=width, height=844)
+    page.evaluate("() => window.TargumPalette.show(true)")
+    page.fill("#palette-find", "ירושלם")
+    page.wait_for_selector(".palette-group[data-group='library']")
+    assert page.locator("#palette select").count() == 0, "no native select"
+    pick = page.locator("#palette-level-pick")
+    assert pick.is_visible()
+    assert "Level:" in pick.inner_text() and "Any" in pick.inner_text()
+    pick.click()
+    assert pick.get_attribute("aria-expanded") == "true"
+    sheet = page.evaluate(
+        """() => {
+          const menu = document.getElementById('palette-levels').getBoundingClientRect();
+          const rows = [...document.querySelectorAll('#palette-levels [role=menuitemradio]')];
+          const hit = rows.map((row) => {
+            const box = row.getBoundingClientRect();
+            const x = box.left + box.width / 2, y = box.top + box.height / 2;
+            const at = document.elementFromPoint(x, y);
+            return !!at && row.contains(at);
+          });
+          return {left: menu.left, right: menu.right, rows: rows.length, hit,
+                  checked: rows.filter((r) => r.getAttribute('aria-checked') === 'true')
+                    .map((r) => r.dataset.level)};
+        }"""
+    )
+    assert sheet["rows"] == 4 and sheet["checked"] == [""], sheet
+    assert sheet["left"] >= 0 and sheet["right"] <= width, sheet
+    assert all(sheet["hit"]), "every row of the sheet can be pressed"
+    page.click("#palette-levels [data-level='now']")
+    assert page.locator("#palette-levels").is_hidden()
+    assert "Read it now" in pick.inner_text()
+    assert page.eval_on_selector_all(".palette-group", "els => els.map(e => e.dataset.group)") == [
+        "yours",
+        "words",
+    ]
+    # Escape closes the sheet before it closes the search.
+    pick.click()
+    page.keyboard.press("Escape")
+    assert page.locator("#palette-levels").is_hidden() and _up(page)
+    context.close()

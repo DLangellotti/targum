@@ -9277,7 +9277,12 @@ class Handler(BaseHTTPRequestHandler):
             if str(reader.get("document") or "")[: self.OPENED_PREFIX].lower() in starts
         ]
 
-    def _measure(self, home: Path, readers: list[dict[str, Any]]) -> None:
+    def _measure(
+        self,
+        home: Path,
+        readers: list[dict[str, Any]],
+        estimates: dict[str, Any] | None = None,
+    ) -> None:
         """Say how much of each targum the reader already knows.
 
         Added in place rather than returned, and silently skipped for anyone signed out or
@@ -9294,7 +9299,10 @@ class Handler(BaseHTTPRequestHandler):
         from . import coverage as coverage_module
 
         vocabulary: dict[str, dict[str, int]] = {}
-        estimates: dict[str, Any] = {}
+        # `estimates` is the caller's, where it measures more than one shelf in a
+        # request: a reader's estimate is worked out once a language, not once a shelf.
+        if estimates is None:
+            estimates = {}
         for reader in readers:
             language = str(reader.get("language") or "")
             name = str(reader.get("name") or "")
@@ -9590,22 +9598,74 @@ class Handler(BaseHTTPRequestHandler):
                 row["bandWord"] = self._band_word(row["band"])
             return row
 
+        # The reader's estimate a language, worked out once for the request and shared
+        # by Your targums, the shared shelf and the catalogue's rows (`_measure` keys it
+        # by the row's language as written).
+        estimates: dict[str, Any] = {}
+
+        def estimate_of(language: str) -> Any:
+            if language not in estimates:
+                estimates[language] = self._estimate(person, language)
+            return estimates[language]
+
+        def figured(said: dict[str, Any], estimated: Any) -> dict[str, Any]:
+            # The text's one figure (design.md §12, 2026-11-04; targum-internal#716):
+            # our estimate where it is the figure, beside the marked share, so the
+            # palette says what the shelf, Continue and the playlist say. Its band
+            # is the figure's, so "Hard for now" never stands beside "About 97%".
+            if "known" in said and isinstance(estimated, (int, float)):
+                said["estimated"] = round(float(estimated), 4)
+                said["band"] = search_module.band(float(estimated))
+                said["bandWord"] = self._band_word(said["band"])
+            return said
+
         def yours_rows(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
-            self._measure(home, found)
-            rows = []
-            for row in found:
-                said = measured(text_row(row), row.get("known"))
-                # The text's one figure (design.md §12, 2026-11-04; targum-internal#716):
-                # our estimate where it is the figure, beside the marked share, so the
-                # palette says what the shelf, Continue and the playlist say. Its band
-                # is the figure's, so "Hard for now" never stands beside "About 97%".
-                estimated = row.get("estimated")
-                if "known" in said and isinstance(estimated, (int, float)):
-                    said["estimated"] = round(float(estimated), 4)
-                    said["band"] = search_module.band(float(estimated))
-                    said["bandWord"] = self._band_word(said["band"])
-                rows.append(said)
-            return rows
+            self._measure(home, found, estimates)
+            return [
+                figured(measured(text_row(row), row.get("known")), row.get("estimated"))
+                for row in found
+            ]
+
+        # The Library's rows are measured as the Library measures them (targum-internal
+        # #696, P2-10): a copy on the shared shelf on its own words, else the catalogue's
+        # index in running words, each with our estimate where it is the figure. The
+        # palette printed nothing for an unbuilt row where the shelf printed its band.
+        chances: dict[str, Any] = {}
+        statuses: dict[str, dict[int, int]] = {}
+        shared_copies: dict[str, dict[str, Any]] = {}
+
+        def measure_shared(entries: list[Any]) -> None:
+            wanted = {str(entry.id) for entry in entries}
+            if not wanted:
+                return
+            copies = [
+                reader
+                for reader in self.library.readers(self.library.shared)
+                if str(reader.get("entry") or "") in wanted
+            ]
+            self._measure(self.library.shared, copies, estimates)
+            for reader in copies:
+                if isinstance(reader.get("known"), (int, float)):
+                    shared_copies[str(reader["entry"])] = reader
+
+        def catalogue_known(entry: Any) -> tuple[float | None, Any]:
+            copy = shared_copies.get(str(entry.id))
+            if copy is not None:
+                return float(copy["known"]), copy.get("estimated")
+            code = entry.language.split("-")[0]
+            marked = words_of(code)
+            if code not in statuses:
+                statuses[code] = index.statuses(marked) if index.counts else {}
+            got = index.running(entry.id, marked, statuses[code]) or index.against(entry.id, marked)
+            if got is None:
+                return None, None
+            if code not in chances:
+                known = estimate_of(entry.language)
+                chances[code] = known.chances(index) if known is not None and index.counts else None
+            if chances[code] is None:
+                return got.known, None
+            expected = index.expected(entry.id, statuses[code], chances[code])
+            return got.known, coverage_module.estimated_field(got.known, expected).get("estimated")
 
         def library_row(entry: Any) -> dict[str, Any]:
             row = {
@@ -9625,8 +9685,8 @@ class Handler(BaseHTTPRequestHandler):
                 "words": entry.words,
                 "href": "/open/" + quote(entry.id),
             }
-            got = index.against(entry.id, words_of(entry.language.split("-")[0]))
-            return measured(row, got.known if got is not None else None)
+            known, estimated = catalogue_known(entry)
+            return figured(measured(row, known), estimated)
 
         shown_yours = [row for _, _, row in yours if held(language_of(row))]
         shown_library = [entry for _, entry in library if held(entry.language.split("-")[0])]
@@ -9635,6 +9695,8 @@ class Handler(BaseHTTPRequestHandler):
             for sub in subscriptions
             if not sub.get("language") or held(str(sub.get("language")).split("-")[0])
         ]
+        library_page = shown_library[: self.SEARCH_MOST]
+        measure_shared(library_page)
         groups: list[dict[str, Any]] = [
             {
                 "id": "yours",
@@ -9677,7 +9739,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "id": "library",
                 "count": len(shown_library),
-                "rows": [library_row(entry) for entry in shown_library[: self.SEARCH_MOST]],
+                "rows": [library_row(entry) for entry in library_page],
             },
         ]
 
@@ -9720,11 +9782,10 @@ class Handler(BaseHTTPRequestHandler):
             if others:
                 n, code = others[0]
                 rows = [text_row(row) for _, _, row in yours if language_of(row) == code][:4]
-                rows += [
-                    library_row(entry)
-                    for _, entry in library
-                    if entry.language.split("-")[0] == code
-                ][: 4 - len(rows)]
+                # Cut before measuring: a row is measured only where it is shown.
+                there = [entry for _, entry in library if entry.language.split("-")[0] == code]
+                measure_shared(there[: 4 - len(rows)])
+                rows += [library_row(entry) for entry in there[: 4 - len(rows)]]
                 elsewhere = {"language": code, "name": self._named(code), "count": n, "rows": rows}
 
         self._json(
