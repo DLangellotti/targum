@@ -1374,6 +1374,17 @@
         return t("offline.change-needs", "This needs a connection.");
       },
     },
+    {
+      // A Library text nobody has built here: its press starts a build, which asks us
+      // (targum-internal#696 P2-12). The card and the See all row each stood live with
+      // no mark, beside built ones saying "Not on this device". The reason is the card's
+      // own foot line, or a line of the row's title column, as a text's mark is.
+      find: "main button[data-build], .site-main button[data-build]",
+      foot: true,
+      why: function () {
+        return t("offline.build-needs", "Getting a text ready needs a connection.");
+      },
+    },
   ];
 
   function greyNeeds() {
@@ -1390,7 +1401,17 @@
         }
         // A press that says its reason beside it, as home's Upload your own does: the
         // bar's Upload has the band's line; the card's had nothing (#695).
-        if (node.hasAttribute("data-offline-say")) {
+        if (need.foot) {
+          var foot = element("span", "offline-tag is-line", need.why());
+          foot.setAttribute("data-offline-tag", "");
+          var spot = tagSpot(node, node);
+          if (spot.parent === node.parentNode) {
+            var main = node.querySelector(":scope > .what, :scope > .row-main");
+            spot = main ? { parent: main, before: null } : { parent: node, before: null };
+          }
+          if (spot.parent === node) foot.classList.add("is-foot");
+          spot.parent.insertBefore(foot, spot.before);
+        } else if (node.hasAttribute("data-offline-say")) {
           var reason = element("p", "offline-tag is-line offline-reason", need.why());
           reason.setAttribute("data-offline-tag", "");
           node.parentNode.insertBefore(reason, node.nextSibling);

@@ -620,7 +620,19 @@ def test_moving_offline_to_a_language_not_fetched_keeps_the_shelf_and_the_langua
     named = page.evaluate("window.TARGUM_LANGUAGES.ru")
     assert held.inner_text() == f"{named} opens when you're back online."
     assert page.locator("#lib-fault").is_hidden(), "not the could-not-open card"
-    assert page.locator("#catalogue").inner_text() == before, "what was drawn stays"
+    # Less the offline marks (#696 P2-12): an unbuilt row says its press needs the
+    # connection, which is a line added to it, not the row redrawn.
+    unmarked = page.evaluate(
+        """() => {
+          const copy = document.getElementById('catalogue').cloneNode(true);
+          copy.querySelectorAll('[data-offline-tag]').forEach((tag) => tag.remove());
+          document.body.appendChild(copy);
+          const said = copy.innerText;
+          copy.remove();
+          return said;
+        }"""
+    )
+    assert unmarked == before, "what was drawn stays"
     assert page.evaluate("localStorage.getItem('targum:language')") == "he"
 
     answers[elsewhere] = json.loads(asset_files()[real.group(0)][0])
@@ -1070,3 +1082,37 @@ def test_offline_the_note_is_each_card_s_own_foot_line(browser, page_html) -> No
     assert got["loose"] == 0 and got["inCards"] > 0, got
     assert all(children == 1 for _, children in got["portions"]), got
     assert len({top for top, _ in got["portions"]}) == 1, "the portions keep to one row"
+
+
+def test_offline_a_text_not_built_says_its_press_needs_the_connection(browser, page_html) -> None:
+    """targum-internal#696 P2-12: offline, an unbuilt card and an unbuilt See all row,
+    whose press starts a build, stood live with no mark beside built ones saying "Not on
+    this device". Each is greyed now, with the reason as its own foot line, and a press
+    says why rather than asking for a build."""
+    answers = {"/readers": {"readers": [], "shared": built(0.95, 2), "signedIn": True}}
+    context, page, thrown, asked, url = library(browser, page_html, answers, hash="#see")
+    page.goto(url)
+    page.locator("#catalogue [data-build]").first.wait_for()
+    context.set_offline(True)
+    page.locator("#catalogue [data-build] .offline-tag").first.wait_for()
+    got = page.evaluate(
+        """() => [...document.querySelectorAll('main [data-build], .site-main [data-build]')]
+          .filter((press) => press.getClientRects().length)
+          .map((press) => ({
+            off: press.getAttribute('aria-disabled'),
+            said: [...press.querySelectorAll('.offline-tag')].map((tag) => tag.textContent),
+          }))"""
+    )
+    assert got, "there are unbuilt rows to mark"
+    for one in got:
+        assert one["off"] == "true", one
+        assert one["said"] == ["Getting a text ready needs a connection."], one
+    page.locator("#catalogue [data-build]").first.click(force=True)
+    page.locator("#offline-why").wait_for()
+    assert "needs a connection" in page.inner_text("#offline-why")
+    context.set_offline(False)
+    page.wait_for_function(
+        "() => !document.querySelector('[data-build] .offline-tag, [data-build][aria-disabled]')"
+    )
+    context.close()
+    assert not thrown, thrown

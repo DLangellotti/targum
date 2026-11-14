@@ -240,6 +240,13 @@ setTimeout(() => {
       by: find("row-by").textContent,
       blurb: find("row-blurb").textContent,
       blurbLang: find("row-blurb").attrs["lang"] || "",
+      // The Hebrew runs inside an English line, each in its own language (#696 P2-13).
+      blurbRuns: (find("row-blurb").children || [])
+        .filter((c) => c.attrs && c.attrs["lang"])
+        .map((c) => [c.textContent, c.attrs["lang"], c.attrs["dir"] || ""]),
+      byRuns: (find("row-by").children || [])
+        .filter((c) => c.attrs && c.attrs["lang"])
+        .map((c) => [c.textContent, c.attrs["lang"], c.attrs["dir"] || ""]),
       level: find("row-level").textContent,
       chip: find("row-next").textContent,
       fresh: find("row-new").textContent,
