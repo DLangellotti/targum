@@ -186,7 +186,7 @@
       // account). The safe choice has the focus.
       presses();
       say(
-        job.audio
+        job.metered
           ? t("building.cancel.ask", "Stop it? What's done so far still uses credits.")
           : t("building.cancel.ask-none", "Stop it? It uses none of your credits."),
         "cancel-ask",

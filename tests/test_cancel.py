@@ -560,7 +560,7 @@ def test_a_stop_says_credits_from_its_receipt_and_never_pay(place: str) -> None:
     credits for a recording and none for a text; the end says what the receipt used."""
     text = _drawn(place=place, job=RUNNING, press=["Cancel"])
     assert "Stop it? It uses none of your credits." in text["after"]["words"]
-    film = _drawn(place=place, job={**RUNNING, "audio": True}, press=["Cancel"])
+    film = _drawn(place=place, job={**RUNNING, "audio": True, "metered": True}, press=["Cancel"])
     assert "Stop it? What's done so far still uses credits." in film["after"]["words"]
 
     def ended(final: dict[str, Any]) -> list[str]:
@@ -608,3 +608,53 @@ def test_the_server_says_what_a_stop_used(tmp_path: Path, monkeypatch: Any) -> N
     assert text.state()["used"] == 0
     assert _said(text, None, 0) == "You stopped it. Nothing was used."
     assert "paid" not in _said(text, None, 0)
+
+
+# -- qa-claude on #1217 ----------------------------------------------------------------
+
+
+def test_a_gift_recording_s_stop_asks_no_credits(tmp_path: Path) -> None:
+    """A let-in build is a recording targum pays for: its Stop asks as a text's does,
+    because the question is asked on `metered`, never on `audio`."""
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    gift = _recording("g1", person.id, library.home(person), gift=True)
+    film = _recording("f1", person.id, library.home(person))
+    assert gift.state()["metered"] is False and film.state()["metered"] is True
+
+    asked = _drawn(place="row", job={**RUNNING, "audio": True, "metered": False}, press=["Cancel"])
+    assert "Stop it? It uses none of your credits." in asked["after"]["words"]
+    ahead = _drawn(
+        place="ahead",
+        job={**WAITING, "ahead": [{**RUNNING, "id": "a1", "audio": True, "metered": False}]},
+        press=["Cancel"],
+    )
+    assert "Stop it? It uses none of your credits." in ahead["after"]["words"]
+
+
+def test_the_waiting_card_s_rows_ahead_say_whether_a_stop_uses_credits(tmp_path: Path) -> None:
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    film = _recording("f1", person.id, library.home(person), made=1)
+    gift = _recording("g1", person.id, library.home(person), gift=True, made=2)
+    last = _recording("l1", person.id, library.home(person), made=3)
+    for job in (film, gift, last):
+        library.jobs[job.id] = job
+        job.stage = "queued"
+        library.remember(job)
+    (row,) = [one for one in library.mine(person.id) if one["id"] == "l1"]
+    assert {one["id"]: one["metered"] for one in row["ahead"]} == {"f1": True, "g1": False}
+
+
+def test_a_stop_that_used_credits_says_so_whatever_it_cost() -> None:
+    """`_said` asks the receipt's credits before the money: a stop that heard two
+    minutes says two credits even where its transcriber cost nothing."""
+    from targum.chat.tools import _said
+
+    job = Job(id="z1", source="https://example.com/z1", audio=True, seconds=600.0)
+    job.stage, job.spent, job.used = "cancelled", 0.0, 120.0
+    assert _said(job, None, 0) == "You stopped it. It used 2 credits."
+    job.used = 0.0
+    assert _said(job, None, 0) == "You cancelled it. Nothing was used."

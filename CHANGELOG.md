@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Stop and claim follow-ups to #1217 (targum-internal#715). A gift recording's Stop no
+  longer asks the credits question: jobs and the waiting card's rows ahead carry
+  `metered`, and Stop asks on it rather than on `audio`. A free reader pressing a credited
+  retry is told the need with the credit taken off, as the quote said. A stop says the
+  credits its receipt used before it looks at money. The Russian quote's
+  «Осталось {n} баллов в этом месяце» now matches `building.credits.left`. No spend.
 - `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
   first news round's six workers ran trafilatura side by side, and its one lxml parser,
   shared across threads, corrupted libxml2's memory: `free(): invalid pointer`, `double

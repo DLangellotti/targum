@@ -2253,7 +2253,7 @@
       var own = undo.control({
         id: job.id,
         title: job.title,
-        audio: state.audio === undefined ? job.audio : state.audio,
+        metered: state.metered === undefined ? job.metered : state.metered,
         stage: state.stage,
         cancellable: state.cancellable,
         stopping: state.stopping,
