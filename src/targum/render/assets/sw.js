@@ -7,7 +7,8 @@
  * off a disk, which has no origin to register on and fetches nothing.
  *
  * **It never fetches anything by itself.** Nothing is cached when it installs, nothing is
- * fetched ahead, and nothing is refreshed behind the reader's back. The page saves — the
+ * fetched ahead, and nothing is refreshed behind the reader's back: a saved page is
+ * refreshed only as it is opened, and only when it changed. The page saves — the
  * reader's own press, or the last texts they opened — and puts each file into the one
  * cache below; this file only answers out of that cache. The one fetch it makes is the
  * one the browser was already making: a page being opened goes to the network first, and
@@ -20,7 +21,10 @@
  *   policy, hashes and all. When the page is a saved one and the network did answer, the
  *   saved copy is replaced by the bytes that just arrived, so a saved text is never older
  *   than the last time it was opened. A page that arrives needing its files beside it
- *   (a reader opened on the site, 2026-10-29) never replaces it: the copy stays whole.
+ *   (a reader opened on the site, 2026-10-29) never replaces it, so the copy stays
+ *   whole; when it says it is another build than the copy, the page is asked for again
+ *   whole and that replaces it (2026-11-14). That is the one fetch of its own it makes,
+ *   for the page being opened and no other.
  * - **A recording or a film beside a reader** goes to the network first too, and answers
  *   from the cache when it was saved and the network is not there, in slices: a player
  *   asks for ranges, and Safari opens every film with `bytes=0-1` and will not play unless
@@ -195,19 +199,27 @@ function opening(event) {
   return asked.then(
     function (answer) {
       // A saved page that opened online is saved again as it is now: the reader is
-      // reading these bytes, and the copy for the plane should be the same one. Unless
-      // the page needs its files beside it (`X-Targum-Linked`): a reader opened on the
-      // site names them since 2026-10-29 (design.md §12, "A served reader loads its files
-      // once"), and the copy for the plane must open with nothing else, so the whole one
-      // the save fetched stays.
-      var linked = answer && answer.headers.get("x-targum-linked");
-      if (answer && answer.ok && answer.type === "basic" && saved && saved[key] && !linked) {
-        var copy = answer.clone();
-        event.waitUntil(
-          caches.open(STORE).then(function (cache) {
-            return cache.put(key, kept(copy));
-          })
-        );
+      // reading these bytes, and the copy for the plane should be the same one. A page
+      // that needs its files beside it (`X-Targum-Linked`: a reader opened on the site
+      // names them since 2026-10-29, design.md §12, "A served reader loads its files
+      // once") is never the copy, which must open with nothing else; it says which build
+      // it is instead (`X-Targum-Version`), and only when that is not the copy's is the
+      // page asked for again, whole, as a save asks for it (design.md §12, "An offline
+      // copy follows its text when opened online", 2026-11-14). The same build opened
+      // again fetches nothing more.
+      if (answer && answer.ok && answer.type === "basic" && saved && saved[key]) {
+        var linked = answer.headers.get("x-targum-linked");
+        var version = answer.headers.get("x-targum-version");
+        if (!linked) {
+          var copy = answer.clone();
+          event.waitUntil(
+            caches.open(STORE).then(function (cache) {
+              return cache.put(key, kept(copy));
+            })
+          );
+        } else if (version) {
+          event.waitUntil(refreshed(request, key, version, event.resultingClientId || event.clientId));
+        }
       }
       return answer;
     },
@@ -227,6 +239,44 @@ function opening(event) {
       });
     }
   );
+}
+
+/* The copy of a saved page, fetched again whole because the page opened online is a
+   newer build of it than the copy (`opening`). Asked as a save asks, so the server sends
+   the page as it stands on disk; kept only if it came back whole and is the build that
+   was opened, so a copy is never swapped for a worse one. The page that opened is told,
+   so the text's files beside it (a new recording) can follow (`offline.js`). Nothing
+   fetched for any page but this one. */
+function refreshed(request, key, version, client) {
+  return caches
+    .open(STORE)
+    .then(function (cache) {
+      return cache.match(key, { ignoreVary: true }).then(function (had) {
+        if (!had || had.headers.get("x-targum-version") === version) return false;
+        return fetch(request.url, {
+          headers: { "X-Targum-Save": "1" },
+          credentials: "same-origin",
+          cache: "no-store",
+        }).then(function (whole) {
+          if (!whole.ok || whole.headers.get("x-targum-linked")) return false;
+          if (whole.headers.get("x-targum-version") !== version) return false;
+          return cache.put(key, kept(whole)).then(function () {
+            return true;
+          });
+        });
+      });
+    })
+    .then(function (put) {
+      if (!put) return null;
+      return self.clients.matchAll({ type: "window" }).then(function (open) {
+        open.forEach(function (one) {
+          if (!client || one.id === client || keyOf(one.url) === key) {
+            one.postMessage({ type: "refreshed", page: key });
+          }
+        });
+      });
+    })
+    .catch(function () {});
 }
 
 /* A response as it is kept: its own body and headers, less the ones that described the

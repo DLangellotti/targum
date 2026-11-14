@@ -17,6 +17,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   panel away. A failed sync still writes nothing. No spend. Two new strings in English
   and Russian (`progress.stale`, `progress.stale.offline`); the Russian waits on ling-ru's
   first pass.
+- A text saved for offline now follows its text, and Remove on Saved can be undone
+  (targum-internal#720, P1 4 and P2 9; design.md §12, "An offline copy follows its text
+  when opened online, and Remove can be undone", 2026-11-14).
+  - Since 2026-10-29 a reader opened on the site names its files, and the worker never
+    kept that page as the offline copy, so a saved text stayed as it was saved: a
+    corrected line never reached the plane. A served reader now says which build it is
+    (`X-Targum-Version`, the page on disk and the language its chrome is in), the same
+    whether it went out named or whole. When a saved page opens online as another build
+    than its copy, the worker asks for it again, whole, as a save does, and keeps that.
+    The page is then told, and the text's other files follow: a new recording is fetched,
+    and nothing already kept is fetched again. The same build opened again fetches
+    nothing more. A copy kept before this change carries no version, so its next open
+    online replaces it.
+  - Remove and Remove all on Saved on this device no longer take effect for good at once.
+    The row (or, for all, the line where Remove all stood) says "Removed · Undo" for
+    8 seconds, with no confirm. Undo puts back exactly what was removed, offline too,
+    because the files stay in the cache until the line goes (`TargumOffline.take`,
+    `takeAll`). Signing out still clears everything at once (`removeAll`).
+  No spend. Four new strings in English and Russian (`saved.removed`, `saved.undo`,
+  `saved.undo-named`, `saved.undo-all`); the Russian waits on ling-ru's first pass.
 - Connect passes more of design's §14 finish bar (targum-internal#721).
   - With no credits left, the approval page's well no longer says "You have 0 credits
     left this month, about 0 min of audio or video." It says "You've used this month's

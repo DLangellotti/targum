@@ -169,6 +169,25 @@ a.saved-name::after { content: ""; position: absolute; inset: 0; }
   .saved-switch .sw { transition: none; }
 }
 
+/* Removed · Undo (design.md §12, 2026-11-14): the row a removed text leaves for a few
+   seconds, the whole width of the table, in the row's own height so nothing under it
+   moves; and the same line where Remove all stood. */
+.saved-held {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 3.25rem;
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+}
+.saved-rows > .saved-held {
+  grid-column: 1 / -1;
+  padding-block: 0.75rem;
+  border-block-end: 1px solid var(--rule);
+}
+.saved-rows > .saved-held:last-child { border-block-end: 0; }
+.saved-held[hidden] { display: none; }
 .saved-end { display: grid; justify-items: start; gap: 0.75rem; }
 .saved-end .note { margin: 0; color: var(--ink); }
 .saved-all { gap: 0.4rem; }
@@ -240,7 +259,9 @@ a.saved-name::after { content: ""; position: absolute; inset: 0; }
   .saved-row .btn,
   .saved-x,
   .saved-ask,
-  #saved-all { min-block-size: 44px; }
+  #saved-all,
+  .saved-undo { min-block-size: 44px; }
+  .saved-undo { min-inline-size: 44px; }
   .saved-x,
   .saved-keep-it { min-inline-size: 44px; }
   /* And across: Recent texts' 3, 5 and 10 were 36px wide and the switch 42px

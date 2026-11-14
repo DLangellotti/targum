@@ -563,45 +563,129 @@
       .catch(function () {});
   }
 
-  /* Take a text or a playlist off this device. A playlist lets go of the texts it held,
-     and a text it held that nothing else keeps goes with it — unless it was opened, in
-     which case it is one of the recent texts and `trim` decides. */
+  /* Take `id` out of the index, as Remove does, and say which files it named. A
+     playlist lets go of the texts it held, and a text it held that nothing else keeps
+     goes with it — unless it was opened, in which case it is one of the recent texts and
+     `trim` decides. */
+  function unlist(index, id) {
+    var files = [];
+    var item = index.items[id];
+    if (!item) return files;
+    delete index.items[id];
+    if (item.kind === "playlist") {
+      Object.keys(index.items).forEach(function (other) {
+        var text = index.items[other];
+        if (!text.held || text.held.indexOf(id) < 0) return;
+        text.held = text.held.filter(function (one) {
+          return one !== id;
+        });
+        if (text.how === "auto" && !text.held.length && !text.opened) {
+          files = files.concat(text.files || []);
+          delete index.items[other];
+        }
+      });
+    } else {
+      files = item.files || [];
+      // And out of any playlist that held it.
+      Object.keys(index.items).forEach(function (other) {
+        var set = index.items[other];
+        if (set.members) {
+          set.members = set.members.filter(function (one) {
+            return one !== id;
+          });
+        }
+      });
+    }
+    return files;
+  }
+
+  // Take a text or a playlist off this device, at once.
   function remove(id) {
     var files = [];
     return change(function (index) {
-      var item = index.items[id];
-      if (!item) return index;
-      delete index.items[id];
-      if (item.kind === "playlist") {
-        Object.keys(index.items).forEach(function (other) {
-          var text = index.items[other];
-          if (!text.held || text.held.indexOf(id) < 0) return;
-          text.held = text.held.filter(function (one) {
-            return one !== id;
-          });
-          if (text.how === "auto" && !text.held.length && !text.opened) {
-            files = files.concat(text.files || []);
-            delete index.items[other];
-          }
-        });
-      } else {
-        files = item.files || [];
-        // And out of any playlist that held it.
-        Object.keys(index.items).forEach(function (other) {
-          var set = index.items[other];
-          if (set.members) {
-            set.members = set.members.filter(function (one) {
-              return one !== id;
-            });
-          }
-        });
-      }
+      files = unlist(index, id);
       return index;
     })
       .then(function (index) {
         return forgetFiles(files, index);
       })
       .then(trim);
+  }
+
+  /* Remove that can be taken back (design.md §12, "An offline copy follows its text when
+     opened online, and Remove can be undone", 2026-11-14). Offline a copy can be the only
+     one there is, so nothing is fetched to put it back: the index forgets it at once, its
+     files stay in the cache, and they go only when the hold is `done` (the Saved page's
+     "Removed · Undo" has gone). `undo` writes back every entry the removal changed,
+     exactly as it was. A page closed while it holds leaves the files to `sweep`, which
+     takes what no saved text names. Resolves to { undo(), done() }, each settled once. */
+  function held(before, files) {
+    var settled = false;
+    return {
+      undo: function () {
+        if (settled) return Promise.resolve();
+        settled = true;
+        return change(function (index) {
+          Object.keys(before).forEach(function (id) {
+            index.items[id] = before[id];
+          });
+          return index;
+        });
+      },
+      done: function () {
+        if (settled) return Promise.resolve();
+        settled = true;
+        return readIndex()
+          .then(function (index) {
+            return forgetFiles(files, index);
+          })
+          .then(trim);
+      },
+    };
+  }
+
+  function copied(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function take(id) {
+    var before = {};
+    var files = [];
+    return change(function (index) {
+      var was = copied(index.items);
+      files = unlist(index, id);
+      Object.keys(was).forEach(function (one) {
+        if (JSON.stringify(was[one]) !== JSON.stringify(index.items[one])) before[one] = was[one];
+      });
+      return Object.keys(before).length ? index : false;
+    }).then(function () {
+      return held(before, files);
+    });
+  }
+
+  /* Remove all, so that it can be taken back too: every text and playlist out of the
+     index, the Saved page left kept so it still opens offline. Its `done` takes their
+     files, and whatever else no saved text names. */
+  function takeAll() {
+    var before = {};
+    var files = [];
+    return change(function (index) {
+      Object.keys(index.items).forEach(function (one) {
+        var item = index.items[one];
+        if (item.kind === "page") return;
+        before[one] = copied(item);
+        files = files.concat(item.files || []);
+        delete index.items[one];
+      });
+      return Object.keys(before).length ? index : false;
+    }).then(function () {
+      var hold = held(before, files);
+      var finish = hold.done;
+      hold.done = function () {
+        return finish().then(sweep);
+      };
+      return hold;
+    });
   }
 
   /* Kept until removed: a text or a playlist saved on its own becomes one the reader saved. */
@@ -1664,6 +1748,28 @@
     sweep();
   }
 
+  /* The worker fetched this page again because it was a newer build than the copy kept
+     for offline (`sw.js` `refreshed`; design.md §12, 2026-11-14). The text's other files
+     follow: a save asks the server what the text takes now and fetches only what the
+     cache does not hold, so a new recording joins it and nothing already kept is fetched
+     again. Kept the way it was kept: in parts if it was, by you if it was. */
+  function onRefreshed(event) {
+    var said = event && event.data;
+    if (!said || said.type !== "refreshed" || said.page !== keyOf(location.href)) return;
+    readIndex().then(function (index) {
+      var id = textOf(location.href);
+      var item = id && index.items[id];
+      if (!item || running[id]) return;
+      save(location.href, { part: !!item.part, film: !!item.withFilm }).done.catch(function () {});
+    });
+  }
+  if (able) {
+    navigator.serviceWorker.addEventListener("message", onRefreshed);
+    try {
+      navigator.serviceWorker.startMessages();
+    } catch (e) {}
+  }
+
   if (able) {
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register);
@@ -1679,7 +1785,9 @@
     save: save,
     saveSet: saveSet,
     remove: remove,
+    take: take,
     removeAll: removeAll,
+    takeAll: takeAll,
     keep: keepIt,
     keepPage: keepPage,
     trim: trim,
