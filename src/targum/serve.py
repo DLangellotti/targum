@@ -1685,6 +1685,10 @@ class Job:
             # The audio card's facts: shown in ui-monospace as a clock and a count,
             # never as dollars — the page already takes that position.
             "audio": self.audio,
+            # Whether a stop of it uses credits: a recording does, and a gift recording
+            # does not, since targum pays for it (targum-internal#715). Stop's question
+            # is asked on this, never on `audio`.
+            "metered": self.audio and not self.gift,
             "seconds": round(self.seconds, 1),
             "parts": self.parts,
             "transcription": round(self.transcription, 2),
@@ -2442,6 +2446,7 @@ class Library:
                         # line that names it and the question its Cancel asks (#715).
                         "language": one.language or str(one.options.get("from") or ""),
                         "audio": one.audio,
+                        "metered": one.audio and not one.gift,
                         **self.cancelling(one),
                     }
                     for one in ahead
@@ -5262,10 +5267,13 @@ class Library:
             if not refused:
                 job.credited = self._credited(job)
                 return ""
+            # The press says what the quote said (`short_of_month`): what it needs once a
+            # stopped build's credit is taken off, not its whole length.
+            room = self._month_room(job) if refused == "hours" and job.owner is not None else None
             if refused == "hours" and self._held_to_free(job):
-                return self._plan_refusal(job)
-            if refused == "hours" and job.owner is not None:
-                need, left = self._month_room(job)
+                return self._plan_refusal(job, need=room[0] if room else None)
+            if room is not None:
+                need, left = room
                 return self._out_of(refused, job.ui, need=need, left=left)
             return self._out_of(refused, job.ui)
         with self.lock:

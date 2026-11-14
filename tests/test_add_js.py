@@ -438,7 +438,7 @@ def test_file_sizes_are_said_in_the_page_language() -> None:
     assert '+ " KB"' not in source and '+ " MB"' not in source
     ru = json.loads((HARNESS.parents[2] / "src/targum/strings/ru.json").read_text(encoding="utf-8"))
     assert ru["add.size.kb"] == "{n} КБ" and ru["add.size.mb"] == "{n} МБ"
-    assert all(
-        ru[f"add.quote.left.{form}"].startswith("Баллов")
-        for form in ("one", "few", "many", "other")
-    )
+    # Worded as `building.credits.left` is, without its full stop, so the quote and the
+    # building row read as one product (ling-ru on #1217).
+    for form in ("one", "few", "many", "other"):
+        assert ru[f"add.quote.left.{form}"] == ru[f"building.credits.left.{form}"].rstrip(".")
