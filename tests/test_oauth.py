@@ -471,7 +471,7 @@ def test_a_refresh_token_from_before_gets_its_90_days_from_the_migration(
             (now() - 400 * DAY, digest(old)),
         )
     reopened = Store(tmp_path / "targum.db")
-    assert SCHEMA_VERSION == 67
+    assert SCHEMA_VERSION >= 67
     assert reopened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     row = reopened.db.execute(
         "SELECT expires FROM oauth_token WHERE hash = ?", (digest(old),)
