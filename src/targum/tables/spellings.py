@@ -79,6 +79,8 @@ def _glossed_as(token: Mapping[str, Any]) -> str:
         lemma=str(token.get("lemma") or ""),
         pos=token.get("pos"),
         headword=token.get("headword"),
+        surface=str(token.get("surface") or ""),
+        built=token.get("built"),
     ).glossed_as
 
 

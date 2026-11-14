@@ -6,6 +6,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Shared spellings are filed by part of speech (targum-internal#701). פה "here" read
+  "mouth", שום "any" read "garlic; any", כלל "at all" read "rule", because only עם, את,
+  אל, עד and תחת were split. `models.SPLIT_BY_POS` now also splits פה, שום, אי, מי,
+  אתן, כלל, אף, רב, רבה, אחר, שבע, חדש, חדשה, זמן, לבוש, ועד and סמך, each on the parts
+  of speech that are a different word, with new marks (adjective, determiner, number,
+  particle, conjunction). A noun or adjective that is a verb's מ-participle, which DICTA
+  gives the verb's lemma (המטפל under טיפל, "treated"), is filed as `טיפל (participle)`.
+  Computed in `Token.glossed_as`: no rename, no `SCHEMA_VERSION`, and every other word
+  keeps its key. The new keys are bare until bought at a tap; 72 on the laptop's library,
+  scenes and transcripts, 151 over all of `targum-out`.
 - Stop and claim follow-ups to #1217 (targum-internal#715). A gift recording's Stop no
   longer asks the credits question: jobs and the waiting card's rows ahead carry
   `metered`, and Stop asks on it rather than on `audio`. A free reader pressing a credited
