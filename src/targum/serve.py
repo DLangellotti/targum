@@ -5175,7 +5175,7 @@ class Library:
             except Exception:  # noqa: BLE001 - an unkeyed transcriber prices at nothing
                 rate = max(PRICES.values()) if PRICES else 0.0
         minutes = seconds / 60
-        transcription = minutes * (rate + _punctuation_rate(rate))
+        transcription = minutes * (rate + _punctuation_rate(rate, written=not transcribed))
         words = minutes * SPEECH_WORDS_PER_MINUTE
         batches = max(1, math.ceil(words / WORDS_PER_SENTENCE / 20))
         translating = AnthropicProvider(model=HOSTED_MODEL).estimate_from_counts(
@@ -5238,8 +5238,8 @@ class Library:
         job.transcription = round(transcription, 4)
         job.estimate = round(transcription + translating, 4)
         if found.transcript_url:
-            job.transcription = 0.0
-            job.estimate = round(translating, 4)
+            job.transcription = round(first * _punctuation_rate(0.0, written=True), 4)
+            job.estimate = round(job.transcription + translating, 4)
         job.options["episode"] = True
         job.usually = self._how_long(job)
         job.blocked = self.why_blocked(job.estimate, job.ui)
@@ -20234,15 +20234,17 @@ def _contents_at(path: Path, stamp: int, size: int) -> dict[str, Any] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
-def _punctuation_rate(hearing: float) -> float:
+def _punctuation_rate(hearing: float, *, written: bool = False) -> float:
     """Dollars a minute for the punctuation a paid hearing may come back without.
 
     Priced beside the hearing rather than inside it, because it is bought from a
-    different provider, and only where a hearing is bought at all.
+    different provider, and only where a hearing is bought at all — or where a written
+    track stands in for one: a track typed the way it was heard never stops either, and
+    the build buys its full stops (`ingest.subtitles.punctuated`), so the quote says so.
     """
     from .transcribe.refine import Punctuator
 
-    if not hearing:
+    if not hearing and not written:
         return 0.0
     punctuator = Punctuator()
     return punctuator.dollars_per_minute() if punctuator.available()[0] else 0.0
