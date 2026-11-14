@@ -19,12 +19,43 @@
   var tn = window.TargumStrings.tn;
   var SIGNED_OUT = t("you.signed-out", "You've been signed out. Sign in again.");
   var SAVED = t("you.saved", "Saved.");
+  // A setting that never reached the account, or came back as something that isn't an
+  // answer (a dropped connection, a 5xx page): said with the clay mark and Try again, and
+  // the control drawn back to what the account last kept (targum-internal#719, P1 2). It
+  // said nothing, and the control went on showing a value the account never had.
+  var NOT_SAVED = t("you.could-not-save", "We couldn't save that.");
+
+  // Whether an answer is the account keeping what was asked. `signedIn: false` and an
+  // `error` are refusals, said as such; nothing at all is a fault.
+  function refused(answer) {
+    return !answer || !!answer.error || answer.signedIn === false;
+  }
 
   var key = window.TARGUM_KEY;
 
   // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
-  function meOnce(address, options) {
-    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  function meOnce(address, options, fresh) {
+    return window.targumMe ? window.targumMe(address, options, fresh) : fetch(address, options);
+  }
+
+  /* What the account holds now, asked afresh rather than from the page's shared answer.
+     A press whose answer was lost may still have been kept, and a switch drawn back to
+     what it was would then show the reader a consent the account no longer holds (qa on
+     #1227, N2). Rejects where the account cannot be read either. */
+  function holds() {
+    return meOnce(
+      keyed("/account/me"),
+      { credentials: "same-origin", headers: key ? { "X-Targum-Key": key } : {} },
+      true
+    )
+      .then(function (response) {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      })
+      .then(function (me) {
+        if (!me || !me.signedIn) throw new Error("not signed in");
+        return me;
+      });
   }
 
   function keyed(path) {
@@ -237,9 +268,13 @@
     }
   }
 
+  // What the account last said it keeps, to draw back to when a change is not kept.
+  var kept = { learning: ["he"], reads: ["en"] };
+
   function drawLanguages(who) {
     learning = (who.learning || ["he"]).slice();
     reads = (who.reads || ["en"]).slice();
+    kept = { learning: learning.slice(), reads: reads.slice() };
     drawLearning();
     drawReads();
     drawAddress();
@@ -254,9 +289,14 @@
   function drawAddress() {
     var row = at("you-address-row");
     if (row) row.hidden = learning.indexOf("he") < 0;
+    // One Tab stop for the group, on the chosen one or else the first, and the arrows
+    // between them, as a radio group keys (§14.3; targum-internal#719, P2 10). Both were
+    // Tab stops, and the arrows did nothing.
     ["m", "f"].forEach(function (form) {
       var press = at("address-" + form);
-      if (press) press.setAttribute("aria-checked", String(address === form));
+      if (!press) return;
+      press.setAttribute("aria-checked", String(address === form));
+      press.tabIndex = address === form || (!address && form === "m") ? 0 : -1;
     });
   }
 
@@ -264,17 +304,39 @@
     ["m", "f"].forEach(function (form) {
       var press = at("address-" + form);
       if (!press) return;
+      function send() {
+        ask("/account/address", { address: form })
+          .then(function (answer) {
+            if (answer.error || answer.signedIn === false) {
+              drawAddress();
+              return say("you-languages-said", answer.error || SIGNED_OUT, true);
+            }
+            address = answer.address || "";
+            drawAddress();
+            say("you-languages-said", SAVED);
+          })
+          .catch(function () {
+            drawAddress();
+            say("you-languages-said", NOT_SAVED, true, send);
+          });
+      }
       press.addEventListener("click", function () {
         if (address === form) return;
-        ask("/account/address", { address: form }).then(function (answer) {
-          if (answer.error || answer.signedIn === false) {
-            drawAddress();
-            return say("you-languages-said", answer.error || SIGNED_OUT, true);
-          }
-          address = answer.address || "";
-          drawAddress();
-          say("you-languages-said", SAVED);
-        });
+        send();
+      });
+      press.addEventListener("keydown", function (event) {
+        var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        // Right is forward in a left-to-right page and back in a right-to-left one.
+        var group = at("you-address");
+        var rtl = group && getComputedStyle(group).direction === "rtl";
+        if (rtl && (event.key === "ArrowRight" || event.key === "ArrowLeft")) step = -step;
+        var forms = ["m", "f"];
+        var next = at("address-" + forms[(forms.indexOf(form) + step + forms.length) % forms.length]);
+        if (!next) return;
+        next.focus();
+        next.click();
       });
     });
   }
@@ -285,30 +347,40 @@
     // Once, a moment after the last change: two presses together are one change.
     clearTimeout(savingLanguages);
     savingLanguages = setTimeout(function () {
-      ask("/account/languages", {
-        learning: learning.slice(),
-        reads: reads.slice(),
-      }).then(function (answer) {
-        // Drawn back from the answer either way. What the account kept is what stands,
-        // and a refused change puts its rows back rather than showing what was asked.
-        if (answer.learning || answer.reads) drawLanguages(answer);
-        if (answer.error || answer.signedIn === false) {
-          return say("you-languages-said", answer.error || SIGNED_OUT);
-        }
-        say("you-languages-said", SAVED);
-        // The pages that offer a language read the account's answer through sync, so
-        // asking it to look again is what makes them agree.
-        if (window.TargumSync) window.TargumSync.start(true);
-        // The menus are in the language read into: a change there is a new page.
-        // `strings.reading_language`: the one language read into other than English, or
-        // English.
-        var before = (window.TargumStrings && window.TargumStrings.language) || "en";
-        var others = (answer.reads || reads).filter(function (code) {
-          return code !== "en";
+      var wanted = { learning: learning.slice(), reads: reads.slice() };
+      function again() {
+        learning = wanted.learning.slice();
+        reads = wanted.reads.slice();
+        saveLanguages();
+      }
+      ask("/account/languages", wanted)
+        .then(function (answer) {
+          // Drawn back from the answer either way. What the account kept is what stands,
+          // and a refused change puts its rows back rather than showing what was asked.
+          if (answer.learning || answer.reads) drawLanguages(answer);
+          else if (refused(answer)) drawLanguages(kept);
+          if (answer.error || answer.signedIn === false) {
+            // A refusal, with the clay mark: it was the quiet line "Saved." is said in.
+            return say("you-languages-said", answer.error || SIGNED_OUT, true);
+          }
+          say("you-languages-said", SAVED);
+          // The pages that offer a language read the account's answer through sync, so
+          // asking it to look again is what makes them agree.
+          if (window.TargumSync) window.TargumSync.start(true);
+          // The menus are in the language read into: a change there is a new page.
+          // `strings.reading_language`: the one language read into other than English, or
+          // English.
+          var before = (window.TargumStrings && window.TargumStrings.language) || "en";
+          var others = (answer.reads || reads).filter(function (code) {
+            return code !== "en";
+          });
+          var now = others.length === 1 ? others[0] : "en";
+          if (now !== before && window.location && window.location.reload) window.location.reload();
+        })
+        .catch(function () {
+          drawLanguages(kept);
+          say("you-languages-said", NOT_SAVED, true, again);
         });
-        var now = others.length === 1 ? others[0] : "en";
-        if (now !== before && window.location && window.location.reload) window.location.reload();
-      });
     }, 400);
   }
 
@@ -337,10 +409,15 @@
     panel.hidden = false;
     var toggle = at("record-switch");
     var erase = at("record-erase");
-    var said = at("record-said");
+    var keep = at("record-keep");
     function tell(text) {
-      said.textContent = text;
-      said.hidden = !text;
+      say("record-said", text);
+    }
+    // Not kept: the switch stays as the account last had it, and the line says why in
+    // clay — signed out, or could not be saved with Try again (targum-internal#719).
+    function fault(answer, again) {
+      if (answer && answer.signedIn === false) return say("record-said", SIGNED_OUT, true);
+      say("record-said", NOT_SAVED, true, again);
     }
     function paint(on) {
       toggle.setAttribute("aria-pressed", on ? "true" : "false");
@@ -348,30 +425,81 @@
         ? t("you.record.stop", "Stop recording")
         : t("you.record.start", "Start recording again");
     }
+    function disarm() {
+      erase.removeAttribute("data-sure");
+      erase.textContent = t("you.page.record-erase", "Erase what's recorded");
+      if (keep) keep.hidden = true;
+    }
     paint(!!events.on);
+    function done(on) {
+      paint(on);
+      tell(
+        on
+          ? t("you.record.started", "We're recording again from now.")
+          : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
+      );
+    }
+    // `want` is what was pressed for, so Try again asks for the same thing again.
+    function send(want) {
+      var again = function () {
+        send(want);
+      };
+      ask("/account/events", { collect: want })
+        .then(function (answer) {
+          if (refused(answer) || !answer.events) {
+            paint(!want);
+            return fault(answer, again);
+          }
+          done(!!answer.events.on);
+        })
+        .catch(function () {
+          // The answer was lost, not the press: the switch shows what the account holds.
+          holds()
+            .then(function (me) {
+              var on = !!(me.events && me.events.on);
+              if (on === want) return done(on);
+              paint(on);
+              fault(null, again);
+            })
+            .catch(function () {
+              paint(!want);
+              fault(null, again);
+            });
+        });
+    }
     toggle.onclick = function () {
-      var next = toggle.getAttribute("aria-pressed") !== "true";
-      ask("/account/events", { collect: next }).then(function (answer) {
-        var on = !!(answer && answer.events && answer.events.on);
-        paint(on);
-        tell(
-          on
-            ? t("you.record.started", "We're recording again from now.")
-            : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
-        );
-      });
+      send(toggle.getAttribute("aria-pressed") !== "true");
     };
+    function forget() {
+      disarm();
+      ask("/account/events", { forget: true })
+        .then(function (answer) {
+          // Only the account saying it erased is "Erased" (targum-internal#719).
+          if (refused(answer)) return fault(answer, forget);
+          tell(t("you.record.erased", "Erased. Your words and your texts are untouched."));
+        })
+        .catch(function () {
+          fault(null, forget);
+        });
+    }
     erase.onclick = function () {
       if (erase.getAttribute("data-sure") !== "yes") {
         erase.setAttribute("data-sure", "yes");
         erase.textContent = t("you.record.sure", "Erase it for good");
+        tell("");
+        // A way back beside it, with the focus, as Delete has (§14.3, the safe choice
+        // first; targum-internal#719, P2 5).
+        if (keep) {
+          keep.hidden = false;
+          keep.focus();
+          keep.onclick = function () {
+            disarm();
+            erase.focus();
+          };
+        }
         return;
       }
-      ask("/account/events", { forget: true }).then(function () {
-        erase.removeAttribute("data-sure");
-        erase.textContent = t("you.page.record-erase", "Erase what's recorded");
-        tell(t("you.record.erased", "Erased. Your words and your texts are untouched."));
-      });
+      forget();
     };
   }
 
@@ -393,16 +521,48 @@
         : t("you.counting.start", "Start counting again");
     }
     paint(!!counting.on);
-    toggle.onclick = function () {
-      var next = toggle.getAttribute("aria-pressed") !== "true";
-      ask("/account/counting", { count: next }).then(function (answer) {
-        var on = !!(answer && answer.counting && answer.counting.on);
-        paint(on);
-        said.textContent = on
+    function fault(answer, again) {
+      if (answer && answer.signedIn === false) return say("counting-said", SIGNED_OUT, true);
+      say("counting-said", NOT_SAVED, true, again);
+    }
+    function done(on) {
+      paint(on);
+      say(
+        "counting-said",
+        on
           ? t("you.counting.started", "We'll count your texts again from tonight.")
-          : t("you.counting.stopped", "Stopped. Your texts leave the counts tonight.");
-        said.hidden = false;
-      });
+          : t("you.counting.stopped", "Stopped. Your texts leave the counts tonight.")
+      );
+    }
+    function send(want) {
+      var again = function () {
+        send(want);
+      };
+      ask("/account/counting", { count: want })
+        .then(function (answer) {
+          if (refused(answer) || !answer.counting) {
+            paint(!want);
+            return fault(answer, again);
+          }
+          done(!!answer.counting.on);
+        })
+        .catch(function () {
+          // As the record's switch: what the account holds, asked afresh (qa N2).
+          holds()
+            .then(function (me) {
+              var on = !!(me.counting && me.counting.on);
+              if (on === want) return done(on);
+              paint(on);
+              fault(null, again);
+            })
+            .catch(function () {
+              paint(!want);
+              fault(null, again);
+            });
+        });
+    }
+    toggle.onclick = function () {
+      send(toggle.getAttribute("aria-pressed") !== "true");
     };
   }
 
@@ -739,17 +899,38 @@
       return;
     }
     go.textContent = t("you.page.correcting-accept", "Accept and turn it on");
+    // Accept stayed off for good when the answer never came, and a refusal said nothing
+    // (targum-internal#719): the press comes back, with the line saying why.
+    function fault(answer) {
+      go.disabled = false;
+      if (answer && (answer.signedIn === false || answer.error === "sign in")) {
+        return say("grant-said", SIGNED_OUT, true);
+      }
+      say("grant-said", NOT_SAVED, true, go.onclick);
+    }
+    function accepted() {
+      go.hidden = true;
+      say("grant-said", t("you.grant.thanks", "Thank you. A word's card now offers a correction."));
+    }
     go.onclick = function () {
       go.disabled = true;
-      ask("/account/grant", {}).then(function (answer) {
-        if (!(answer && answer.granted)) {
-          go.disabled = false;
-          return;
-        }
-        go.hidden = true;
-        said.hidden = false;
-        said.textContent = t("you.grant.thanks", "Thank you. A word's card now offers a correction.");
-      });
+      say("grant-said", "");
+      ask("/account/grant", {})
+        .then(function (answer) {
+          if (!(answer && answer.granted)) return fault(answer);
+          accepted();
+        })
+        .catch(function () {
+          // Accepted with the answer lost is accepted: asked afresh (qa N2).
+          holds()
+            .then(function (me) {
+              if (me.granted) return accepted();
+              fault(null);
+            })
+            .catch(function () {
+              fault(null);
+            });
+        });
     };
   }
 
@@ -834,17 +1015,28 @@
       pick.appendChild(option);
     });
     pick.onchange = function () {
-      var body = code === "he" ? { level: pick.value } : { level: pick.value, language: code };
-      ask("/account/level", body).then(function (answer) {
-        if (answer.error || answer.signedIn === false) {
+      var wanted = pick.value;
+      var body = code === "he" ? { level: wanted } : { level: wanted, language: code };
+      ask("/account/level", body)
+        .then(function (answer) {
+          if (answer.error || answer.signedIn === false) {
+            drawLadder(code, said);
+            // A refusal, with the clay mark (targum-internal#719).
+            return say("you-languages-said", answer.error || SIGNED_OUT, true);
+          }
+          said = answer.declared || "";
+          declaredBy[code] = said;
+          keepRung(said, code);
+          say("you-languages-said", SAVED);
+        })
+        .catch(function () {
           drawLadder(code, said);
-          return say("you-languages-said", answer.error || SIGNED_OUT);
-        }
-        said = answer.declared || "";
-        declaredBy[code] = said;
-        keepRung(said, code);
-        say("you-languages-said", SAVED);
-      });
+          say("you-languages-said", NOT_SAVED, true, function () {
+            var again = at(PICKS[code]);
+            again.value = wanted;
+            if (again.onchange) again.onchange();
+          });
+        });
     };
   }
 
@@ -859,18 +1051,22 @@
     link.addEventListener("click", function (event) {
       if (typeof fetch !== "function" || typeof Blob !== "function") return;
       event.preventDefault();
+      // Said under its own row (targum-internal#719, P1 3): it was the Account card's
+      // last line, under Delete, a screen below the press on a phone, where "Downloaded"
+      // then read as Delete's answer.
       var failed = function () {
-        say("you-ending-said", t("you.export.failed", "We couldn't make the file."), true, function () {
-          say("you-ending-said", "");
+        say("export-said", t("you.export.failed", "We couldn't make the file."), true, function () {
+          say("export-said", "");
           link.click();
         });
       };
+      say("export-said", "");
       fetch(keyed("/account/export"), {
         credentials: "same-origin",
         headers: key ? { "X-Targum-Key": key } : {},
       })
         .then(function (response) {
-          if (response.status === 401) return say("you-ending-said", SIGNED_OUT, true);
+          if (response.status === 401) return say("export-said", SIGNED_OUT, true);
           if (!response.ok) return failed();
           return response.blob().then(function (blob) {
             var url = URL.createObjectURL(blob);
@@ -883,7 +1079,7 @@
             setTimeout(function () {
               URL.revokeObjectURL(url);
             }, 1000);
-            say("you-ending-said", t("you.export.done", "Downloaded targum.json."));
+            say("export-said", t("you.export.done", "Downloaded targum.json."));
           });
         })
         .catch(failed);
@@ -901,6 +1097,9 @@
     });
     at("you-forget").addEventListener("click", function () {
       var press = at("you-forget");
+      // Export's line is Export's; once Delete is asked, nothing else's answer stands
+      // beside it (targum-internal#719, P1 3).
+      say("export-said", "");
       if (press.getAttribute("data-sure") !== "yes") {
         // Asked twice, in the button itself. A dialog for this would be a dialog nobody
         // reads; a button that changes what it says is read by everybody who presses it.

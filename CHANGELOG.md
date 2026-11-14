@@ -11,6 +11,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   the cache's index has been read, so on a slow CI runner the first-save test counted
   no "Saved by you" rows. With `draw()` held back 1.5 s the old test fails and the new
   one passes. Tests only; nothing a reader sees changes.
+- Your account passes more of design's §14 finish bar (targum-internal#719).
+  - The bar no longer says "Sign in" while the account is still answering. The account
+    button is a quiet empty circle that opens nothing until `/account/me` answers, then
+    the initials, or Sign in only when the account says nobody is signed in. Pages that
+    never start sync (the plans, a series, a set) settle the corner from the same shared
+    answer, so it is not a second request.
+  - A setting that fails to save says so. Your languages, the Hebrew form of address,
+    every rung, Stop/Start recording, Erase what's recorded, Stop/Start counting and
+    Accept the grant now draw the control back to what the account kept and say "We
+    couldn't save that." with the clay mark and Try again on a dropped connection or a
+    5xx. A refused language or rung is a clay line, not the quiet one "Saved." uses.
+    "Saved.", "Stopped." and "Erased." are said only when the account's answer says so.
+    A switch or Accept whose answer was lost asks the account afresh and shows what it
+    holds, so a consent the server did change is never drawn back as it was.
+  - Export's answer ("Downloaded targum.json.", "We couldn't make the file.") is under
+    Export, not under Delete, and goes when Delete is pressed.
+  - Erase what's recorded has "Keep it" beside its second question, with the focus, as
+    Delete has. The clay mark stays on its sentence's line in a narrow column. Slow's Try
+    again is the same tonal press on its own row as not reached's. The form of address is
+    one Tab stop with the arrow keys between its two choices.
+  - What deletion and export do is unchanged; only what the page says about them moved.
+  No spend. Two new strings in English and Russian (`you.could-not-save`,
+  `you.page.record-keep`), for ling-ru.
 - Shared spellings are filed by part of speech (targum-internal#701). פה "here" read
   "mouth", שום "any" read "garlic; any", כלל "at all" read "rule", because only עם, את,
   אל, עד and תחת were split. `models.SPLIT_BY_POS` now also splits פה, שום, אי, מי,

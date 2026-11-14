@@ -31,8 +31,12 @@
       and offline. None of them says "sign in": the reader may well be signed in. -#}
   <section class="card" id="you-loading" role="status">
     <p class="note">{{ t("you.page.getting-your-account", "We're getting your account.") }}</p>
-    <p class="note" id="you-slow" hidden>{{ t("you.page.taking-longer", "This is taking longer than usual.") }}
-      <button type="button" class="btn ghost outline" id="you-slow-again">{{ t("fault.try-again", "Try again") }}</button></p>
+    {#- Try again as the unreachable card draws it, a tonal press on its own row
+        (targum-internal#719, P2 8): §8, one look. -#}
+    <div id="you-slow" hidden>
+      <p class="note">{{ t("you.page.taking-longer", "This is taking longer than usual.") }}</p>
+      <p class="ending-row"><button type="button" class="btn tonal" id="you-slow-again">{{ t("fault.try-again", "Try again") }}</button></p>
+    </div>
   </section>
   <section class="card" id="you-unreachable" role="alert" hidden>
     <p class="note">{{ t("you.page.could-not-reach", "We couldn't reach your account just now.") }}</p>
@@ -306,6 +310,9 @@
           <span class="acct-says"><span class="acct-wide">{{ t("you.page.export-says", "Your word list, your chats and your reading record, in one file") }}</span><span class="acct-narrow">{{ t("you.page.export-says-short", "Word list, chats and reading record") }}</span></span>
         </span>
         <a class="btn ghost outline acct-end" id="you-export" href="/account/export" download>{{ t("you.page.download", "Download") }}</a>
+        {#- Export's answer, under its own row (targum-internal#719): it was the card's
+            last line, under Delete. -#}
+        <p class="said" id="export-said" role="status" hidden></p>
       </li>
       {#- What is recorded of a sitting (targum-internal#127): drawn only where this box
           keeps such a record (`TARGUM_EVENTS`), with both controls beside it. -#}
@@ -329,6 +336,7 @@
         </span>
         <span class="acct-end">
           <button type="button" class="btn ghost outline" id="record-switch" aria-pressed="true"></button>
+          <button type="button" class="btn ghost outline" id="record-keep" hidden>{{ t("you.page.record-keep", "Keep it") }}</button>
           <button type="button" class="btn ghost outline danger" id="record-erase">{{ t("you.page.record-erase", "Erase what's recorded") }}</button>
         </span>
         <p class="said" id="record-said" role="status" hidden></p>

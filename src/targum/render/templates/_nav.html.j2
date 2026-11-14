@@ -98,9 +98,11 @@
       </div>
     </div>
     <div class="account" id="account">
-      <button type="button" id="account-open" aria-expanded="false" aria-haspopup="dialog">
-        {{ t("nav.sign-in", "Sign in") }}
-      </button>
+      {#- Drawn as a quiet empty circle until the account answers (targum-internal#719,
+          P1 1): "Sign in" here told a signed-in reader on a slow line that they were
+          signed out. `account.js` draws the initials, or Sign in on `signedIn: false`,
+          the same rule Your account's card follows. -#}
+      <button type="button" id="account-open" class="avatar waiting" aria-expanded="false" aria-haspopup="dialog" aria-disabled="true" aria-label="{{ t("nav.your-account", "Your account") }}"></button>
       <div class="account-panel" id="account-panel" role="dialog" aria-label="{{ t("nav.your-account", "Your account") }}" hidden>
         {#- What the menu holds (design.md §12, "The account menu is who, what is left, and
             three rows", 2026-10-09): who you are, the month's credits, and three rows with

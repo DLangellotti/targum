@@ -178,6 +178,12 @@ b.acct-name { font-weight: 600; }
 :is(.you, .playlists, .subs-page, .saved) .said.bad { color: var(--ink); }
 :is(.you, .playlists, .subs-page, .saved) .said[hidden] { display: none; }
 .account .said { font-size: 0.875rem; }
+/* The clay mark stays at the start of its sentence (targum-internal#719, P2 7): with the
+   sentence's own width as its basis it wrapped below the mark in a narrow column, and the
+   mark stood alone on a line. A basis of nothing keeps them on one line, as the reader's
+   fault lines do. */
+.account .fault-line .fault-icon { flex: none; }
+.account .fault-line .fault-said { flex: 1 1 0; }
 
 /* Nearly out and out (targum-internal#469, B4): what still works and when the credits
    come back, in the line's ink, under the meter. */
