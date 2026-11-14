@@ -3540,6 +3540,7 @@
   "reader.list.texts.other": "{n} текста",
   "reader.list.picked": "подобран под слова, которые вам только что встретились",
   "reader.list.known": "Вы знаете {share}%",
+  "reader.list.estimate": "Около {share}% (наша оценка)",
   "reader.list.credits-in-all.one": "Всего займёт {n} балл",
   "reader.list.credits-in-all.few": "Всего займёт {n} балла",
   "reader.list.credits-in-all.many": "Всего займёт {n} баллов",

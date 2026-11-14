@@ -92,3 +92,32 @@ def test_the_end_card_adds_the_playlist_up() -> None:
 
 def test_an_end_with_nothing_kept_adds_up_to_nothing() -> None:
     assert added({}) == [None]
+
+
+def figures(*rows: dict[str, Any] | None) -> list[dict[str, Any] | None]:
+    with tempfile.TemporaryDirectory() as where:
+        path = Path(where) / "payload.json"
+        path.write_text(json.dumps({"figures": list(rows)}), encoding="utf-8")
+        done = subprocess.run(
+            ["node", str(HARNESS), str(path)], capture_output=True, text=True, timeout=60
+        )
+    assert done.returncode == 0, done.stderr
+    return json.loads(done.stdout)
+
+
+def test_the_reader_s_playlist_panel_says_the_one_figure() -> None:
+    """#716 P1-1, qa-claude: the panel in the reader printed the marked 70% for a text its
+    playlist page called about 97% (our estimate). It reads `estimated` first, and rounds
+    as `level.known_percent` does: never 100 under all of it, never 0 above none."""
+    got = figures(
+        {"known": 0.7, "estimated": 0.97},
+        {"known": 0.72},
+        {"known": 0.996},
+        {"known": 0.004},
+        {"known": None},
+        None,
+    )
+    assert got[0] == {"share": 0.97, "percent": 97, "estimated": True}
+    assert got[1] == {"share": 0.72, "percent": 72, "estimated": False}
+    assert got[2]["percent"] == 99 and got[3]["percent"] == 1
+    assert got[4] is None and got[5] is None

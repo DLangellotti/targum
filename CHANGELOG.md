@@ -16,17 +16,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   No spend, no new strings.
 - Your targums passes more of its finish bar (targum-internal#716). One text says one
   figure for how much of it you know: its shelf row's meter, its playlist row, the
-  playlist's head and its contents page now say what Continue says, our estimate labelled
-  as ours until your marks settle it (one helper, `TargumStrings.figure` in `figure.js`; the server
-  sends `estimated` with a playlist's rows and the contents page measures the whole text
-  as the shelf does). Offline, a playlist's "Not on this device" is a line under the
+  playlist's head, its contents page, the reader's playlist panel and the end card now
+  say what Continue says, our estimate labelled as ours until your marks settle it (one
+  helper, `TargumStrings.figure` in `figure.js`, and its twin in the reader's `list.js`;
+  the server sends `estimated` with a playlist's and an end card's rows, and the contents
+  page measures the whole text as the shelf does). Offline, a playlist's "Not on this device" is a line under the
   title, no longer a column one word a line. The tabs stay with nothing on the shelf and
   while the shelf is slow or failed; a row waiting in line says Waiting with no meter; a
   paused subscription draws no Mail card; waiting for the cap is muted ink and Raise the
   cap teal, not the error red; a failed playlist item is counted apart ("2 of 3 done · 1
   failed") and named by its medium; a move keeps the titles' `lang`; a phone is told
-  "Drag ≡ to reorder."; an empty playlist offers no Save for offline. Five new Russian
-  lines, for ling-ru. No spend.
+  "Drag ≡ to reorder."; an empty playlist offers no Save for offline. A page of playlists
+  asks for the reader's estimate once a language. Six new Russian lines, for ling-ru.
+  No spend.
 - The Russian interface reads better in 44 places (ling-ru's sweep, loop item 16 of
   2026-11-13). "Known" is «знаю» or «вы знаете» in the app, never «знакомо» or
   «известно» (17; the front page's demo keeps «знакомо N%», a stranger's figure is

@@ -13244,6 +13244,9 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             return self._json({"signedIn": False}, 401)
         vocabulary: dict[str, dict[str, int]] = {}
+        # The reader's estimate per language, asked once for the whole page as the marked
+        # words are: each ask builds a level snapshot and hashes the word list (#716).
+        estimates: dict[str, Any] = {}
         if which is None:
             language = self._page_language()
             current = self.store.current_playlist(person.id)
@@ -13258,7 +13261,7 @@ class Handler(BaseHTTPRequestHandler):
                     continue
                 if reader and not self.library.fits_playlist(home, found, reader=reader):
                     continue
-                shown = self._playlist_facts(person, found, vocabulary)
+                shown = self._playlist_facts(person, found, vocabulary, estimates)
                 summary = {key: value for key, value in shown.items() if key != "items"}
                 # The texts it holds, by name, so "Add to playlist" can say "In it" on the
                 # playlists a text is already in (board PlaylistMake).
@@ -13275,7 +13278,7 @@ class Handler(BaseHTTPRequestHandler):
                     {"reader": folder, "title": entry.title, "position": n, "failed": False}
                     for n, (entry, folder) in enumerate(built)
                 ]
-                shown = self._playlist_facts(person, {"items": members}, vocabulary)
+                shown = self._playlist_facts(person, {"items": members}, vocabulary, estimates)
                 code = language.split("-")[0].lower()
                 targum.append(
                     {
@@ -13310,7 +13313,7 @@ class Handler(BaseHTTPRequestHandler):
         # failed, says what it is written in (targum-internal#474, B8).
         return self._json(
             {
-                **self._playlist_facts(person, found, vocabulary),
+                **self._playlist_facts(person, found, vocabulary, estimates),
                 "language": self.library.playlist_language(self._home(), found),
             }
         )
@@ -13320,6 +13323,7 @@ class Handler(BaseHTTPRequestHandler):
         person: Person,
         found: dict[str, Any],
         vocabulary: dict[str, dict[str, int]],
+        estimates: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """A playlist as its card and its page draw it (targum-internal#434): each text
         with its kind, its length and how much of it the reader knows, and the playlist
@@ -13328,7 +13332,8 @@ class Handler(BaseHTTPRequestHandler):
 
         A member is looked for on the reader's own shelf and then the shared one, as
         `_built_folders` looks. `vocabulary` is the reader's marked words per language,
-        filled as languages come up, so a page of playlists asks once per language.
+        filled as languages come up, so a page of playlists asks once per language;
+        `estimates`, the reader's estimate per language, is shared the same way.
         """
         from . import coverage as coverage_module
         from . import spoken
@@ -13340,7 +13345,8 @@ class Handler(BaseHTTPRequestHandler):
         figure_words = 0.0
         words = 0
         any_estimated = False
-        estimates: dict[str, Any] = {}
+        # Shared with the caller where it asks for several playlists, as `vocabulary` is.
+        estimates = {} if estimates is None else estimates
         ready = waiting = failed = 0
         unconfirmed = 0
         credits = 0
@@ -13756,6 +13762,8 @@ class Handler(BaseHTTPRequestHandler):
             catalogue_module._key(entry.source): entry for entry in catalogue_module.CATALOGUE
         }
         marked: dict[str, dict[str, int]] = {}
+        statuses: dict[str, Any] = {}
+        chances: dict[str, Any] = {}
         items = []
         total = 0
         seconds = 0.0
@@ -13791,12 +13799,30 @@ class Handler(BaseHTTPRequestHandler):
                 state = "making"
                 making += 1
             known = None
+            figure: dict[str, float] = {}
             if entry is not None and person is not None:
                 language = entry.language.split("-")[0].lower()
                 if language not in marked:
                     marked[language] = self.store.marked(person, language)
-                measured = index.against(entry.id, marked[language])
+                    statuses[language] = index.statuses(marked[language]) if index.counts else {}
+                    known_estimate = self._estimate(person, language)
+                    chances[language] = (
+                        known_estimate.chances(index)
+                        if known_estimate is not None and index.counts
+                        else None
+                    )
+                # Read as the Library reads the row, our estimate beside the marked share
+                # where it is the figure (design.md §12, 2026-11-04; #716): the end card
+                # says the one figure every other page says for the text.
+                measured = index.running(
+                    entry.id, marked[language], statuses[language]
+                ) or index.against(entry.id, marked[language])
                 known = round(measured.known, 4) if measured is not None else None
+                if measured is not None and chances[language] is not None:
+                    figure = coverage_module.estimated_field(
+                        measured.known,
+                        index.expected(entry.id, statuses[language], chances[language]),
+                    )
             minutes = (
                 int(-(-job.seconds // 60))
                 if job is not None and job.audio and job.seconds
@@ -13808,6 +13834,7 @@ class Handler(BaseHTTPRequestHandler):
                     "title": item.get("title") or "",
                     "minutes": minutes,
                     "known": known,
+                    **figure,
                     "credits": credits,
                     "video": bool(entry is not None and spoken.is_video(entry.source)),
                     # What it is and its picture, for the card's rows and its cover (board

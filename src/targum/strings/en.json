@@ -3418,6 +3418,7 @@
   "reader.list.texts.other": "{n} texts",
   "reader.list.picked": "picked for the words you just met",
   "reader.list.known": "{share}% known",
+  "reader.list.estimate": "About {share}% (our estimate)",
   "reader.list.credits-in-all.one": "Uses {n} credit in all",
   "reader.list.credits-in-all.other": "Uses {n} credits in all",
   "reader.list.change": "Change what's in it",

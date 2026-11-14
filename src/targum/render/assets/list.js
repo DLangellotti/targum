@@ -102,7 +102,22 @@
     return sum;
   }
 
-  window.TargumList = { neighbours: neighbours, addressOf: addressOf, addUp: addUp };
+  /* A text's one figure, as every desk page prints it (`figure.js`; design.md §12, "A
+     text's figure is our estimate until your marks settle it", 2026-11-04; #716): our
+     estimate where the server sent one, else the marked share, rounded as
+     `level.known_percent` rounds. Here and not from `figure.js`: a reader carries its
+     scripts inline, and a saved one fetches nothing. Null where nothing was measured. */
+  function figureOf(row) {
+    if (!row) return null;
+    var estimated = typeof row.estimated === "number";
+    var share = estimated ? row.estimated : row.known;
+    if (typeof share !== "number" || share < 0) return null;
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    if (share < 1 && percent >= 100) percent = 99;
+    if (share > 0 && percent <= 0) percent = 1;
+    return { share: Math.max(0, Math.min(1, share)), percent: percent, estimated: estimated };
+  }
+  window.TargumList = { neighbours: neighbours, addressOf: addressOf, addUp: addUp, figure: figureOf };
 
   if (typeof location === "undefined" || !/^https?:$/.test(location.protocol)) return;
   var asked;
@@ -183,6 +198,13 @@
     };
     return words[facts.kind] || "";
   }
+  // Ours says it is ours; the marked share in the caller's words.
+  function figureSaid(found, marked) {
+    if (found.estimated) {
+      return t("reader.list.estimate", "About {share}% (our estimate)", { share: found.percent });
+    }
+    return marked(found.percent);
+  }
   function factsOf(item) {
     var facts = (item && item.facts) || null;
     var said = [];
@@ -190,8 +212,13 @@
     if (kind) said.push(kind);
     var seconds = facts ? Number(facts.seconds || 0) || Number(facts.minutes || 0) * 60 : 0;
     if (seconds > 0) said.push(minutesOf(Math.max(1, Math.round(seconds / 60))));
-    if (facts && typeof facts.known === "number") {
-      said.push(t("reader.list.known", "{share}% known", { share: Math.round(facts.known * 100) }));
+    var found = figureOf(facts);
+    if (found) {
+      said.push(
+        figureSaid(found, function (n) {
+          return t("reader.list.known", "{share}% known", { share: n });
+        })
+      );
     }
     return said.join(" · ");
   }
@@ -493,27 +520,27 @@
       row.appendChild(line("list-end-item-kind", kind));
       row.appendChild(line("list-end-item-length", item.minutes ? minutesOf(item.minutes) : ""));
       var known = line("list-end-item-facts", "");
-      if (typeof item.known === "number") {
+      var found = figureOf(item);
+      var shareSaid = found
+        ? figureSaid(found, function (n) {
+            return t("reader.list.share", "{share}%", { share: n });
+          })
+        : "";
+      if (found) {
         var meter = document.createElement("span");
         meter.className = "list-end-meter";
         meter.setAttribute("aria-hidden", "true");
         var fill = document.createElement("span");
-        fill.style.inlineSize = Math.round(Math.max(0, Math.min(1, item.known)) * 100) + "%";
+        fill.style.inlineSize = Math.round(found.share * 100) + "%";
         meter.appendChild(fill);
         known.appendChild(meter);
-        known.appendChild(
-          document.createTextNode(
-            t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) })
-          )
-        );
+        known.appendChild(document.createTextNode(shareSaid));
       }
       row.appendChild(known);
       // On a phone the columns fold under the title: "Dialogue · 2 min · 95%".
       var folded = [kind];
       if (item.minutes) folded.push(minutesOf(item.minutes));
-      if (typeof item.known === "number") {
-        folded.push(t("reader.list.share", "{share}%", { share: Math.round(item.known * 100) }));
-      }
+      if (found) folded.push(shareSaid);
       row.appendChild(
         line(
           "list-end-item-folded",

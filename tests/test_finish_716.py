@@ -98,3 +98,40 @@ def test_the_contents_page_says_the_whole_text_s_figure_as_ours(tmp_path: Path) 
     state["whole"] = {"known": 0.7, "fresh": 3, "words": 100}
     page = contents_page(manifest_of(built(tmp_path / "book-he-2")), state)
     assert "You know 70% of its words" in page and "of its words (our estimate)" not in page
+
+
+def test_a_page_of_playlists_asks_for_the_estimate_once_a_language(
+    b1: Any,  # noqa: F811
+    built_text: Path,
+) -> None:
+    """qa-claude on #1218: each playlist asked `_estimate` again for every language, and
+    each ask builds a level snapshot and hashes the word list. The page shares one dict."""
+    _, _, _, store, person = b1
+    home = built_text.parent
+    handler = handler_for(store, person, home)
+    handler.library = SimpleNamespace(  # type: ignore[misc]
+        shared=home.parent / "shared",
+        reader_row=lambda where: (
+            {"name": where.name, "language": "he", "words": 100} if where == built_text else None
+        ),
+        playlist_most=lambda *_: 20,
+    )
+    asked: list[str] = []
+    real = handler._estimate
+
+    def counted(who: Any, language: str) -> Any:
+        asked.append(language)
+        return real(who, language)
+
+    handler._estimate = counted  # type: ignore[method-assign]
+    one = {"position": 0, "reader": built_text.name, "job": None, "title": "x", "failed": False}
+    vocabulary: dict[str, dict[str, int]] = {}
+    estimates: dict[str, Any] = {}
+    for n in range(3):
+        handler._playlist_facts(
+            person,
+            {"id": n, "name": f"p{n}", "at": None, "items": [dict(one)]},
+            vocabulary,
+            estimates,
+        )
+    assert asked == ["he"]
