@@ -5,6 +5,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Changed
+- The invitation's Sign in button now opens the sign-in page with `?invited=1`
+  (targum-internal#723, design.md §12 "The invitation's link leads with signing in",
+  2026-11-14). From that link the page leads with signing in and does not show "New here?
+  Join the waitlist". Every invitation goes through `letters.invitation`, so the operator's
+  let-in, the batches and the resend all carry it, in English and Russian, next to
+  `&lang=ru` where the letter adds it. The parameter only changes what the page shows. The
+  guest list still decides who is sent a link. No new strings.
+- A signed-in reader's /connect now says which apps are connected, for example "You've
+  connected Claude.", with "Manage connections in Your account" linking to
+  `/you#connections` (targum-internal#721, design.md §12 "A signed-in reader's /connect
+  says what is connected", 2026-11-14). The names come from the same `Store.connections`
+  rows Your account reads, one name an app as Account groups them. A stranger and a reader
+  with nothing connected see the page as before. The signed-in page is sent
+  `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Four
+  new strings in English and Russian (`connect.page.you-ve-connected`, `connect.page.and`,
+  `connect.page.an-app` for an app that gave no name, `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
+
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
   design.md §12 2026-11-14).

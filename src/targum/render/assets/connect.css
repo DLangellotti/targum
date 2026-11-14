@@ -127,6 +127,12 @@ body.connect { background: var(--ground); }
 .need-account { font-size: 0.9375rem; color: var(--ink-soft); }
 .need-account a { font-weight: 600; color: var(--teal); white-space: nowrap; }
 
+/* Signed in with an app connected: which, and where it is managed (design.md §12,
+   2026-11-14). Said as the facts are, with the link as the stranger's line draws its. */
+.cn-connected { display: flex; align-items: baseline; gap: 6px; font-size: 0.9375rem; color: var(--ink-soft); }
+.cn-connected .cn-glyph { flex: none; align-self: center; color: var(--teal); }
+.cn-connected a { font-weight: 600; color: var(--teal); }
+
 .cn-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 0; list-style: none; font-size: 0.9375rem; color: var(--ink-soft); }
 .cn-facts li { display: inline-flex; align-items: center; gap: 6px; }
 

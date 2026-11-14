@@ -49,6 +49,12 @@
       <p class="cn-kicker">{{ t("connect.head.title", "targum in Claude and ChatGPT") }}</p>
       <h1 class="cn-title" id="cn-h">{{ t("connect.page.learn-hebrew-in", "Learn Hebrew in") }} <span class="cn-app" id="cn-app" data-other="{{ t("connect.page.in-your-app", "your own app") }}">Claude</span></h1>
       <p class="cn-lede">{{ t("connect.page.connect-targum-to-the-ai-you-already-use", "Connect targum to the AI you already use. It talks to you in Hebrew built from the words you know, and shows you how to fix each mistake.") }}</p>
+      {%- if signed_in and connected|default('') %}
+      {#- A reader who has connected an app is told which, and where it is managed
+          (design.md §12, "A signed-in reader's /connect says what is connected",
+          2026-11-14). Nothing connected, or a stranger, and the page is as it was. -#}
+      <p class="cn-connected">{{ glyph('check') }}<span>{{ t("connect.page.you-ve-connected", "You've connected {apps}.", apps=connected) }} <a href="/you#connections">{{ t("connect.page.manage-in-your-account", "Manage connections in Your account") }}</a></span></p>
+      {%- endif %}
       {{ copyable(mcp, t("connect.page.copy", "Copy"), big=true) }}
       {%- if not signed_in %}
       {#- Connecting needs an account, and accounts come off the waitlist, so a stranger

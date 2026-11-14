@@ -576,3 +576,35 @@ def test_sign_in_takes_only_a_body_named_as_json(
     status, _ = _posted(port, "/account/sign-in", body, "application/json; charset=utf-8", None)
     assert status == 200
     assert [to for to, _ in links] == ["guest@example.com"]
+
+
+def test_the_invitation_s_link_leads_with_signing_in(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """design.md §12, "The invitation's link leads with signing in" (2026-11-14,
+    targum-internal#723): `?invited=1`, which the letter's button carries, drops "New
+    here? Join the waitlist" and keeps the form. It only changes what is shown: an
+    address not on the guest list is still sent nothing."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    _switched(monkeypatch, SHUT)
+    for path, form in (
+        ("/account/signin?invited=1", "Sign in to targum"),
+        ("/account/signin?invited=1&lang=ru", 'lang="ru"'),
+    ):
+        status, page = _ask(port, "GET", path)
+        assert status == 200, path
+        assert 'class="said new-here"' not in page, path
+        assert form in page and 'action="/account/sign-in"' in page, path
+        assert 'type="email"' in page, path
+    # Without it, the page is as it was.
+    assert 'class="said new-here"' in _ask(port, "GET", "/account/signin")[1]
+    assert 'class="said new-here"' in _ask(port, "GET", "/account/signin?invited=0")[1]
+    # And it grants nothing: a stranger who types it asks for a link and gets none.
+    body = json.dumps({"email": "stranger@example.com"}).encode()
+    _posted(port, "/account/sign-in?invited=1", body, "application/json", None)
+    assert links == []
+    store.invite("guest@example.com")
+    body = json.dumps({"email": "guest@example.com"}).encode()
+    status, _ = _posted(port, "/account/sign-in?invited=1", body, "application/json", None)
+    assert status == 200 and [to for to, _ in links] == ["guest@example.com"]

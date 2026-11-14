@@ -709,7 +709,11 @@ def invitation(address: str, language: str = "en", connector: bool | None = None
     from .strings import languages
 
     spoken = code != "en" and code in set(languages())
-    link = f"{base}/account/signin" + (f"?lang={code}" if spoken else "")
+    # `invited=1` says the page was opened from this letter, so it leads with signing in
+    # and does not ask a reader already let in to join the waitlist (design.md §12,
+    # "The invitation's link leads with signing in", 2026-11-14). It grants nothing: the
+    # address still has to be on the guest list when the link it asks for is sent.
+    link = f"{base}/account/signin?invited=1" + (f"&lang={code}" if spoken else "")
     said: list[Any] = [
         Heading(text("mail.invitation.heading", code)),
         Para(text("mail.invitation.lead", code)),

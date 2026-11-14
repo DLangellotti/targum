@@ -93,6 +93,10 @@ def test_the_invitation_is_written_in_the_language_they_joined_in(store: Store) 
     assert "targum" in said["dina@example.com"][0]
     assert "очередь" in said["dina@example.com"][0]
     assert "your turn" in said["avi@example.com"][0]
+    # Let in in batches, each letter's button says it came from the invitation, so the
+    # page leads with signing in (targum-internal#723).
+    for _, body in said.values():
+        assert "https://targum.page/account/signin?invited=1" in body
 
 
 def test_every_invitation_carries_the_way_in(store: Store) -> None:

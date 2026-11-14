@@ -3954,6 +3954,7 @@ def connect_page(
     signed_in: bool = False,
     asked: str = "",
     token: str = "",
+    connected: list[str] | None = None,
 ) -> str:
     """targum in Claude and ChatGPT: what it does, and how to add it (#80).
 
@@ -3970,9 +3971,21 @@ def connect_page(
     in the public ones, told that connecting needs an account — accounts come off the
     waitlist, and a stranger sent to the steps would otherwise meet a sign-in door they
     cannot get through.
+
+    `connected` is the names of the apps a signed-in reader has connected, "" for one
+    that gave none (`serve.connected_names`). Where there are any, the hero says which
+    and links to Your account, where an app is disconnected (design.md §12, "A signed-in
+    reader's /connect says what is connected", 2026-11-14). Empty, the page is as it was.
     """
     shelf_n = hebrew_shelf_size()
     said = page_words(language)
+    apps = [str(name or said("connect.page.an-app", "an app")) for name in connected or []]
+    if len(apps) > 1:
+        apps_said = (
+            ", ".join(apps[:-1]) + " " + str(said("connect.page.and", "and")) + " " + apps[-1]
+        )
+    else:
+        apps_said = apps[0] if apps else ""
     # Its own address per language, like every other public page (#188): a crawler
     # cannot be told two languages of this exist unless each has a URL.
     here, alternates = _addressed_in(f"{address.rstrip('/')}/connect" if address else "", language)
@@ -4002,6 +4015,7 @@ def connect_page(
             strings=script_strings(language) if signed_in else script_strings(language, "connect."),
             token=token,
             names=_language_names(language),
+            connected=apps_said if signed_in else "",
         )
     )
 

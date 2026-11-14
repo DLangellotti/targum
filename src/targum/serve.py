@@ -963,6 +963,20 @@ def daily_is_indexed() -> bool:
     return os.environ.get("TARGUM_INDEX_DAILY", "").strip().lower() in {"1", "true", "yes"}
 
 
+def connected_names(connections: list[dict[str, Any]]) -> list[str]:
+    """The apps a reader has connected, one name each, as Your account groups them.
+
+    `Store.connections` is one row a client, and an app reconnected registers a new client
+    under the same name, so two rows called "Claude" are one app (`you.js`, `grouped`). A
+    client with no name is said as "" here, and the page says "an app" for it, once."""
+    names: list[str] = []
+    for one in connections:
+        name = str(one.get("name") or "").strip()
+        if name not in names:
+            names.append(name)
+    return names
+
+
 def joined_from(said: str) -> str:
     """Which of targum's own pages a waitlist form stood on, or "" for anything else.
 
@@ -10418,14 +10432,26 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/connect":
             if not connector_is_open():
                 return self._send(404, b"not found", "text/plain")
+            person = self._person()
             page = connect_page(
                 self._public_language(),
                 self.address,
-                signed_in=self._person() is not None,
+                signed_in=person is not None,
                 asked=self._asked(),
                 token=self._key_if_given(),
+                # Which apps this reader has connected, read as Your account reads them
+                # (design.md §12, "A signed-in reader's /connect says what is
+                # connected", 2026-11-14). Never a stranger's.
+                connected=connected_names(self.store.connections(person.id))
+                if person is not None
+                else [],
             )
-            return self._send(200, page.encode("utf-8"), HTML)
+            # One reader's apps are on a signed-in page, so no cache between the reader
+            # and us may keep it for anybody else (`no-store` is every page's default,
+            # and `private` says so to a shared cache that reads only that).
+            return self._send(
+                200, page.encode("utf-8"), HTML, cache="private, no-store" if person else "no-store"
+            )
         # The olim's own door (targum-internal#385). There while the front door is, and
         # 404 while it is not: its one ask is the waitlist, and a page asking for an
         # address the waitlist will not take is a page that should not answer.
@@ -10699,9 +10725,15 @@ class Handler(BaseHTTPRequestHandler):
                     back=safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0]),
                     # "New here? Join the waitlist" up front (beta review PUB-05,
                     # 2026-11-03), where an address has to have been invited and the
-                    # front door takes one.
+                    # front door takes one. Not from the invitation's own link
+                    # (`?invited=1`, design.md §12, 2026-11-14): that reader has a door
+                    # already, so the page leads with signing in. The parameter changes
+                    # what is shown and nothing else; the guest list still decides.
                     join=self._join_address()
-                    if self.require_account and front_door_is_open() and not signup_is_open()
+                    if self.require_account
+                    and front_door_is_open()
+                    and not signup_is_open()
+                    and not self._from_the_invitation()
                     else "",
                 ).encode("utf-8"),
                 HTML,
@@ -14860,6 +14892,14 @@ class Handler(BaseHTTPRequestHandler):
 
         asked = parse_qs(urlparse(self.path).query).get("lang", [""])[0].strip().lower()
         return asked if asked in set(languages()) else self._page_language()
+
+    def _from_the_invitation(self) -> bool:
+        """Whether the page was opened from the invitation's button (`?invited=1`,
+        design.md §12, "The invitation's link leads with signing in", 2026-11-14).
+
+        Only ever a question of what the sign-in page shows: anybody can type it, so it
+        grants nothing, and the guest list decides who is sent a link as it always did."""
+        return parse_qs(urlparse(self.path).query).get("invited", [""])[0] == "1"
 
     def _asked(self) -> str:
         """The language a visitor pressed for — `?lang=` — or "" where they pressed nothing
