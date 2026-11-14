@@ -1379,7 +1379,7 @@
       // (targum-internal#696 P2-12). The card and the See all row each stood live with
       // no mark, beside built ones saying "Not on this device". The reason is the card's
       // own foot line, or a line of the row's title column, as a text's mark is.
-      find: "main [data-build], .site-main [data-build]",
+      find: "main button[data-build], .site-main button[data-build]",
       foot: true,
       why: function () {
         return t("offline.build-needs", "Getting a text ready needs a connection.");

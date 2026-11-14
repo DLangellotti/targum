@@ -9589,10 +9589,15 @@ class Handler(BaseHTTPRequestHandler):
                 vocabulary[code] = self.store.marked(person, code)
             return vocabulary[code]
 
-        def measured(row: dict[str, Any], known: float | None) -> dict[str, Any]:
-            # A band only where the reader has words to measure against: "Hard for now"
-            # said to somebody who has marked nothing is a claim about nobody.
-            if known is not None and words_of(str(row.get("language") or "")):
+        def measured(
+            row: dict[str, Any], known: float | None, estimated: Any = None
+        ) -> dict[str, Any]:
+            # A band only where there is something to measure against: the reader's
+            # marks, or our estimate of them. "Hard for now" said to somebody we know
+            # nothing of is a claim about nobody; a reader with no marks yet but an
+            # estimate is told it, as the shelf tells them (design.md §12, 2026-11-04).
+            ours = isinstance(estimated, (int, float)) and not isinstance(estimated, bool)
+            if known is not None and (ours or words_of(str(row.get("language") or ""))):
                 row["known"] = round(known, 4)
                 row["band"] = search_module.band(known)
                 row["bandWord"] = self._band_word(row["band"])
@@ -9622,7 +9627,10 @@ class Handler(BaseHTTPRequestHandler):
         def yours_rows(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
             self._measure(home, found, estimates)
             return [
-                figured(measured(text_row(row), row.get("known")), row.get("estimated"))
+                figured(
+                    measured(text_row(row), row.get("known"), row.get("estimated")),
+                    row.get("estimated"),
+                )
                 for row in found
             ]
 
@@ -9633,16 +9641,16 @@ class Handler(BaseHTTPRequestHandler):
         chances: dict[str, Any] = {}
         statuses: dict[str, dict[int, int]] = {}
         shared_copies: dict[str, dict[str, Any]] = {}
+        # The shared shelf, scanned once a request however many groups ask of it.
+        shelf: list[dict[str, Any]] = []
 
         def measure_shared(entries: list[Any]) -> None:
-            wanted = {str(entry.id) for entry in entries}
+            wanted = {str(entry.id) for entry in entries} - set(shared_copies)
             if not wanted:
                 return
-            copies = [
-                reader
-                for reader in self.library.readers(self.library.shared)
-                if str(reader.get("entry") or "") in wanted
-            ]
+            if not shelf:
+                shelf.extend(self.library.readers(self.library.shared))
+            copies = [reader for reader in shelf if str(reader.get("entry") or "") in wanted]
             self._measure(self.library.shared, copies, estimates)
             for reader in copies:
                 if isinstance(reader.get("known"), (int, float)):
@@ -9686,7 +9694,7 @@ class Handler(BaseHTTPRequestHandler):
                 "href": "/open/" + quote(entry.id),
             }
             known, estimated = catalogue_known(entry)
-            return figured(measured(row, known), estimated)
+            return figured(measured(row, known, estimated), estimated)
 
         shown_yours = [row for _, _, row in yours if held(language_of(row))]
         shown_library = [entry for _, entry in library if held(entry.language.split("-")[0])]

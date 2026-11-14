@@ -368,3 +368,50 @@ def test_a_library_row_says_its_band_and_figure_as_the_shelf_does(
         import shutil
 
         shutil.rmtree(copy)
+
+
+def test_a_reader_with_no_marks_is_told_our_estimate(
+    hosted: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on #1224: a reader who has marked nothing yet but has our estimate (the
+    words check, the rung they named) was told nothing on a search row, where the shelf
+    tells them "About 93% (our estimate)" (design.md §12, 2026-11-04). The row carries
+    the figure and its band now. And the estimate is worked out once a language for the
+    whole request, however many groups ask for it."""
+    port, _, tmp = hosted
+    store = Store(STORE[0])
+    token = store.start_sign_in("new-reader@example.com")
+    signed_in = store.finish_sign_in(token)
+    assert signed_in is not None
+    session = signed_in[1]
+    copy = tmp / "out" / "shared" / "psalms-he"
+    _built(copy, "תהילים", ["ירושלים", "שמש"], ["ירושלים", "שמש"], source="test:psalms")
+
+    real = serve.Handler._measure
+
+    def measured(self: Any, home: Path, readers: list[dict[str, Any]], *more: Any) -> None:
+        real(self, home, readers, *more)
+        for reader in readers:
+            if "known" in reader:
+                reader["estimated"] = 0.93
+
+    asked: list[str] = []
+    estimate = serve.Handler._estimate
+
+    def counted(self: Any, person: Any, language: str) -> Any:
+        asked.append(language)
+        return estimate(self, person, language)
+
+    monkeypatch.setattr(serve.Handler, "_measure", measured)
+    monkeypatch.setattr(serve.Handler, "_estimate", counted)
+    try:
+        status, answer, _ = ask(port, "/search.json?lang=he&q=tehillim", session)
+        assert status == 200
+        psalms = next(r for r in _group(answer, "library")["rows"] if r["entry"] == "psalms")
+        assert psalms["estimated"] == 0.93, psalms
+        assert psalms["band"] == search.band(0.93) and psalms["bandWord"]
+        assert asked.count("he") <= 1, asked
+    finally:
+        import shutil
+
+        shutil.rmtree(copy)
