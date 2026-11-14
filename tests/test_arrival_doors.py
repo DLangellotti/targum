@@ -188,9 +188,9 @@ def test_a_russian_invitation_opens_the_sign_in_page_in_russian() -> None:
     """The invitation is written in the language they joined in; its button now opens the
     sign-in page in it too, rather than in whatever the browser asks for."""
     russian = letters.invitation(PUBLIC, "ru", connector=False)
-    assert f"{PUBLIC}/account/signin?lang=ru" in russian.text
+    assert f"{PUBLIC}/account/signin?invited=1&lang=ru" in russian.text
     english = letters.invitation(PUBLIC, "en", connector=False)
-    assert f"{PUBLIC}/account/signin\n" in english.text + "\n"
+    assert f"{PUBLIC}/account/signin?invited=1\n" in english.text + "\n"
     assert "lang=" not in english.text
     # A language with no interface of its own gets the page the browser asks for.
     assert "lang=" not in letters.invitation(PUBLIC, "fr", connector=False).text
@@ -228,3 +228,21 @@ def test_an_english_link_carries_no_language(tmp_path: Path, free_port: Callable
     asked = urlparse(links[0][0])
     _, _, page = _exchange(port, "GET", f"{asked.path}?{asked.query}")
     assert 'action="/account/enter" class="enter">' in page
+
+
+# -- the invitation's link leads with signing in (targum-internal#723) -------------------
+
+
+def test_every_invitation_link_says_it_came_from_the_invitation() -> None:
+    """design.md §12, "The invitation's link leads with signing in" (2026-11-14): the
+    letter's button, in English and Russian, with and without the connector's paragraph,
+    carries `?invited=1`, and it is the only sign-in link the letter has."""
+    import re
+
+    for language in ("en", "ru"):
+        for connector in (True, False):
+            mail = letters.invitation(PUBLIC, language, connector=connector)
+            for body in (mail.text, mail.html):
+                links = re.findall(r"/account/signin[^\s\"'<]*", body)
+                assert links, (language, connector)
+                assert all("invited=1" in one for one in links), (language, connector, links)

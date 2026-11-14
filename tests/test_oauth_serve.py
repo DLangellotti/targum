@@ -677,6 +677,94 @@ def test_connect_promises_no_tick_and_tells_a_stranger_they_need_an_account(
     assert 'class="need-account"' not in reader
 
 
+def _reader(store_path: Path, email: str) -> str:
+    """A session of another reader of the same box."""
+    signed_in = Store(store_path).finish_sign_in(Store(store_path).start_sign_in(email))
+    assert signed_in is not None
+    return signed_in[1]
+
+
+def _connect(port: int, session: str) -> str:
+    """Connect "Claude" for this reader, the way the app does, and say its client."""
+    client_id = a_client(port)
+    verifier, challenge = pkce()
+    code = a_code(port, session, client_id, challenge, "library")
+    status, _, _ = post(
+        port,
+        "/oauth/token",
+        urlencode(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": client_id,
+                "redirect_uri": CALLBACK,
+                "code_verifier": verifier,
+            }
+        ),
+        session=session,
+    )
+    assert status == 200
+    return client_id
+
+
+def test_a_signed_in_reader_s_connect_says_what_is_connected(
+    connected: tuple[int, str, Path],
+) -> None:
+    """design.md §12, "A signed-in reader's /connect says what is connected" (2026-11-14,
+    targum-internal#721): a reader with Claude connected is told so, with Account linked,
+    and nobody else is shown it, a stranger or another reader, or any cache between."""
+    port, _, store_path = connected
+    mine = _reader(store_path, "connects@example.com")
+    theirs = _reader(store_path, "nothing-yet@example.com")
+
+    before = get(port, "/connect", session=mine)[1].decode()
+    assert 'class="cn-connected"' not in before, "nothing connected: the page as it was"
+
+    client_id = _connect(port, mine)
+    status, body, headers = get(port, "/connect", session=mine)
+    page = html.unescape(body.decode())
+    assert status == 200
+    assert "You've connected Claude." in page
+    assert 'href="/you#connections"' in page and "Manage connections in Your account" in page
+    assert "private" in headers["cache-control"] and "no-store" in headers["cache-control"]
+    # Connected again, the same app is still one name (as Account groups it).
+    _connect(port, mine)
+    again = html.unescape(get(port, "/connect", session=mine)[1].decode())
+    assert "You've connected Claude." in again and "Claude and Claude" not in again
+    # In Russian, the same line from the same rows.
+    russian = html.unescape(get(port, "/connect?lang=ru", session=mine)[1].decode())
+    assert "Вы подключили Claude." in russian
+
+    for who in ("", theirs):
+        status, body, headers = get(port, "/connect", session=who)
+        said = body.decode()
+        assert status == 200 and 'class="cn-connected"' not in said, who or "a stranger"
+        assert "no-store" in headers["cache-control"]
+
+    # Disconnected, the line goes with it.
+    post(
+        port,
+        "/account/disconnect",
+        json.dumps({"client": client_id}),
+        kind="application/json",
+        session=mine,
+    )
+    for one in json.loads(get(port, "/account/me", session=mine)[1])["connections"]:
+        post(
+            port,
+            "/account/disconnect",
+            json.dumps({"client": one["client"]}),
+            kind="application/json",
+            session=mine,
+        )
+    assert 'class="cn-connected"' not in get(port, "/connect", session=mine)[1].decode()
+
+
+def test_connected_names_are_one_an_app() -> None:
+    rows = [{"name": "Claude"}, {"name": "ChatGPT"}, {"name": "Claude"}, {"name": None}]
+    assert serve.connected_names(rows) == ["Claude", "ChatGPT", ""]
+
+
 def test_connect_guesses_nothing_about_which_app(connected: tuple[int, str, Path]) -> None:
     """A reader in the wrong block can see that they are; a page that chose cannot."""
     port, _, _ = connected
@@ -922,3 +1010,14 @@ def test_connect_is_the_desk_for_a_reader_and_the_public_page_for_a_stranger(
         assert "Connect in two minutes." in page and "Before you connect." in page
         assert "How it works" not in page, "the dark block is gone (board ConnConnect)"
         assert '<img src="/cover/scene-02-in-a-cafe"' in page
+
+
+def test_several_apps_are_said_in_one_line() -> None:
+    from targum.render.builder import connect_page
+
+    page = html.unescape(
+        connect_page("en", PUBLIC, signed_in=True, connected=["Claude", "ChatGPT", ""])
+    )
+    assert "You've connected Claude, ChatGPT and An app." in page
+    stranger = connect_page("en", PUBLIC, signed_in=False, connected=["Claude"])
+    assert 'class="cn-connected"' not in stranger
