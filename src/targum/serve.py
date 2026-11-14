@@ -15233,8 +15233,8 @@ class Handler(BaseHTTPRequestHandler):
 
         state = (query.get("state") or [""])[0]
         # Started in this browser, or nothing here is spent on it (targum-internal#729).
-        held = self._cookie(GOOGLE_STATE_COOKIE)
-        ours = bool(state and held) and secrets.compare_digest(held, google_state_digest(state))
+        bound = self._cookie(GOOGLE_STATE_COOKIE)
+        ours = bool(state and bound) and secrets.compare_digest(bound, google_state_digest(state))
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
         cleared = google_state_cookie("", self.address)
