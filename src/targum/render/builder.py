@@ -3553,7 +3553,9 @@ def _register_lines(text: str, tokens: Sequence[Token]) -> dict[int, str]:
     annotated before the rule says it without being annotated again."""
     from ..annotate.french_register import Word, lines
 
-    words = [Word(token.start, token.end, token.surface, token.pos) for token in tokens]
+    words = [
+        Word(token.start, token.end, token.surface, token.pos, token.feats) for token in tokens
+    ]
     return {id(tokens[at]): line for at, line in lines(text, words).items()}
 
 

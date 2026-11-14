@@ -8,18 +8,23 @@ as mistakes, or does not see the negation at all. They are register, not errors 
 D5, 2026-11-05): the card says which register a line is in and what the formal one says,
 and corrects nothing.
 
-**Rules, not a model.** Both are read off the words as written, with the tagger's part of
-speech used only to refuse: a negator the tagger calls a noun (*un pas*, *une personne*)
-is not one. The same rule runs on the page and in `scripts/eval_register.py`, which scores
-it on ling-fr's own gold (`evals/french-register-gold.jsonl`) with no tags at all, so the
-number measured is the rule's and the page can only say less than it.
+**Rules, not a model.** Both are read off the words as written. The tagger's part of
+speech is used only to refuse: a negator the tagger calls a noun (*un pas*, *une
+personne*) is not one. Its `Number` settles an adjective after *on est* where the
+spelling cannot (*amoureux* is both). The same rule runs on the page and in
+`scripts/eval_register.py`, which scores it on the gold
+(`evals/french-register-gold.jsonl`) with no tags at all.
 
 *Ne* dropped: a negator (*pas*, *jamais*, *rien*, *plus*, *personne*, *guère*) after a
 subject pronoun and its verb, with no *ne* or *n'* in the clause before it. Only the first
-in a clause is named (*j'ai jamais rien vu* drops one *ne*). What it misses, by design: a
-noun subject (*mon frère vient pas*) and an imperative (*fais pas ça*), where the rule
-cannot tell the verb without a parse, and *plus* wherever it could be "more" (*j'ai plus
-faim*). It says nothing it is not sure of.
+in a clause is named (*j'ai jamais rien vu* drops one *ne*). *Plus* counts only where it
+cannot be "more" (`_plus_negates`). A pronominal imperative puts the *ne* before its
+pronoun (*t'énerve pas* → *ne t'énerve pas*), and where the rule cannot tell an imperative
+from a statement (*vous dérangez pas*) it names the drop and withholds the formal clause.
+What it misses, by design: a noun subject (*mon frère vient pas*) and an imperative with
+no pronoun (*fais pas ça*), where the rule cannot tell the verb without a parse, and
+*plus* wherever it could be "more" (*c'est plus possible*). It says nothing it is not
+sure of.
 
 *On* for *nous*: *on* is always a subject, and as often "people" or "someone" as "we", so
 the card says "we" only where the sentence says so: *nous* right before it, agreement in
@@ -121,6 +126,43 @@ NOT_AFTER = frozenset(
         "toi",
         "lui",
         "eux",
+        # A numeral or an adjective before a noun makes the negator one: *quelques pas*,
+        # *à grands pas*, *une vieille personne* (qa-claude on targum#1241).
+        "deux",
+        "trois",
+        "quatre",
+        "cinq",
+        "dix",
+        "cent",
+        "mille",
+        "quelques",
+        "plusieurs",
+        "grand",
+        "grands",
+        "grande",
+        "grandes",
+        "petit",
+        "petits",
+        "petite",
+        "petites",
+        "vieux",
+        "vieille",
+        "vieilles",
+        "bon",
+        "bonne",
+        "bonnes",
+        "belle",
+        "beau",
+        "premier",
+        "premiers",
+        "dernier",
+        "derniers",
+        "seul",
+        "seule",
+        "autre",
+        "autres",
+        "certaine",
+        "certaines",
     }
 )
 
@@ -130,6 +172,17 @@ PLUS_BEFORE = frozenset(
     {"rien", "personne", "jamais", "aucun", "aucune", "guère", "te", "me", "se", "t'", "m'", "s'"}
     | {"lui", "y", "en", "nous", "vous"}
 )
+
+#: What *plus* is "more" after, whatever follows it: *encore plus*, *deux fois plus*.
+PLUS_NOT_AFTER = frozenset(
+    {"encore", "bien", "beaucoup", "fois", "peu", "un", "tellement", "toujours", "trop"}
+)
+#: Forms of *avoir*, *pouvoir* and *savoir* that *plus* is "no more" after.
+AVOIR = frozenset({"ai", "as", "a", "avons", "avez", "ont", "avait", "avais", "avaient"})
+POUVOIR = frozenset({"peux", "peut", "pouvons", "pouvez", "peuvent", "pouvais", "pouvait"})
+SAVOIR = frozenset({"sais", "sait", "savons", "savez", "savent"})
+#: What *avoir plus* is "no more" of: *j'ai plus faim*.
+FEELINGS = frozenset({"faim", "soif", "peur", "envie", "sommeil", "besoin", "froid", "chaud"})
 
 #: What ends a clause between two words.
 BREAK = re.compile(r"[,;:()—–\"«»?!.…\[\]]")
@@ -281,12 +334,13 @@ FIXED_AFTER = (
 @dataclass(frozen=True)
 class Word:
     """What the rules read of a word: where it is in the text, how it is written, and the
-    tagger's part of speech where there is one."""
+    tagger's part of speech and grammar where there are any."""
 
     start: int
     end: int
     surface: str
     pos: str | None = None
+    feats: str | None = None
 
 
 @dataclass(frozen=True)
@@ -347,10 +401,36 @@ def _is_negator(text: str, words: Sequence[Word], at: int) -> bool:
     if at > 0 and norm(words[at - 1].surface) in NOT_AFTER:
         return False
     if said == "plus":
-        last = at + 1 >= len(words) or _broken(text, words[at], words[at + 1])
-        if not last and norm(words[at + 1].surface) not in PLUS_BEFORE:
-            return False
+        return _plus_negates(text, words, at)
     return True
+
+
+def _plus_negates(text: str, words: Sequence[Word], at: int) -> bool:
+    """Whether *plus* is "no more" and could not be "more" (qa-claude on targum#1241):
+    before another negator, an object pronoun or *là*; after *avoir* before *de* or a
+    feeling, with no *que* to compare against (*j'ai plus faim*, *il y a plus de lait*);
+    and at the end of a clause only in *j'en peux plus* and *je sais plus*. Everywhere
+    else (*il en faut plus*, *tu dois travailler plus*, *deux fois plus*) it is "more"."""
+    before = norm(words[at - 1].surface) if at > 0 else ""
+    if before in PLUS_NOT_AFTER:
+        return False
+    rest: list[str] = []
+    for index in range(at + 1, len(words)):
+        if _broken(text, words[index - 1], words[index]):
+            break
+        rest.append(norm(words[index].surface))
+    if not rest:
+        clause = [norm(word.surface) for word in words[_clause_start(text, words, at) : at]]
+        if before in POUVOIR:
+            return "en" in clause
+        return before in SAVOIR and "en" not in clause
+    following = rest[0]
+    if following in PLUS_BEFORE or following == "là":
+        return True
+    compared = any(word in ("que", "qu'") for word in rest)
+    if before in AVOIR and not compared:
+        return following in ("de", "d'") or following in FEELINGS or rest[:2] == ["le", "temps"]
+    return False
 
 
 def _subject(words: Sequence[Word], start: int, at: int) -> int | None:
@@ -370,10 +450,51 @@ def _elided(word: str) -> bool:
     return bool(word) and word[0].lower() in "aeiouyhàâäéèêëîïôöùûü"
 
 
+#: Verbs said with *vous* as an imperative of a pronominal verb: *vous inquiétez pas* is
+#: *ne vous inquiétez pas* (qa-claude on targum#1241).
+REFLEXIVE_VOUS = frozenset({"inquiétez", "énervez", "fâchez", "affolez", "embêtez", "privez"})
+#: Ones that may be either, *vous dérangez pas* "don't trouble yourself" or "you're no
+#: trouble": the drop is said and the formal clause is not.
+EITHER_VOUS = frozenset({"dérangez", "gênez", "trompez", "levez", "couchez", "perdez"})
+#: Forms of *faire* in *s'en faire*: *t'en fais pas*, *vous en faites pas*.
+FAIRE = frozenset({"fais", "fait", "faites"})
+
+
+def _imperative(words: Sequence[Word], subject: int) -> bool | None:
+    """Whether a clause opened by a weak subject is a pronominal imperative (*t'énerve
+    pas*, *t'en fais pas*, *vous inquiétez pas*): True, False, or None where it may be
+    either and the formal clause is not said."""
+    said = norm(words[subject].surface)
+    after = [norm(word.surface) for word in words[subject + 1 : subject + 3]]
+    if not after:
+        return False
+    if after[0] == "en" and len(after) > 1 and after[1] in FAIRE:
+        return True
+    if said == "t'":
+        # *t'as*, *t'es*, *t'étais*: tu; *t'inquiète*, *t'énerve*: te, an imperative.
+        return not after[0].endswith(("s", "x", "ais", "ait"))
+    if said == "vous":
+        if after[0] in REFLEXIVE_VOUS:
+            return True
+        if after[0] in EITHER_VOUS:
+            return None
+    return False
+
+
 def _formal(text: str, words: Sequence[Word], subject: int, negator: int) -> str:
     """The clause from its subject to the negator, with the *ne* put back after the
-    subject: *j'ai jamais* → *je n'ai jamais*, *c'est pas* → *ce n'est pas*."""
+    subject: *j'ai jamais* → *je n'ai jamais*, *c'est pas* → *ce n'est pas*; before the
+    pronoun in a pronominal imperative, *t'énerve pas* → *ne t'énerve pas*; and nothing
+    where the rule cannot tell which (`_imperative`)."""
     head = words[subject]
+    if norm(head.surface) in WEAK_SUBJECTS:
+        imperative = _imperative(words, subject)
+        if imperative is None:
+            return ""
+        if imperative:
+            clause = text[head.start : words[negator].end]
+            ne = "Ne" if clause[:1].isupper() else "ne"
+            return f"{ne} {clause[:1].lower()}{clause[1:]}"
     said = text[head.start : head.end]
     apostrophe = "’" if "’" in text else "'"
     whole = _UNELIDED.get(norm(said))
@@ -411,6 +532,14 @@ def _has(said: Sequence[str], phrase: tuple[str, ...]) -> bool:
     return any(tuple(said[i : i + size]) == phrase for i in range(len(said) - size + 1))
 
 
+def _feature(feats: str | None, name: str) -> str:
+    for part in (feats or "").split("|"):
+        key, _, value = part.partition("=")
+        if key == name:
+            return value
+    return ""
+
+
 def _plural_after(text: str, words: Sequence[Word], at: int) -> bool:
     """Whether *on* at `at` is followed, in its clause, by *être* and a word in the
     plural: *on est partis*, *on était tous fatigués*."""
@@ -423,7 +552,12 @@ def _plural_after(text: str, words: Sequence[Word], at: int) -> bool:
         if said in ETRE:
             reached = True
         elif reached and said not in BETWEEN:
-            plural = said.endswith(("s", "x")) and len(said) > 2 and said not in SINGULAR_S
+            number = _feature(words[index].feats, "Number")
+            if number:
+                return number == "Plur"
+            # An -x adjective is the same in both numbers (*amoureux*, *dangereux*), so
+            # it says nothing unless the tagger says plural (qa-claude on targum#1241).
+            plural = said.endswith("s") and len(said) > 2 and said not in SINGULAR_S
             return plural and words[index].pos not in ("NOUN", "PROPN", "ADP", "DET")
         elif not reached and said not in (
             "a",
@@ -471,7 +605,8 @@ def lines(text: str, words: Sequence[Word]) -> dict[int, str]:
     `Formal=…` on a negator said without *ne*, `On=We` or `On=Open` on each *on*."""
     out: dict[int, str] = {}
     for found in ne_dropped(text, words):
-        out[found.negator] = f"Reg=NeDrop|Formal={found.formal.replace('|', ' ')}"
+        formal = found.formal.replace("|", " ").replace("=", " ")
+        out[found.negator] = f"Reg=NeDrop|Formal={formal}" if formal else "Reg=NeDrop"
     for one in ons(text, words):
         out[one.at] = "On=We" if one.we else "On=Open"
     return out

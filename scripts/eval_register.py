@@ -2,21 +2,28 @@
 
 `annotate/french_register.py` says two things of a French line: a negation said without
 its *ne* (*je sais pas*), with the formal clause beside it, and an *on* the sentence shows
-means "we". This scores both against `evals/french-register-gold.jsonl`: 134 sentences,
-103 written on 2026-11-14 by the builder seat as ling-fr (her own read is pending),
-across spoken, neutral and formal French, traps included (*un pas*, *une personne*,
-*plus chaud*, *de rien*, *si jamais*, *non plus*), and 31 from the public-domain French
-shelf (Perrault, Daudet, Maupassant, Allais), each verbatim from
-`evals/french-said-gold.jsonl`. Every *ne* dropped is marked at the clause's first
-negator with the formal clause, and every *on* is read "we" or "other".
+means "we". This scores both against `evals/french-register-gold.jsonl`: 152 sentences.
+102 were written on 2026-11-14 by the builder seat as ling-fr, across spoken, neutral and
+formal French, traps included (*un pas*, *une personne*, *plus chaud*, *de rien*, *si
+jamais*, *non plus*). 18 are the traps qa-claude wrote reading as ling-fr in the review
+of targum#1241, added before the rule was changed for them: *plus* meaning "more" at the
+end of a clause, pronominal imperatives (*t'en fais pas*), *-eux* adjectives after *on*,
+and drops the rule missed. 32 are from the public-domain French shelf (Perrault, Daudet,
+Maupassant, Allais), each verbatim from `evals/french-said-gold.jsonl`. Every *ne*
+dropped is marked at the clause's first negator with the formal clause, and every *on*
+is read "we" or "other".
 
 - **nedrop_precision**, **nedrop_recall**: the negators the rule names against the gold's.
-- **formal_accuracy**: of the drops it names rightly, the share whose formal clause is the
-  gold's, letter for letter (case and apostrophe aside).
+- **formal_accuracy**: of the drops it names rightly with a formal clause, the share
+  whose clause is the gold's, letter for letter (case and apostrophe aside). Where the
+  rule withholds the clause the card says the drop alone, and nothing is scored.
 - **on_we_precision**, **on_we_recall**: the *on* the card calls "we" against the gold's.
 
-The rule runs on the words alone, with no tagger: on the page the tagger's part of speech
-can only refuse a negator, so the page says less than is scored here, never more.
+The rule runs on the words alone, with no tagger. On the page the tagger's part of speech
+can only refuse a negator, so the drops shown are fewer than scored, never more. Its
+`Number` can move an *on* either way, since a plural -x adjective (*on est heureux* of
+several people) says "we" only when tagged plural, so the "we" figures are the rule's
+on the words, not a bound on the page.
 
     python scripts/eval_register.py [--record]
 
@@ -41,7 +48,7 @@ GOLD = ROOT / "evals" / "french-register-gold.jsonl"
 STAGE = "register"
 CORPUS = "fr-register-own"
 SYSTEM = "register-rule"
-VERSION = f"{SYSTEM}/1"
+VERSION = f"{SYSTEM}/2"
 
 
 def _same(one: str, other: str) -> bool:
@@ -53,7 +60,7 @@ def _same(one: str, other: str) -> bool:
 
 def score(rows: list[dict[str, object]], *, quiet: bool = False) -> dict[str, tuple[float, int]]:
     """Each metric's score and the count it is over."""
-    named = right = in_gold = formal_right = 0
+    named = right = in_gold = formal_right = formal_shown = 0
     called_we = we_right = gold_we = 0
     for row in rows:
         sentence = str(row["sentence"])
@@ -69,6 +76,13 @@ def score(rows: list[dict[str, object]], *, quiet: bool = False) -> dict[str, tu
                     print(f"  wrong drop: {word.surface} | {sentence}")
                 continue
             right += 1
+            if not found.formal:
+                # Withheld where the rule cannot tell (`french_register._imperative`): the
+                # card says the drop alone, so no formal clause is scored.
+                if not quiet:
+                    print(f"  formal withheld | {sentence}")
+                continue
+            formal_shown += 1
             if _same(found.formal, formal):
                 formal_right += 1
             elif not quiet:
@@ -101,7 +115,7 @@ def score(rows: list[dict[str, object]], *, quiet: bool = False) -> dict[str, tu
     return {
         "nedrop_precision": (share(right, named), named),
         "nedrop_recall": (share(right, in_gold), in_gold),
-        "formal_accuracy": (share(formal_right, right), right),
+        "formal_accuracy": (share(formal_right, formal_shown), formal_shown),
         "on_we_precision": (share(we_right, called_we), called_we),
         "on_we_recall": (share(we_right, gold_we), gold_we),
     }
@@ -118,7 +132,7 @@ def main() -> None:
     for metric, (value, n) in scores.items():
         print(f"{metric} {value:.4f} (n={n})")
     note = evals.pinned(
-        f"sentences={len(rows)} tags=none; written as ling-fr by builder 2026-11-14",
+        f"sentences={len(rows)} tags=none; builder + qa-claude traps 2026-11-14",
         [GOLD, Path(french_register.__file__)],
     )
     out = [

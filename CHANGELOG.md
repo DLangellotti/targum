@@ -26,22 +26,31 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   is computed, shown and measured, so `targum stages` counts all seven French spots
   covered (D5, 2026-11-05: register to flag, not error to correct).
   `annotate/french_register.py` reads two things off the words, with rules and no model.
-  A negation said without *ne* (*je sais pas*) gets an "Informal" line on the negator's
-  card, "ne dropped. Formal: je ne sais pas". An *on* gets "Informal: on here means “we”,
-  for nous" where the sentence shows it (*nous, on…*, *on est partis*, *ensemble*, *toi et
-  moi*, *chez nous*, *et si on allait…?*, *on y va*). Every other *on* gets "Who: people in
-  general, or “we” in speech". The builder puts both on a French word's grammar line
-  (`Reg=NeDrop|Formal=…`, `On=We`, `On=Open`), so a text annotated before this shows them
-  at its next build, with nothing annotated again. Measured by `scripts/eval_register.py`
-  against `evals/french-register-gold.jsonl`: 134 sentences, 103 written for it across
-  spoken, neutral and formal French and 31 from the public-domain shelf. Scores:
-  `nedrop_precision` 1.0 (39/39), `nedrop_recall` 0.848, `formal_accuracy` 0.949,
-  `on_we_precision` 1.0 (18/18), `on_we_recall` 0.75. Floors are 0.97, 0.84, 0.94, 0.94
-  and 0.74. The rule and the gold were written by one seat, so precision is optimistic;
-  the rule also names nothing in the 342 tagged sentences of the liaison gold. It misses
-  a noun subject, an imperative and an ambiguous *plus* by design. Five new strings in
-  English and Russian (`reader.card.informal`, `ne-dropped`, `on-we`, `on-who`,
-  `on-open`); the Russian waits on ling-ru's first pass. No spend.
+  - A negation said without *ne* (*je sais pas*) gets an "Informal" line on the
+    negator's card: "ne dropped. Formal: je ne sais pas". A pronominal imperative puts
+    the *ne* first (*t'en fais pas* → *ne t'en fais pas*). Where the rule cannot tell an
+    imperative from a statement (*vous dérangez pas*), the card says "ne dropped" with no
+    formal clause. *Plus* counts only where it cannot mean "more".
+  - An *on* gets "Informal: on here means “we”, for nous" where the sentence shows it
+    (*nous, on…*, *on est partis*, *ensemble*, *toi et moi*, *chez nous*, *et si on
+    allait…?*, *on y va*). An adjective in -x after *on est* counts only when the tagger
+    calls it plural. Every other *on* gets "Who: people in general, or “we” in speech".
+  - The builder puts both on a French word's grammar line (`Reg=NeDrop`, `Formal=…`,
+    `On=We`, `On=Open`), so a text annotated before this shows them at its next build,
+    with nothing annotated again.
+  - Measured by `scripts/eval_register.py` against `evals/french-register-gold.jsonl`:
+    152 sentences, 102 written for it, 18 traps from qa-claude's review written before
+    the rule was changed for them, and 32 from the public-domain shelf. Scores
+    (`register-rule/2`): `nedrop_precision` 1.0 (46/46), `nedrop_recall` 0.852,
+    `formal_accuracy` 1.0, `on_we_precision` 1.0 (18/18), `on_we_recall` 0.783. Floors
+    are 0.97, 0.85, 0.97, 0.94 and 0.78. The first rule scored 0.894, 0.778, 0.881,
+    0.783 and 0.783 on the same gold. The rule now knows every trap in it, so precision
+    is optimistic; it also names nothing in the 342 tagged sentences of the liaison
+    gold.
+  - Six new strings in English and Russian (`reader.card.informal`, `ne-dropped`,
+    `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
+    qa-claude's review. A browser test opens a French reader in English and in Russian
+    and taps each line. No spend.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,

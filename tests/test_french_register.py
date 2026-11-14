@@ -43,6 +43,18 @@ def _we(sentence: str) -> list[bool]:
         ("T'as pas vu mes clés ?", [("pas", "Tu n'as pas")]),
         # One ne for the clause, named at its first negator.
         ("J'ai jamais rien vu.", [("jamais", "Je n'ai jamais")]),
+        # Plus where it cannot be "more".
+        ("J'ai plus faim.", [("plus", "Je n'ai plus")]),
+        ("Il y a plus de lait.", [("plus", "Il n'y a plus")]),
+        ("Elle est plus là.", [("plus", "Elle n'est plus")]),
+        ("Je sais plus.", [("plus", "Je ne sais plus")]),
+        # A pronominal imperative puts ne before its pronoun (qa-claude on #1241).
+        ("T'énerve pas.", [("pas", "Ne t'énerve pas")]),
+        ("T'en fais pas.", [("pas", "Ne t'en fais pas")]),
+        ("Vous en faites pas.", [("pas", "Ne vous en faites pas")]),
+        ("Vous inquiétez pas, on arrive.", [("pas", "Ne vous inquiétez pas")]),
+        # And one that may be either is named with no formal clause.
+        ("Vous dérangez pas.", [("pas", "")]),
     ],
 )
 def test_a_negation_without_ne_is_named_with_its_formal_clause(
@@ -70,6 +82,18 @@ def test_a_negation_without_ne_is_named_with_its_formal_clause(
         "Elle est partie sans rien dire.",
         "De rien, c'est normal.",
         "— Non, je l’appelle le Cocu, c’est plus gentil.",
+        # Plus meaning "more" (qa-claude's traps on #1241).
+        "Je veux en savoir plus.",
+        "Il en faut plus.",
+        "Tu dois travailler plus.",
+        "Il gagne plus, maintenant.",
+        "Il mange deux fois plus.",
+        "Je veux encore plus de café, s'il te plaît.",
+        "Tu en sais plus.",
+        # A negator made a noun by what comes before it.
+        "Il a fait quelques pas.",
+        "Il avance à grands pas.",
+        "C'est une vieille personne.",
         # No verb, so nothing dropped.
         "Pas de souci, je m'en occupe.",
         "Plus jamais ça.",
@@ -99,6 +123,9 @@ def test_a_negator_the_tagger_calls_a_noun_is_not_one() -> None:
         ("On rentre chez nous.", [True]),
         ("On dit que l'hiver sera rude.", [False]),
         ("On est prié de fermer la porte.", [False]),
+        # An -x adjective is both numbers (qa-claude's traps on #1241).
+        ("Quand on est amoureux, on ne voit rien.", [False, False]),
+        ("On est dangereux quand on a peur.", [False, False]),
         ("Quand on est jeune, on croit tout savoir.", [False, False]),
         ("Peut-on fumer ici ?", [False]),
         ("Tu verras ce que l’on gagne à vouloir vivre libre.", [False]),
@@ -108,12 +135,24 @@ def test_on_is_we_only_where_the_sentence_says_so(sentence: str, we: list[bool])
     assert _we(sentence) == we
 
 
+def test_an_x_adjective_says_we_only_where_the_tagger_says_plural() -> None:
+    text = "On est heureux."
+    words = words_of(text)
+    assert [one.we for one in ons(text, words)] == [False]
+    words[2] = Word(words[2].start, words[2].end, "heureux", "ADJ", "UPOS=ADJ|Number=Plur")
+    assert [one.we for one in ons(text, words)] == [True]
+    words[2] = Word(words[2].start, words[2].end, "heureux", "ADJ", "UPOS=ADJ|Number=Sing")
+    assert [one.we for one in ons(text, words)] == [False]
+
+
 def test_the_lines_are_what_the_card_reads() -> None:
     text = "Nous, on sait pas."
     words = words_of(text)
     assert lines(text, words) == {1: "On=We", 3: "Reg=NeDrop|Formal=on ne sait pas"}
     text = "On dit que c'est fini."
     assert lines(text, words_of(text)) == {0: "On=Open"}
+    text = "Vous dérangez pas."
+    assert lines(text, words_of(text)) == {2: "Reg=NeDrop"}
 
 
 def test_the_builder_says_it_on_the_grammar_line() -> None:
@@ -178,7 +217,7 @@ def test_the_card_says_both_lines_in_english_and_russian() -> None:
     script = (ROOT / "src" / "targum" / "render" / "assets" / "reader.js").read_text("utf-8")
     assert 'feat(takesLine, "Reg") === "NeDrop"' in script
     assert 'feat(takesLine, "On")' in script
-    for key in ("informal", "ne-dropped", "on-we", "on-who", "on-open"):
+    for key in ("informal", "ne-dropped", "ne-dropped-alone", "on-we", "on-who", "on-open"):
         assert strings.catalogue("en")[f"reader.card.{key}"]
         assert strings.catalogue("ru")[f"reader.card.{key}"]
 
@@ -198,7 +237,7 @@ def test_the_ledger_holds_what_the_gold_scores_now() -> None:
     that moves a number has to record it, and the floors read the new number."""
     scorer = _eval_register()
     rows = [json.loads(line) for line in scorer.GOLD.read_text(encoding="utf-8").splitlines()]
-    assert len(rows) >= 60
+    assert len(rows) >= 150
     assert {row["register"] for row in rows} == {"formal", "neutral", "informal"}
     scored = scorer.score(rows, quiet=True)
     latest = evals.latest(evals.read(ROOT / "evals" / "ledger.jsonl"))
@@ -212,7 +251,7 @@ def test_the_gold_marks_every_on_and_each_drop_where_its_word_is() -> None:
         row = json.loads(line)
         sentence = row["sentence"]
         for start, end, word, formal in row["ne_dropped"]:
-            assert sentence[start:end] == word and " n" in f" {formal}", sentence
+            assert sentence[start:end] == word and " n" in f" {formal.lower()}", sentence
         marked = [sentence[start:end].lower() for start, end, _ in row["on"]]
         assert marked == ["on"] * len(re.findall(r"(?i)(?<![\w-])on\b|-on\b", sentence))
 

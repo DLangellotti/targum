@@ -677,23 +677,23 @@
     "metric": "nedrop_precision",
     "system": "register-rule",
     "at_least": 0.97,
-    "why": "1.0 on 2026-11-14, 39 of 39 negations named without ne were, on the 134-sentence register gold, the rule on the words alone (French hard spot 7); one wrong would be 0.975. Written by the same seat as the rule, so optimistic: it also names none in the 342 tagged sentences of the liaison gold"
+    "why": "1.0 on 2026-11-14, 46 of 46, register-rule/2 on the 152-sentence gold with qa-claude's 18 traps (targum#1241 review); one wrong would be 0.978. The same gold scored 0.894 under register-rule/1 before the traps were answered (plus meaning more at the end of a clause). Rule and traps now both known to the builder, so still optimistic; none named in the 342 tagged sentences of the liaison gold"
   },
   {
     "stage": "register",
     "corpus": "fr-register-own",
     "metric": "nedrop_recall",
     "system": "register-rule",
-    "at_least": 0.84,
-    "why": "0.8478 on 2026-11-14, 39 of 46: the misses are the ones the rule declines by design, a noun subject, an imperative, y a pas, personne veut, ça sert à rien, c'est plus possible"
+    "at_least": 0.85,
+    "why": "0.8519 on 2026-11-14, 46 of 54: the misses are the ones the rule declines by design, a noun subject, an imperative with no pronoun, y a pas, personne veut, ça sert à rien, c'est plus possible, je l'ai dit à personne"
   },
   {
     "stage": "register",
     "corpus": "fr-register-own",
     "metric": "formal_accuracy",
     "system": "register-rule",
-    "at_least": 0.94,
-    "why": "0.9487 on 2026-11-14, 37 of 39 formal clauses letter for letter; the two wrong are reflexive imperatives (t'inquiète pas, vous inquiétez pas), whose ne goes before the pronoun"
+    "at_least": 0.97,
+    "why": "1.0 on 2026-11-14, 46 of 46 formal clauses shown letter for letter; 0.881 under register-rule/1 on the same gold, the pronominal imperatives (t'en fais pas, t'énerve pas, vous en faites pas) now put ne first, and a clause the rule cannot tell is withheld rather than shown"
   },
   {
     "stage": "register",
@@ -701,15 +701,15 @@
     "metric": "on_we_precision",
     "system": "register-rule",
     "at_least": 0.94,
-    "why": "1.0 on 2026-11-14, 18 of 18 on the card calls we were; one wrong would be 0.944. None called we in the 342 tagged shelf sentences"
+    "why": "1.0 on 2026-11-14, 18 of 18; 0.783 under register-rule/1 once qa-claude's -eux traps were in (quand on est amoureux), now singular unless tagged plural; one wrong would be 0.947. None called we in the 342 tagged shelf sentences"
   },
   {
     "stage": "register",
     "corpus": "fr-register-own",
     "metric": "on_we_recall",
     "system": "register-rule",
-    "at_least": 0.74,
-    "why": "0.75 on 2026-11-14, 18 of 24: a we the sentence does not show (on mange quoi ce soir) gets the open line instead"
+    "at_least": 0.78,
+    "why": "0.7826 on 2026-11-14, 18 of 23 (line 94, on a guère le choix, relabelled other on qa-claude's read): a we the sentence does not show (on mange quoi ce soir) gets the open line instead"
   },
   {
     "stage": "lemma",

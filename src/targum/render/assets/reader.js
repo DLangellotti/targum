@@ -6500,14 +6500,21 @@ var targumReader = function () {
     if (feat(takesLine, "Reg") === "NeDrop") {
       var dropped = document.createElement("span");
       dropped.className = "card-register";
-      dropped.appendChild(
-        document.createTextNode(t("reader.card.ne-dropped", "ne dropped. Formal:") + " ")
-      );
-      var formal = document.createElement("bdi");
-      formal.className = "form";
-      formal.setAttribute("lang", wordLanguage(index));
-      formal.textContent = feat(takesLine, "Formal");
-      dropped.appendChild(formal);
+      // The formal clause only where the rule is sure of it: *vous dérangez pas* may be
+      // either, and a wrong "Formal:" would teach a wrong sentence.
+      var formalSays = feat(takesLine, "Formal");
+      if (formalSays) {
+        dropped.appendChild(
+          document.createTextNode(t("reader.card.ne-dropped", "ne dropped. Formal:") + " ")
+        );
+        var formal = document.createElement("bdi");
+        formal.className = "form";
+        formal.setAttribute("lang", wordLanguage(index));
+        formal.textContent = formalSays;
+        dropped.appendChild(formal);
+      } else {
+        dropped.textContent = t("reader.card.ne-dropped-alone", "ne dropped");
+      }
       facts.add(t("reader.card.informal", "Informal"), dropped);
     }
     var onSays = feat(takesLine, "On");
