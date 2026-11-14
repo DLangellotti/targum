@@ -951,7 +951,11 @@
           if (pull) api.pulled = false;
           return false;
         }
-        if (pull) api.pulled = true;
+        // Any answered exchange is a pull: it brings everything since `revision`. So a
+        // push that answers after a failed load (`touched`, `flush`) says the list is
+        // had, and a page still saying it could not be is told (qa-claude on #1231).
+        var wasUnpulled = api.pulled === false;
+        api.pulled = true;
         // What the account holds now, rather than what it held before this push.
         if (api.who && answer.counts) api.who.counts = answer.counts;
         var changed = applyWords(answer.words || []);
@@ -967,6 +971,7 @@
         changed = applyDays(answer.days || []) || changed;
         changed = applyPlaces(answer.places || []) || changed;
         write(STATE, { email: was.email, revision: answer.revision, pushed: mark });
+        if (wasUnpulled && !pull) announce(!!changed);
         if (again) {
           again = false;
           exchange(false);

@@ -454,11 +454,21 @@
     panel.hidden = true;
     var sync = window.TargumSync;
     var settled = sync && sync.settled ? sync.settled().then(null, function () {}) : Promise.resolve();
-    settled.then(function () {
-      if (!hebrew()) return;
+    var mounted = false;
+    var offer = function () {
+      if (mounted || !hebrew()) return;
       if (sync && (sync.unreached || (sync.who && sync.pulled === false))) return;
+      mounted = true;
       mount(body, { panel: panel });
-    });
+    };
+    settled.then(offer);
+    // And once a Try again (or any later exchange) has brought the list after all, rather
+    // than only on the next load (qa-claude on #1231). A change reloads the page.
+    if (sync && sync.onChange) {
+      sync.onChange(function (changed) {
+        if (!changed) offer();
+      });
+    }
   }
 
   // On the page that carries the list, the claims made before their meanings were filed

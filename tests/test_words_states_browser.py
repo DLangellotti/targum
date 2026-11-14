@@ -591,3 +591,43 @@ def test_words_you_may_know_waits_for_the_accounts_list(browser) -> None:
     assert page.locator("#claim-panel td").nth(3).inner_text() == "Very common"
     assert not thrown
     context.close()
+
+
+def test_any_answered_sync_after_a_failed_load_clears_the_line(browser) -> None:
+    """qa-claude on #1231: an answered push with nothing new (`flush`, `touched`) is a
+    pull too, and the line saying the list could not be loaded goes with it."""
+    answers: dict[str, Any] = {"/sync": 500}
+    context, page, thrown, _, url = open_page(browser, "words", answers, ledger=words(3))
+    page.goto(url)
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    answers["/sync"] = {"revision": 2, "words": []}
+    page.evaluate("window.TargumSync.flush()")
+    stale.wait_for(state="hidden")
+    assert page.evaluate("window.TargumSync.pulled") is True
+    assert page.locator("#word-rows tr").count() == 3
+    assert not thrown
+    context.close()
+
+
+def test_words_you_may_know_is_offered_once_try_again_works(browser) -> None:
+    """qa-claude on #1231: after a failed load the panel waited for the next load."""
+    common = {
+        "words": [{"form": "בית", "meaning": "", "band": "easy"}],
+        "offset": 0,
+        "next": None,
+        "into": "en",
+    }
+    answers: dict[str, Any] = {"/sync": 500, "/words/common": common}
+    context, page, thrown, _, url = open_page(browser, "words", answers, ledger=words(3))
+    page.goto(url)
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    assert page.locator("#claim-panel").is_hidden()
+    answers["/sync"] = {"revision": 2, "words": []}
+    stale.locator("button.fault-act").click()
+    stale.wait_for(state="hidden")
+    page.locator("#claim-panel").wait_for(state="visible")
+    assert page.locator("#claim-panel .claim-rows .claim-check").count() == 1
+    assert not thrown
+    context.close()

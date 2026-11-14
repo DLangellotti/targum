@@ -715,7 +715,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     correction's one-word label ("tense") is no longer shown as its reason.
   - The stage legend has a stop between the stage and "Ignore is for names and numbers."
     The Anki note no longer says twice that words have no sound.
-  - 22 new Russian strings and one changed, for ling-ru. No spend.
+  - Any answered `/sync` now counts as the list had, so a later push with nothing new
+    clears the line, and a Try again that works offers "Words you may already know"
+    without a reload (qa-claude on #1231).
+  - 21 new Russian strings and one changed, passed by ling-ru. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

@@ -1185,7 +1185,12 @@
 
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
-      if (!changed) return;
+      // The account's list had after all, with nothing new in it: the line that said it
+      // could not be goes (qa-claude on #1231).
+      if (!changed) {
+        if (which === "words" || which === "phrases") staleIfUnpulled();
+        return;
+      }
       // Your Words and Your Phrases are drawn again by the load, as they were.
       if (which !== "texts") return awaitingAccount ? undefined : location.reload();
       if (redrawHome) return redrawHome();
