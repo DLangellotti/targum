@@ -368,8 +368,10 @@
                     credentials: "same-origin",
                     signal: stopping ? stopping.signal : undefined,
                     // A re-cut past the browser's own copy of the old cut, which it may
-                    // otherwise hand back for a day without asking.
-                    cache: recut ? "no-cache" : "default",
+                    // otherwise hand back for a day without asking, or after a 304: the
+                    // server's Last-Modified is to the second, and a cut within the same
+                    // second would look unchanged (seen in CI on #1234).
+                    cache: recut ? "reload" : "default",
                   }).then(function (answer) {
                     if (!answer.ok) throw reasoned("failed");
                     if (file.stamp) stamps[at] = file.stamp;
