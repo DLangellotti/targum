@@ -124,11 +124,16 @@ def test_a_row_is_counted_on_the_modern_ladder_unless_it_is_an_older_hebrew() ->
 
 
 def test_a_claim_that_outruns_the_facts_is_refused_with_the_criterion_named() -> None:
-    known = stages.facts("fr")
+    """Italian still has spots to cover; French covered its last, register, on
+    2026-11-14 and is held by its shelf and its read-through instead."""
+    known = stages.facts("it")
     short = stages.shortfall(known, Stage.alpha)
     assert any(line.startswith("hard spot not covered") for line in short), short
     assert "no read-through of 10 texts on record" in short
     assert stages.earned(known) is Stage.experimental
+    french = stages.shortfall(stages.facts("fr"), Stage.alpha)
+    assert not any(line.startswith("hard spot not covered") for line in french), french
+    assert "no read-through of 10 texts on record" in french
 
 
 def _all_good(language: str = "ru") -> Facts:
@@ -557,3 +562,4 @@ def test_french_pins_its_two_newly_measured_spots() -> None:
     assert spots["passé composé against imparfait"].floor in held
     assert spots["false friends"].floor in held
     assert ("model-lemma", "pd-fr-pc-imp", "trap_false_alarm") in held
+    assert spots["register: ne-drop and on/nous"].floor in held

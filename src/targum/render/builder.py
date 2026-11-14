@@ -3545,6 +3545,18 @@ def _order_lines(text: str, tokens: Sequence[Token]) -> dict[int, str]:
     return {id(tokens[one.subject]): "Order=VS" for one in inverted(text, tokens)}
 
 
+def _register_lines(text: str, tokens: Sequence[Token]) -> dict[int, str]:
+    """The grammar-line additions for French register, keyed by `id(token)`: French's
+    seventh hard spot (`annotate/french_register.py`). A negator said without *ne* gets
+    `Reg=NeDrop` and the formal clause as `Formal=`; every *on* gets `On=We` where the
+    sentence says it is "we", `On=Open` where it does not. Read off the words, so a text
+    annotated before the rule says it without being annotated again."""
+    from ..annotate.french_register import Word, lines
+
+    words = [Word(token.start, token.end, token.surface, token.pos) for token in tokens]
+    return {id(tokens[at]): line for at, line in lines(text, words).items()}
+
+
 def _family_at(
     token: object,
     families: list[list[list[str]]],
@@ -7431,6 +7443,8 @@ def render(
         # Whether a subject after its verb is looked for: Russian alone, where the case
         # says who did it and the order is free (`annotate.word_order`).
         ordered = segmented.language.split("-")[0].lower() == "ru"
+        # And French register, *ne* dropped and *on* for "we" (`annotate.french_register`).
+        french = segmented.language.split("-")[0].lower() == "fr"
         # How a split surface is put together, and the occurrence's grammar. Both are
         # facts about the occurrence, like the sound, and ride the same way: a table of
         # distinct strings with an index on each token, because ולבית is built the same
@@ -7512,6 +7526,9 @@ def render(
                 # Russian's word-order hard spot (`annotate.word_order`).
                 if ordered:
                     for key, line in _order_lines(as_written.get(sid, ""), tokens).items():
+                        said_with[key] = "|".join(p for p in (said_with.get(key), line) if p)
+                if french:
+                    for key, line in _register_lines(as_written.get(sid, ""), tokens).items():
                         said_with[key] = "|".join(p for p in (said_with.get(key), line) if p)
                 heard: dict[int, str] = {}
                 if pronouncing is not None:

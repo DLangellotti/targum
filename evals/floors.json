@@ -672,6 +672,46 @@
     "why": "the card's own floor (targum-internal#267, #644); 1.0 on 2026-11-05, 91 of 91 lines true in their sentence as ling-fr read them, after her 11 corrections and 11 additions; 0.967 on the list as drafted, which would not have cleared"
   },
   {
+    "stage": "register",
+    "corpus": "fr-register-own",
+    "metric": "nedrop_precision",
+    "system": "register-rule",
+    "at_least": 0.97,
+    "why": "1.0 on 2026-11-14, 39 of 39 negations named without ne were, on the 134-sentence register gold, the rule on the words alone (French hard spot 7); one wrong would be 0.975. Written by the same seat as the rule, so optimistic: it also names none in the 342 tagged sentences of the liaison gold"
+  },
+  {
+    "stage": "register",
+    "corpus": "fr-register-own",
+    "metric": "nedrop_recall",
+    "system": "register-rule",
+    "at_least": 0.84,
+    "why": "0.8478 on 2026-11-14, 39 of 46: the misses are the ones the rule declines by design, a noun subject, an imperative, y a pas, personne veut, ça sert à rien, c'est plus possible"
+  },
+  {
+    "stage": "register",
+    "corpus": "fr-register-own",
+    "metric": "formal_accuracy",
+    "system": "register-rule",
+    "at_least": 0.94,
+    "why": "0.9487 on 2026-11-14, 37 of 39 formal clauses letter for letter; the two wrong are reflexive imperatives (t'inquiète pas, vous inquiétez pas), whose ne goes before the pronoun"
+  },
+  {
+    "stage": "register",
+    "corpus": "fr-register-own",
+    "metric": "on_we_precision",
+    "system": "register-rule",
+    "at_least": 0.94,
+    "why": "1.0 on 2026-11-14, 18 of 18 on the card calls we were; one wrong would be 0.944. None called we in the 342 tagged shelf sentences"
+  },
+  {
+    "stage": "register",
+    "corpus": "fr-register-own",
+    "metric": "on_we_recall",
+    "system": "register-rule",
+    "at_least": 0.74,
+    "why": "0.75 on 2026-11-14, 18 of 24: a we the sentence does not show (on mange quoi ce soir) gets the open line instead"
+  },
+  {
     "stage": "lemma",
     "corpus": "pd-fr-pc-imp",
     "metric": "pc_imp_accuracy",
