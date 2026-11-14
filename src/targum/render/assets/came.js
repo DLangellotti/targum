@@ -140,7 +140,10 @@
         (script && script.getAttribute("data-label")) ||
         (document.querySelector("h1") || {}).textContent ||
         document.title;
-      leaving({ via: "desk", label: plain(label), href: here(), at: Date.now() });
+      // And a page that is only on the way somewhere — the arrival — says where to, so
+      // the way back is not to a page that sends you on (targum-internal#723).
+      var href = (body && body.getAttribute("data-came-href")) || here();
+      leaving({ via: "desk", label: plain(label), href: href, at: Date.now() });
     });
     return;
   }

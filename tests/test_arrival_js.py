@@ -706,6 +706,44 @@ def test_the_slow_line_never_outlives_the_answer() -> None:
     assert "still loading" not in quick["waiting"]
 
 
+def test_a_slow_account_says_it_is_still_loading_with_try_again() -> None:
+    """targum-internal#723 P1 2: the slow line was cleared as soon as the shelf answered,
+    and the page then waited on `/account/me` with no timer, so a slow account left
+    "Opening…" up for good. It waits on both now, and offers to ask again."""
+    early = draw([], {}, shared=seeded(), mePending=True)
+    assert "still" not in early["waiting"], "not before three seconds"
+    late = draw([], {}, shared=seeded(), mePending=True, reportAfter=3500)
+    assert late["arrival"] == [], "nothing is asked before the account answers"
+    assert late["waiting"] == "We're still loading the library."
+    assert late["waitingPresses"] == ["Try again"]
+
+
+def test_the_slow_line_has_try_again_on_a_slow_shelf_too() -> None:
+    late = draw([], {}, shared=seeded(), readersPending=True, reportAfter=3300)
+    assert late["waitingPresses"] == ["Try again"]
+
+
+def test_each_radio_group_is_one_tab_stop_and_the_arrows_walk_it() -> None:
+    """targum-internal#723 P2 9: every option in the language and level groups was its
+    own Tab stop, with no arrow keys. One stop a group, the chosen one, and the arrows
+    move the choice."""
+    first = draw([], {}, shared=seeded())
+    assert first["tabStops"]["arrival-langs"] == ["he"], first["tabStops"]
+    walked = draw([], {}, shared=seeded(), do=[{"arrow": "ArrowDown", "within": "arrival-langs"}])
+    assert walked["chosen"] != "he"
+    assert walked["tabStops"]["arrival-langs"] == [walked["chosen"]]
+    back = draw(
+        [],
+        {},
+        shared=seeded(),
+        do=[
+            {"arrow": "ArrowDown", "within": "arrival-langs"},
+            {"arrow": "ArrowUp", "within": "arrival-langs"},
+        ],
+    )
+    assert back["chosen"] == "he"
+
+
 def test_a_reader_past_the_scenes_is_not_opened_on_one() -> None:
     """Beta review, 2026-11-03 (F-04): "I read the news with help" and a strong words
     check, then Continue opened "In the elevator" ("Good morning. Which floor?"), because

@@ -887,16 +887,49 @@
     drawTongueSwitch(withTongue ? null : document.getElementById("arrival-switch"));
 
     function mark(list, on) {
+      var radios = [];
+      var checked = null;
       Array.prototype.forEach.call(list.children, function (press) {
         var yes = on(press);
         press.classList.toggle("is-on", yes);
         if (press.getAttribute("role") === "radio") {
           press.setAttribute("aria-checked", yes ? "true" : "false");
+          radios.push(press);
+          if (yes) checked = press;
         } else {
           press.setAttribute("aria-pressed", yes ? "true" : "false");
         }
       });
+      // A radio group is one Tab stop, the one chosen or else the first, and the arrows
+      // walk it (targum-internal#723 P2 9, as Your account's form of address, #719).
+      radios.forEach(function (press) {
+        press.tabIndex = press === (checked || radios[0]) ? 0 : -1;
+      });
     }
+
+    /* The arrows in a radio group move the choice, as a radio group's do: Down and Right
+       to the next, Up and Left to the one before, Right reversed on a right-to-left page.
+       The press is the choice, so the screen settles as a click would settle it. */
+    function walked(group) {
+      if (!group) return;
+      group.addEventListener("keydown", function (event) {
+        var by = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!by || event.altKey || event.ctrlKey || event.metaKey) return;
+        var radios = Array.prototype.filter.call(group.children, function (press) {
+          return press.getAttribute("role") === "radio";
+        });
+        var at = radios.indexOf(document.activeElement);
+        if (at < 0) return;
+        event.preventDefault();
+        var rtl = window.getComputedStyle && getComputedStyle(group).direction === "rtl";
+        if (rtl && (event.key === "ArrowRight" || event.key === "ArrowLeft")) by = -by;
+        var next = radios[(at + by + radios.length) % radios.length];
+        next.focus();
+        next.click();
+      });
+    }
+    walked(langs);
+    walked(rungs);
 
     function settle() {
       var now = order[step];
@@ -1450,10 +1483,23 @@
   var waitingLine = document.getElementById("arrival-waiting");
 
   /* Past three seconds the wait is said (design.md §14, line 1): "Opening…" alone on an
-     empty page reads as a page that has stopped. */
+     empty page reads as a page that has stopped. It waits on both answers, the shelf's
+     and the account's: cleared when the shelf alone was in, a slow `/account/me` left
+     "Opening…" up for good (targum-internal#723 P1 2). With the press that asks again,
+     as Home's slow line has it (#716); the account's answer is shared by the page's
+     scripts (`keep.js`), so asking again is the page again. */
   var slowly = setTimeout(function () {
     if (waitingLine && !waitingLine.hidden) {
       waitingLine.textContent = t("welcome.still-opening", "We're still loading the library.");
+      var again = document.createElement("button");
+      again.type = "button";
+      again.className = "fault-act arrival-slow-again";
+      again.textContent = t("fault.try-again", "Try again");
+      again.addEventListener("click", function () {
+        if (window.location.reload) window.location.reload();
+      });
+      waitingLine.appendChild(document.createTextNode(" "));
+      waitingLine.appendChild(again);
     }
   }, 3000);
 
@@ -1490,8 +1536,8 @@
 
   ask("/readers")
     .then(function (data) {
-      clearTimeout(slowly);
       return whoAsked.then(function (me) {
+        clearTimeout(slowly);
         who = me;
         adopt(me);
         return data;

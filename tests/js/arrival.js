@@ -137,6 +137,10 @@ global.fetch = (path, options) => {
   if (String(path).indexOf("/readers") === 0 && payload.readersPending) {
     return new Promise(() => {});
   }
+  // The account's answer held, for the slow line that waits on both (#723 P1 2).
+  if (String(path).indexOf("/account/me") === 0 && payload.mePending) {
+    return new Promise(() => {});
+  }
   if (String(path).indexOf("/readers") === 0) {
     answer = { readers: payload.readers || [], shared: payload.shared || [], trash: [], covers: true };
   } else if (String(path).indexOf("/series") === 0) {
@@ -231,6 +235,13 @@ function act(step) {
   }
   // Skip, on the words check.
   if (step.skip) byId["arrival-skip"].fire("click", {});
+  // An arrow key in a radio group, from the press that holds the focus (#723 P2 9).
+  if (step.arrow) {
+    const group = at(step.within);
+    const focused = Array.from(group.children).find((p) => p.tabIndex === 0);
+    global.document.activeElement = focused;
+    group.fire("keydown", { key: step.arrow, preventDefault: () => {} });
+  }
   // A subject on the arrival, by its label.
   if (step.subject) {
     const chip = Array.from(at("arrival-doors").children).find(
@@ -257,6 +268,12 @@ function report() {
       // The line that stands while the shelf is asked for, and what it says when the asking
       // is slow or fails (arrival QA, 2026-10-18).
       waiting: at("arrival-waiting").hidden ? "" : at("arrival-waiting").textContent,
+      // The press beside the slow line, by what it says (#723).
+      waitingPresses: at("arrival-waiting").hidden
+        ? []
+        : at("arrival-waiting")
+            .children.filter((child) => child.tagName === "BUTTON" || child.type === "button")
+            .map((child) => child.textContent),
       // Home, where the page sent a reader it had nothing to ask (or who finished with
       // nothing the shelf could open).
       home: replaced,
@@ -325,6 +342,15 @@ function report() {
         : (Array.from(at("arrival-langs").children).find(
             (p) => p.getAttribute("aria-checked") === "true"
           ) || { getAttribute: () => "" }).getAttribute("data-code"),
+      // Which presses a Tab reaches in each radio group: one, the chosen or the first.
+      tabStops: Object.fromEntries(
+        ["arrival-langs", "arrival-levels"].map((id) => [
+          id,
+          Array.from(at(id).children)
+            .filter((p) => p.tabIndex === 0)
+            .map((p) => p.getAttribute("data-code") || p.getAttribute("data-id")),
+        ])
+      ),
       levelAsks: at("arrival-asks-level").textContent,
       footNote: at("arrival-foot-note").hidden ? "" : at("arrival-foot-note").textContent,
       languageSet,
