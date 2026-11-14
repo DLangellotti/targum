@@ -241,9 +241,14 @@
           film: (told.files || []).some(function (file) {
             return file.film;
           }),
-          sound: files.some(function (file) {
-            return /\.mp3$/i.test(file.url);
-          }),
+          // A recording carried inside the page is a recording too: the server says so,
+          // where a file name could not (#720, P2 7).
+          sound:
+            !!told.sound ||
+            files.some(function (file) {
+              return /\.mp3$/i.test(file.url);
+            }),
+          language: told.language || "",
           bytes: files.reduce(function (sum, file) {
             return sum + Number(file.bytes || 0);
           }, 0),
@@ -407,6 +412,7 @@
                   held: held,
                   film: (planned.part && was.film) || planned.film,
                   sound: (planned.part && was.sound) || planned.sound,
+                  language: planned.language || was.language || "",
                   withFilm: (planned.part && was.withFilm) || planned.files.some(function (f) {
                     return f.film;
                   }),
@@ -906,8 +912,10 @@
       };
       var fault = window.TargumFault;
       if (full && fault && fault.line) {
-        // Room is made on the page of what is saved, so that is where it goes.
-        var room = fault.line(sentence, t("offline.see-saved", "Saved on this device"), function () {
+        // Room is made on the page of what is saved, so that is where it goes, and the press
+        // says so: it read "Saved on this device", the success row's own words, under a
+        // save that had failed (targum-internal#720, P1 2).
+        var room = fault.line(sentence, t("offline.make-room", "Make room"), function () {
           location.assign(keyed(SAVED));
         });
         room.classList.add("offline-said");

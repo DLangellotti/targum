@@ -1136,6 +1136,11 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   text-align: start;
 }
 .fault-line .fault-said { flex: 0 1 auto; min-inline-size: 0; }
+/* A sentence longer than its line stays on the mark's line and wraps under itself, and
+   the press goes to the next line: with only its own width as its basis it wrapped below
+   the mark, which stood alone on a line above it (targum-internal#720, P1 2; Account's
+   P2 7). The mark is 1.125em and the gap 0.5rem. */
+.fault-line > .fault-icon + .fault-said { max-inline-size: calc(100% - 1.125em - 0.5rem); }
 .fault-act {
   padding: 0 0.25rem;
   border: 0;

@@ -54,6 +54,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - What deletion and export do is unchanged; only what the page says about them moved.
   No spend. Two new strings in English and Russian (`you.could-not-save`,
   `you.page.record-keep`), for ling-ru.
+- Saved on this device, its finish bar (targum-internal#720, P1 1–3 and P2 6, 7, 10, 11).
+  At a desk the table gave the title what was left, about 70px (40px in Russian), so no
+  title could be read and Keep ran into the ×. The card is now one grid with every row
+  a subgrid: the title takes at least 12rem and wraps to two lines before it is cut, and
+  Kind, Size, Saved and Keep are as wide as their widest. Where the card is narrower
+  than that the Saved column goes and Keep is its pin, then Kind joins the line under
+  the title. A full device's one press read "Saved on this device", the success
+  row's words; it now reads "Make room" (`offline.make-room`) and goes to the Saved page.
+  From 90% used, the Space card says "Nearly full. Remove what you've finished
+  to make room." (`saved.page.nearly-full`), the meter turns clay and both tables put
+  the largest first; a browser with no estimate says nothing. The clay mark of a fault
+  line stays on its sentence's line when the sentence wraps (shared, so the reader menu
+  and the playlist page too). `/offline.json` says whether a text has a recording and
+  its language, so a recording inside the page reads "text and recording" and a Hebrew
+  title carries `lang`. The lede waits for rows; the title's link reaches its whole
+  column and Keep is 44px wide under a thumb. Two new strings, in Russian for ling-ru.
 - Shared spellings are filed by part of speech (targum-internal#701). פה "here" read
   "mouth", שום "any" read "garlic; any", כלל "at all" read "rule", because only עם, את,
   אל, עד and תחת were split. `models.SPLIT_BY_POS` now also splits פה, שום, אי, מי,

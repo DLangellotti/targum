@@ -19740,12 +19740,17 @@ class Handler(BaseHTTPRequestHandler):
                 base = folder / "reader"
                 if root not in folder.parents or not base.is_dir():
                     continue
-                about = {"title": "", "kind": "", "name": folder.name}
+                about: dict[str, Any] = {"title": "", "kind": "", "name": folder.name}
                 row = self.library.reader_row(folder)
                 if row is not None:
                     about["title"] = str(row.get("title") or "")
                     about["kind"] = str(row.get("kind") or "")
                     about["name"] = str(row.get("entry") or folder.name)
+                    # Whether it carries a recording, which a recording inside the page
+                    # does without a file of its own, and the language its title is in
+                    # (targum-internal#720, P2 7 and 10).
+                    about["sound"] = bool(row.get("seconds"))
+                    about["language"] = str(row.get("language") or "")
                 else:
                     try:
                         told = json.loads((folder / "document.json").read_text(encoding="utf-8"))

@@ -41,6 +41,7 @@
   if (new URLSearchParams(location.search).get("away")) at("saved-away").hidden = false;
 
   if (!offline || !offline.able) {
+    at("saved-lede").hidden = true;
     at("saved-cannot").hidden = false;
     return;
   }
@@ -121,6 +122,19 @@
   var PIN = "M6 2.5h4M7 2.5v4L5 9h6L9 6.5v-4M8 9v4.5";
   var CROSS = "M4.5 4.5l7 7M11.5 4.5l-7 7";
 
+  /* The language a title is written in, where it is in Hebrew letters: the index's own
+     `language` for a text saved since it was kept, and otherwise the `-he` its folder's
+     name ends in, else Hebrew. A title in Latin letters is the page's own language
+     (targum-internal#720, P2 10: every Hebrew title stood inside `lang="en"`). */
+  var HEBREW_LETTERS = /[\u0590-\u05FF\uFB1D-\uFB4F]/;
+  function titleLanguage(item) {
+    if (!HEBREW_LETTERS.test(String(item.title || ""))) return "";
+    var said = String(item.language || "");
+    if (/^(he|arc|yi)$/.test(said)) return said;
+    var named = /-(he|arc|yi)$/.exec(String(item.name || ""));
+    return named ? named[1] : "he";
+  }
+
   /* A row, as the board's tables draw it: the picture, the title over what was kept, its
      kind, its size, how it came to be saved, Keep (for one saved on its own) and Remove, a cross. */
   function row(item, mine) {
@@ -131,6 +145,8 @@
     if (name.tagName === "A") name.href = item.open;
     var bdi = element("bdi", "", item.title || item.id);
     bdi.setAttribute("dir", "auto");
+    var spoken = titleLanguage(item);
+    if (spoken) bdi.setAttribute("lang", spoken);
     name.appendChild(bdi);
     what.appendChild(name);
     what.appendChild(element("span", "saved-kept", keptWord(item)));
@@ -149,6 +165,7 @@
       keep.appendChild(glyph(PIN));
       keep.appendChild(element("span", "saved-keep-word", t("saved.keep", "Keep saved")));
       keep.setAttribute("aria-label", t("saved.keep-named", "Keep {title} saved", { title: item.title || "" }));
+      keep.title = t("saved.keep", "Keep saved");
       keep.addEventListener("click", function () {
         keep.disabled = true;
         offline.keep(item.id).then(draw, draw);
@@ -209,27 +226,55 @@
     at("saved-auto-says").textContent = says;
   }
 
-  function drawRoom(items) {
-    if (!navigator.storage || !navigator.storage.estimate) return;
-    navigator.storage.estimate().then(function (room) {
-      var used = Number(room.usage || 0);
-      var quota = Number(room.quota || 0);
-      if (!quota) return;
+  /* How full this device is, as the browser says it: { used, quota, nearly } or null where
+     it does not say. Nearly full is 90% used (targum-internal#720, P1 3): a save that
+     would not fit is refused by the browser with nothing said before it, so the page says
+     it first, and where room is made. A browser with no estimate says nothing. */
+  var NEARLY = 0.9;
+  function room() {
+    if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve(null);
+    var asked;
+    try {
+      asked = Promise.resolve(navigator.storage.estimate());
+    } catch (e) {
+      // A browser that throws where it should refuse still draws the page.
+      return Promise.resolve(null);
+    }
+    return asked.then(
+      function (said) {
+        var used = Number((said && said.usage) || 0);
+        var quota = Number((said && said.quota) || 0);
+        if (!quota) return null;
+        return { used: used, quota: quota, nearly: used / quota >= NEARLY };
+      },
+      function () {
+        return null;
+      }
+    );
+  }
+
+  function drawRoom(items, space) {
+    if (space) {
       /* The board's figure: what is used in the serif, and what the browser allows after
          it. The sentence is one string, so a language can put the two where it says them. */
       var said = t("saved.used", "{used} of about {quota} used", {
         used: "\u0000",
-        quota: offline.size(quota),
+        quota: offline.size(space.quota),
       }).split("\u0000");
       var box = at("saved-used");
       box.textContent = "";
       if (said[0]) box.appendChild(element("span", "saved-used-rest", said[0]));
-      box.appendChild(element("span", "saved-used-n", offline.size(used)));
+      box.appendChild(element("span", "saved-used-n", offline.size(space.used)));
       box.appendChild(element("span", "saved-used-rest", said.slice(1).join("")));
-      at("saved-meter").parentNode.style.setProperty("--done", String(Math.min(1, Math.max(0.01, used / quota))));
+      var meter = at("saved-meter").parentNode;
+      meter.style.setProperty("--done", String(Math.min(1, Math.max(0.01, space.used / space.quota))));
+      // Clay from nearly full, as every meter that runs out is (`.meter.is-full`).
+      meter.classList.toggle("is-full", space.nearly);
+      meter.classList.toggle("is-building", !space.nearly);
+      at("saved-nearly").hidden = !space.nearly;
       at("saved-room").hidden = false;
-    }, function () {});
-    if (!navigator.storage.persisted) return;
+    }
+    if (!navigator.storage || !navigator.storage.persisted) return;
     navigator.storage.persisted().then(function (kept) {
       // Asked only where there is something to keep, and only where it is not yet so.
       at("saved-persist").hidden = !!kept || !items.length;
@@ -237,7 +282,9 @@
   }
 
   function draw() {
-    return offline.list().then(function (items) {
+    return Promise.all([offline.list(), room()]).then(function (both) {
+      var items = both[0];
+      var space = both[1];
       var held = {};
       items.forEach(function (item) {
         (item.members || []).forEach(function (member) {
@@ -247,29 +294,45 @@
       var shown = items.filter(function (item) {
         return item.kind !== "page" && !(held[item.id] && item.how !== "you");
       });
+      /* By date, newest first; while the device is nearly full, largest first, so what
+         makes the most room is at the top where the line points (#720, P1 3). */
+      function largest(a, b) {
+        return Number(b.bytes || 0) - Number(a.bytes || 0);
+      }
       var auto = shown
         .filter(function (item) {
           return item.how !== "you";
         })
-        .sort(function (a, b) {
-          return Number(b.opened || b.at || 0) - Number(a.opened || a.at || 0);
-        });
+        .sort(
+          space && space.nearly
+            ? largest
+            : function (a, b) {
+                return Number(b.opened || b.at || 0) - Number(a.opened || a.at || 0);
+              }
+        );
       var mine = shown
         .filter(function (item) {
           return item.how === "you";
         })
-        .sort(function (a, b) {
-          return Number(b.at || 0) - Number(a.at || 0);
-        });
+        .sort(
+          space && space.nearly
+            ? largest
+            : function (a, b) {
+                return Number(b.at || 0) - Number(a.at || 0);
+              }
+        );
       fill(at("saved-auto-rows"), auto, false);
       fill(at("saved-mine-rows"), mine, true);
       at("saved-auto").hidden = !auto.length;
       at("saved-mine").hidden = !mine.length;
       at("saved-none").hidden = !!shown.length;
+      // What these do without a connection is said over rows that do it, not over nothing
+      // (#720, P2 6).
+      at("saved-lede").hidden = !shown.length;
       at("saved-end").hidden = !shown.length;
       at("saved-choices").hidden = false;
       drawChoices();
-      drawRoom(shown);
+      drawRoom(shown, space);
     });
   }
 

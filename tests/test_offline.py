@@ -180,6 +180,35 @@ def test_a_part_alone_is_its_page_and_the_sidecars_it_names(served: tuple[int, P
     assert "part" not in told
 
 
+def test_the_list_says_a_recording_inside_the_page_and_the_title_s_language(
+    served: tuple[int, Path],
+) -> None:
+    """targum-internal#720, P2 7 and 10. A LibriVox recording is carried inside the page,
+    so no `.mp3` is among the files and the Saved page said "text" for a text that plays.
+    The server knows from the manifest; and it says the language, so a Hebrew title is
+    drawn as Hebrew rather than inside the page's `lang="en"`."""
+    from targum.audio import manifest as manifest_module
+
+    port, out = served
+    book(out / "local" / "plain-he", chapters=1)
+    told = json.loads(
+        get(port, f"/offline.json?page=/reader/plain-he/reader/index.html&k={TOKEN}")[2]
+    )
+    assert told["sound"] is False
+    assert told["language"] == "he"
+
+    book(out / "local" / "heard-he", chapters=1)
+    manifest_module.write(
+        out / "local" / "heard-he",
+        manifest_module.AudioManifest(source="x", sha256="0", duration=241.6, language="he"),
+    )
+    told = json.loads(
+        get(port, f"/offline.json?page=/reader/heard-he/reader/index.html&k={TOKEN}")[2]
+    )
+    assert told["sound"] is True, "a recording with no file of its own is still a recording"
+    assert not any(str(file["url"]).endswith(".mp3") for file in told["files"])
+
+
 def test_the_list_keeps_to_the_roots_a_reader_is_served_from(served: tuple[int, Path]) -> None:
     port, out = served
     book(out / "local" / "book-he")

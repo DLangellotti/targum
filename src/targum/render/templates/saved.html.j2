@@ -22,7 +22,7 @@
 {{ script('building.js') }}
 
 <main class="saved-page">
-  <p class="saved-lede">{{ t("saved.page.lede", "These open, play and show their word cards without a connection.") }}</p>
+  <p class="saved-lede" id="saved-lede" hidden>{{ t("saved.page.lede", "These open, play and show their word cards without a connection.") }}</p>
   {#- Where a page that was not saved was asked for with no connection: the worker sends
       the reader here, and this says why (design.md §12, 2026-10-09). -#}
   <p class="saved-away card" id="saved-away" role="status" hidden>{{ t("saved.page.away", "That isn't on this device, so it opens when you're back online.") }}</p>
@@ -47,10 +47,12 @@
           <h2 class="section-title" id="saved-auto-title">{{ t("saved.page.on-their-own", "Saved automatically") }}</h2>
           <p class="note" id="saved-auto-says"></p>
         </div>
-        <div class="saved-cols" aria-hidden="true">
-          <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+        <div class="saved-table">
+          <div class="saved-cols" aria-hidden="true">
+            <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+          </div>
+          <ul class="saved-rows" id="saved-auto-rows"></ul>
         </div>
-        <ul class="saved-rows" id="saved-auto-rows"></ul>
       </section>
 
       <section class="card saved-group" id="saved-mine" aria-labelledby="saved-mine-title" hidden>
@@ -58,10 +60,12 @@
           <h2 class="section-title" id="saved-mine-title">{{ t("saved.page.by-you", "Saved by you") }}</h2>
           <p class="note">{{ t("saved.page.by-you-says", "They stay until you remove them.") }}</p>
         </div>
-        <div class="saved-cols" aria-hidden="true">
-          <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+        <div class="saved-table">
+          <div class="saved-cols" aria-hidden="true">
+            <span>{{ t("saved.page.col-title", "Title") }}</span><span>{{ t("saved.page.col-kind", "Kind") }}</span><span>{{ t("saved.page.col-size", "Size") }}</span><span>{{ t("saved.page.col-saved", "Saved") }}</span>
+          </div>
+          <ul class="saved-rows" id="saved-mine-rows"></ul>
         </div>
-        <ul class="saved-rows" id="saved-mine-rows"></ul>
       </section>
     </div>
 
@@ -70,6 +74,9 @@
         <h2 class="section-title" id="saved-room-title">{{ t("saved.page.room", "Space on this device") }}</h2>
         <p class="saved-used" id="saved-used"></p>
         <span class="meter is-building saved-meter" aria-hidden="true"><span id="saved-meter"></span></span>
+        {#- From 90% used, before a save is refused: what to do, here where room is
+            made (targum-internal#720, P1 3). The tables sort largest first while it shows. -#}
+        <p class="saved-nearly" id="saved-nearly" role="status" hidden>{{ t("saved.page.nearly-full", "Nearly full. Remove what you've finished to make room.") }}</p>
         <p class="note">{{ t("saved.page.browser-sets", "This browser sets how much targum can keep.") }}</p>
         <div class="saved-keep" id="saved-persist" hidden>
           <p class="note" id="saved-persist-says">{{ t("saved.page.browser-clears", "Your browser clears saved texts when it runs short of space.") }}</p>
