@@ -1009,6 +1009,12 @@
           again.className = "fault-act home-slow-again";
           again.textContent = t("fault.try-again", "Try again");
           again.addEventListener("click", function () {
+            // The shelf in and the account still out: the account's answer is shared by
+            // the page's scripts (`keep.js`), so asking it again is the page again.
+            if (textsSettled) {
+              if (window.location.reload) window.location.reload();
+              return;
+            }
             waiting.textContent = stillOpening();
             askTextsAgain();
             armSlow();
@@ -1021,8 +1027,12 @@
     }, 3000);
   }
   armSlow();
+  // Home is shown only once its head has drawn too, and that waits on `/account/me`: the
+  // shelf alone in left "Opening your targums…" up with nothing said past three seconds
+  // (targum-internal#723, #695). So Home's timer runs on, and says nothing once the
+  // page is shown, the waiting line hidden.
   drawing.then(function () {
-    clearTimeout(slowly);
+    if (which !== "texts") clearTimeout(slowly);
   }, function () {});
 
   /* What home says when it could not load, and the press that asks again. Offline says

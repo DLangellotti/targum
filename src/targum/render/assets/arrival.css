@@ -39,6 +39,8 @@ body.welcome main {
   font-size: 0.9375rem;
   color: var(--ink-soft);
 }
+/* Its Try again on the sentence's line, not below its baseline at 390 (#723 P2 5). */
+.arrival-waiting .fault-line { align-items: baseline; }
 .arrival-waiting[hidden],
 body.arriving .arrival-waiting { display: none; }
 
@@ -363,10 +365,12 @@ body[data-step="level"] .arrival-foot { margin-block-start: 16px; }
     pointer-events: none;
   }
   .arrival-switch { margin-inline-start: auto; }
-  /* The first screen has no way back, and the board closes the row up to the step. */
-  .arrival-head:has(.arrival-back-mark[hidden]) { min-block-size: 20px; }
+  /* The first screen has no way back. Its row stays the chevron's height, so the step
+     and EN · RU share one line and the question has its space under them: closed up
+     to the step, "1 of 5" stood 20px above EN · RU and «1 из 5» touched the heading
+     (targum-internal#723 P2 6). */
+  .arrival-head:has(.arrival-back-mark[hidden]) { min-block-size: 56px; }
   .arrival-head:has(.arrival-back-mark[hidden]) .arrival-back-mark { display: none; }
-  .arrival-head:has(.arrival-back-mark[hidden]) .arrival-step { line-height: 20px; }
 
   .arrival { padding: 6px 16px 104px; }
   /* The waiting line, and what it says when the page could not load, keep the column's

@@ -15,9 +15,14 @@
     Home sends a reader who has opened nothing here (`home.js`), and `arrival.js` sends
     anybody it has nothing to ask straight back. The site's head and pill are
     included for the scripts that expect them, and not drawn (`arrival.css`). -#}
-<body class="welcome">
+{#- Left for the first text, the arrival names itself as Home, where it was on its way
+    to, and in the page's language (targum-internal#723 P1 1). Named by its first `h1` it
+    said "Welcome — targum", or for a Russian reader the hidden tongue question in both
+    languages run together, and the way back led to a page that only sends home. -#}
+<body class="welcome" data-came-href="/">
 {% set here = 'welcome' %}
 {% set title = '' %}
+{% set came_label = t("yours.page.your-targums", "Your targums") %}
 {% include '_nav.html.j2' %}
 {{ script('building.js') }}
 

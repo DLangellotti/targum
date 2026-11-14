@@ -30,7 +30,7 @@ from targum.models import (
     Translation,
 )
 from targum.render import render
-from targum.render.builder import library_page, list_page
+from targum.render.builder import library_page, list_page, welcome_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -153,20 +153,32 @@ def desk() -> dict[str, str]:
         "/": list_page(TOKEN, "texts"),
         "/library": library_page(TOKEN),
         "/words": list_page(TOKEN, "words"),
+        "/welcome": welcome_page(TOKEN),
+        # The same arrival in Russian, at an address of its own for the test's router.
+        "/welcome-ru": welcome_page(TOKEN, "ru"),
     }
 
 
-def tab(browser, reader: str, desk: dict[str, str], viewport: dict[str, int]):
+def tab(
+    browser,
+    reader: str,
+    desk: dict[str, str],
+    viewport: dict[str, int],
+    welcomed: bool = True,
+    locale: str = "en-US",
+):
     """A fresh tab on a site that serves the reader and the desk pages, and answers
     everything else with an empty account, as a box with nobody signed in would."""
-    context = browser.new_context(viewport=viewport, reduced_motion="reduce", color_scheme="light")
+    context = browser.new_context(
+        viewport=viewport, reduced_motion="reduce", color_scheme="light", locale=locale
+    )
     # One scroll rather than pages, so reading down is a scroll; and an arrival already
     # answered, so home stays home rather than asking its questions on `/welcome`.
     context.add_init_script(
         "try {"
         "  localStorage.setItem('targum:prefs', JSON.stringify({ paged: false, defaults: 4 }));"
-        "  localStorage.setItem('targum:welcomed', '1');"
-        "} catch (e) {}"
+        + ("  localStorage.setItem('targum:welcomed', '1');" if welcomed else "")
+        + "} catch (e) {}"
     )
     page = context.new_page()
 
@@ -265,6 +277,31 @@ def test_from_home_and_from_a_shared_link_it_says_your_targums(
     try:
         bar = into_reader(page)
         assert bar["said"] == "Your targums" and bar["href"] == bar["home"], bar
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize(
+    ("path", "locale", "said"),
+    [
+        pytest.param("/welcome", "en-US", "Your targums", id="en"),
+        pytest.param("/welcome-ru", "ru-RU", "Ваши тексты", id="ru"),
+    ],
+)
+def test_the_first_text_from_the_arrival_goes_back_to_your_targums(
+    browser, reader, desk, path, locale, said
+) -> None:
+    """targum-internal#723 P1 1: the arrival was named by its first `h1`, the hidden
+    tongue question, so a new reader's first named back said "← Welcome — targum", or
+    for a Russian browser "← What is your native language?Какой у вас родной язык?", and
+    went to `/welcome`, which only sends home. It names Home, in the page's language, and
+    goes there."""
+    context, page = tab(browser, reader, desk, DESK, welcomed=False, locale=locale)
+    try:
+        desk_page(page, path)
+        page.wait_for_selector("#arrival:not([hidden])")
+        bar = into_reader(page)
+        assert (bar["said"], bar["href"]) == (said, "/"), bar
     finally:
         context.close()
 

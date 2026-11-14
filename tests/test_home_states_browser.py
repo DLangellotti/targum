@@ -155,6 +155,29 @@ def test_a_slow_shelf_is_said_again_after_three_seconds(browser) -> None:
     assert not thrown, thrown
 
 
+def test_a_slow_account_is_said_after_three_seconds_too(browser) -> None:
+    """targum-internal#723 (and #695): with the shelf in and `/account/me` held, the
+    timer was cleared by the shelf's answer, and "Opening your targums…" was all there
+    was at 4.2 s. Home waits on the account before it shows, so its slow line does too,
+    and its Try again asks again by loading the page, the one way to ask the account
+    again."""
+    context, page, thrown, held, documents = home(
+        browser, {"/readers": {"readers": [reader_row()], "shared": []}, "/account/me": "hold"}
+    )
+    page.clock.install()
+    page.goto(SITE + "/")
+    page.clock.run_for(1000)
+    assert page.inner_text("#home-waiting") == "Opening your targums…"
+    page.clock.run_for(2500)
+    assert page.inner_text("#home-waiting") == "We're still opening your targums. Try again"
+    before = len(documents)
+    page.click("#home-waiting .fault-act")
+    page.wait_for_load_state("load")
+    assert len(documents) == before + 1, "Try again loads the page again"
+    context.close()
+    assert not thrown, thrown
+
+
 def test_a_refusal_is_not_an_empty_shelf(browser) -> None:
     """A 500 whose body was JSON drew "Nothing here yet" over a reader's six texts."""
     context, page, thrown, _, documents = home(browser, {"/readers": 500})

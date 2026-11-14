@@ -26,6 +26,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   No spend. Four new strings in English and Russian (`connect.page.credits-used`,
   `connect.demo.press-to-copy`, `connect.page.in-your-app`,
   `you.page.connections-none-now`); the Russian waits on ling-ru's first pass.
+- The first run passes more of design's §14 finish bar (targum-internal#723).
+  - The first text's named back no longer names the arrival. It said "← Welcome —
+    targum", and for a Russian browser asked the tongue question "← What is your native
+    language?Какой у вас родной язык?", and it led to `/welcome`, which only sends home.
+    The arrival now names itself as Your targums in the page's language and its back
+    goes to `/` (`data-came-href` on the body, read by `came.js`).
+  - A slow `/account/me` no longer leaves `/welcome` on "Opening…" for good. The 3 s
+    slow line waited only on the shelf; it waits on both answers now, and says "We're
+    still loading the library." with Try again. Home had the same gap with the shelf in
+    and the account held (#695): its slow line now runs until the page is shown, and
+    Try again loads the page again when the shelf is already in.
+  - The slow and failed lines' Try again sits on the sentence's baseline at 390.
+  - On a phone, the first step's row is the chevron's height, so "1 of 5" and EN · RU
+    share a line and «1 из 5» no longer touches the heading.
+  - The language and level groups are one Tab stop each, the chosen option, and the
+    arrow keys move the choice.
+  No spend. No new strings: the slow line, Try again and Your targums use existing
+  keys.
 - Two offline browser tests wait for the Saved page's rows before counting them
   (targum-internal#718). The away line shows as the page loads and the rows only once
   the cache's index has been read, so on a slow CI runner the first-save test counted
