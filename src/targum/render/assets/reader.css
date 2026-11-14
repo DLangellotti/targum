@@ -6229,8 +6229,11 @@ body.film-theatre .film-end { margin-inline: auto; }
 body.listening .list-now,
 body.listening .list-tab,
 body.listening .turn { visibility: hidden; }
-/* The card and the reader's own ⋯ stand over it. */
-body.listening .pick-card { z-index: 32; }
+/* The card and the reader's own ⋯ stand over it. The word's card too at a desk, where
+   it floats at `.gloss-card`'s 20 and opened under the view, drawn and out of reach; the
+   phone's sheet stood over it at 30 already (targum-internal#730). */
+body.listening .pick-card,
+body.listening #gloss-card { z-index: 32; }
 body.listening .bar:has(.bar-more.open) { z-index: 33; }
 
 .lv-col {
