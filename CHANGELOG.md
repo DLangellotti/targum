@@ -6,6 +6,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Your Progress no longer reads a failed sync as an empty account (targum-internal#726,
+  the fault #725 fixed on Your Words). When `/account/me` answered and `/sync` failed, a
+  browser with no saved words was told "Your progress starts with the first word you
+  mark". Now it shows the page's "We couldn't load your progress." panel with Try again.
+  A browser with saved words draws its progress from them under "We couldn't load your
+  latest progress. This is what's saved on this device." with Try again, which asks again
+  in place (`TargumSync.pullAgain`). Offline the line says "You're offline." and asks
+  again when the connection is back. Any sync that answers later takes the line or the
+  panel away. A failed sync still writes nothing. No spend. Two new strings in English
+  and Russian (`progress.stale`, `progress.stale.offline`); the Russian waits on ling-ru's
+  first pass.
 - Connect passes more of design's §14 finish bar (targum-internal#721).
   - With no credits left, the approval page's well no longer says "You have 0 credits
     left this month, about 0 min of audio or video." It says "You've used this month's

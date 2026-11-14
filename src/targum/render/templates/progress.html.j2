@@ -30,6 +30,9 @@
 {{ script('building.js') }}
 
 <main id="page" hidden>
+  {#- The page as this browser holds it, said as that when the account's list could not be
+      had (targum-internal#726): `progress.js` puts a fault line here with Try again. -#}
+  <div class="progress-stale" id="progress-stale" hidden></div>
   {#- A story in three parts under the totals (design.md §12, "Your Progress is a story in
       three parts", 2026-10-09): your level, how you got here, what next. -#}
   {#- The one block on this page that inverts. §9 allows a screen a single one and calls
