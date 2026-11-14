@@ -6,6 +6,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Connect passes more of design's §14 finish bar (targum-internal#721).
+  - With no credits left, the approval page's well no longer says "You have 0 credits
+    left this month, about 0 min of audio or video." It says "You've used this month's
+    credits. They come back on {date}.", the date from the same month boundary the claim
+    counts from (`_sub_credits`). What the grant allows and how a turn spends are
+    unchanged.
+  - The refused Connect's only way on, "How connecting works", was 136 × 20 at 390. Every
+    link in a door's quiet last line (`.gate .aside a`) now has sign-in's centred 44px
+    reach under a coarse pointer, and is in the §8 registry.
+  - "Signed in as" may break the address before its "@", so a hyphen in the name no
+    longer splits it.
+  - When the browser refuses Copy, the button says "Press Ctrl+C" (⌘C on a Mac) beside
+    the selected address, and a live region says it too.
+  - "Another app" puts the heading back to "Learn Hebrew in your own app" and the small
+    approval page to "Connect this app to targum", instead of keeping the last app picked.
+  - Your account no longer says "Nothing is connected yet" right under "Disconnected.":
+    after a Disconnect it says "Nothing is connected."
+  No spend. Four new strings in English and Russian (`connect.page.credits-used`,
+  `connect.demo.press-to-copy`, `connect.page.in-your-app`,
+  `you.page.connections-none-now`); the Russian waits on ling-ru's first pass.
 - Two offline browser tests wait for the Saved page's rows before counting them
   (targum-internal#718). The away line shows as the page loads and the rows only once
   the cache's index has been read, so on a slow CI runner the first-save test counted

@@ -21,7 +21,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
 
-from targum import serve
+from targum import oauth, serve
 from targum.accounts import Store
 
 PUBLIC = "https://targum.page"
@@ -259,6 +259,50 @@ def test_the_spending_scope_says_chatting_is_included(connected: tuple[int, str,
     assert "of audio or video." in said
     assert "hours" not in said and "chatting uses" not in said.lower()
     assert '<b class="host">claude.ai</b>' in page, "where Connect sends the reader, in bold"
+
+
+@pytest.mark.parametrize(
+    ("language", "used", "never"),
+    [
+        ("en", "You've used this month's credits. They come back on December\u00a01.", "0 credits"),
+        ("ru", "Баллы этого месяца закончились. Они обновятся 1\u00a0декабря.", "0 баллов"),
+    ],
+)
+def test_with_none_left_the_well_says_they_are_used_and_when_they_come_back(
+    language: str, used: str, never: str
+) -> None:
+    """targum-internal#721 P1: with no credits left the well said "You have 0 credits left
+    this month, about 0 min of audio or video." §12 ("A spending press says what it
+    spends", 2026-11-03) says used, and the day they come back."""
+    from targum.render.builder import approve_page
+
+    back = "December\u00a01" if language == "en" else "1\u00a0декабря"
+    scopes = oauth.describe_scopes(("library", "chat"))
+    page = approve_page(
+        client="Claude",
+        scopes=scopes,
+        spends=True,
+        query="q",
+        redirect="https://claude.ai/cb",
+        language=language,
+        email="a@example.com",
+        left=0,
+        back=back,
+    )
+    said = html.unescape(page.split("<main", 1)[1])
+    assert used in said
+    assert never not in said and "0 min" not in said and "0\u00a0мин" not in said
+    # One left is still a count, with its rate.
+    one = approve_page(
+        client="Claude",
+        scopes=scopes,
+        spends=True,
+        query="q",
+        redirect="https://claude.ai/cb",
+        left=1,
+        back="December\u00a01",
+    )
+    assert "You have 1 credit left this month, about" in html.unescape(one)
 
 
 def test_a_signed_out_reader_signs_in_and_is_brought_back(
@@ -826,7 +870,8 @@ def test_the_approval_page_says_who_is_granting_and_not_you_signs_out(
     query = an_authorize(client_id, challenge)
     _, body, _ = get(port, f"/oauth/authorize?{query}", session=session)
     page = html.unescape(body.decode())
-    assert "Signed in as shared@example.com" in page and "Not you?" in page
+    # The address may break before its "@" (design's #721 pass, P2 4).
+    assert "Signed in as shared\u200b@example.com" in page and "Not you?" in page
 
     status, _, headers = post(
         port, "/oauth/authorize", urlencode({"asked": query, "press": "not-you"}), session=session

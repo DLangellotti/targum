@@ -41,10 +41,12 @@
     {#- Who is granting (design.md §12, "The connector's pages are the boards'",
         2026-10-09; board ConnApprove): the address, and Not you?, which signs out and
         comes back to this same request, so nobody grants on somebody else's account. -#}
+    {#- The address may break before its "@", as sign-in's does (2026-09-28), so it is not
+        split at a hyphen in the name ("design-connect- / en@…", targum-internal#721). -#}
     <form class="who" method="post" action="/oauth/authorize">
       <input type="hidden" name="asked" value="{{ query }}">
       <span class="who-letter" aria-hidden="true">{{ (email or "?")[:1]|upper }}</span>
-      <span class="who-says">{{ t("connect.page.signed-in-as", "Signed in as {address}", address=email) }}</span>
+      <span class="who-says">{{ t("connect.page.signed-in-as", "Signed in as {address}", address=email.replace("@", "\u200b@")) }}</span>
       <button class="who-not" type="submit" name="press" value="not-you">{{ t("connect.page.not-you", "Not you?") }}</button>
     </form>
     <h1>{{ t("connect.page.connect-to-targum", "Connect {client} to targum", client=client or t("connect.page.this-app", "this app")) }}</h1>
@@ -76,7 +78,10 @@
     <div class="grant-well">
       <p><b>{{ t("connect.page.chatting-is-included-sentence", "Chatting is included.") }}</b></p>
       <p>{{ t("connect.page.uses-credits-once-confirmed", "A text, playlist or subscription uses credits only once you confirm it here.") }}
-        {%- if left is not none %} {{ tn("connect.page.credits-left", left, "You have {n} credit left this month, about {clock} of audio or video.", "You have {n} credits left this month, about {clock} of audio or video.", clock=clock) }}{% endif %}</p>
+        {#- None left is said as used, with the day they come back, and not as "0
+            credits, about 0 min" (targum-internal#721). -#}
+        {%- if left == 0 and back %} {{ t("connect.page.credits-used", "You've used this month's credits. They come back on {date}.", date=back) }}
+        {%- elif left is not none %} {{ tn("connect.page.credits-left", left, "You have {n} credit left this month, about {clock} of audio or video.", "You have {n} credits left this month, about {clock} of audio or video.", clock=clock) }}{% endif %}</p>
       <p class="grant-keep">{{ t("connect.page.we-keep-the-lines", "We keep the lines we correct, and add that language to the ones you're learning.") }}</p>
     </div>
     {%- endif %}

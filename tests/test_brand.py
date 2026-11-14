@@ -583,6 +583,7 @@ THUMBED = (
     # The links inside a line on the door, and the text page's way in under the
     # waitlist's press (design's #477 pass, 2026-11-10, targum-internal#672).
     ".gate .said a",
+    ".gate .aside a",  # the refused Connect's only way on (targum-internal#721)
     ".gate .join-link",
     ".public .door-in a",
 )

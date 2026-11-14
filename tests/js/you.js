@@ -193,6 +193,7 @@ setTimeout(() => {
           says: (row.querySelector(".acct-says") || {}).textContent,
         })),
         connectionsNone: at("connections-none").hidden,
+        connectionsNoneText: at("connections-none").textContent,
         connectionsSays: at("connections-says").hidden,
         connectLink: at("connect-link").textContent,
         promptsSaid: { text: at("prompts-said").textContent, hidden: at("prompts-said").hidden },

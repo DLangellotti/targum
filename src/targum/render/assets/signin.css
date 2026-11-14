@@ -189,9 +189,13 @@ body.signin > .site-footer { justify-self: stretch; width: 100%; }
      margin between them (§8). */
   /* One line, so the reach is one box: a link broken over two lines is two fragments,
      and the reach centred on both stood between them, over neither. */
+  /* The refused Connect's only way on, "How connecting works", was 136 × 20 at 390
+     (targum-internal#721), and set's way back to the playlists is the same link. */
   .gate .said a,
+  .gate .aside a,
   .gate .join-link { position: relative; white-space: nowrap; }
   .gate .said a::after,
+  .gate .aside a::after,
   .gate .join-link::after {
     content: "";
     position: absolute;

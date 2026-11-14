@@ -3780,6 +3780,7 @@ def approve_page(
     language: str = "en",
     email: str = "",
     left: int | None = None,
+    back: str = "",
 ) -> str:
     """Where a reader grants a connector its scopes (targum-internal#80).
 
@@ -3799,7 +3800,10 @@ def approve_page(
 
     `email` is who is signed in, said with Not you? beside it, and `left` the credits
     the month has left, None where the reader is held to no allowance (design.md §12,
-    "The connector's pages are the boards'", 2026-10-09).
+    "The connector's pages are the boards'", 2026-10-09). `back` is the day they come
+    back, from the same month boundary the claim counts from: with none left the well
+    says they are used and when they return, never "0 credits, about 0 min" (§12, "A
+    spending press says what it spends", 2026-11-03; targum-internal#721).
     """
     parsed = urlparse(redirect)
     host = parsed.netloc or redirect
@@ -3813,6 +3817,7 @@ def approve_page(
             page_language=_page_language(language),
             email=email,
             left=left,
+            back=back,
             clock=_clock(left or 0, language),
             client=client,
             scopes=scopes,

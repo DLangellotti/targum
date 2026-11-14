@@ -652,7 +652,9 @@
       return svg;
     }
 
-    function paint(connections) {
+    /* `gone` is the app just disconnected: with nothing left, the line under its
+       "Disconnected." says "Nothing is connected", not "yet" (targum-internal#721). */
+    function paint(connections, gone) {
       rows.textContent = "";
       var apps = grouped(connections);
       /* Drawn with nothing connected too (targum-internal#469, polish 1): one quiet line
@@ -661,7 +663,15 @@
       var none = at("connections-none");
       var says = at("connections-says");
       var more = at("connect-link");
-      if (none) none.hidden = !!apps.length;
+      if (none) {
+        none.hidden = !!apps.length;
+        if (gone && !apps.length) {
+          none.textContent = t(
+            "you.page.connections-none-now",
+            "Nothing is connected. Connect Claude, ChatGPT or another app to use targum from inside it."
+          );
+        }
+      }
       if (says) says.hidden = !apps.length;
       if (more) {
         more.textContent = apps.length
@@ -731,7 +741,7 @@
               });
             }, Promise.resolve())
             .then(function () {
-              paint(last && last.connections);
+              paint(last && last.connections, name);
               tell(t("you.connections.disconnected-app", "Disconnected. {app} can't reach your account any more.", { app: name }));
             })
             .catch(function () {
