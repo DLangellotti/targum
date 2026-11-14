@@ -287,7 +287,7 @@
       // the credits are the whole recording's, and the card says how it arrives.
       var parts = Number(job.parts) || 0;
       if (parts > 1) {
-        whole += " · " + tn("bring.in-parts", parts, "in {n} part, each made as you reach it", "in {n} parts, each made as you reach it");
+        whole += " · " + tn("bring.in-parts", parts, "in {n} part, each made as you reach\u00a0it", "in {n} parts, each made as you reach\u00a0it");
       }
       return whole;
     }

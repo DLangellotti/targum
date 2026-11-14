@@ -521,6 +521,51 @@
     document.getElementById("page").hidden = false;
   }
 
+  /* The shelf, the jobs and the places, asked as the page opens and asked again by the
+     slow line's Try again, in place, as Playlists and Subscriptions ask again
+     (targum-internal#716, qa-claude on #1222): it reloaded the whole page. The first
+     whole answer draws, and draws once; a refusal lands only from the latest ask, so a
+     slow first ask that fails while Try again is out waits for it. */
+  var textsTries = 0;
+  var textsSettled = false;
+  var textsResolve = null;
+  var textsReject = null;
+  var textsAnswer = new Promise(function (resolve, reject) {
+    textsResolve = resolve;
+    textsReject = reject;
+  });
+  function firstAnswer(asking) {
+    var mine = ++textsTries;
+    asking.then(
+      function (both) {
+        if (textsSettled) return;
+        textsSettled = true;
+        textsResolve(both);
+      },
+      function (why) {
+        if (textsSettled || mine !== textsTries) return;
+        textsSettled = true;
+        textsReject(why);
+      }
+    );
+    return textsAnswer;
+  }
+  function askTextsAgain() {
+    if (textsSettled) return;
+    var jobs = ask("/jobs").catch(function () {
+      return {};
+    });
+    // Home's own answer to the places is the one that is slow, so not asked of it.
+    var places = ask("/account/places?limit=20")
+      .then(function (answer) {
+        return (answer && answer.places) || [];
+      })
+      .catch(function () {
+        return [];
+      });
+    firstAnswer(Promise.all([ask(shelfAddress()), jobs, places]));
+  }
+
   function drawTexts() {
     var opened = stored("targum:opened");
     var jobs = function (first) {
@@ -538,7 +583,7 @@
         }))
       : askFirst(firstShelfAddress());
     subscriptionsFirst();
-    return Promise.all([shelfAnswer, jobs(true), accountPlaces()]).then(function (both) {
+    return firstAnswer(Promise.all([shelfAnswer, jobs(true), accountPlaces()])).then(function (both) {
       var theirPlaces = both[2];
       var readers = gather(both[0], opened, theirPlaces);
       var trash = (both[0] && both[0].trash) || [];
@@ -948,27 +993,34 @@
     if (which === "sentences") return t("sentences.page.still-opening", "We're still opening your sentences.");
     return t("lists.still-opening.words", "We're still opening your words.");
   }
-  var slowly = setTimeout(function () {
-    var waiting = document.getElementById("home-waiting");
-    if (waiting && !waiting.hidden) {
-      waiting.textContent = stillOpening();
-      if (which === "texts") {
-        // And the press that asks again, as Playlists and Subscriptions offer beside the
-        // same line (targum-internal#716 P2-10): Recent said it was slow and left the
-        // reader to reload.
-        var again = document.createElement("button");
-        again.type = "button";
-        again.className = "fault-act home-slow-again";
-        again.textContent = t("fault.try-again", "Try again");
-        again.addEventListener("click", function () {
-          if (window.location && window.location.reload) window.location.reload();
-        });
-        waiting.appendChild(document.createTextNode(" "));
-        waiting.appendChild(again);
-        tabsAlone(true);
+  var slowly = 0;
+  function armSlow() {
+    slowly = setTimeout(function () {
+      var waiting = document.getElementById("home-waiting");
+      if (waiting && !waiting.hidden) {
+        waiting.textContent = stillOpening();
+        if (which === "texts") {
+          // And the press that asks again, as Playlists and Subscriptions offer beside
+          // the same line (targum-internal#716 P2-10), and asks it in place as they do:
+          // the line stays, the press goes while the new ask is out, and comes back if
+          // that is slow too.
+          var again = document.createElement("button");
+          again.type = "button";
+          again.className = "fault-act home-slow-again";
+          again.textContent = t("fault.try-again", "Try again");
+          again.addEventListener("click", function () {
+            waiting.textContent = stillOpening();
+            askTextsAgain();
+            armSlow();
+          });
+          waiting.appendChild(document.createTextNode(" "));
+          waiting.appendChild(again);
+          tabsAlone(true);
+        }
       }
-    }
-  }, 3000);
+    }, 3000);
+  }
+  armSlow();
   drawing.then(function () {
     clearTimeout(slowly);
   }, function () {});

@@ -337,10 +337,13 @@
      where the server sent it as the figure, else the marked share, as the shelf, Continue
      and a playlist say it. `TargumStrings.figure` where the page carries `figure.js`; the
      bar's script runs before a page's strings, so the same rule is kept here for the
-     pages that do not. */
+     pages that do not, line for line: `test_finish_715.py` holds the two copies to each
+     other, so an edit to one that misses the other fails (qa-claude on #1222). */
   function figure(row) {
     var strings = window.TargumStrings;
     if (strings && strings.figure) return strings.figure(row);
+    // A row that says how many words it counted and counted none was not measured.
+    if (!row || ("words" in row && !row.words)) return null;
     var estimated = typeof row.estimated === "number";
     var share = estimated ? row.estimated : row.known;
     if (typeof share !== "number" || share < 0) return null;
@@ -348,6 +351,20 @@
     if (share < 1 && percent >= 100) percent = 99;
     if (share > 0 && percent <= 0) percent = 1;
     return { share: Math.max(0, Math.min(1, share)), percent: percent, estimated: estimated };
+  }
+
+  /* And said as the shelf says it: `TargumStrings.figureSaid` where the page carries
+     it, the same words here where it does not. */
+  function figureSaid(found) {
+    var marked = function (percent) {
+      return t("palette.known", "{percent}% known", { percent: percent });
+    };
+    var strings = window.TargumStrings;
+    if (strings && strings.figureSaid) return strings.figureSaid(found, marked);
+    if (found.estimated) {
+      return t("known.estimate.about", "About {n}%", { n: found.percent }) + " " + t("known.estimate.ours", "(our estimate)");
+    }
+    return marked(found.percent);
   }
 
   function known(row) {
@@ -358,15 +375,7 @@
     var found = figure(row);
     if (found) {
       var share = el("span", "palette-known");
-      share.appendChild(
-        el(
-          "span",
-          "palette-known-said",
-          found.estimated
-            ? t("known.estimate.about", "About {n}%", { n: found.percent }) + " " + t("known.estimate.ours", "(our estimate)")
-            : t("palette.known", "{percent}% known", { percent: found.percent })
-        )
-      );
+      share.appendChild(el("span", "palette-known-said", figureSaid(found)));
       var meter = el("span", "meter");
       var fill = el("span");
       fill.style.setProperty("--done", String(found.share));

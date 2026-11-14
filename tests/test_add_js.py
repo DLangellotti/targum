@@ -208,7 +208,7 @@ def test_a_press_that_spends_says_what_beside_it() -> None:
         "Uses 1 credit",
         "",
         "Uses none of your credits",
-        "Uses 25 credits · in 2 parts, each made as you reach it",
+        "Uses 25 credits · in 2 parts, each made as you reach\u00a0it",
     ]
     assert "var spends = uses(job);" in source, "on the chat's card"
     add = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
@@ -442,3 +442,93 @@ def test_file_sizes_are_said_in_the_page_language() -> None:
     # building row read as one product (ling-ru on #1217).
     for form in ("one", "few", "many", "other"):
         assert ru[f"add.quote.left.{form}"] == ru[f"building.credits.left.{form}"].rstrip(".")
+
+
+# -- Upload's polish (targum-internal#715 P2-12) ----------------------------------------
+
+FAILED_WHY = "We couldn't finish this on our side. Try again in a few minutes. Nothing was used."
+
+
+def test_a_failure_says_couldn_t_once() -> None:
+    """ "We couldn't get it ready. We couldn't finish this on our side." said couldn't
+    twice: the card is the failure, so it says the reason (`why`), with Try again."""
+    said = card(
+        answers={
+            "/describe": {},
+            "/prepare": QUOTED,
+            "/build": {"id": "j1", "stage": "queued"},
+            "/job/j1": {
+                "id": "j1",
+                "stage": "failed",
+                "error": "We couldn't finish this on our side. Try again in a few minutes.",
+                "said": "We couldn't get it ready. " + FAILED_WHY,
+                "why": FAILED_WHY,
+            },
+        },
+        press=["Confirm"],
+    )
+    words = " ".join(said["status"])
+    assert FAILED_WHY in said["status"]
+    assert words.count("couldn't") == 1, words
+    assert "Try again" in [p["text"] for p in said["presses"]]
+
+
+def done_for(me: dict[str, Any]) -> dict[str, Any]:
+    return card(
+        answers={
+            "/account/me": me,
+            "/describe": {},
+            "/prepare": QUOTED,
+            "/build": {"id": "j1", "stage": "queued"},
+            "/job/j1": {"id": "j1", "stage": "done", "reader": "t-he/reader/index.html"},
+        },
+        press=["Confirm"],
+    )
+
+
+def test_done_opens_at_once_and_a_reader_never_asks_for_a_cover() -> None:
+    """Done waited on `/cover` before it opened, and asked it for every reader, though
+    only the operator may draw one (design.md §12, "Draw cover is the operator's")."""
+    said = done_for({"signedIn": True, "covers": False})
+    assert "/reader/t-he/reader/index.html" in said["went"], said["went"]
+    assert "/cover" not in [one["path"] for one in said["asked"]]
+
+
+def test_the_operator_s_cover_is_asked_for_the_one_text_and_outlives_the_page() -> None:
+    said = done_for({"signedIn": True, "covers": True})
+    assert "/reader/t-he/reader/index.html" in said["went"], said["went"]
+    (cover,) = [one for one in said["asked"] if one["path"] == "/cover"]
+    assert cover["method"] == "POST" and cover["body"] == {"name": "t-he"}
+    assert cover["keepalive"], "sent keepalive, so opening the reader does not cut it off"
+
+
+def test_a_post_s_what_we_found_names_it() -> None:
+    """ "What we found" said only "a post", though describe read who posted it, its
+    caption's words and its pictures."""
+    said = card(
+        answers={
+            "/describe": {
+                "kind": "post",
+                "title": "בוקר טוב",
+                "author": "@dana.cooks",
+                "caption_words": 40,
+                "pictures": 5,
+            },
+            "/prepare": {**QUOTED, "audio": False},
+        }
+    )
+    assert "a post by @dana.cooks · 40 words in the caption · 5 pictures" in said["status"]
+
+
+def test_upload_s_polish_strings_agree_with_their_presses() -> None:
+    """Instagram-unavailable said "Upload the video file instead" beside a Bring a post
+    press; and a podcast's parts left "it" alone on a line at 390px."""
+    strings = HARNESS.parents[2] / "src/targum/strings"
+    en = json.loads((strings / "en.json").read_text(encoding="utf-8"))
+    ru = json.loads((strings / "ru.json").read_text(encoding="utf-8"))
+    assert "Bring the post in" in en["job.instagram-unavailable"]
+    assert "Upload the video file" not in en["job.instagram-unavailable"]
+    assert "Добавьте пост" in ru["job.instagram-unavailable"]
+    assert ru["add.page.bring-a-post"] == "Добавить пост"
+    for form in ("one", "other"):
+        assert en[f"bring.in-parts.{form}"].endswith("reach it")

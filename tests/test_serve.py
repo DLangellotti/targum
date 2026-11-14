@@ -3029,6 +3029,10 @@ def test_drawing_a_cover_is_the_operators_alone(
     reader_cookie = sign_in(port, postbox, "reader@example.com")
     _, shelf, _ = call(port, "GET", f"/readers?k={key}", cookie=reader_cookie)
     assert shelf["covers"] is False, "a reader is not offered it"
+    # And `/account/me` says the same, so the upload page never asks `/cover` for a
+    # reader's text and is refused (#715 P2-12).
+    _, me, _ = call(port, "GET", f"/account/me?k={key}", cookie=reader_cookie)
+    assert me["covers"] is False
     status, _, _ = call(
         port, "POST", f"/cover?k={key}", {"name": "judenstaat-he"}, cookie=reader_cookie
     )
@@ -3038,6 +3042,8 @@ def test_drawing_a_cover_is_the_operators_alone(
     operator = sign_in(port, postbox, "operator@example.com")
     _, shelf, _ = call(port, "GET", f"/readers?k={key}", cookie=operator)
     assert shelf["covers"] is True
+    _, me, _ = call(port, "GET", f"/account/me?k={key}", cookie=operator)
+    assert me["covers"] is True
     # Signed out on a laptop is the operator: `test_nothing_is_drawn_without_a_key`
     # posts with no session and reaches the key check.
 

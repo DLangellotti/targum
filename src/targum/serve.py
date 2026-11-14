@@ -4682,7 +4682,8 @@ class Library:
             unavailable=said_in(
                 job.ui,
                 "job.instagram-unavailable",
-                "We can't bring in Instagram videos right now. Upload the video file instead.",
+                "We can't bring in Instagram videos right now. Bring the post in yourself, "
+                "with its video file.",
             ),
             # Instagram never says how long a reel runs; `describe` reads the header, and
             # where even that is silent the reel is priced long rather than refused as a
@@ -12813,15 +12814,23 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             # `signedOut` where the account's own routes would refuse this browser, so a
             # page asks none of them on its own (`TargumSync.mayAsk`).
-            return self._json(
-                {
-                    "signedIn": False,
-                    "signedOut": self.require_account or self.store.anyone(),
-                    **self._join_said(),
-                }
-            )
+            said: dict[str, Any] = {
+                "signedIn": False,
+                "signedOut": self.require_account or self.store.anyone(),
+                **self._join_said(),
+            }
+            # Nobody signed in on a machine somebody runs themselves may draw covers, as
+            # `_may_draw` says; said only where it is so (#715 P2-12).
+            if self.library.can_draw() and self._may_draw():
+                said["covers"] = True
+            return self._json(said)
         answer = {
             "signedIn": True,
+            # Whether this person may draw a cover — the operator only, and only where
+            # there is an image key (design.md §12, "Draw cover is the operator's"). The
+            # upload page asks `/cover` for the text it just built only where this is
+            # true, rather than for every reader and refused (#715 P2-12).
+            "covers": self.library.can_draw() and self._may_draw(),
             "email": person.email,
             "revision": self.store.revision(person),
             "counts": self.store.counts(person),
