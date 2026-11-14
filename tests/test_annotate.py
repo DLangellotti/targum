@@ -20,7 +20,16 @@ from targum.annotate.gloss import (
 from targum.annotate.hebrew import binyan_of, root_of
 from targum.cache import Cache
 from targum.errors import TargumError
-from targum.models import VERB_MARK, Annotation, Segment, SegmentedDocument, Token
+from targum.models import (
+    MARKS,
+    POS_MARKS,
+    VERB_MARK,
+    Annotation,
+    Segment,
+    SegmentedDocument,
+    Syntax,
+    Token,
+)
 
 
 class FakeLemmatizer:
@@ -518,6 +527,145 @@ def test_a_grammatical_word_is_filed_apart_from_the_word_spelled_like_it() -> No
         "עם (noun)": "עם (noun)",
     }, "a bare answer could be either, so it is neither"
     assert filed_as(["עם (preposition)"])["עם"] == "עם (preposition)"
+
+
+def _filed_before_701(token: Token) -> str:
+    """`Token.glossed_as` as it stood before targum-internal#701, to hold every word the
+    change did not mean to touch to the key its meaning is already cached under."""
+    if token.headword:
+        return token.headword
+    if token.pos == "VERB":
+        return token.lemma + VERB_MARK
+    if token.lemma in {"עם", "את", "אל", "עד", "תחת"} and token.pos in POS_MARKS:
+        return token.lemma + POS_MARKS[token.pos]
+    return token.lemma
+
+
+def _word(
+    lemma: str,
+    pos: str,
+    surface: str = "",
+    *,
+    built: str | None = None,
+    lead: int = 0,
+    headword: str | None = None,
+) -> Token:
+    return Token(
+        start=0,
+        end=2,
+        surface=surface or lemma,
+        lemma=lemma,
+        band=1,
+        pos=pos,
+        built=built,
+        headword=headword,
+        syntax=Syntax(head=-1, relation="root", lead=lead) if lead else None,
+    )
+
+
+def test_a_homograph_the_part_of_speech_separates_is_filed_apart() -> None:
+    """targum-internal#701: פה "here" read "mouth", שום "any" read "garlic; any", כלל
+    "at all" read "rule", because only five spellings were filed by part of speech. Each
+    sense now has its own key, and parts of speech that are one word share one."""
+    assert _word("פה", "ADV").glossed_as == "פה (adverb)"
+    assert _word("פה", "NOUN").glossed_as == "פה (noun)"
+    assert _word("שום", "DET").glossed_as == "שום (determiner)"
+    assert _word("שום", "NOUN").glossed_as == "שום (noun)"
+    assert _word("שום", "ADV").glossed_as == "שום (determiner)", "שום אחד is the DET's word"
+    assert _word("כלל", "ADV").glossed_as == "כלל (adverb)"
+    assert _word("מי", "PRON").glossed_as == _word("מי", "PART").glossed_as == "מי (pronoun)"
+    assert _word("מי", "NOUN").glossed_as == "מי (noun)"
+    assert _word("אף", "CCONJ").glossed_as == _word("אף", "ADV").glossed_as == "אף (adverb)"
+    assert _word("אף", "NOUN").glossed_as == "אף (noun)"
+    assert _word("אתן", "PRON").glossed_as == "אתן (pronoun)"
+    assert _word("אתן", "VERB").glossed_as == "אתן (verb)"
+    assert _word("רב", "ADJ").glossed_as == "רב (adjective)"
+    assert _word("אחר", "ADJ").glossed_as == "אחר (adjective)"
+    assert _word("אחר", "ADP").glossed_as == "אחר (preposition)"
+    assert _word("שבע", "NUM").glossed_as == "שבע (number)"
+    assert _word("שבע", "NOUN").glossed_as == "שבע", "שבעות and לשבע are no noun of their own"
+    assert _word("חדשה", "NOUN").glossed_as == "חדשה (noun)"
+    assert _word("לבוש", "ADJ").glossed_as == "לבוש (adjective)"
+    assert _word("ועד", "NOUN").glossed_as == "ועד (noun)"
+    assert _word("סמך", "NOUN").glossed_as == "סמך (noun)"
+    assert _word("זמן", "NOUN").glossed_as == "זמן (noun)"
+    assert _word("פה", "PROPN").glossed_as == "פה", "a name is not glossed apart"
+    assert _word("זמן", "ADV").glossed_as == "זמן", "a part of speech not named keeps the key"
+    assert _word("פה", "ADV", headword="פֹּה (H6311)").glossed_as == "פֹּה (H6311)"
+    assert filed_as(["שום (noun)", "שום (determiner)"])["שום (determiner)"] == "שום (determiner)"
+    assert filed_as(["פה (adverb)"])["פה"] == "פה (adverb)"
+
+
+def test_a_participle_used_as_a_noun_is_filed_apart_from_its_verb() -> None:
+    """targum-internal#701: DICTA gives המטפל of "הרופא המטפל" the verb's lemma טיפל, and
+    the card read "treated; took care of". A noun or adjective whose letters are the
+    verb's מ-participle is filed under the verb with its own mark."""
+    assert _word("טיפל", "ADJ", "הַמְּטַפֵּל", built="ה the + מטפל").glossed_as == "טיפל (participle)"
+    assert _word("העסיק", "NOUN", "מַעֲסִיק").glossed_as == "העסיק (participle)"
+    assert _word("ניצח", "NOUN", "המנצח", lead=1).glossed_as == "ניצח (participle)"
+    assert _word("התנדב", "NOUN", "מתנדבים").glossed_as == "התנדב (participle)"
+    assert _word("טיפל", "NOUN", "מטפלת").glossed_as == "טיפל (participle)"
+    assert _word("טיפל", "VERB", "מטפל").glossed_as == "טיפל (verb)", "the verb keeps its key"
+    assert _word("בית", "NOUN", "מבית").glossed_as == "בית", "a מ from is not a participle"
+    assert _word("קול", "NOUN", "מקול").glossed_as == "קול", "nor is a pu'al's shape"
+    assert _word("מנהל", "NOUN", "מנהל").glossed_as == "מנהל", "a participle's own lemma"
+    assert _word("טיפל", "NOUN", "טיפולים").glossed_as == "טיפל"
+    assert _word("הטה", "NOUN", "מטה").glossed_as == "הטה", "a ל״ה verb's מ-word is a noun"
+    assert _word("השקה", "NOUN", "משקה").glossed_as == "השקה"
+    assert _word("גילה", "NOUN", "המגלה", lead=1).glossed_as == "גילה"
+
+
+def test_every_word_off_the_701_lists_keeps_the_key_its_meaning_is_cached_under() -> None:
+    """A changed key is a meaning bought again, so the widening must move no other word:
+    every grammatical spelling, every part of speech the first five did not split on, and
+    every noun that is not a participle keeps exactly the key it had."""
+    sample = [
+        _word("עד", "SCONJ"),
+        _word("עם", "DET"),
+        _word("את", "ADJ"),
+        _word("עם", "ADP"),
+        _word("את", "PRON"),
+        _word("על", "ADP"),
+        _word("של", "ADP"),
+        _word("הוא", "PRON"),
+        _word("לא", "ADV"),
+        _word("גם", "ADV"),
+        _word("כי", "SCONJ"),
+        _word("ו", "CCONJ"),
+        _word("בית", "NOUN", "הבית", built="ה the + בית"),
+        _word("משנה", "NOUN"),
+        _word("משנה", "VERB"),
+        _word("גדול", "ADJ"),
+        _word("טוב", "ADJ", "טובה"),
+        _word("אחד", "NUM"),
+        _word("ספר", "NOUN", headword="סֵפֶר (H5612)"),
+        _word("ירושלים", "PROPN"),
+        _word("מדינה", "NOUN"),
+        _word("מכתב", "NOUN", "מכתבים"),
+        _word("מים", "NOUN"),
+        _word("מאוד", "ADV"),
+        _word("מה", "PRON"),
+        _word("ילד", "NOUN", "מילד", lead=1),
+        _word("חבר", "NOUN", "מחבר"),
+        _word("אמר", "VERB", "אמרה"),
+    ]
+    for token in sample:
+        assert token.glossed_as == _filed_before_701(token), token.lemma
+
+
+def test_the_topic_tagger_files_a_lemma_where_the_page_does() -> None:
+    """`topics.glossed_as` is the page's key without a headword or a stem: one rule."""
+    from targum import topics
+
+    for lemma, pos in [("פה", "ADV"), ("שום", "DET"), ("עם", "ADP"), ("על", "ADP"), ("x", "VERB")]:
+        assert topics.glossed_as(lemma, pos) == _word(lemma, pos).glossed_as
+
+
+def test_no_mark_ends_another() -> None:
+    """`filed_as` reads a mark off the end of a form, so none may be the tail of another."""
+    for one in MARKS:
+        for other in MARKS:
+            assert one == other or not one.endswith(other), (one, other)
 
 
 def test_an_answer_that_dropped_the_verb_mark_still_lands_on_the_verb() -> None:

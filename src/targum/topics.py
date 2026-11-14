@@ -562,13 +562,9 @@ class Lemma:
 def glossed_as(lemma: str, pos: str) -> str:
     """The key the gloss cache files a lemma under, from the lemma and its part of
     speech alone: `Token.glossed_as` without a scripture headword."""
-    from .models import POS_MARKS, SPLIT_BY_POS, VERB_MARK
+    from .models import filed_under
 
-    if pos == "VERB":
-        return lemma + VERB_MARK
-    if lemma in SPLIT_BY_POS and pos in POS_MARKS:
-        return lemma + POS_MARKS[pos]
-    return lemma
+    return filed_under(lemma, pos)
 
 
 def ranked(store: Store, registers: Sequence[str], limit: int) -> list[tuple[str, int]]:
@@ -1138,10 +1134,10 @@ def other_senses(lemma: str, pos: str, used: str, gloss: Any = None) -> list[str
     """The glosses the cache holds under the lemma's other keys (the bare lemma, the verb's
     key, a part-of-speech key) that differ from the one sent: גר glossed "stranger;
     convert" also holds "to live; reside" as a verb. Never spends."""
-    from .models import POS_MARKS, VERB_MARK
+    from .models import MARKS
 
     gloss = gloss or cached_gloss
-    keys = [lemma, lemma + VERB_MARK, *(lemma + mark for mark in POS_MARKS.values())]
+    keys = [lemma, *(lemma + mark for mark in MARKS)]
     out: list[str] = []
     for key in dict.fromkeys(keys):
         if key == glossed_as(lemma, pos):

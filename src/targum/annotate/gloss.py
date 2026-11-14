@@ -105,9 +105,15 @@ For each {source} dictionary form you are given, return one short {target} gloss
 
 - Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
   reader met it in after `in:`. Gloss the form, and return it exactly as it was given.
-- A form may end in `(verb)`, `(preposition)`, `(noun)`, `(pronoun)` or `(adverb)`. It
-  says which word a shared spelling is here: gloss that word, not another spelled the
-  same, and return the form with the mark still on it.
+- A form may end in `(verb)`, `(preposition)`, `(noun)`, `(pronoun)`, `(adverb)`,
+  `(adjective)`, `(determiner)`, `(number)`, `(particle)` or `(conjunction)`. It says
+  which word a shared spelling is here: gloss that word, not another spelled the same,
+  and return the form with the mark still on it.
+- A form that ends in `(participle)` is a מ-word built on that verb, not the verb:
+  either its present participle used as a noun or an adjective (`טיפל (participle)` is
+  מטפל, "caregiver; treating") or a noun on the same root (`הכשיר (participle)` may be
+  מכשיר, "device"). Gloss the one the sentence uses, and return the form with the mark
+  still on it.
 - Two to six words. The most common sense first — or, where a sentence is given, the
   sense the form has there — and a second sense only when the word is genuinely
   ambiguous, separated by a semicolon. The gloss is kept for every text, not this one.
