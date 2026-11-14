@@ -135,3 +135,41 @@ def test_a_page_of_playlists_asks_for_the_estimate_once_a_language(
             estimates,
         )
     assert asked == ["he"]
+
+
+def test_the_contents_page_says_ours_in_its_own_words(tmp_path: Path) -> None:
+    """qa on #1218: the page borrowed the chooser's `suggest.estimated` and stripped its
+    full stop. It has a key of its own, said in Russian as the other estimates are."""
+    from test_contents_page import built, manifest_of
+
+    state = {
+        "signed_in": True,
+        "place": None,
+        "finished": set(),
+        "known": {1: (10, 9, 1), 2: (10, 5, 4), 3: (10, 0, 10)},
+        "whole": {"known": 0.7, "fresh": 3, "words": 100, "estimated": 0.97},
+    }
+    page = contents_page(manifest_of(built(tmp_path / "book-he")), state, language="ru")
+    assert "Вы знаете около 97% слов (наша оценка)" in page
+    assert "(наша оценка)." not in page
+
+
+def test_what_the_reader_cancelled_is_not_counted_new(tmp_path: Path) -> None:
+    """P2-13: an item the reader cancelled came back marked New, and the tab counted it."""
+    from targum.accounts import Store
+
+    store = Store(tmp_path / "targum.db")
+    signed = store.finish_sign_in(store.start_sign_in("one@example.com"))
+    assert signed is not None
+    me = signed[0].id
+    kan = int(store.add_subscription(me, "channel", "UCkan", name="Kan", cap=30)["id"])
+    store.add_sub_items(
+        kan,
+        [
+            {"key": "v1", "title": "first", "link": "https://youtu.be/v1"},
+            {"key": "v2", "title": "second", "link": "https://youtu.be/v2"},
+        ],
+    )
+    store.set_sub_item(kan, "v2", state="listed", why="cancelled")
+    row = next(one for one in store.subscriptions(me) if one["id"] == kan)
+    assert row["new"] == 1

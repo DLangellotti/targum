@@ -13,6 +13,7 @@ import time
 from collections.abc import Callable
 from http.client import HTTPConnection
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
 import pytest
@@ -300,3 +301,26 @@ def test_a_sentence_door_never_leaves_the_readers_own_shelf(
         assert status in (302, 404)
         if status == 302:
             assert headers["Location"] in ("/", "/?k="), headers["Location"]
+
+
+def test_a_text_of_yours_carries_its_one_figure(
+    hosted: tuple[int, str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#716: a text of yours carried only its marked share, so the palette
+    printed 70% beside a shelf that says our 97%. Where our estimate is the figure
+    (`_measure`), the row carries it beside the marked share, banded by it."""
+    real = serve.Handler._measure
+
+    def measured(self: Any, home: Path, readers: list[dict[str, Any]]) -> None:
+        real(self, home, readers)
+        for reader in readers:
+            if "known" in reader:
+                reader["estimated"] = 0.97
+
+    monkeypatch.setattr(serve.Handler, "_measure", measured)
+    port, session, _ = hosted
+    status, answer, _ = ask(port, "/search.json?lang=he&q=" + quote("ירושלים"), session)
+    assert status == 200
+    row = _group(answer, "yours")["rows"][0]
+    assert row["known"] == 0.5 and row["estimated"] == 0.97
+    assert row["band"] == search.band(0.97)

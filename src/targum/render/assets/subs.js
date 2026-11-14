@@ -215,6 +215,8 @@
     if (item.state === "due") return t("subs.state.due", "Gets ready by itself");
     if (item.state === "waiting") return t("subs.state.waiting", "Waiting for {date}", { date: back || "" });
     if (item.state === "failed") return t("subs.state.failed", "We couldn't get it ready");
+    // What the reader cancelled is theirs to know, quietly, and never New (#716 P2-13).
+    if (item.why === "cancelled") return t("subs.state.cancelled", "You cancelled this");
     return "";
   }
 
@@ -374,7 +376,12 @@
       counts[chipOf(one.kind)] += 1;
     });
     host.textContent = "";
+    // A chip is absent at nought (design.md §12, 2026-09-26; targum-internal#716 P2-11):
+    // "News 0" offered a filter that shows nothing. All stays, and so does the chip the
+    // reader is on, which the Library's "Follow a topic" opens at News to say there is
+    // none yet and where to find one (#475 B3).
     CHIPS.forEach(function (pair) {
+      if (pair[0] !== "all" && pair[0] !== tabView.chip && counts[pair[0]] === 0) return;
       var press = el("button", "tab chip");
       press.type = "button";
       press.setAttribute("aria-pressed", tabView.chip === pair[0] ? "true" : "false");
@@ -460,7 +467,8 @@
     var timer = setTimeout(function () {
       if (!line) return;
       line.textContent = t("subs.slow", "This is taking longer than usual.") + " ";
-      var press = el("button", "btn tonal small sub-again", t("subs.try-again", "Try again"));
+      // The press Recent and Playlists draw beside the same line (#716 P2-10).
+      var press = el("button", "fault-act sub-again", t("subs.try-again", "Try again"));
       press.type = "button";
       press.onclick = function () {
         press.disabled = true;
@@ -527,18 +535,17 @@
             drawTab(host);
           });
         } else if (sayLine) {
-          faultLine(
-            sayLine,
-            t("subs.load-failed", "We couldn't load your subscriptions."),
-            tryAgain(function () {
-              drawTab(host);
-            })
-          );
+          faultPanel(sayLine, t("subs.load-failed", "We couldn't load your subscriptions."), function () {
+            drawTab(host);
+          });
         }
         if (none) none.hidden = true;
         return false;
       }
-      if (sayLine) sayLine.hidden = true;
+      if (sayLine) {
+        sayLine.hidden = true;
+        clearFault(sayLine);
+      }
       var every = answer.subscriptions || [];
       var back = (answer.credits && answer.credits.back) || "";
       var languages = host.querySelector("#subs-languages");
@@ -631,6 +638,33 @@
       line.appendChild(press);
     }
     line.hidden = false;
+  }
+
+  /* A list that could not be loaded is the one fault block Recent and Playlists draw
+     (targum-internal#716 P2-10): the shared panel, its sentence, a filled Try again, what
+     is still here and Tell us — not a line with a small tonal press. The panel stands
+     where the line would, just before it; `clearFault` takes it away once it loads. */
+  function faultPanel(line, text, again) {
+    var fault = window.TargumFault;
+    if (!fault || !fault.panel) return faultLine(line, text, tryAgain(again));
+    clearFault(line);
+    var holder = el("div", "sub-fault");
+    holder.appendChild(
+      fault.panel(text, {
+        onAct: function () {
+          clearFault(line);
+          again();
+        },
+        fact: t("home.failed.says", "Everything you've read is still here."),
+      })
+    );
+    line.hidden = true;
+    line.parentNode.insertBefore(holder, line);
+  }
+
+  function clearFault(line) {
+    var before = line && line.previousElementSibling;
+    if (before && before.classList.contains("sub-fault")) before.remove();
   }
 
   function tryAgain(again) {
@@ -760,7 +794,12 @@
     }
     if (facts.length) what.appendChild(el("span", "sub-item-facts", facts.join(" · ")));
     var state = el("span", "sub-item-state");
-    var isNew = !item.seen && item.came === "" && (item.state === "ready" || item.state === "listed") && item.found >= one.since;
+    var isNew =
+      !item.seen &&
+      item.came === "" &&
+      item.why !== "cancelled" &&
+      (item.state === "ready" || item.state === "listed") &&
+      item.found >= one.since;
     if (isNew) {
       li.classList.add("is-new");
       state.appendChild(el("span", "sub-new", t("subs.state.new", "New")));
@@ -1209,10 +1248,11 @@
             unreachedSaid(saidLine, load);
             return;
           }
-          faultLine(saidLine, t("subs.load-failed-one", "We couldn't load this subscription."), tryAgain(load));
+          faultPanel(saidLine, t("subs.load-failed-one", "We couldn't load this subscription."), load);
           return;
         }
         saidLine.hidden = true;
+        clearFault(saidLine);
         section.hidden = false;
         drawOne(answer, body, saidLine);
       });

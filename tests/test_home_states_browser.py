@@ -148,7 +148,9 @@ def test_a_slow_shelf_is_said_again_after_three_seconds(browser) -> None:
     page.clock.run_for(1000)
     assert page.inner_text("#home-waiting") == "Opening your targums…"
     page.clock.run_for(2500)
-    assert page.inner_text("#home-waiting") == "We're still opening your targums."
+    assert page.inner_text("#home-waiting") == "We're still opening your targums. Try again"
+    # The press Playlists and Subscriptions offer beside the same line (#716 P2-10).
+    assert page.locator("#home-waiting .fault-act").inner_text() == "Try again"
     context.close()
     assert not thrown, thrown
 

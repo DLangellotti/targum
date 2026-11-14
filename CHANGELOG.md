@@ -12,6 +12,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   retry is told the need with the credit taken off, as the quote said. A stop says the
   credits its receipt used before it looks at money. The Russian quote's
   «Осталось {n} баллов в этом месяце» now matches `building.credits.left`. No spend.
+- Your targums, second pass on its finish bar (targum-internal#716). Offline, New
+  playlist, a playlist's Save for offline, Pause, Resume and the cap's Save are greyed
+  with "This needs a connection." as Upload's presses are. Recent, Playlists and
+  Subscriptions draw one fault block (Try again, what is still here, Tell us), and
+  Recent's slow line has Try again as the others do. A subscription chip at nought is
+  left out. What the reader cancelled is never New, says "You cancelled this", and the
+  tab's count leaves it out. Find matches who wrote a text. A recording is tagged Audio
+  (or Podcast), not Text or Article. At a desk the shelf's rows share one grid, so the
+  tag and time columns are as wide as this shelf needs and a title gets the rest (192px
+  to 250px and more at 1440). The search palette says a text's one figure, our estimate
+  labelled as ours, and `/search.json` sends `estimated` beside the marked share. The
+  contents page has its own string instead of borrowing the chooser's
+  `suggest.estimated`. Four new strings in English and Russian, for ling-ru. No spend.
 - `/gloss` buys a word's meaning only in the pair the page is showing
   (targum-internal#717). The target was whatever the page sent, so any signed-in page
   could make targum buy meanings into any language, the word's own included. It is now

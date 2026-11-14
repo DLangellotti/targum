@@ -205,6 +205,9 @@
   function kindWord(facts) {
     if (!facts) return "";
     if (facts.video) return t("home.kind.video", "Video");
+    // A recording as the shelf names it (targum-internal#716 P2-17).
+    if (facts.kind === "podcast") return t("home.kind.podcast", "Podcast");
+    if (facts.heard || (!facts.kind && facts.seconds > 0)) return t("home.kind.audio", "Audio");
     var kinds = {
       article: t("home.kind.article", "Article"),
       talk: t("home.kind.talk", "Video"),
@@ -1178,7 +1181,14 @@
     holder.textContent = "";
     holder.hidden = false;
     if (window.TargumFault && window.TargumFault.panel) {
-      holder.appendChild(window.TargumFault.panel(sentence, { onAct: load }));
+      // The one fault block Recent and Subscriptions draw too, with what is still here
+      // (targum-internal#716 P2-10).
+      holder.appendChild(
+        window.TargumFault.panel(sentence, {
+          onAct: load,
+          fact: t("home.failed.says", "Everything you've read is still here."),
+        })
+      );
     } else {
       holder.appendChild(element("p", "said bad", sentence));
     }

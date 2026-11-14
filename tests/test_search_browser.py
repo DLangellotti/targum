@@ -419,3 +419,22 @@ def test_on_a_phone_the_language_pill_never_covers_the_tabs(browser) -> None:
     for height, natural in zip(boxes["heights"], boxes["natural"], strict=True):
         assert height >= natural - 0.5, boxes
     context.close()
+
+
+def test_a_text_of_yours_says_its_one_figure(browser, monkeypatch: pytest.MonkeyPatch) -> None:
+    """qa on targum-internal#716: the palette printed the marked share (70%) of a text
+    whose shelf row, Continue card and playlist all say our estimate (97%). It says the
+    one figure now, as ours, on a page that does not carry `figure.js` too."""
+    groups = json.loads(json.dumps(FOUND["groups"]))
+    groups[0]["rows"][0].update(known=0.7, estimated=0.97)
+    monkeypatch.setitem(FOUND, "groups", groups)
+    context, page, _ = _open(browser)
+    page.click("#palette-open")
+    page.fill("#palette-find", "ירושלם")
+    page.wait_for_selector(".palette-group[data-group='yours'] .palette-hit")
+    first = page.locator(".palette-group[data-group='yours'] .palette-hit").first
+    said = first.locator(".palette-known-said").inner_text()
+    done = first.locator(".meter > span").evaluate("s => s.style.getPropertyValue('--done')")
+    context.close()
+    assert said == "About 97% (our estimate)"
+    assert done == "0.97"

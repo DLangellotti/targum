@@ -9592,7 +9592,20 @@ class Handler(BaseHTTPRequestHandler):
 
         def yours_rows(found: list[dict[str, Any]]) -> list[dict[str, Any]]:
             self._measure(home, found)
-            return [measured(text_row(row), row.get("known")) for row in found]
+            rows = []
+            for row in found:
+                said = measured(text_row(row), row.get("known"))
+                # The text's one figure (design.md §12, 2026-11-04; targum-internal#716):
+                # our estimate where it is the figure, beside the marked share, so the
+                # palette says what the shelf, Continue and the playlist say. Its band
+                # is the figure's, so "Hard for now" never stands beside "About 97%".
+                estimated = row.get("estimated")
+                if "known" in said and isinstance(estimated, (int, float)):
+                    said["estimated"] = round(float(estimated), 4)
+                    said["band"] = search_module.band(float(estimated))
+                    said["bandWord"] = self._band_word(said["band"])
+                rows.append(said)
+            return rows
 
         def library_row(entry: Any) -> dict[str, Any]:
             row = {

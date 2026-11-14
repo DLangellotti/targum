@@ -586,8 +586,9 @@ def test_a_fault_on_the_tab_is_never_told_as_no_subscriptions(browser) -> None:
     routes = _tab_routes((502, "<html><body>Bad gateway</body></html>"))
     serve(page, routes, [])
     page.goto(f"{SITE}/?show=subscriptions")
-    page.wait_for_selector("#subs-said:not([hidden])")
-    said = page.text_content("#subs-said")
+    # The one fault block Recent and Playlists draw (targum-internal#716 P2-10).
+    page.wait_for_selector(".sub-fault .fault-panel")
+    said = page.text_content(".sub-fault .fault-panel")
     empty_shown = page.eval_on_selector("#subs-empty", "p => !p.hidden")
     routes["/subscriptions.json"] = {
         "signedIn": True,
@@ -595,9 +596,9 @@ def test_a_fault_on_the_tab_is_never_told_as_no_subscriptions(browser) -> None:
         "series": SERIES,
         "credits": {"left": 354, "back": "November 1"},
     }
-    page.click("#subs-said .sub-again")
+    page.click(".sub-fault .fault-go")
     page.wait_for_selector("#subs-rows .sub-row")
-    gone = page.eval_on_selector("#subs-said", "p => p.hidden")
+    gone = page.locator(".sub-fault").count() == 0
     context.close()
     assert said and said.startswith("We couldn't load your subscriptions."), said
     assert "Try again" in said and not empty_shown, (said, empty_shown)
@@ -629,15 +630,15 @@ def test_a_fault_on_one_subscription_is_never_told_as_gone(browser) -> None:
     }
     serve(page, routes, [])
     page.goto(f"{SITE}/subscriptions/2")
-    page.wait_for_selector("#sub-said:not([hidden])")
-    said = page.text_content("#sub-said")
+    page.wait_for_selector(".sub-fault .fault-panel")
+    said = page.text_content(".sub-fault .fault-panel")
     gone = page.eval_on_selector("#gone", "s => !s.hidden")
     routes["/subscriptions/2.json"] = {
         "signedIn": True,
         "subscription": dict(ROWS[1], caps=[30, 60, 120, 240], items=[]),
         "credits": {"left": 354, "back": "November 1"},
     }
-    page.click("#sub-said .sub-again")
+    page.click(".sub-fault .fault-go")
     page.wait_for_selector("#sub-body .sub-head")
     context.close()
     assert said and said.startswith("We couldn't load this subscription."), said
