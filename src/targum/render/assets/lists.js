@@ -229,7 +229,7 @@
     var tr = el("tr", "held");
     tr.setAttribute("data-word", word.lemma);
     var cell = el("td", "held-cell");
-    cell.colSpan = 6;
+    cell.colSpan = 5;
     var note = el("span", "held-note");
     var term = el("bdi", "term", word.term);
     term.setAttribute("lang", code);
@@ -1146,7 +1146,7 @@
   function metRow(word) {
     var tr = el("tr", "met-row");
     var cell = el("td", "met-cell");
-    cell.colSpan = 6;
+    cell.colSpan = 5;
     var said = metSaid[word.lemma] || { waiting: true };
     if (said.waiting) {
       cell.appendChild(el("p", "met-note", t("lists.met.finding", "Finding the texts…")));
@@ -1318,13 +1318,11 @@
           },
         })
       );
-      tr.appendChild(stage);
-
-      // Known by ear, a column after the stages (targum-internal#536): the same toggle as
-      // the card's, compact at a desk; on a phone the cell is a line of its own under the
-      // stage's name, a thumb tall.
-      var earCell = el("td", "ear");
-      earCell.appendChild(
+      // Known by ear (targum-internal#536): the card's toggle, on its own line under the
+      // row's five stages, as it stands under the card's. In the stages' own cell rather
+      // than a column of its own, which widened the table past the practice card beside
+      // it at a desk (board WordsDesk); a thumb tall on a phone.
+      stage.appendChild(
         window.TargumVocab.earButton(
           !!word.ear,
           function (on) {
@@ -1337,7 +1335,7 @@
           { compact: true, label: t("lists.ear.label", "Known by ear: {word}", { word: word.term }) }
         )
       );
-      tr.appendChild(earCell);
+      tr.appendChild(stage);
 
       // The row opens the word's card, as every list on these pages does (2026-09-18).
       opens(tr, wordCard(word));

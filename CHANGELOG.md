@@ -32,7 +32,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     rebuilt or re-measured.
   - A toggle, Known by ear, on its own line under the five stages on every word card:
     the reader card in each view, the listening view, Hear first, Practise these, Home's
-    words to know first, and a column on Your Words (a line of its own on a phone). A
+    words to know first, and under each row's five stages on Your Words. A
     second press takes it back. Never on a phrase card. The quiet outlined press, filled
     with the teal wash when pressed; 44px under a coarse pointer.
   - A word known by ear and never marked when reading has no stage (status NULL): it is
@@ -49,7 +49,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     (`known_by_ear`). No tool writes it.
   - Dictation's result opens a word's card on a tap (D6); the result still writes
     nothing. New strings in English and Russian (`vocab.ear*`, `lists.stage.ear`,
-    `lists.col.ear`, `lists.stage.unmarked`, `lists.counts`, `lists.csv.by-ear`,
+    `lists.stage.unmarked`, `lists.counts`, `lists.csv.by-ear`,
     `lists.csv.yes`, `lists.ear.label`, `progress.where.ear`, `progress.ear.start`,
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.

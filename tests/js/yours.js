@@ -175,8 +175,9 @@ const part = (name) => claimBody.querySelector("." + name) || { hidden: true, ch
  *  was met, its stage by name, and the five stages to press. */
 function words() {
   return at("word-rows").children.map((row) => {
-    const [word, said, met, status, stage, ear] = row.children;
-    const earToggle = ear ? ear.querySelector(".ear-toggle") : null;
+    const [word, said, met, status, stage] = row.children;
+    // Known by ear, under the stages in their own cell (#536).
+    const earToggle = stage ? stage.querySelector(".ear-toggle") : null;
     const find = (node, name) => (node && node.querySelector(name)) || null;
     const form = (word.children || []).find((node) => String(node.className).includes("form"));
     const scale = ((stage || { children: [] }).children[0] || { children: [] }).children[0];

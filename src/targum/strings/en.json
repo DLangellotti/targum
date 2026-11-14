@@ -4883,7 +4883,6 @@
   "vocab.ear": "Known by ear",
   "vocab.ear.title": "You know this word when you hear it",
   "lists.stage.ear": "Known by ear",
-  "lists.col.ear": "By ear",
   "lists.stage.unmarked": "Not marked",
   "lists.counts.one": "{n} known · {m} known by ear",
   "lists.counts.other": "{n} known · {m} known by ear",

@@ -235,10 +235,10 @@ table.words-table .status-met { display: none; }
 table.words-table td.stage { white-space: nowrap; cursor: auto; }
 table.words-table td.stage .vocab-editor { gap: 0; }
 table.words-table td.stage .vocab-editor .levels { flex-wrap: nowrap; }
-/* Known by ear (targum-internal#536): a column after the stages at a desk, the compact
-   toggle in it; under the tabs, both counts in tabular figures, wrapping only after the
-   dot. A word known by ear alone has no stage, so its dot is the hairline's. */
-table.words-table td.ear { white-space: nowrap; cursor: auto; }
+/* Known by ear (targum-internal#536): the toggle on its own line under the row's five
+   stages, the way it stands under the card's. Both counts stand under the tabs in
+   tabular figures. A word known by ear alone has no stage, so its dot is the hairline's. */
+table.words-table td.stage .ear-toggle { margin-block-start: 0.35rem; }
 table.words-table .dot-none { background: none; box-shadow: inset 0 0 0 1px var(--rule); }
 .words-both { margin: 0.25rem 0 0.5rem; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 /* A word just ignored (QA 2026-10-11, decision D6): its row says where it went, quietly,
@@ -363,7 +363,7 @@ table.words-table .copy.copied { opacity: 1; }
   table.words-table tbody tr {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    grid-template-areas: "word meaning" "status status" "ear ear" "stage stage";
+    grid-template-areas: "word meaning" "status status" "stage stage";
     align-items: baseline;
     gap: 0.35rem 0.75rem;
     padding-block: 0.9rem;
@@ -371,7 +371,7 @@ table.words-table .copy.copied { opacity: 1; }
   }
   table.words-table.is-rtl tbody tr {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "meaning word" "status status" "ear ear" "stage stage";
+    grid-template-areas: "meaning word" "status status" "stage stage";
   }
   table.words-table td { padding: 0; border: 0; }
   table.words-table td.word-cell { grid-area: word; }
@@ -382,9 +382,8 @@ table.words-table .copy.copied { opacity: 1; }
   table.words-table .status-met { display: inline; }
   table.words-table td.stage { grid-area: stage; }
   table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
-  /* Its own line under the stage's name, a thumb tall (targum-internal#536). */
-  table.words-table td.ear { grid-area: ear; }
-  table.words-table td.ear .ear-toggle { min-block-size: 44px; }
+  /* Known by ear under the stages, a thumb tall (targum-internal#536). */
+  table.words-table td.stage .ear-toggle { min-block-size: 44px; }
   table.words-table tbody tr.held,
   table.words-table.is-rtl tbody tr.held,
   table.words-table tbody tr.met-row { display: block; padding-block-start: 0; }
