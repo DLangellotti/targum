@@ -11980,14 +11980,20 @@ class Handler(BaseHTTPRequestHandler):
         shown = payload.get("lemmas")
         shown_set = {str(x) for x in shown} if isinstance(shown, list) else None
         wanted_stages = (
-            {int(n) for n in statuses if isinstance(n, int | float)}
+            {int(n) for n in statuses if isinstance(n, int | float) and n == n}
             if isinstance(statuses, list)
             else None
         )
         backs = payload.get("backs") if isinstance(payload.get("backs"), dict) else {}
         words: list[dict[str, str]] = []
         for row in self.store.saved_words(person, language):
-            if wanted_stages is not None and row["status"] not in wanted_stages:
+            # A word known by ear alone has no stage to ask about, and goes where the
+            # page shows it (targum-internal#536).
+            if (
+                wanted_stages is not None
+                and row["status"] is not None
+                and row["status"] not in wanted_stages
+            ):
                 continue
             lemma = str(row["lemma"])
             if shown_set is not None and lemma not in shown_set:
@@ -12002,7 +12008,12 @@ class Handler(BaseHTTPRequestHandler):
                     "term": term,
                     "lemma": lemma,
                     "back": back,
-                    "tags": f"targum targum::{language} targum::level-{row['status']}",
+                    "tags": " ".join(
+                        ["targum", f"targum::{language}"]
+                        # No `level-None` for a word known by ear alone (#536).
+                        + ([f"targum::level-{row['status']}"] if row["status"] is not None else [])
+                        + (["targum::ear"] if row.get("ear") else [])
+                    ),
                 }
             )
         if not words:

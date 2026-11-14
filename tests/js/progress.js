@@ -304,6 +304,16 @@ function report() {
     nothing: at("nothing").hidden === false,
     counts: counts(),
     tiles: counts_(),
+    // Known by ear (#536): the story's second line, and the figure beside words known.
+    ear: (() => {
+      const known = at("counts").children.find((box) => String(box.className).includes("count-known"));
+      const link = known ? known.children.find((child) => String(child.className).includes("count-ear")) : null;
+      return {
+        line: at("ear-line").hidden === false ? at("ear-line").textContent : "",
+        figure: link ? link.textContent : "",
+        href: link ? link.href : "",
+      };
+    })(),
     asked: asked,
     where: {
       head: at("where-title").textContent,

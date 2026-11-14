@@ -414,3 +414,85 @@ def test_a_moved_mark_is_something_the_account_has_to_hear_about() -> None:
     assert gone["m:he:en:לאורך"] == words["ארך"]["seen"], "and so is its meaning's"
     assert after["targum:meanings:he:en"]["ארך"]["seen"] == words["ארך"]["seen"]
     assert "m:he:ru:ספר" not in gone and set(gone) == {"w:he:לאורך", "m:he:en:לאורך"}
+
+
+# --- known by ear (targum-internal#536) ------------------------------------------------
+#
+# design.md §12, "A word can be known by ear, and only the reader says so" (2026-11-14):
+# a toggle under the five stages on a word's card, which writes the ear mark alone, and
+# which a second press takes back.
+
+
+def test_the_ear_toggle_stands_under_the_scale_and_its_legend() -> None:
+    said = run(status=2, legend=True, withEar=True)
+    assert said["toggleBefore"] == {
+        "pressed": "false",
+        "label": "Known by ear",
+        "title": "You know this word when you hear it",
+    }
+    order = [name.split()[0] if name else "" for name in said["order"]]
+    assert order.index("levels") < order.index("level-legend") < order.index("btn")
+    # Before the note and its other presses.
+    assert said["order"].index(next(n for n in said["order"] if "ear-toggle" in n)) < (
+        said["order"].index("note-field")
+    )
+
+
+def test_a_press_marks_it_a_second_press_takes_it_back_and_no_stage_moves() -> None:
+    once = run(status=2, withEar=True, earPresses=1)
+    assert once["ears"] == [True]
+    assert once["toggle"]["pressed"] == "true"
+    assert once["levels"] == [], "the ear press never touches the stage"
+    twice = run(status=2, withEar=True, earPresses=2)
+    assert twice["ears"] == [True, False]
+    assert twice["toggle"]["pressed"] == "false"
+    # The label never changes: the state is aria-pressed and the wash.
+    assert twice["toggle"]["label"] == once["toggle"]["label"] == "Known by ear"
+
+
+def test_a_word_known_by_ear_draws_pressed_and_a_stage_press_leaves_it_alone() -> None:
+    said = run(status=9, ear=True, withEar=True, level=2)
+    assert said["toggle"]["pressed"] == "true"
+    assert said["levels"] == [2]
+    assert said["ears"] == []
+
+
+def test_no_caller_without_an_ear_handler_gets_a_toggle() -> None:
+    """A phrase card hands none, so it draws none; nor does a field drawn without a scale."""
+    assert run(status=2, legend=True)["toggleBefore"] is None
+    assert run(withEar=True, noLevels=True)["toggleBefore"] is None
+
+
+def test_a_word_known_by_ear_alone_has_no_stage_and_is_on_no_list() -> None:
+    stored = run(setEar=[{"language": "he", "lemma": "שמע", "on": True, "surface": "שומע"}])[
+        "stored"
+    ]
+    word = stored["targum:vocab:he"]["שמע"]
+    assert word["ear"] == 1
+    assert word["status"] is None
+    # Never "saved" on any day: the reading marks' dates are untouched.
+    assert word["at"] == 0
+    assert word["seen"] > 0
+
+
+def test_the_ear_mark_on_a_staged_word_leaves_its_stage_and_comes_off_alone() -> None:
+    stored = run(
+        stored={"targum:vocab:he": json.dumps({"בית": {"status": 2, "at": 5, "seen": 5}})},
+        setEar=[
+            {"language": "he", "lemma": "בית", "on": True},
+            {"language": "he", "lemma": "בית", "on": False},
+        ],
+    )["stored"]
+    word = stored["targum:vocab:he"]["בית"]
+    assert word["status"] == 2 and word["at"] == 5
+    assert "ear" not in word
+
+
+def test_taking_the_ear_mark_off_a_word_with_no_stage_takes_the_record_away() -> None:
+    stored = run(
+        setEar=[
+            {"language": "he", "lemma": "שמע", "on": True},
+            {"language": "he", "lemma": "שמע", "on": False},
+        ]
+    )["stored"]
+    assert "שמע" not in stored["targum:vocab:he"]

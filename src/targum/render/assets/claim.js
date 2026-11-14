@@ -320,7 +320,9 @@
           if (answer.error) return draw(gathered);
           into = answer.into || into;
           var fresh = (answer.words || []).filter(function (word) {
-            return !ledger[word.form] && !passed[word.form];
+            // A word known by ear alone is not marked when reading, so it is still asked.
+            var held = ledger[word.form];
+            return (!held || held.status === null || held.status === undefined) && !passed[word.form];
           });
           gathered = gathered.concat(fresh);
           next = answer.next;
@@ -386,7 +388,11 @@
       var passed = read(PASSED, "{}");
       var now = Date.now();
       known.forEach(function (word, n) {
-        if (ledger[word.form]) return;
+        // A word known by ear alone has no stage yet, so it can still be ticked off; its
+        // ear mark stays (targum-internal#536).
+        var held = ledger[word.form];
+        var ear = !!(held && held.ear);
+        if (held && held.status !== null && held.status !== undefined) return;
         ledger[word.form] = {
           status: 9,
           surface: word.form,
@@ -401,6 +407,7 @@
           at: now + n,
           seen: now + n,
         };
+        if (ear) ledger[word.form].ear = 1;
       });
       shown.forEach(function (word) {
         if (!ledger[word.form]) passed[word.form] = 1;

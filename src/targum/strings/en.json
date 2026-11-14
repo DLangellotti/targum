@@ -4879,5 +4879,21 @@
   "progress.where.unmeasured-arc": "We don't place Aramaic texts by level yet.",
   "progress.next.texts-arc-all": "Every Aramaic text is in the Library.",
   "progress.next.texts-first": "Start with the beginner conversations.",
-  "progress.next.texts-first-easiest": "Start with the easiest texts in the Library."
+  "progress.next.texts-first-easiest": "Start with the easiest texts in the Library.",
+  "vocab.ear": "Known by ear",
+  "vocab.ear.title": "You know this word when you hear it",
+  "lists.stage.ear": "Known by ear",
+  "lists.col.ear": "By ear",
+  "lists.stage.unmarked": "Not marked",
+  "lists.counts.one": "{n} known · {m} known by ear",
+  "lists.counts.other": "{n} known · {m} known by ear",
+  "lists.csv.by-ear": "known by ear",
+  "lists.csv.yes": "yes",
+  "lists.ear.label": "Known by ear: {word}",
+  "progress.where.ear.one": "You know {n} word by ear.",
+  "progress.where.ear.other": "You know {n} words by ear.",
+  "progress.ear.start": "Mark a word Known by ear on its card when you know it by sound.",
+  "progress.count.ear.one": "{n} known by ear",
+  "progress.count.ear.other": "{n} known by ear",
+  "sentences.open-word": "Open the card for {word}"
 }

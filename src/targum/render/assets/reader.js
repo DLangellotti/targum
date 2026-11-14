@@ -2261,7 +2261,32 @@ var targumReader = function () {
 
   function statusOf(lemma) {
     var item = vocab[lemma];
-    return item ? item.status : undefined;
+    // A word known by ear and never marked when reading has a record and no stage
+    // (targum-internal#536, D2): the page asks about it as it asks about any unmarked word.
+    return item && item.status !== null ? item.status : undefined;
+  }
+
+  // Known by ear: the reader's own press, beside the stage and never moved by it.
+  function earOf(lemma) {
+    return !!(vocab[lemma] && vocab[lemma].ear);
+  }
+
+  // The ear mark set or taken off (targum-internal#536). Only the card's toggle calls
+  // this: no player, no finish, no practice. A word with no record gets one with no stage
+  // and `at` nought; taking the mark off a word with no stage takes the record away.
+  function setEar(index, surface, band, on) {
+    var lemma = lemmas[index];
+    if (!lemma) return;
+    var item = vocab[lemma];
+    if (!item) {
+      if (!on) return;
+      item = vocab[lemma] = { status: null, surface: surface || lemma, band: band || "", learned: 0, at: 0 };
+    }
+    if (on) item.ear = 1;
+    else delete item.ear;
+    stamp(item);
+    if (!on && statusOf(lemma) === undefined) forgetWord(lemma, true);
+    remember();
   }
 
   // Unmarked: a word the page is still asking about.
@@ -2281,7 +2306,7 @@ var targumReader = function () {
   function setNote(index, surface, band, text) {
     var lemma = lemmas[index];
     if (!lemma) return;
-    if (!vocab[lemma]) {
+    if (statusOf(lemma) === undefined) {
       if (!text) return;
       setStatus(index, surface, band, TargumVocab.LEARNING[0]);
     }
@@ -2360,7 +2385,21 @@ var targumReader = function () {
   // written in — from this page's own copies and from the store, which `sync.js` sweeps
   // and tombstones. Left behind, a meaning with no word under it kept a language in the
   // definitions switcher after the last word learned through it was gone.
-  function forgetWord(lemma) {
+  function forgetWord(lemma, all) {
+    // A word known by ear keeps its record, without a stage, when its stage is taken
+    // back (targum-internal#536): the ear mark is the reader's other press, and undoing
+    // a stage does not undo it. `all` is the ear mark itself coming off.
+    if (!all && vocab[lemma] && vocab[lemma].ear) {
+      vocab[lemma] = stamp({
+        status: null,
+        surface: vocab[lemma].surface || lemma,
+        band: vocab[lemma].band || "",
+        learned: 0,
+        at: 0,
+        ear: 1,
+      });
+      return;
+    }
     delete vocab[lemma];
     var theirs = termTongue(lemma);
     Object.keys(meaningStores).forEach(function (pair) {
@@ -2394,7 +2433,8 @@ var targumReader = function () {
     unmarkedHere().forEach(function (lemma) {
       if (statusOf(lemma) !== undefined) return;
       var index = lemmas.indexOf(lemma);
-      batch.push({ lemma: lemma, before: null });
+      var ear = earOf(lemma);
+      batch.push({ lemma: lemma, before: ear ? JSON.parse(JSON.stringify(vocab[lemma])) : null });
       vocab[lemma] = {
         status: KNOWN,
         surface: lemma,
@@ -2405,6 +2445,8 @@ var targumReader = function () {
         at: nextOrder(),
         seen: Date.now(),
       };
+      // Known by ear stays as it was (targum-internal#536).
+      if (ear) vocab[lemma].ear = 1;
       keepMeaning(lemma, glosses[index]);
     });
     if (!batch.length) return 0;
@@ -2905,12 +2947,21 @@ var targumReader = function () {
     return "";
   }
 
+  // A record handed back by undo, with the ear mark as it stands now: undo takes back a
+  // stage, and the ear mark is a press of its own (targum-internal#536).
+  function earKept(lemma, before) {
+    var record = stamp(JSON.parse(JSON.stringify(before)));
+    if (earOf(lemma)) record.ear = 1;
+    else delete record.ear;
+    return record;
+  }
+
   function undo() {
     var last = undoable.pop();
     if (!last) return false;
     if (last.bulk) {
       last.bulk.forEach(function (item) {
-        if (item.before) vocab[item.lemma] = item.before;
+        if (item.before) vocab[item.lemma] = earKept(item.lemma, item.before);
         else forgetWord(item.lemma);
       });
       remember();
@@ -2919,7 +2970,7 @@ var targumReader = function () {
       return true;
     }
     if (last.before) {
-      vocab[last.lemma] = last.before;
+      vocab[last.lemma] = earKept(last.lemma, last.before);
     } else {
       forgetWord(last.lemma);
     }
@@ -2999,6 +3050,7 @@ var targumReader = function () {
     if (status === null || status === undefined) {
       forgetWord(lemma);
     } else {
+      var ear = earOf(lemma);
       vocab[lemma] = {
         status: status,
         surface: vocab[lemma] ? vocab[lemma].surface || surface : surface,
@@ -3010,6 +3062,8 @@ var targumReader = function () {
         at: vocab[lemma] ? vocab[lemma].at || nextOrder() : nextOrder(),
         seen: Date.now(),
       };
+      // A stage press never touches the ear mark (targum-internal#536).
+      if (ear) vocab[lemma].ear = 1;
       // What the page says it means, kept beside the word under the language it was
       // said in. The word record used to hold it, which made one slot for a fact that
       // has one answer per language: keeping a word while reading in Russian overwrote
@@ -5290,6 +5344,13 @@ var targumReader = function () {
     return TargumVocab.editor({
       status: statusOf(lemma),
       note: noteOf(lemma),
+      // Known by ear (targum-internal#536), under the scale on every word card: the text,
+      // Beside, Under, Theatre, the listening view and Hear first all draw this one. It
+      // writes the ear mark alone, and redraws nothing: the word is drawn by its stage.
+      ear: earOf(lemma),
+      onEar: function (on) {
+        setEar(index, surface, band, on);
+      },
       // The scale says what the pressed step means. "1 2 3" alone had to be explained
       // — the first alpha reader asked — and the names were only ever in tooltips.
       legend: true,

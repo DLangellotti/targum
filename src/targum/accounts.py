@@ -454,10 +454,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    so the deploy ends no working connection; one UPDATE, and nothing for it to touch
 #    the second time, since nothing writes a 0 there any more.
 #
+# 67→68: word.ear and word.ear_at — a word known by ear, apart from known when read, and
+#    when it became so (targum-internal#536; design.md §12, "A word can be known by ear,
+#    and only the reader says so", 2026-11-14). Only the reader's press writes `ear`;
+#    `ear_at` is set by the account the way `known_at` is, from `began` on, and cleared
+#    when the mark comes off. Nought and NULL on every row before them, and nothing is
+#    filled in. On a table every box has, so they are in MIGRATIONS.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 67
+SCHEMA_VERSION = 68
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -960,6 +967,10 @@ MIGRATIONS: tuple[str, ...] = (
     "UPDATE oauth_token SET expires ="
     f" (CAST(strftime('%s', 'now') AS INTEGER) + {REFRESH_IDLE_DAYS} * 86400) * 1000"
     " WHERE kind = 'refresh' AND expires = 0 AND revoked = 0",
+    # Known by ear, and when (schema 68, targum-internal#536): nought and NULL on every
+    # word before it, since nobody had said so.
+    "ALTER TABLE word ADD COLUMN ear INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE word ADD COLUMN ear_at INTEGER",
 )
 
 
@@ -1084,6 +1095,10 @@ CREATE TABLE IF NOT EXISTS word (
   -- When the word became known, set by the account at the push that made it so and
   -- cleared when it leaves known; NULL for a word known before 2026-10-30.
   known_at INTEGER,
+  -- Known by ear (targum-internal#536): 1 only where the reader pressed it, apart from
+  -- the stage, and when it became so, set by the account as known_at is.
+  ear      INTEGER NOT NULL DEFAULT 0,
+  ear_at   INTEGER,
   PRIMARY KEY (person, language, lemma)
 );
 
@@ -1987,10 +2002,10 @@ def _kept(row: sqlite3.Row) -> Kept:
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
 #: Fields that stay NULL when nothing is known, rather than nought or empty.
-NULLABLE = frozenset({"status", "known_at"})
+NULLABLE = frozenset({"status", "known_at", "ear_at"})
 
 NUMERIC = frozenset(
-    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
+    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds", "ear"}
 )
 
 
@@ -2118,6 +2133,9 @@ KINDS: dict[str, Kind] = {
             "source",
             "at",
             "known_at",
+            # Known by ear (targum-internal#536): the reader's press, and when.
+            "ear",
+            "ear_at",
         ),
     ),
     "meanings": Kind(
@@ -4675,6 +4693,9 @@ class Store:
 
         if kind.table == "word":
             item = {**item, "known_at": self._known_at(item, existing, seen)}
+            item = {**item, "ear_at": self._ear_at(item, existing, seen)}
+            if "ear" in item:
+                item["ear"] = 1 if item["ear"] else 0
 
         columns = ["person", *kind.key, *kind.fields, "seen", "gone", "revision"]
         row = [
@@ -4712,6 +4733,27 @@ class Store:
             return None
         if existing is not None and existing["status"] == KNOWN_STATUS and not existing["gone"]:
             kept = existing["known_at"]
+            return None if kept is None else int(kept)
+        return seen if seen >= self.began() else None
+
+    def _ear_at(self, item: dict[str, Any], existing: sqlite3.Row | None, seen: int) -> int | None:
+        """When the word became known by ear, as this push leaves it (targum-internal#536).
+
+        `_known_at`'s rule for the ear mark. No page sends it. A push that does not say
+        `ear` at all — an older page, or a saved reader carrying old JS — leaves the mark
+        and its date as they are stored. A word not known by ear has none; one known by
+        ear already keeps its date; one becoming so takes this edit's time, from `began`
+        on, and nothing earlier is dated by a guess.
+        """
+        if "ear" not in item:
+            if existing is None or not existing["ear"]:
+                return None
+            kept = existing["ear_at"]
+            return None if kept is None else int(kept)
+        if not item.get("ear") or item.get("gone"):
+            return None
+        if existing is not None and existing["ear"] and not existing["gone"]:
+            kept = existing["ear_at"]
             return None if kept is None else int(kept)
         return seen if seen >= self.began() else None
 
@@ -5030,7 +5072,8 @@ class Store:
             add(int(row["at"]), str(row["language"]), "met")
         for row in self.db.execute(
             "SELECT language, at, known_at, status FROM word WHERE person = ? AND gone = 0"
-            " AND COALESCE(status, 1) != 0 AND COALESCE(band, '') NOT IN ('name', 'number')"
+            " AND COALESCE(status, 1) != 0 AND NOT (status IS NULL AND ear = 1)"
+            " AND COALESCE(band, '') NOT IN ('name', 'number')"
             # A bulk claim on "Words you may already know" is neither saved nor come to
             # know in its period (David, 2026-10-30): hundreds in a minute, all old.
             " AND source != 'claimed'",
@@ -5103,7 +5146,8 @@ class Store:
             (str(row["lemma"]), row["status"], str(row["source"] or ""))
             for row in self.db.execute(
                 "SELECT lemma, status, source FROM word"
-                " WHERE person = ? AND language = ? AND gone = 0 ORDER BY lemma",
+                " WHERE person = ? AND language = ? AND gone = 0"
+                " AND NOT (status IS NULL AND ear = 1) ORDER BY lemma",
                 (int(person_id), code),
             )
         ]
@@ -5155,13 +5199,43 @@ class Store:
         first, with the surface it was met as, its stage, and what they wrote for it: what
         an Anki export is made of (targum-internal#496), from the account rather than from
         what a page sends."""
+        # A word known by ear and never marked when reading has no stage, and is still
+        # the reader's word to take away (targum-internal#536): it goes in, tagged by ear.
         rows = self.db.execute(
-            "SELECT lemma, surface, status, meaning, note FROM word"
+            "SELECT lemma, surface, status, meaning, note, ear FROM word"
             " WHERE person = ? AND language = ? AND gone = 0"
-            " AND status IS NOT NULL AND status != 0 ORDER BY at",
+            " AND COALESCE(status, -1) != 0 AND (status IS NOT NULL OR ear = 1) ORDER BY at",
             (person.id, language.split("-")[0].lower()),
         )
         return [dict(row) for row in rows]
+
+    def ear_count(self, person: Person, language: str) -> int:
+        """How many words this person knows by ear in one language (targum-internal#536):
+        a count beside the reading one, never a share of a text. Names and numbers, and
+        an ignored word, are not vocabulary."""
+        from .level import NOT_VOCABULARY
+
+        bands = sorted(NOT_VOCABULARY)
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND ear = 1 AND COALESCE(status, -1) != 0"
+            f" AND COALESCE(band, '') NOT IN ({', '.join('?' for _ in bands)})",
+            (person.id, language.split("-")[0].lower(), *bands),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def ear_words(self, person_id: int | None, language: str) -> dict[str, int | None]:
+        """Every word the reader knows by ear in one language, with its stage when read
+        (None for one never marked when reading) — what the connector's word list says
+        (targum-internal#536)."""
+        if person_id is None:
+            return {}
+        rows = self.db.execute(
+            "SELECT lemma, status FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND ear = 1 AND COALESCE(band, '') NOT IN ('name', 'number')",
+            (int(person_id), language.split("-")[0].lower()),
+        )
+        return {str(row["lemma"]): row["status"] for row in rows}
 
     def anki_clips_since(self, owner: int, since: int) -> int:
         """How many sounds this person's Anki exports have had made since `since`: the
@@ -5180,7 +5254,7 @@ class Store:
         search, everywhere", 2026-10-09)."""
         rows = self.db.execute(
             "SELECT lemma, meaning, status FROM word WHERE person = ? AND language = ?"
-            " AND gone = 0",
+            " AND gone = 0 AND NOT (status IS NULL AND ear = 1)",
             (person.id, language.split("-")[0].lower()),
         )
         return [(str(row["lemma"]), str(row["meaning"] or ""), row["status"]) for row in rows]
@@ -5205,7 +5279,10 @@ class Store:
             return []
         rows = self.db.execute(
             "SELECT lemma, status, band, at FROM word"
-            " WHERE person = ? AND language = ? AND gone = 0",
+            # A word known by ear alone has no reading stage, and nothing that weighs
+            # the reading marks sees it (targum-internal#536).
+            " WHERE person = ? AND language = ? AND gone = 0"
+            " AND NOT (status IS NULL AND ear = 1)",
             (person_id, language.split("-")[0].lower()),
         )
         return [

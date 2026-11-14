@@ -1546,3 +1546,56 @@ def test_the_experimental_note_starts_where_the_phone_title_does() -> None:
     title = ".progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem;"
     phone = text[text.index(title) :]
     assert ".progress .beta-note { padding-inline: 1rem; }" in phone[:400]
+
+
+# --- known by ear (targum-internal#536) ------------------------------------------------
+
+
+def _with_ear(ear: int, known: int = 3) -> dict[str, Any]:
+    words = vocab(known=known, learning=1)
+    for i in range(ear):
+        # Half on known words, half on words never marked when reading.
+        if i % 2 == 0 and f"known-{i}" in words:
+            words[f"known-{i}"]["ear"] = 1
+        else:
+            words[f"ear-{i}"] = {"status": None, "surface": f"ear-{i}", "at": 0, "ear": 1}
+    return {"targum:vocab:he": words}
+
+
+def test_progress_says_how_many_words_are_known_by_ear_beside_the_reading_count() -> None:
+    plain = draw({"targum:vocab:he": vocab(known=3, learning=1)})
+    drawn = draw(_with_ear(4))
+    # Nothing that counts the reading marks moves: the ear-only words are on no list.
+    assert drawn["counts"] == plain["counts"]
+    assert drawn["ear"]["figure"] == "4 known by ear"
+    assert drawn["ear"]["href"].startswith("/words?ear=1")
+    assert drawn["ear"]["line"] == "You know 4 words by ear."
+    one = draw(_with_ear(1))
+    assert one["ear"]["line"] == "You know 1 word by ear."
+
+
+def test_before_the_first_word_known_by_ear_progress_says_how_to_mark_one() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3)})
+    assert drawn["ear"]["figure"] == ""
+    assert drawn["ear"]["line"] == (
+        "Mark a word Known by ear on its card when you know it by sound."
+    )
+
+
+@pytest.mark.parametrize(
+    ("ear", "said"),
+    [
+        (1, "На слух вы знаете 1 слово."),
+        (3, "На слух вы знаете 3 слова."),
+        (5, "На слух вы знаете 5 слов."),
+        (11, "На слух вы знаете 11 слов."),
+    ],
+)
+def test_russian_says_the_ear_count_in_its_three_plurals(ear: int, said: str) -> None:
+    from targum import strings
+
+    russian = strings.catalogue("ru")
+    keys = {key: text for key, text in russian.items() if "ear" in key}
+    drawn = draw(_with_ear(ear, known=ear), strings={"strings": keys, "language": "ru"})
+    assert drawn["ear"]["line"] == said
+    assert drawn["ear"]["figure"] == f"на слух: {ear}"

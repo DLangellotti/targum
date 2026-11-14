@@ -137,6 +137,27 @@ bdi.unbroken { white-space: nowrap; }
 }
 .vocab-editor .note-field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
+/* Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and only
+   the reader says so", 2026-11-14): the desk's quiet outlined press on its own line under
+   the scale, filled with the teal wash in ink when pressed — never leaf, which is Known's
+   step on the ramp. The label does not change; `aria-pressed` and the wash say the state.
+   A thumb tall under a coarse pointer, and nothing moves: the fill is not animated. */
+.ear-toggle { align-self: flex-start; min-block-size: 2.25rem; padding-inline: 0.875rem; font-size: 0.8125rem; transition: none; }
+.btn.ghost.outline.ear-toggle[aria-pressed="true"],
+.btn.ghost.outline.ear-toggle[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--teal-wash);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--teal);
+}
+.ear-toggle.compact { min-block-size: 2rem; padding-inline: 0.625rem; }
+@media (hover: none) and (pointer: coarse) {
+  .ear-toggle,
+  .ear-toggle.compact { min-block-size: 44px; }
+  /* "Add your meaning" under it reaches 44px around its line; this keeps that reach off
+     the toggle, so a thumb on either lands on the one it meant. */
+  #gloss-card .ear-toggle { margin-block-end: 0.5rem; }
+}
+
 /* Where the note ends. It was always kept as it was typed, which is right and which
    nobody could see — the field looked like something you were still in the middle of.
    §9 wants ink or a hue on anything tappable and forbids a beige button on a beige card;

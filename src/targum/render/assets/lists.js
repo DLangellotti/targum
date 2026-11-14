@@ -130,10 +130,19 @@
       item[key] = changes[key];
     });
     item.seen = Date.now();
+    // A word known by ear alone was never saved (`at` nought); its first stage saves it.
+    if (!item.at && item.status !== null && item.status !== undefined) item.at = item.seen;
     save(name, store);
     Object.keys(changes).forEach(function (key) {
       word[key] = changes[key];
     });
+  }
+
+  /* Known by ear, pressed on a row, its card or Practise these (targum-internal#536):
+     the ear mark alone, through the one store and the same sync a stage uses. */
+  function setEar(word, on) {
+    window.TargumVocab.setEar(code, word.lemma, on, word.term);
+    word.ear = on ? 1 : 0;
   }
 
   /* Ignoring a word, and taking it back (QA 2026-10-11, decision D6).
@@ -220,7 +229,7 @@
     var tr = el("tr", "held");
     tr.setAttribute("data-word", word.lemma);
     var cell = el("td", "held-cell");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     var note = el("span", "held-note");
     var term = el("bdi", "term", word.term);
     term.setAttribute("lang", code);
@@ -427,6 +436,13 @@
       window.TargumVocab.editor({
         status: word.status,
         legend: true,
+        ear: !!word.ear,
+        onEar: function (on) {
+          setEar(word, on);
+          renderWords();
+          drawHead();
+          if (onChanged) onChanged();
+        },
         onStatus: function (value) {
           if (value === null || value === word.status) return;
           updateWord(word, { status: value });
@@ -847,6 +863,14 @@
           note: word.note,
           legend: true,
           placeholder: t("vocab.own-meaning", "Your own meaning"),
+          // Known by ear, under the scale (targum-internal#536). The card stays open.
+          ear: !!word.ear,
+          onEar: function (on) {
+            setEar(word, on);
+            renderWords();
+            drawHead();
+            if (onChanged) onChanged();
+          },
           onStatus: function (value) {
             restage(word, value);
             said();
@@ -883,8 +907,16 @@
       }
       host.appendChild(
         window.TargumVocab.editor({
-          status: held ? held.status : undefined,
+          status: held && held.status !== null ? held.status : undefined,
           legend: true,
+          // Known by ear (targum-internal#536): here too, since this is a word's card —
+          // Home's words to know first, and a word tapped in dictation's result (D6).
+          // Pressing it writes the ear mark alone and leaves the card open.
+          ear: !!(held && held.ear),
+          onEar: function (on) {
+            window.TargumVocab.setEar(language, word.lemma, on, word.surface || word.lemma);
+            if (word.onEar) word.onEar(on);
+          },
           onStatus: function (value) {
             var store = read(name, "{}");
             var item = store[word.lemma];
@@ -894,6 +926,7 @@
             } else {
               if (charts.learnedBy(item.status, value)) item.learned = 1;
               item.status = value;
+              if (!item.at) item.at = now;
             }
             item.seen = now;
             save(name, store);
@@ -1008,12 +1041,16 @@
           if (!(word.status >= 1 && word.status <= 3)) return false;
         } else if (want === "all") {
           // All that is on the list, which is what the head counts: an ignored word is
-          // not vocabulary (`charts.kept`), and has its own tab since D6.
+          // not vocabulary (`charts.kept`), and has its own tab since D6. A word known by
+          // ear and never marked when reading is here too, "Not marked" (#536).
           if (word.status === IGNORED) return false;
         } else if (String(word.status) !== want) {
           return false;
         }
         if (often && metIn(word) < facts.often) return false;
+        // Known by ear narrows whichever stage is open (targum-internal#536): All and it
+        // is every word known by ear, Known and it the words known both ways.
+        if (filter.ear && !word.ear) return false;
         if (!needle) return true;
         return (
           word.term.toLowerCase().indexOf(needle) > -1 ||
@@ -1109,7 +1146,7 @@
   function metRow(word) {
     var tr = el("tr", "met-row");
     var cell = el("td", "met-cell");
-    cell.colSpan = 5;
+    cell.colSpan = 6;
     var said = metSaid[word.lemma] || { waiting: true };
     if (said.waiting) {
       cell.appendChild(el("p", "met-note", t("lists.met.finding", "Finding the texts…")));
@@ -1165,6 +1202,8 @@
   }
 
   function stageName(status) {
+    // Known by ear and never marked when reading: no stage to name (targum-internal#536).
+    if (status === null || status === undefined) return t("lists.stage.unmarked", "Not marked");
     if (status === KNOWN) return t("vocab.step.known.title", "Known");
     if (status === 0) return t("lists.stage.ignored", "Ignored");
     return t("vocab.step." + status, ["", "New to you", "Still learning", "Almost known"][status] || "");
@@ -1256,7 +1295,8 @@
 
       // Its stage by name, on the ramp's colour (board WordsDesk's Status column).
       var status = el("td", "status");
-      status.appendChild(el("i", "dot dot-" + word.status));
+      var staged = word.status !== null && word.status !== undefined;
+      status.appendChild(el("i", staged ? "dot dot-" + word.status : "dot dot-none"));
       status.appendChild(el("span", "status-name", stageName(word.status)));
       if (met) {
         // On a phone the column folds under the word, and the same press with it.
@@ -1279,6 +1319,25 @@
         })
       );
       tr.appendChild(stage);
+
+      // Known by ear, a column after the stages (targum-internal#536): the same toggle as
+      // the card's, compact at a desk; on a phone the cell is a line of its own under the
+      // stage's name, a thumb tall.
+      var earCell = el("td", "ear");
+      earCell.appendChild(
+        window.TargumVocab.earButton(
+          !!word.ear,
+          function (on) {
+            setEar(word, on);
+            drawHead();
+            // Under the filter a word un-marked leaves the list; elsewhere nothing moves.
+            if (filter.ear) renderWords();
+            if (onChanged) onChanged();
+          },
+          { compact: true, label: t("lists.ear.label", "Known by ear: {word}", { word: word.term }) }
+        )
+      );
+      tr.appendChild(earCell);
 
       // The row opens the word's card, as every list on these pages does (2026-09-18).
       opens(tr, wordCard(word));
@@ -1498,7 +1557,8 @@
     var stages = {};
     var backs = {};
     visibleWords().forEach(function (word) {
-      stages[word.status] = true;
+      // A word known by ear alone has no stage to ask for; its lemma is enough (#536).
+      if (word.status !== null && word.status !== undefined) stages[word.status] = true;
       backs[word.lemma] = [word.meaning, word.note, word.lemma !== word.term ? word.lemma : ""]
         .filter(function (part) {
           return !!part;
@@ -1655,7 +1715,11 @@
          and a reader who exports twice can tell the halves apart. The level is the
          number, not its name: the names are translated and a tag that changes with the
          interface language would split one deck across five tags. */
-      var tags = ["targum", "targum::" + code, "targum::level-" + word.status];
+      var tags = ["targum", "targum::" + code];
+      // No `level-null` for a word known by ear alone, and `targum::ear` on every word
+      // known by ear (targum-internal#536, D7).
+      if (word.status !== null && word.status !== undefined) tags.push("targum::level-" + word.status);
+      if (word.ear) tags.push("targum::ear");
       lines.push([word.term, back, tags.join(" ")].map(ankiCell).join("\t"));
     });
     // No byte order mark: Anki reads UTF-8, and a BOM would land inside the first
@@ -1678,6 +1742,7 @@
         t("lists.csv.meaning", "meaning"),
         t("lists.csv.your-meaning", "your meaning"),
         t("lists.csv.kept", "kept"),
+        t("lists.csv.by-ear", "known by ear"),
       ],
       visibleWords().map(function (word) {
         return [
@@ -1688,6 +1753,8 @@
           word.meaning,
           word.note || "",
           word.at > EARLIEST ? new Date(word.at).toISOString().slice(0, 10) : "",
+          // Yes or blank, and no date, as "kept" keeps none of its own (#536).
+          word.ear ? t("lists.csv.yes", "yes") : "",
         ];
       })
     );
@@ -1757,14 +1824,23 @@
   var drawStageTabs = function () {};
 
   function mountStages(host) {
-    var chosen = { value: "learning", often: false };
+    var chosen = { value: "learning", often: false, ear: false };
     if (!host) return chosen;
+    // Your Progress's Known by ear row opens the list with the filter on, across every
+    // stage (`/words?ear=1`, targum-internal#536).
+    try {
+      if (/[?&]ear=1(&|$)/.test(location.search || "")) {
+        chosen.ear = true;
+        chosen.value = "all";
+      }
+    } catch (e) {}
     try {
       var kept = localStorage.getItem(STAGE_CHOSEN);
       stages().forEach(function (pair) {
         if (pair[0] === kept) chosen.value = kept;
       });
       if (kept === String(IGNORED)) chosen.value = kept;
+      if (chosen.ear) chosen.value = "all";
     } catch (e) {}
     function tab(value, label, on, press) {
       var button = el("button", "tab", label);
@@ -1822,6 +1898,19 @@
       } else {
         chosen.often = false;
       }
+      // Known by ear, the same kind of cut (targum-internal#536): on and off, beside Met
+      // often and drawn the same way. Drawn once a word is known by ear, or while it is on.
+      var ear = entry.words.some(function (word) {
+        return !!word.ear;
+      });
+      if (ear || chosen.ear) {
+        tab("ear", t("lists.stage.ear", "Known by ear"), chosen.ear, function () {
+          chosen.ear = !chosen.ear;
+          shown = PAGE;
+          drawStageTabs();
+          renderWords();
+        }).classList.add("tab-often", "tab-ear");
+      }
     };
     drawStageTabs();
     return chosen;
@@ -1865,6 +1954,19 @@
         );
       }
       summary.textContent = parts.join(" · ");
+    }
+    // Both counts, under the tabs (targum-internal#536): known when read, and known by
+    // ear, real counts in tabular figures. Only once a word is known by ear: before that
+    // the head above already says the first.
+    var both = at("words-both");
+    if (both) {
+      both.hidden = !sums.ear;
+      both.textContent = sums.ear
+        ? tn("lists.counts", sums.ear, "{n} known · {m} known by ear", "{n} known · {m} known by ear", {
+            n: grouped(sums.known).n,
+            m: grouped(sums.ear).n,
+          })
+        : "";
     }
     // Grouped as the head groups them: "4,560 on your list" over a tab that said 4560.
     if (at("count-words")) at("count-words").textContent = grouped(sums.saved).n;

@@ -22,6 +22,37 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Four
   new strings in English and Russian (`connect.page.you-ve-connected`, `connect.page.and`,
   `connect.page.an-app` for an app that gave no name, `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
+- A word can be marked Known by ear, apart from known when read, and only by the reader's
+  own press (targum-internal#536, design.md §12 "A word can be known by ear, and only the
+  reader says so", 2026-11-14).
+  - Accounts schema 67→68: `word.ear` and `word.ear_at`. `ear_at` is set by the account
+    the way `known_at` is, from `began` on, and cleared when the mark comes off; nothing
+    from before is filled in. A push without `ear` (an older page, or a saved reader with
+    old JS) keeps what is stored. `models.SCHEMA_VERSION` is untouched: nothing is
+    rebuilt or re-measured.
+  - A toggle, Known by ear, on its own line under the five stages on every word card:
+    the reader card in each view, the listening view, Hear first, Practise these, Home's
+    words to know first, and a column on Your Words (a line of its own on a phone). A
+    second press takes it back. Never on a phrase card. The quiet outlined press, filled
+    with the teal wash when pressed; 44px under a coarse pointer.
+  - A word known by ear and never marked when reading has no stage (status NULL): it is
+    on no list, not in the free cap, drawn unmarked in the text, and its `at` is nought,
+    so it is never "saved" on a day. Every "% known", the level, coverage, the estimate
+    and the chat's known sample stay on the reading marks.
+  - Your Words: "N known · M known by ear" under the tabs, a Known by ear filter beside Met
+    often that narrows any stage, "Not marked" for a word with no stage, and `?ear=1`
+    to open with the filter on. Your Progress: a second figure beside "words known",
+    linking there, and a line "You know N words by ear." (or how to mark the first).
+  - Exports: `targum::ear` on Anki notes (the `.apkg` and the text deck), no `level-None`
+    for a word with no stage, a "known by ear" CSV column, and the connector's
+    `my_vocabulary` (`by_ear`, per word and as a count) and `my_progress`
+    (`known_by_ear`). No tool writes it.
+  - Dictation's result opens a word's card on a tap (D6); the result still writes
+    nothing. New strings in English and Russian (`vocab.ear*`, `lists.stage.ear`,
+    `lists.col.ear`, `lists.stage.unmarked`, `lists.counts`, `lists.csv.by-ear`,
+    `lists.csv.yes`, `lists.ear.label`, `progress.where.ear`, `progress.ear.start`,
+    `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
+    pass.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,

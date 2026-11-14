@@ -1084,8 +1084,11 @@ def my_vocabulary(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     language = str(args.get("language") or ctx.level.language)
     limit = max(1, min(int(args.get("limit") or 20), 50))
     if ctx.store is None or ctx.person is None:
-        return {"language": language, "known": 0, "learning": 0, "recent": []}
+        return {"language": language, "known": 0, "learning": 0, "by_ear": 0, "recent": []}
     words = ctx.store.words_with_bands(ctx.person.id, language)
+    # Known by ear (targum-internal#536): the reader's own press, counted beside the
+    # reading marks and never folded into them. A word known by ear alone has no stage.
+    ear = ctx.store.ear_words(ctx.person.id, language)
     by_status: dict[str, int] = {"known": 0, "learning": 0, "ignored": 0}
     for _, status, band, _ in words:
         if band in ("name", "number"):
@@ -1100,11 +1103,13 @@ def my_vocabulary(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     return {
         "language": language,
         **by_status,
+        "by_ear": sum(1 for status in ear.values() if status != 0),
         "recent": [
             {
                 "lemma": lemma,
                 "status": _STATUS.get(-1 if status is None else status, "learning"),
                 "band": band,
+                "by_ear": lemma in ear,
             }
             for lemma, status, band, _ in recent
             if band not in ("name", "number")
@@ -1127,9 +1132,16 @@ def my_progress(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
     every contract forbids, on a surface where nothing of ours can stop it being said.
     """
     state = ctx.level.state()
+    by_ear = (
+        ctx.store.ear_count(ctx.person, state["language"])
+        if ctx.store is not None and ctx.person is not None
+        else 0
+    )
     return {
         "language": state["language"],
         "known": state["known"],
+        # Words the reader marked known by ear (targum-internal#536), a count of its own.
+        "known_by_ear": by_ear,
         "learning": state["learning"],
         "days": state["days"],
         "longest_run_of_days": state["longest"],
@@ -4489,7 +4501,9 @@ REGISTRY: tuple[Tool, ...] = (
         "my_vocabulary",
         "The reader's word list in one language: how many words they know, how many they "
         "are still learning, and the ones they marked most recently, each as known, "
-        "learning or ignored. Read only.",
+        "learning or ignored. by_ear counts the words the reader marked Known by ear, and "
+        "each recent word says whether it is one: only the reader marks it, never a "
+        "model. Read only.",
         _schema(
             {
                 "language": {"type": "string"},
@@ -4502,9 +4516,10 @@ REGISTRY: tuple[Tool, ...] = (
     ),
     Tool(
         "my_progress",
-        "Real counts of what the reader has done: words known, days read, their longest "
-        "run of days, sections finished. Say these counts; never say a level or a rung, "
-        "and never a streak in progress. Read only.",
+        "Real counts of what the reader has done: words known, words known by ear (which "
+        "only the reader marks), days read, their longest run of days, sections finished. "
+        "Say these counts; never say a level or a rung, and never a streak in progress. "
+        "Read only.",
         _schema({}),
         my_progress,
         scope="record",

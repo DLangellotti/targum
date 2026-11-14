@@ -306,6 +306,37 @@
     var read = wordsRead(code);
     if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
     drawRoots(code);
+    drawEar(host, sums.ear);
+  }
+
+  /* Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and
+     only the reader says so", 2026-11-14). Two things, both counts and never a share: a
+     second figure beside "words known", which opens Your Words with the filter on (the
+     way a stage is reached from here), and the story's second line under the totals —
+     how many, or, before the first, how to mark one. Nothing else on the page moves: the
+     level, what you can read and every percentage stay the reading marks. */
+  function drawEar(host, ear) {
+    var tile = host.querySelector(".count-known");
+    if (tile) {
+      var old = tile.querySelector(".count-ear");
+      if (old) old.remove();
+      if (ear > 0) {
+        var go = el(
+          "a",
+          "count-ear",
+          tn("progress.count.ear", ear, "{n} known by ear", "{n} known by ear", { n: grouped(ear) })
+        );
+        go.href = keyed("/words?ear=1");
+        tile.appendChild(go);
+      }
+    }
+    var line = document.getElementById("ear-line");
+    if (!line) return;
+    line.textContent =
+      ear > 0
+        ? tn("progress.where.ear", ear, "You know {n} word by ear.", "You know {n} words by ear.", { n: grouped(ear) })
+        : t("progress.ear.start", "Mark a word Known by ear on its card when you know it by sound.");
+    line.hidden = false;
   }
 
   /* "from N roots" under "words known" (design.md §12, '"from N roots" is a label on the

@@ -156,9 +156,13 @@ def dictation_item(heard: Heard, into: str, src: str) -> dict[str, object]:
     pointed = meetings._pointed(heard.folder, heard.segment)
     facts = _facts(heard.folder)
     sections = len(list((heard.folder / "reader").glob("sec-*.html")))
+    line = strip_taamim(pointed or heard.text)
     return {
         "key": f"{heard.document}:{heard.segment}",
-        "line": strip_taamim(pointed or heard.text),
+        "line": line,
+        # Each word's dictionary form and its place in the line as shown, so a word in the
+        # result opens its card (targum-internal#536, D6). Nothing is written by it.
+        "words": line_words(heard, line, pointed),
         "src": src,
         "start": round(heard.start, 3),
         "end": round(heard.end, 3),
@@ -168,6 +172,45 @@ def dictation_item(heard: Heard, into: str, src: str) -> dict[str, object]:
         "name": heard.folder.name,
         "language": str(facts.get("language") or ""),
     }
+
+
+def line_words(heard: Heard, line: str, pointed: str = "") -> list[dict[str, object]]:
+    """The words of a dictation line as its annotation names them: each one's dictionary
+    form and where it stands in `line`, the line as the page shows it (targum-internal
+    #536, D6). Names, numbers and what is not a word are left out, as everywhere a word is
+    counted; a word whose place cannot be carried onto the shown line is left out rather
+    than put in the wrong place. Empty where the text has no annotation."""
+    from .annotate.base import NOT_A_WORD, not_vocabulary
+    from .coverage import ANNOTATION
+
+    try:
+        loaded = json.loads((heard.folder / ANNOTATION).read_text(encoding="utf-8"))
+        tokens = (loaded.get("tokens") or {}).get(heard.segment) or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    out: list[dict[str, object]] = []
+    for token in tokens if isinstance(tokens, list) else []:
+        lemma = str(token.get("lemma") or "")
+        if (
+            not lemma
+            or lemma in NOT_A_WORD
+            or not_vocabulary(token.get("pos"), token.get("entity"))
+        ):
+            continue
+        place = meetings.Line(
+            lemma,
+            heard.document,
+            heard.folder,
+            heard.section,
+            heard.segment,
+            int(token.get("start") or 0),
+            int(token.get("end") or 0),
+        )
+        shown, start, end = meetings.drawn(place, heard.text, pointed)
+        if shown != line or not 0 <= start < end <= len(line):
+            continue
+        out.append({"lemma": lemma, "start": start, "end": end})
+    return out
 
 
 def gap_items(
@@ -199,4 +242,4 @@ def gap_items(
     return out
 
 
-__all__ = ["LINES", "Heard", "dictation_item", "gap_items", "heard_lines"]
+__all__ = ["LINES", "Heard", "dictation_item", "gap_items", "heard_lines", "line_words"]
