@@ -22,6 +22,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Four
   new strings in English and Russian (`connect.page.you-ve-connected`, `connect.page.and`,
   `connect.page.an-app` for an app that gave no name, `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
+- French register is covered: French's seventh hard spot, "register: ne-drop and on/nous",
+  is computed, shown and measured, so `targum stages` counts all seven French spots
+  covered (D5, 2026-11-05: register to flag, not error to correct).
+  `annotate/french_register.py` reads two things off the words, with rules and no model.
+  A negation said without *ne* (*je sais pas*) gets an "Informal" line on the negator's
+  card, "ne dropped. Formal: je ne sais pas". An *on* gets "Informal: on here means “we”,
+  for nous" where the sentence shows it (*nous, on…*, *on est partis*, *ensemble*, *toi et
+  moi*, *chez nous*, *et si on allait…?*, *on y va*). Every other *on* gets "Who: people in
+  general, or “we” in speech". The builder puts both on a French word's grammar line
+  (`Reg=NeDrop|Formal=…`, `On=We`, `On=Open`), so a text annotated before this shows them
+  at its next build, with nothing annotated again. Measured by `scripts/eval_register.py`
+  against `evals/french-register-gold.jsonl`: 134 sentences, 103 written for it across
+  spoken, neutral and formal French and 31 from the public-domain shelf. Scores:
+  `nedrop_precision` 1.0 (39/39), `nedrop_recall` 0.848, `formal_accuracy` 0.949,
+  `on_we_precision` 1.0 (18/18), `on_we_recall` 0.75. Floors are 0.97, 0.84, 0.94, 0.94
+  and 0.74. The rule and the gold were written by one seat, so precision is optimistic;
+  the rule also names nothing in the 342 tagged sentences of the liaison gold. It misses
+  a noun subject, an imperative and an ambiguous *plus* by design. Five new strings in
+  English and Russian (`reader.card.informal`, `ne-dropped`, `on-we`, `on-who`,
+  `on-open`); the Russian waits on ling-ru's first pass. No spend.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,

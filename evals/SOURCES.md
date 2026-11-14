@@ -48,6 +48,7 @@ found one, and is not read as free.
 | The Russian shelf, ru-local's lemmas | the annotator's own reading, not a person's | per text on the shelf; public texts only | eval; a frozen sample of open-licence texts' counts is in the suite | `finds/ru-shelf` |
 | French liaisons and readings, drafted | model-drafted, **read by ling-fr 2026-11-05** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
 | French false friends in context | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `friends/pd-fr-friends` |
+| French register: *ne* dropped, *on* for "we" | hand-written (builder as ling-fr, 2026-11-14) | 103 sentences targum's own; 31 public domain; the labels targum's own | eval only | `register/fr-register-own` |
 | French passé composé and imparfait | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `lemma/pd-fr-pc-imp` |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
@@ -83,6 +84,7 @@ different set, and the two numbers are not measured on the same thing.
 | `chat/tatoeba-correct` | the pool read (`--pool`, else `chat/exemplars.pool_path()`) |
 | `said/pd-fr-drafted` | `evals/french-said-gold.jsonl` (in the repository) |
 | `friends/pd-fr-friends` | `evals/french-false-friends-gold.jsonl` (in the repository) |
+| `register/fr-register-own` | `evals/french-register-gold.jsonl` (in the repository) |
 | `lemma/pd-fr-pc-imp` | `evals/french-pc-imparfait-gold.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
@@ -486,6 +488,28 @@ sentences above, with the gold's tags, 92 places from 38 lemmas.
 - **Licence:** the texts are public domain; the labels are targum's own.
 - **Where:** `evals/french-false-friends-gold.jsonl`, in the repository.
 - **Scored by:** `scripts/eval_false_friends.py`. **Ledger:** `friends/pd-fr-friends`.
+
+## French register: ne dropped, and on for "we"
+
+French's seventh hard spot (`annotate/french_register.py`): 134 sentences, every *ne*
+dropped marked at its clause's first negator with the formal clause, and every *on* read
+"we" or "other".
+
+- **Kind: hand-written.** The builder seat wrote 103 of them as ling-fr on 2026-11-14
+  (ling-fr's own read is pending), across
+  spoken, neutral and formal French, with the traps a rule falls into (*un pas*, *une
+  personne*, *il fait plus chaud*, *de rien*, *si jamais*, *non plus*, *je veux plus de
+  café*) and the drops it is known to miss (a noun subject, an imperative, *y a pas*,
+  *personne veut*), and took 31 verbatim from the four public-domain texts of the liaison
+  gold above (Perrault, Daudet, Maupassant, Allais), each row naming its text. 46 drops,
+  58 *on*, 24 of them "we".
+- **Caveat:** the rule and the gold were written by the same seat, so the precision is
+  optimistic; the rule also names no drop and no "we" in all 342 sentences of the liaison
+  gold, read with their own tags, which keep their *ne* throughout.
+- **Licence:** the constructed sentences and every label are targum's own; the 31 are
+  public domain.
+- **Where:** `evals/french-register-gold.jsonl`, in the repository.
+- **Scored by:** `scripts/eval_register.py`. **Ledger:** `register/fr-register-own`.
 
 ## French passé composé and imparfait
 

@@ -136,7 +136,8 @@ class HardSpot:
     #: `annotate.word_order`), "pointing:vav_consecutive" (read off the pointed text,
     #: `annotate.vav_consecutive`), "pieces:suffixes" (read off the pieces line and the
     #: word's letters, `annotate.suffixes`), "lookup:false_friends"
-    #: (`annotate.false_friends`), or "none".
+    #: (`annotate.false_friends`), "rule:french_register" (read off the words,
+    #: `annotate.french_register`), or "none".
     computed: str
     #: "card", "lens", "marks" (in the text), "pieces" (the pieces line), or "none".
     shown: str
@@ -474,7 +475,15 @@ HARD_SPOTS: dict[str, tuple[HardSpot, ...]] = {
         HardSpot(
             "subjunctive", "feature:Mood", "card", ("model-lemma", "ud-fr-gsd", "mood_accuracy")
         ),
-        HardSpot("register: ne-drop and on/nous", "none", "none", None),
+        # Register, not error (D5, 2026-11-05): a negation said without *ne* gets its
+        # formal clause on the card, and an *on* the sentence says is "we" says so. Rules
+        # on the words (`annotate/french_register.py`), scored on a 134-sentence gold.
+        HardSpot(
+            "register: ne-drop and on/nous",
+            "rule:french_register",
+            "card",
+            ("register-rule", "fr-register-own", "nedrop_precision"),
+        ),
     ),
     "it": (
         HardSpot(
