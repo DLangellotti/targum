@@ -175,6 +175,28 @@
     return node;
   }
 
+  /* How common a word is, said in words (targum-internal#725, P2 4): the column drew the
+     data layer's own band name, "easy", in Russian too. Each said through a literal t(),
+     which is how a page's strings are found for it. */
+  function common(band) {
+    switch (band) {
+      case "easy":
+        return t("claim.band.easy", "Very common");
+      case "fairly easy":
+        return t("claim.band.fairly-easy", "Common");
+      case "moderate":
+        return t("claim.band.moderate", "Fairly common");
+      case "hard":
+        return t("claim.band.hard", "Less common");
+      case "very hard":
+        return t("claim.band.very-hard", "Rare");
+      case "extremely hard":
+        return t("claim.band.extremely-hard", "Very rare");
+      default:
+        return "";
+    }
+  }
+
   function mount(host, options) {
     options = options || {};
     var panel = options.panel || host;
@@ -266,7 +288,7 @@
         form.appendChild(label);
         tr.appendChild(form);
         tr.appendChild(el("td", "", word.meaning || ""));
-        tr.appendChild(el("td", "", word.band || ""));
+        tr.appendChild(el("td", "", common(word.band)));
         rows.appendChild(tr);
       });
       panel.hidden = words.length === 0;
@@ -424,9 +446,19 @@
   // The page that carries the panel mounts it by itself; the conversation mounts its own.
   var body = document.getElementById("claim-body");
   var panel = document.getElementById("claim-panel");
+  /* Not before the account has had its say (targum-internal#725, P2 3): on a new browser
+     the ledger is empty until the first `/sync` fills it, and the panel offered את, לא
+     and היה as "not on your list yet" to a reader who had saved them. Where that pull
+     failed, what is on the list is not known, so nothing is offered as new. */
   if (body && panel) {
-    if (hebrew()) mount(body, { panel: panel });
-    else panel.hidden = true;
+    panel.hidden = true;
+    var sync = window.TargumSync;
+    var settled = sync && sync.settled ? sync.settled().then(null, function () {}) : Promise.resolve();
+    settled.then(function () {
+      if (!hebrew()) return;
+      if (sync && (sync.unreached || (sync.who && sync.pulled === false))) return;
+      mount(body, { panel: panel });
+    });
   }
 
   // On the page that carries the list, the claims made before their meanings were filed

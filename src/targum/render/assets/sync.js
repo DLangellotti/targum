@@ -913,7 +913,12 @@
     }, PLACE_EVERY);
   }
 
-  function exchange(full, leaving) {
+  /* `pull`: this exchange is the one a page waits on to know the account's list is in
+     this browser (the first start's, and a Try again), so whether it came back is kept
+     as `api.pulled`. A failed one moves nothing: no store is written, `pushed` and
+     `revision` stay where they were, and whatever was here is still here and still owed
+     (targum-internal#725). */
+  function exchange(full, leaving, pull) {
     // Whatever place is owed rides on this push, whichever page asked for it.
     placeOwed = false;
     var was = state();
@@ -942,7 +947,11 @@
     return ask("/sync", body, !!leaving)
       .then(function (answer) {
         busy = false;
-        if (!answer || answer.signedIn === false) return false;
+        if (!answer || answer.signedIn === false) {
+          if (pull) api.pulled = false;
+          return false;
+        }
+        if (pull) api.pulled = true;
         // What the account holds now, rather than what it held before this push.
         if (api.who && answer.counts) api.who.counts = answer.counts;
         var changed = applyWords(answer.words || []);
@@ -966,6 +975,7 @@
       })
       .catch(function (error) {
         busy = false;
+        if (pull) api.pulled = false;
         if (error && error.message === "409") {
           anotherAccount();
           return false;
@@ -1028,7 +1038,7 @@
     });
     // First sync on this browser sends everything: whatever was kept while
     // signed out is claimed by the account rather than stranded.
-    return exchange(fresh);
+    return exchange(fresh, false, true);
   }
 
   /* --- what the pages call -------------------------------------------------- */
@@ -1049,6 +1059,12 @@
     reached: false,
     // Whether the last start could not reach the account at all (a throw, a 5xx).
     unreached: false,
+    // Whether the account's list came back and is in this browser: null until a signed-in
+    // start has asked, false when `/sync` failed after `/account/me` answered (a 500, the
+    // connection dropping between the two). `reached` alone read that as an answered,
+    // empty account, and Your Words drew "0 on your list" over a reader's whole list
+    // (targum-internal#725). What this browser holds is untouched either way.
+    pulled: null,
 
     // True once the server has said this browser is signed out where an account is
     // needed: hosted, or a machine with an account on it. A fresh install with nobody to
@@ -1170,6 +1186,18 @@
        opened with no connection never heard who is signed in, so it asks first, and
        the first exchange after that sends whatever was kept meanwhile. Resolves once
        the push has been answered, or has failed. */
+    /* The account's list asked again, in place: the Try again beside a list drawn from
+       this browser because the first pull failed. Resolves with whether anything
+       arrived, and says so to the page as the first start does. */
+    pullAgain: function () {
+      if (!api.who) return api.start(true);
+      clearTimeout(pending);
+      return exchange(false, false, true).then(function (changed) {
+        if (api.pulled) announce(!!changed);
+        return changed;
+      });
+    },
+
     flush: function () {
       if (!api.who) return api.start();
       clearTimeout(pending);

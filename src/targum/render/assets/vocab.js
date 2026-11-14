@@ -360,7 +360,9 @@
         var says = document.createElement("span");
         says.className = "level-ignore-says";
         says.textContent = t("vocab.legend.ignore-says", "Ignore is for names and numbers.");
-        legend.appendChild(document.createTextNode(" "));
+        // A stop after the stage's name, which is a label and carries none: "New to you
+        // Ignore is for…" read as one sentence (targum-internal#725, P2 13).
+        legend.appendChild(document.createTextNode(/[.!?:…]$/.test(legend.textContent) ? " " : ". "));
         legend.appendChild(says);
       }
     }
@@ -453,8 +455,9 @@
     "</svg>";
 
   // The one live region a page without the reader's has. Made on first use rather than
-  // in every template, and hidden the way the reader's own is: `.spoken` in reader.css,
-  // which every page carries.
+  // in every template, and hidden the way the reader's own is: `.spoken` in shared.css,
+  // which every page carries (it was in reader.css, which Your Words does not load, and
+  // drew as a line at the foot of the page: targum-internal#725).
   var region = null;
 
   function announce(words) {
@@ -619,14 +622,39 @@
     function play(clip) {
       sayClip(clip);
     }
-    function failed(why) {
+    /* Said where the press was (targum-internal#725, P1 2): the sentence went only to a
+       live region, and on a page without the reader's stylesheet that was a stray line
+       at the foot of the page, far below the row. A quiet line under the word now, with
+       Try again as a press; offline it says offline. The live region is for a page with
+       nowhere to put the line. */
+    function failed(why, lost) {
       button.removeAttribute("aria-busy");
-      (options.say || announce)(why || t("vocab.could-not-say", "We couldn't say this word. Try again."));
+      var offline = lost && typeof navigator !== "undefined" && navigator.onLine === false;
+      var sentence = offline
+        ? t("vocab.hear-offline", "You're offline. Hear works again when you're back online.")
+        : why || t("vocab.could-not-say", "We couldn't say this word. Try again.");
+      var host = button.parentNode;
+      if (!window.TargumFault || !host || options.say) return (options.say || announce)(sentence);
+      var old = host.querySelector(".fault-line.hear-fault");
+      if (old) host.removeChild(old);
+      var line = window.TargumFault.line(
+        offline ? sentence : why || t("vocab.could-not-say.short", "We couldn't say this word."),
+        function () {
+          if (line.parentNode) line.parentNode.removeChild(line);
+          button.click();
+        },
+        // Inside a line of text (the practice card's), a span, so no paragraph in a paragraph.
+        /^(p|span|bdi|label|li)$/i.test(host.tagName)
+      );
+      line.classList.add("hear-fault");
+      host.appendChild(line);
     }
     button.addEventListener("click", function (event) {
       // A row or a card under the press opens or closes on a click; this one is the word's.
       event.stopPropagation();
       wanted = clip;
+      var said = button.parentNode && button.parentNode.querySelector(".fault-line.hear-fault");
+      if (said) said.parentNode.removeChild(said);
       if (heard[clip]) return play(heard[clip]);
       if (button.getAttribute("aria-busy") === "true") return;
       button.setAttribute("aria-busy", "true");
@@ -638,10 +666,18 @@
         headers: head,
         body: JSON.stringify({ text: word, language: tongue }),
       })
-        .then(function (response) {
-          return response.json();
-        })
+        .then(
+          function (response) {
+            return response.json().catch(function () {
+              return {};
+            });
+          },
+          function () {
+            return { lost: true };
+          }
+        )
         .then(function (answer) {
+          if (answer && answer.lost) return failed("", true);
           if (!answer || !answer.audio) return failed(answer && answer.error);
           button.removeAttribute("aria-busy");
           heard[clip] = answer.audio;

@@ -617,12 +617,20 @@
        tense: הלכתי, not הלך." came out with the colon on the wrong side of the
        sentence. Isolated, it reads the way it was written, and only where it begins
        follows the block. */
-    if (slip.why) {
+    if (sentenceWhy(slip.why)) {
       var reason = el("bdi", "rewrote-why", slip.why);
       reason.setAttribute("dir", "auto");
       said.appendChild(reason);
     }
     return said;
+  }
+
+  /* A correction's reason only where it is a sentence (targum-internal#725, P2 11): some
+     carry the model's own label for the kind of slip ("tense"), a machine's word that
+     stood under the line as if it were said to the reader. */
+  function sentenceWhy(why) {
+    var text = typeof why === "string" ? why.trim() : "";
+    return !!text && !/^[a-z_ -]+$/.test(text);
   }
 
   /* The record on the phrases list: every line in this language, newest first, the ones
@@ -971,7 +979,7 @@
       mine.setAttribute("lang", language);
       wrote.appendChild(mine);
       host.appendChild(wrote);
-      if (slip.why) {
+      if (sentenceWhy(slip.why)) {
         var reason = el("bdi", "form", slip.why);
         reason.setAttribute("dir", "auto");
         host.appendChild(reason);
@@ -1106,9 +1114,23 @@
     if (said.waiting) {
       cell.appendChild(el("p", "met-note", t("lists.met.finding", "Finding the texts…")));
     } else if (said.failed) {
-      cell.appendChild(
-        el("p", "met-note", t("lists.met.failed", "We couldn't open that list just now. Try again."))
-      );
+      /* Offline said as offline, and Try again a press rather than words
+         (targum-internal#725, P2 5). */
+      var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      var sentence = offline
+        ? t("lists.met.offline", "You're offline. This list opens when you're back online.")
+        : t("lists.met.failed.short", "We couldn't open that list just now.");
+      var retry = function () {
+        askMet(word.lemma);
+        renderWords();
+      };
+      if (window.TargumFault && window.TargumFault.line) {
+        var line = window.TargumFault.line(sentence, retry);
+        line.classList.add("met-note");
+        cell.appendChild(line);
+      } else {
+        cell.appendChild(el("p", "met-note", sentence));
+      }
     } else if (!said.texts.length) {
       // Counted, but no longer on the shelf to open: a text deleted since it was read.
       cell.appendChild(el("p", "met-note", t("lists.met.gone", "We can't find those texts any more.")));
@@ -1324,6 +1346,13 @@
       t("yours.page.your-phrases", "Your Phrases") + (all.length ? " (" + all.length + ")" : "");
     seeAll("phrases-more", cap && all.length > cap ? all.length : 0);
     empty.hidden = all.length > 0;
+    // And the press Your Words offers over nothing (targum-internal#725, P2 11).
+    if (!all.length && !empty.querySelector(".empty-go")) {
+      var go = el("a", "empty-go", t("lists.empty.find", "Find something to read"));
+      go.href = keyed("/library");
+      empty.appendChild(document.createTextNode(" "));
+      empty.appendChild(go);
+    }
     if (!phrases.length) return;
 
     // Grouped by the text they came from, which is the only place they mean anything.
@@ -1513,7 +1542,13 @@
     function failed() {
       // The deck still comes, as the text file it always was.
       exportAnkiText();
-      done(t("lists.anki.without-sound", "We couldn't add the sounds just now, so the deck has none."));
+      // Offline said as offline (targum-internal#725, P2 5): "just now" read as ours.
+      var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+      done(
+        offline
+          ? t("lists.anki.offline", "You're offline, so the deck has no sounds. Export again when you're back online to add them.")
+          : t("lists.anki.without-sound", "We couldn't add the sounds just now, so the deck has none.")
+      );
     }
     function fetchDeck(id, said) {
       fetch(keyed("/account/anki/deck?id=" + encodeURIComponent(id)), { headers: head })
@@ -1527,7 +1562,7 @@
           var why = said.capped
             ? " " + t("lists.anki.capped", "You've used this month's sounds for decks, so the rest have none.")
             : said.refused
-              ? " " + t("lists.anki.refused", "We couldn't make new sounds just now, so those words have none.")
+              ? " " + t("lists.anki.refused", "We couldn't make new sounds for them just now.")
               : said.stopped
                 ? " " + t("lists.anki.stopped", "We stopped at the sounds we'd set aside for this deck, so the rest have none.")
                 : "";
@@ -1801,7 +1836,17 @@
     function grouped(n) {
       return { n: String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",") };
     }
-    if (summary) {
+    // Your Phrases says what it holds (targum-internal#725, P2 11): its head summed the
+    // words, "28 on your list · 8 known", over a list of phrases.
+    if (summary && !at("word-rows") && at("phrase-list")) {
+      summary.textContent = tn(
+        "lists.head.phrases",
+        sums.phrases,
+        "{n} phrase saved",
+        "{n} phrases saved",
+        grouped(sums.phrases)
+      );
+    } else if (summary) {
       var parts = [
         code === "arc"
           ? tn(

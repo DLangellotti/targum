@@ -481,6 +481,27 @@ bdi.unbroken { white-space: nowrap; }
   stroke: none;
 }
 .hear:hover { color: var(--ink); }
+/* A Hear that is asking for its clip (targum-internal#725, P2 of P1 2): softer, and the
+   pointer says it is working, with nothing moving. */
+.hear[aria-busy="true"],
+.hear[aria-busy="true"]:hover { color: var(--ink-soft); opacity: 0.55; cursor: progress; }
+/* A Hear that could not be had, said under the word in its own cell. */
+.hear-fault { flex-basis: 100%; margin-block-start: 0.25rem; font-size: 0.875rem; }
+
+/* The live region a page speaks through: read out, never drawn. Here rather than in
+   reader.css, which Your Words does not load, so its sentence stood as a stray line at
+   the foot of the page (targum-internal#725). */
+.spoken {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
 /* Who said a word, under Hear, where a person recorded it rather than the voice
    (design.md §12, 2026-10-31): a quiet credit, linked to /credits. */
 .said-by {
