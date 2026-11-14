@@ -77,9 +77,14 @@ GRANT_MINUTES = 10
 # access token stops working within the hour, and a leaked refresh token is discovered
 # the next time the real client tries to use it and finds it rotated.
 ACCESS_MINUTES = 60
-# A refresh token does not expire on a clock. It ends when the reader disconnects the
-# client, when they leave, or when it is rotated — a connector that goes unused for a
-# year and then asks is the reader coming back to a machine, not an attack.
+# A refresh token ends when it is rotated, when the reader disconnects the client or
+# approves it again, when they leave, or when the app has left it alone for
+# `REFRESH_IDLE_DAYS` (design.md §12, "Connecting an app again replaces its older grant,
+# and a grant left alone ends", 2026-11-14). Each use rotates it, so a live refresh
+# token's `made` is the last time the app used the grant, and its `expires` is that plus
+# the idle allowance: an app that keeps asking never reaches it, and one put away for
+# three months is approved again before it reaches the account.
+REFRESH_IDLE_DAYS = 90
 #
 # Rows are swept long after they stop working rather than on expiry, so that "expired"
 # and "never existed" stay tellable apart for as long as that is worth anything.
@@ -442,10 +447,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    find.author, who makes the show. One added column with a default, so one ALTER;
 #    empty on every find before it, which then says the maker alone, as it did.
 #
+# 66→67: oauth_token.expires on a refresh token — the end of its 90 idle days rather than
+#    0 for never (targum-internal#722, design.md §12 2026-11-14). No new column: each use
+#    rotates a refresh token, so its own `made` is the app's last use. A live refresh
+#    token written before has its idle clock started at the migration, not at its `made`,
+#    so the deploy ends no working connection; one UPDATE, and nothing for it to touch
+#    the second time, since nothing writes a 0 there any more.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 66
+SCHEMA_VERSION = 67
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -943,6 +955,11 @@ MIGRATIONS: tuple[str, ...] = (
     "ALTER TABLE find ADD COLUMN author TEXT NOT NULL DEFAULT ''",
     # Who presents a podcast, as its feed says (schema 66, targum-internal#691).
     "ALTER TABLE find ADD COLUMN presenter TEXT NOT NULL DEFAULT ''",
+    # A refresh token's idle end (schema 67, targum-internal#722). One written before
+    # never expired; its 90 days start now, so no live connection ends at the deploy.
+    "UPDATE oauth_token SET expires ="
+    f" (CAST(strftime('%s', 'now') AS INTEGER) + {REFRESH_IDLE_DAYS} * 86400) * 1000"
+    " WHERE kind = 'refresh' AND expires = 0 AND revoked = 0",
 )
 
 
@@ -6718,9 +6735,16 @@ class Store:
         parent: str = "",
         minutes: int = ACCESS_MINUTES,
     ) -> str:
-        """Write one token and hand it back. It exists in the clear only in the reply."""
+        """Write one token and hand it back. It exists in the clear only in the reply.
+
+        An access token lasts `minutes`; a refresh token lasts `REFRESH_IDLE_DAYS` from
+        now, which is the app's last use of the grant, since every use rotates it.
+        """
         token = secrets.token_urlsafe(TOKEN_BYTES)
-        expires = 0 if kind == "refresh" else now() + minutes * 60 * 1000
+        if kind == "refresh":
+            expires = now() + REFRESH_IDLE_DAYS * 24 * 60 * 60 * 1000
+        else:
+            expires = now() + minutes * 60 * 1000
         with self.write() as db:
             db.execute(
                 "INSERT INTO oauth_token (hash, person, client, kind, scopes, resource,"
@@ -6782,23 +6806,38 @@ class Store:
         client holds for this person is revoked, both kinds, and the reader connects
         again — one press in the app it came from, against an account nobody else is
         still inside.
+
+        That is for a token that *was rotated*, which is one with a child. A token that
+        ended any other way — the reader pressed Disconnect, or approved the app again
+        (design.md §12, 2026-11-14) — is refused and nothing else: presenting it says the
+        app missed the news, not that it leaked, and taking the family would end the very
+        grant the reader has just made.
+
+        A refresh token left alone past `REFRESH_IDLE_DAYS` is refused too, and the
+        reader approves the app again.
         """
         if not token:
             return None
         with self.write() as db:
             row = db.execute(
-                "SELECT hash, person, client, scopes, resource, revoked FROM oauth_token"
-                " WHERE hash = ? AND kind = 'refresh'",
+                "SELECT hash, person, client, scopes, resource, expires, revoked"
+                " FROM oauth_token WHERE hash = ? AND kind = 'refresh'",
                 (digest(token),),
             ).fetchone()
             if row is None:
                 return None
             if row["revoked"]:
-                db.execute(
-                    "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
-                    " AND revoked = 0",
-                    (now(), row["person"], row["client"]),
-                )
+                rotated = db.execute(
+                    "SELECT 1 FROM oauth_token WHERE parent = ? LIMIT 1", (row["hash"],)
+                ).fetchone()
+                if rotated is not None:
+                    db.execute(
+                        "UPDATE oauth_token SET revoked = ? WHERE person = ? AND client = ?"
+                        " AND revoked = 0",
+                        (now(), row["person"], row["client"]),
+                    )
+                return None
+            if row["expires"] and row["expires"] < now():
                 return None
             db.execute("UPDATE oauth_token SET revoked = ? WHERE hash = ?", (now(), digest(token)))
             return dict(row)
@@ -6828,25 +6867,60 @@ class Store:
             )
             return cursor.rowcount
 
+    def replace_grant(self, person_id: int, client_id: str) -> int:
+        """End what this client already holds for this person, as it is approved again.
+
+        design.md §12, "Connecting an app again replaces its older grant, and a grant
+        left alone ends" (2026-11-14): the new grant is the one that stands, so a scope
+        left out of the new request ends with the old one. Called at the code exchange,
+        before the new pair is written, so it never reaches that pair. The same rows
+        Disconnect takes, under the name of what it is for.
+        """
+        return self.disconnect(person_id, client_id)
+
     def connections(self, person_id: int | None) -> list[dict[str, Any]]:
         """Which clients this person has connected, and what each may do.
 
         One row per client rather than per token, because a client holding an access
         token and the refresh token that will replace it is one connection and reads as
         two. Never the digests: see `everything`.
+
+        **The scopes are the union over the live tokens**, in the order `oauth.SCOPES`
+        lists them and in today's spelling, and a token past its `expires` is not live
+        (design.md §12, 2026-11-14). A scope that still works is never missing from the
+        page that revokes it: the string `MAX` this once was kept one row's scopes, and
+        a live `chat` could lose to an older "library record".
         """
+        from . import oauth
+
         if person_id is None:
             return []
         rows = self.db.execute(
             "SELECT oauth_token.client AS client, oauth_client.name AS name,"
-            " MAX(oauth_token.scopes) AS scopes, MIN(oauth_token.made) AS made,"
-            " MAX(oauth_token.seen) AS seen"
+            " oauth_token.scopes AS scopes, oauth_token.made AS made,"
+            " oauth_token.seen AS seen"
             " FROM oauth_token LEFT JOIN oauth_client ON oauth_client.id = oauth_token.client"
             " WHERE oauth_token.person = ? AND oauth_token.revoked = 0"
-            " GROUP BY oauth_token.client ORDER BY made DESC",
-            (person_id,),
+            " AND (oauth_token.expires = 0 OR oauth_token.expires >= ?)",
+            (person_id, now()),
         ).fetchall()
-        return [dict(row) for row in rows]
+        by_client: dict[str, dict[str, Any]] = {}
+        held: dict[str, set[str]] = {}
+        for row in rows:
+            client = str(row["client"])
+            one = by_client.setdefault(
+                client,
+                {"client": client, "name": row["name"], "made": row["made"], "seen": row["seen"]},
+            )
+            one["made"] = min(one["made"], row["made"])
+            one["seen"] = max(one["seen"], row["seen"])
+            held.setdefault(client, set()).update(oauth.current(row["scopes"]))
+        order = [name for name, _ in oauth.SCOPES]
+        out = []
+        for client, one in by_client.items():
+            one["scopes"] = " ".join(name for name in order if name in held[client])
+            out.append(one)
+        return sorted(out, key=lambda one: one["made"], reverse=True)
 
     # -- telegram (targum-internal#328) ----------------------------------------
 
@@ -6939,6 +7013,9 @@ class Store:
 
     def sweep_tokens(self, days: int = TOKEN_SWEEP_DAYS) -> int:
         """Drop rows nothing can use any more: spent grants and long-dead tokens.
+
+        Long-dead covers a refresh token left idle past `REFRESH_IDLE_DAYS`, which
+        carries that end in `expires` like an access token carries its hour.
 
         Kept for a while rather than deleted on expiry, so that "this token expired" and
         "this token never existed" stay different answers for as long as they are useful

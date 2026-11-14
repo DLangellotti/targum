@@ -15448,6 +15448,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "invalid_grant"}, 400)
         if not oauth.verify_challenge(form.get("code_verifier", ""), str(grant["challenge"])):
             return self._json({"error": "invalid_grant"}, 400)
+        # Approving an app again replaces what it held, so a scope left out of the new
+        # request ends with the old grant (design.md §12, 2026-11-14).
+        self.store.replace_grant(int(grant["person"]), str(grant["client"]))
         self._oauth_issue(
             int(grant["person"]), str(grant["client"]), str(grant["scopes"]), str(grant["resource"])
         )

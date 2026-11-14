@@ -382,6 +382,148 @@ def test_the_sweep_drops_what_nothing_can_use(tmp_path: Path) -> None:
     assert store.bearer(live) is not None, "the live one stays"
 
 
+# --- one grant per app, and a grant left alone ends (#722) -----------------------
+#
+# design.md §12, "Connecting an app again replaces its older grant, and a grant left
+# alone ends" (2026-11-14). The code exchange half is driven through the server in
+# `test_oauth_serve.py`; these are the rows.
+
+DAY = 24 * 60 * 60 * 1000
+
+
+def _age(store: Store, token: str, expires: int) -> None:
+    from targum.accounts import digest
+
+    with store.write() as db:
+        db.execute("UPDATE oauth_token SET expires = ? WHERE hash = ?", (expires, digest(token)))
+
+
+def test_a_refresh_token_carries_its_idle_end(tmp_path: Path) -> None:
+    from targum.accounts import REFRESH_IDLE_DAYS, digest, now
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    refresh = store.mint_token(person.id, client, kind="refresh", scopes="library")
+    row = store.db.execute(
+        "SELECT expires FROM oauth_token WHERE hash = ?", (digest(refresh),)
+    ).fetchone()
+    assert REFRESH_IDLE_DAYS == 90
+    assert abs(int(row["expires"]) - (now() + 90 * DAY)) < 60_000
+
+
+def test_a_refresh_token_left_alone_90_days_is_refused_and_swept(tmp_path: Path) -> None:
+    from targum.accounts import TOKEN_SWEEP_DAYS, now
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    idle = store.mint_token(person.id, client, kind="refresh", scopes="library chat")
+    # Minted 91 days ago and never used since: its 90 days ended yesterday.
+    _age(store, idle, now() - DAY)
+    assert store.rotate_refresh(idle) is None, "the app is approved again"
+    assert store.connections(person.id) == [], "and Account no longer lists it"
+    store.sweep_tokens()
+    assert store.db.execute("SELECT COUNT(*) FROM oauth_token").fetchone()[0] == 1, (
+        "kept a while, so expired and never existed stay different answers"
+    )
+    _age(store, idle, now() - (TOKEN_SWEEP_DAYS + 1) * DAY)
+    assert store.sweep_tokens() == 1
+    assert store.db.execute("SELECT COUNT(*) FROM oauth_token").fetchone()[0] == 0
+
+
+def test_a_refresh_token_in_use_keeps_working(tmp_path: Path) -> None:
+    """Each use rotates it, and the new one starts a fresh 90 days."""
+    from targum.accounts import digest, now
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    old = store.mint_token(person.id, client, kind="refresh", scopes="library")
+    _age(store, old, now() + DAY)  # used 89 days ago
+    spent = store.rotate_refresh(old)
+    assert spent is not None, "inside its 90 days"
+    fresh = store.mint_token(
+        person.id, client, kind="refresh", scopes="library", parent=spent["hash"]
+    )
+    row = store.db.execute(
+        "SELECT expires FROM oauth_token WHERE hash = ?", (digest(fresh),)
+    ).fetchone()
+    assert int(row["expires"]) > now() + 89 * DAY
+    store.sweep_tokens(days=0)
+    assert store.rotate_refresh(fresh) is not None, "the sweep leaves a live one alone"
+
+
+def test_a_refresh_token_from_before_gets_its_90_days_from_the_migration(
+    tmp_path: Path,
+) -> None:
+    """Written as never-expiring before schema 67: the deploy starts its idle clock rather
+    than ending a connection that was working the minute before."""
+    from targum.accounts import SCHEMA_VERSION, digest, now
+
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    old = store.mint_token(person.id, client, kind="refresh", scopes="library chat")
+    with store.write() as db:
+        db.execute(
+            "UPDATE oauth_token SET expires = 0, made = ? WHERE hash = ?",
+            (now() - 400 * DAY, digest(old)),
+        )
+    reopened = Store(tmp_path / "targum.db")
+    assert SCHEMA_VERSION == 67
+    assert reopened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+    row = reopened.db.execute(
+        "SELECT expires FROM oauth_token WHERE hash = ?", (digest(old),)
+    ).fetchone()
+    assert abs(int(row["expires"]) - (now() + 90 * DAY)) < 60_000
+    assert reopened.connections(person.id)[0]["scopes"] == "library chat"
+    assert reopened.rotate_refresh(old) is not None
+
+
+def test_account_shows_the_union_of_the_live_scopes(tmp_path: Path) -> None:
+    """An older "library chat" beside a newer "library record" is both, not the larger
+    string, so the live chat scope stays on the page that revokes it."""
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    store.mint_token(person.id, client, kind="refresh", scopes="library check")
+    store.mint_token(person.id, client, scopes="library record")
+    store.mint_token(person.id, client, kind="refresh", scopes="library record")
+    [one] = store.connections(person.id)
+    assert one["scopes"] == "library record chat"
+
+    assert store.disconnect(person.id, client) == 3, "Disconnect still takes every grant"
+    assert store.connections(person.id) == []
+
+
+def test_account_leaves_out_an_expired_access_token(tmp_path: Path) -> None:
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    store.mint_token(person.id, client, scopes="library chat", minutes=-1)
+    assert store.connections(person.id) == [], "an hour-old access token grants nothing"
+    store.mint_token(person.id, client, kind="refresh", scopes="library")
+    assert store.connections(person.id)[0]["scopes"] == "library"
+
+
+def test_a_replaced_refresh_token_is_refused_without_ending_the_new_grant(
+    tmp_path: Path,
+) -> None:
+    """Presenting a token that ended by re-approval is an app that missed the news, not
+    a leak: it is refused, and the grant the reader just made stands."""
+    store = a_store(tmp_path)
+    person = a_person(store)
+    client = store.register_client("Claude", ["https://a.test/cb"])
+    old = store.mint_token(person.id, client, kind="refresh", scopes="library chat")
+    assert store.replace_grant(person.id, client) == 1
+    access = store.mint_token(person.id, client, scopes="library")
+    refresh = store.mint_token(person.id, client, kind="refresh", scopes="library")
+    assert store.rotate_refresh(old) is None
+    assert store.bearer(access) is not None
+    assert store.rotate_refresh(refresh) is not None
+
+
 # --- the documents a client reads ------------------------------------------------
 
 
@@ -507,9 +649,12 @@ def test_reusing_a_rotated_refresh_token_takes_the_whole_family(tmp_path: Path) 
     first = store.mint_token(person.id, client, kind="refresh", scopes="library record")
     spent = store.rotate_refresh(first)
     assert spent is not None
-    # What the rotation minted — the thief's, or the reader's; there is no telling.
-    access = store.mint_token(person.id, client, scopes="library record")
-    second = store.mint_token(person.id, client, kind="refresh", scopes="library record")
+    # What the rotation minted — the thief's, or the reader's; there is no telling. Chained
+    # through `parent`, as `_oauth_issue` chains it: that is what says it was rotated.
+    access = store.mint_token(person.id, client, scopes="library record", parent=spent["hash"])
+    second = store.mint_token(
+        person.id, client, kind="refresh", scopes="library record", parent=spent["hash"]
+    )
     assert store.bearer(access) is not None
 
     assert store.rotate_refresh(first) is None, "the reuse is refused"

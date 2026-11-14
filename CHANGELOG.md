@@ -6,6 +6,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
+  design.md §12 2026-11-14).
+  - Approving an app again revokes the reader's older access and refresh tokens for that
+    app at the code exchange (`Store.replace_grant`), so a scope left out of the new
+    request ends with the old grant. A refresh token that ended this way, or by
+    Disconnect, is refused when presented and no longer takes the whole family down with
+    it: only a refresh token that was rotated, and so has a child, signals a leak.
+  - A refresh token expires after 90 days idle (`REFRESH_IDLE_DAYS`). Each use rotates
+    it, so its `expires` is its own `made` plus 90 days; an idle one is refused and
+    `sweep_tokens` removes it after the usual 30 days. Accounts schema 66→67: refresh
+    tokens written before, which never expired, get their 90 days from the migration,
+    so the deploy ends no live connection.
+  - Account's What's connected shows the union of the scopes on an app's live tokens, in
+    today's spelling, and leaves out expired tokens. An older "library chat" beside a
+    newer "library record" now reads "library record chat" instead of losing `chat`.
+    Disconnect still revokes everything for the app. `record_turn` and
+    `Library.claim_turn` are unchanged. No spend.
 - Your Progress no longer reads a failed sync as an empty account (targum-internal#726,
   the fault #725 fixed on Your Words). When `/account/me` answered and `/sync` failed, a
   browser with no saved words was told "Your progress starts with the first word you
