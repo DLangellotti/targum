@@ -454,13 +454,14 @@ REGISTRATIONS_PER_HOUR = 60
 #    so the deploy ends no working connection; one UPDATE, and nothing for it to touch
 #    the second time, since nothing writes a 0 there any more.
 #
-# 67→68: person.google, person.google_linked, person.google_used — the ways in an account
-#    has besides its email link (targum-internal#502, design.md §12 2026-11-14, "Sign in
-#    with Google goes live"). `google` is NULL where Google has never been used, 1 where
-#    it is linked and 0 where the person unlinked it; the other two are when it was
-#    linked and when it last signed them in, 0 for never. Nothing of Google's own is
-#    kept: no account id, name, picture or token. Three added columns, three ALTERs;
-#    every account before them reads as never linked, which is what it was.
+# 67→68: person.google, person.google_used — the ways in an account has besides its
+#    email link (targum-internal#502, design.md §12 2026-11-14, "Sign in with Google goes
+#    live"). `google` is NULL where Google has never been used, 1 where it is linked and
+#    0 where the person unlinked it; `google_used` is when it last signed them in, 0 for
+#    never. Exactly what the Privacy Notice says is recorded (14 November, #1240):
+#    whether Google is linked and when it was last used, and no date it was linked.
+#    Nothing of Google's own is kept: no account id, name, picture or token. Two added
+#    columns, two ALTERs; every account before them reads as never linked.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
@@ -969,9 +970,8 @@ MIGRATIONS: tuple[str, ...] = (
     f" (CAST(strftime('%s', 'now') AS INTEGER) + {REFRESH_IDLE_DAYS} * 86400) * 1000"
     " WHERE kind = 'refresh' AND expires = 0 AND revoked = 0",
     # The ways in besides the email link (schema 68, targum-internal#502): NULL is never
-    # used, 1 linked, 0 unlinked by the person; then when it was linked and last used.
+    # used, 1 linked, 0 unlinked by the person; then when it was last used.
     "ALTER TABLE person ADD COLUMN google INTEGER",
-    "ALTER TABLE person ADD COLUMN google_linked INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE person ADD COLUMN google_used INTEGER NOT NULL DEFAULT 0",
 )
 
@@ -4352,10 +4352,8 @@ class Store:
                     raise GoogleOff(address)
                 at = now()
                 db.execute(
-                    "UPDATE person SET google = 1, google_used = ?,"
-                    " google_linked = CASE WHEN google IS NULL THEN ? ELSE google_linked END"
-                    " WHERE id = ?",
-                    (at, at, row["id"]),
+                    "UPDATE person SET google = 1, google_used = ? WHERE id = ?",
+                    (at, row["id"]),
                 )
             session = secrets.token_urlsafe(TOKEN_BYTES)
             db.execute(
@@ -4366,31 +4364,30 @@ class Store:
 
     def ways_in(self, person_id: int) -> dict[str, Any]:
         """The ways this account signs in besides its address (targum-internal#502):
-        whether Google is linked, when it was linked and when it was last used, in ms or
-        None. Never anything of Google's own, because nothing of Google's is kept."""
+        whether Google is linked and when it was last used, in ms or None. Nothing
+        more: that is all the Privacy Notice says is recorded, and nothing of Google's own
+        is kept."""
         row = self.db.execute(
-            "SELECT google, google_linked, google_used FROM person WHERE id = ?", (person_id,)
+            "SELECT google, google_used FROM person WHERE id = ?", (person_id,)
         ).fetchone()
         linked = row is not None and bool(row["google"])
         return {
             "linked": linked,
-            "since": (int(row["google_linked"]) or None) if linked else None,
             "used": (int(row["google_used"]) or None) if linked else None,
         }
 
     def link_google(self, person_id: int) -> None:
-        """Link Google from Account, after Google proved this account's own address. The
-        link is new, so it is dated now, and proving the address was a use of it."""
-        at = now()
+        """Link Google from Account, after Google proved this account's own address.
+        Proving the address was a use of it, so it is the last use too."""
         with self.write() as db:
             db.execute(
-                "UPDATE person SET google = 1, google_linked = ?, google_used = ? WHERE id = ?",
-                (at, at, person_id),
+                "UPDATE person SET google = 1, google_used = ? WHERE id = ?",
+                (now(), person_id),
             )
 
     def unlink_google(self, person_id: int) -> bool:
         """Take Google off as a way in. False where it was not on, or where it is the last
-        way in (`removable`). When it was linked and last used stay, so an Undo
+        way in (`removable`). When it was last used stays, so an Undo
         (`relink_google`) puts back exactly what was."""
         on = {"email"} | ({"google"} if self.ways_in(person_id)["linked"] else set())
         if not removable(on, "google"):
@@ -4400,7 +4397,7 @@ class Store:
         return True
 
     def relink_google(self, person_id: int) -> bool:
-        """Undo an Unlink: Google on again with its old dates. Only from unlinked, so it
+        """Undo an Unlink: Google on again with its last use as it was. Only from unlinked, so it
         cannot link an account that never used Google; the server holds it to the few
         seconds Undo is drawn for."""
         with self.write() as db:

@@ -36,14 +36,14 @@ def test_the_first_google_sign_in_links_google(tmp_path: Path) -> None:
     got = store.sign_in_verified("dina@example.com", via="google")
     assert got is not None
     held = store.ways_in(got[0].id)
-    assert held["linked"] and held["since"] and held["used"]
+    assert held == {"linked": True, "used": held["used"]} and held["used"]
 
 
 def test_a_mailed_link_alone_links_nothing(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     got = store.finish_sign_in(store.start_sign_in("dina@example.com"))
     assert got is not None
-    assert store.ways_in(got[0].id) == {"linked": False, "since": None, "used": None}
+    assert store.ways_in(got[0].id) == {"linked": False, "used": None}
 
 
 def test_after_unlink_google_signs_nobody_in_and_the_link_still_does(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_an_older_database_opens_with_google_never_linked(tmp_path: Path) -> Non
     assert got is not None
     store.close()
     old = sqlite3.connect(path)
-    for column in ("google", "google_linked", "google_used"):
+    for column in ("google", "google_used"):
         old.execute(f"ALTER TABLE person DROP COLUMN {column}")
     old.execute("PRAGMA user_version = 67")
     old.commit()

@@ -12,9 +12,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     address and "Always on", with no press. "Google" says "Linked · last used 12
     November" with Unlink, or "Not linked" with Link. The Google row is drawn only where
     `google.configured()` holds.
-  - The store keeps, per person, whether Google is linked, when it was linked and when it
-    was last used (`person.google`, `google_linked`, `google_used`; accounts schema 67→68,
-    three ALTERs). Nothing of Google's own is kept. `models.SCHEMA_VERSION` is untouched.
+  - The store keeps, per person, whether Google is linked and when it was last used, as the
+    Privacy Notice says and no more (`person.google`, `google_used`; accounts schema
+    67→68, two ALTERs). No date it was linked, and nothing of Google's own.
+    `models.SCHEMA_VERSION` is untouched.
   - `sign_in_verified(via="google")` records each use, and the first Continue with Google
     links Google. After Unlink, Continue with Google is refused with "Google sign-in is
     off for this account. Use the email link, or link Google again from Your account."
