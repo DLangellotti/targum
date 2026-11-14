@@ -118,9 +118,7 @@ def test_the_card_says_the_register_in_english_and_in_russian(
 
     context, page = open_reader(browser, _reader(tmp_path / "ru", "ru"))
     facts = page.evaluate(FACTS, _at("pas"))
-    assert ["Разговорное", "ne опущено. Нормативно: Je ne sais pas", "Je ne sais pas"] in (
-        facts
-    )
+    assert ["Разговорное", "ne опущено. Нормативно: Je ne sais pas", "Je ne sais pas"] in (facts)
     page.keyboard.press("Escape")
     facts = page.evaluate(FACTS, _at("on"))
     assert ["Разговорное", "on здесь значит «мы», вместо nous", None] in facts
