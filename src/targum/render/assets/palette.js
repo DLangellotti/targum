@@ -39,6 +39,9 @@
   var filters = document.getElementById("palette-filters");
   var scope = document.getElementById("palette-lang");
   var scopeMenu = document.getElementById("palette-langs");
+  var level = document.getElementById("palette-level");
+  var levelPick = document.getElementById("palette-level-pick");
+  var levelMenu = document.getElementById("palette-levels");
   var clearer = document.getElementById("palette-clear");
   var back = document.getElementById("palette-back");
   var opener = document.getElementById("palette-open");
@@ -282,29 +285,60 @@
       filters.appendChild(tab);
     });
     // The level, over what was found: the Library's three bands (design.md §12, "The
-    // Library is shelved by how much you'd follow").
-    if (answered && total) {
-      var pick = el("label", "palette-level");
-      pick.appendChild(el("span", "", t("palette.level", "Level:")));
-      var select = el("select", "palette-level-pick");
-      [
-        ["", t("palette.level.any", "Any")],
-        ["now", t("palette.band.now", "Read it now")],
-        ["stretch", t("palette.band.stretch", "A stretch")],
-        ["hard", t("palette.band.hard", "Hard for now")],
-      ].forEach(function (option) {
-        var one = el("option", "", option[1]);
-        one.value = option[0];
-        if (option[0] === state.level) one.selected = true;
-        select.appendChild(one);
-      });
-      select.onchange = function () {
-        state.level = select.value;
+    // Library is shelved by how much you'd follow"). The desk's own menu, as the
+    // language beside the field is, never a native select (targum-internal#696, P2-11);
+    // it sits beside the tabs rather than in their row, which scrolls on a phone and
+    // would clip its sheet.
+    if (level) level.hidden = !(answered && total);
+    if (level && level.hidden) closeLevel();
+    drawLevel();
+  }
+
+  function levels() {
+    return [
+      ["", t("palette.level.any", "Any")],
+      ["now", t("palette.band.now", "Read it now")],
+      ["stretch", t("palette.band.stretch", "A stretch")],
+      ["hard", t("palette.band.hard", "Hard for now")],
+    ];
+  }
+
+  function drawLevel() {
+    if (!levelPick) return;
+    var named = levels().filter(function (one) {
+      return one[0] === state.level;
+    })[0];
+    levelPick.textContent = "";
+    levelPick.appendChild(el("span", "palette-level-label", t("palette.level", "Level:")));
+    levelPick.appendChild(el("span", "", named ? named[1] : levels()[0][1]));
+    levelPick.appendChild(el("span", "palette-caret", "▾"));
+  }
+
+  function closeLevel() {
+    if (!levelMenu || levelMenu.hidden) return false;
+    levelMenu.hidden = true;
+    if (levelPick) levelPick.setAttribute("aria-expanded", "false");
+    return true;
+  }
+
+  function drawLevelMenu() {
+    if (!levelMenu) return;
+    levelMenu.textContent = "";
+    levels().forEach(function (option) {
+      var item = el("button", "palette-lang-row");
+      item.type = "button";
+      item.setAttribute("role", "menuitemradio");
+      item.setAttribute("data-level", option[0]);
+      item.setAttribute("aria-checked", option[0] === state.level ? "true" : "false");
+      item.appendChild(el("span", "", option[1]));
+      item.onclick = function () {
+        state.level = option[0];
+        closeLevel();
         draw();
+        if (levelPick) levelPick.focus();
       };
-      pick.appendChild(select);
-      filters.appendChild(pick);
-    }
+      levelMenu.appendChild(item);
+    });
   }
 
   function picture(row) {
@@ -961,6 +995,7 @@
     document.documentElement.classList.toggle("palette-up", !!on);
     if (!on) {
       if (scopeMenu) scopeMenu.hidden = true;
+      closeLevel();
       // Focus leaves the field with it, or "/" would be typed into a field nobody sees.
       if (document.activeElement === field && field.blur) field.blur();
       var back = returnTo && returnTo !== document.body && document.contains(returnTo) ? returnTo : opener;
@@ -1013,9 +1048,22 @@
       show(false);
     });
   }
+  if (levelPick && levelMenu) {
+    levelPick.addEventListener("click", function () {
+      var open = levelMenu.hidden;
+      if (scopeMenu) scopeMenu.hidden = true;
+      if (scope) scope.setAttribute("aria-expanded", "false");
+      drawLevelMenu();
+      levelMenu.hidden = !open;
+      levelPick.setAttribute("aria-expanded", open ? "true" : "false");
+      var checked = open && levelMenu.querySelector("[aria-checked='true']");
+      if (checked) checked.focus();
+    });
+  }
   if (scope && scopeMenu) {
     scope.addEventListener("click", function () {
       var open = scopeMenu.hidden;
+      closeLevel();
       drawScopeMenu();
       scopeMenu.hidden = !open;
       scope.setAttribute("aria-expanded", open ? "true" : "false");
@@ -1038,6 +1086,10 @@
     } else if (event.key === "Escape" && !host.hidden) {
       if (scopeMenu && !scopeMenu.hidden) {
         scopeMenu.hidden = true;
+        return;
+      }
+      if (closeLevel()) {
+        if (levelPick) levelPick.focus();
         return;
       }
       if (state.word) {

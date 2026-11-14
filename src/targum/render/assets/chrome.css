@@ -1126,33 +1126,27 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .palette-lang-row:hover { background: var(--teal-wash); }
 .palette-lang-row[aria-checked="true"] { font-weight: 600; color: var(--teal); }
 .palette-lang-count { margin-inline-start: auto; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-.palette-filters { margin-block: 1rem 0.25rem; }
+/* The tabs and, at their end, the level (targum-internal#696, P2-11): the level is the
+   desk's own menu, as the language is, and stands outside the row of tabs, which scrolls
+   sideways on a phone and would clip its sheet. */
+.palette-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block: 1rem 0.25rem;
+}
+.palette-filterbar > .palette-filters { flex: 1 1 auto; min-inline-size: 0; }
 /* The field and the tabs keep their height; the results are what scrolls. On a phone a
    row of tabs scrolls sideways (`.tabs`), which let the column shrink it to nothing under
    the language pill: All and Library at half height (targum-internal#696, P1-6). */
 .palette > .palette-top,
-.palette > .palette-filters { flex: none; }
+.palette > .palette-filterbar { flex: none; }
 .palette-filters .tab.is-empty { opacity: 0.55; }
 .palette-filters .tab:disabled { cursor: default; }
-.palette-level {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-inline-start: auto;
-  color: var(--ink-soft);
-  font-size: 0.8125rem;
-}
-.palette-level-pick {
-  min-block-size: 2.25rem;
-  padding: 0 0.6rem;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  background: var(--card);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-}
+.palette-level[hidden] { display: none; }
+.palette-level-pick { min-block-size: 2.25rem; padding: 0 0.75rem; font-size: 0.8125rem; }
+.palette-level-label { color: var(--ink-soft); font-weight: 400; }
+.palette-level .palette-langs { min-inline-size: 11rem; }
 .palette-body {
   flex: 1 1 auto;
   min-block-size: 0;
@@ -1346,10 +1340,10 @@ button:active:not(:disabled) { transform: scale(0.98); }
   .palette-esc { display: none; }
   .palette-scope { order: 3; }
   .palette-langs { inset-inline: 0 auto; }
+  .palette-level .palette-langs { inset-inline: auto 0; }
   /* Its own row under the language, past `.tabs`' phone margin of -3px. */
-  .palette > .palette-filters { margin-block: 0.5rem 0; }
+  .palette > .palette-filterbar { margin-block: 0.5rem 0; }
   .palette-filters .tab.is-empty { display: none; }
-  .palette-level { display: none; }
   .palette-body { margin-inline: -1rem; padding: 0.25rem 1rem 6rem; }
   .palette-group,
   .palette-recent,

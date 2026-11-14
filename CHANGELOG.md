@@ -30,6 +30,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `figureSaid` where the page has it, and a test holds it to `figure.js` line for line.
   Recent's slow Try again asks the shelf again in place rather than reloading. Five new
   strings in English and Russian, one changed, for ling-ru. No spend.
+- The Library, second pass on its finish bar (targum-internal#696). The one search's
+  Library rows say their band and figure as the shelf does: a copy on the shared shelf
+  is measured on its own words, else the catalogue's index in running words, each with
+  our estimate where it is the figure and banded by it (the rows said nothing where the
+  shelf said "About 93%"). The reader's estimate is worked out once a language per
+  search, and the "more in another language" rows are measured only where shown. The
+  search's Level is the desk's own menu, the language pill's twin, beside the tabs at
+  every width (it was a native select, and gone on a phone). Offline, a text nobody has
+  built is greyed with "Getting a text ready needs a connection." as its own foot line,
+  on the shelf and in See all. Hebrew words inside an English blurb or byline each say
+  their own language. One new string in English and Russian, for ling-ru. No spend.
 - Stop and claim follow-ups to #1217 (targum-internal#715). A gift recording's Stop no
   longer asks the credits question: jobs and the waiting card's rows ahead carry
   `metered`, and Stop asks on it rather than on `audio`. A free reader pressing a credited

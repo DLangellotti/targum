@@ -3930,6 +3930,7 @@
   "offline.talk-needs": "Для чата нужен интернет.",
   "offline.upload-needs": "Для загрузки нужен интернет.",
   "offline.change-needs": "Для этого нужен интернет.",
+  "offline.build-needs": "Чтобы подготовить текст, нужен интернет.",
   "reader.card.met-when-back": "Где ещё вы его встречали, покажем, когда вы снова будете в сети.",
   "reader.card.looking-later": "Посмотрим, когда вы снова будете в сети.",
   "reader.card.needs-connection": "Чтобы посмотреть это слово, нужен интернет.",

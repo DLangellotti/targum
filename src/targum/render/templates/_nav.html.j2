@@ -258,7 +258,13 @@
       <div class="palette-langs" id="palette-langs" role="menu" hidden></div>
     </div>
   </div>
-  <div class="tabs palette-filters" id="palette-filters" role="tablist" aria-label="{{ t("nav.search-where", "Where to look") }}"></div>
+  <div class="palette-filterbar">
+    <div class="tabs palette-filters" id="palette-filters" role="tablist" aria-label="{{ t("nav.search-where", "Where to look") }}"></div>
+    <div class="palette-scope palette-level" id="palette-level" hidden>
+      <button type="button" class="palette-lang palette-level-pick" id="palette-level-pick" aria-haspopup="menu" aria-expanded="false" aria-controls="palette-levels"></button>
+      <div class="palette-langs" id="palette-levels" role="menu" hidden></div>
+    </div>
+  </div>
   <div class="palette-body" id="palette-body" aria-live="polite"></div>
 </div>
 {{ script('palette.js') }}

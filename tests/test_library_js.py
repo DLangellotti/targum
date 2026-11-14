@@ -1410,6 +1410,31 @@ def test_a_row_of_see_all_says_what_the_text_is(tmp_path: Path) -> None:
     assert russian["סיפור"]["blurbLang"] == "en", "English is the fallback, and says so"
 
 
+def test_hebrew_words_in_an_english_line_say_their_language(tmp_path: Path) -> None:
+    """targum-internal#696 P2-13 (design.md §14.3): a blurb that names Hebrew words, and a
+    byline with a Hebrew word in it, stood in one English run, so a screen reader said
+    the Hebrew in English. The line keeps its language and each Hebrew run says its own;
+    a line that is Hebrew from its first letter is still Hebrew whole."""
+    shelf_ = [
+        text(
+            "story-one",
+            "סיפור",
+            blurb="Two verbs to build on: רוצה, יכול.",
+            author="Omid Memarian, תרגם Gal Podjarny",
+        ),
+        text("story-two", "סיפור שני", blurb="A plain English line.", author="ויקימסע"),
+    ]
+    rows = {row["title"]: row for row in browse(tmp_path, catalogue=shelf_)["rows"]}
+    one = rows["סיפור"]
+    assert one["blurb"] == "Two verbs to build on: רוצה, יכול.", "the words are all still there"
+    assert one["blurbLang"] == "en"
+    assert one["blurbRuns"] == [["רוצה, יכול", "he", "rtl"]]
+    assert one["by"] == "Omid Memarian, תרגם Gal Podjarny"
+    assert one["byRuns"] == [["תרגם", "he", "rtl"]]
+    two = rows["סיפור שני"]
+    assert two["blurbRuns"] == [] and two["byRuns"] == [], "nothing to wrap, nothing wrapped"
+
+
 def test_a_card_keeps_the_cell_a_build_narrates_itself_in(tmp_path: Path) -> None:
     """`build()` finds it with `open.querySelector`, so a state cell hung on the list item
     rather than inside the pressed element is one it throws on."""
