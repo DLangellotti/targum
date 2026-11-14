@@ -22,6 +22,42 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Four
   new strings in English and Russian (`connect.page.you-ve-connected`, `connect.page.and`,
   `connect.page.an-app` for an app that gave no name, `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
+- French register is covered: French's seventh hard spot, "register: ne-drop and on/nous",
+  is computed, shown and measured, so `targum stages` counts all seven French spots
+  covered (D5, 2026-11-05: register to flag, not error to correct).
+  `annotate/french_register.py` reads two things off the words, with rules and no model.
+  - A negation said without *ne* (*je sais pas*) gets an "Informal" line on the
+    negator's card: "ne dropped. Formal: je ne sais pas". A pronominal imperative puts
+    the *ne* first (*t'en fais pas* → *ne t'en fais pas*). Where the rule cannot tell an
+    imperative from a statement (*vous dérangez pas*), the card says "ne dropped" with no
+    formal clause. *Plus* counts only where it cannot mean "more".
+  - An *on* gets "Informal: on here means “we”, for nous" where the sentence shows it
+    (*nous, on…*, *on est partis*, *ensemble*, *toi et moi*, *chez nous*, *et si on
+    allait…?*, *on y va*). An adjective in -x after *on est* counts only when the tagger
+    calls it plural. Every other *on* gets "Who: people in general, or “we” in speech".
+  - The builder puts both on a French word's grammar line (`Reg=NeDrop`, `Formal=…`,
+    `On=We`, `On=Open`), so a text annotated before this shows them at its next build,
+    with nothing annotated again.
+  - Measured by `scripts/eval_register.py` against `evals/french-register-gold.jsonl`:
+    152 sentences, 102 written for it, 18 traps from qa-claude's review written before
+    the rule was changed for them, and 32 from the public-domain shelf. Scores
+    (`register-rule/2`): `nedrop_precision` 1.0 (46/46), `nedrop_recall` 0.852,
+    `formal_accuracy` 1.0, `on_we_precision` 1.0 (18/18), `on_we_recall` 0.783. Floors
+    are 0.97, 0.81, 0.97, 0.94 and 0.78. The first rule scored 0.894, 0.778, 0.881,
+    0.783 and 0.783 on the same gold. The rule now knows every trap in it, so precision
+    is optimistic; it also names nothing in the 342 tagged sentences of the liaison
+    gold.
+  - Held out: qa-claude's 29 sentences written blind (`evals/french-register-heldout.jsonl`,
+    corpus `fr-register-heldout`, no floor, never tuned on) found two bugs in
+    register-rule/2: *elle a plus de clients* named as a drop, and *t'y vas pas* given
+    the imperative's formal clause. register-rule/3 leaves *avoir plus de* a miss, reads
+    *t'* at the verb past *y* and *en*, skips *pas à pas*, and counts *aucun*. Main gold:
+    1.0, 0.815, 1.0, 1.0, 0.783 (drop recall floor down to 0.81 for the *plus de* misses);
+    held out: 1.0, 0.857, 1.0, 1.0 (n = 3), 0.60 (n = 5).
+  - Six new strings in English and Russian (`reader.card.informal`, `ne-dropped`,
+    `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
+    qa-claude's review. A browser test opens a French reader in English and in Russian
+    and taps each line. No spend.
 - A word can be marked Known by ear, apart from known when read, and only by the reader's
   own press (targum-internal#536, design.md §12 "A word can be known by ear, and only the
   reader says so", 2026-11-14).

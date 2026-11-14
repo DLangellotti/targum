@@ -48,6 +48,7 @@ found one, and is not read as free.
 | The Russian shelf, ru-local's lemmas | the annotator's own reading, not a person's | per text on the shelf; public texts only | eval; a frozen sample of open-licence texts' counts is in the suite | `finds/ru-shelf` |
 | French liaisons and readings, drafted | model-drafted, **read by ling-fr 2026-11-05** | the texts public domain; the labels targum's own | eval only | `said/pd-fr-drafted` |
 | French false friends in context | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `friends/pd-fr-friends` |
+| French register: *ne* dropped, *on* for "we" | hand-written (builder as ling-fr, traps by qa-claude, 2026-11-14) | 120 sentences targum's own; 32 public domain; the labels targum's own | eval only | `register/fr-register-own` |
 | French passé composé and imparfait | hand-read (ling-fr, 2026-11-05) | the texts public domain; the labels targum's own | eval only | `lemma/pd-fr-pc-imp` |
 
 No fetch below pins a commit or a checksum except where it says so. Most read the
@@ -83,6 +84,8 @@ different set, and the two numbers are not measured on the same thing.
 | `chat/tatoeba-correct` | the pool read (`--pool`, else `chat/exemplars.pool_path()`) |
 | `said/pd-fr-drafted` | `evals/french-said-gold.jsonl` (in the repository) |
 | `friends/pd-fr-friends` | `evals/french-false-friends-gold.jsonl` (in the repository) |
+| `register/fr-register-own` | `evals/french-register-gold.jsonl` (in the repository) |
+| `register/fr-register-heldout` | `evals/french-register-heldout.jsonl` (in the repository) |
 | `lemma/pd-fr-pc-imp` | `evals/french-pc-imparfait-gold.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
@@ -486,6 +489,48 @@ sentences above, with the gold's tags, 92 places from 38 lemmas.
 - **Licence:** the texts are public domain; the labels are targum's own.
 - **Where:** `evals/french-false-friends-gold.jsonl`, in the repository.
 - **Scored by:** `scripts/eval_false_friends.py`. **Ledger:** `friends/pd-fr-friends`.
+
+## French register: ne dropped, and on for "we"
+
+French's seventh hard spot (`annotate/french_register.py`): 152 sentences, every *ne*
+dropped marked at its clause's first negator with the formal clause, and every *on* read
+"we" or "other". 54 drops, 67 *on*, 23 of them "we".
+
+- **Kind: hand-written.** The builder seat wrote 102 of them as ling-fr on 2026-11-14,
+  across spoken, neutral and formal French, with the traps a rule falls into (*un pas*,
+  *une personne*, *il fait plus chaud*, *de rien*, *si jamais*, *non plus*, *je veux
+  encore plus de café*) and the drops it is known to miss (a noun subject, an imperative,
+  *y a pas*, *personne veut*).
+- **The independent half.** qa-claude, reading as ling-fr in the review of targum#1241,
+  read every line, relabelled one *on* (*on a guère le choix*), had one ambiguous line
+  rewritten, and wrote 18 traps of its own, added before the rule was changed for them:
+  *plus* meaning "more" at the end of a clause (*il en faut plus*), pronominal imperatives
+  (*t'en fais pas*), *-eux* adjectives after *on* (*quand on est amoureux*), and drops the
+  rule missed (*j'ai plus faim*). The rule as first written scored 0.894 drop precision
+  and 0.783 "we" precision on them.
+- **32 from the shelf**, verbatim from the four public-domain texts of the liaison gold
+  above (Perrault, Daudet, Maupassant, Allais), each row naming its text.
+- **Caveat:** the rule now knows every trap here, so its precision is optimistic. It also
+  names no drop and no "we" in all 342 sentences of the liaison gold, read with their own
+  tags, which keep their *ne* throughout.
+- **Licence:** the constructed sentences and every label are targum's own; the 32 are
+  public domain.
+- **Where:** `evals/french-register-gold.jsonl`, in the repository.
+- **Scored by:** `scripts/eval_register.py`. **Ledger:** `register/fr-register-own`.
+
+### Held out: qa-claude's blind set
+
+`evals/french-register-heldout.jsonl`, 29 sentences qa-claude wrote blind as ling-fr in
+the review of targum#1241, without the builder seeing them: new traps of the same kinds
+and new ones (*elle a plus de clients*, *t'y vas pas*, *pas à pas*, *j'ai aucune idée*).
+On register-rule/2 it scored 0.786 drop precision and 0.727 formal accuracy, which found
+two bugs; register-rule/3 fixed those four named things once.
+
+- **Never tuned on again.** It is scored on every run under its own corpus,
+  `register/fr-register-heldout`, and has no floor of its own: its numbers are reported
+  beside the main gold's, never used to set a floor or change the rule. The next blind
+  set comes from another seat.
+- **Licence:** targum's own.
 
 ## French passé composé and imparfait
 

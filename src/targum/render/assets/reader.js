@@ -6555,6 +6555,41 @@ var targumReader = function () {
       whose.textContent = pronoun;
       facts.add(t("reader.card.suffix", "Pronoun"), whose);
     }
+    // French register, not error (French's seventh hard spot, D5 2026-11-05): a negation
+    // said without its ne, with the formal clause beside it, and what an on stands for.
+    // The builder reads both off the words (`annotate/french_register.py`).
+    if (feat(takesLine, "Reg") === "NeDrop") {
+      var dropped = document.createElement("span");
+      dropped.className = "card-register";
+      // The formal clause only where the rule is sure of it: *vous dérangez pas* may be
+      // either, and a wrong "Formal:" would teach a wrong sentence.
+      var formalSays = feat(takesLine, "Formal");
+      if (formalSays) {
+        dropped.appendChild(
+          document.createTextNode(t("reader.card.ne-dropped", "ne dropped. Formal:") + " ")
+        );
+        var formal = document.createElement("bdi");
+        formal.className = "form";
+        formal.setAttribute("lang", wordLanguage(index));
+        formal.textContent = formalSays;
+        dropped.appendChild(formal);
+      } else {
+        dropped.textContent = t("reader.card.ne-dropped-alone", "ne dropped");
+      }
+      facts.add(t("reader.card.informal", "Informal"), dropped);
+    }
+    var onSays = feat(takesLine, "On");
+    if (onSays === "We") {
+      var we = document.createElement("span");
+      we.className = "card-register";
+      we.textContent = t("reader.card.on-we", "on here means \u201cwe\u201d, for nous");
+      facts.add(t("reader.card.informal", "Informal"), we);
+    } else if (onSays === "Open") {
+      var who = document.createElement("span");
+      who.className = "card-register";
+      who.textContent = t("reader.card.on-open", "people in general, or \u201cwe\u201d in speech");
+      facts.add(t("reader.card.on-who", "Who"), who);
+    }
     facts.place(card);
 
     // The other shapes this word takes in this text. A Russian noun is met in one to three
