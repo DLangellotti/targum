@@ -1165,6 +1165,18 @@ OLD_COPY = """async (end) => {
 }"""
 
 
+def until(page, check: str, arg: Any = None, tries: int = 300) -> None:
+    """Wait in the page for an async condition (`check`, a function of `arg`) to hold:
+    read again every 50 ms, up to `tries` times."""
+    held = page.evaluate(
+        "async (args) => { const check = " + check + "; for (let i = 0; i < args.tries; i++) {"
+        " if (await check(args.arg)) return true;"
+        " await new Promise((ok) => setTimeout(ok, 50)); } return false; }",
+        {"arg": arg, "tries": tries},
+    )
+    assert held, check
+
+
 def test_a_saved_copy_follows_its_text_when_opened_online(browser, served: Served) -> None:  # noqa: F811
     """targum-internal#720, P1 4: since 2026-10-29 a reader opened on the site names its
     files, and the worker never kept that as the copy, so a saved text stayed as it was
@@ -1206,11 +1218,11 @@ def test_a_saved_copy_follows_its_text_when_opened_online(browser, served: Serve
         )
         page.goto(served.url(end))
         page.wait_for_selector("#corrected", state="attached")
-        page.wait_for_function(
-            "async (end) => { const c = await (" + COPY + ")(end);"
-            " return !!c && c.body.includes('A corrected line'); }",
-            arg=end,
-            timeout=15000,
+        until(
+            page,
+            "async (args) => { const c = await (" + COPY + ")(args.end);"
+            " return !!c && c.version !== args.was && c.body.includes('A corrected line'); }",
+            {"end": end, "was": first["version"]},
         )
         second = page.evaluate(COPY, end)
         assert second["version"] and second["version"] != first["version"]
@@ -1223,11 +1235,11 @@ def test_a_saved_copy_follows_its_text_when_opened_online(browser, served: Serve
         # and shows nothing of the old page once it has been.
         page.evaluate(OLD_COPY, end)
         page.goto(served.url(end))
-        page.wait_for_function(
+        until(
+            page,
             "async (end) => { const c = await (" + COPY + ")(end);"
             " return !!c && !!c.version && !c.body.includes('An old line'); }",
-            arg=end,
-            timeout=15000,
+            end,
         )
 
         served.gone()
@@ -1276,8 +1288,10 @@ def test_remove_and_remove_all_can_be_undone_offline_too(
         # With no connection: the Saved page opens from its copy.
         served.gone()
         context.set_offline(True)
+        # The page's own time, run on ahead below; it flows as it does until then.
         page.clock.install()
         page.goto(served.url("/you/saved"))
+        page.clock.resume()
         page.wait_for_function(
             "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
         )
@@ -1295,7 +1309,7 @@ def test_remove_and_remove_all_can_be_undone_offline_too(
         held.locator(".saved-undo").click()
         page.wait_for_function(
             "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
-            " && !document.querySelector('.saved-held')"
+            " && !document.querySelector('#saved-mine .saved-held')"
         )
         assert page.evaluate(HELD) == whole, "put back exactly as it was"
 
@@ -1323,12 +1337,13 @@ def test_remove_and_remove_all_can_be_undone_offline_too(
         page.clock.run_for(7000)
         assert page.locator("#saved-mine .saved-held").count() == 1, "still there at 7 s"
         page.clock.run_for(1500)
-        page.wait_for_function("() => !document.querySelector('.saved-held')")
-        page.wait_for_function(
+        page.wait_for_function("() => !document.querySelector('#saved-mine .saved-held')")
+        until(
+            page,
             "async (names) => { const cache = await caches.open('targum-offline');"
             " const urls = (await cache.keys()).map((r) => r.url);"
             " return names.every((n) => !urls.includes(n)); }",
-            arg=gone[0]["files"],
+            gone[0]["files"],
         )
         assert page.locator("#saved-mine .saved-row").count() == 1
         assert page.evaluate("() => document.activeElement.tagName") == "H1"
