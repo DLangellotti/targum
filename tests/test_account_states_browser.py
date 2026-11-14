@@ -593,3 +593,68 @@ def test_the_form_of_address_is_one_tab_stop_with_arrows(browser) -> None:
     assert stops == [0, -1]
     assert after == ["address-f", -1, 0]
     assert [u for u in asked if "/account/address" in u]
+
+
+def kept_now(page, me: Any) -> None:
+    """From here on `/account/me` answers `me`: what the account holds after a press whose
+    own answer was lost. Registered last, so it runs first."""
+    page.route(
+        "http://acct.test/account/me**",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(me)
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("press", "where", "field", "said"),
+    [
+        ("#record-switch", "#record-said", "events", "Stopped. What's already recorded"),
+        ("#counting-switch", "#counting-said", "counting", "Stopped. Your texts leave"),
+    ],
+)
+def test_a_switch_whose_answer_was_lost_shows_what_the_account_holds(
+    browser, press: str, where: str, field: str, said: str
+) -> None:
+    """qa N2 on #1227: the server stopped recording but its answer never came. Drawn
+    back to what it was, the switch said "on" for a consent the account no longer held."""
+    routes = {"/account/events": "abort", "/account/counting": "abort"}
+    context, page, _ = opened(browser, me=RECORDING, routes=routes)
+    try:
+        page.wait_for_selector(press)
+        kept_now(page, {**RECORDING, field: {"kept": True, "on": False}})
+        page.click(press)
+        page.wait_for_function(
+            f"document.querySelector({press!r}).getAttribute('aria-pressed') === 'false'"
+        )
+        line = page.locator(where).inner_text()
+        faulted = page.locator(where + " .fault-line").count()
+    finally:
+        context.close()
+    assert said in line and not faulted
+
+
+def test_a_switch_falls_back_to_what_it_was_when_the_account_cannot_be_read(browser) -> None:
+    context, page, _ = opened(browser, me=RECORDING, routes={"/account/events": "abort"})
+    try:
+        page.wait_for_selector("#record-switch")
+        page.route("http://acct.test/account/me**", lambda route: route.abort())
+        page.click("#record-switch")
+        page.wait_for_selector("#record-said .fault-line")
+        pressed = page.get_attribute("#record-switch", "aria-pressed")
+    finally:
+        context.close()
+    assert pressed == "true"
+
+
+def test_a_grant_whose_answer_was_lost_is_accepted(browser) -> None:
+    context, page, _ = opened(browser, routes={"/account/grant": "abort"})
+    try:
+        page.wait_for_selector("#grant-go")
+        kept_now(page, {**ME, "granted": True})
+        page.click("#grant-go")
+        page.wait_for_selector("#grant-go", state="hidden")
+        said = page.locator("#grant-said").inner_text()
+    finally:
+        context.close()
+    assert "now offers a correction" in said

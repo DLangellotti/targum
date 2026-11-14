@@ -34,8 +34,28 @@
   var key = window.TARGUM_KEY;
 
   // `/account/me`, asked once for the whole page and shared: `keep.js` (targum-internal#484).
-  function meOnce(address, options) {
-    return window.targumMe ? window.targumMe(address, options) : fetch(address, options);
+  function meOnce(address, options, fresh) {
+    return window.targumMe ? window.targumMe(address, options, fresh) : fetch(address, options);
+  }
+
+  /* What the account holds now, asked afresh rather than from the page's shared answer.
+     A press whose answer was lost may still have been kept, and a switch drawn back to
+     what it was would then show the reader a consent the account no longer holds (qa on
+     #1227, N2). Rejects where the account cannot be read either. */
+  function holds() {
+    return meOnce(
+      keyed("/account/me"),
+      { credentials: "same-origin", headers: key ? { "X-Targum-Key": key } : {} },
+      true
+    )
+      .then(function (response) {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.json();
+      })
+      .then(function (me) {
+        if (!me || !me.signedIn) throw new Error("not signed in");
+        return me;
+      });
   }
 
   function keyed(path) {
@@ -333,32 +353,34 @@
         reads = wanted.reads.slice();
         saveLanguages();
       }
-      ask("/account/languages", wanted).then(function (answer) {
-        // Drawn back from the answer either way. What the account kept is what stands,
-        // and a refused change puts its rows back rather than showing what was asked.
-        if (answer.learning || answer.reads) drawLanguages(answer);
-        else if (refused(answer)) drawLanguages(kept);
-        if (answer.error || answer.signedIn === false) {
-          // A refusal, with the clay mark: it was the quiet line "Saved." is said in.
-          return say("you-languages-said", answer.error || SIGNED_OUT, true);
-        }
-        say("you-languages-said", SAVED);
-        // The pages that offer a language read the account's answer through sync, so
-        // asking it to look again is what makes them agree.
-        if (window.TargumSync) window.TargumSync.start(true);
-        // The menus are in the language read into: a change there is a new page.
-        // `strings.reading_language`: the one language read into other than English, or
-        // English.
-        var before = (window.TargumStrings && window.TargumStrings.language) || "en";
-        var others = (answer.reads || reads).filter(function (code) {
-          return code !== "en";
+      ask("/account/languages", wanted)
+        .then(function (answer) {
+          // Drawn back from the answer either way. What the account kept is what stands,
+          // and a refused change puts its rows back rather than showing what was asked.
+          if (answer.learning || answer.reads) drawLanguages(answer);
+          else if (refused(answer)) drawLanguages(kept);
+          if (answer.error || answer.signedIn === false) {
+            // A refusal, with the clay mark: it was the quiet line "Saved." is said in.
+            return say("you-languages-said", answer.error || SIGNED_OUT, true);
+          }
+          say("you-languages-said", SAVED);
+          // The pages that offer a language read the account's answer through sync, so
+          // asking it to look again is what makes them agree.
+          if (window.TargumSync) window.TargumSync.start(true);
+          // The menus are in the language read into: a change there is a new page.
+          // `strings.reading_language`: the one language read into other than English, or
+          // English.
+          var before = (window.TargumStrings && window.TargumStrings.language) || "en";
+          var others = (answer.reads || reads).filter(function (code) {
+            return code !== "en";
+          });
+          var now = others.length === 1 ? others[0] : "en";
+          if (now !== before && window.location && window.location.reload) window.location.reload();
+        })
+        .catch(function () {
+          drawLanguages(kept);
+          say("you-languages-said", NOT_SAVED, true, again);
         });
-        var now = others.length === 1 ? others[0] : "en";
-        if (now !== before && window.location && window.location.reload) window.location.reload();
-      }, function () {
-        drawLanguages(kept);
-        say("you-languages-said", NOT_SAVED, true, again);
-      });
     }, 400);
   }
 
@@ -409,26 +431,44 @@
       if (keep) keep.hidden = true;
     }
     paint(!!events.on);
-    toggle.onclick = function () {
-      var was = toggle.getAttribute("aria-pressed") === "true";
-      ask("/account/events", { collect: !was })
+    function done(on) {
+      paint(on);
+      tell(
+        on
+          ? t("you.record.started", "We're recording again from now.")
+          : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
+      );
+    }
+    // `want` is what was pressed for, so Try again asks for the same thing again.
+    function send(want) {
+      var again = function () {
+        send(want);
+      };
+      ask("/account/events", { collect: want })
         .then(function (answer) {
           if (refused(answer) || !answer.events) {
-            paint(was);
-            return fault(answer, toggle.onclick);
+            paint(!want);
+            return fault(answer, again);
           }
-          var on = !!answer.events.on;
-          paint(on);
-          tell(
-            on
-              ? t("you.record.started", "We're recording again from now.")
-              : t("you.record.stopped", "Stopped. What's already recorded is still here until you erase it.")
-          );
+          done(!!answer.events.on);
         })
         .catch(function () {
-          paint(was);
-          fault(null, toggle.onclick);
+          // The answer was lost, not the press: the switch shows what the account holds.
+          holds()
+            .then(function (me) {
+              var on = !!(me.events && me.events.on);
+              if (on === want) return done(on);
+              paint(on);
+              fault(null, again);
+            })
+            .catch(function () {
+              paint(!want);
+              fault(null, again);
+            });
         });
+    }
+    toggle.onclick = function () {
+      send(toggle.getAttribute("aria-pressed") !== "true");
     };
     function forget() {
       disarm();
@@ -481,31 +521,48 @@
         : t("you.counting.start", "Start counting again");
     }
     paint(!!counting.on);
-    function fault(answer) {
+    function fault(answer, again) {
       if (answer && answer.signedIn === false) return say("counting-said", SIGNED_OUT, true);
-      say("counting-said", NOT_SAVED, true, toggle.onclick);
+      say("counting-said", NOT_SAVED, true, again);
     }
-    toggle.onclick = function () {
-      var was = toggle.getAttribute("aria-pressed") === "true";
-      ask("/account/counting", { count: !was })
+    function done(on) {
+      paint(on);
+      say(
+        "counting-said",
+        on
+          ? t("you.counting.started", "We'll count your texts again from tonight.")
+          : t("you.counting.stopped", "Stopped. Your texts leave the counts tonight.")
+      );
+    }
+    function send(want) {
+      var again = function () {
+        send(want);
+      };
+      ask("/account/counting", { count: want })
         .then(function (answer) {
           if (refused(answer) || !answer.counting) {
-            paint(was);
-            return fault(answer);
+            paint(!want);
+            return fault(answer, again);
           }
-          var on = !!answer.counting.on;
-          paint(on);
-          say(
-            "counting-said",
-            on
-              ? t("you.counting.started", "We'll count your texts again from tonight.")
-              : t("you.counting.stopped", "Stopped. Your texts leave the counts tonight.")
-          );
+          done(!!answer.counting.on);
         })
         .catch(function () {
-          paint(was);
-          fault(null);
+          // As the record's switch: what the account holds, asked afresh (qa N2).
+          holds()
+            .then(function (me) {
+              var on = !!(me.counting && me.counting.on);
+              if (on === want) return done(on);
+              paint(on);
+              fault(null, again);
+            })
+            .catch(function () {
+              paint(!want);
+              fault(null, again);
+            });
         });
+    }
+    toggle.onclick = function () {
+      send(toggle.getAttribute("aria-pressed") !== "true");
     };
   }
 
@@ -851,17 +908,28 @@
       }
       say("grant-said", NOT_SAVED, true, go.onclick);
     }
+    function accepted() {
+      go.hidden = true;
+      say("grant-said", t("you.grant.thanks", "Thank you. A word's card now offers a correction."));
+    }
     go.onclick = function () {
       go.disabled = true;
       say("grant-said", "");
       ask("/account/grant", {})
         .then(function (answer) {
           if (!(answer && answer.granted)) return fault(answer);
-          go.hidden = true;
-          say("grant-said", t("you.grant.thanks", "Thank you. A word's card now offers a correction."));
+          accepted();
         })
         .catch(function () {
-          fault(null);
+          // Accepted with the answer lost is accepted: asked afresh (qa N2).
+          holds()
+            .then(function (me) {
+              if (me.granted) return accepted();
+              fault(null);
+            })
+            .catch(function () {
+              fault(null);
+            });
         });
     };
   }
