@@ -449,6 +449,38 @@ def test_a_refusal_with_credits_left_never_says_they_are_used(tmp_path: Path) ->
     assert said.startswith("It needs 13 credits and you have 10 left."), said
 
 
+def test_a_quote_over_the_balance_is_refused_at_the_card(tmp_path: Path) -> None:
+    """targum-internal#715: the card said "Uses 13 credits · 12 left" with Confirm live.
+    The claim refuses it, and now the quote says so first, in the claim's own words; one
+    that fits, a text, and an admin are left as they were."""
+    library = with_hours(tmp_path, hours=1)
+    assert library.claim(recording(library, 1, 48 * 60, "spent")) == ""
+
+    over = recording(library, 1, 13 * 60, "over")
+    over.stage = "ready"
+    library.short_of_month(over)
+    assert over.stage == "blocked"
+    assert str(over.blocked).startswith("It needs 13 credits and you have 12 left.")
+    assert over.state()["act"] == "top-up"
+    # The press would be told the same: the claim over the balance is refused.
+    assert str(library.claim(over)).startswith("It needs 13 credits and you have 12 left.")
+
+    fits = recording(library, 1, 12 * 60, "fits")
+    fits.stage = "ready"
+    library.short_of_month(fits)
+    assert fits.stage == "ready" and not fits.blocked
+
+    text = owned(library, 1, 0.1, "text")
+    text.stage = "ready"
+    library.short_of_month(text)
+    assert text.stage == "ready"
+
+    mine = recording(library, 1, 13 * 60, "admin")
+    mine.admin, mine.stage = True, "ready"
+    library.short_of_month(mine)
+    assert mine.stage == "ready"
+
+
 def test_the_hours_are_counted_per_reader(tmp_path: Path) -> None:
     """A rail per reader, not a shared tap — the same rule the money rails follow."""
     library = with_hours(tmp_path, hours=10)

@@ -120,7 +120,9 @@ def test_the_wait_keeps_the_title_says_the_queue_and_opens_the_reader(browser) -
     context, page, thrown = opened(browser, doors)
     page.evaluate("() => { window.TargumBring.POLL = 400; }")
     priced_and_confirmed(page)
-    page.wait_for_selector(".wait-stage:has-text('Waiting behind 2 builds')")
+    # Said once, in the server's own line (#715).
+    page.wait_for_selector(".wait-said:has-text('behind 2 other texts')")
+    assert "Waiting behind" not in page.inner_text("#status")
     card = page.inner_text("#status")
     assert QUOTE["title"] in card, "the title stays on the card while it is made"
     assert "behind 2 other texts" in card, "the server's own line is said"
@@ -180,7 +182,7 @@ def test_a_wait_that_loses_the_connection_says_where_it_will_be(browser) -> None
     context, page, thrown = opened(browser, doors)
     page.evaluate("() => { window.TargumBring.POLL = 5; }")
     priced_and_confirmed(page)
-    page.wait_for_selector(".wait-stage:has-text('Waiting behind 1 build')")
+    page.wait_for_selector(".wait-stage:has-text('Waiting behind 1 text')")
     doors.down.add("/job/")
     page.wait_for_selector(".wait-stage:has-text('still being made')", timeout=8000)
     assert page.locator("#status a.btn:has-text('Your targums')").count() == 1

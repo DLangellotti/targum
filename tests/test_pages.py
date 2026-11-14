@@ -1245,3 +1245,25 @@ def test_every_desk_page_says_who_is_signed_in() -> None:
             continue  # the expired link's bar is the door's: no account, no places
         assert "script('sync.js')" in text, f"{page.name} cannot hear who is signed in"
         assert "script('account.js')" in text, f"{page.name} cannot draw who is signed in"
+
+
+def test_change_labels_its_picker_once() -> None:
+    """ "TRANSLATIONS IN" headed a field labelled "Translations in" (#715, P2-9)."""
+    add = PAGES["add"]
+    assert add.count(">Translations in<") == 1
+    assert '<h2 id="translations-in">' in add and 'aria-labelledby="translations-in"' in add
+
+
+def test_with_nothing_new_to_make_the_notice_has_a_way_on_and_the_files_are_off() -> None:
+    """The notice had no press, and Choose a file and Bring a post stayed live under it
+    (#715, P2-10)."""
+    from targum.render.builder import add_page
+
+    shut = add_page("k", no_key="We can't get anything new ready right now.")
+    notice = shut[shut.index('class="notice card"') :][:400]
+    assert 'href="/"' in notice and "Your targums" in notice
+    for press in ('id="choose"', 'id="post-open"', 'id="go"'):
+        tag = shut[shut.index(press) :].split(">", 1)[0]
+        assert " disabled" in tag, press
+    open_ = add_page("k")
+    assert " disabled" not in open_[open_.index('id="choose"') :].split(">", 1)[0]

@@ -3957,11 +3957,22 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
         return said
     if job.stage == "cancelled":
         # The reader cancelled it while it waited, or stopped it running
-        # (targum-internal#694): nothing was used, or what was done was paid for.
+        # (targum-internal#694). A stop says the credits its receipt settled, and that
+        # nothing was used where none were: a text uses none, and "you paid" said of
+        # one told the reader about money nobody asked of them (targum-internal#715).
         if job.spent > 0:
-            return said_in(
-                language, "job.said.stopped", "You stopped it. You paid for what was done."
-            )
+            from ..render.builder import credits_of
+
+            used = credits_of(getattr(job, "used", 0.0))
+            if used > 0:
+                return _counted(
+                    language,
+                    "job.said.stopped",
+                    used,
+                    "You stopped it. It used {n} credit.",
+                    "You stopped it. It used {n} credits.",
+                )
+            return said_in(language, "job.said.stopped-none", "You stopped it. Nothing was used.")
         return said_in(language, "job.said.cancelled", "You cancelled it. Nothing was used.")
     if job.stage == "blocked":
         # A page draws the refusal's quiet line beside it (design.md §12, 2026-10-09);

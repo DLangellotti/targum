@@ -4,9 +4,10 @@
  *
  * A build that is waiting is cancelled at the press, and every credit it held goes back:
  * nothing is lost, so nothing is asked. A build that is running asks once, in place, before
- * it stops ("Stop this build? You'll still pay for what's done so far."), with the safe
- * answer focused; it then stops at the step it is on and is settled to its receipt like
- * any build (David, 2026-11-13). The press is quiet, `.btn.ghost.outline.small`, never a
+ * it stops, with the safe answer focused; it then stops at the step it is on and is
+ * settled to its receipt like any build (David, 2026-11-13). The question and the end
+ * say credits, never money (design.md §6): a recording's done part uses its credits, a
+ * text uses none, and the end says what the receipt used (targum-internal#715). The press is quiet, `.btn.ghost.outline.small`, never a
  * card's primary (design.md §13), and `.btn` gives it 44px under a thumb (§8).
  *
  * The server decides whose build it is (`/jobs/cancel` answers 404 for anybody else's), and
@@ -145,8 +146,15 @@
           if (settings.finished) settings.finished(state);
           return;
         }
-        gone(state, t("building.cancel.stopped", "Stopped. You paid for what was done."));
+        gone(state, stopped(state));
       });
+    }
+
+    // What the stop used, from the build's own receipt (`used`, in credits).
+    function stopped(state) {
+      var used = Number(state && state.used) || 0;
+      if (used > 0) return tn("building.cancel.stopped", used, "Stopped. It used {n} credit.", "Stopped. It used {n} credits.");
+      return t("building.cancel.stopped-none", "Stopped. Nothing was used.");
     }
 
     function refused(answer) {
@@ -177,7 +185,13 @@
       // Asked once, in place: a dialog for this is a dialog nobody reads (you.js's Delete
       // account). The safe choice has the focus.
       presses();
-      say(t("building.cancel.ask", "Stop this build? You'll still pay for what's done so far."), "cancel-ask", false);
+      say(
+        job.audio
+          ? t("building.cancel.ask", "Stop it? What's done so far still uses credits.")
+          : t("building.cancel.ask-none", "Stop it? It uses none of your credits."),
+        "cancel-ask",
+        false
+      );
       var stop = button("ghost outline danger", t("building.cancel.stop", "Stop it"));
       var keep = button("text", t("building.cancel.keep", "Keep building"));
       stop.onclick = function () {
@@ -233,6 +247,8 @@
         var name = document.createElement("bdi");
         name.className = "cancel-ahead-title";
         name.setAttribute("dir", "auto");
+        // Its language, so a Hebrew title is read and set as Hebrew (design.md §14.3).
+        if (one.language) name.setAttribute("lang", one.language);
         name.textContent = one.title || "";
         item.appendChild(name);
         var press = control(one, {
@@ -251,8 +267,8 @@
       theirs.textContent = tn(
         "building.cancel.others",
         others,
-        "{n} build ahead is someone else's. Only they can cancel it.",
-        "{n} builds ahead are other people's. Only they can cancel them."
+        "{n} ahead is someone else's. Only they can cancel it.",
+        "{n} ahead are other people's. Only they can cancel them."
       );
       box.appendChild(theirs);
     }

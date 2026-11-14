@@ -93,10 +93,11 @@
     });
   }
 
-  // One filled press per view (design.md §13): once a priced card offers Confirm, the
-  // box's own Upload steps back to tonal, and comes forward again when the card goes.
+  // One filled press per view (design.md §13): once the card holds the primary — a
+  // priced card's Confirm, "in the Library"'s Open, done's Open it — the box's own
+  // Upload steps back to tonal, and comes forward again when the card goes (#715).
   function oneFilled() {
-    var offered = !status.hidden && !!status.querySelector(".confirm");
+    var offered = !status.hidden && !!(status.querySelector(".confirm") || status.querySelector(".btn.filled"));
     [go, document.getElementById("post-go")].forEach(function (press) {
       if (!press) return;
       press.classList.toggle("filled", !offered);
@@ -157,9 +158,25 @@
 
   /* targum out of reach: the connection's banner, whose Try again presses again. */
   function unreachable(again) {
+    // The line under the box promised an answer, and this is one (#715).
+    answered();
     status.hidden = true;
     oneFilled();
     if (window.TargumFault) window.TargumFault.unreachable(again);
+  }
+
+  /* A run of text set in its own language (design.md §14.3): Hebrew letters as the
+     row's own language where that is written in them, Cyrillic as Russian, and Latin
+     letters as the row's language only where that is written in them. `dir` is the
+     run's own, from its letters. */
+  function langRun(node, text, code) {
+    node.setAttribute("dir", "auto");
+    var said = String(text || "");
+    var base = String(code || "").split("-")[0];
+    if (/[\u0590-\u05FF]/.test(said)) node.setAttribute("lang", ["he", "yi", "arc"].indexOf(base) >= 0 ? base : "he");
+    else if (/[\u0400-\u04FF]/.test(said)) node.setAttribute("lang", "ru");
+    else if (base && ["he", "yi", "arc", "ru"].indexOf(base) < 0) node.setAttribute("lang", base);
+    return node;
   }
 
   function line(text) {
@@ -336,6 +353,8 @@
   // Files from the box, the picker or the clipboard: whatever was held is put down,
   // along with anything paired to it, and the new files are paired afresh.
   function take(files) {
+    // Nothing new can be made here now: a file is not taken to be turned away (#715).
+    if (SHUT) return Promise.resolve();
     var list = bringing.listed(files);
     if (!list.length) return Promise.resolve();
     if (given) given.value = "";
@@ -416,7 +435,9 @@
     files.forEach(function (file) {
       total += file.size || 0;
     });
-    return total >= 1048576 ? (total / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(total / 1024)) + " KB";
+    return total >= 1048576
+      ? t("add.size.mb", "{n} MB", { n: (total / 1048576).toFixed(1) })
+      : t("add.size.kb", "{n} KB", { n: Math.max(1, Math.round(total / 1024)) });
   }
 
   // One chip per file in the box, and one for whatever was paired to it.
@@ -687,7 +708,7 @@
   var recordButton = document.getElementById("record");
   var recordWord = document.getElementById("record-word");
   var speaking = window.TargumSpeak;
-  if (recordButton && speaking && speaking.can) {
+  if (recordButton && speaking && speaking.can && !SHUT) {
     recordButton.hidden = false;
     var startedAt = 0;
     recordButton.onclick = function () {
@@ -751,14 +772,16 @@
   });
   // The dashed place is itself a press for choosing (board UploadPhone: the place is
   // the button on a phone); a press on anything inside it that is its own button is not.
+  // Off with Upload where nothing new can be made (#715).
+  if (dropSay && SHUT) dropSay.setAttribute("aria-disabled", "true");
   if (dropSay) {
     dropSay.addEventListener("click", function () {
-      fileInput.click();
+      if (!SHUT) fileInput.click();
     });
     dropSay.addEventListener("keydown", function (event) {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
-        fileInput.click();
+        if (!SHUT) fileInput.click();
       }
     });
   }
@@ -798,6 +821,7 @@
     head.appendChild(document.createTextNode(sentence.slice(0, at)));
     var bold = document.createElement("b");
     bold.textContent = entry.title;
+    langRun(bold, entry.title, entry.language);
     head.appendChild(bold);
     head.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
     alreadyBox.appendChild(head);
@@ -910,6 +934,7 @@
     var head = document.createElement("p");
     head.className = "found-title";
     head.textContent = row.title || row.link;
+    if (row.title) langRun(head, row.title, row.language);
     card.appendChild(head);
 
     var facts = [];
@@ -1039,7 +1064,7 @@
       var picked = theirs !== null;
       zone.querySelector(".drop-label").textContent = picked ? theirs.name : LABEL;
       zone.querySelector(".drop-note").textContent = picked
-        ? Math.round(theirs.size / 1024) + " KB"
+        ? t("add.size.kb", "{n} KB", { n: Math.round(theirs.size / 1024) })
         : NOTE;
       choose.hidden = picked;
       undo.hidden = !picked;
@@ -1152,7 +1177,7 @@
       var picked = spokenText !== null;
       zone.querySelector(".drop-label").textContent = picked ? spokenText.name : LABEL;
       zone.querySelector(".drop-note").textContent = picked
-        ? Math.round(spokenText.size / 1024) + " KB"
+        ? t("add.size.kb", "{n} KB", { n: Math.round(spokenText.size / 1024) })
         : NOTE;
       choose.hidden = picked;
       undo.hidden = !picked;
@@ -1770,6 +1795,8 @@
   // This text is already in the library with a translation somebody published, which is
   // better than a machine one. Said before anything else happens.
   function instead(entry) {
+    // The card is the answer to the line under the box (#715).
+    answered();
     var box = document.createDocumentFragment();
     var head = document.createElement("p");
     head.className = "instead";
@@ -1791,6 +1818,7 @@
     head.appendChild(document.createTextNode(sentence.slice(0, at)));
     var bold = document.createElement("b");
     bold.textContent = entry.title;
+    langRun(bold, entry.title, entry.language);
     head.appendChild(bold);
     head.appendChild(document.createTextNode(sentence.slice(at).replace("{title}", "")));
     var row = document.createElement("div");
@@ -1882,6 +1910,22 @@
     if (job.language) title.setAttribute("lang", job.language);
     title.textContent = job.title || "";
     head.appendChild(title);
+    // The show or channel, who presents it and who makes it, in a quiet line, as Home's
+    // waiting card says them (targum-internal#691, #715).
+    var from = [job.show, job.presenter, job.by].filter(function (one, at, all) {
+      return one && one !== job.title && all.indexOf(one) === at;
+    });
+    if (from.length) {
+      var who = document.createElement("p");
+      who.className = "quote-from";
+      from.forEach(function (one, at) {
+        if (at) who.appendChild(document.createTextNode(" \u00b7 "));
+        var name = document.createElement("bdi");
+        name.textContent = one;
+        who.appendChild(langRun(name, one, job.language));
+      });
+      head.appendChild(who);
+    }
     var known = !knownSaid && bringing && bringing.knownLine ? bringing.knownLine(job.known_share, job.known_estimated) : "";
     if (known) {
       var mine = document.createElement("p");
@@ -1922,7 +1966,10 @@
     // What was found stays on the card, under its title: the reader read it while the
     // price was being worked out, and it should not vanish the moment the price lands.
     var was = foundBlock(found);
-    var head = titled(job, !!(was && found.seconds), !!was);
+    // How much is known is said once: by what was found where it said it, and by the
+    // card otherwise. A video's or a recording's lookup carries no share, and the card's
+    // own 87% was hidden behind it (#715).
+    var head = titled(job, !!(was && found.seconds), !!(was && was.querySelector(".found-known")));
     box.appendChild(head);
     if (was) box.appendChild(was);
 
@@ -2170,9 +2217,14 @@
       // nothing read "Infinity%": no total, no percentage.
       var total = Number(state.total) || 0;
       var done = Math.min(Number(state.done) || 0, total);
+      // Waiting behind others is said once, by the server's own line where it sent one
+      // (#715): the stage said it again in other words.
+      var behindSaid = state.stage === "queued" && behind > 0;
       stage.textContent =
-        state.stage === "queued" && behind > 0
-          ? tn("add.wait.behind", behind, "Waiting behind {n} build", "Waiting behind {n} builds")
+        behindSaid
+          ? state.said
+            ? ""
+            : tn("add.wait.behind", behind, "Waiting behind {n} text", "Waiting behind {n} texts")
           : done && total > 0
             ? t("add.getting-ready.share", "We're getting it ready… {share}%", { share: Math.round((done / total) * 100) })
             : plain(state.message) || t("add.getting-ready", "We're getting it ready…");
@@ -2198,10 +2250,14 @@
       cancelling.textContent = "";
       var others = state.stage === "queued" ? undo.ahead(state, { changed: function () { cancelDrawn = ""; } }) : null;
       if (others) cancelling.appendChild(others);
-      var own = undo.control(
-        { id: job.id, stage: state.stage, cancellable: state.cancellable, stopping: state.stopping },
-        { label: t("add.wait.cancel", "Cancel this build") }
-      );
+      var own = undo.control({
+        id: job.id,
+        title: job.title,
+        audio: state.audio === undefined ? job.audio : state.audio,
+        stage: state.stage,
+        cancellable: state.cancellable,
+        stopping: state.stopping,
+      });
       if (own) cancelling.appendChild(own);
     }
 
@@ -2246,6 +2302,7 @@
       open.textContent = t("add.wait.open", "Open it");
       progress.appendChild(open);
       note.hidden = true;
+      oneFilled();
       // A cover, always, and after the text is readable rather than before it: it is
       // a picture for the shelf and nobody should wait on a picture to start reading.
       // Asked for and left running — the server has the job either way.
@@ -2272,6 +2329,25 @@
           over.className = "wait-stage";
           over.setAttribute("role", "status");
           progress.appendChild(over);
+          // And the way on (design.md §14.1, #715): the box again, for something else.
+          var next = document.createElement("div");
+          next.className = "row";
+          var again = document.createElement("button");
+          again.type = "button";
+          again.className = "btn tonal again";
+          again.textContent = t("add.wait.again", "Upload something else");
+          again.onclick = function () {
+            status.hidden = true;
+            status.textContent = "";
+            quoted = null;
+            go.disabled = false;
+            if (given) given.value = "";
+            oneFilled();
+            settle();
+            if (given && given.focus) given.focus();
+          };
+          next.appendChild(again);
+          progress.appendChild(next);
           note.hidden = true;
           return;
         }

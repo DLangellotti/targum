@@ -70,9 +70,18 @@ install({
   TARGUM_KEY: "test-key",
   TARGUM_LANGUAGES: { he: "Hebrew", en: "English" },
   location: { href: "http://localhost/add", search: "" },
-  setTimeout: (fn) => fn(),
+  setTimeout: (fn) => later(fn),
 });
-global.setTimeout = (fn) => fn();
+// Nothing waits, and a build that stays waiting is asked after a bounded number of times
+// rather than for ever: a poll that never settles would otherwise run the harness out of
+// memory (targum-internal#715's waiting card).
+let ticks = 0;
+function later(fn) {
+  ticks += 1;
+  if (ticks < 400) fn();
+  return 0;
+}
+global.setTimeout = later;
 global.URLSearchParams = URLSearchParams;
 global.FormData = class {};
 global.Promise = Promise;
@@ -102,6 +111,24 @@ for (const id of ["from", "to"]) {
 }
 document.getElementById("how").appendChild(element("button"));
 
+// The card's own helpers, for a run that goes on past Continue to a priced card, a wait
+// and its end (targum-internal#715): `bring.js` draws the price and follows the build,
+// `cancel.js` the wait's Cancel.
+if (payload.card) {
+  // `status.innerHTML = ""` empties the card in a browser; the stub kept every earlier
+  // drawing under the new one, and a stale Confirm then answered for the card.
+  Object.defineProperty(document.getElementById("status"), "innerHTML", {
+    set() {
+      this.children = [];
+      this._text = "";
+    },
+    get() {
+      return "";
+    },
+  });
+  require(path.join(assets, "bring.js"));
+  require(path.join(assets, "cancel.js"));
+}
 require(path.join(assets, "add.js"));
 
 /** The status area, as a reader would read it. */
@@ -170,6 +197,48 @@ const settled = () => new Promise((done) => setImmediate(done));
     out.afterChoose = { box: byId.given.value, asked: asked.map((one) => one.path) };
   }
 
+  // Presses on the card, by their words, each settled before the next.
+  for (const words of payload.press || []) {
+    const found = [];
+    const look = (node) => {
+      if (!node) return;
+      const tag = String(node.tagName || "").toLowerCase();
+      if ((tag === "button" || tag === "a") && node.textContent === words) found.push(node);
+      (node.children || []).forEach(look);
+    };
+    look(byId.status);
+    if (!found.length) break;
+    if (found[0].onclick) found[0].onclick({});
+    for (let n = 0; n < 40; n++) await settled();
+  }
+  if (payload.card) {
+    out.status = statusText();
+    // Every run drawn on the card, with the language and direction it carries, and
+    // every press with its classes: what §9 and §14.3 are held to.
+    out.drawn = [];
+    out.presses = [];
+    const look = (node) => {
+      if (!node || node.hidden) return;
+      const tag = String(node.tagName || "").toLowerCase();
+      if (tag === "button" || tag === "a") {
+        out.presses.push({ text: node.textContent, className: node.className });
+        return;
+      }
+      if (node._text) {
+        out.drawn.push({
+          tag,
+          className: node.className || "",
+          lang: (node.attrs || {}).lang || "",
+          dir: (node.attrs || {}).dir || "",
+          text: node._text,
+        });
+      }
+      (node.children || []).forEach(look);
+    };
+    look(byId.status);
+    out.go = Array.from(byId.go.classList._names);
+    out.underHidden = !!byId.understood.hidden;
+  }
   out.asked = asked;
   // Where the page sent the reader, if it went anywhere (a reference opens its portion).
   out.went = window.location.href;
