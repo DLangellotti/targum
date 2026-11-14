@@ -19,9 +19,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   says what is connected", 2026-11-14). The names come from the same `Store.connections`
   rows Your account reads, one name an app as Account groups them. A stranger and a reader
   with nothing connected see the page as before. The signed-in page is sent
-  `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Three
+  `Cache-Control: private, no-store`, so no shared cache keeps one reader's apps. Four
   new strings in English and Russian (`connect.page.you-ve-connected`, `connect.page.and`,
-  `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
+  `connect.page.an-app` for an app that gave no name, `connect.page.manage-in-your-account`); the Russian waits on ling-ru's first pass.
 
 ### Fixed
 - Your Progress no longer reads a failed sync as an empty account (targum-internal#726,

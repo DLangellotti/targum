@@ -968,7 +968,7 @@ def connected_names(connections: list[dict[str, Any]]) -> list[str]:
 
     `Store.connections` is one row a client, and an app reconnected registers a new client
     under the same name, so two rows called "Claude" are one app (`you.js`, `grouped`). A
-    client with no name is said as "" here, and the page says "An app" for it, once."""
+    client with no name is said as "" here, and the page says "an app" for it, once."""
     names: list[str] = []
     for one in connections:
         name = str(one.get("name") or "").strip()

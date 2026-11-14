@@ -2305,6 +2305,7 @@
   "connect.page.chatting-is-included": "Chatting is included",
   "connect.page.you-ve-connected": "You've connected {apps}.",
   "connect.page.and": "and",
+  "connect.page.an-app": "an app",
   "connect.page.manage-in-your-account": "Manage connections in Your account",
   "connect.page.a-what-is-mcp": "MCP is how these apps add a tool like targum. Some menus call it a connector.",
   "connect.page.learn-hebrew-in-the-ai-you-already-use": "Learn Hebrew in the AI you already use.",

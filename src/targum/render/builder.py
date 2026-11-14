@@ -3979,7 +3979,7 @@ def connect_page(
     """
     shelf_n = hebrew_shelf_size()
     said = page_words(language)
-    apps = [str(name or said("you.connections.an-app", "An app")) for name in connected or []]
+    apps = [str(name or said("connect.page.an-app", "an app")) for name in connected or []]
     if len(apps) > 1:
         apps_said = (
             ", ".join(apps[:-1]) + " " + str(said("connect.page.and", "and")) + " " + apps[-1]

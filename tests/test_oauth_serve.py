@@ -1018,6 +1018,9 @@ def test_several_apps_are_said_in_one_line() -> None:
     page = html.unescape(
         connect_page("en", PUBLIC, signed_in=True, connected=["Claude", "ChatGPT", ""])
     )
-    assert "You've connected Claude, ChatGPT and An app." in page
+    assert "You've connected Claude, ChatGPT and an app." in page
+    alone = html.unescape(connect_page("ru", PUBLIC, signed_in=True, connected=[""]))
+    assert "Вы подключили приложение." in alone
+    assert "Управлять подключениями можно в разделе «Ваш аккаунт»" in alone
     stranger = connect_page("en", PUBLIC, signed_in=False, connected=["Claude"])
     assert 'class="cn-connected"' not in stranger
