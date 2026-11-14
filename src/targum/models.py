@@ -35,15 +35,104 @@ VERB_MARK = " (verb)"
 #: key, the card on the commonest of them said the wrong one: "with" read "people;
 #: nation" on 96 of the shelf's modern texts. A closed list, because a mark on every
 #: preposition would buy every preposition's meaning again for nothing.
-SPLIT_BY_POS = frozenset({"עם", "את", "אל", "עד", "תחת"})
 POS_MARKS = {
     "ADP": " (preposition)",
     "NOUN": " (noun)",
     "PRON": " (pronoun)",
     "ADV": " (adverb)",
 }
+#: The marks only the spellings added on 2026-11-14 carry (targum-internal#701). Not in
+#: `POS_MARKS`, because the first five split on every part of speech there and on no
+#: other: an עד a tagger calls SCONJ keeps its bare key.
+WORD_MARKS = {
+    "ADJ": " (adjective)",
+    "DET": " (determiner)",
+    "NUM": " (number)",
+    "PART": " (particle)",
+    "CCONJ": " (conjunction)",
+    "SCONJ": " (conjunction)",
+}
+#: What a noun or adjective use of a verb's participle is filed under, after the verb's
+#: lemma: `טיפל (participle)` for the מטפל of "הרופא המטפל" (`participle_of`).
+PARTICIPLE_MARK = " (participle)"
+
+_NOUN, _ADV, _ADP, _PRON = (POS_MARKS[pos] for pos in ("NOUN", "ADV", "ADP", "PRON"))
+_ADJ, _DET, _NUM, _PART = (WORD_MARKS[pos] for pos in ("ADJ", "DET", "NUM", "PART"))
+
+#: Each spelling filed by part of speech, with the mark each part of speech is filed
+#: under; a part of speech not named keeps the bare key. Two parts of speech share a mark
+#: where they are one word: the ADV, CCONJ and DET אף are all "even; also", and only the
+#: NOUN is "nose". The 2026-11-14 additions are the homographs ling-he's A1-B1 read found
+#: sharing one meaning (targum-internal#701): פה "mouth" read on "here", שום "garlic" on
+#: "any", כלל "rule" on "at all", מי "water" on "who", רבה "rabbi" on "much". Only where
+#: the part of speech is what tells the senses apart; a spelling the tagger gives one
+#: part of speech for both words (the verbs) is the pointed headword's to split.
+SPLIT_BY_POS: dict[str, dict[str, str]] = {
+    **{word: POS_MARKS for word in ("עם", "את", "אל", "עד", "תחת")},
+    "פה": {"NOUN": _NOUN, "ADV": _ADV, "ADP": _ADP},
+    "שום": {"NOUN": _NOUN, "DET": _DET, "ADV": _DET},
+    "אי": {"NOUN": _NOUN, "ADV": _PART, "PART": _PART},
+    "מי": {"NOUN": _NOUN, "PRON": _PRON, "PART": _PRON, "ADV": _PRON},
+    "אתן": {"PRON": _PRON},
+    "כלל": {"NOUN": _NOUN, "ADV": _ADV},
+    "אף": {"NOUN": _NOUN, **dict.fromkeys(("ADV", "CCONJ", "SCONJ", "DET", "PART"), _ADV)},
+    "רב": {"NOUN": _NOUN, "ADJ": _ADJ, "ADV": _ADV},
+    "רבה": {"NOUN": _NOUN, "ADJ": _ADJ, "ADV": _ADV},
+    "אחר": {"ADP": _ADP, "ADV": _ADV, "ADJ": _ADJ},
+    "שבע": {"NUM": _NUM, "ADJ": _ADJ},
+    "חדש": {"ADJ": _ADJ, "NOUN": _NOUN},
+    "חדשה": {"ADJ": _ADJ, "NOUN": _NOUN},
+    "זמן": {"NOUN": _NOUN},
+    "לבוש": {"NOUN": _NOUN, "ADJ": _ADJ},
+    "ועד": {"NOUN": _NOUN, "ADP": _ADP},
+    "סמך": {"NOUN": _NOUN, "ADP": _ADP},
+}
 #: Every mark a meaning's key can carry after the form.
-MARKS = (VERB_MARK, *POS_MARKS.values())
+MARKS = (VERB_MARK, *POS_MARKS.values(), *dict.fromkeys(WORD_MARKS.values()), PARTICIPLE_MARK)
+
+_POINTING = re.compile("[\u0591-\u05c7]")
+_PLAIN_HEBREW = re.compile("[\u05d0-\u05ea]+")
+
+
+def participle_of(stem: str, lemma: str) -> bool:
+    """Whether `stem`, a word as written without its prefixes, is the present participle
+    of the verb `lemma`: מטפל of טיפל, מנצח of ניצח, מעסיק of העסיק, מתלבשת of התלבש.
+
+    DICTA gives a participle used as a noun or an adjective the verb's past-tense lemma,
+    so "הרופא המטפל" was filed under טיפל and read "treated; took care of". Only the
+    מ-participles, whose stem says the verb outright: a pi'el's yod becomes the מ's
+    vowel (טיפל, מטפל) and a hif'il's or hitpa'el's ה becomes the מ (העסיק, מעסיק). The
+    pu'al's (סודר, מסודר) is left out, because it is also any word read with its מ
+    "from" still on (מקול). So is a verb whose lemma ends in ה: its מ-word is a noun of
+    its own more often than the participle (מטה "bed" under הטה, משקה "a drink" under
+    השקה, מראה, מעלה, מחנה, מגלה), and those keep the verb's key."""
+    if len(lemma) < 3 or lemma[0] == "מ" or lemma[-1] == "ה" or not stem.startswith("מ"):
+        return False
+    stems = {stem} | {
+        stem[: -len(ending)]
+        for ending in ("ים", "ות", "ת", "ה")
+        if stem.endswith(ending) and len(stem) - len(ending) >= 3
+    }
+    if lemma[0] == "ה":
+        return any(found[1:] == lemma[1:] for found in stems)
+    if lemma[1] == "י":
+        return any(found[1:] == lemma[0] + lemma[2:] for found in stems)
+    return False
+
+
+def filed_under(lemma: str, pos: str | None, stem: str = "") -> str:
+    """The key a meaning is filed under, from the lemma, its part of speech and, for a
+    noun or an adjective, the word as written without its prefixes: `Token.glossed_as`
+    without a scripture headword."""
+    if pos == "VERB":
+        return lemma + VERB_MARK
+    mark = SPLIT_BY_POS.get(lemma, {}).get(pos or "")
+    if mark:
+        return lemma + mark
+    if pos in ("NOUN", "ADJ") and stem and participle_of(stem, lemma):
+        return lemma + PARTICIPLE_MARK
+    return lemma
+
 
 #: What a pointed headword carries when the lexicon points more than one word alike:
 #: `אֵת (H854)`, "with", beside `אֵת (H853)`, the object marker (`oshb.filed_as`). A key
@@ -462,7 +551,8 @@ class Token(Artifact):
     def glossed_as(self) -> str:
         """The form a meaning is bought and filed under: the headword where two words
         share a spelling, the lemma with `VERB_MARK` on a verb, a `SPLIT_BY_POS` spelling
-        with its part of speech, the lemma everywhere else.
+        with its part of speech, a noun or adjective participle with `PARTICIPLE_MARK`,
+        the lemma everywhere else (`filed_under`).
 
         The mark, since 2026-09-08. DICTA names many verbs by their present participle,
         and in modern Hebrew a participle is a noun as often as not: מְשַׁנּוֹת, "are
@@ -477,11 +567,22 @@ class Token(Artifact):
         """
         if self.headword:
             return self.headword
-        if self.pos == "VERB":
-            return self.lemma + VERB_MARK
-        if self.lemma in SPLIT_BY_POS and self.pos in POS_MARKS:
-            return self.lemma + POS_MARKS[self.pos]
-        return self.lemma
+        return filed_under(self.lemma, self.pos, self.stem if self.pos in ("NOUN", "ADJ") else "")
+
+    @property
+    def stem(self) -> str:
+        """The word as written, unpointed and without the letters glued to its front:
+        מטפל for הַמְּטַפֵּל. From the content piece of `built` where the split said it,
+        else from `Syntax.lead`, else the whole surface."""
+        built: str | None = getattr(self, "built", None)
+        if built:
+            pieces = [piece for piece in built.split(" + ") if _PLAIN_HEBREW.fullmatch(piece)]
+            if pieces:
+                return pieces[-1]
+        bare = _POINTING.sub("", getattr(self, "surface", "") or "")
+        syntax = getattr(self, "syntax", None)
+        lead = syntax.lead if isinstance(syntax, Syntax) else 0
+        return bare[lead:] if 0 < lead < len(bare) else bare
 
     @property
     def head(self) -> str:

@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Shared spellings are filed by part of speech (targum-internal#701). פה "here" read
+  "mouth", שום "any" read "garlic; any", כלל "at all" read "rule", because only עם, את,
+  אל, עד and תחת were split. `models.SPLIT_BY_POS` now also splits פה, שום, אי, מי,
+  אתן, כלל, אף, רב, רבה, אחר, שבע, חדש, חדשה, זמן, לבוש, ועד and סמך, each on the parts
+  of speech that are a different word, with new marks (adjective, determiner, number,
+  particle, conjunction). A noun or adjective that is a verb's מ-participle, which DICTA
+  gives the verb's lemma (המטפל under טיפל, "treated"), is filed as `טיפל (participle)`.
+  A verb whose lemma ends in ה is left out, because its מ-word is mostly a noun of its own
+  (מטה, משקה, מראה). Computed in `Token.glossed_as`: no rename, no `SCHEMA_VERSION`, and
+  every other word keeps its key. The next deploy's `rebuild --gloss` buys the new keys:
+  66 on the laptop's library, scenes and transcripts, 137 over all of `targum-out`, each
+  for English and Russian, a few cents.
 - Upload's polish and Your targums' nits (targum-internal#715 P2-12, #716). A failed
   build says its reason once: the card drew the job's `said`, "We couldn't get it ready.
   We couldn't finish this on our side…", and now draws `why`. Done opens the reader at
