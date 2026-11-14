@@ -1069,8 +1069,10 @@ def test_the_upload_page_offers_a_translation_you_already_have() -> None:
 
 
 def test_a_cover_is_drawn_for_an_upload_without_being_asked() -> None:
-    """A shelf of pictures beats a shelf of letters and drawing one is cheap, so it is
-    not a question: there is no tick, and every upload gets one."""
+    """A shelf of pictures beats a shelf of letters, so it is not a question: there is
+    no tick. Since design.md §12 made drawing the operator's ("Draw cover is the
+    operator's", 2026-11-03), it is asked only where `/account/me` says this viewer may
+    draw, and never waited on (targum-internal#715 P2-12)."""
     add = PAGES["add"]
     assert "draw-cover" not in add, "the tick nobody was going to untick"
 
@@ -1079,7 +1081,9 @@ def test_a_cover_is_drawn_for_an_upload_without_being_asked() -> None:
     # targum-internal#466): after the text is readable, never before it. Nobody waits on
     # a picture to read.
     drawing = source[source.index("function opening(state)") :][:1600]
-    assert 'ask("/cover"' in drawing, "asked for every time"
+    assert 'keyed("/cover")' in drawing and "name && mayDraw" in drawing, "the operator's"
+    assert "keepalive: true" in drawing, "and outliving the page it was asked from"
+    assert ".then(function () {\n        window.location.href" not in drawing, "not waited on"
     assert "checked" not in drawing, "and not off a control"
     assert 'end.stage === "done" && end.reader) return opening(end)' in source
 

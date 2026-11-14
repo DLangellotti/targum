@@ -1750,7 +1750,16 @@
       post: t("add.found.post", "a post"),
       article: t("add.found.article", "an article"),
     }[String(said.kind || "")];
+    // A post is named by who posted it, and counted by its caption and its pictures,
+    // which is what describe read (#715 P2-12): "a post" alone told the reader nothing.
+    if (String(said.kind || "") === "post" && said.author) {
+      medium = t("add.found.post-by", "a post by {who}", { who: String(said.author) });
+    }
     if (medium) facts.push(medium);
+    if (said.caption_words > 0) {
+      facts.push(tn("add.found.caption-words", said.caption_words, "{n} word in the caption", "{n} words in the caption"));
+    }
+    if (said.pictures > 0) facts.push(tn("add.found.pictures", said.pictures, "{n} picture", "{n} pictures"));
     if (said.seconds) facts.push(clock(said.seconds));
     if (said.minutes) facts.push(tn("add.found.minutes", said.minutes, "{n} minute to read", "{n} minutes to read"));
     if (said.words) facts.push(tn("add.found.words", said.words, "{n} word", "{n} words"));
@@ -2265,7 +2274,11 @@
       progress.textContent = "";
       note.textContent = "";
       note.hidden = true;
-      var sentence = state.blocked || state.said || state.error || t("bring.cannot", "We can't get this ready right now.");
+      // A failure says its reason, `why`, rather than `said`, which puts "We couldn't
+      // get it ready" in front of a reason that most often says it couldn't again
+      // (#715 P2-12): the card is already the failure, and Try again is under it.
+      var failedWhy = state.stage === "failed" && state.why ? state.why : "";
+      var sentence = state.blocked || failedWhy || state.said || state.error || t("bring.cannot", "We can't get this ready right now.");
       if (window.TargumFault && state.blocked && (state.fact || state.act)) {
         progress.appendChild(window.TargumFault.refusal(state.blocked, state.fact, state.act));
         return;
@@ -2303,14 +2316,25 @@
       progress.appendChild(open);
       note.hidden = true;
       oneFilled();
-      // A cover, always, and after the text is readable rather than before it: it is
-      // a picture for the shelf and nobody should wait on a picture to start reading.
-      // Asked for and left running — the server has the job either way.
+      // A cover, only where this viewer may draw one, and never waited on: it is a
+      // picture for the shelf and nobody should wait on a picture to start reading
+      // (#715 P2-12). `/cover` is the operator's (design.md §12, "Draw cover is the
+      // operator's"), so a reader's page does not ask it; the operator's ask is sent
+      // `keepalive`, so it outlives the page it was asked from, for the one text built.
       var name = String(state.reader || "").split("/")[0];
-      var drawing = name ? ask("/cover", { name: name }).catch(function () {}) : Promise.resolve();
-      drawing.then(function () {
-        window.location.href = door;
-      });
+      if (name && mayDraw) {
+        try {
+          fetch(keyed("/cover"), {
+            method: "POST",
+            headers: keyHeaders({ "Content-Type": "application/json" }),
+            body: JSON.stringify({ name: name }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e) {
+          /* A browser without keepalive: the shelf's own Draw cover is still there. */
+        }
+      }
+      window.location.href = door;
     }
 
     draw(first && first.stage ? first : { stage: "queued" });
@@ -2649,6 +2673,16 @@
      named here as costing none of them, because the sentence above is about limits and
      somebody reading it quickly could take the whole page to be metered. */
   var hoursLine = document.getElementById("hours");
+  //: Whether this viewer may draw a cover (`/account/me`'s `covers`): the operator only.
+  var mayDraw = false;
+  meOnce(keyed("/account/me"), { credentials: "same-origin" })
+    .then(function (answer) {
+      return answer.ok ? answer.json() : null;
+    })
+    .then(function (me) {
+      mayDraw = !!(me && me.covers);
+    })
+    .catch(function () {});
   //: What is left this month, for the card a press is priced on: credits and hours.
   var balance = null;
   if (hoursLine) {

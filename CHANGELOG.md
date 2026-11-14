@@ -18,6 +18,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   every other word keeps its key. The next deploy's `rebuild --gloss` buys the new keys:
   66 on the laptop's library, scenes and transcripts, 137 over all of `targum-out`, each
   for English and Russian, a few cents.
+- Upload's polish and Your targums' nits (targum-internal#715 P2-12, #716). A failed
+  build says its reason once: the card drew the job's `said`, "We couldn't get it ready.
+  We couldn't finish this on our side…", and now draws `why`. Done opens the reader at
+  once instead of waiting on `/cover`, and asks `/cover` only where `/account/me` says
+  this viewer may draw (`covers`, the operator's), sent `keepalive` for the one text
+  built. A post's "What we found" names who posted it and counts its caption's words and
+  its pictures. Instagram-unavailable says to bring the post in, beside its Bring a post
+  press. A podcast's "each made as you reach it" keeps "it" with its verb at 390px. The
+  palette's copy of a text's one figure gains the counted-no-words gate, says it through
+  `figureSaid` where the page has it, and a test holds it to `figure.js` line for line.
+  Recent's slow Try again asks the shelf again in place rather than reloading. Five new
+  strings in English and Russian, one changed, for ling-ru. No spend.
 - The Library, second pass on its finish bar (targum-internal#696). The one search's
   Library rows say their band and figure as the shelf does: a copy on the shared shelf
   is measured on its own words, else the catalogue's index in running words, each with
