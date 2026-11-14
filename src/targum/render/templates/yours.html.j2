@@ -447,6 +447,7 @@ window.TARGUM_LIST = "{{ which }}";
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 {{ script('strings.js') }}
+{{ script('figure.js') }}
 {{ script('charts.js') }}
 {{ script('lang.js') }}
 {{ script('vocab.js') }}

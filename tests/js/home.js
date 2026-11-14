@@ -25,6 +25,7 @@ install({
 });
 
 require(path.join(assets, "strings.js"));
+require(path.join(assets, "figure.js"));
 require(path.join(assets, "charts.js"));
 require(path.join(assets, "covers.js"));
 require(path.join(assets, "shelf.js"));

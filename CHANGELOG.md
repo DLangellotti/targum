@@ -17,7 +17,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 - Your targums passes more of its finish bar (targum-internal#716). One text says one
   figure for how much of it you know: its shelf row's meter, its playlist row, the
   playlist's head and its contents page now say what Continue says, our estimate labelled
-  as ours until your marks settle it (one helper, `TargumStrings.figure`; the server
+  as ours until your marks settle it (one helper, `TargumStrings.figure` in `figure.js`; the server
   sends `estimated` with a playlist's rows and the contents page measures the whole text
   as the shelf does). Offline, a playlist's "Not on this device" is a line under the
   title, no longer a column one word a line. The tabs stay with nothing on the shelf and

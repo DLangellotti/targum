@@ -101,6 +101,7 @@ window.TARGUM_LANGUAGES = { {% for code, name in languages %}"{{ code }}": "{{ n
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 {{ script('strings.js') }}
+{{ script('figure.js') }}
 {{ script('lang.js') }}
 {{ script('sync.js') }}
 {{ script('account.js') }}

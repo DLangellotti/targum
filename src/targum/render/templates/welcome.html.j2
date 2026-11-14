@@ -114,6 +114,7 @@ window.TARGUM_CHECKS = {{ checks|tojson }};
 {% if strings %}window.TARGUM_STRINGS = {{ strings|tojson }};
 {% endif %}</script>
 {{ script('strings.js') }}
+{{ script('figure.js') }}
 {{ script('charts.js') }}
 {{ script('lang.js') }}
 {#- What was pressed on the way in (targum-internal#127): a `control` event carries a name
