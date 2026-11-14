@@ -257,6 +257,8 @@ function refreshed(request, key, version, client) {
           headers: { "X-Targum-Save": "1" },
           credentials: "same-origin",
           cache: "no-store",
+          // Never on to anywhere else: a redirect (a lapsed sign-in) is not the page.
+          redirect: "manual",
         }).then(function (whole) {
           if (!whole.ok || whole.headers.get("x-targum-linked")) return false;
           if (whole.headers.get("x-targum-version") !== version) return false;

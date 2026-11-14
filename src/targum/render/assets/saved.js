@@ -184,10 +184,13 @@
       gone.disabled = true;
       var list = line.parentNode;
       var at = list ? Array.prototype.indexOf.call(list.children, line) : 0;
-      settle();
-      offline.take(item.id).then(function (hold) {
-        holdFor({ hold: hold, item: item, mine: mine, at: at });
-      }, draw);
+      settle()
+        .then(function () {
+          return offline.take(item.id);
+        })
+        .then(function (hold) {
+          holdFor({ hold: hold, item: item, mine: mine, at: at });
+        }, draw);
     });
     line.appendChild(gone);
     return line;
@@ -233,18 +236,18 @@
     return was.hold.done();
   }
 
+  /* Not out from under the person: while Undo has the keyboard or the pointer is on its
+     line, the line waits, and looks again a second later (WCAG 2.2.1; qa-claude on
+     #1234). */
   function expire() {
+    if (!holding) return;
     var undo = document.querySelector(".saved-undo");
-    var focused = !!(undo && document.activeElement === undo);
-    settle().then(draw).then(function () {
-      // The keyboard had Undo; it is left at the page's heading, not on nothing.
-      if (!focused) return;
-      var heading = document.querySelector("main h1, h1");
-      if (heading) {
-        heading.setAttribute("tabindex", "-1");
-        heading.focus({ preventScroll: true });
-      }
-    });
+    var line = undo && undo.parentNode;
+    if (undo && (document.activeElement === undo || (line && line.matches && line.matches(":hover")))) {
+      holding.timer = setTimeout(expire, 1000);
+      return;
+    }
+    settle().then(draw);
   }
 
   function undoHold() {

@@ -124,10 +124,14 @@ def test_a_text_lists_every_page_and_sidecar_with_its_size(served: tuple[int, Pa
         "/reader/book-he/reader/video/part-001.webm",
         "/reader/book-he/reader/audio/aliyah-1.mp3",
     }, "every page and sidecar, nothing else in the folder"
+    film = reader / "video" / "part-001.webm"
     assert urls["/reader/book-he/reader/video/part-001.webm"] == {
         "url": "/reader/book-he/reader/video/part-001.webm",
         "bytes": 40,
         "film": True,
+        # Its cut, so a save fetches it again only when it was re-cut (design.md §12,
+        # 2026-11-14).
+        "stamp": f"40-{film.stat().st_mtime_ns // 1_000_000}",
     }
     assert not urls["/reader/book-he/reader/audio/aliyah-1.mp3"]["film"]
     assert told["bytes"] == sum(file["bytes"] for file in told["files"])

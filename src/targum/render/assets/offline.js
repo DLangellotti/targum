@@ -318,9 +318,13 @@
     };
     var put = [];
     var wasSaved = false;
+    var earlier = {};
+    // The cut of each file this save leaves in the cache, where it is known.
+    var stamps = {};
     handle.done = readIndex()
       .then(function (index) {
         wasSaved = !!index.items[handle.id];
+        earlier = index.items;
         return plan(page, options);
       })
       .then(function (planned) {
@@ -344,8 +348,17 @@
               return before.then(function () {
                 if (stopped) throw reasoned("stopped");
                 var at = keyOf(file.url);
+                var held = ((earlier[planned.id] || {}).stamps || {})[at];
                 return cache.match(at).then(function (had) {
-                  if (had) {
+                  /* Held, unless it is a recording or a film whose cut moved since it
+                     was kept (`/offline.json`'s `stamp`): a re-cut reaches the copy, and
+                     an unchanged film is never fetched twice. A page follows its build
+                     as it opens (`sw.js`), and a file kept before stamps were kept is
+                     held as it is, so an old copy does not fetch its films again
+                     (design.md §12, 2026-11-14). */
+                  var recut = had && file.stamp && held && held !== file.stamp && !/\.html$/i.test(at);
+                  if (had && !recut) {
+                    if (held && held === file.stamp) stamps[at] = held;
                     done += Number(file.bytes || 0);
                     told();
                     return null;
@@ -354,8 +367,12 @@
                     headers: headers({ "X-Targum-Save": "1" }),
                     credentials: "same-origin",
                     signal: stopping ? stopping.signal : undefined,
+                    // A re-cut past the browser's own copy of the old cut, which it may
+                    // otherwise hand back for a day without asking.
+                    cache: recut ? "no-cache" : "default",
                   }).then(function (answer) {
                     if (!answer.ok) throw reasoned("failed");
+                    if (file.stamp) stamps[at] = file.stamp;
                     put.push(at);
                     return cache.put(
                       at,
@@ -418,6 +435,7 @@
                   }),
                   bytes: bytes,
                   files: files,
+                  stamps: stampsFor(files, planned.part && was.part ? was.stamps : null, stamps),
                   at: was.at || Date.now(),
                   opened: options.opened ? Date.now() : was.opened || 0,
                 };
@@ -438,6 +456,16 @@
         });
       });
     return handle;
+  }
+
+  // The stamps of `files`: this save's, else those a part kept before it.
+  function stampsFor(files, kept, now) {
+    var out = {};
+    files.forEach(function (file) {
+      var stamp = now[file] || (kept && kept[file]);
+      if (stamp) out[file] = stamp;
+    });
+    return out;
   }
 
   /* Save a playlist, every text in it that can be opened, one after another. The handle
@@ -621,20 +649,54 @@
      takes what no saved text names. Resolves to { undo(), done() }, each settled once. */
   function held(before, files) {
     var settled = false;
+    /* Busy while it holds, so another tab's `sweep` leaves the files alone: they are
+       named by no saved text until Undo or the line's end (qa-claude on #1234). */
+    busy();
+    var beat = setInterval(busy, 20 * 1000);
+    var all = files.slice();
+    Object.keys(before).forEach(function (id) {
+      (before[id].files || []).forEach(function (file) {
+        if (all.indexOf(file) < 0) all.push(file);
+      });
+    });
+    function settle() {
+      settled = true;
+      clearInterval(beat);
+    }
     return {
+      /* Resolves true when it put them back. Only while every file is still here: a
+         sign-out in another tab, or a cache the browser cleared, leaves nothing to put
+         back, and an entry with no files behind it would be a copy that is not there. */
       undo: function () {
-        if (settled) return Promise.resolve();
-        settled = true;
-        return change(function (index) {
-          Object.keys(before).forEach(function (id) {
-            index.items[id] = before[id];
+        if (settled) return Promise.resolve(false);
+        settle();
+        return caches
+          .open(STORE)
+          .then(function (cache) {
+            return Promise.all(
+              all.map(function (file) {
+                return cache.match(file);
+              })
+            );
+          })
+          .then(function (found) {
+            if (!found.every(Boolean)) return false;
+            return change(function (index) {
+              Object.keys(before).forEach(function (id) {
+                index.items[id] = before[id];
+              });
+              return index;
+            }).then(function () {
+              return true;
+            });
+          })
+          .catch(function () {
+            return false;
           });
-          return index;
-        });
       },
       done: function () {
         if (settled) return Promise.resolve();
-        settled = true;
+        settle();
         return readIndex()
           .then(function (index) {
             return forgetFiles(files, index);
@@ -1788,6 +1850,8 @@
     take: take,
     removeAll: removeAll,
     takeAll: takeAll,
+    // What runs as every page opens, here for a test to run and wait on.
+    sweep: sweep,
     keep: keepIt,
     keepPage: keepPage,
     trim: trim,

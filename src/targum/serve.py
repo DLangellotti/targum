@@ -6660,6 +6660,16 @@ LINKED_HEADER = "X-Targum-Linked"
 VERSION_HEADER = "X-Targum-Version"
 
 
+def file_stamp(path: Path) -> str:
+    """Which cut of a file beside a saved text this is: its size and when it was written.
+    A save keeps it beside the file and fetches a file it already holds again only when
+    the stamp moved, so a re-cut recording reaches the copy and a film that did not change
+    is never fetched twice (design.md §12, "An offline copy follows its text when opened
+    online", 2026-11-14)."""
+    told = path.stat()
+    return f"{told.st_size}-{told.st_mtime_ns // 1_000_000}"
+
+
 def reader_version(body: bytes, language: str) -> str:
     """The page on disk and the language its chrome is put in: the two things a copy
     saved whole is made of, so the two things that make a saved copy stale."""
@@ -19679,6 +19689,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "url": prefix + under + quote(relative),
                         "bytes": target.stat().st_size,
+                        "stamp": file_stamp(target),
                         "film": suffix in FILM_KINDS,
                     }
                 )
@@ -19717,6 +19728,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "url": prefix + quote(target.relative_to(base).as_posix()),
                 "bytes": target.stat().st_size,
+                "stamp": file_stamp(target),
                 "film": False,
             }
         ]
@@ -19741,6 +19753,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "url": prefix + quote(address),
                         "bytes": sidecar.stat().st_size,
+                        "stamp": file_stamp(sidecar),
                         "film": suffix in FILM_KINDS,
                     }
                 )

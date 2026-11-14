@@ -26,15 +26,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     (`X-Targum-Version`, the page on disk and the language its chrome is in), the same
     whether it went out named or whole. When a saved page opens online as another build
     than its copy, the worker asks for it again, whole, as a save does, and keeps that.
-    The page is then told, and the text's other files follow: a new recording is fetched,
-    and nothing already kept is fetched again. The same build opened again fetches
+    The page is then told, and the text's other files follow. `/offline.json` now gives
+    each file a stamp (its size and when it was written), and the saved text keeps the
+    stamps. So a new recording is fetched, a recording or film re-cut under the same name
+    is fetched again, and anything unchanged is not fetched. A file kept before stamps
+    existed is left as it is, so old copies don't download their films again. A failed
+    or redirected refetch leaves the copy as it was. The same build opened again fetches
     nothing more. A copy kept before this change carries no version, so its next open
     online replaces it.
   - Remove and Remove all on Saved on this device no longer take effect for good at once.
     The row (or, for all, the line where Remove all stood) says "Removed · Undo" for
     8 seconds, with no confirm. Undo puts back exactly what was removed, offline too,
     because the files stay in the cache until the line goes (`TargumOffline.take`,
-    `takeAll`). Signing out still clears everything at once (`removeAll`).
+    `takeAll`). While it holds, another tab's sweep leaves those files alone, and Undo
+    puts nothing back if the files have gone meanwhile (a sign-out in another tab). The
+    line waits while Undo has the keyboard or the pointer. Signing out still clears
+    everything at once (`removeAll`).
   No spend. Four new strings in English and Russian (`saved.removed`, `saved.undo`,
   `saved.undo-named`, `saved.undo-all`); the Russian waits on ling-ru's first pass.
 - Connect passes more of design's §14 finish bar (targum-internal#721).
