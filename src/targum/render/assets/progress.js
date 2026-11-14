@@ -161,6 +161,21 @@
     fault.hidden = false;
   }
 
+  /* Whether the account's list is not in this browser: `/sync` failed after the account
+     answered (`TargumSync.pulled`, targum-internal#725), or the account itself could not
+     be reached. Either way what this browser holds is untouched. */
+  function unpulled() {
+    var sync = window.TargumSync;
+    return !!sync && (!!sync.unreached || (!!sync.who && sync.pulled === false));
+  }
+
+  // Nothing here and nothing on the account: the level a words check gave, or the
+  // empty line.
+  function emptyOrCheck() {
+    if (window.TargumSync && window.TargumSync.who) fromCheck();
+    else document.getElementById("nothing").hidden = false;
+  }
+
   // Nothing in this browser yet: the page is drawn once the account has had its say.
   var waiting = !codes.length;
   if (waiting) {
@@ -177,9 +192,11 @@
     if (window.TargumSync && window.TargumSync.settled) {
       window.TargumSync.settled().then(function (changed) {
         if (changed && codes.length) return;
-        if (window.TargumSync.reached === false) couldNot();
-        else if (window.TargumSync.who) fromCheck();
-        else document.getElementById("nothing").hidden = false;
+        // The account answered and its list did not come (`/sync` failed after
+        // `/account/me`): not known to be empty, so said as not loaded rather than as
+        // nothing yet (targum-internal#726, as Your Words in #725).
+        if (window.TargumSync.reached === false || unpulled()) couldNot();
+        else emptyOrCheck();
       });
     } else {
       document.getElementById("nothing").hidden = false;
@@ -3733,9 +3750,66 @@
   // If the account turns out to hold words this browser had not seen — kept on a phone,
   // or kept here before signing in on another machine — everything is gathered again
   // and the page redrawn, and the story asked again: the ladder moves with the list.
+  /* Words in this browser and the account's list not had (targum-internal#726, as Your
+     Words in #725): the page is drawn from what this device holds, and says so with Try
+     again rather than letting it pass for the account's. Offline it asks again by itself
+     once the connection is back. A failed pull moves nothing, so nothing here writes. */
+  var staleWaitsOnline = false;
+  function staleIfUnpulled() {
+    var sync = window.TargumSync;
+    var holder = document.getElementById("progress-stale");
+    if (!holder || !sync) return;
+    if (!codes.length || checkOnly || !unpulled()) {
+      holder.hidden = true;
+      holder.textContent = "";
+      return;
+    }
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    var said = offline
+      ? t("progress.stale.offline", "You're offline. This is the progress saved on this device.")
+      : t("progress.stale", "We couldn't load your latest progress. This is what's saved on this device.");
+    function again() {
+      var press = holder.querySelector(".fault-act");
+      if (press) press.disabled = true;
+      sync.pullAgain().then(staleIfUnpulled, staleIfUnpulled);
+    }
+    holder.textContent = "";
+    if (window.TargumFault) holder.appendChild(window.TargumFault.line(said, again));
+    else holder.textContent = said;
+    holder.hidden = false;
+    if (offline && !staleWaitsOnline) {
+      staleWaitsOnline = true;
+      window.addEventListener(
+        "online",
+        function () {
+          staleWaitsOnline = false;
+          if (unpulled()) again();
+        },
+        { once: true }
+      );
+    }
+  }
+
+  /* The fault panel said for a failed pull, and the list had after all (a Try again on
+     another page's push, a `flush`): the panel goes, and the page is what the answer
+     makes it. */
+  function faultAnswered() {
+    var fault = document.getElementById("progress-fault");
+    if (!fault || fault.hidden || unpulled() || window.TargumSync.reached === false) return false;
+    fault.hidden = true;
+    return true;
+  }
+
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
-      if (!changed) return;
+      var cleared = faultAnswered();
+      if (!changed) {
+        // The account's list had after all, with nothing new in it: the line that said
+        // it could not be goes, and a page with nothing says what it has.
+        staleIfUnpulled();
+        if (cleared && !codes.length) emptyOrCheck();
+        return;
+      }
       data = collect();
       meant = {};
       readingDays = charts.days();
@@ -3747,13 +3821,17 @@
       }
       document.getElementById("nothing").hidden = codes.length > 0;
       document.getElementById("page").hidden = codes.length === 0;
-      if (!codes.length) return;
+      if (!codes.length) {
+        if (cleared) emptyOrCheck();
+        return;
+      }
       if (codes.indexOf(currentCode) < 0) currentCode = window.TargumLang.current(codes);
       storyAsked = {};
       show(currentCode);
       askAccount();
+      staleIfUnpulled();
     });
-    if (window.TargumSync.settled) window.TargumSync.settled();
+    if (window.TargumSync.settled) window.TargumSync.settled().then(staleIfUnpulled, function () {});
     else window.TargumSync.start();
   }
 

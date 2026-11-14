@@ -2409,6 +2409,8 @@
   "progress.page.failed-says": "Everything you've marked is still here.",
   "progress.offline": "You're offline.",
   "progress.offline.says": "Your progress opens when you're back online.",
+  "progress.stale": "We couldn't load your latest progress. This is what's saved on this device.",
+  "progress.stale.offline": "You're offline. This is the progress saved on this device.",
   "job.unreadable.refused": "That site won't let us read the page. Copy the text and paste it here instead.",
   "job.unreadable.missing": "That page isn't there. Check the link and try again.",
   "job.unreadable.broken": "That site didn't answer. Try again in a minute.",
