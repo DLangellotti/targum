@@ -6649,6 +6649,33 @@ SESSION_COOKIE = "targum_session"
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
 
+# The browser a Google sign-in was started in (targum-internal#729): a digest of its
+# `state`, set as the reader is sent to Google and checked when Google sends them back,
+# so a callback address somebody else started cannot sign this browser into their
+# account (login CSRF). Only on `/account/google`, as long as a sign-in may take, and
+# cleared once the callback has read it. Never the state itself, nothing about anybody.
+GOOGLE_STATE_COOKIE = "targum_google"
+
+
+def google_state_digest(state: str) -> str:
+    """What the state cookie holds for `state`: a digest, so the cookie is no copy of it."""
+    return hashlib.sha256(("targum-google-state\0" + state).encode("utf-8")).hexdigest()[:32]
+
+
+def google_state_cookie(state: str, address: str) -> str:
+    """The cookie that binds a Google sign-in to its browser; an empty `state` clears it.
+    HttpOnly, SameSite=Lax (Google's return is a top-level GET, which Lax still carries),
+    and Secure where the site is served over https."""
+    from .google import BEGUN_MINUTES
+
+    secure = "; Secure" if address.startswith("https://") else ""
+    value, age = (google_state_digest(state), BEGUN_MINUTES * 60) if state else ("", 0)
+    return (
+        f"{GOOGLE_STATE_COOKIE}={value}; HttpOnly; SameSite=Lax; Path=/account/google; "
+        f"Max-Age={age}{secure}"
+    )
+
+
 # Which set of the desk's own files this browser last fetched in full (design.md §12, "A
 # first visit gets the page whole", 2026-10-19; Privacy Notice clause 3.13). Its value is
 # the set's hash, the same for every visitor to the same build: no identifier, nothing
@@ -15188,7 +15215,7 @@ class Handler(BaseHTTPRequestHandler):
         back = safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0])
         if back:
             self._google_next[begun.state] = back
-        self._go(begun.where)
+        self._go(begun.where, google_state_cookie(begun.state, self.address))
 
     def _google_back(self, query: dict[str, list[str]]) -> None:
         """Finish a sign-in Google has proved, or say plainly why not.
@@ -15205,8 +15232,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
 
         state = (query.get("state") or [""])[0]
+        # Started in this browser, or nothing here is spent on it (targum-internal#729).
+        held = self._cookie(GOOGLE_STATE_COOKIE)
+        ours = bool(state and held) and secrets.compare_digest(held, google_state_digest(state))
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
+        cleared = google_state_cookie("", self.address)
 
         def refuse(said: str, again: str = "") -> None:
             # The room they were turned away from stays with them through a refusal
@@ -15216,8 +15247,16 @@ class Handler(BaseHTTPRequestHandler):
             if again and back:
                 again += "?next=" + quote(back, safe="/")
             page = signin_page(language=self._page_language(), said=said, again=again, back=back)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
 
+        if begun is not None and not ours:
+            # A callback this browser did not start: somebody else's sign-in, sent here
+            # to sign this browser into their account. Refused before the code is spent,
+            # and the state is spent with it, so the address works nowhere now.
+            return refuse(
+                self._say("serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."),
+                "/account/google",
+            )
         if begun is None or google_module.stale(begun):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
@@ -15250,7 +15289,7 @@ class Handler(BaseHTTPRequestHandler):
         # is a takeover wherever `+` is a separate mailbox.
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
         if self.require_account and not self.store.may_join(email) and signup_is_open():
             held = self._door_holds(email) or self._door_opens(email)
             if held is not None:
@@ -15265,7 +15304,7 @@ class Handler(BaseHTTPRequestHandler):
         from .accounts import SESSION_DAYS
 
         landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(safe_next(back) or landed, self._session_cookie(session, SESSION_DAYS))
+        self._go(safe_next(back) or landed, [self._session_cookie(session, SESSION_DAYS), cleared])
 
     def _enter(self, token: str, back: str = "") -> None:
         if token and self.require_account and signup_is_open():

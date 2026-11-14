@@ -62,12 +62,14 @@ def _box(
 
 
 def _exchange(
-    port: int, method: str, path: str, body: bytes = b"", kind: str = ""
+    port: int, method: str, path: str, body: bytes = b"", kind: str = "", cookie: str = ""
 ) -> tuple[int, dict[str, str], str]:
     """One request with no redirect followed, as the door answers it."""
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest(method, path, skip_host=True)
     conn.putheader("Host", "targum.page")
+    if cookie:
+        conn.putheader("Cookie", cookie)
     if body:
         conn.putheader("Content-Type", kind)
         conn.putheader("Content-Length", str(len(body)))
@@ -77,6 +79,10 @@ def _exchange(
     response = conn.getresponse()
     said = response.read().decode("utf-8", errors="replace")
     headers = {name.lower(): value for name, value in response.getheaders()}
+    # Every cookie set, not only the last one named.
+    cookies = response.headers.get_all("Set-Cookie") or []
+    if cookies:
+        headers["set-cookie"] = "\n".join(cookies)
     conn.close()
     return response.status, headers, said
 
@@ -141,7 +147,10 @@ def test_a_cancelled_google_sign_in_keeps_the_room(
     _, headers, _ = _exchange(port, "GET", "/account/google?next=%2Fprogress")
     state = parse_qs(urlparse(headers["location"]).query)["state"][0]
     status, _, page = _exchange(
-        port, "GET", f"/account/google/back?state={state}&error=access_denied"
+        port,
+        "GET",
+        f"/account/google/back?state={state}&error=access_denied",
+        cookie=_bound(headers),
     )
     assert status == 200 and "No harm done." in page
     assert 'data-next="/progress"' in page, "the form carries the room"
@@ -154,9 +163,82 @@ def test_a_google_sign_in_that_did_not_finish_tries_again_into_the_room(
     port, _ = _box(tmp_path, free_port, [])
     _, headers, _ = _exchange(port, "GET", "/account/google?next=%2Fprogress")
     state = parse_qs(urlparse(headers["location"]).query)["state"][0]
-    status, _, page = _exchange(port, "GET", f"/account/google/back?state={state}")
+    status, _, page = _exchange(
+        port, "GET", f"/account/google/back?state={state}", cookie=_bound(headers)
+    )
     assert status == 200 and "That sign-in didn" in page
     assert 'href="/account/google?next=/progress">Sign in again' in page
+
+
+def _bound(headers: dict[str, str]) -> str:
+    """The cookie `/account/google` binds its sign-in to the browser with, as sent back."""
+    return headers["set-cookie"].split(";")[0]
+
+
+def _proved(monkeypatch: pytest.MonkeyPatch, address: str) -> None:
+    """Google, answering any code with `address` proved."""
+    import base64
+
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"email": address, "email_verified": True}).encode()
+    ).decode()
+    monkeypatch.setattr(google, "exchange", lambda *_: {"id_token": f"h.{payload.rstrip('=')}.s"})
+
+
+def test_a_google_callback_from_another_browser_signs_nobody_in(
+    tmp_path: Path, free_port: Callable[[], int], client: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#729, login CSRF: somebody starts a Google sign-in as themselves,
+    stops at the callback address and sends it on. Opened in a browser that did not start
+    it, it signs nobody in, and the state is spent, so it works in no browser after."""
+    port, store = _box(tmp_path, free_port, [])
+    store.invite("mallory@example.com")
+    _proved(monkeypatch, "mallory@example.com")
+    _, started, _ = _exchange(port, "GET", "/account/google")
+    state = parse_qs(urlparse(started["location"]).query)["state"][0]
+    bound = _bound(started)
+    told = started["set-cookie"]
+    assert bound.startswith(f"{serve.GOOGLE_STATE_COOKIE}=") and state not in told
+    for part in ("HttpOnly", "SameSite=Lax", "Secure", "Path=/account/google", "Max-Age=600"):
+        assert part in told, told
+    callback = f"/account/google/back?state={state}&code=x"
+
+    # A fresh browser, with no cookie of ours, and one holding another sign-in's.
+    spent: list[str] = []
+    monkeypatch.setattr(google, "exchange", lambda *_: spent.append("code") or {})
+    status, headers, page = _exchange(port, "GET", callback)
+    assert status == 200 and "That sign-in didn" in page
+    assert serve.SESSION_COOKIE not in headers.get("set-cookie", ""), "nobody signed in"
+    assert not spent, "the code is never spent"
+    # And it is spent: the browser that started it cannot finish it now either.
+    _proved(monkeypatch, "mallory@example.com")
+    status, headers, _ = _exchange(port, "GET", callback, cookie=bound)
+    assert status == 200 and serve.SESSION_COOKIE not in headers.get("set-cookie", "")
+
+    _, again, _ = _exchange(port, "GET", "/account/google")
+    other = parse_qs(urlparse(again["location"]).query)["state"][0]
+    status, headers, _ = _exchange(
+        port, "GET", f"/account/google/back?state={other}&code=x", cookie=bound
+    )
+    assert status == 200 and serve.SESSION_COOKIE not in headers.get("set-cookie", ""), (
+        "another sign-in's cookie is not this one's"
+    )
+
+
+def test_a_google_sign_in_finishes_in_the_browser_that_started_it(
+    tmp_path: Path, free_port: Callable[[], int], client: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, store = _box(tmp_path, free_port, [])
+    store.invite("dina@example.com")
+    _proved(monkeypatch, "dina@example.com")
+    _, started, _ = _exchange(port, "GET", "/account/google")
+    state = parse_qs(urlparse(started["location"]).query)["state"][0]
+    status, headers, _ = _exchange(
+        port, "GET", f"/account/google/back?state={state}&code=x", cookie=_bound(started)
+    )
+    assert status in (302, 303), status
+    assert serve.SESSION_COOKIE in headers["set-cookie"]
+    assert f"{serve.GOOGLE_STATE_COOKIE}=;" in headers["set-cookie"], "cleared once read"
 
 
 # -- the mailed link ---------------------------------------------------------------------

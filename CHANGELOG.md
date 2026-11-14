@@ -58,6 +58,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian
     and taps each line. No spend.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
