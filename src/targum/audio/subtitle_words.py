@@ -90,10 +90,16 @@ def tokens(refined: Refined) -> list[str]:
     return [piece for paragraph in refined.paragraphs for piece in paragraph.text.split()]
 
 
-def aligned_name(aligner_name: str) -> str:
-    """The refiner a re-timed part carries: the subtitles it came from and the aligner
-    that placed its words, so a second run knows the part is done."""
-    return f"subtitles/1+{aligner_name}"
+def aligned_name(aligner_name: str, refiner: str = "subtitles/2") -> str:
+    """The refiner a re-timed part carries: everything it was refined by before — the
+    subtitles it came from, and the punctuation bought for it, which must not be bought
+    again (targum-internal#727) — and the aligner that placed its words, so a second run
+    knows the part is done."""
+    return f"{refiner}+{aligner_name}"
+
+
+def is_aligned(refined: Refined, aligner_name: str) -> bool:
+    return aligner_name in refined.refiner.split("+")
 
 
 def retimed(
@@ -164,7 +170,7 @@ def retimed(
         )
     return (
         Refined(
-            refiner=aligned_name(aligner_name),
+            refiner=aligned_name(aligner_name, refined.refiner),
             provider=refined.provider,
             language=refined.language,
             paragraphs=paragraphs,
@@ -238,7 +244,7 @@ def retime_folder(
         if refined.provider != SUBTITLES:
             part.skipped = f"timed by {refined.provider or 'a hearing'}, not subtitles"
             continue
-        if refined.refiner == aligned_name(aligner.name):
+        if is_aligned(refined, aligner.name):
             part.skipped = "already re-timed"
             continue
         written = tokens(refined)
