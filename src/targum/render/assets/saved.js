@@ -139,6 +139,7 @@
      kind, its size, how it came to be saved, Keep (for one saved on its own) and Remove, a cross. */
   function row(item, mine) {
     var line = element("li", "saved-row");
+    line.setAttribute("data-id", item.id);
     line.appendChild(tile(item));
     var what = element("span", "saved-what");
     var name = item.open && item.kind !== "playlist" ? element("a", "saved-name") : element("span", "saved-name");
@@ -181,7 +182,15 @@
     gone.title = t("saved.remove", "Remove");
     gone.addEventListener("click", function () {
       gone.disabled = true;
-      offline.remove(item.id).then(draw, draw);
+      var list = line.parentNode;
+      var at = list ? Array.prototype.indexOf.call(list.children, line) : 0;
+      settle()
+        .then(function () {
+          return offline.take(item.id);
+        })
+        .then(function (hold) {
+          holdFor({ hold: hold, item: item, mine: mine, at: at });
+        }, draw);
     });
     line.appendChild(gone);
     return line;
@@ -192,6 +201,104 @@
     items.forEach(function (item) {
       list.appendChild(row(item, mine));
     });
+    if (holding && holding.item && holding.mine === mine) {
+      list.insertBefore(heldRow(holding), list.children[Math.min(holding.at, list.children.length)] || null);
+    }
+  }
+
+  /* --- Removed · Undo (design.md §12, "An offline copy follows its text when opened
+     online, and Remove can be undone", 2026-11-14) ------------------------------------
+
+     Remove and Remove all ask nothing first. The row (or, for all, the line under the
+     choices) says "Removed · Undo" for a few seconds, and Undo puts back exactly what
+     went: offline a copy can be the only one there is, so nothing has to be fetched to
+     put it back (`offline.take`, `offline.takeAll`). When the line goes the files go.
+     One at a time: a second removal finishes the first. */
+  var UNDO_FOR = 8000;
+  var holding = null;
+
+  function holdFor(next) {
+    holding = next;
+    holding.timer = setTimeout(expire, UNDO_FOR);
+    draw().then(function () {
+      // Under the same finger, and the keyboard's next stop, as a binned text's Undo is.
+      var undo = document.querySelector(".saved-undo");
+      if (undo) undo.focus({ preventScroll: true });
+    });
+  }
+
+  // The line goes, and what it held goes with it.
+  function settle() {
+    if (!holding) return Promise.resolve();
+    var was = holding;
+    holding = null;
+    clearTimeout(was.timer);
+    return was.hold.done();
+  }
+
+  /* Not out from under the person: while Undo has the keyboard or the pointer is on its
+     line, the line waits, and looks again a second later (WCAG 2.2.1; qa-claude on
+     #1234). */
+  function expire() {
+    if (!holding) return;
+    var undo = document.querySelector(".saved-undo");
+    var line = undo && undo.parentNode;
+    if (undo && (document.activeElement === undo || (line && line.matches && line.matches(":hover")))) {
+      holding.timer = setTimeout(expire, 1000);
+      return;
+    }
+    settle().then(draw);
+  }
+
+  function undoHold() {
+    if (!holding) return;
+    var was = holding;
+    holding = null;
+    clearTimeout(was.timer);
+    was.hold.undo().then(draw).then(function () {
+      // Back where it was, with the keyboard on the press that took it.
+      var back = was.item
+        ? document.querySelector('.saved-row[data-id="' + String(was.item.id).replace(/"/g, '\\"') + '"] .saved-x')
+        : at("saved-all");
+      if (back) back.focus({ preventScroll: true });
+    });
+  }
+
+  function undoPress(label) {
+    var undo = element("button", "btn text small saved-undo", t("saved.undo", "Undo"));
+    undo.type = "button";
+    undo.setAttribute("aria-label", label);
+    undo.addEventListener("click", undoHold);
+    return undo;
+  }
+
+  // The row a removed text leaves behind while it can still be taken back.
+  function heldRow(was) {
+    var line = element("li", "saved-held");
+    var said = element("span", "saved-held-note", t("saved.removed", "Removed"));
+    said.setAttribute("role", "status");
+    line.appendChild(said);
+    line.appendChild(element("span", "saved-held-dot", "\u00b7"));
+    line.lastChild.setAttribute("aria-hidden", "true");
+    line.appendChild(
+      undoPress(t("saved.undo-named", "Undo removing {title}", { title: was.item.title || "" }))
+    );
+    return line;
+  }
+
+  function drawHeldAll() {
+    var line = at("saved-all-held");
+    var all = !!(holding && !holding.item);
+    at("saved-all").hidden = all;
+    line.hidden = !all;
+    line.textContent = "";
+    if (!all) return;
+    var said = element("span", "saved-held-note", t("saved.removed", "Removed"));
+    said.setAttribute("role", "status");
+    line.appendChild(said);
+    line.appendChild(element("span", "saved-held-dot", "\u00b7"));
+    line.lastChild.setAttribute("aria-hidden", "true");
+    line.appendChild(undoPress(t("saved.undo-all", "Undo removing everything")));
   }
 
   function drawChoices() {
@@ -281,8 +388,14 @@
     }, function () {});
   }
 
+  /* The latest draw wins: a removal announces its change (`onChange`) a moment before
+     it hands back the hold, so two draws are under way at once, and the earlier one
+     landing last took the "Removed · Undo" row, and the keyboard on it, away again. */
+  var drawing = 0;
   function draw() {
+    var turn = ++drawing;
     return Promise.all([offline.list(), room()]).then(function (both) {
+      if (turn !== drawing) return;
       var items = both[0];
       var space = both[1];
       var held = {};
@@ -323,13 +436,16 @@
         );
       fill(at("saved-auto-rows"), auto, false);
       fill(at("saved-mine-rows"), mine, true);
-      at("saved-auto").hidden = !auto.length;
-      at("saved-mine").hidden = !mine.length;
-      at("saved-none").hidden = !!shown.length;
+      var heldOne = holding && holding.item ? (holding.mine ? "mine" : "auto") : "";
+      var heldAll = !!(holding && !holding.item);
+      at("saved-auto").hidden = !auto.length && heldOne !== "auto";
+      at("saved-mine").hidden = !mine.length && heldOne !== "mine";
+      at("saved-none").hidden = !!shown.length || !!heldOne;
       // What these do without a connection is said over rows that do it, not over nothing
       // (#720, P2 6).
       at("saved-lede").hidden = !shown.length;
-      at("saved-end").hidden = !shown.length;
+      at("saved-end").hidden = !shown.length && !heldAll;
+      drawHeldAll();
       at("saved-choices").hidden = false;
       drawChoices();
       drawRoom(shown, space);
@@ -365,10 +481,11 @@
     );
   });
   at("saved-all").addEventListener("click", function () {
-    offline.removeAll().then(function () {
-      offline.keepPage(location.href);
-      draw();
-    });
+    settle().then(function () {
+      return offline.takeAll();
+    }).then(function (hold) {
+      holdFor({ hold: hold, item: null, mine: false, at: 0 });
+    }, draw);
   });
 
   // This page, kept, so the banner's way here works with no connection.

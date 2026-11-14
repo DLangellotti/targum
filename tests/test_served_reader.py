@@ -30,7 +30,14 @@ from targum.render.builder import (
     reader_files,
     served_reader,
 )
-from targum.serve import CLIP_ROUTE, KEPT_COOKIE, LINKED_HEADER, Handler, served_page
+from targum.serve import (
+    CLIP_ROUTE,
+    KEPT_COOKIE,
+    LINKED_HEADER,
+    VERSION_HEADER,
+    Handler,
+    served_page,
+)
 
 _BLOCK = re.compile(r"<(script|style)\b([^>]*)>(.*?)</\1>", re.S)
 
@@ -135,6 +142,28 @@ def test_opened_it_is_named_saved_it_is_whole(served: tuple[int, Path]) -> None:
     status, head, body = _get(port, address, navigate=True, kept=False)
     assert status == 200 and b"data-kept" in body
     assert head[LINKED_HEADER.lower()] == "1", "and the worker keeps that one neither"
+
+
+def test_opened_and_saved_a_reader_says_the_same_build(served: tuple[int, Path]) -> None:  # noqa: F811
+    """The worker holds a saved copy to the build opened online (design.md §12, "An
+    offline copy follows its text when opened online", 2026-11-14): the page named and the
+    page whole say the same version, and a changed page says another."""
+    port, out = served
+    reader = book(out / "local" / "book-he")
+    address = f"/reader/book-he/reader/sec-0001.html?k={TOKEN}"
+    version = VERSION_HEADER.lower()
+
+    _, opened, _ = _get(port, address, navigate=True)
+    _, saved, _ = _get(port, address, navigate=False)
+    _, first, _ = _get(port, address, navigate=True, kept=False)
+    assert opened[version] and opened[version] == saved[version] == first[version]
+
+    page = reader / "sec-0001.html"
+    page.write_bytes(page.read_bytes().replace(b"</body>", b"<p>corrected</p></body>", 1))
+    _, changed, _ = _get(port, address, navigate=True)
+    _, changed_saved, _ = _get(port, address, navigate=False)
+    assert changed[version] != opened[version]
+    assert changed[version] == changed_saved[version]
 
 
 def test_a_reader_is_served_in_the_chrome_of_whoever_opened_it(
@@ -283,9 +312,15 @@ def test_a_reader_page_is_replaced_in_one_step(
 def test_the_worker_never_keeps_a_named_page_as_the_copy_for_the_plane() -> None:
     worker = (ASSETS / "sw.js").read_text(encoding="utf-8")
     opening = worker[worker.index("function opening(") : worker.index("function kept(")]
-    assert 'var linked = answer && answer.headers.get("x-targum-linked");' in opening
-    assert "saved[key] && !linked" in opening
+    assert 'var linked = answer.headers.get("x-targum-linked");' in opening
+    kept_copy = opening.index("cache.put(key, kept(copy))")
+    assert opening.index("if (!linked) {") < kept_copy < opening.index("} else if (version) {")
     assert LINKED_HEADER.lower() == "x-targum-linked"
+    # What it fetches again instead is the page whole, and only a whole one is kept
+    # (design.md §12, 2026-11-14).
+    again = opening[opening.index("function refreshed(") :]
+    assert 'if (!whole.ok || whole.headers.get("x-targum-linked")) return false;' in again
+    assert VERSION_HEADER.lower() == "x-targum-version"
 
 
 # -- the rule under all of it (design.md §12, "A reader fetches nothing from any other

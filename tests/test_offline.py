@@ -124,10 +124,14 @@ def test_a_text_lists_every_page_and_sidecar_with_its_size(served: tuple[int, Pa
         "/reader/book-he/reader/video/part-001.webm",
         "/reader/book-he/reader/audio/aliyah-1.mp3",
     }, "every page and sidecar, nothing else in the folder"
+    film = reader / "video" / "part-001.webm"
     assert urls["/reader/book-he/reader/video/part-001.webm"] == {
         "url": "/reader/book-he/reader/video/part-001.webm",
         "bytes": 40,
         "film": True,
+        # Its cut, so a save fetches it again only when it was re-cut (design.md §12,
+        # 2026-11-14).
+        "stamp": f"40-{film.stat().st_mtime_ns // 1_000_000}",
     }
     assert not urls["/reader/book-he/reader/audio/aliyah-1.mp3"]["film"]
     assert told["bytes"] == sum(file["bytes"] for file in told["files"])
@@ -231,13 +235,22 @@ def worker_source() -> str:
 
 
 def test_the_worker_fetches_nothing_by_itself() -> None:
-    """No cache filled on install, nothing fetched ahead: two `fetch(` calls, both handing on
-    the request the browser was already making."""
+    """No cache filled on install, nothing fetched ahead: two `fetch(` calls hand on the
+    request the browser was already making, and the third asks again, whole, for the page
+    being opened, only when it is a saved one and another build than its copy (design.md
+    §12, "An offline copy follows its text when opened online", 2026-11-14)."""
     source = worker_source()
     code = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
     code = re.sub(r"^\s*//.*$", "", code, flags=re.M)
     assert "addAll" not in code and ".add(" not in code
-    assert re.findall(r"\bfetch\(([^)]*)\)", code) == ["request", "request"]
+    calls = re.findall(r"\bfetch\(([^,)]*)", code)
+    assert calls == ["request", "request", "request.url"], calls
+    again = code[code.index("function refreshed(") :]
+    again = again[: again.index("\n}\n")]
+    assert again.index('had.headers.get("x-targum-version") === version') < again.index("fetch(")
+    assert '"X-Targum-Save": "1"' in again, "asked as a save asks: the page whole"
+    opening = code[code.index("function opening(event) {") :]
+    assert opening.index("saved && saved[key]") < opening.index("refreshed(")
     install = code[code.index('"install"') : code.index('"activate"')]
     assert "caches" not in install and "fetch" not in install
     assert "cache.put(key, kept(copy))" in code, "a saved page is refreshed only when opened"

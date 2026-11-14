@@ -6667,6 +6667,31 @@ KEPT_DAYS = 365
 #: saved copy: one of those must open with nothing else (design.md §12, 2026-10-29).
 LINKED_HEADER = "X-Targum-Linked"
 
+#: Which build of a reader's page this is, said the same way whether the page went out
+#: named (opened) or whole (saved): the worker keeps the saved copy's, and an open online
+#: that says another one is the one time the copy is fetched again (design.md §12, "An
+#: offline copy follows its text when opened online", 2026-11-14).
+VERSION_HEADER = "X-Targum-Version"
+
+
+def file_stamp(path: Path) -> str:
+    """Which cut of a file beside a saved text this is: its size and when it was written.
+    A save keeps it beside the file and fetches a file it already holds again only when
+    the stamp moved, so a re-cut recording reaches the copy and a film that did not change
+    is never fetched twice (design.md §12, "An offline copy follows its text when opened
+    online", 2026-11-14)."""
+    told = path.stat()
+    return f"{told.st_size}-{told.st_mtime_ns // 1_000_000}"
+
+
+def reader_version(body: bytes, language: str) -> str:
+    """The page on disk and the language its chrome is put in: the two things a copy
+    saved whole is made of, so the two things that make a saved copy stale."""
+    told = hashlib.blake2b(body, digest_size=12)
+    told.update(b"\0" + language.encode("utf-8"))
+    return told.hexdigest()
+
+
 #: Where a served reader's recordings are named instead of carried (`served_page`).
 CLIP_ROUTE = "/clips/"
 CLIP_KINDS = {
@@ -7255,7 +7280,16 @@ class Handler(BaseHTTPRequestHandler):
             return body
         return chromed_page(body, self._reader_language())
 
-    def _public_reader(self, target: Path) -> bytes:
+    def _send_public_reader(self, target: Path) -> None:
+        """A portion's, a day's or a weekly issue's reader file (`_public_reader`), with the
+        version of its page that a saved copy is held to (`reader_version`)."""
+        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
+        body = target.read_bytes()
+        version = reader_version(body, self._reader_language()) if target.suffix == ".html" else ""
+        page = self._public_reader(target, body)
+        return self._send(200, page, kind, frames="out", version=version)
+
+    def _public_reader(self, target: Path, body: bytes | None = None) -> bytes:
         """A portion's, a day's or a weekly issue's reader, which strangers open under its
         own address: handed to a browser opening it with today's files named, as every
         other served reader is (`served_page`; design.md §12, "A served reader loads its
@@ -7263,7 +7297,8 @@ class Handler(BaseHTTPRequestHandler):
         save for offline above all. `_send` gives a browser that has not kept the files
         the page whole. `/clips/` is behind the account, so a recording carried inline (an
         early weekly issue's) stays inline; a portion's and a day's are files beside it."""
-        body = target.read_bytes()
+        if body is None:
+            body = target.read_bytes()
         if target.suffix == ".html" and self._navigating():
             return served_page(target, body, self._reader_language(), clips=False)
         return self._chromed(target, body)
@@ -7503,6 +7538,7 @@ class Handler(BaseHTTPRequestHandler):
         frames: str = "",
         cookie: str = "",
         forms: str = "",
+        version: str = "",
     ) -> None:
         if status == 404 and body == b"not found" and self._navigating():
             # ACCOUNT-12 (QA 2026-10-11): an unknown `/library/<id>` or a reader's page
@@ -7524,6 +7560,8 @@ class Handler(BaseHTTPRequestHandler):
             # waiting to be fetched. The worker never keeps either as a saved copy, which
             # has to open with nothing else (`sw.js`, `opening`; design.md §12, 2026-10-29).
             self.send_header(LINKED_HEADER, "1")
+        if version:
+            self.send_header(VERSION_HEADER, version)
         if cookie:
             self.send_header("Set-Cookie", cookie)
         # Read off the page as written. The policy names this page's own inline blocks
@@ -8132,8 +8170,7 @@ class Handler(BaseHTTPRequestHandler):
         moving = self.MEDIA_KINDS.get(target.suffix.lower())
         if moving:
             return self._send_file(target, moving)
-        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._public_reader(target), kind, frames="out")
+        return self._send_public_reader(target)
 
     def _serve_parasha_reader(self, folder: str, name: str | None) -> None:
         """One file out of a built portion, and nothing else.
@@ -8161,8 +8198,7 @@ class Handler(BaseHTTPRequestHandler):
         moving = self.MEDIA_KINDS.get(target.suffix.lower())
         if moving:
             return self._send_file(target, moving)
-        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
-        return self._send(200, self._public_reader(target), kind, frames="out")
+        return self._send_public_reader(target)
 
     def _parasha_next(self, folder: str) -> None:
         """What a reading leads on to, for the end of its reader (#416, #446).
@@ -8989,10 +9025,9 @@ class Handler(BaseHTTPRequestHandler):
         target = (root / (name or "index.html")).resolve()
         if not target.is_file() or root not in target.parents:
             return self._send(404, b"not found", "text/plain")
-        kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
         # Framed by the issue's own page and by nothing else on the web. Opened, its files
         # are named as a portion's are; saved, it is the page on disk (targum-internal#662).
-        return self._send(200, self._public_reader(target), kind, frames="out")
+        return self._send_public_reader(target)
 
     def _robots(self) -> str:
         """What a crawler may have.
@@ -19697,6 +19732,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "url": prefix + under + quote(relative),
                         "bytes": target.stat().st_size,
+                        "stamp": file_stamp(target),
                         "film": suffix in FILM_KINDS,
                     }
                 )
@@ -19735,6 +19771,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "url": prefix + quote(target.relative_to(base).as_posix()),
                 "bytes": target.stat().st_size,
+                "stamp": file_stamp(target),
                 "film": False,
             }
         ]
@@ -19759,6 +19796,7 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "url": prefix + quote(address),
                         "bytes": sidecar.stat().st_size,
+                        "stamp": file_stamp(sidecar),
                         "film": suffix in FILM_KINDS,
                     }
                 )
@@ -20135,6 +20173,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send_file(target, moving)
                 kind = "text/html; charset=utf-8" if target.suffix == ".html" else "text/plain"
                 body = target.read_bytes()
+                version = (
+                    reader_version(body, self._reader_language())
+                    if target.suffix == ".html"
+                    else ""
+                )
                 # A browser opening a reader is handed it with its files named, and keeps
                 # them (design.md §12, "A served reader loads its files once", 2026-10-29).
                 # Anything else, a save for offline above all, gets the page whole, as it
@@ -20145,7 +20188,7 @@ class Handler(BaseHTTPRequestHandler):
                     body = self._chromed(target, body)
                 # Framed by the front page as a picture of itself (design.md §13,
                 # 2026-09-11), and by nothing else on the web: `'self'`, not `'*'`.
-                return self._send(200, body, kind, frames="out")
+                return self._send(200, body, kind, frames="out", version=version)
         # A part the text does not have — an old link, or a number typed by hand — opens
         # the text's first part, and the page says the part asked for is not there
         # (`gone=`, read by `reader.js`), rather than a page that says only that nothing is

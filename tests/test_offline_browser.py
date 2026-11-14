@@ -1141,3 +1141,363 @@ def test_what_is_owed_is_counted_in_the_band(browser, words_served: Served) -> N
         )
     finally:
         context.close()
+
+
+# -- a copy follows its text, and Remove can be undone (design.md §12, 2026-11-14) ------
+
+COPY = """async (end) => {
+  const cache = await caches.open('targum-offline');
+  const hit = (await cache.keys()).find((r) => r.url.endsWith(end));
+  if (!hit) return null;
+  const answer = await cache.match(hit);
+  return { version: answer.headers.get('x-targum-version'), body: await answer.text() };
+}"""
+
+#: A copy kept before copies said their build: the page as it was, and no version.
+OLD_COPY = """async (end) => {
+  const cache = await caches.open('targum-offline');
+  const hit = (await cache.keys()).find((r) => r.url.endsWith(end));
+  const was = await cache.match(hit);
+  const body = (await was.text()).replace('</body>', '<p id="stale">An old line</p></body>');
+  const headers = new Headers(was.headers);
+  headers.delete('x-targum-version');
+  await cache.put(hit, new Response(body, { status: 200, headers }));
+}"""
+
+
+def until(page, check: str, arg: Any = None, tries: int = 300) -> None:
+    """Wait in the page for an async condition (`check`, a function of `arg`) to hold:
+    read again every 50 ms, up to `tries` times."""
+    held = page.evaluate(
+        "async (args) => { const check = " + check + "; for (let i = 0; i < args.tries; i++) {"
+        " if (await check(args.arg)) return true;"
+        " await new Promise((ok) => setTimeout(ok, 50)); } return false; }",
+        {"arg": arg, "tries": tries},
+    )
+    assert held, check
+
+
+def test_a_saved_copy_follows_its_text_when_opened_online(browser, served: Served) -> None:  # noqa: F811
+    """targum-internal#720, P1 4: since 2026-10-29 a reader opened on the site names its
+    files, and the worker never kept that as the copy, so a saved text stayed as it was
+    saved: a corrected line never reached the plane. Now the page says which build it is,
+    and a build the copy is not is fetched again, whole, as it opens. The same build
+    opened again fetches nothing more."""
+    reader = book(served.out / "local" / "book-he")
+    # The files beside it: a recording and a film that stay as they are, and a recording
+    # that is re-cut under the same name.
+    (reader / "audio").mkdir()
+    (reader / "audio" / "kept.mp3").write_bytes(b"ID3" + b"k" * 4000)
+    (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"r" * 4000)
+    (reader / "video").mkdir()
+    (reader / "video" / "kept.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + b"v" * 8000)
+    origin = f"http://127.0.0.1:{served.port}"
+    context = browser.new_context(service_workers="allow")
+    context.add_cookies([{"name": KEPT_COOKIE, "value": asset_set(), "url": origin}])
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    end = "/reader/book-he/reader/sec-0001.html"
+
+    def asked_for(path: str = end) -> int:
+        return sum(1 for one in served.asked if one.split("?")[0] == path)
+
+    try:
+        page.goto(served.url(end))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        first = page.evaluate(COPY, end)
+        assert first and first["version"], "the copy says which build it is"
+        assert not names_files(first["body"])
+
+        # Opened again as it is: the page, and nothing fetched for the copy.
+        before = asked_for()
+        page.goto(served.url(end))
+        page.wait_for_selector(".pair")
+        assert page.evaluate(COPY, end)["version"] == first["version"]
+
+        # The text changes on the server, and is opened online.
+        sidecars = {
+            name: asked_for(f"/reader/book-he/reader/{name}")
+            for name in ("audio/kept.mp3", "audio/recut.mp3", "video/kept.mp4")
+        }
+        assert all(n == 1 for n in sidecars.values()), sidecars
+        (reader / "audio" / "new.mp3").write_bytes(b"ID3" + b"n" * 3000)
+        (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"R" * 5000)
+        page_file = reader / "sec-0001.html"
+        page_file.write_text(
+            page_file.read_text(encoding="utf-8").replace(
+                "</body>", '<p id="corrected">A corrected line</p></body>', 1
+            ),
+            encoding="utf-8",
+        )
+        page.goto(served.url(end))
+        page.wait_for_selector("#corrected", state="attached")
+        until(
+            page,
+            "async (args) => { const c = await (" + COPY + ")(args.end);"
+            " return !!c && c.version !== args.was && c.body.includes('A corrected line'); }",
+            {"end": end, "was": first["version"]},
+        )
+        # And the files beside it follow: the new recording and the re-cut one, once
+        # each; what did not change, not at all.
+        until(
+            page,
+            "async () => { const answer = await (await caches.open('targum-offline'))"
+            ".match('/offline/index'); const item = (await answer.json()).items"
+            "['/reader/book-he/reader/']; return item.files.some((f) => f.endsWith('new.mp3'))"
+            " && Object.keys(item.stamps).some((f) => f.endsWith('recut.mp3')"
+            " && item.stamps[f].startsWith('5003-')); }",
+        )
+        assert asked_for("/reader/book-he/reader/audio/new.mp3") == 1
+        assert asked_for("/reader/book-he/reader/audio/recut.mp3") == 2
+        assert asked_for("/reader/book-he/reader/audio/kept.mp3") == 1, "held, not fetched again"
+        assert asked_for("/reader/book-he/reader/video/kept.mp4") == 1, "nor the film"
+        assert (
+            page.evaluate(
+                "async () => (await (await (await caches.open('targum-offline'))"
+                ".match('/reader/book-he/reader/audio/recut.mp3')).arrayBuffer()).byteLength"
+            )
+            == 5003
+        ), "the copy holds the new cut"
+        second = page.evaluate(COPY, end)
+        assert second["version"] and second["version"] != first["version"]
+        assert not names_files(second["body"]), "the copy is still the page whole"
+        assert asked_for() == before + 3, (
+            "two opens and one fetch of the changed page: the unchanged open fetched nothing more"
+        )
+
+        # A copy kept before copies said their build is fetched again on the next open,
+        # and shows nothing of the old page once it has been.
+        page.evaluate(OLD_COPY, end)
+        page.goto(served.url(end))
+        until(
+            page,
+            "async (end) => { const c = await (" + COPY + ")(end);"
+            " return !!c && !!c.version && !c.body.includes('An old line'); }",
+            end,
+        )
+
+        served.gone()
+        context.set_offline(True)
+        plane = context.new_page()
+        plane.goto(served.url(end))
+        plane.wait_for_selector(".pair")
+        assert plane.locator("#corrected").count() == 1, "offline, the copy is the new text"
+        assert plane.locator("#stale").count() == 0
+    finally:
+        context.close()
+
+
+HELD = """async () => (await window.TargumOffline.list())
+  .filter((i) => i.kind !== 'page')
+  .sort((a, b) => (a.id < b.id ? -1 : 1))"""
+
+
+def test_remove_and_remove_all_can_be_undone_offline_too(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720, P2 9: Remove and Remove all took effect at once, and offline
+    that could be the only copy there is. Now neither asks first; each says "Removed ·
+    Undo" for a few seconds, and Undo puts back exactly what went, with no connection.
+    When the line goes, the files go."""
+    served = saved_served
+    book(served.out / "local" / "mine-he")
+    book(served.out / "local" / "other-he", chapters=1)
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/mine-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        for address in ("/reader/mine-he/reader/sec-0001.html", "/reader/other-he/reader/"):
+            saved = page.evaluate(SAVE, {"page": served.url(address), "film": True})
+            assert "item" in saved, saved
+        kept(page, "/reader/mine-he/reader/")
+        kept(page, "/reader/other-he/reader/")
+        page.wait_for_function(SAVED_IN_CACHE, arg=["page:/you/saved"], timeout=15000)
+        whole = page.evaluate(HELD)
+        files = sorted(page.evaluate(KEYS))
+        assert len(whole) == 2
+
+        # With no connection: the Saved page opens from its copy.
+        served.gone()
+        context.set_offline(True)
+        # The page's own time, run on ahead below; it flows as it does until then.
+        page.clock.install()
+        page.goto(served.url("/you/saved"))
+        page.clock.resume()
+        page.wait_for_function(
+            "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
+        )
+
+        page.locator("#saved-mine .saved-remove").first.click()
+        page.wait_for_selector("#saved-mine .saved-held")
+        held = page.locator("#saved-mine .saved-held")
+        assert held.locator(".saved-held-note").inner_text() == "Removed"
+        assert held.locator(".saved-undo").inner_text() == "Undo"
+        assert page.locator("#saved-mine .saved-row").count() == 1
+        assert len(page.evaluate(HELD)) == 1
+        assert sorted(page.evaluate(KEYS)) == files, "the files wait while Undo can be pressed"
+        assert page.evaluate("() => document.activeElement.className").find("saved-undo") >= 0
+
+        # Another tab opens meanwhile, and its sweep of files no saved text names leaves
+        # these alone while Undo can still be pressed (qa-claude on #1234).
+        other = context.new_page()
+        other.goto(served.url("/you/saved"))
+        other.wait_for_function("() => !!window.TargumOffline")
+        other.evaluate("() => window.TargumOffline.sweep()")
+        assert sorted(page.evaluate(KEYS)) == files, "the sweep left the held files"
+
+        held.locator(".saved-undo").click()
+        page.wait_for_function(
+            "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
+            " && !document.querySelector('#saved-mine .saved-held')"
+        )
+        assert page.evaluate(HELD) == whole, "put back exactly as it was"
+        # And what was put back opens with no connection.
+        other.goto(served.url("/reader/mine-he/reader/sec-0001.html"))
+        other.wait_for_selector(".pair")
+        other.close()
+
+        # Remove all, and back.
+        page.click("#saved-all")
+        page.wait_for_selector("#saved-all-held:not([hidden])")
+        assert page.locator("#saved-none").is_visible()
+        assert page.locator("#saved-all").is_hidden()
+        assert "Removed" in page.locator("#saved-all-held").inner_text()
+        assert page.evaluate(HELD) == []
+        page.locator("#saved-all-held .saved-undo").click()
+        page.wait_for_function(
+            "() => document.querySelectorAll('#saved-mine .saved-row').length === 2"
+        )
+        assert page.locator("#saved-all-held").is_hidden()
+        assert page.locator("#saved-all").is_visible()
+        assert page.evaluate(HELD) == whole
+        assert sorted(page.evaluate(KEYS)) == files
+
+        # Left alone, the line goes after a few seconds, and the files with it.
+        page.locator("#saved-mine .saved-remove").first.click()
+        page.wait_for_selector("#saved-mine .saved-held")
+        gone = [item for item in whole if item["id"] not in [i["id"] for i in page.evaluate(HELD)]]
+        assert len(gone) == 1
+        page.mouse.move(0, 0)
+        page.locator("#saved-mine .saved-undo").blur()
+        page.clock.run_for(7000)
+        assert page.locator("#saved-mine .saved-held").count() == 1, "still there at 7 s"
+        page.clock.run_for(1500)
+        page.wait_for_function("() => !document.querySelector('#saved-mine .saved-held')")
+        until(
+            page,
+            "async (names) => { const cache = await caches.open('targum-offline');"
+            " const urls = (await cache.keys()).map((r) => r.url);"
+            " return names.every((n) => !urls.includes(n)); }",
+            gone[0]["files"],
+        )
+        assert page.locator("#saved-mine .saved-row").count() == 1
+
+        # While Undo has the keyboard the line waits; it goes once the keyboard moves on.
+        page.locator("#saved-mine .saved-remove").first.click()
+        page.wait_for_selector("#saved-mine .saved-held")
+        page.mouse.move(0, 0)
+        page.locator("#saved-mine .saved-undo").focus()
+        page.clock.run_for(12000)
+        assert page.locator("#saved-mine .saved-held").count() == 1, "it waits on the keyboard"
+        page.locator("#saved-mine .saved-undo").blur()
+        page.clock.run_for(1500)
+        page.wait_for_function("() => !document.querySelector('#saved-mine .saved-held')")
+    finally:
+        context.close()
+
+
+def test_undo_puts_nothing_back_once_the_files_are_gone(browser, served: Served) -> None:  # noqa: F811
+    """A sign-out in another tab clears the device while Remove holds (qa-claude on
+    #1234): Undo then puts back no entry with nothing behind it, on a device that may now
+    be somebody else's."""
+    book(served.out / "local" / "book-he")
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        page.evaluate(
+            "async (id) => { window.HOLD = await window.TargumOffline.take(id); }",
+            "/reader/book-he/reader/",
+        )
+        other = context.new_page()
+        other.goto(served.url("/reader/book-he/reader/sec-0002.html"))
+        other.wait_for_function("() => !!window.TargumOffline")
+        other.evaluate("() => window.TargumOffline.removeAll()")
+        assert page.evaluate("() => window.HOLD.undo()") is False
+        assert page.evaluate(HELD) == []
+    finally:
+        context.close()
+
+
+def test_a_refetch_that_fails_leaves_the_copy_as_it_was(browser, served: Served) -> None:  # noqa: F811
+    """The worker keeps a refetched page only when it came back whole and is the build
+    that was opened: a server error, or a page that came back named, leaves the copy as
+    it was, and the next open that gets the page whole replaces it."""
+    reader = book(served.out / "local" / "book-he")
+    origin = f"http://127.0.0.1:{served.port}"
+    context = browser.new_context(service_workers="allow")
+    context.add_cookies([{"name": KEPT_COOKIE, "value": asset_set(), "url": origin}])
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    end = "/reader/book-he/reader/sec-0001.html"
+    handler = served.server.RequestHandlerClass
+    real = handler._get
+    how = {"answer": ""}
+    refetched: list[str] = []
+
+    def _get(self: Any) -> None:
+        if self.path.split("?")[0] == end and self.headers.get("X-Targum-Save"):
+            refetched.append(how["answer"])
+            if how["answer"] == "error":
+                self.send_response(500)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            if how["answer"] == "named":
+                # The page as a browser opening it gets it: named, so not a copy.
+                self.headers.replace_header("Sec-Fetch-Mode", "navigate")
+        real(self)
+
+    handler._get = _get
+    try:
+        page.goto(served.url(end))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        first = page.evaluate(COPY, end)
+        page_file = reader / "sec-0001.html"
+        page_file.write_text(
+            page_file.read_text(encoding="utf-8").replace(
+                "</body>", '<p id="corrected">A corrected line</p></body>', 1
+            ),
+            encoding="utf-8",
+        )
+        for answer in ("error", "named"):
+            how["answer"] = answer
+            page.goto(served.url(end))
+            page.wait_for_selector("#corrected", state="attached")
+            # Wait for the refetch to have been answered, then for the worker to have had
+            # the answer: the next open goes through the same worker after it.
+            for _ in range(200):
+                if answer in refetched:
+                    break
+                page.wait_for_timeout(25)
+            assert answer in refetched
+            assert page.evaluate(COPY, end) == first, f"a refetch answered {answer} kept nothing"
+        how["answer"] = "whole"
+        page.goto(served.url(end))
+        until(
+            page,
+            "async (args) => { const c = await (" + COPY + ")(args.end);"
+            " return !!c && c.version !== args.was; }",
+            {"end": end, "was": first["version"]},
+        )
+        assert "A corrected line" in page.evaluate(COPY, end)["body"]
+        assert [one for one in refetched if one] == ["error", "named", "whole"], (
+            "the copy was still the old one when the page came back whole"
+        )
+    finally:
+        handler._get = real
+        context.close()
