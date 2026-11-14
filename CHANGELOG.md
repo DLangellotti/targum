@@ -16,8 +16,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   title could be read and Keep ran into the ×. The card is now one grid with every row
   a subgrid: the title takes at least 12rem and wraps to two lines before it is cut, and
   Kind, Size, Saved and Keep are as wide as their widest. Where the card is narrower
-  than that the Saved column goes first, then Kind joins the line under the title and
-  Keep is its pin. A full device's one press read "Saved on this device", the success
+  than that the Saved column goes and Keep is its pin, then Kind joins the line under
+  the title. A full device's one press read "Saved on this device", the success
   row's words; it now reads "Make room" (`offline.make-room`) and goes to the Saved page.
   From nine tenths used, the Space card says "Nearly full. Remove what you've finished
   to make room." (`saved.page.nearly-full`), the meter turns clay and both tables put

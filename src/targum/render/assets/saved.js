@@ -165,6 +165,7 @@
       keep.appendChild(glyph(PIN));
       keep.appendChild(element("span", "saved-keep-word", t("saved.keep", "Keep saved")));
       keep.setAttribute("aria-label", t("saved.keep-named", "Keep {title} saved", { title: item.title || "" }));
+      keep.title = t("saved.keep", "Keep saved");
       keep.addEventListener("click", function () {
         keep.disabled = true;
         offline.keep(item.id).then(draw, draw);

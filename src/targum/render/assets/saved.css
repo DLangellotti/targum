@@ -165,20 +165,22 @@ a.saved-name::after { content: ""; position: absolute; inset: 0; }
    one column and a wide desk — lets the Saved column go first: the group's heading
    already says how its rows came to be saved. */
 @container (max-width: 42rem) {
-  .saved-table { grid-template-columns: 3.25rem minmax(10rem, 1fr) auto auto auto auto; }
+  .saved-table { grid-template-columns: 3.25rem minmax(12rem, 1fr) auto auto auto auto; }
   .saved-how,
   .saved-cols > :nth-child(4) { display: none; }
+  /* And Keep is its pin, as on a phone, its name kept for a screen reader and a hover:
+     «Не удалять» alone took more than the title had. */
+  .saved-keep-it { padding-inline: 0.5rem; }
+  .saved-keep-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
 }
 /* Narrower again (a 1024px window): the kind joins what was kept under the title, as on
-   a phone, and Keep is its pin with its name kept for a screen reader. */
+   a phone. */
 @container (max-width: 34rem) {
   .saved-table { grid-template-columns: 3.25rem minmax(8rem, 1fr) auto auto auto; }
   .saved-kind,
   .saved-kept,
   .saved-cols > :nth-child(2) { display: none; }
   .saved-kept-phone { display: block; color: var(--ink-soft); font-size: 0.8125rem; }
-  .saved-keep-it { padding-inline: 0.5rem; }
-  .saved-keep-word { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); }
 }
 
 @media (max-width: 60rem) {
