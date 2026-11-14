@@ -6,7 +6,10 @@ on its shelf row, its Continue card and its playlist row (P1-1); a playlist's ro
 offline (P1-2); the tabs with nothing on the shelf or a shelf that failed (P2-3); a
 waiting row tagged Building (P2-4); a failed item counted as not done (P2-7); `lang`
 after a move (P2-8); Alt+↑/↓ on a phone (P2-14); Save for offline on an empty playlist
-(P2-15). The pages are the ones the server renders; the server's answers are routes.
+(P2-15). The second pass: presses greyed offline (P2-9); one fault block (P2-10); no
+chip at nought (P2-11); no New on what was cancelled (P2-13); Find by author (P2-16);
+a recording tagged Audio (P2-17); a title given the row's slack at a desk (P2-18). The
+pages are the ones the server renders; the server's answers are routes.
 """
 
 from __future__ import annotations
@@ -18,7 +21,7 @@ from urllib.parse import urlparse
 
 import pytest
 
-from targum.render.builder import list_page, playlists_page
+from targum.render.builder import list_page, playlists_page, subscription_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -375,3 +378,252 @@ def test_an_empty_playlist_offers_nothing_to_save(browser) -> None:
     context.close()
     assert not thrown, thrown
     assert saving == 0
+
+
+# -- the second pass ---------------------------------------------------------------------
+
+
+def a_subscription(**fields: Any) -> dict[str, Any]:
+    """A channel that builds, on, with one item ready to get ready and its cap."""
+    from test_subscriptions_browser import _row
+
+    one = _row(
+        id=2,
+        kind="channel",
+        key="UC1",
+        name="כאן ארכיון",
+        hebrew="",
+        page="/subscriptions/2",
+        every="feed",
+        perWeek=2.1,
+        builds=True,
+        cap=60,
+        used=12,
+        caps=[30, 60, 120, 240],
+        items=[
+            {
+                "key": "v1",
+                "title": "איך מזמינים קפה",
+                "link": "https://youtu.be/v1",
+                "reader": "",
+                "state": "listed",
+                "why": "",
+                "came": "",
+                "seen": False,
+                "found": 6_000,
+                "published": 6_000,
+                "seconds": 600,
+                "credits": 0,
+                "building": False,
+            }
+        ],
+    )
+    one.update(fields)
+    return {"signedIn": True, "subscription": one, "credits": {"left": 354, "back": "December 1"}}
+
+
+def one_subscription(browser, answer: Any, **options: Any):
+    context, page, thrown = open_page(
+        browser,
+        subscription_page(TOKEN),
+        "/subscriptions/2",
+        {"/subscriptions/2.json": answer, "/account/me": {"signedIn": True}},
+        **options,
+    )
+    return context, page, thrown
+
+
+# P2-9
+
+
+def test_offline_the_presses_that_need_us_are_greyed(browser) -> None:
+    """Pause, Get it ready and the cap's Save stood live offline and failed when pressed."""
+    context, page, thrown = one_subscription(browser, a_subscription())
+    page.wait_for_selector(".sub-pause")
+    page.wait_for_selector(".sub-cap-save")
+    context.set_offline(True)
+    page.wait_for_selector(".sub-pause[aria-disabled='true']")
+    got = page.evaluate(
+        """() => ['.sub-pause', '.sub-act.is-quiet', '.sub-cap-save'].map((at) => {
+          const press = document.querySelector(at);
+          return [at, press && press.getAttribute('aria-disabled'), press && press.dataset.why];
+        })"""
+    )
+    page.click(".sub-pause", force=True)
+    context.set_offline(False)
+    page.wait_for_selector(".sub-pause:not([aria-disabled])")
+    context.close()
+    assert not thrown, thrown
+    # Get it ready goes to Upload, so it says what Upload's presses say.
+    assert got == [
+        [".sub-pause", "true", "This needs a connection."],
+        [".sub-act.is-quiet", "true", "Uploading needs a connection."],
+        [".sub-cap-save", "true", "This needs a connection."],
+    ]
+
+
+def test_offline_new_playlist_is_greyed(browser) -> None:
+    context, page, thrown = open_page(
+        browser,
+        playlists_page(TOKEN),
+        "/playlists",
+        {"/playlists.json": {"playlists": [playlist()]}, "/account/me": {"signedIn": True}},
+    )
+    page.wait_for_selector("#new-press:not([hidden]), .pl-new-card")
+    context.set_offline(True)
+    page.wait_for_selector("#new-press[aria-disabled='true'], .pl-new-card[aria-disabled='true']")
+    live = page.eval_on_selector_all(
+        "#new-press:not([hidden]), .pl-new-card",
+        "all => all.filter((b) => b.getAttribute('aria-disabled') !== 'true').length",
+    )
+    context.close()
+    assert not thrown, thrown
+    assert live == 0
+
+
+# P2-10
+
+
+def test_recent_playlists_and_subscriptions_draw_one_fault_block(browser) -> None:
+    """Three blocks for one fault: Subscriptions had a small tonal Try again and no Tell
+    us, Playlists no line of what is still here."""
+
+    def block(page, at: str) -> dict[str, Any]:
+        page.wait_for_selector(f"{at} .fault-panel-row")
+        return page.eval_on_selector(
+            f"{at} .fault-panel-row",
+            """(row) => ({
+              presses: [...row.children].map((c) => c.className),
+              fact: row.querySelector('.fault-fact').textContent,
+            })""",
+        )
+
+    context, page, _ = home(browser, {"/readers": (500, {"error": "no"})})
+    recent = block(page, "#nothing")
+    context.close()
+    context, page, _ = open_page(
+        browser,
+        playlists_page(TOKEN),
+        "/playlists",
+        {"/playlists.json": (500, {"error": "no"}), "/account/me": {"signedIn": True}},
+    )
+    lists = block(page, "#fault")
+    context.close()
+    context, page, _ = one_subscription(browser, (502, {"error": "no"}))
+    subs = block(page, ".sub-fault")
+    context.close()
+    assert recent == {
+        "presses": ["fault-go", "fault-fact", "fault-act"],
+        "fact": "Everything you've read is still here.",
+    }
+    assert lists == recent and subs == recent, (lists, subs)
+
+
+# P2-11
+
+
+def test_a_subscription_chip_is_absent_at_nought(browser) -> None:
+    from test_subscriptions_browser import ROWS
+
+    context, page, thrown = open_page(
+        browser,
+        list_page(TOKEN, "texts", "en"),
+        "/",
+        {
+            "/account/me": {"signedIn": True},
+            "/suggest": {},
+            "/readers": {"readers": [reader("t0")], "shared": [], "trash": []},
+            "/subscriptions.json": {
+                "signedIn": True,
+                "subscriptions": ROWS[:2],
+                "series": [],
+                "credits": {"left": 354, "back": "December 1"},
+            },
+        },
+    )
+    page.wait_for_selector("#yours-tabs [data-tab='subscriptions']")
+    page.click("#yours-tabs [data-tab='subscriptions']")
+    page.wait_for_selector("#subs-chips .chip")
+    chips = page.eval_on_selector_all("#subs-chips .chip", "all => all.map((c) => c.textContent)")
+    context.close()
+    assert not thrown, thrown
+    assert chips == ["All 2", "Series 1", "Channels 1"]
+
+
+# P2-13
+
+
+def test_what_the_reader_cancelled_is_not_new(browser) -> None:
+    answer = a_subscription()
+    answer["subscription"]["items"][0].update(why="cancelled")
+    context, page, thrown = one_subscription(browser, answer)
+    page.wait_for_selector(".sub-item")
+    got = page.evaluate(
+        """() => ({
+          fresh: document.querySelectorAll('.sub-item .sub-new, .sub-item.is-new').length,
+          said: document.querySelector('.sub-item .sub-item-state').textContent,
+        })"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert got == {"fresh": 0, "said": "You cancelled this"}
+
+
+# P2-16, P2-17, P2-18: Recent's rows
+
+
+def shelf_of(*rows: dict[str, Any]) -> dict[str, Any]:
+    return {"readers": list(rows), "shared": [], "trash": []}
+
+
+def test_find_matches_who_wrote_it(browser) -> None:
+    rows = [reader(f"t{n}", title=f"סיפור {n}", built=1_794_000_000 - n) for n in range(6)]
+    rows[3]["author"] = "Yosef Haim Brenner"
+    context, page, thrown = home(browser, {"/readers": shelf_of(*rows)})
+    page.wait_for_selector("#shelf-find:not([hidden])")
+    page.fill("#shelf-find", "brenner")
+    page.wait_for_function("document.querySelectorAll('#library-list .book-title').length === 1")
+    title = page.locator("#library-list .book-title").inner_text()
+    context.close()
+    assert not thrown, thrown
+    assert title == "סיפור 3"
+
+
+def test_a_recording_is_tagged_audio(browser) -> None:
+    """ "[115] Yair Lapid…" was tagged Text over "40 min audio"."""
+    recording = reader("t0", title="ראיון", kind="article", heard=True, seconds=2400)
+    context, page, thrown = home(browser, {"/readers": shelf_of(recording)})
+    page.wait_for_selector("#library-list .row-tag")
+    got = page.evaluate(
+        """() => ({
+          tag: document.querySelector('#library-list .row-tag').textContent,
+          line: document.querySelector('#library-list .book-facts').textContent,
+        })"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert got["tag"] == "Audio" and "40 min audio" in got["line"], got
+
+
+def test_at_a_desk_a_title_takes_the_row_s_slack(browser) -> None:
+    """Titles were cut at about 190px beside about 120px of empty row."""
+    long = reader("t0", title="אויב שקט ומסוכן: בעקבות המלחמה הארוכה ביותר", kind="article")
+    book = reader("t1", built=1_793_000_000)
+    context, page, thrown = home(browser, {"/readers": shelf_of(long, book)})
+    page.wait_for_selector("#library-list .row-tag")
+    got = page.evaluate(
+        """() => {
+          const rows = [...document.querySelectorAll('#library-list.shelf-rows > li')];
+          const left = (li, at) => Math.round(li.querySelector(at).getBoundingClientRect().left);
+          return {
+            title: rows[0].querySelector('.book-title').getBoundingClientRect().width,
+            tags: rows.map((li) => left(li, '.row-tag')),
+            meters: rows.map((li) => left(li, '.row-meter')),
+          };
+        }"""
+    )
+    context.close()
+    assert not thrown, thrown
+    assert got["title"] > 260, got
+    # The columns still stand in line.
+    assert len(set(got["meters"])) == 1, got

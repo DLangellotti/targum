@@ -333,19 +333,43 @@
     return tn("palette.opened.weeks", Math.floor(days / 7), "opened {n} week ago", "opened {n} weeks ago");
   }
 
+  /* A text's one figure (targum-internal#716; design.md §12, 2026-11-04): our estimate
+     where the server sent it as the figure, else the marked share, as the shelf, Continue
+     and a playlist say it. `TargumStrings.figure` where the page carries `figure.js`; the
+     bar's script runs before a page's strings, so the same rule is kept here for the
+     pages that do not. */
+  function figure(row) {
+    var strings = window.TargumStrings;
+    if (strings && strings.figure) return strings.figure(row);
+    var estimated = typeof row.estimated === "number";
+    var share = estimated ? row.estimated : row.known;
+    if (typeof share !== "number" || share < 0) return null;
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    if (share < 1 && percent >= 100) percent = 99;
+    if (share > 0 && percent <= 0) percent = 1;
+    return { share: Math.max(0, Math.min(1, share)), percent: percent, estimated: estimated };
+  }
+
   function known(row) {
     var end = el("span", "palette-end");
     if (row.band) {
       end.appendChild(el("span", "tag palette-band is-" + row.band, row.bandWord || ""));
     }
-    if (typeof row.known === "number") {
+    var found = figure(row);
+    if (found) {
       var share = el("span", "palette-known");
       share.appendChild(
-        el("span", "palette-known-said", t("palette.known", "{percent}% known", { percent: Math.round(row.known * 100) }))
+        el(
+          "span",
+          "palette-known-said",
+          found.estimated
+            ? t("known.estimate.about", "About {n}%", { n: found.percent }) + " " + t("known.estimate.ours", "(our estimate)")
+            : t("palette.known", "{percent}% known", { percent: found.percent })
+        )
       );
       var meter = el("span", "meter");
       var fill = el("span");
-      fill.style.setProperty("--done", String(row.known));
+      fill.style.setProperty("--done", String(found.share));
       meter.appendChild(fill);
       share.appendChild(meter);
       end.appendChild(share);

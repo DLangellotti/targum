@@ -1364,6 +1364,16 @@
         return t("offline.upload-needs", "Uploading needs a connection.");
       },
     },
+    {
+      // Your targums' presses that ask us (targum-internal#716 P2-9): New playlist, a
+      // playlist's Save for offline (its Start greyed and its Save did not), Pause and
+      // Resume, and the cap's Save. Each stood live and failed when pressed. Get it
+      // ready is a link to Upload, greyed with Upload's reason above.
+      find: "#new-press, .pl-new-card, .pl-offline .offline-go, .sub-row-pause, .sub-pause, .sub-resume, .sub-cap-save",
+      why: function () {
+        return t("offline.change-needs", "This needs a connection.");
+      },
+    },
   ];
 
   function greyNeeds() {

@@ -3451,7 +3451,9 @@ class Store:
             one["latest"] = dict(latest) if latest is not None else None
             fresh = self.db.execute(
                 "SELECT COUNT(*) AS n FROM sub_item WHERE subscription = ? AND came = ''"
-                " AND seen = 0 AND state IN ('ready', 'listed')",
+                " AND seen = 0 AND state IN ('ready', 'listed')"
+                # What the reader cancelled is not new to them (targum-internal#716 P2-13).
+                " AND COALESCE(why, '') != 'cancelled'",
                 (one["id"],),
             ).fetchone()
             one["new"] = int(fresh["n"])

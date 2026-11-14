@@ -356,9 +356,11 @@
     return view.tab !== "uploads" || isUpload(reader);
   }
 
+  // The title, its English title and who wrote it: "brenner" found nothing on a shelf
+  // of four Brenner stories (targum-internal#716 P2-16).
   function matches(reader) {
     var query = plainText(view.query).trim();
-    return !query || plainText(reader.title + " " + (reader.english || "")).indexOf(query) >= 0;
+    return !query || plainText([reader.title, reader.english || "", reader.author || ""].join(" ")).indexOf(query) >= 0;
   }
 
   /* Texts of one series become one row; a series left with one text is that text. A
@@ -950,7 +952,21 @@
     var waiting = document.getElementById("home-waiting");
     if (waiting && !waiting.hidden) {
       waiting.textContent = stillOpening();
-      if (which === "texts") tabsAlone(true);
+      if (which === "texts") {
+        // And the press that asks again, as Playlists and Subscriptions offer beside the
+        // same line (targum-internal#716 P2-10): Recent said it was slow and left the
+        // reader to reload.
+        var again = document.createElement("button");
+        again.type = "button";
+        again.className = "fault-act home-slow-again";
+        again.textContent = t("fault.try-again", "Try again");
+        again.addEventListener("click", function () {
+          if (window.location && window.location.reload) window.location.reload();
+        });
+        waiting.appendChild(document.createTextNode(" "));
+        waiting.appendChild(again);
+        tabsAlone(true);
+      }
     }
   }, 3000);
   drawing.then(function () {

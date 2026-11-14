@@ -445,6 +445,23 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
   border-block-end: 1px solid var(--rule);
   border-radius: 0;
 }
+/* At a desk the rows share their columns (targum-internal#716 P2-18): each row's own
+   fixed tracks left the tag's and the time's columns as wide as their longest word could
+   be, and a title was cut at about 190px beside some 120px of empty row. The list is
+   the grid and each row a subgrid of it, so the tag and the time take what the widest
+   of them on this shelf needs, every row's columns still stand in line, and the title
+   takes the rest. A browser without subgrid keeps the fixed tracks above. */
+@media (min-width: 64.0625rem) {
+  @supports (grid-template-columns: subgrid) {
+    #library-list.shelf-rows {
+      display: grid;
+      grid-template-columns: 2.75rem minmax(0, 1fr) fit-content(7rem) 4.5rem fit-content(7rem) 5.25rem;
+      column-gap: 0.75rem;
+    }
+    #library-list.shelf-rows > * { grid-column: 1 / -1; }
+    #library-list.shelf-rows > li:not(.binned):not(.chapters) { grid-template-columns: subgrid; }
+  }
+}
 #library-list.shelf-rows > li:last-child { border-block-end: 0; }
 #library-list.shelf-rows > li + li { border-block-start: 0; }
 #library-list.shelf-rows > li:hover { background: color-mix(in srgb, var(--accent) 6%, transparent); }

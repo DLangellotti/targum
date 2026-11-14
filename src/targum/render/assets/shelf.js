@@ -339,6 +339,12 @@
      same thing. */
   function kindWord(reader) {
     if (reader.video) return t("home.kind.video", "Video");
+    // A recording is what it is, whatever its address made of it: a podcast episode
+    // came in through https and was tagged Article, a file was tagged Text, over a line
+    // that said "40 min audio" (targum-internal#716 P2-17). `heard` is a text that
+    // began as something said; a book with a recording beside it is still a book.
+    if (reader.kind === "podcast") return t("home.kind.podcast", "Podcast");
+    if (reader.heard || (!reader.kind && reader.seconds > 0)) return t("home.kind.audio", "Audio");
     var kinds = {
       article: t("home.kind.article", "Article"),
       talk: t("home.kind.talk", "Video"),

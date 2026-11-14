@@ -5961,7 +5961,7 @@ def playlists_page(token: str, language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "playlists.", "home.kind."),
+            strings=script_strings(language, "playlists.", "home.kind.", "home.failed."),
             token=token,
             languages=_language_names(language),
         )
@@ -6091,7 +6091,7 @@ def subscription_page(token: str, language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "subs.", "home.kind."),
+            strings=script_strings(language, "subs.", "home.kind.", "home.failed."),
             token=token,
             languages=_language_names(language),
         )
@@ -8727,13 +8727,15 @@ def contents_page(
         estimated = whole.get("estimated")
         if isinstance(estimated, (int, float)):
             known_all = known_percent(float(estimated))
+            # Its own key (targum-internal#716): the chooser's sentence, borrowed, ended
+            # in a full stop the page had to strip, and moved whenever the chooser's did.
             known_said = str(
                 t(
-                    "suggest.estimated",
-                    "You know about {share}% of its words (our estimate).",
-                    share=known_all,
+                    "parts.page.you-know-estimate",
+                    "You know about {n}% of its words (our estimate)",
+                    n=known_all,
                 )
-            ).rstrip(".")
+            )
         else:
             known_all = known_percent(float(whole["known"]))
     if known_all is not None and not known_said:
