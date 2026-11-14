@@ -40,7 +40,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 #: Words that close a negation opened by *ne*.
-NEGATORS = frozenset({"pas", "jamais", "rien", "plus", "personne", "guère"})
+NEGATORS = frozenset({"pas", "jamais", "rien", "plus", "personne", "guère", "aucun", "aucune"})
 
 #: Subject pronouns, strongest first: *nous*, *vous* and the spoken *t'* (*t'as vu*) are
 #: subjects only where nothing stronger is in the clause, because they are objects as
@@ -400,6 +400,8 @@ def _is_negator(text: str, words: Sequence[Word], at: int) -> bool:
         return False
     if at > 0 and norm(words[at - 1].surface) in NOT_AFTER:
         return False
+    if said == "pas" and [norm(word.surface) for word in words[at + 1 : at + 3]] == ["à", "pas"]:
+        return False  # *pas à pas*, step by step
     if said == "plus":
         return _plus_negates(text, words, at)
     return True
@@ -428,8 +430,10 @@ def _plus_negates(text: str, words: Sequence[Word], at: int) -> bool:
     if following in PLUS_BEFORE or following == "là":
         return True
     compared = any(word in ("que", "qu'") for word in rest)
+    # Not before *de*: *elle a plus de clients* is "more", and *j'ai plus de batterie*
+    # cannot be told from it in writing (qa-claude's held-out set on targum#1241).
     if before in AVOIR and not compared:
-        return following in ("de", "d'") or following in FEELINGS or rest[:2] == ["le", "temps"]
+        return following in FEELINGS or rest[:2] == ["le", "temps"]
     return False
 
 
@@ -456,6 +460,9 @@ REFLEXIVE_VOUS = frozenset({"inquiétez", "énervez", "fâchez", "affolez", "emb
 #: Ones that may be either, *vous dérangez pas* "don't trouble yourself" or "you're no
 #: trouble": the drop is said and the formal clause is not.
 EITHER_VOUS = frozenset({"dérangez", "gênez", "trompez", "levez", "couchez", "perdez"})
+#: Imperatives written with the -s of the indicative, as dialogue often spells them:
+#: *t'inquiètes pas*.
+PRONOMINAL_S = frozenset({"inquiètes", "énerves", "occupes", "embêtes"})
 #: Forms of *faire* in *s'en faire*: *t'en fais pas*, *vous en faites pas*.
 FAIRE = frozenset({"fais", "fait", "faites"})
 
@@ -471,8 +478,13 @@ def _imperative(words: Sequence[Word], subject: int) -> bool | None:
     if after[0] == "en" and len(after) > 1 and after[1] in FAIRE:
         return True
     if said == "t'":
-        # *t'as*, *t'es*, *t'étais*: tu; *t'inquiète*, *t'énerve*: te, an imperative.
-        return not after[0].endswith(("s", "x", "ais", "ait"))
+        # *t'as*, *t'es*, *t'étais*: tu; *t'inquiète*, *t'énerve*: te, an imperative. Read
+        # at the verb, past *y* and *en*: *t'y vas pas*, *t'en as pas* are tu.
+        verbs = [norm(word.surface) for word in words[subject + 1 : subject + 4]]
+        verb = next((one for one in verbs if one not in ("y", "en")), "")
+        if verb in PRONOMINAL_S:
+            return True
+        return bool(verb) and not verb.endswith(("s", "x", "ais", "ait"))
     if said == "vous":
         if after[0] in REFLEXIVE_VOUS:
             return True

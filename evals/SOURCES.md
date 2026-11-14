@@ -85,6 +85,7 @@ different set, and the two numbers are not measured on the same thing.
 | `said/pd-fr-drafted` | `evals/french-said-gold.jsonl` (in the repository) |
 | `friends/pd-fr-friends` | `evals/french-false-friends-gold.jsonl` (in the repository) |
 | `register/fr-register-own` | `evals/french-register-gold.jsonl` (in the repository) |
+| `register/fr-register-heldout` | `evals/french-register-heldout.jsonl` (in the repository) |
 | `lemma/pd-fr-pc-imp` | `evals/french-pc-imparfait-gold.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
@@ -516,6 +517,20 @@ dropped marked at its clause's first negator with the formal clause, and every *
   public domain.
 - **Where:** `evals/french-register-gold.jsonl`, in the repository.
 - **Scored by:** `scripts/eval_register.py`. **Ledger:** `register/fr-register-own`.
+
+### Held out: qa-claude's blind set
+
+`evals/french-register-heldout.jsonl`, 29 sentences qa-claude wrote blind as ling-fr in
+the review of targum#1241, without the builder seeing them: new traps of the same kinds
+and new ones (*elle a plus de clients*, *t'y vas pas*, *pas à pas*, *j'ai aucune idée*).
+On register-rule/2 it scored 0.786 drop precision and 0.727 formal accuracy, which found
+two bugs; register-rule/3 fixed those four named things once.
+
+- **Never tuned on again.** It is scored on every run under its own corpus,
+  `register/fr-register-heldout`, and has no floor of its own: its numbers are reported
+  beside the main gold's, never used to set a floor or change the rule. The next blind
+  set comes from another seat.
+- **Licence:** targum's own.
 
 ## French passé composé and imparfait
 

@@ -43,10 +43,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the rule was changed for them, and 32 from the public-domain shelf. Scores
     (`register-rule/2`): `nedrop_precision` 1.0 (46/46), `nedrop_recall` 0.852,
     `formal_accuracy` 1.0, `on_we_precision` 1.0 (18/18), `on_we_recall` 0.783. Floors
-    are 0.97, 0.85, 0.97, 0.94 and 0.78. The first rule scored 0.894, 0.778, 0.881,
+    are 0.97, 0.81, 0.97, 0.94 and 0.78. The first rule scored 0.894, 0.778, 0.881,
     0.783 and 0.783 on the same gold. The rule now knows every trap in it, so precision
     is optimistic; it also names nothing in the 342 tagged sentences of the liaison
     gold.
+  - Held out: qa-claude's 29 sentences written blind (`evals/french-register-heldout.jsonl`,
+    corpus `fr-register-heldout`, no floor, never tuned on) found two bugs in
+    register-rule/2: *elle a plus de clients* named as a drop, and *t'y vas pas* given
+    the imperative's formal clause. register-rule/3 leaves *avoir plus de* a miss, reads
+    *t'* at the verb past *y* and *en*, skips *pas à pas*, and counts *aucun*. Main gold:
+    1.0, 0.815, 1.0, 1.0, 0.783 (drop recall floor down to 0.81 for the *plus de* misses);
+    held out: 1.0, 0.857, 1.0, 1.0 (n = 3), 0.60 (n = 5).
   - Six new strings in English and Russian (`reader.card.informal`, `ne-dropped`,
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian

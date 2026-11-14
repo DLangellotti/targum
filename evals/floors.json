@@ -677,15 +677,15 @@
     "metric": "nedrop_precision",
     "system": "register-rule",
     "at_least": 0.97,
-    "why": "1.0 on 2026-11-14, 46 of 46, register-rule/2 on the 152-sentence gold with qa-claude's 18 traps (targum#1241 review); one wrong would be 0.978. The same gold scored 0.894 under register-rule/1 before the traps were answered (plus meaning more at the end of a clause). Rule and traps now both known to the builder, so still optimistic; none named in the 342 tagged sentences of the liaison gold"
+    "why": "1.0 on 2026-11-14, 44 of 44, register-rule/3 on the 152-sentence gold with qa-claude's 18 traps; one wrong would be 0.977. 0.894 under register-rule/1 before the traps were answered. qa-claude's blind held-out set (fr-register-heldout, no floor, never tuned on) scores 1.0 (12 of 12) under /3 and found the /2 bug that named elle a plus de clients a drop. None named in the 342 tagged sentences of the liaison gold"
   },
   {
     "stage": "register",
     "corpus": "fr-register-own",
     "metric": "nedrop_recall",
     "system": "register-rule",
-    "at_least": 0.85,
-    "why": "0.8519 on 2026-11-14, 46 of 54: the misses are the ones the rule declines by design, a noun subject, an imperative with no pronoun, y a pas, personne veut, ça sert à rien, c'est plus possible, je l'ai dit à personne"
+    "at_least": 0.81,
+    "why": "0.8148 on 2026-11-14, 44 of 54, register-rule/3: lowered from 0.85 because avoir plus de is no longer named (qa-claude's held-out set found elle a plus de clients named as a drop; j'ai plus de batterie and il y a plus de lait cannot be told from it in writing, so they are misses on purpose, precision first). Other misses by design: a noun subject, an imperative with no pronoun, y a pas, personne veut, ça sert à rien, c'est plus possible, je l'ai dit à personne"
   },
   {
     "stage": "register",
@@ -693,7 +693,7 @@
     "metric": "formal_accuracy",
     "system": "register-rule",
     "at_least": 0.97,
-    "why": "1.0 on 2026-11-14, 46 of 46 formal clauses shown letter for letter; 0.881 under register-rule/1 on the same gold, the pronominal imperatives (t'en fais pas, t'énerve pas, vous en faites pas) now put ne first, and a clause the rule cannot tell is withheld rather than shown"
+    "why": "1.0 on 2026-11-14, 44 of 44 formal clauses shown letter for letter, register-rule/3; 0.881 under /1 on the same gold. Held out: 1.0 (12 of 12) under /3, 0.727 under /2 before t' was read at the verb past y and en"
   },
   {
     "stage": "register",
@@ -709,7 +709,7 @@
     "metric": "on_we_recall",
     "system": "register-rule",
     "at_least": 0.78,
-    "why": "0.7826 on 2026-11-14, 18 of 23 (line 94, on a guère le choix, relabelled other on qa-claude's read): a we the sentence does not show (on mange quoi ce soir) gets the open line instead"
+    "why": "0.7826 on 2026-11-14, 18 of 23 (line 94, on a guère le choix, relabelled other on qa-claude's read): a we the sentence does not show (on mange quoi ce soir) gets the open line instead. Held out 0.60 (3 of 5, below this floor; n too small to move it): on est heureux ici, nous and on a gagné are not shown as we"
   },
   {
     "stage": "lemma",

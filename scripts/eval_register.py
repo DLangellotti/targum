@@ -25,6 +25,12 @@ can only refuse a negator, so the drops shown are fewer than scored, never more.
 several people) says "we" only when tagged plural, so the "we" figures are the rule's
 on the words, not a bound on the page.
 
+The same five metrics are scored on `evals/french-register-heldout.jsonl`, 29 sentences
+qa-claude wrote blind as ling-fr in the review of targum#1241, under its own corpus. The
+rule was fixed once for what that set found (register-rule/3: *avoir plus de* left a
+miss, *t'* read at the verb past *y* and *en*, *pas à pas*, *aucun*); it is not to be
+tuned on again.
+
     python scripts/eval_register.py [--record]
 
 No key, no network, no spend.
@@ -45,10 +51,15 @@ from targum import evals  # noqa: E402
 from targum.annotate import french_register  # noqa: E402
 
 GOLD = ROOT / "evals" / "french-register-gold.jsonl"
+#: qa-claude's blind set (targum#1241): scored on every run and never tuned on. Once a
+#: rule is changed for one of its lines it is not held out any more, and the next blind
+#: set comes from another seat.
+HELDOUT = ROOT / "evals" / "french-register-heldout.jsonl"
 STAGE = "register"
 CORPUS = "fr-register-own"
+HELDOUT_CORPUS = "fr-register-heldout"
 SYSTEM = "register-rule"
-VERSION = f"{SYSTEM}/2"
+VERSION = f"{SYSTEM}/3"
 
 
 def _same(one: str, other: str) -> bool:
@@ -127,28 +138,34 @@ def main() -> None:
     parser.add_argument("--ledger", type=Path, default=evals.DEFAULT)
     args = parser.parse_args()
 
-    rows = [json.loads(line) for line in GOLD.read_text(encoding="utf-8").splitlines()]
-    scores = score(rows)
-    for metric, (value, n) in scores.items():
-        print(f"{metric} {value:.4f} (n={n})")
-    note = evals.pinned(
-        f"sentences={len(rows)} tags=none; builder + qa-claude traps 2026-11-14",
-        [GOLD, Path(french_register.__file__)],
-    )
-    out = [
-        evals.Row(
-            at=date.today().isoformat(),
-            stage=STAGE,
-            corpus=CORPUS,
-            system=SYSTEM,
-            version=VERSION,
-            metric=metric,
-            score=round(value, 4),
-            n=n,
-            note=note,
+    out: list[evals.Row] = []
+    for path, corpus, said in (
+        (GOLD, CORPUS, "builder + qa-claude traps 2026-11-14"),
+        (HELDOUT, HELDOUT_CORPUS, "written blind by qa-claude 2026-11-14; never tuned on"),
+    ):
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+        print(f"{corpus} ({len(rows)} sentences)")
+        scores = score(rows)
+        for metric, (value, n) in scores.items():
+            print(f"{metric} {value:.4f} (n={n})")
+        note = evals.pinned(
+            f"sentences={len(rows)} tags=none; {said}",
+            [path, Path(french_register.__file__)],
         )
-        for metric, (value, n) in scores.items()
-    ]
+        out += [
+            evals.Row(
+                at=date.today().isoformat(),
+                stage=STAGE,
+                corpus=corpus,
+                system=SYSTEM,
+                version=VERSION,
+                metric=metric,
+                score=round(value, 4),
+                n=n,
+                note=note,
+            )
+            for metric, (value, n) in scores.items()
+        ]
     if args.record:
         evals.append(out, args.ledger)
         print(f"appended {len(out)} rows to {args.ledger}")

@@ -45,12 +45,16 @@ def _we(sentence: str) -> list[bool]:
         ("J'ai jamais rien vu.", [("jamais", "Je n'ai jamais")]),
         # Plus where it cannot be "more".
         ("J'ai plus faim.", [("plus", "Je n'ai plus")]),
-        ("Il y a plus de lait.", [("plus", "Il n'y a plus")]),
+        ("J'ai aucune idée.", [("aucune", "Je n'ai aucune")]),
         ("Elle est plus là.", [("plus", "Elle n'est plus")]),
         ("Je sais plus.", [("plus", "Je ne sais plus")]),
         # A pronominal imperative puts ne before its pronoun (qa-claude on #1241).
         ("T'énerve pas.", [("pas", "Ne t'énerve pas")]),
         ("T'en fais pas.", [("pas", "Ne t'en fais pas")]),
+        # Tu, read at the verb past y and en (qa-claude's held-out set on #1241).
+        ("T'y vas pas ?", [("pas", "Tu n'y vas pas")]),
+        ("T'en as pas ?", [("pas", "Tu n'en as pas")]),
+        ("T'inquiètes pas, je gère.", [("pas", "Ne t'inquiètes pas")]),
         ("Vous en faites pas.", [("pas", "Ne vous en faites pas")]),
         ("Vous inquiétez pas, on arrive.", [("pas", "Ne vous inquiétez pas")]),
         # And one that may be either is named with no formal clause.
@@ -92,6 +96,10 @@ def test_a_negation_without_ne_is_named_with_its_formal_clause(
         "Tu en sais plus.",
         # A negator made a noun by what comes before it.
         "Il a fait quelques pas.",
+        "Il avance pas à pas dans le noir.",
+        # Avoir plus de may be "more": a miss on purpose, precision first.
+        "Il y a plus de lait.",
+        "Cette année, elle a plus de clients, donc elle gagne mieux.",
         "Il avance à grands pas.",
         "C'est une vieille personne.",
         # No verb, so nothing dropped.
@@ -232,22 +240,33 @@ def _eval_register() -> ModuleType:
     return module
 
 
-def test_the_ledger_holds_what_the_gold_scores_now() -> None:
-    """The rule and the gold as committed score what the ledger says, so a change to either
-    that moves a number has to record it, and the floors read the new number."""
+@pytest.mark.parametrize("held_out", [False, True])
+def test_the_ledger_holds_what_the_gold_scores_now(held_out: bool) -> None:
+    """The rule and each gold as committed score what the ledger says, so a change to
+    either that moves a number has to record it, and the floors read the new number. The
+    held-out set (qa-claude's, written blind) is scored the same way and has no floor of
+    its own: it is reported, not tuned on."""
     scorer = _eval_register()
-    rows = [json.loads(line) for line in scorer.GOLD.read_text(encoding="utf-8").splitlines()]
-    assert len(rows) >= 150
+    path, corpus = (
+        (scorer.HELDOUT, scorer.HELDOUT_CORPUS) if held_out else (scorer.GOLD, scorer.CORPUS)
+    )
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) >= (29 if held_out else 150)
     assert {row["register"] for row in rows} == {"formal", "neutral", "informal"}
     scored = scorer.score(rows, quiet=True)
     latest = evals.latest(evals.read(ROOT / "evals" / "ledger.jsonl"))
     for metric, (value, n) in scored.items():
-        row = latest[(scorer.STAGE, scorer.CORPUS, metric)]
+        row = latest[(scorer.STAGE, corpus, metric)]
         assert (row.score, row.n) == (round(value, 4), n), metric
 
 
 def test_the_gold_marks_every_on_and_each_drop_where_its_word_is() -> None:
-    for line in (ROOT / "evals" / "french-register-gold.jsonl").read_text("utf-8").splitlines():
+    lines_ = [
+        line
+        for name in ("french-register-gold.jsonl", "french-register-heldout.jsonl")
+        for line in (ROOT / "evals" / name).read_text("utf-8").splitlines()
+    ]
+    for line in lines_:
         row = json.loads(line)
         sentence = row["sentence"]
         for start, end, word, formal in row["ne_dropped"]:
