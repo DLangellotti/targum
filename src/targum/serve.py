@@ -1630,6 +1630,11 @@ class Job:
     #: stopped, taken off its claim (targum-internal#694, "credit the retry"). Never
     #: stored: the claim's `length` is the record, and this only caps a stop's receipt.
     credited: float = 0.0
+    #: Seconds of the month a build its reader stopped used, as its receipt settled them
+    #: (`Library._stopped`): what the stopped card says was used, in credits, rather
+    #: than that the reader paid (targum-internal#715). Zero for a text, and for one
+    #: cancelled while it waited.
+    used: float = 0.0
 
     def state(self) -> dict[str, Any]:
         from . import catalogue as catalogue_module
@@ -1680,6 +1685,10 @@ class Job:
             # The audio card's facts: shown in ui-monospace as a clock and a count,
             # never as dollars — the page already takes that position.
             "audio": self.audio,
+            # Whether a stop of it uses credits: a recording does, and a gift recording
+            # does not, since targum pays for it (targum-internal#715). Stop's question
+            # is asked on this, never on `audio`.
+            "metered": self.audio and not self.gift,
             "seconds": round(self.seconds, 1),
             "parts": self.parts,
             "transcription": round(self.transcription, 2),
@@ -1691,6 +1700,8 @@ class Job:
             # How long one of these has taken here lately. Zero means "not enough
             # finished builds to say", and the card shows nothing rather than a guess.
             "usually": round(self.usually, 1),
+            # The credits a stopped build used, from its receipt (targum-internal#715).
+            "used": credits_of(self.used) if self.stage == "cancelled" else 0,
             "known_share": level_module.page_share(self.known_share),
             "known_line": (
                 level_module.estimated_line(self.known_share)
@@ -2245,6 +2256,14 @@ class Library:
             parts=int(row["parts"] or 0),
             transcription=float(row["transcription"] or 0.0),
             reading=float(row["reading"] or 0.0),
+            # What a stopped recording settled to: its `length` once it has stopped
+            # (targum-internal#715). A text claims none, and a waiting cancel gave its
+            # back (`unclaim`).
+            used=(
+                float(row.get("length") or 0.0)
+                if row["stage"] == "cancelled" and row["audio"] and not row.get("gift")
+                else 0.0
+            ),
         )
 
     #: Stages a job does not come back from. Reaching one stamps `finished`. `cancelled`
@@ -2419,7 +2438,17 @@ class Library:
             if job.stage == "queued" and job.id in position:
                 ahead = line[: line.index(job)]
                 row["ahead"] = [
-                    {"id": one.id, "title": one.title, "stage": one.stage, **self.cancelling(one)}
+                    {
+                        "id": one.id,
+                        "title": one.title,
+                        "stage": one.stage,
+                        # Its title's language, and whether a stop uses credits, for the
+                        # line that names it and the question its Cancel asks (#715).
+                        "language": one.language or str(one.options.get("from") or ""),
+                        "audio": one.audio,
+                        "metered": one.audio and not one.gift,
+                        **self.cancelling(one),
+                    }
                     for one in ahead
                     if one.owner == owner
                 ]
@@ -2528,7 +2557,8 @@ class Library:
         # Never more than it claimed: a retry credited with what an earlier stop paid
         # for (#694) claimed less than its seconds.
         claimed = max(0.0, job.seconds - job.credited)
-        self.settle(job, length=min(heard, claimed) if metered else None)
+        job.used = min(heard, claimed) if metered else 0.0
+        self.settle(job, length=job.used if metered else None)
         # It did not go ahead: what it was credited is the reader's again, beside the
         # seconds it heard itself (#694).
         if self.store is not None:
@@ -5237,28 +5267,56 @@ class Library:
             if not refused:
                 job.credited = self._credited(job)
                 return ""
+            # The press says what the quote said (`short_of_month`): what it needs once a
+            # stopped build's credit is taken off, not its whole length.
+            room = self._month_room(job) if refused == "hours" and job.owner is not None else None
             if refused == "hours" and self._held_to_free(job):
-                return self._plan_refusal(job)
-            if refused == "hours" and job.owner is not None:
-                allowed = self.allowance() or 0.0
-                used = self.store.hours_used(job.owner, self._month_from())
-                credit = (
-                    self.store.prepaid(job.owner, job.source, job.id)
-                    if job.audio and not job.gift
-                    else 0.0
-                )
-                return self._out_of(
-                    refused,
-                    job.ui,
-                    need=max(0.0, job.seconds - credit),
-                    left=max(0.0, allowed - used),
-                )
+                return self._plan_refusal(job, need=room[0] if room else None)
+            if room is not None:
+                need, left = room
+                return self._out_of(refused, job.ui, need=need, left=left)
             return self._out_of(refused, job.ui)
         with self.lock:
             blocked = self.why_blocked(job.estimate, job.ui)
             if not blocked:
                 self._committed += job.estimate
             return blocked
+
+    def _month_room(self, job: Job) -> tuple[float, float]:
+        """A recording's seconds against its owner's month, as `claim` counts them: what
+        it needs once a stopped build's credit is taken off, and what is left."""
+        assert self.store is not None and job.owner is not None
+        allowed = self.allowance() or 0.0
+        used = self.store.hours_used(job.owner, self._month_from())
+        credit = (
+            self.store.prepaid(job.owner, job.source, job.id) if job.audio and not job.gift else 0.0
+        )
+        return max(0.0, job.seconds - credit), max(0.0, allowed - used)
+
+    def short_of_month(self, job: Job) -> None:
+        """Refuse a recording at its quote when it needs more credits than its owner has
+        left this month (targum-internal#715). The card said "Uses 13 credits · 12 left"
+        with Confirm live, and only the press found out. `claim` is still the gate; this
+        says at the quote what the press would be told, in the same words."""
+        if (
+            job.stage != "ready"
+            or not job.audio
+            or job.gift
+            or job.admin
+            or job.owner is None
+            or self.store is None
+            or self.allowance() is None
+        ):
+            return
+        need, left = self._month_room(job)
+        if need <= left:
+            return
+        job.blocked = (
+            self._plan_refusal(job, need=need)
+            if self._held_to_free(job)
+            else self._out_of("hours", job.ui, need=need, left=left)
+        )
+        job.stage = "blocked"
 
     def _credited(self, job: Job) -> float:
         """What the claim took off a recording's seconds: its seconds less the `length`
@@ -17145,6 +17203,7 @@ class Handler(BaseHTTPRequestHandler):
         self.library.jobs[job.id] = job
         self.library.remember(job)
         self.library.prepare(job)
+        self.library.short_of_month(job)
         self.library.remember(job)
         self._json(job.state())
 
@@ -18526,6 +18585,20 @@ class Handler(BaseHTTPRequestHandler):
                     "grounded": bool(held and held.grounded),
                 }
             )
+        # Buying is held to the pair the page is showing. A meaning is bought on
+        # targum's account with no job row behind it, so a page that could name any
+        # target could make targum buy meanings into any language it liked. A meaning
+        # in the word's own language is not approved yet (targum-internal#538).
+        if target == source or target not in self._gloss_targets(document):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.gloss-not-in-that-language",
+                        "We can't look words up in that language.",
+                    )
+                },
+                400,
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
@@ -18563,6 +18636,27 @@ class Handler(BaseHTTPRequestHandler):
                 "grounded": bool(sense and sense.grounded),
             }
         )
+
+    def _gloss_targets(self, document: str) -> set[str]:
+        """The languages a word's meaning may be bought in for whoever is asking.
+
+        The languages their account reads into, the one their meanings are said in,
+        and the languages the text they are reading is translated into (a reader of
+        English who opens a text built only into Russian is shown Russian meanings).
+        Never anything a page merely names: the target is the page's, the check is
+        ours (targum-internal#717).
+        """
+        from .translate.prompts import BESIDE
+
+        allowed = set(self._reads()) | {self._reading_language()}
+        person = self._person()
+        homes = [self.library.shared, self.library.weekly]
+        if person is not None:
+            homes.insert(0, self.library.home(person))
+        found = self.library.document_folder(homes, document) if document else None
+        if found is not None:
+            allowed |= set(self.library.targets(found[0]))
+        return allowed - set(BESIDE)
 
     def _gloss_phrase(self, payload: dict[str, Any]) -> None:
         """A few words of a sentence, because a reader selected them.

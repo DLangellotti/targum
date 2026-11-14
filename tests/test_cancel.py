@@ -364,7 +364,7 @@ def test_a_waiting_build_is_cancelled_at_one_quiet_press(place: str) -> None:
 @pytest.mark.parametrize("place", ["row", "card"])
 def test_a_running_build_asks_once_before_it_stops(place: str) -> None:
     asked = _drawn(place=place, job=RUNNING, press=["Cancel"])
-    assert "Stop this build? You'll still pay for what's done so far." in asked["after"]["words"]
+    assert "Stop it? It uses none of your credits." in asked["after"]["words"]
     assert [p["text"] for p in asked["after"]["presses"]] == ["Stop it", "Keep building"]
     assert not [one for one in asked["asked"] if one["path"] == "/jobs/cancel"], "not yet"
 
@@ -405,9 +405,7 @@ def test_the_waiting_card_names_yours_ahead_and_counts_the_rest() -> None:
     )
     assert "Mon autre film" in said["before"]["words"]
     assert [p["label"] for p in said["before"]["presses"]] == ["Cancel Mon autre film"]
-    assert (
-        "2 builds ahead are other people's. Only they can cancel them." in said["before"]["words"]
-    )
+    assert "2 ahead are other people's. Only they can cancel them." in said["before"]["words"]
 
 
 def test_the_waiting_card_draws_cancel() -> None:
@@ -546,7 +544,117 @@ def test_a_card_that_finds_its_build_started_asks_before_stopping() -> None:
             press=["Cancel"],
             answers={"/jobs/cancel": {"started": True, "stage": "working"}},
         )
-        assert "Stop this build? You'll still pay for what's done so far." in said["after"]["words"]
+        assert "Stop it? It uses none of your credits." in said["after"]["words"]
         assert [p["text"] for p in said["after"]["presses"]] == ["Stop it", "Keep building"]
         posts = [one["body"] for one in said["asked"] if one["path"] == "/jobs/cancel"]
         assert posts == [{"id": "w1", "waiting": True}], "one look, and no stop yet"
+
+
+# -- what a stop says it used (targum-internal#715) -----------------------------------
+
+
+@pytest.mark.parametrize("place", ["row", "card"])
+def test_a_stop_says_credits_from_its_receipt_and_never_pay(place: str) -> None:
+    """Stopping said "You'll still pay" and "You paid for what was done", on an article
+    whose card had said "Uses none of your credits" (design, P1). The question says
+    credits for a recording and none for a text; the end says what the receipt used."""
+    text = _drawn(place=place, job=RUNNING, press=["Cancel"])
+    assert "Stop it? It uses none of your credits." in text["after"]["words"]
+    film = _drawn(place=place, job={**RUNNING, "audio": True, "metered": True}, press=["Cancel"])
+    assert "Stop it? What's done so far still uses credits." in film["after"]["words"]
+
+    def ended(final: dict[str, Any]) -> list[str]:
+        said = _drawn(
+            place="ahead",
+            job={**WAITING, "ahead": [{**RUNNING, "id": "a1", **final}]},
+            press=["Cancel", "Stop it"],
+            answers={
+                "/jobs/cancel": {"cancelled": False, "stopping": True},
+                "/job/a1": {"id": "a1", "stage": "cancelled", **final},
+            },
+        )
+        words: list[str] = said["after"]["words"]
+        return words
+
+    assert "Stopped. It used 3 credits." in ended({"used": 3, "audio": True})
+    assert "Stopped. It used 1 credit." in ended({"used": 1, "audio": True})
+    assert "Stopped. Nothing was used." in ended({"used": 0})
+    for words in (text, film):
+        assert not any("pay" in one for one in words["after"]["words"])
+
+
+def test_the_server_says_what_a_stop_used(tmp_path: Path, monkeypatch: Any) -> None:
+    """`said` and `used` come from the stop's own receipt: two minutes heard is two
+    credits, a text none, and a row read back after a restart says the same."""
+    from targum.chat.tools import _said
+
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    film = _recording("r1", person.id, library.home(person))
+    _claimed(library, film)
+    monkeypatch.setattr(Library, "_builder", lambda _self, job: Halfway(library, job))
+    library.run(film)
+    assert film.state()["used"] == 2
+    assert _said(film, None, 0) == "You stopped it. It used 2 credits."
+    row = store.job("r1")
+    assert row is not None
+    again = Library._job_from_row(row)
+    assert again.state()["used"] == 2 and _said(again, None, 0) == _said(film, None, 0)
+
+    text = Job(id="x1", source="text", owner=person.id, home=library.home(person), estimate=0.2)
+    _claimed(library, text)
+    library.run(text)
+    assert text.state()["used"] == 0
+    assert _said(text, None, 0) == "You stopped it. Nothing was used."
+    assert "paid" not in _said(text, None, 0)
+
+
+# -- qa-claude on #1217 ----------------------------------------------------------------
+
+
+def test_a_gift_recording_s_stop_asks_no_credits(tmp_path: Path) -> None:
+    """A let-in build is a recording targum pays for: its Stop asks as a text's does,
+    because the question is asked on `metered`, never on `audio`."""
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    gift = _recording("g1", person.id, library.home(person), gift=True)
+    film = _recording("f1", person.id, library.home(person))
+    assert gift.state()["metered"] is False and film.state()["metered"] is True
+
+    asked = _drawn(place="row", job={**RUNNING, "audio": True, "metered": False}, press=["Cancel"])
+    assert "Stop it? It uses none of your credits." in asked["after"]["words"]
+    ahead = _drawn(
+        place="ahead",
+        job={**WAITING, "ahead": [{**RUNNING, "id": "a1", "audio": True, "metered": False}]},
+        press=["Cancel"],
+    )
+    assert "Stop it? It uses none of your credits." in ahead["after"]["words"]
+
+
+def test_the_waiting_card_s_rows_ahead_say_whether_a_stop_uses_credits(tmp_path: Path) -> None:
+    store = Store(tmp_path / "db")
+    person, _ = _person(store, "reader@example.com")
+    library = Library(tmp_path / "out", store=store)
+    film = _recording("f1", person.id, library.home(person), made=1)
+    gift = _recording("g1", person.id, library.home(person), gift=True, made=2)
+    last = _recording("l1", person.id, library.home(person), made=3)
+    for job in (film, gift, last):
+        library.jobs[job.id] = job
+        job.stage = "queued"
+        library.remember(job)
+    (row,) = [one for one in library.mine(person.id) if one["id"] == "l1"]
+    assert {one["id"]: one["metered"] for one in row["ahead"]} == {"f1": True, "g1": False}
+
+
+def test_a_stop_that_used_credits_says_so_whatever_it_cost() -> None:
+    """`_said` asks the receipt's credits before the money: a stop that heard two
+    minutes says two credits even where its transcriber cost nothing."""
+    from targum.chat.tools import _said
+
+    job = Job(id="z1", source="https://example.com/z1", audio=True, seconds=600.0)
+    job.stage, job.spent, job.used = "cancelled", 0.0, 120.0
+    assert _said(job, None, 0) == "You stopped it. It used 2 credits."
+    job.used = 0.0
+    assert _said(job, None, 0) == "You cancelled it. Nothing was used."

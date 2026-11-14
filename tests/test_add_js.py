@@ -212,7 +212,7 @@ def test_a_press_that_spends_says_what_beside_it() -> None:
     ]
     assert "var spends = uses(job);" in source, "on the chat's card"
     add = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
-    offered = add[add.index("  function offer(job) {") :][:2000]
+    offered = add[add.index("  function offer(job) {") :][:2600]
     assert "bringing.uses(job)" in offered, "and on Add's"
 
 
@@ -295,3 +295,150 @@ def test_the_text_card_never_rounds_into_a_lie() -> None:
     done = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30)
     assert done.returncode == 0, done.stderr
     assert json.loads(done.stdout) == ["99%", "1%", "100%", "0%", "72%", "", ""]
+
+
+# -- the finish bar on Upload (targum-internal#715) ------------------------------------
+
+VIDEO = "https://www.youtube.com/watch?v=abcdefghijk"
+QUOTED = {
+    "id": "j1",
+    "stage": "ready",
+    "audio": True,
+    "seconds": 600,
+    "title": "סרטון על אוכל",
+    "language": "he",
+    "known_share": 0.87,
+    "show": "Kan Educational",
+    "presenter": "Dana",
+}
+
+
+def card(**payload: Any) -> dict[str, Any]:
+    return run(typed=VIDEO, card=True, **payload)
+
+
+def test_a_video_quote_says_how_much_you_know_when_what_was_found_cannot() -> None:
+    """A video's lookup carries no share, and "What we found" drawn above the card hid
+    the card's own 87% (design, P2-2)."""
+    said = card(answers={"/describe": {"kind": "video", "seconds": 600}, "/prepare": QUOTED})
+    assert "You know 87% of the words here." in said["status"]
+    # Where what was found said it, it is said once.
+    found = card(
+        answers={
+            "/describe": {"kind": "article", "minutes": 4, "known_share": 0.5},
+            "/prepare": {**QUOTED, "audio": False, "known_share": 0.5},
+        }
+    )
+    assert sum("50%" in line for line in found["status"][-12:]) == 1
+
+
+def test_the_quote_names_the_show_and_who_presents_it() -> None:
+    """#691 asked for title, show and who on the card (design, P2-3)."""
+    said = card(answers={"/describe": {}, "/prepare": QUOTED})
+    names = [run_ for run_ in said["drawn"] if run_["tag"] == "bdi"]
+    assert [one["text"] for one in names] == ["Kan Educational", "Dana"]
+    assert all(one["dir"] == "auto" and one["lang"] == "" for one in names), names
+
+
+def test_in_the_library_keeps_one_filled_press_and_puts_the_line_away() -> None:
+    """Upload and Open were both filled, and "We'll work out how long it'll take" stood
+    beside "…is in the Library, ready to open" (design, P2-4, P2-8). The title is set
+    as Hebrew (P2-5)."""
+    said = card(
+        answers={
+            "/prepare": {
+                "catalogue": {
+                    "id": "t1",
+                    "title": "שלום עולם",
+                    "language": "he",
+                    "shelved": True,
+                    "translations": [],
+                }
+            }
+        }
+    )
+    filled = [p["text"] for p in said["presses"] if "filled" in p["className"].split()]
+    assert filled == ["Open"] and said["go"] == ["tonal"]
+    assert said["underHidden"], "the line under the box is put away"
+    (title,) = [one for one in said["drawn"] if one["tag"] == "b"]
+    assert title["lang"] == "he" and title["dir"] == "auto"
+
+
+def test_done_keeps_one_filled_press() -> None:
+    said = card(
+        answers={
+            "/describe": {},
+            "/prepare": QUOTED,
+            "/build": {"id": "j1", "stage": "queued"},
+            "/job/j1": {"id": "j1", "stage": "done", "reader": "t/reader"},
+        },
+        press=["Confirm"],
+    )
+    assert "Open it" in [p["text"] for p in said["presses"]]
+    assert said["go"] == ["tonal"], "Upload steps back while Open it is up"
+
+
+def test_a_stopped_build_ends_with_a_way_on() -> None:
+    """Cancelled and stopped ended on a sentence with nothing to press (design, P2-7)."""
+    said = card(
+        answers={
+            "/describe": {},
+            "/prepare": QUOTED,
+            "/build": {"id": "j1", "stage": "queued"},
+            "/job/j1": {
+                "id": "j1",
+                "stage": "cancelled",
+                "said": "You stopped it. It used 2 credits.",
+            },
+        },
+        press=["Confirm"],
+    )
+    assert "You stopped it. It used 2 credits." in said["status"]
+    assert "Upload something else" in [p["text"] for p in said["presses"]]
+
+
+def test_waiting_behind_others_is_said_once() -> None:
+    """ "Waiting behind 2 builds" and "It's waiting to start, behind 2 other texts." said
+    one thing twice, in two words (design, P2-6). The card's own Cancel says Cancel."""
+    waiting = {
+        "id": "j1",
+        "stage": "queued",
+        "behind": 2,
+        "said": "It's waiting to start, behind 2 other texts.",
+        "cancellable": True,
+    }
+    said = card(
+        answers={
+            "/describe": {},
+            "/prepare": QUOTED,
+            "/build": waiting,
+            "/job/j1": waiting,
+        },
+        press=["Confirm"],
+    )
+    words = " ".join(said["status"])
+    assert "Waiting behind" not in words and "build" not in words
+    assert "It's waiting to start, behind 2 other texts." in said["status"]
+    assert "Cancel" in [p["text"] for p in said["presses"]]
+
+
+def test_the_description_search_sets_a_hebrew_title_as_hebrew() -> None:
+    found = json.loads(json.dumps(FOUND))
+    found["/chat/turn/c1/1"]["found"][0]["title"] = "פודקאסט על אוכל"
+    found["/chat/turn/c1/1"]["found"][0]["language"] = "he"
+    said = run(typed="something funny about food", answers=found, card=True)
+    titles = [one for one in said["drawn"] if one["className"] == "found-title"]
+    hebrew = [one for one in titles if one["text"] == "פודקאסט על אוכל"]
+    assert hebrew and hebrew[0]["lang"] == "he" and hebrew[0]["dir"] == "auto", titles
+
+
+def test_file_sizes_are_said_in_the_page_language() -> None:
+    """«9 KB» on the Russian page (ling-ru, P2-11): the units are strings now."""
+    source = (HARNESS.parents[2] / "src/targum/render/assets/add.js").read_text(encoding="utf-8")
+    assert '+ " KB"' not in source and '+ " MB"' not in source
+    ru = json.loads((HARNESS.parents[2] / "src/targum/strings/ru.json").read_text(encoding="utf-8"))
+    assert ru["add.size.kb"] == "{n} КБ" and ru["add.size.mb"] == "{n} МБ"
+    # Worded as `building.credits.left` is, without its full stop, so the quote and the
+    # building row read as one product (ling-ru on #1217).
+    for form in ("one", "few", "many", "other"):
+        assert ru[f"add.quote.left.{form}"] == ru[f"building.credits.left.{form}"].rstrip(".")

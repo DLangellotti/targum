@@ -6,6 +6,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Stop and claim follow-ups to #1217 (targum-internal#715). A gift recording's Stop no
+  longer asks the credits question: jobs and the waiting card's rows ahead carry
+  `metered`, and Stop asks on it rather than on `audio`. A free reader pressing a credited
+  retry is told the need with the credit taken off, as the quote said. A stop says the
+  credits its receipt used before it looks at money. The Russian quote's
+  «Осталось {n} баллов в этом месяце» now matches `building.credits.left`. No spend.
+- `/gloss` buys a word's meaning only in the pair the page is showing
+  (targum-internal#717). The target was whatever the page sent, so any signed-in page
+  could make targum buy meanings into any language, the word's own included. It is now
+  one of the reader's languages or one the text is translated into; anything else,
+  and the word's own language until #538 is decided, is a plain refusal with no model
+  call. The free cache peek is unchanged. One new string, with its Russian.
 - `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
   first news round's six workers ran trafilatura side by side, and its one lxml parser,
   shared across threads, corrupted libxml2's memory: `free(): invalid pointer`, `double
@@ -14,6 +26,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   thread at a time (`ingest.url.TRAFILATURA`); on a laptop six threads on the box's lxml
   6.1.2 / libxml2 2.14.6 crashed or hung in 14–17 runs of 20, and in none with the lock.
   No spend, no new strings.
+- Upload passes more of design's §14 finish bar (targum-internal#715).
+  - Stopping a build no longer says the reader paid. The question says a recording's
+    done part still uses credits and a text uses none; the end says what the stop's own
+    receipt used ("You stopped it. It used 2 credits.", or "Nothing was used"), from a
+    new `used` on the job, read back from the row's `length` after a restart.
+  - A recording that needs more credits than are left is refused at its quote, in the
+    words the claim would use, rather than at Confirm (`Library.short_of_month`). The
+    claim already refused it; nothing anybody is charged changed.
+  - A video's or podcast's quote says how much you know when "What we found" can't, and
+    names the show and who presents it under the title.
+  - One filled press on "in the Library" and on done; the line under the box goes away
+    when the card or the can't-reach band answers it.
+  - Hebrew titles carry their language in the Library line, "Yours, ahead of it" and the
+    description search. Waiting says it once, in "text", and the card's Cancel says
+    Cancel. Cancelled and stopped end with "Upload something else".
+  - Change labels its picker once, under "Translations in"; with nothing new to make,
+    the notice has Your targums and the file controls are off with Upload.
+  - Russian: the balance says «Баллов осталось в этом месяце: 480», and sizes say КБ/МБ.
+  No spend. New strings in English and Russian (ling-ru's first pass in the PR).
 - Your targums passes more of its finish bar (targum-internal#716). One text says one
   figure for how much of it you know: its shelf row's meter, its playlist row, the
   playlist's head, its contents page, the reader's playlist panel and the end card now
@@ -524,6 +555,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - חוֹשֶׁבֶת as pu'al, מְצֻלֵּם as pi'el and joining ד״ר into one token wait for the next
     rename (targum#1192).
   - No spend, no new strings.
+- A published translation's note can be written in the page's language (targum-internal#477,
+  P2-10). `Rendering` keeps `notes` by language code beside the English `note`, as an entry
+  keeps `blurbs` beside `blurb`, and a text page's credit says the note in its own language.
+  A page with no note in its language still says none rather than the English one. The
+  Russian notes are private catalogue data and travel with the next deploy. No spend, no
+  new strings.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

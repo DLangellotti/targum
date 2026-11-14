@@ -298,3 +298,29 @@ def test_a_credited_retry_given_back_gives_its_credit_back(world: World) -> None
     world.store.interrupt_running()
     world.build("e", reader)
     assert _length(world.store, "e") == pytest.approx(LONG - 120.0)
+
+
+# -- qa-claude on #1217 ----------------------------------------------------------------
+
+
+def test_a_free_reader_s_press_on_a_retry_says_what_its_quote_said(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The quote took the stopped build's credit off what a retry needs; the press said
+    the whole length. A free reader is told the same need at both (targum-internal#715)."""
+    from targum.accounts import now
+
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    world.made = now()  # this month, where the month's credits are counted
+    reader = _person(world.store, "reader@example.com")
+    world.stop(world.build("a", reader, seconds=50 * 60.0), heard=45 * 60.0)
+    world.build("other", reader, source="https://example.com/other", seconds=12 * 60.0)
+
+    quote = _quote(world, "b", reader, made=now())
+    quote.seconds, quote.stage = 50 * 60.0, "ready"
+    world.library.short_of_month(quote)
+    said = str(quote.blocked)
+    assert said.startswith("It needs 5 credits and you have 3 left this month."), said
+
+    quote.stage, quote.blocked = "ready", ""
+    assert str(world.library.claim(quote)) == said
