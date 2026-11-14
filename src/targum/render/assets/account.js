@@ -77,7 +77,16 @@
      moment sync says nobody is here. */
   var HELD = "targum:initials";
 
+  /* Until the account answers, the button is a quiet empty circle that opens nothing
+     (`_nav.html.j2`, targum-internal#719): neither "Sign in" nor somebody's initials is
+     known to be true yet. Whatever is drawn next takes the waiting off. */
+  function settle() {
+    open.classList.remove("waiting");
+    open.removeAttribute("aria-disabled");
+  }
+
   function avatar(initials) {
+    settle();
     open.className = "avatar";
     open.setAttribute("aria-label", t("account.yours", "Your account"));
     open.appendChild(document.createTextNode(initials || "?"));
@@ -98,13 +107,14 @@
       avatar(held);
     }
   } catch (e) {
-    // Nowhere to read it from: "Sign in" until sync answers, as before.
+    // Nowhere to read it from: the waiting circle until sync answers.
   }
 
   function draw(who) {
     signedOut.hidden = !!who;
     signedIn.hidden = !who;
     open.textContent = "";
+    settle();
     if (!who) {
       if (window.targumForget) window.targumForget(HELD);
       open.removeAttribute("aria-label");
@@ -263,6 +273,9 @@
   }
 
   open.addEventListener("click", function () {
+    // Not yet known: the panel's sign-in form would be the "Sign in" the corner no
+    // longer says.
+    if (open.getAttribute("aria-disabled") === "true") return;
     show(panel.hidden);
   });
 
@@ -318,6 +331,35 @@
     open.hidden = false;
     draw(window.TargumSync.who);
   });
+
+  /* A page that never starts sync (the plans, a series, a set) still settles the corner:
+     it was "Sign in" until the account answered, and on those pages the account was never
+     asked, so a signed-in reader with no initials held was told to sign in for good
+     (targum-internal#719). `keep.js` hands every script the one answer, so on a page that
+     does start sync this is the same request, not another. Sync's own answer, when it
+     comes, is the one that stands. */
+  if (window.targumMe) {
+    var key = window.TARGUM_KEY || new URLSearchParams(location.search).get("k") || "";
+    window
+      .targumMe("/account/me" + (key ? "?k=" + encodeURIComponent(key) : ""), {
+        method: "GET",
+        credentials: "same-origin",
+        headers: key ? { "X-Targum-Key": key } : {},
+      })
+      .then(function (response) {
+        if (!response.ok && response.status !== 401) throw new Error(String(response.status));
+        return response.json();
+      })
+      .then(function (me) {
+        if (window.TargumSync.reached || window.TargumSync.unreached) return;
+        open.hidden = false;
+        draw(me && me.signedIn ? me : null);
+      })
+      .catch(function () {
+        if (window.TargumSync.reached || window.TargumSync.who) return;
+        if (!heldInitials()) open.hidden = true;
+      });
+  }
 
   // A link that has just been used, or one that had expired. Said on the page it lands
   // on rather than on a page of its own.

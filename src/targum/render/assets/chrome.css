@@ -694,6 +694,11 @@ button:active:not(:disabled) { transform: scale(0.98); }
 .account > button.on { color: var(--teal-ink); background: var(--teal); }
 .account > button.avatar { border-radius: 50%; background: var(--teal); color: var(--teal-ink); }
 .account > button.avatar.on { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--teal); }
+/* Before the account has answered (targum-internal#719): the circle's place, empty and
+   quiet, so the bar neither says "Sign in" to a signed-in reader nor jumps when the
+   initials arrive. */
+.account > button.avatar.waiting,
+.account > button.avatar.waiting:hover { background: transparent; box-shadow: inset 0 0 0 1px var(--rule); filter: none; cursor: default; }
 .notices > button { border: 0; border-radius: 999px; color: var(--ink-soft); background: transparent; }
 .notices > button:hover, .notices > button.on { color: var(--ink); background: var(--teal-wash); }
 /* The language menu on glass (2026-09-14): it was the ink bar's light text on a light bar
