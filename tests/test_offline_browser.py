@@ -642,9 +642,14 @@ FULL = """
 """
 
 
-def test_a_full_device_is_said_with_the_text_s_name(browser, served: Served) -> None:  # noqa: F811
+@pytest.mark.parametrize("width", [1440, 390])
+def test_a_full_device_is_said_with_the_text_s_name(
+    browser,  # noqa: F811
+    served: Served,
+    width: int,
+) -> None:
     book(served.out / "local" / "book-he")
-    context = browser.new_context(service_workers="allow")
+    context = browser.new_context(service_workers="allow", viewport={"width": width, "height": 900})
     context.add_init_script(NONE_ON_ITS_OWN)
     context.add_init_script(FULL)
     page = context.new_page()
@@ -659,6 +664,16 @@ def test_a_full_device_is_said_with_the_text_s_name(browser, served: Served) -> 
         title = page.locator("#offline-row").get_attribute("data-title")
         assert f"This device is full, so we couldn't save {title}." in said
         assert page.evaluate(LIST) == []
+        # Its one press says where it goes and why, not the success row's own words
+        # (targum-internal#720, P1 2), and the mark stands on its sentence's line.
+        press = page.locator("#offline-row .fault-act")
+        assert press.inner_text() == "Make room"
+        assert "Saved on this device" not in said
+        mark = page.locator("#offline-row .fault-icon").bounding_box()
+        sentence = page.locator("#offline-row .fault-said").bounding_box()
+        assert mark and sentence and abs(mark["y"] - sentence["y"]) < mark["height"]
+        press.click()
+        page.wait_for_url("**/you/saved**")
     finally:
         context.close()
 
@@ -814,7 +829,10 @@ def test_the_saved_page_lists_both_groups_and_moves_one_with_keep(
             in page.locator("#saved-auto-says").inner_text()
         )
         mine = page.locator("#saved-mine .saved-row").inner_text()
-        assert "A Book" in mine and "By you" in mine and "MB" in mine
+        assert "A Book" in mine and "MB" in mine
+        # How it came to be saved is the group's heading; its column goes first when the
+        # card is narrow (targum-internal#720, P1 1), and the row still carries it.
+        assert page.locator("#saved-mine .saved-how").text_content() == "By you"
         page.wait_for_selector("#saved-room:not([hidden])")
         assert " of about " in page.locator("#saved-used").inner_text()
         assert page.evaluate("() => window.PERSIST_ASKED") == 0, "asked only from its button"
