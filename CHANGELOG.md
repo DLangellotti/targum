@@ -6,6 +6,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Two offline browser tests wait for the Saved page's rows before counting them
+  (targum-internal#718). The away line shows as the page loads and the rows only once
+  the cache's index has been read, so on a slow CI runner the first-save test counted
+  no "Saved by you" rows. With `draw()` held back 1.5 s the old test fails and the new
+  one passes. Tests only; nothing a reader sees changes.
 - Shared spellings are filed by part of speech (targum-internal#701). פה "here" read
   "mouth", שום "any" read "garlic; any", כלל "at all" read "rule", because only עם, את,
   אל, עד and תחת were split. `models.SPLIT_BY_POS` now also splits פה, שום, אי, מי,
