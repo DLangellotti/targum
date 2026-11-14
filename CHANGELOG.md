@@ -23,6 +23,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     couldn't save that." with the clay mark and Try again on a dropped connection or a
     5xx. A refused language or rung is a clay line, not the quiet one "Saved." uses.
     "Saved.", "Stopped." and "Erased." are said only when the account's answer says so.
+    A switch or Accept whose answer was lost asks the account afresh and shows what it
+    holds, so a consent the server did change is never drawn back as it was.
   - Export's answer ("Downloaded targum.json.", "We couldn't make the file.") is under
     Export, not under Delete, and goes when Delete is pressed.
   - Erase what's recorded has "Keep it" beside its second question, with the focus, as
