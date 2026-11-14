@@ -579,6 +579,64 @@ def test_a_refresh_token_rotates_and_the_old_one_dies(connected: tuple[int, str,
     assert post(port, "/oauth/token", refreshing)[0] == 400, "presented twice means it leaked"
 
 
+def _exchange(port: int, session: str, client_id: str, scope: str) -> dict[str, str]:
+    verifier, challenge = pkce()
+    code = a_code(port, session, client_id, challenge, scope)
+    status, body, _ = post(
+        port,
+        "/oauth/token",
+        urlencode(
+            {
+                "grant_type": "authorization_code",
+                "code": code,
+                "client_id": client_id,
+                "redirect_uri": CALLBACK,
+                "code_verifier": verifier,
+            }
+        ),
+    )
+    assert status == 200, body
+    return dict(json.loads(body))
+
+
+def test_approving_an_app_again_replaces_its_older_grant(
+    connected: tuple[int, str, Path],
+) -> None:
+    """design.md §12, 2026-11-14: the new grant is the one that stands, so the old pair
+    ends at the exchange, and a scope left out of the new request ends with it."""
+    port, session, store_path = connected
+    client_id = a_client(port)
+    first = _exchange(port, session, client_id, "library chat")
+    second = _exchange(port, session, client_id, "library")
+    store = Store(store_path)
+    assert store.bearer(first["access_token"]) is None, "the old access token ends"
+    stale = urlencode(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": first["refresh_token"],
+            "client_id": client_id,
+        }
+    )
+    assert post(port, "/oauth/token", stale)[0] == 400, "and so does the old refresh token"
+
+    held = store.bearer(second["access_token"])
+    assert held is not None and held[1] == "library", "the new pair stands"
+    mine = [one for one in store.connections(held[0].id) if one["client"] == client_id]
+    assert [one["scopes"] for one in mine] == ["library"], "chat ended with the old grant"
+    status, _, _ = post(
+        port,
+        "/oauth/token",
+        urlencode(
+            {
+                "grant_type": "refresh_token",
+                "refresh_token": second["refresh_token"],
+                "client_id": client_id,
+            }
+        ),
+    )
+    assert status == 200, "the stale refresh did not take the new grant down with it"
+
+
 def test_a_refresh_mints_the_current_spelling_of_a_renamed_scope(
     connected: tuple[int, str, Path],
 ) -> None:
