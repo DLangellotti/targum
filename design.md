@@ -384,6 +384,195 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### Connecting an app again replaces its older grant, and a grant left alone ends — 2026-11-14
+
+David, 2026-11-14 (targum-internal#722), on what builder-3 found and qa-claude confirmed
+while finishing Connect (#721, targum#1229): approving an app again left the reader's
+older tokens for it alive, a refresh token never expired, and Account showed one grant's
+scopes where it should show them all, so a live `chat` scope could drop off the page meant
+to revoke it. It amends "A scope is a press that lasts" (2026-09-22), "The grant is one
+press, and chatting is included" (2026-09-24) and the What's connected row of "Your
+account is the board's sections" (2026-10-09).
+
+- **Approving an app again revokes the reader's older live tokens for that app.** The new
+  grant is the one that stands, so connecting again replaces what the app may do, and a
+  scope left out of the new request ends with the old grant.
+- **A refresh token expires after 90 days idle, and is swept.** A scope is still the one
+  press that lasts, but it lasts while the app uses it: an app left alone for 90 days is
+  approved again before it reaches the account. Spending stays inside `CHAT_BUDGET` and
+  the month, as before.
+- **Account shows the union of the scopes on live tokens**, and leaves out an expired
+  access token. A scope that still works is never missing from the page that revokes it.
+  Disconnect still revokes everything for the app.
+
+What it does not overturn: the grant is one press on targum's own page, the model cannot
+press anything, and `record_turn` is still the one tool that spends without a card.
+
+### Send to Anki talks to the Anki on your own computer — 2026-11-14
+
+David, 2026-11-14, approving design's spec on targum-internal#540 with every decision as
+recommended, under the LingQ parity that starts before Launch (2026-10-27). At a desk,
+Your Words sends the reader's learning words straight into their own Anki through the
+AnkiConnect add-on, and a second press sends only what changed. It amends "A word is
+said by a person where one recorded it" (2026-10-31) on recordings in a deck, and stands
+beside "A reader fetches nothing from any other site" (2026-10-30) and "The Anki deck
+carries each word's sound" (2026-10-21), whose export is unchanged.
+
+- **Your Words may call the reader's own AnkiConnect at `http://127.0.0.1:8765`.** That
+  page's policy is `connect-src 'self' http://127.0.0.1:8765`, and it is the only one:
+  every other page, every reader and every saved copy keeps `connect-src 'self'` exactly.
+  It is the first policy to name a host other than `'self'`, and it fetches nothing from
+  another site. Nothing is loaded from it; the request goes to an app on the reader's own
+  machine; every clip comes from targum's own origin, and the page hands Anki the bytes,
+  never an address to fetch.
+- **Recordings go into the deck with their credit, where the licence lets them.** A
+  line's recording carries the credit its licence asks for in the note's Source. A line
+  from a shared-shelf text whose licence does not let it leave is not sent, and that word
+  gets no gap card.
+- **Send never makes new sounds.** It sends the word sounds and line recordings already
+  on disk, with no claim and no job. A word with no sound yet goes in silent until Hear,
+  or the deck export, makes one.
+- **Learning words only.** Stages 1 to 4 are added. A known word already in Anki is
+  updated and never added, and an ignored word is never sent. Nothing is deleted from
+  Anki, and its scheduling is never touched.
+- **The sentence is the first line the word was met in**: the earliest finished text, at
+  the line the word first comes round in, so a note does not change between sends.
+  Recording the line a word was saved from would be a card of its own.
+- **A reader who imported the `.apkg` gets only the Gap card** for the words already
+  there, so their own card and its history stay as they were.
+- **A phone shows no Send to Anki**, because AnkiConnect is a desktop add-on. It keeps
+  Export as an Anki deck and CSV. The notetype, the states and their lines, and the
+  tests are the spec on #540.
+
+### A word can be known by ear, and only the reader says so — 2026-11-14
+
+David, 2026-11-14, approving design's spec on targum-internal#536 with D1 to D7 as
+recommended, under the LingQ parity that starts before Launch (2026-10-27). A reader can
+know a word when they hear it and not when they read it, in Hebrew without points
+especially, or the other way round. Your Words and Your Progress count both.
+
+- **Known by ear is one flag beside the stage, yes or no (D1).** It is not a sixth stage
+  and has no ladder of its own. The two marks are independent: the ear mark never moves
+  the stage, and a stage press never touches the ear mark. Its date is kept from the day
+  it ships, and nothing is filled in from before.
+- **Only the reader's press writes it.** The press is a toggle, Known by ear («Знаю на
+  слух»), on its own line under the five stages wherever a word's card is drawn, and a
+  second press takes it back. It is the desk's quiet outlined button, filled with the
+  teal wash when pressed, and never leaf, which stays Known's colour. No player,
+  dictation, finish, chat tool or connector tool writes it, and no model can press it:
+  "A scope is a press that lasts" is not widened.
+- **A word known by ear and never marked when reading has no reading stage (D2).** It is
+  not on the list, not in the free cap, and is drawn in the text as an unmarked word.
+- **Every "% known" stays the reading figure, and no text gets an ear figure (D3).** Ear
+  is shown as counts only: on Your Words, on Your Progress, in the exports and in the
+  connector.
+- **Known keeps its name (D4).** It is not renamed "Known when reading"; the ear mark is
+  the one qualified.
+- **No bulk press in v1 (D5).** Every ear mark is one word and one press, measured for a
+  few weeks first.
+- **Dictation's result opens a word's card on a tap (D6)**, toggle included. This amends
+  "Sentences: dictation and fill the gap" (2026-10-27), where neither practice offered
+  the control. The result still writes nothing and scores nothing, and fill the gap is
+  unchanged.
+- **Anki gets a tag, `targum::ear`, not a listening card type (D7).**
+
+### A daily goal counts days, never a run — 2026-11-14
+
+David, 2026-11-14, approving design's spec on targum-internal#537 with its four
+decisions as recommended, under the LingQ parity that starts before Launch (2026-10-27).
+§1 makes goals a ledger, and "The streak is the longest one, and the current one is
+refused" (2026-09-03) stands: a goal is a threshold the reader chooses, laid over Days
+active ("How you got here", 2026-10-30), and never a streak.
+
+- **A goal is a lens on the record, read again when it changes (1).** Met or not is
+  worked out on the page from the totals it already has, against the goal as it is now.
+  There is no goal history and no "goal met" row, so there is nothing to break.
+- **Counted out of the period's 7 or 30 days, never as a run.** "Daily goal · 18 of 30"
+  stands under "Days active · 21 of 30", on Week and Month only. Nothing counts days in a
+  row or the gap since the last day met, and today is not judged: its square is drawn as
+  any day under the goal until the goal is reached. A day active but under the goal
+  keeps a lighter tint, a day with nothing is quiet, and "missed" is never said.
+- **Practice does not count toward a day (2).** Nothing records it, and Sentences records
+  nothing on purpose. If practice should count, it belongs to Days active as a whole, on
+  a card of its own.
+- **One line at the foot of a finished section, the day the goal is first met (3)**, once
+  that day, in the ledger's increment, as the longest run is delivered. Nothing on a day
+  it is not met. Otherwise the goal lives on Your Progress only: no reminder, no mail, no
+  notification, nothing in the chat or the connector.
+- **Words read or minutes listening, from fixed steps (4):** 100, 250, 500, 1,000 or
+  2,500 words; 5, 10, 15, 30 or 60 minutes, which are minutes watching for Aramaic and
+  Yiddish. Reading time is not recorded, so a minutes goal is listening and watching, and
+  its label says so. One goal per language, off by default, set from a quiet link on Your
+  Progress, and never asked for by the arrival or Home.
+
+### Meanings in the language itself, bought a tap at a time — 2026-11-14
+
+David, 2026-11-14, approving design's spec on targum-internal#538 with its five decisions
+as recommended, under the LingQ parity that starts before Launch (2026-10-27). It amends
+"A reader's chrome is the reader's language" (2026-11-03): "the meanings stay the text's,
+and nothing is bought" still holds for every reader who has not made this one choice.
+
+- **Opt-in, per language.** "Meanings of Hebrew words", In English | In Hebrew, is a row
+  of Your languages for each learned language that has meanings (Hebrew, French, Russian
+  and Italian). It is off by default, never offered by the arrival, and has **no level
+  gate (5)**: its note says who it is for, "For when you can read a definition in
+  Hebrew".
+- **Bought per tap, through `/gloss` only (1).** With it on, a card opened on a word whose
+  meaning in the language is not held buys that one word, with its sentence, on
+  targum's account, by the tap path that already buys a translation meaning. Never by a
+  build, a rebuild or a pass over the catalogue, and **no backfill (4)**: the cache fills
+  with the words readers meet. A backfill would be quoted on the card first.
+- **The translation meaning is shown under it (2)**, quieter, as "In English: …". It is
+  free and already on the page, and it is the check on a model-made definition that is
+  wrong or harder than the word.
+- **Hebrew definitions are unpointed to start (3).** Whoever chooses this reads unpointed
+  Hebrew, and nikkud is the least sure part of a model's Hebrew. ling-he reads a hundred
+  answers before the row is offered, and may reverse this after.
+- Your Words and the practice card show the meaning in the language where it is held,
+  and never buy. The translation beside each line, the chrome and the chat are
+  unchanged.
+
+### An offline copy follows its text when opened online, and Remove can be undone — 2026-11-14
+
+David, 2026-11-14, on design's finish pass of Saved (targum-internal#720, P1 4 and P2 9).
+It amends "A served reader loads its files once" (2026-10-29), which left a saved text as
+it was saved until it was saved again, and so reconciles it with "A worker keeps what the
+reader saved, and fetches nothing else" (2026-10-09): a saved page that opens online is
+saved again as it is now. It also amends "What is saved is a page of the account's"
+(2026-10-09) on removing.
+
+- **An offline copy is refreshed when its text is opened online.** A corrected line, a
+  re-cut or a new recording reaches the copy on the next open with a connection, so
+  "Saved on this device" stays true. The copy is still whole, the page as it stands on
+  disk, as a save asks for it. It is fetched for the page that is open, so nothing is
+  fetched in the background.
+- **Remove and Remove all say "Removed · Undo" for a few seconds, and ask nothing
+  first.** Offline, a copy can be the only one there is, so the press can be taken back.
+  There is no confirm.
+
+### The invitation's link leads with signing in — 2026-11-14
+
+David, 2026-11-14, on design's finish pass of the first run (targum-internal#723, P2 3):
+an invited reader pressed Sign in in the letter and was met first by "New here? Join the
+waitlist". It amends "A stranger is told the door is by invitation before they knock"
+(2026-11-03) for the one visitor who already has a door.
+
+- **The invitation's link carries `?invited=1`**, beside `?lang=ru` where the letter adds
+  it. With it, the sign-in page leads with signing in and does not show the waitlist
+  line. Without it, the page is as the 2026-11-03 entry says, or with the door open as
+  "When the door is open, every door says so" (2026-11-10) says.
+
+### A signed-in reader's /connect says what is connected — 2026-11-14
+
+David, 2026-11-14, on design's finish pass of Connect (targum-internal#721, P2 7): a reader
+with Claude connected still met "Connect in two minutes" as if new. It amends "The
+connector's pages are the boards'" (2026-10-09), which drew /connect the same for
+everyone.
+
+- **Signed in, /connect says which apps are connected, linking to Account** (Your
+  account's What's connected, `/you#connections`), where an app is disconnected. A reader
+  with nothing connected, and a stranger, see the page as before.
+
 ### A filter names what it shows, and Upload is not the card's press — 2026-11-13
 
 David, 2026-11-13, on Home's one card with a podcast picked and Listen chosen in the
@@ -1247,7 +1436,9 @@ meanings follow the text.
   in that language. A Russian card over a text with only English meanings shows the
   English meaning and says, quietly, under it: «Значения слов в этом тексте пока на
   английском.» ("This text's meanings are in English for now."). Nothing is bought to
-  make it Russian.
+  make it Russian. *(Amended 2026-11-14 for one choice: a reader who chose
+  meanings in the language itself gets them bought a tap at a time through `/gloss`,
+  never by a build; see "Meanings in the language itself, bought a tap at a time".)*
 - **A reader is still written once, in its first translation's language,** so it opens
   as it did from a disk, from a saved copy and from an older server. The places that
   would read differently in another interface language are recorded in a comment after
@@ -1379,7 +1570,9 @@ signup on, "When the door is open, every door says so" (2026-11-10, above) holds
 - **Sign in says it is by invitation before an address is typed.** "New here? Join the
   waitlist" stands under the heading while the front door takes an address, and the line
   under it says the same link sets up the account of somebody invited. The refusal's
-  "Join the waitlist" is a link to the front door's form.
+  "Join the waitlist" is a link to the front door's form. *(Amended 2026-11-14:
+  from the invitation's own link, `?invited=1`, the page leads with signing in and the
+  waitlist line is not shown; see "The invitation's link leads with signing in".)*
 - **A text's public page wears the front door's bar, and its press is the waitlist.**
   Every shelf row and search result lands there, and "Read it" went to a sign-in that
   refuses anyone not invited. While the front door takes an address the press is "Join the
@@ -2543,8 +2736,11 @@ changes where a person recorded the word.
   Commons' own MP3 copies, and a BY-SA file stays BY-SA.
 - **A person's word is free.** No claim and no job: it costs targum nothing to play.
 - **Not yet:** the Anki deck still carries the voice's clips. A recording in a deck
-  would need its credit carried in the deck, and that waits for a reader to ask. CC BY
-  recordings (44 files) wait for the bar to be widened, because this card's bar is CC0
+  would need its credit carried in the deck, and that waits for a reader to ask. *(A
+  reader asked. Amended 2026-11-14: Send to Anki carries a line's recording with its
+  credit, where its licence lets it leave; see "Send to Anki talks to the Anki on your own
+  computer".)* CC BY recordings (44 files) wait for the bar to be widened, because
+  this card's bar is CC0
   and BY-SA.
 
 ### How hard a word is, counted across readers — 2026-10-30
@@ -2683,7 +2879,9 @@ and words are three serif figures" in "The mockups win on Your Progress" (2026-1
   leaf where the reader read, listened or watched that day in this language, by the
   account's record (David, 2026-10-30: "active", not "you read"). Its label is one
   sentence, "You were active on 21 of the last 30 days." No run of days is counted or
-  named anywhere in it. **On All time the grid is not drawn**: "the day strip" of
+  named anywhere in it. *(2026-11-14: a daily goal the reader sets is counted over the
+  same squares in the same period, and never as a run; see "A daily goal counts days,
+  never a run".)* **On All time the grid is not drawn**: "the day strip" of
   twelve weeks of squares was retired here on 2026-10-09, and ninety squares under "All
   time" would bring it back while describing ninety days rather than all of them.
 - **"Words this month"** (this week, all time): three bars with exact counts, each the
@@ -2733,7 +2931,9 @@ nothing, read it as this.
   edits, voice — go to targum's own origin only. Offline they wait or fail quietly
   (David, 2026-10-30, choosing to word the rule to what readers already did rather than
   change it). A reader opened from disk makes none.
-- **Nothing ever comes from another site.**
+- **Nothing ever comes from another site.** *(2026-11-14: Your Words, which is not a
+  reader, may call the reader's own Anki at `127.0.0.1:8765`, and loads nothing from it;
+  see "Send to Anki talks to the Anki on your own computer".)*
 - **Outbound links a reader chooses to click** stay the one exception for other sites,
   and `test_render.py`'s allowlist still pins them.
 - **Why:** on the phone profile, opening a reader again cost the same 250 kB every time,
@@ -3095,6 +3295,8 @@ stood at 1.9 s with the files warm and 2.9 s cold, against §14's 1.5 s.
   (`X-Targum-Linked`), and the worker never keeps it as the saved copy. So a saved text
   is no longer refreshed by being opened online: it stays as it was saved until it is
   saved again. That is the price of a copy that opens on a plane with nothing else.
+  *(Amended 2026-11-14: an offline copy is refreshed, whole, when its text is opened
+  online; see "An offline copy follows its text when opened online".)*
 - **Not covered at first:** the Torah portions' and daily cycles' readers, which strangers
   open under their own addresses, kept their files inline, like the shared shelf's public
   pages did before #549. Since 2026-11-08 (targum-internal#661) they are named the same
@@ -3303,6 +3505,9 @@ already timed line by line.
 - **A word's stage moves only where the reader presses it.** Neither practice writes a
   stage or offers the control: the stage is pressed on Practise these or the word's card,
   as before. A gap answered right is not a word known.
+  *(Amended 2026-11-14 (D6): a word in dictation's "It said:" line opens its card on a
+  tap, Known by ear included, and the press is still the reader's; see "A word can be
+  known by ear, and only the reader says so". Fill the gap is unchanged.)*
 
 ### The owner of a text corrects its words, and cuts it into parts — 2026-10-27
 
@@ -4933,7 +5138,9 @@ P14 of the polish plan, after "The boards are the desk" and "The desk's controls
 layer" (the same day). Boards ConnConnect, ConnConnectPhone, ConnApprove, ConnConfirm,
 ConnConfirmPhone and ConnCards, with David's calls of 2026-10-08.
 
-**/connect** is the board's page, for everyone:
+**/connect** is the board's page, for everyone: *(Amended 2026-11-14: signed in, it
+also says which apps are connected, linking to Account; see "A signed-in reader's
+/connect says what is connected".)*
 
 - **The hero** says "Learn Hebrew in" and the chosen app's name in teal, underlined in
   the mark's gold, over the line it always said. Under it, the address in a field with
@@ -5100,7 +5307,10 @@ for each section:
   line for each scope, in the approval page's own sentences. The chat line ends
   "Chatting is included." Two grants with the same name are one app connected twice
   (Claude registers itself again each time it reconnects), so they share a row, and
-  Disconnect takes both. "Connect another app" leads to /connect.
+  Disconnect takes both. *(Amended 2026-11-14: "It may:" lists the union of the scopes
+  on the app's live tokens, leaving out an expired access token, so a scope that still
+  works is never hidden. Connecting again revokes the older grant.)* "Connect another
+  app" leads to /connect.
 - **Your prompts** and **Telegram** are unchanged in what they do, and drawn on the
   desk's components.
 - **Account**: the address; Saved on this device, with Open; Export your data, with
@@ -6005,7 +6215,8 @@ connection banner's Saved texts leads to it.
   and videos With the picture or Sound and text. All three belong to this device.
 - **Remove all from this device** stands beside the line "Your words, your place in each
   text and your record stay in your account." Removing a copy loses nothing that was not
-  a copy.
+  a copy. *(Amended 2026-11-14: offline a copy can be the only one, so Remove and
+  Remove all say "Removed · Undo" for a few seconds. Still no confirm.)*
 - **It is the one desk page that keeps itself.** It is fetched once into the cache the
   first time it is opened, or the first time a text is saved (2026-10-11), and the worker
   keeps it current after that. Its query does not
@@ -6025,7 +6236,9 @@ worker (the entry below) answers what is saved. This is how things come to be sa
   a text from a playlist keeps the whole playlist the same way. The number (Off, 3, 5 or
   10) and the playlist switch belong to this device, and are kept in this browser. Opening
   a text that is already kept fetches nothing: it is only marked as opened, and the worker
-  has already refreshed the page itself.
+  has already refreshed the page itself. *(Amended 2026-11-14: opened online, a kept
+  text's copy is refreshed whole; see "An offline copy follows its text when opened
+  online".)*
 - **A book or a series keeps only what was opened** (David, 2026-10-10). A text with a
   contents page is no longer kept whole by being opened: the contents page is kept, and
   each part as it is opened joins it, with the sidecars that part plays and nothing else
@@ -6079,7 +6292,9 @@ network. targum now has a service worker, `/sw.js`.
 - **It answers three ways, and leaves the rest alone.** Opening a page goes to the network
   first, and the saved copy answers only when the network is not there. The saved copy
   keeps the headers it was served with, so its own policy and hashes come with it, and a
-  saved page that opens online is saved again as it is now. A film or a recording beside a
+  saved page that opens online is saved again as it is now. *(Not so for a reader from
+  2026-10-29, and so again from 2026-11-14: see "An offline copy follows its text when
+  opened online".)* A film or a recording beside a
   saved reader answers from the cache in slices, as a 206 for each range asked, because
   Safari opens every film with `bytes=0-1` and will not play otherwise. Anything else is
   never answered by the worker. *(Since 2026-10-19 a film or a recording goes to the
@@ -8786,6 +9001,8 @@ give way: **keep the one press.**
 - **The approval page grants the scopes the app asked for, all together, in one press**,
   and says plainly what each one lets the app do. Connect and Not now are the only choices.
   To change what an app may do, you disconnect it from your account and connect it again.
+  *(Amended 2026-11-14: connecting again is enough, because it revokes the older grant;
+  see "Connecting an app again replaces its older grant, and a grant left alone ends".)*
   Nothing on /connect, in the FAQ or in the steps promises a tick.
 - **Chatting is included.** A message rounds to zero credits ("A cost is credits",
   2026-09-23), so the reader is told it is included rather than "a few seconds of your
@@ -9160,7 +9377,10 @@ own contract, and the row is written. The press is the reader ticking the `check
 targum's own approval page, where what it costs is said in hours before anything is
 granted, and where it is revoked. *(Amended 2026-09-24: there is no tick. The press
 grants what the app asked for, in one go, and chatting is said to be included — see "The
-grant is one press, and chatting is included".)*
+grant is one press, and chatting is included".)* *(Amended 2026-11-14: it
+lasts while the app uses it. A refresh token idle for 90 days expires, and approving an
+app again revokes the older grant; see "Connecting an app again replaces its older
+grant, and a grant left alone ends".)*
 
 What makes that safe is not the grant. It is the two ceilings it sits inside — the reader's
 own `CHAT_BUDGET` and the eight hours, both unchanged, both already refusing in words — and
