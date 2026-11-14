@@ -147,6 +147,9 @@ body.yours .visually-hidden {
 .words-grid > .words-card { flex: 1000 1 0%; min-inline-size: min-content; }
 .words-grid > .practise { order: -1; flex: 1 1 22.5rem; position: sticky; inset-block-start: 1rem; }
 .words-grid > .practise[hidden] { display: none; }
+/* Where the card would be while `/account/words` is slow or failed (targum-internal#725):
+   a quiet line in its place, so the table's width does not change under it. */
+.words-grid > .facts-said { order: -1; flex: 1 1 22.5rem; margin: 0; padding-block-start: 0.5rem; }
 .words-card { min-inline-size: 0; }
 .words-card-head {
   display: flex;

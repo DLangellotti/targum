@@ -47,7 +47,7 @@ def test_the_commonest_words_not_on_the_ledger_are_drawn_with_their_meanings() -
     assert [r["form"] for r in got["rows"]] == [f for f in FIRST if f != "את"], (
         "את is on the ledger"
     )
-    assert got["rows"][0]["meaning"] == "m-של" and got["rows"][0]["band"] == "easy"
+    assert got["rows"][0]["meaning"] == "m-של" and got["rows"][0]["band"] == "Very common"
     assert not got["hidden"]
     assert all(not r["checked"] and r["labelled"] for r in got["rows"]), (
         "a checkbox on each, unchecked, with the word as its label"

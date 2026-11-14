@@ -128,11 +128,53 @@
     var asked = code + ":" + (into || "");
     if (asked === factsFor) return;
     factsFor = asked;
+    factsSaid("");
+    // Slow said past three seconds, and a failure said with Try again, in the practice
+    // card's place (targum-internal#725, P2 7): the Met in column and the card were
+    // simply missing, with nothing to say why.
+    var slow = setTimeout(function () {
+      if (factsFor === asked) factsSaid(t("lists.facts.slow", "We're still finding where you met these words."));
+    }, 3000);
     ask("/account/words?language=" + encodeURIComponent(code) + (into ? "&into=" + encodeURIComponent(into) : ""))
       .then(function (data) {
+        clearTimeout(slow);
+        if (factsFor === asked) factsSaid("");
         lists.facts(code, data);
       })
-      .catch(function () {});
+      .catch(function () {
+        clearTimeout(slow);
+        if (factsFor !== asked) return;
+        factsSaid(t("lists.facts.failed", "We couldn't load where you met these words."), function () {
+          factsFor = "";
+          drawFacts(code, into);
+        });
+      });
+  }
+
+  // The line in the practice card's place: nothing for "", a sentence alone while slow,
+  // and a fault line with Try again where `retry` is given.
+  function factsSaid(sentence, retry) {
+    var card = document.getElementById("practise");
+    var line = document.getElementById("facts-said");
+    if (!sentence) {
+      if (line && line.parentNode) line.parentNode.removeChild(line);
+      return;
+    }
+    if (!card || !card.parentNode || !card.parentNode.insertBefore) return;
+    var fresh =
+      retry && window.TargumFault && window.TargumFault.line
+        ? window.TargumFault.line(sentence, retry)
+        : (function () {
+            var p = document.createElement("p");
+            p.className = "note";
+            p.setAttribute("role", "status");
+            p.textContent = sentence;
+            return p;
+          })();
+    fresh.id = "facts-said";
+    fresh.classList.add("facts-said");
+    if (line && line.parentNode) line.parentNode.replaceChild(fresh, line);
+    else card.parentNode.insertBefore(fresh, card);
   }
 
   /* --- the shelf ------------------------------------------------------------- */
@@ -903,7 +945,7 @@
            that says what fills it and the commonest words to start from. Where the
            account never answered (a refusal, a dropped connection, offline), the list
            is not known to be empty, and the page says it could not load. */
-        if (sync && !sync.reached) {
+        if (sync && (!sync.reached || (sync.who && sync.pulled === false))) {
           var failed = new Error("unanswered");
           failed.answered = true; // said as ours to load, whichever way it failed
           throw failed;
@@ -913,8 +955,61 @@
         return drawLists([first]);
       });
     }
-    return drawLists(codes);
+    return drawLists(codes).then(function () {
+      var sync = window.TargumSync;
+      if (!sync || !sync.settled) return;
+      sync.settled().then(staleIfUnpulled, function () {});
+    });
   }
+
+  /* Words in this browser and the account's list not had (targum-internal#725): the list
+     drawn is the one saved on this device, so the page says that, with Try again, rather
+     than letting it pass for the account's. Offline it asks again by itself when the
+     connection is back. Nothing here writes to the list: a failed pull moves nothing. */
+  function staleIfUnpulled() {
+    var sync = window.TargumSync;
+    var holder = document.getElementById("words-stale");
+    if (!holder) return;
+    // Not had: `/sync` failed after the account answered, or the account itself could
+    // not be reached (offline at load, a 5xx).
+    if (!(sync.unreached || (sync.who && sync.pulled === false))) {
+      holder.hidden = true;
+      holder.textContent = "";
+      return;
+    }
+    var offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    var sentence = offline
+      ? which === "phrases"
+        ? t("lists.stale.offline.phrases", "You're offline. These are the phrases saved on this device.")
+        : t("lists.stale.offline.words", "You're offline. These are the words saved on this device.")
+      : which === "phrases"
+        ? t("lists.stale.phrases", "We couldn't load your latest phrases. These are the ones saved on this device.")
+        : t("lists.stale.words", "We couldn't load your latest words. These are the ones saved on this device.");
+    function again() {
+      var press = holder.querySelector(".fault-act");
+      if (press) press.disabled = true;
+      sync.pullAgain().then(staleIfUnpulled, staleIfUnpulled);
+    }
+    holder.textContent = "";
+    if (window.TargumFault) {
+      holder.appendChild(window.TargumFault.line(sentence, again));
+    } else {
+      holder.textContent = sentence;
+    }
+    holder.hidden = false;
+    if (offline && !staleWaitsOnline) {
+      staleWaitsOnline = true;
+      window.addEventListener(
+        "online",
+        function () {
+          staleWaitsOnline = false;
+          if (sync.unreached || sync.pulled === false) again();
+        },
+        { once: true }
+      );
+    }
+  }
+  var staleWaitsOnline = false;
 
   //: True while a page with nothing in this browser waits on the account's first answer,
   //: which it draws itself; a change announced meanwhile is not a reason to reload.
@@ -1022,6 +1117,19 @@
           waiting.appendChild(document.createTextNode(" "));
           waiting.appendChild(again);
           tabsAlone(true);
+        } else if (which === "words" || which === "phrases") {
+          /* Your Words and Your Phrases offer it too (targum-internal#725, P2 6): the
+             wait there is the account's first answer, which every script on the page
+             shares (`keep.js`), so asking again is the page again. */
+          var more = document.createElement("button");
+          more.type = "button";
+          more.className = "fault-act home-slow-again";
+          more.textContent = t("fault.try-again", "Try again");
+          more.addEventListener("click", function () {
+            if (window.location.reload) window.location.reload();
+          });
+          waiting.appendChild(document.createTextNode(" "));
+          waiting.appendChild(more);
         }
       }
     }, 3000);
@@ -1077,7 +1185,12 @@
 
   if (window.TargumSync) {
     window.TargumSync.onChange(function (changed) {
-      if (!changed) return;
+      // The account's list had after all, with nothing new in it: the line that said it
+      // could not be goes (qa-claude on #1231).
+      if (!changed) {
+        if (which === "words" || which === "phrases") staleIfUnpulled();
+        return;
+      }
       // Your Words and Your Phrases are drawn again by the load, as they were.
       if (which !== "texts") return awaitingAccount ? undefined : location.reload();
       if (redrawHome) return redrawHome();

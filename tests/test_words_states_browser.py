@@ -176,7 +176,9 @@ def test_the_wait_for_words_is_said_and_said_again_after_three_seconds(browser) 
     assert waiting.is_visible()
     assert waiting.inner_text() == "Opening your words…"
     page.clock.run_for(3100)
-    assert waiting.inner_text() == "We're still opening your words."
+    assert waiting.inner_text().startswith("We're still opening your words.")
+    # And the press that asks again, as Home's slow line offers (#725 P2 6).
+    assert waiting.locator("button.fault-act").inner_text() == "Try again"
     assert page.locator("#nothing").is_hidden()
     assert not thrown
     context.close()
@@ -413,5 +415,219 @@ def test_a_rules_hebrew_says_its_language(browser, language: str) -> None:
     )
     assert runs == ["ו", "יו"]
     assert page.locator(".grammar-rule").inner_text() == rule
+    assert not thrown
+    context.close()
+
+
+# --- targum-internal#725: a failed /sync, and a failed Hear ------------------------------
+
+
+@pytest.mark.parametrize("which", ["words", "phrases"])
+def test_a_failed_sync_after_the_account_answered_is_not_an_empty_list(browser, which) -> None:
+    """P1 1: `/account/me` answered and `/sync` failed. The page drew "0 on your list",
+    "Nothing yet" and the common words as if new, which read as everything deleted."""
+    context, page, thrown, _, url = open_page(browser, which, {"/sync": 500})
+    page.goto(url)
+    nothing = page.locator("#nothing")
+    nothing.wait_for(state="visible")
+    assert page.locator("#nothing-again").is_visible()
+    body = page.inner_text("body")
+    assert "0 on your list" not in body
+    assert "Nothing yet" not in body
+    assert page.locator("#claim-panel").is_hidden()
+    assert not thrown
+    context.close()
+
+
+@pytest.mark.parametrize(
+    ("answers", "offline"),
+    [({"/sync": 500}, False), ({"/sync": "abort"}, False), ({"/account/me": "abort"}, True)],
+    ids=["refused", "dropped", "offline"],
+)
+def test_a_failed_sync_keeps_and_draws_the_words_saved_here(browser, answers, offline) -> None:
+    """The list this browser holds is drawn and said as that, with Try again, and the
+    failed exchange writes nothing: the store and the sync mark are as they were."""
+    ledger = words(5)
+    context, page, thrown, _, url = open_page(
+        browser, "words", dict(answers), ledger=ledger, offline=offline
+    )
+    page.goto(url)
+    page.wait_for_selector("#word-rows tr")
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    said = stale.inner_text()
+    assert ("offline" in said) if offline else ("couldn't load your latest words" in said)
+    assert "saved on this device" in said
+    assert stale.locator("button.fault-act").inner_text() == "Try again"
+    assert page.locator("#word-rows tr").count() == 5
+    assert page.locator("#words-summary").inner_text().startswith("5 on your list")
+    assert page.locator("#nothing").is_hidden()
+    # Nothing of the reader's was touched by the failure.
+    kept = json.loads(page.evaluate("localStorage.getItem('targum:vocab:he')"))
+    assert kept == ledger
+    mark = json.loads(page.evaluate("localStorage.getItem('targum:sync')"))
+    assert mark == {"email": EMAIL, "revision": 1, "pushed": 1}
+    assert not thrown
+    context.close()
+
+
+def test_try_again_after_a_failed_sync_asks_in_place(browser) -> None:
+    answers: dict[str, Any] = {"/sync": 500}
+    context, page, thrown, _, url = open_page(browser, "words", answers, ledger=words(3))
+    page.goto(url)
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    answers["/sync"] = {"revision": 2, "words": []}
+    stale.locator("button.fault-act").click()
+    stale.wait_for(state="hidden")
+    assert page.locator("#word-rows tr").count() == 3
+    assert not thrown
+    context.close()
+
+
+def test_a_sync_that_answers_draws_no_fault_line(browser) -> None:
+    context, page, thrown, _, url = open_page(
+        browser, "words", {"/sync": {"revision": 2, "words": []}}, ledger=words(3)
+    )
+    page.goto(url)
+    page.wait_for_selector("#word-rows tr")
+    page.wait_for_timeout(300)
+    assert page.locator("#words-stale").is_hidden()
+    assert not thrown
+    context.close()
+
+
+@pytest.mark.parametrize("phone", [False, True], ids=["desk", "phone"])
+def test_a_hear_that_fails_is_said_in_its_row(browser, phone: bool) -> None:
+    """P1 2: the sentence went only to `.spoken`, unstyled on this page, and stood as a
+    stray paragraph at the foot. Nothing is bought: `/say-word` is answered here."""
+    answers: dict[str, Any] = {"/say-word": "hold"}
+    context, page, thrown, held, url = open_page(
+        browser, "words", answers, phone=phone, ledger=words(3)
+    )
+    page.goto(url)
+    hear = page.locator("#word-rows tr").first.locator(".hear")
+    hear.click()
+    # Slow: the press says it is working.
+    page.wait_for_function("document.querySelector('#word-rows .hear[aria-busy=true]')")
+    busy = page.evaluate(
+        "getComputedStyle(document.querySelector('#word-rows .hear[aria-busy=true]')).opacity"
+    )
+    assert float(busy) < 1
+    held[0].fulfill(status=500, content_type="application/json", body="{}")
+    line = page.locator("#word-rows tr").first.locator(".hear-fault")
+    line.wait_for(state="visible")
+    assert "couldn't say this word" in line.inner_text()
+    assert line.locator("button.fault-act").inner_text() == "Try again"
+    row = page.locator("#word-rows tr").first.bounding_box()
+    box = line.bounding_box()
+    assert row and box and row["y"] <= box["y"] < row["y"] + row["height"]
+    # The live region is read out, never drawn.
+    spoken = page.evaluate(
+        """() => [...document.querySelectorAll('.spoken')].map((e) => {
+             const r = e.getBoundingClientRect();
+             return [r.width, r.height, getComputedStyle(e).position];
+           })"""
+    )
+    assert all(w <= 1 and h <= 1 and pos == "absolute" for w, h, pos in spoken), spoken
+    assert page.evaluate("document.scrollingElement.scrollWidth <= innerWidth")
+    assert not thrown
+    context.close()
+
+
+def test_a_hear_while_offline_says_offline(browser) -> None:
+    context, page, thrown, _, url = open_page(
+        browser, "words", {"/say-word": "abort"}, ledger=words(3), offline=True
+    )
+    page.goto(url)
+    page.locator("#word-rows tr").first.locator(".hear").click()
+    line = page.locator("#word-rows .hear-fault")
+    line.wait_for(state="visible")
+    assert "offline" in line.inner_text()
+    assert not thrown
+    context.close()
+
+
+def test_words_you_may_know_waits_for_the_accounts_list(browser) -> None:
+    """P2 3: on a new browser the panel was filtered against an empty ledger before
+    `/sync` filled it, and offered את as "not on your list yet" to a reader who had it."""
+    pulled = [
+        {
+            "language": "he",
+            "lemma": "את",
+            "status": 3,
+            "surface": "את",
+            "band": 1,
+            "learned": 0,
+            "at": 100,
+            "seen": 200,
+            "gone": 0,
+        },
+    ]
+    common = {
+        "words": [{"form": f, "meaning": "", "band": "easy"} for f in ["את", "בית"]],
+        "offset": 0,
+        "next": None,
+        "into": "en",
+    }
+    context, page, thrown, held, url = open_page(
+        browser, "words", {"/sync": "hold", "/words/common": common}
+    )
+    page.goto(url)
+    page.wait_for_function("() => document.querySelectorAll('#claim-panel').length")
+    page.wait_for_timeout(300)
+    # Nothing offered while the account's list is still on its way.
+    assert page.locator("#claim-panel").is_hidden()
+    held[0].fulfill(
+        status=200,
+        content_type="application/json",
+        body=json.dumps({"revision": 2, "words": pulled}, ensure_ascii=False),
+    )
+    page.locator("#claim-panel").wait_for(state="visible")
+    forms = page.locator("#claim-panel .claim-rows .claim-check").evaluate_all(
+        "(boxes) => boxes.map((b) => b.getAttribute('data-form'))"
+    )
+    assert forms == ["בית"]
+    assert page.locator("#claim-panel td").nth(3).inner_text() == "Very common"
+    assert not thrown
+    context.close()
+
+
+def test_any_answered_sync_after_a_failed_load_clears_the_line(browser) -> None:
+    """qa-claude on #1231: an answered push with nothing new (`flush`, `touched`) is a
+    pull too, and the line saying the list could not be loaded goes with it."""
+    answers: dict[str, Any] = {"/sync": 500}
+    context, page, thrown, _, url = open_page(browser, "words", answers, ledger=words(3))
+    page.goto(url)
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    answers["/sync"] = {"revision": 2, "words": []}
+    page.evaluate("window.TargumSync.flush()")
+    stale.wait_for(state="hidden")
+    assert page.evaluate("window.TargumSync.pulled") is True
+    assert page.locator("#word-rows tr").count() == 3
+    assert not thrown
+    context.close()
+
+
+def test_words_you_may_know_is_offered_once_try_again_works(browser) -> None:
+    """qa-claude on #1231: after a failed load the panel waited for the next load."""
+    common = {
+        "words": [{"form": "בית", "meaning": "", "band": "easy"}],
+        "offset": 0,
+        "next": None,
+        "into": "en",
+    }
+    answers: dict[str, Any] = {"/sync": 500, "/words/common": common}
+    context, page, thrown, _, url = open_page(browser, "words", answers, ledger=words(3))
+    page.goto(url)
+    stale = page.locator("#words-stale")
+    stale.wait_for(state="visible")
+    assert page.locator("#claim-panel").is_hidden()
+    answers["/sync"] = {"revision": 2, "words": []}
+    stale.locator("button.fault-act").click()
+    stale.wait_for(state="hidden")
+    page.locator("#claim-panel").wait_for(state="visible")
+    assert page.locator("#claim-panel .claim-rows .claim-check").count() == 1
     assert not thrown
     context.close()

@@ -191,9 +191,10 @@ def test_the_words_you_may_already_know_stand_on_this_page_and_feed_the_list() -
     # And what the server knows about the list, once, after the lists are drawn (design.md
     # §12, 2026-10-09). Asserted as the whole list rather than as a membership, so a page
     # that starts asking for something new has to say so here.
+    # The common words after the account has had its say (#725 P2 3), so after the facts.
     assert drawn["asked"] == [
-        "/words/common?offset=0&limit=50",
         "/account/words?language=he&into=en",
+        "/words/common?offset=0&limit=50",
     ]
     marked = draw(
         vocabulary(word("ספר", "book", status=2)),
@@ -961,7 +962,7 @@ def test_a_browser_just_signed_in_is_not_told_it_has_nothing_before_the_account_
         (
             {"state": "ready", "silent": 1, "refused": True},
             "Your deck is ready. 1 word has no sound. "
-            "We couldn't make new sounds just now, so those words have none.",
+            "We couldn't make new sounds for them just now.",
         ),
         (
             {"state": "ready", "silent": 3, "stopped": True},

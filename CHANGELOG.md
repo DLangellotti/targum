@@ -691,6 +691,34 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   A page with no note in its language still says none rather than the English one. The
   Russian notes are private catalogue data and travel with the next deploy. No spend, no
   new strings.
+- Your Words passes more of design's §14 finish bar (targum-internal#725).
+  - A failed `/sync` after `/account/me` answered is no longer drawn as an empty list.
+    `exchange()` swallowed the failure, so the page read "0 on your list" and "Nothing
+    yet", with the common words offered as new (a regression from targum#830). Sync now
+    keeps `TargumSync.pulled`. With nothing saved here the page shows the fault panel
+    with Try again. With words saved here it draws them and says "We couldn't load your
+    latest words. These are the ones saved on this device." with Try again, which asks
+    again in place. Offline says offline and asks again when the connection is back. The
+    stored words were never touched: a failed exchange writes no store and moves neither
+    `pushed` nor `revision`. A test now pins that.
+  - A failed Hear is said in its row: "We couldn't say this word." with Try again, or
+    that you're offline. `.spoken` moved from `reader.css` to `shared.css`, so the live
+    region is no longer a stray line at the foot of Your Words. A Hear waiting on its
+    clip looks busy.
+  - "Words you may already know" waits for the account's list before it filters, so it
+    no longer offers words already saved. "How common" says "Very common" to "Very rare"
+    rather than the data layer's "easy".
+  - Met in and the Anki export say offline when offline. Met in's Try again is a press.
+  - The slow line on Your Words and Your Phrases has Try again. A slow or failed
+    `/account/words` says so in the practice card's place.
+  - Your Phrases' head counts phrases, its empty state links to the Library, and a
+    correction's one-word label ("tense") is no longer shown as its reason.
+  - The stage legend has a stop between the stage and "Ignore is for names and numbers."
+    The Anki note no longer says twice that words have no sound.
+  - Any answered `/sync` now counts as the list had, so a later push with nothing new
+    clears the line, and a Try again that works offers "Words you may already know"
+    without a reload (qa-claude on #1231).
+  - 21 new Russian strings and one changed, passed by ling-ru. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
