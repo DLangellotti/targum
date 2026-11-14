@@ -26,22 +26,34 @@
    40px in Russian — while Kind stood half empty and Keep ran into the ×. Now the title
    takes at least 12rem and whatever the others leave, and Kind, Size, Saved and Keep
    are as wide as the widest of them in the card, so the columns still line up. */
-.saved-group:has(.saved-table) { container-type: inline-size; }
-.saved-table {
-  display: grid;
-  grid-template-columns: 3.25rem minmax(12rem, 1fr) auto auto auto auto auto;
-  column-gap: 0.75rem;
-}
+.saved-group { container-type: inline-size; }
 .saved-rows { margin: 0; padding: 0; list-style: none; }
-.saved-rows,
-.saved-cols,
+/* A browser without subgrid (Chrome before 117, Safari before 16) keeps a grid a row:
+   the title takes what the others leave, and the heads, which could not line up over
+   rows that are each their own, are left out. Nothing stacks down the card. */
+.saved-cols { display: none; }
 .saved-row {
   display: grid;
-  grid-template-columns: subgrid;
-  grid-column: 1 / -1;
+  grid-template-columns: 3.25rem minmax(0, 1fr) auto auto auto auto auto;
+  column-gap: 0.75rem;
   align-items: center;
 }
-.saved-rows { align-items: stretch; }
+@supports (grid-template-columns: subgrid) {
+  .saved-table {
+    display: grid;
+    grid-template-columns: 3.25rem minmax(12rem, 1fr) auto auto auto auto auto;
+    column-gap: 0.75rem;
+  }
+  .saved-rows,
+  .saved-cols,
+  .saved-row {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / -1;
+    align-items: center;
+  }
+  .saved-rows { align-items: stretch; }
+}
 .saved-cols {
   margin-block-start: 1rem;
   padding-block-end: 0.5rem;

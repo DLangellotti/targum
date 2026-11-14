@@ -259,6 +259,66 @@ def test_narrower_the_table_still_fits_its_card(
         context.close()
 
 
+#: The browser without subgrid, as near as one can be made: every `@supports` rule that
+#: asks for it taken out of the page's sheets, as such a browser drops it.
+NO_SUBGRID = """
+() => {
+  let gone = 0;
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch (e) { continue; }
+    for (let i = rules.length - 1; i >= 0; i--) {
+      if (rules[i] instanceof CSSSupportsRule && rules[i].conditionText.includes('subgrid')) {
+        sheet.deleteRule(i);
+        gone += 1;
+      }
+    }
+  }
+  return gone;
+}
+"""
+
+
+def test_without_subgrid_a_row_still_runs_across(browser, saved_in: Served) -> None:  # noqa: F811
+    """qa on #1228: a browser with no subgrid dropped the declaration, and each row was a
+    grid of one column, its picture, title, size and presses stacked down the card. The
+    subgrid is asked for under `@supports`, over a grid a row."""
+    context, page = drawn(browser, saved_in, ROWS, width=1440)
+    try:
+        assert page.evaluate(NO_SUBGRID) >= 1
+        rows = page.evaluate(
+            """() => [...document.querySelectorAll('.saved-row')].map((row) => {
+                 const tile = row.querySelector('.row-thumb').getBoundingClientRect();
+                 const x = row.querySelector('.saved-x').getBoundingClientRect();
+                 const card = row.closest('.card').getBoundingClientRect();
+                 const mid = (box) => (box.top + box.bottom) / 2;
+                 return { across: Math.abs(mid(x) - mid(tile)) < tile.height,
+                          inside: x.right <= card.right + 0.5,
+                          title: row.querySelector('.saved-name').getBoundingClientRect().width };
+               })"""
+        )
+        assert rows and all(row["across"] and row["inside"] for row in rows), rows
+        assert all(row["title"] > 100 for row in rows), rows
+        assert page.evaluate(MEASURE)["sideways"] <= 0
+    finally:
+        context.close()
+
+
+def test_an_estimate_that_throws_still_draws_the_page(browser, saved_in: Served) -> None:  # noqa: F811
+    """qa on #1228: the tables wait for the estimate, so one that threw stopped them."""
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(stubbed(ROWS))
+    context.add_init_script("StorageManager.prototype.estimate = () => { throw new Error('no'); };")
+    page = context.new_page()
+    try:
+        page.goto(saved_in.url("/you/saved"))
+        page.wait_for_selector("#saved-mine:not([hidden]) .saved-row")
+        assert page.locator("#saved-room").is_hidden(), "nothing said where nothing is known"
+        assert page.locator("#saved-nearly").is_hidden()
+    finally:
+        context.close()
+
+
 def test_under_a_thumb_keep_and_the_title_answer_a_tap(browser, saved_in: Served) -> None:  # noqa: F811
     """P2 11: Keep was 42px wide and the title's link 25px tall at 390."""
     context, page = drawn(browser, saved_in, ROWS, width=390, has_touch=True, is_mobile=True)
@@ -290,7 +350,7 @@ def test_nearly_full_says_so_in_clay_and_puts_the_largest_first(
     saved_in: Served,
 ) -> None:
     """P1 3: at 2.1 GB of 2.2 GB the meter filled in the same teal and the page said only
-    that the browser sets the room. From nine tenths it says what to do, and the tables put
+    that the browser sets the room. From 90% used it says what to do, and the tables put
     what makes the most room at the top."""
     full = {"usage": 2_100_000_000, "quota": 2_200_000_000}
     context, page = drawn(browser, saved_in, ROWS, width=1440, estimate=full)

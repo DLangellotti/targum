@@ -19,7 +19,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   than that the Saved column goes and Keep is its pin, then Kind joins the line under
   the title. A full device's one press read "Saved on this device", the success
   row's words; it now reads "Make room" (`offline.make-room`) and goes to the Saved page.
-  From nine tenths used, the Space card says "Nearly full. Remove what you've finished
+  From 90% used, the Space card says "Nearly full. Remove what you've finished
   to make room." (`saved.page.nearly-full`), the meter turns clay and both tables put
   the largest first; a browser with no estimate says nothing. The clay mark of a fault
   line stays on its sentence's line when the sentence wraps (shared, so the reader menu

@@ -227,13 +227,20 @@
   }
 
   /* How full this device is, as the browser says it: { used, quota, nearly } or null where
-     it does not say. Nearly full is nine tenths (targum-internal#720, P1 3): a save that
+     it does not say. Nearly full is 90% used (targum-internal#720, P1 3): a save that
      would not fit is refused by the browser with nothing said before it, so the page says
      it first, and where room is made. A browser with no estimate says nothing. */
   var NEARLY = 0.9;
   function room() {
     if (!navigator.storage || !navigator.storage.estimate) return Promise.resolve(null);
-    return navigator.storage.estimate().then(
+    var asked;
+    try {
+      asked = Promise.resolve(navigator.storage.estimate());
+    } catch (e) {
+      // A browser that throws where it should refuse still draws the page.
+      return Promise.resolve(null);
+    }
+    return asked.then(
       function (said) {
         var used = Number((said && said.usage) || 0);
         var quota = Number((said && said.quota) || 0);
