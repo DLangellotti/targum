@@ -339,7 +339,19 @@ def test_under_a_thumb_keep_and_the_title_answer_a_tap(browser, saved_in: Served
         )
         assert reach and all(position == "absolute" and tall >= 44 for position, tall in reach)
         # A tap under the title, on the line of what was kept, opens the text.
-        page.locator("#saved-auto .saved-kept-phone").nth(1).click(force=True)
+        # Found and pressed by where it is: the rows are drawn again as the index changes,
+        # and a redraw puts the same row in the same place.
+        spot = page.evaluate(
+            """() => {
+                 const line = document.querySelectorAll('#saved-auto .saved-kept-phone')[1];
+                 const box = line.getBoundingClientRect();
+                 line.scrollIntoView({ block: 'center' });
+                 const moved = line.getBoundingClientRect();
+                 return [moved.left + moved.width / 2, moved.top + moved.height / 2, box.height];
+               }"""
+        )
+        assert spot[2] > 0
+        page.mouse.click(spot[0], spot[1])
         page.wait_for_url("**/reader/news-he/**")
     finally:
         context.close()
