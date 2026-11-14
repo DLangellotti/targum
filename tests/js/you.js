@@ -175,6 +175,15 @@ setTimeout(() => {
             : [],
           press: row.children[row.children.length - 1].textContent,
         })),
+        /* Ways to sign in (targum-internal#502): Google's row, what it says, the press at
+           its end, and the line under the rows. */
+        ways: {
+          hidden: at("way-google").hidden,
+          says: at("way-google-says").textContent,
+          press: at("way-google-end").children.map((one) => one.textContent),
+          href: at("way-google-end").children.map((one) => one.href || ""),
+          said: at("ways-said").hidden ? "" : at("ways-said").textContent,
+        },
         promptsPanel: at("prompts").hidden,
         prompts: Array.from(at("prompt-rows").children).map((row) => ({
           name: (row.querySelector(".acct-name") || {}).textContent,

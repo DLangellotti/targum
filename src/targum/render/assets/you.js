@@ -163,6 +163,113 @@
     at("you-email").textContent = who.email || "";
   }
 
+  /* --- ways to sign in (targum-internal#502) ----------------------------------- */
+
+  /* The email link is always a way in and has no press. Google says Linked, with the
+     last day it signed them in and Unlink, or Not linked, with Link, which goes through
+     Google as signing in does and comes back here. Unlink asks nothing and says
+     "Unlinked · Undo" for a few seconds, as Saved's Remove does (design.md §12,
+     "Sign in with Google goes live", 2026-11-14). The row is drawn only where `ways`
+     names Google, which is where this install can finish a Google sign-in. */
+  var UNDO_UNLINK = 8000;
+
+  function drawWays(who) {
+    var ways = who.ways || [];
+    var email = null;
+    var google = null;
+    ways.forEach(function (way) {
+      if (way.kind === "email") email = way;
+      if (way.kind === "google") google = way;
+    });
+    if (email && email.address) at("you-email").textContent = email.address;
+    var row = at("way-google");
+    if (!row) return;
+    row.hidden = !google;
+    if (!google) return;
+    paintGoogle(google);
+    // A Link that came back without linking: another address, a sign-in left too long.
+    if (who.waysSaid) {
+      say("ways-said", who.waysSaid, true);
+      var section = at("ways");
+      if (section && typeof location !== "undefined" && location.hash === "#ways" && section.scrollIntoView) section.scrollIntoView({ block: "center" });
+    }
+  }
+
+  function googleOf(answer) {
+    var found = null;
+    ((answer && answer.ways) || []).forEach(function (way) {
+      if (way.kind === "google") found = way;
+    });
+    return found;
+  }
+
+  function paintGoogle(google, unlinked) {
+    var says = at("way-google-says");
+    var end = at("way-google-end");
+    end.textContent = "";
+    if (unlinked) {
+      says.textContent = t("you.page.unlinked", "Unlinked");
+      var undo = document.createElement("button");
+      undo.type = "button";
+      undo.className = "btn text small";
+      undo.textContent = t("you.page.undo", "Undo");
+      var timer = setTimeout(function () {
+        paintGoogle(google);
+      }, UNDO_UNLINK);
+      undo.addEventListener("click", function () {
+        clearTimeout(timer);
+        undo.disabled = true;
+        ask("/account/google/link-again", {})
+          .then(function (answer) {
+            var now = googleOf(answer);
+            if (answer.error) say("ways-said", answer.error, true);
+            paintGoogle(now || google);
+          })
+          .catch(function () {
+            say("ways-said", NOT_SAVED, true);
+            paintGoogle(google);
+          });
+      });
+      end.appendChild(undo);
+      undo.focus({ preventScroll: true });
+      return;
+    }
+    if (google.linked) {
+      says.textContent = google.used
+        ? t("you.page.linked-used", "Linked · last used {day}", { day: day(google.used) })
+        : t("you.page.linked", "Linked");
+      var unlink = document.createElement("button");
+      unlink.type = "button";
+      unlink.className = "btn ghost outline";
+      unlink.textContent = t("you.page.unlink", "Unlink");
+      unlink.addEventListener("click", function () {
+        unlink.disabled = true;
+        say("ways-said", "");
+        ask("/account/google/unlink", {})
+          .then(function (answer) {
+            var now = googleOf(answer) || google;
+            if (answer.error || now.linked) {
+              say("ways-said", answer.error || NOT_SAVED, true);
+              return paintGoogle(now);
+            }
+            paintGoogle(now, true);
+          })
+          .catch(function () {
+            say("ways-said", NOT_SAVED, true);
+            paintGoogle(google);
+          });
+      });
+      end.appendChild(unlink);
+      return;
+    }
+    says.textContent = t("you.page.not-linked", "Not linked");
+    var link = document.createElement("a");
+    link.className = "btn ghost outline";
+    link.href = keyed("/account/google?link=1");
+    link.textContent = t("you.page.link", "Link");
+    end.appendChild(link);
+  }
+
   /* --- your languages ---------------------------------------------------------- */
 
   /* As the board draws them: a row each language being learned, with Remove where it
@@ -1338,6 +1445,7 @@
       show(!!who.signedIn);
       if (!who.signedIn) return;
       drawWho(who);
+      drawWays(who);
       address = who.address || "";
       drawLanguages(who);
       drawLevel(who);

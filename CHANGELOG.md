@@ -5,6 +5,37 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Added
+- "Ways to sign in" on Your account: link and unlink Google (targum-internal#502,
+  design.md §12 "Sign in with Google goes live, and signup opens to anyone", 2026-11-14).
+  - The Account card's Email row becomes "Ways to sign in". "Email link" shows the
+    address and "Always on", with no press. "Google" says "Linked · last used 12
+    November" with Unlink, or "Not linked" with Link. The Google row is drawn only where
+    `google.configured()` holds.
+  - The store keeps, per person, whether Google is linked, when it was linked and when it
+    was last used (`person.google`, `google_linked`, `google_used`; accounts schema 67→68,
+    three ALTERs). Nothing of Google's own is kept. `models.SCHEMA_VERSION` is untouched.
+  - `sign_in_verified(via="google")` records each use, and the first Continue with Google
+    links Google. After Unlink, Continue with Google is refused with "Google sign-in is
+    off for this account. Use the email link, or link Google again from Your account."
+    and nobody is signed in.
+  - Link goes through Google with `/account/google?link=1`, needs a session, never signs
+    anybody in, and comes back to `/you#ways`. It links only when Google proves the
+    account's own address. Any other address is refused in one line naming both, said
+    once through `/account/me` (`waysSaid`) so no address goes in a URL.
+  - `POST /account/google/unlink` asks nothing; the page says "Unlinked · Undo" for eight
+    seconds, and `POST /account/google/link-again` is that Undo, honoured for 30 seconds
+    after the Unlink. Both are refused from another site and without a JSON body.
+  - `accounts.removable` holds that the last way in is never removed. Email is always on,
+    so today it refuses nobody.
+  - `/account/me` returns `ways`.
+- Continue with Google under the front door's form (hero and ending), only while signup is
+  open and a client is configured, and never under a tried link. Today the door is shut,
+  so the front door draws no Google. The invitation's page (`?invited=1`) keeps the
+  button as #1235 left it.
+- Strings: eleven `you.page.*` keys and four `serve.*` refusals in English and Russian.
+  The Russian is a first draft for ling-ru. `you.page.email` is gone.
+
 ### Changed
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`
   (targum-internal#723, design.md §12 "The invitation's link leads with signing in",

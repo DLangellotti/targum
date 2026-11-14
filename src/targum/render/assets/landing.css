@@ -858,3 +858,10 @@ html { overflow-x: clip; }
 .how.four > :last-child { grid-column: auto; }
 @media (max-width: 56rem) { .top.olim { grid-template-columns: minmax(0, 1fr); grid-template-areas: "hero" "card"; } .top.olim > .hero { align-self: start; } .top.olim > .letters { margin-block-end: var(--space-7); } }
 @media (max-width: 40rem) { .how.four { grid-template-columns: minmax(0, 1fr); } }
+
+/* Continue with Google under the open door's field (design.md §12, "Sign in with Google
+   goes live", 2026-11-14): the quiet outline press the sign-in page draws, under "or".
+   Words only, no Google mark: an image off the network is what this page never loads. */
+.join-or { margin: 0; text-align: center; color: var(--muted); font-size: 0.8125rem; }
+.btn.join-google { background: var(--card); color: var(--ink); box-shadow: inset 0 0 0 1px var(--rule); }
+.btn.join-google:hover { background: var(--hairline); }

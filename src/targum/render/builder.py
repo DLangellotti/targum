@@ -659,6 +659,10 @@ def _environment() -> Environment:
     # open, every door says so", 2026-11-10): every template that draws the waitlist asks
     # it, and says Sign up where it said Join the waitlist.
     env.globals["door_is_open"] = _door_is_open
+    # And whether Continue with Google can stand beside that form (design.md §12, "Sign
+    # in with Google goes live", 2026-11-14): only where this install has a client, read
+    # at call time like the two above.
+    env.globals["google_is_configured"] = _google_is_configured
     # The foot inside the app links the plans page only while plans are on (design.md
     # §12, "The plans page is the one place money shows", 2026-10-09).
     env.globals["plans_are_on"] = _plans_are_on
@@ -3234,6 +3238,13 @@ def _door_is_open() -> bool:
     from ..serve import signup_is_open
 
     return signup_is_open()
+
+
+def _google_is_configured() -> bool:
+    """Whether this install can finish a Google sign-in, for the join form to know."""
+    from .. import google as google_module
+
+    return google_module.configured()
 
 
 def _connector_is_open() -> bool:
@@ -6125,6 +6136,7 @@ def you_page(token: str, language: str = "en") -> str:
     and a signed-out visitor gets a sentence rather than an empty form. The languages
     are baked in: which exist is a fact about targum, not about the person.
     """
+    from .. import google as google_module
     from ..accounts import GRACE_DAYS
     from ..translate.prompts import INTO, READING, REQUIRED_LEARNING
 
@@ -6141,6 +6153,9 @@ def you_page(token: str, language: str = "en") -> str:
             required=list(REQUIRED_LEARNING),
             languages=_language_names(language),
             grace=GRACE_DAYS,
+            # Google's row in Ways to sign in, only where this install can finish a Google
+            # sign-in (targum-internal#502), as the sign-in page's button is.
+            google=google_module.configured(),
         )
     )
 
