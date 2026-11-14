@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-13
+A text being made can be cancelled, whether it is still waiting its turn or already under way.
+Home has one Listen press, and Upload your own stands apart so it is not pressed by mistake.
+Texts by level no longer calls a level easy when it is above your reading level.
+
 2026-11-12
 In Russian, его as in его брата, his brother, has a card of its own, apart from он.
 The page on how targum works can be read in Russian.
