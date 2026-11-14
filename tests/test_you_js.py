@@ -337,6 +337,9 @@ def test_disconnecting_the_last_app_keeps_saying_so() -> None:
     assert page["connections"] == []
     assert page["connectionsPanel"] is False, "still drawn"
     assert page["connectionsSaid"]["text"].startswith("Disconnected.")
+    # Not "yet" under "Disconnected." (design's #721 pass, P2 11).
+    assert page["connectionsNone"] is False
+    assert page["connectionsNoneText"].startswith("Nothing is connected. Connect")
 
 
 # --- a reader's own asks (targum-internal#80, note 17) ----------------------------

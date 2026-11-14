@@ -25,7 +25,7 @@ from typing import Any
 
 import pytest
 
-from targum.render.builder import front_page, signin_page, text_page
+from targum.render.builder import connect_refused_page, front_page, signin_page, text_page
 
 playwright_api = pytest.importorskip(
     "playwright.sync_api", reason="Playwright is not installed: uv sync --extra browser"
@@ -261,6 +261,24 @@ def test_the_door_s_links_answer_a_thumb(browser: Any, language: str) -> None:
         page.wait_for_selector(".gate .join-link")
         refusal = page.evaluate(TAPPED, [".gate .join-link", 20])
         assert refusal["up"] and refusal["down"], refusal
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_the_refused_connect_s_way_on_answers_a_thumb(browser: Any, language: str) -> None:
+    """§8, targum-internal#721: a Connect we could not read has one way on, "How
+    connecting works", and at 390 it was 136 × 20. Its reach is sign-in's."""
+    context, page, thrown = opened(browser, connect_refused_page(language=language), 390, True)
+    try:
+        page.goto(SITE + "/oauth/authorize")
+        assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
+        way_on = page.evaluate(TAPPED, [".gate .aside a", 20])
+        assert way_on["h"] < 44, "the words stay their size; the reach is what grows"
+        assert way_on["up"] and way_on["down"], way_on
+        over = page.evaluate(OVER, [".gate .aside a", ".gate .said"])
+        assert over["top"] >= over["above"], f"the reach crosses the sentence: {over}"
         assert not thrown, thrown
     finally:
         context.close()

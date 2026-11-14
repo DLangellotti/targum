@@ -39,11 +39,21 @@
           label.textContent = said;
         }, 1600);
       }
+      function refused() {
+        select(button);
+        // The text is selected, so the button says which keys copy it, and so does the
+        // live region: a press that changed nothing said nothing (targum-internal#721).
+        var keys = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent) ? "\u2318C" : "Ctrl+C";
+        var press = t("connect.demo.press-to-copy", "Press {keys}", { keys: keys });
+        label.textContent = press;
+        announce(press);
+        setTimeout(function () {
+          label.textContent = said;
+        }, 4000);
+      }
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(copied, function () {
-          select(button);
-        });
-      } else select(button);
+        navigator.clipboard.writeText(text).then(copied, refused);
+      } else refused();
     });
   });
   // Where the clipboard is refused, the text is selected so a press of the keys copies it.
@@ -54,6 +64,14 @@
     var sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
+  }
+  function announce(words) {
+    var region = document.getElementById("cn-said");
+    if (!region) return;
+    region.textContent = "";
+    setTimeout(function () {
+      region.textContent = words;
+    }, 50);
   }
 
   /* ---- the tabs --------------------------------------------------------------------- */
@@ -71,11 +89,14 @@
       if (panel) panel.classList.toggle("on", on);
     });
     if (focus) tab.focus();
-    // "Another app" names none: the heading keeps the last app it named.
+    // "Another app" names none, so the heading and the small approval page say "your own
+    // app" and "this app" rather than keep the last app picked (targum-internal#721).
     var app = tab.getAttribute("data-app");
-    if (app && heading) heading.textContent = app;
-    if (app && grant) {
-      grant.textContent = (grant.getAttribute("data-says") || "{client}").split("{client}").join(app);
+    if (heading) heading.textContent = app || heading.getAttribute("data-other") || heading.textContent;
+    if (grant) {
+      grant.textContent = app
+        ? (grant.getAttribute("data-says") || "{client}").split("{client}").join(app)
+        : grant.getAttribute("data-other") || grant.textContent;
     }
   }
 

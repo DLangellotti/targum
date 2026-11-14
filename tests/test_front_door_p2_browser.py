@@ -354,3 +354,66 @@ def test_the_credits_rows_answer_a_thumb(browser: Any, monkeypatch: Any) -> None
         assert not thrown, thrown
     finally:
         context.close()
+
+
+# -- Connect's finish bar (targum-internal#721) -------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("language", "heading", "grant"),
+    [
+        ("en", "your own app", "Connect this app to targum"),
+        ("ru", "своём приложении", None),
+    ],
+)
+def test_another_app_does_not_keep_the_last_app_s_name(
+    browser: Any, language: str, heading: str, grant: str | None
+) -> None:
+    """P2 6: after Codex, "Another app" left the heading on "Learn Hebrew in Codex"."""
+    from targum.strings import catalogue
+
+    context, page, thrown = opened(browser, connect_page(language, ADDRESS))
+    try:
+        page.goto(SITE + "/connect")
+        page.wait_for_selector("#plats:not([hidden])")
+        page.click("#tab-codex")
+        assert page.text_content("#cn-app") == "Codex"
+        page.click("#tab-other")
+        assert page.text_content("#cn-app") == heading
+        words = catalogue(language)
+        said = grant or words["connect.page.connect-to-targum"].replace(
+            "{client}", words["connect.page.this-app"]
+        )
+        assert page.text_content("#cn-grant-title") == said
+        page.click("#tab-claude")
+        assert page.text_content("#cn-app") == "Claude", "and an app named again is named"
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("language", ["en", "ru"])
+def test_a_refused_copy_says_which_keys_copy_it(browser: Any, language: str) -> None:
+    """P2 5: with the clipboard refused, the address was selected and nothing was said."""
+    context, page, thrown = opened(browser, connect_page(language, ADDRESS))
+    try:
+        # The browser refuses the write, as a page on a phone without permission meets it.
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'clipboard', {value: "
+            "{writeText: () => Promise.reject(new Error('refused'))}});"
+        )
+        page.goto(SITE + "/connect")
+        page.click(".cn-address .cn-copy")
+        label = page.locator(".cn-address .cn-copy span")
+        press = "Press " if language == "en" else "Нажмите "
+        page.wait_for_function(
+            "(press) => document.querySelector('#cn-said').textContent.startsWith(press)",
+            arg=press,
+        )
+        said = label.text_content() or ""
+        assert said.startswith(press) and ("Ctrl+C" in said or "⌘C" in said), said
+        selected = page.evaluate("() => String(window.getSelection())")
+        assert selected == page.text_content(".cn-address code"), "and the text is selected"
+        assert not thrown, thrown
+    finally:
+        context.close()

@@ -15347,6 +15347,7 @@ class Handler(BaseHTTPRequestHandler):
                 connecting=self._finishing(str(client["name"] or "")),
             ).encode("utf-8")
             return self._send(200, body, HTML, cookie=_short_cookie(CONNECT_COOKIE, here))
+        credits = self._sub_credits(person)["credits"]
         page = approve_page(
             client=str(client["name"] or ""),
             scopes=oauth.describe_scopes(asked.scopes),
@@ -15355,7 +15356,8 @@ class Handler(BaseHTTPRequestHandler):
             redirect=redirect,
             language=self._page_language(),
             email=person.email,
-            left=self._sub_credits(person)["credits"]["left"],
+            left=credits["left"],
+            back=credits["back"],
         )
         # The press is answered with a 303 to the client's callback, and a policy of
         # `'self'` alone refuses to follow it — see `_policy`. Only this redirect, which
