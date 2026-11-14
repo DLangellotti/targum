@@ -6,6 +6,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Fixed
+- Stop and claim follow-ups to #1217 (targum-internal#715). A gift recording's Stop no
+  longer asks the credits question: jobs and the waiting card's rows ahead carry
+  `metered`, and Stop asks on it rather than on `audio`. A free reader pressing a credited
+  retry is told the need with the credit taken off, as the quote said. A stop says the
+  credits its receipt used before it looks at money. The Russian quote's
+  «Осталось {n} баллов в этом месяце» now matches `building.credits.left`. No spend.
 - `/gloss` buys a word's meaning only in the pair the page is showing
   (targum-internal#717). The target was whatever the page sent, so any signed-in page
   could make targum buy meanings into any language, the word's own included. It is now

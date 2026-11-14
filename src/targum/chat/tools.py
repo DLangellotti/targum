@@ -3960,18 +3960,20 @@ def _said(job: Any, left: int | None, behind: int, language: str = "en") -> str:
         # (targum-internal#694). A stop says the credits its receipt settled, and that
         # nothing was used where none were: a text uses none, and "you paid" said of
         # one told the reader about money nobody asked of them (targum-internal#715).
-        if job.spent > 0:
-            from ..render.builder import credits_of
+        # Credits are asked of the receipt first and money second, so the two stay
+        # apart: a stop that used credits says so whatever its transcriber cost.
+        from ..render.builder import credits_of
 
-            used = credits_of(getattr(job, "used", 0.0))
-            if used > 0:
-                return _counted(
-                    language,
-                    "job.said.stopped",
-                    used,
-                    "You stopped it. It used {n} credit.",
-                    "You stopped it. It used {n} credits.",
-                )
+        used = credits_of(getattr(job, "used", 0.0))
+        if used > 0:
+            return _counted(
+                language,
+                "job.said.stopped",
+                used,
+                "You stopped it. It used {n} credit.",
+                "You stopped it. It used {n} credits.",
+            )
+        if job.spent > 0:
             return said_in(language, "job.said.stopped-none", "You stopped it. Nothing was used.")
         return said_in(language, "job.said.cancelled", "You cancelled it. Nothing was used.")
     if job.stage == "blocked":
