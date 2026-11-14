@@ -355,10 +355,11 @@
                      an unchanged film is never fetched twice. A page follows its build
                      as it opens (`sw.js`), and a file kept before stamps were kept is
                      held as it is, so an old copy does not fetch its films again
-                     (design.md §12, 2026-11-14). */
+                     (design.md §12, 2026-11-14). Such a file learns the cut the server
+                     has now, so a later re-cut reaches it too (qa-claude on #1234). */
                   var recut = had && file.stamp && held && held !== file.stamp && !/\.html$/i.test(at);
                   if (had && !recut) {
-                    if (held && held === file.stamp) stamps[at] = held;
+                    if (file.stamp || held) stamps[at] = file.stamp || held;
                     done += Number(file.bytes || 0);
                     told();
                     return null;

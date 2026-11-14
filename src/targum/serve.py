@@ -20097,7 +20097,22 @@ class Handler(BaseHTTPRequestHandler):
             mine=mine,
             picture=cover or folder.name,
         )
-        self._send(200, html.encode("utf-8"), "text/html; charset=utf-8", frames="out")
+        # Which build of the text this page lists, for a saved copy to follow: the
+        # contents as built, in the language the page is drawn in. Not where the reader
+        # stopped, which moves with every open, but a text that gained a part says another
+        # one, and the worker has the copy fetch what it now takes (`sw.js` `opening`;
+        # design.md §12, "An offline copy follows its text when opened online", 2026-11-14).
+        try:
+            built = (folder / "reader" / CONTENTS).read_bytes()
+        except OSError:
+            built = b""
+        self._send(
+            200,
+            html.encode("utf-8"),
+            "text/html; charset=utf-8",
+            frames="out",
+            version=reader_version(built, self._ui_language()) if built else "",
+        )
         return True
 
     def _torah_book(self, target: Path) -> str | None:

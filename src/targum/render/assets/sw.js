@@ -210,15 +210,25 @@ function opening(event) {
       if (answer && answer.ok && answer.type === "basic" && saved && saved[key]) {
         var linked = answer.headers.get("x-targum-linked");
         var version = answer.headers.get("x-targum-version");
+        var client = event.resultingClientId || event.clientId;
         if (!linked) {
           var copy = answer.clone();
+          /* Kept as it opened, as ever. A page that says its build (a book's contents,
+             whose build is the parts it lists) and says another one than the copy's has
+             the open page told, so a text that only gained a part fetches that part
+             (design.md §12, 2026-11-14). */
           event.waitUntil(
             caches.open(STORE).then(function (cache) {
-              return cache.put(key, kept(copy));
-            })
+              return cache.match(key, { ignoreVary: true }).then(function (had) {
+                var moved = !!version && (!had || had.headers.get("x-targum-version") !== version);
+                return cache.put(key, kept(copy)).then(function () {
+                  return moved ? told(key, client) : null;
+                });
+              });
+            }).catch(function () {})
           );
         } else if (version) {
-          event.waitUntil(refreshed(request, key, version, event.resultingClientId || event.clientId));
+          event.waitUntil(refreshed(request, key, version, client));
         }
       }
       return answer;
@@ -269,16 +279,31 @@ function refreshed(request, key, version, client) {
       });
     })
     .then(function (put) {
-      if (!put) return null;
-      return self.clients.matchAll({ type: "window" }).then(function (open) {
-        open.forEach(function (one) {
-          if (!client || one.id === client || keyOf(one.url) === key) {
-            one.postMessage({ type: "refreshed", page: key });
-          }
-        });
-      });
+      return put ? told(key, client) : null;
     })
     .catch(function () {});
+}
+
+/* The page that opened is told its copy is a newer build now, so its files can follow.
+   A page still opening is not yet among the clients, so it is looked for again, a
+   quarter of a second apart, for a few seconds. */
+function told(key, client, tries) {
+  tries = tries === undefined ? 20 : tries;
+  return self.clients.matchAll({ type: "window" }).then(function (open) {
+    var heard = false;
+    open.forEach(function (one) {
+      if (!client || one.id === client || keyOf(one.url) === key) {
+        one.postMessage({ type: "refreshed", page: key });
+        heard = true;
+      }
+    });
+    if (heard || tries <= 0) return null;
+    return new Promise(function (ok) {
+      setTimeout(ok, 250);
+    }).then(function () {
+      return told(key, client, tries - 1);
+    });
+  });
 }
 
 /* A response as it is kept: its own body and headers, less the ones that described the
