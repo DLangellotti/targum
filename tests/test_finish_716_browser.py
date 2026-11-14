@@ -124,14 +124,20 @@ def open_page(
     width: int = 1440,
     coarse: bool = False,
     post: Any = None,
+    hold: set[str] | None = None,
 ):
     """`path` on SITE, its document `html`, every ask answered from `answers` (a value, or
-    (status, value)); a POST answered with `post`."""
+    (status, value)); a POST answered with `post`. The first ask of each path in `hold`
+    is never answered, as a slow box's is not."""
+    held: set[str] = set()
 
     def answer(route, request):
         where = urlparse(request.url).path
         if request.resource_type == "document":
             return route.fulfill(status=200, content_type="text/html", body=html)
+        if hold and where in hold and where not in held:
+            held.add(where)
+            return None
         if where.startswith("/thumb/"):
             return route.fulfill(status=404, body="")
         if request.method == "POST" and post is not None and where.startswith("/playlists/"):
@@ -186,13 +192,14 @@ def one_playlist(browser, one: dict[str, Any], **options: Any):
     return context, page, thrown
 
 
-def home(browser, answers: dict[str, Any], width: int = 1440):
+def home(browser, answers: dict[str, Any], width: int = 1440, **options: Any):
     return open_page(
         browser,
         list_page(TOKEN, "texts", "en"),
         "/",
         {"/account/me": {"signedIn": False}, "/suggest": {}, **answers},
         width=width,
+        **options,
     )
 
 
@@ -627,3 +634,21 @@ def test_at_a_desk_a_title_takes_the_row_s_slack(browser) -> None:
     assert got["title"] > 260, got
     # The columns still stand in line.
     assert len(set(got["meters"])) == 1, got
+
+
+# qa-claude on #1222: Recent's slow Try again asks again in place
+
+
+def test_recent_s_slow_try_again_asks_again_in_place(browser) -> None:
+    """Recent's slow Try again reloaded the whole page, where Playlists and Subscriptions
+    ask again in place. The first ask of the shelf never answers here; Try again asks it
+    again, and the shelf draws on the same page."""
+    context, page, thrown = home(browser, {"/readers": shelf_of(reader("t0"))}, hold={"/readers"})
+    page.evaluate("() => { window.__samePage = true; }")
+    page.wait_for_selector("#home-waiting .home-slow-again", timeout=8000)
+    page.click("#home-waiting .home-slow-again")
+    page.wait_for_selector("#library-list .book-title", timeout=8000)
+    same = page.evaluate("() => window.__samePage === true")
+    context.close()
+    assert not thrown, thrown
+    assert same, "the page was not reloaded"

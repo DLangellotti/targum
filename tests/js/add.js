@@ -38,8 +38,9 @@ global.fetch = (url, options) => {
     path: String(url).split("?")[0],
     method: (options && options.method) || "GET",
     body: options && options.body ? JSON.parse(options.body) : null,
+    keepalive: !!(options && options.keepalive),
   });
-  return Promise.resolve({ json: () => Promise.resolve(answerFor(url)) });
+  return Promise.resolve({ ok: true, json: () => Promise.resolve(answerFor(url)) });
 };
 
 const said = {};
