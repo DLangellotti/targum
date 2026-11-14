@@ -325,6 +325,19 @@ def test_link_with_another_address_is_refused_and_signs_nobody_in(
     )
     assert "waysSaid" not in _me(port, session), "said once"
 
+    # Left unread past ten minutes, it is gone, and the other address with it.
+    status, headers, _ = _through_google(
+        port, monkeypatch, "other@example.com", "/account/google?link=1", session
+    )
+    assert status in (302, 303)
+    person = store.db.execute("SELECT id FROM person WHERE email = 'dina@example.com'").fetchone()[
+        0
+    ]
+    when, said = serve.Handler._ways_said[person]
+    serve.Handler._ways_said[person] = (when - serve.Handler.WAYS_SAID_FOR - 1, said)
+    assert "waysSaid" not in _me(port, session), "too old to say"
+    assert person not in serve.Handler._ways_said
+
 
 def test_link_needs_somebody_signed_in(
     tmp_path: Path, free_port: Callable[[], int], client: None

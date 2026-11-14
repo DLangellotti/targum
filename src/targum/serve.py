@@ -13047,7 +13047,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.telegram is not None:
             answer["telegram"] = {"chats": self.store.telegram_chats(person.id)}
         # A Link that came back without linking, said once on Account (#502).
-        said_of_ways = self._ways_said.pop(person.id, "")
+        said_of_ways = self._ways_said_once(person.id)
         if said_of_ways:
             answer["waysSaid"] = said_of_ways
         answer.update(self.store.profile(person))
@@ -15198,7 +15198,23 @@ class Handler(BaseHTTPRequestHandler):
     #: What Account says once about a Link that came back without linking, by person id:
     #: an address that was not theirs, a cancel, a sign-in left too long. Said through
     #: `/account/me` rather than the URL, which would put an address in the access log.
-    _ways_said: ClassVar[dict[int, str]] = {}
+    #: Each with when it was said, and gone after `WAYS_SAID_FOR` seconds unread, so
+    #: another address is not held in memory until a restart (qa-claude on #1242).
+    _ways_said: ClassVar[dict[int, tuple[float, str]]] = {}
+    WAYS_SAID_FOR = 10 * 60
+
+    def _say_of_ways(self, person_id: int, said: str) -> None:
+        """Keep one line for Account to say about a Link, and drop any left too long."""
+        now = time.monotonic()
+        for who, (when, _) in list(self._ways_said.items()):
+            if now - when > self.WAYS_SAID_FOR:
+                self._ways_said.pop(who, None)
+        self._ways_said[person_id] = (now, said)
+
+    def _ways_said_once(self, person_id: int) -> str:
+        """The line about a Link, once, unless it waited past `WAYS_SAID_FOR`."""
+        when, said = self._ways_said.pop(person_id, (0.0, ""))
+        return said if said and time.monotonic() - when <= self.WAYS_SAID_FOR else ""
 
     #: The language one answer is said in where the request named it (`_sign_in`), over
     #: the browser's; empty everywhere else.
@@ -15253,8 +15269,9 @@ class Handler(BaseHTTPRequestHandler):
         if person is None or person.id != person_id:
             return self._go("/account/signin?next=%2Fyou")
         if begun is None or google_module.stale(begun):
-            self._ways_said[person.id] = self._say(
-                "serve.that-sign-in-took-too-long", "That sign-in took too long."
+            self._say_of_ways(
+                person.id,
+                self._say("serve.that-sign-in-took-too-long", "That sign-in took too long."),
             )
             return self._go("/you#ways")
         code = (query.get("code") or [""])[0]
@@ -15265,14 +15282,17 @@ class Handler(BaseHTTPRequestHandler):
             answer = google_module.exchange(code, begun.verifier, self._google_redirect())
             email = google_module.address_from(answer)
         except google_module.Refused as error:
-            self._ways_said[person.id] = str(error)
+            self._say_of_ways(person.id, str(error))
             return self._go("/you#ways")
         if email != person.email:
-            self._ways_said[person.id] = self._say(
-                "serve.google-other-address",
-                "That Google account is for {address}. Choose the one for {yours}.",
-                address=email,
-                yours=person.email,
+            self._say_of_ways(
+                person.id,
+                self._say(
+                    "serve.google-other-address",
+                    "That Google account is for {address}. Choose the one for {yours}.",
+                    address=email,
+                    yours=person.email,
+                ),
             )
             return self._go("/you#ways")
         self.store.link_google(person.id)
