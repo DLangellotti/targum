@@ -74,6 +74,9 @@ STAGES = (
     # The French card's false friend line, read in context by ling-fr (2026-11-05,
     # targum-internal#644), from scripts/eval_false_friends.py.
     "friends",
+    # The French card's register lines, *ne* dropped and *on* for "we" (French hard spot
+    # 7), on ling-fr's own gold, from scripts/eval_register.py.
+    "register",
 )
 
 
@@ -112,6 +115,8 @@ SCRIPTS = {
     "connector": "eval_connector.py",
     "partners": "eval_aspect_partners.py",
     "friends": "eval_false_friends.py",
+    # French register: *ne* dropped and *on* for "we", on ling-fr's own gold.
+    "register": "eval_register.py",
     # The passé composé against the imparfait, on ling-fr's French-shelf gold (#644).
     "lemma/pc-imparfait": "eval_pc_imparfait.py",
 }
