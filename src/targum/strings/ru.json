@@ -1345,6 +1345,7 @@
   "serve.we-lost-that-build-when-we-2": "Мы перезапустились, пока это готовилось. Запустите заново — ничего не засчитается дважды.",
   "serve.we-can-t-find-anything-here": "Мы не нашли здесь ничего, что можно нарисовать.",
   "serve.already-drawn": "Уже нарисовано.",
+  "serve.gloss-not-in-that-language": "Мы не можем искать значения слов на этом языке.",
   "serve.we-couldn-t-look-that-word": "Мы не смогли найти это слово.",
   "serve.we-couldn-t-look-that-phrase": "Мы не смогли найти эту фразу.",
   "serve.this-file-is-protected-so-we": "Этот файл защищён, поэтому мы не можем его прочитать.",

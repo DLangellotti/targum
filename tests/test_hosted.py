@@ -1844,6 +1844,54 @@ def test_a_meaning_already_held_is_free_to_ask_for(hosted: tuple[int, str]) -> N
     assert status == 200 and answer["meaning"] is None and answer["cached"] is False
 
 
+def test_a_meaning_is_bought_only_in_the_pair_the_page_shows(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A word's meaning is bought on targum's account, with no job row behind it, so
+    the target is checked rather than taken from the page: a language the reader reads
+    buys as before, any other is refused, and so is the word's own language, which is
+    not approved yet (targum-internal#717, #538). A refusal never reaches the model."""
+    from targum.annotate import gloss as gloss_module
+
+    port, session = hosted
+    bought: list[tuple[str, str, str]] = []
+
+    def fake_gloss_one(
+        lemma: str, source: str, target: str, provider: object, **_: object
+    ) -> gloss_module.Sense:
+        bought.append((lemma, source, target))
+        return gloss_module.Sense(gloss="peace")
+
+    monkeypatch.setattr(gloss_module, "gloss_one", fake_gloss_one)
+    monkeypatch.setattr(gloss_module.AnthropicGlosses, "available", lambda self: (True, ""))
+
+    def ask(source: str, target: str) -> tuple[int, dict[str, object]]:
+        body = json.dumps({"lemma": "שלום", "source": source, "target": target}).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.putrequest("POST", "/gloss", skip_host=True)
+        conn.putheader("Host", "targum.page")
+        conn.putheader("Cookie", f"targum_session={session}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders()
+        conn.send(body)
+        response = conn.getresponse()
+        out = json.loads(response.read())
+        conn.close()
+        return response.status, out
+
+    # The account has said nothing, so it reads English: the pair the page shows.
+    status, answer = ask("he", "en")
+    assert status == 200 and answer["meaning"] == "peace"
+    assert bought == [("שלום", "he", "en")]
+
+    for source, target in [("he", "ru"), ("he", "de"), ("he", "he")]:
+        status, answer = ask(source, target)
+        assert status == 400, (source, target)
+        assert answer["error"] == "We can't look words up in that language."
+    assert bought == [("שלום", "he", "en")], "nothing refused reached the model"
+
+
 def test_a_phrase_already_answered_is_free_to_ask_for(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

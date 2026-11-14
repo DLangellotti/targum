@@ -1307,6 +1307,7 @@
   "serve.we-lost-that-build-when-we-2": "We restarted while this was getting ready. Start it again, and nothing counts twice.",
   "serve.we-can-t-find-anything-here": "We can't find anything here to draw.",
   "serve.already-drawn": "Already drawn.",
+  "serve.gloss-not-in-that-language": "We can't look words up in that language.",
   "serve.we-couldn-t-look-that-word": "We couldn't look this word up.",
   "serve.we-couldn-t-look-that-phrase": "We couldn't look this phrase up.",
   "serve.this-file-is-protected-so-we": "This file is protected, so we can't read it.",

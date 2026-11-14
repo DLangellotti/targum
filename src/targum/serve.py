@@ -18514,6 +18514,20 @@ class Handler(BaseHTTPRequestHandler):
                     "grounded": bool(held and held.grounded),
                 }
             )
+        # Buying is held to the pair the page is showing. A meaning is bought on
+        # targum's account with no job row behind it, so a page that could name any
+        # target could make targum buy meanings into any language it liked. A meaning
+        # in the word's own language is not approved yet (targum-internal#538).
+        if target == source or target not in self._gloss_targets(document):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.gloss-not-in-that-language",
+                        "We can't look words up in that language.",
+                    )
+                },
+                400,
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
@@ -18551,6 +18565,27 @@ class Handler(BaseHTTPRequestHandler):
                 "grounded": bool(sense and sense.grounded),
             }
         )
+
+    def _gloss_targets(self, document: str) -> set[str]:
+        """The languages a word's meaning may be bought in for whoever is asking.
+
+        The languages their account reads into, the one their meanings are said in,
+        and the languages the text they are reading is translated into (a reader of
+        English who opens a text built only into Russian is shown Russian meanings).
+        Never anything a page merely names: the target is the page's, the check is
+        ours (targum-internal#717).
+        """
+        from .translate.prompts import BESIDE
+
+        allowed = set(self._reads()) | {self._reading_language()}
+        person = self._person()
+        homes = [self.library.shared, self.library.weekly]
+        if person is not None:
+            homes.insert(0, self.library.home(person))
+        found = self.library.document_folder(homes, document) if document else None
+        if found is not None:
+            allowed |= set(self.library.targets(found[0]))
+        return allowed - set(BESIDE)
 
     def _gloss_phrase(self, payload: dict[str, Any]) -> None:
         """A few words of a sentence, because a reader selected them.

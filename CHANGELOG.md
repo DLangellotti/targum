@@ -12,6 +12,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   retry is told the need with the credit taken off, as the quote said. A stop says the
   credits its receipt used before it looks at money. The Russian quote's
   «Осталось {n} баллов в этом месяце» now matches `building.credits.left`. No spend.
+- `/gloss` buys a word's meaning only in the pair the page is showing
+  (targum-internal#717). The target was whatever the page sent, so any signed-in page
+  could make targum buy meanings into any language, the word's own included. It is now
+  one of the reader's languages or one the text is translated into; anything else,
+  and the word's own language until #538 is decided, is a plain refusal with no model
+  call. The free cache peek is unchanged. One new string, with its Russian.
 - `targum serve` no longer aborts two minutes after a start (targum-internal#667). The
   first news round's six workers ran trafilatura side by side, and its one lxml parser,
   shared across threads, corrupted libxml2's memory: `free(): invalid pointer`, `double
