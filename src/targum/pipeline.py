@@ -1856,9 +1856,13 @@ class Build:
         kept = load(Refined, refined_path(workspace, number))
         if kept is None:
             return True
-        if kept.provider in ("subtitles", "aligned"):
-            # A supplied transcript is the source, not a refinement of a hearing —
-            # there is nothing better to redo it with.
+        if kept.provider == "subtitles":
+            # A written track is the source, not a refinement of a hearing — except
+            # that one typed the way it was heard never stops, and its full stops are
+            # bought the way a hearing's are (`ingest.subtitles.punctuated`).
+            return self._punctuates_subtitles(kept)
+        if kept.provider == "aligned":
+            # A supplied text is the source; there is nothing better to redo it with.
             return False
         refiner = self._refiner()
         if kept.refiner == refiner.name:
@@ -1868,6 +1872,13 @@ class Build:
         # them (2026-09-14), and the rules that punctuate redo only what has none.
         keeps = getattr(refiner, "keeps", None)
         return not (callable(keeps) and keeps(kept))
+
+    def _punctuates_subtitles(self, kept: Any) -> bool:
+        """Whether this build buys the full stops a written track came without: only
+        where it may buy punctuation at all (`_refiner`), and only once."""
+        from .ingest.subtitles import owes_punctuation
+
+        return getattr(self._refiner(), "punctuator", None) is not None and owes_punctuation(kept)
 
     def _refiner(self) -> Any:
         """The refiner for this build's hearings. Punctuation is bought only for a hearing
@@ -1913,7 +1924,7 @@ class Build:
         from .audio import parts as parts_module
         from .audio import probe as probe_module
         from .ingest.audio import refined_path, transcript_path
-        from .transcribe.models import Transcript
+        from .transcribe.models import Refined, Transcript
         from .transcribe.models import load as load_model
         from .transcribe.models import write as write_model
 
@@ -1947,6 +1958,17 @@ class Build:
         for number in owed:
             span = by_number.get(number)
             if span is None:
+                continue
+            written = load_model(Refined, refined_path(workspace, number))
+            if written is not None and written.provider == "subtitles":
+                # Owed only its full stops: the words are the track's, never heard.
+                from .ingest.subtitles import punctuated
+
+                self.notify(f"Punctuating part {number} of {len(drafted.parts)}…")
+                write_model(
+                    refined_path(workspace, number), punctuated(written, refiner.punctuator)
+                )
+                heard = True
                 continue
             self.notify(f"Transcribing part {number} of {len(drafted.parts)}…")
             piece = workspace / "parts" / f"part-{number:03d}.mp3"
@@ -2333,24 +2355,42 @@ class Build:
         drafted = parts_module.load(self._audio_workspace())
         if drafted is None:
             return None
+        from .ingest.audio import refined_path
+        from .transcribe.models import Refined
+        from .transcribe.models import load as load_model
+
+        workspace = self._audio_workspace()
         owed = set(self._parts_owed(chapters, ()))
         by_number = {span.number: span for span in drafted.parts}
-        seconds = sum(by_number[n].end - by_number[n].start for n in owed if n in by_number)
+        # A written track owes only its full stops: its words are on the page already,
+        # so neither a hearing nor a guess at their English is priced for it.
+        written = {
+            n
+            for n in owed
+            if (kept := load_model(Refined, refined_path(workspace, n))) is not None
+            and kept.provider == "subtitles"
+        }
+        marked = sum(by_number[n].end - by_number[n].start for n in written if n in by_number)
+        seconds = sum(
+            by_number[n].end - by_number[n].start for n in owed - written if n in by_number
+        )
         priced = AudioPlan(
             duration=drafted.duration,
             parts=len(drafted.parts),
             buying_parts=sorted(owed),
-            buying_seconds=seconds,
+            buying_seconds=seconds + marked,
         )
+        punctuator = getattr(self._refiner(), "punctuator", None)
+        if marked and punctuator is not None:
+            priced.transcription = marked / 60 * punctuator.dollars_per_minute()
         if not seconds:
             return priced
         try:
             rate = float(self.transcriber.price_per_minute())
         except TargumError:
             rate = 0.0
-        priced.transcription = seconds / 60 * rate
-        punctuator = getattr(self._refiner(), "punctuator", None) if rate else None
-        if punctuator is not None:
+        priced.transcription += seconds / 60 * rate
+        if rate and punctuator is not None:
             # Priced as though the hearing will come back without a mark, which whisper's
             # Hebrew does; a hearing that punctuates settles for less.
             priced.transcription += seconds / 60 * punctuator.dollars_per_minute()

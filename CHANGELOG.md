@@ -23,6 +23,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     newer "library record" now reads "library record chat" instead of losing `chat`.
     Disconnect still revokes everything for the app. `record_turn` and
     `Library.claim_turn` are unchanged. No spend.
+- A video's own subtitle track is punctuated when it has no full stops, and drawn into
+  paragraphs (targum-internal#727). David's Doña Gracia video came with the creator's
+  Hebrew track: 2,873 words with one full stop and one comma. It was taken as the source
+  and never reached the #261 punctuation pass, so 25 minutes read as six "sentences" of up
+  to 878 words in paragraphs of up to 1,343.
+  - A track part with fewer full stops and commas than one in 30 words is now owed them,
+    like a hearing (`ingest.subtitles.owes_punctuation`). On a build that may buy
+    punctuation (`Build._refiner`), `transcribe_parts` sends the part to the same
+    claude-sonnet-5 pass. It adds marks only and keeps every word as written. It never
+    hears the part. It runs once: a part refined `…+punctuate/1` is not asked again.
+  - Subtitle paragraphs are drawn at sentence ends (`ingest.subtitles.drawn`). A paragraph
+    closes at the first sentence end after 60 words, at a pause after a sentence, at a
+    change of voice, and where the model starts one. A track with no marks still closes
+    one at a cue every 120 words. A cue is cut only where a paragraph closes inside it,
+    and its two halves share its clock by their letters. Free, for every new subtitle
+    build. Parts already on disk keep their paragraphs.
+  - Spend: the quote for a subtitled YouTube video or a podcast with a transcript now
+    prices the marks (`_punctuation_rate(..., written=True)`, about $0.006 a minute). The
+    plan prices a track part's marks only, with no hearing and no guessed English.
 - Your Progress no longer reads a failed sync as an empty account (targum-internal#726,
   the fault #725 fixed on Your Words). When `/account/me` answered and `/sync` failed, a
   browser with no saved words was told "Your progress starts with the first word you
