@@ -889,6 +889,7 @@ def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
         page.wait_for_selector("#saved-away:not([hidden])")
         assert page.url.split("?")[0].endswith("/you/saved")
         assert "isn't on this device" in page.locator("#saved-away").inner_text()
+        page.wait_for_selector("#saved-auto:not([hidden]) .saved-row")
         assert page.locator("#saved-auto .saved-row").count() == 1
         page.locator("#saved-auto .saved-name").click()
         page.wait_for_selector(".pair, .toc", state="attached")
@@ -952,6 +953,10 @@ def test_the_first_save_keeps_the_saved_page_outside_the_texts(
         assert page.url.split("?")[0].endswith("/you/saved")
         assert "away=1" in page.url
         assert "isn't on this device" in page.locator("#saved-away").inner_text()
+        # The away line is shown as the page loads, the rows only once the cache's index
+        # has been read, so the rows are waited for rather than counted on arrival.
+        page.wait_for_selector("#saved-mine:not([hidden]) .saved-row")
+        page.wait_for_selector("#saved-auto:not([hidden]) .saved-row")
         assert page.locator("#saved-mine .saved-row").count() == 1
         assert page.locator("#saved-auto .saved-row").count() == 3
     finally:
