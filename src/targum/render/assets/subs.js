@@ -336,7 +336,7 @@
         right.appendChild(meter);
       }
       if (full) {
-        var raise = el("a", "btn text small danger sub-raise", t("subs.act.raise-cap", "Raise the cap"));
+        var raise = el("a", "btn text small sub-raise", t("subs.act.raise-cap", "Raise the cap"));
         raise.href = keyed(one.page + "#sub-cap");
         right.appendChild(raise);
       }
@@ -784,7 +784,8 @@
 
     var act;
     if (item.state === "waiting" && item.why === "cap") {
-      act = el("a", "btn text small danger sub-act", t("subs.act.raise-cap", "Raise the cap"));
+      // Teal, not clay: waiting for the cap is neither a fault nor a loss (§4; #716 P2-12).
+      act = el("a", "btn text small sub-act", t("subs.act.raise-cap", "Raise the cap"));
       act.href = "#sub-cap";
     } else if (item.reader) {
       act = el("a", "btn text small sub-act", item.seen ? againWord(one) : verb(one));
@@ -1014,8 +1015,10 @@
     // to again, and for a channel or a podcast the cap is chosen again then.
     if (one.builds && !off) side.appendChild(capSection(answer, body, saidLine, now));
     // The mail (design.md §12, "Everything new comes in one mail a day"): one a day, with
-    // everything new; the way out of it is the way out of the subscription.
-    if (!off) {
+    // everything new; the way out of it is the way out of the subscription. Not while
+    // it is paused: the note above already says no mail comes, and the card said one a
+    // day beside it (#716 P2-6).
+    if (!off && one.state !== "paused") {
       var mail = el("section", "card sub-mail");
       mail.appendChild(el("h2", "section-title", t("subs.mail.head", "Mail")));
       var line = el("p", "sub-mail-line");

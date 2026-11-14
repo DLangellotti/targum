@@ -325,7 +325,9 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
 .sub-done,
 .sub-waiting { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 600; }
 .sub-done { color: var(--leaf); }
-.sub-waiting { color: var(--clay); }
+/* Waiting for the month's cap is a wait, not a fault: muted ink, never clay (§4; #716
+   P2-12). */
+.sub-waiting { color: var(--ink-soft); }
 .sub-done .sub-glyph,
 .sub-waiting .sub-glyph { inline-size: 0.875rem; block-size: 0.875rem; }
 .sub-item .sub-act { flex: none; }

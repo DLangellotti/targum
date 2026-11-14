@@ -880,6 +880,8 @@ SHARED_SCRIPT_KEYS = (
     "fault.",
     # Saving for offline, which every page with the bar carries (design.md §12, 2026-10-09).
     "offline.",
+    # A text's one figure, said by `strings.js` on every desk page (targum-internal#716).
+    "known.",
 )
 
 
@@ -8712,6 +8714,30 @@ def contents_page(
     tokens_all = sum((known.get(row["number"]) or (0, 0, 0))[0] for row in rows)
     hits_all = sum((known.get(row["number"]) or (0, 0, 0))[1] for row in rows)
     read_count = sum(1 for row in rows if row["read"])
+    # The whole text's figure is the one every other page prints for it (design.md §12,
+    # "A text's figure is our estimate until your marks settle it", 2026-11-04;
+    # targum-internal#716 P1-1): the server's `coverage.state` of the whole build, our
+    # estimate where that is it, said as ours. The parts' own lines stay their marks.
+    whole = state.get("whole") or None
+    known_all = share(tokens_all, hits_all)
+    known_said = ""
+    if isinstance(whole, Mapping) and isinstance(whole.get("known"), (int, float)):
+        from ..level import known_percent
+
+        estimated = whole.get("estimated")
+        if isinstance(estimated, (int, float)):
+            known_all = known_percent(float(estimated))
+            known_said = str(
+                t(
+                    "suggest.estimated",
+                    "You know about {share}% of its words (our estimate).",
+                    share=known_all,
+                )
+            ).rstrip(".")
+        else:
+            known_all = known_percent(float(whole["known"]))
+    if known_all is not None and not known_said:
+        known_said = str(t("parts.page.you-know", "You know {n}% of its words", n=known_all))
 
     # Continue, where the account knows the place; the medium's first verb where not
     # (§6). Signed out, the page's script reads this browser's own place instead.
@@ -8809,7 +8835,8 @@ def contents_page(
             hours=all_minutes // 60,
             minutes_left=all_minutes % 60,
             film_minutes=max(1, round(seconds / 60)) if seconds else all_minutes,
-            known_all=share(tokens_all, hits_all),
+            known_all=known_all,
+            known_said=known_said,
             read_count=read_count,
             placed=at_row is not None,
             stopped=clock(seconds_at) if layout == "film" and at_row and seconds_at else "",

@@ -4,7 +4,8 @@
  *
  * The payload is a list of cases, each `{items, at}`; what comes back is, for each,
  * what `neighbours` answered and the address `addressOf` makes for the next one. With
- * `addUp` instead, a list of kept figures by place, and what the end card adds up.
+ * `addUp` instead, a list of kept figures by place, and what the end card adds up. With
+ * `figures`, rows as the server sends them, and the one figure each prints.
  */
 
 "use strict";
@@ -21,6 +22,10 @@ global.location = { protocol: "file:", search: "" };
 require(path.join(assets, "list.js"));
 
 const list = global.window.TargumList;
+if (payload.figures) {
+  process.stdout.write(JSON.stringify(payload.figures.map((row) => list.figure(row))));
+  process.exit(0);
+}
 if (payload.addUp) {
   process.stdout.write(JSON.stringify(payload.addUp.map((kept) => list.addUp(kept))));
   process.exit(0);

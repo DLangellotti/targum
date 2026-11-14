@@ -291,20 +291,24 @@
     });
     var jobSubtitle = subtitle(job);
     if (jobSubtitle.text) line.appendChild(englishFact(jobSubtitle.text, jobSubtitle.language));
+    // One waiting in line is not being built: it says Waiting, with no meter, since
+    // nothing of it is done (as Continue says it, #695 P1-3; #716 P2-4).
+    var queued = job.stage === "queued";
+    var state = queued ? t("shelf.status.waiting", "Waiting") : t("shelf.status.building", "Building");
     // The status again, for a phone, where the tag beside the row folds away.
     var folded = document.createElement("span");
-    folded.className = "fact fact-status is-building";
-    folded.textContent = t("shelf.status.building", "Building");
+    folded.className = "fact fact-status " + (queued ? "is-waiting" : "is-building");
+    folded.textContent = state;
     line.appendChild(folded);
     what.appendChild(line);
     box.appendChild(what);
 
-    // In the kind's place, what it is now: being built, in the primary.
+    // In the kind's place, what it is now: being built, in the primary; waiting, quiet.
     var pill = document.createElement("span");
-    pill.className = "tag is-building row-status";
-    pill.textContent = t("shelf.status.building", "Building");
+    pill.className = "tag row-status " + (queued ? "is-waiting" : "is-building");
+    pill.textContent = state;
     box.appendChild(pill);
-    box.appendChild(meter(job.total > 0 ? job.done / job.total : 0.1, "is-building"));
+    box.appendChild(queued ? meter(-1) : meter(job.total > 0 ? job.done / job.total : 0.1, "is-building"));
     item.appendChild(box);
     // The end column empty; the controls' column holds Cancel where the build is the
     // reader's to cancel (targum-internal#694), its words under the title. Once it has
@@ -364,20 +368,33 @@
 
   // How much of it the reader knows, in leaf (the desk's `.meter`); an empty cell where
   // there is no figure, so the columns stay in line.
+  // A row's meter says the text's one figure (`TargumStrings.figure`): our estimate where
+  // that is it, as Continue and the playlist say it, never the marked share beside a
+  // Continue card that says ours (targum-internal#716, P1-1). `share` is a number for a
+  // build's progress, or the reader row itself.
   function meter(share, kind) {
     var line = document.createElement("span");
     line.setAttribute("aria-hidden", "true");
+    var found = null;
+    if (share && typeof share === "object") {
+      var strings = window.TargumStrings;
+      found = strings && strings.figure ? strings.figure(share) : null;
+      share = found ? found.share : -1;
+    }
     if (typeof share !== "number" || share < 0) {
       line.className = "row-meter";
       return line;
     }
     line.className = "meter row-meter" + (kind ? " " + kind : "");
-    if (!kind) {
+    if (!kind && found) {
       line.removeAttribute("aria-hidden");
       line.setAttribute("role", "img");
-      var said = t("shelf.known", "You know {share}% of the whole text", { share: Math.round(share * 100) });
+      var said = found.estimated
+        ? t("home.card.known-estimate", "You know about {share}% of the whole text (our estimate)", { share: found.percent })
+        : t("shelf.known", "You know {share}% of the whole text", { share: found.percent });
       line.setAttribute("aria-label", said);
       line.title = said;
+      if (found.estimated) line.classList.add("is-estimate");
     }
     var fill = document.createElement("span");
     fill.style.setProperty("--done", String(Math.max(0, Math.min(1, share))));
@@ -472,7 +489,7 @@
     // The board's row (Main): its kind as a tag, how much of it is known as a meter, and
     // when at the end. The status is said in the line under the title.
     item.appendChild(tagOf(kindWord(reader)));
-    item.appendChild(meter(typeof reader.known === "number" && reader.words ? reader.known : -1));
+    item.appendChild(meter(reader));
     item.appendChild(endOf(whenOf(reader)));
 
     var controls = document.createElement("span");

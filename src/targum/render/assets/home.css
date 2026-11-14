@@ -490,7 +490,8 @@ body.is-subscribing .home-grid { grid-template-columns: minmax(0, 1fr); }
    the line said it a second time beside it (#695). Under 64rem the tag folds and the
    line's is the one. */
 @media (min-width: 64.0625rem) {
-  #library-list .book-facts .fact-status.is-building { display: none; }
+  #library-list .book-facts .fact-status.is-building,
+  #library-list .book-facts .fact-status.is-waiting { display: none; }
 }
 #library-list .book-english { display: inline; color: var(--ink-soft); }
 #library-list .row-tag { justify-self: start; max-inline-size: 100%; overflow: hidden; text-overflow: ellipsis; }

@@ -38,6 +38,18 @@ body.yours main[hidden] {
 }
 .learn-waiting[hidden] { display: none; }
 
+/* The tabs, outside the page while the shelf is slow or failed (#716 P2-3), in the
+   column the page stands in. */
+.yours-tabs-alone {
+  max-width: var(--column);
+  margin: 1.5rem auto 0;
+  padding-inline: 1.25rem;
+}
+.yours-tabs-alone[hidden] { display: none; }
+@media (max-width: 40rem) {
+  .yours-tabs-alone { padding-inline: 1rem; margin-block-start: 1rem; }
+}
+
 /* Nothing yet, or nothing could be loaded. */
 body.yours .nothing {
   max-width: 34rem;

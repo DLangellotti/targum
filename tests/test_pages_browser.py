@@ -3006,7 +3006,8 @@ def test_a_new_reader_is_asked_first_and_then_sees_an_honest_home(browser) -> No
     )
     context.close()
     assert went == []
-    assert got == {"label": "One to start with", "tabs": "none", "shelf": True}, got
+    # The tabs stay, at the top (#716 P2-3): playlists and subscriptions are reached here.
+    assert got == {"label": "One to start with", "tabs": "flex", "shelf": True}, got
 
 
 def test_home_notes_what_became_of_its_suggestion(browser) -> None:

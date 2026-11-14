@@ -1316,31 +1316,35 @@
     return line;
   }
 
-  // A text's whole figure, as the Continue cards say it: the marked share, or our
-  // estimate where that is the figure (`estimated` from `/readers`).
+  // A text's whole figure, as the Continue cards say it: the one figure every row and
+  // playlist says for it too (`TargumStrings.figure`, targum-internal#716 P1-1). Nothing
+  // where none of it is known yet: "0%" says nothing a card should.
+  function wholeFigure(reader) {
+    if (!reader || !reader.words) return null;
+    var found = words.figure ? words.figure(reader) : null;
+    return found && found.share > 0 ? found : null;
+  }
+
   function wholeShare(reader) {
-    if (!reader || !reader.words) return 0;
-    if (typeof reader.estimated === "number" && reader.estimated > 0) return reader.estimated;
-    return typeof reader.known === "number" && reader.known > 0 ? reader.known : 0;
+    var found = wholeFigure(reader);
+    return found ? found.share : 0;
   }
 
   function wholeSaid(reader) {
-    var share = wholeShare(reader);
-    if (!share) return "";
-    var percent = Math.max(1, Math.min(99, Math.round(share * 100)));
-    if (share >= 1) percent = 100;
+    var found = wholeFigure(reader);
+    if (!found) return "";
+    var percent = found.percent;
     // Of the whole video, or the whole recording: a video is never called a text (§6;
     // #695).
     var medium = mediumOf(reader);
-    if (typeof reader.estimated === "number" && reader.estimated > 0) {
+    if (found.estimated) {
       if (medium === "watch") return t("home.card.known-estimate.video", "You know about {share}% of the whole video (our estimate)", { share: percent });
       if (medium === "listen") return t("home.card.known-estimate.audio", "You know about {share}% of the whole recording (our estimate)", { share: percent });
       return t("home.card.known-estimate", "You know about {share}% of the whole text (our estimate)", { share: percent });
     }
-    var whole = Math.round(share * 100);
-    if (medium === "watch") return t("home.card.known.video", "You know {share}% of the whole video", { share: whole });
-    if (medium === "listen") return t("home.card.known.audio", "You know {share}% of the whole recording", { share: whole });
-    return t("home.card.known", "You know {share}% of the whole text", { share: whole });
+    if (medium === "watch") return t("home.card.known.video", "You know {share}% of the whole video", { share: percent });
+    if (medium === "listen") return t("home.card.known.audio", "You know {share}% of the whole recording", { share: percent });
+    return t("home.card.known", "You know {share}% of the whole text", { share: percent });
   }
 
   function siteOf(host) {

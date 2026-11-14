@@ -1275,7 +1275,12 @@
     // and pushed the portion row apart (#696 P1 5).
     if (/(^|\s|-)card(\s|$)/.test(link.className || "")) return { parent: link, before: null };
     if (holder === link) return { parent: link.parentNode, before: link.nextSibling };
-    var main = holder.querySelector(":scope > .row-main, :scope > .building > .row-main");
+    // A playlist's row is a grid too: its reason is a line of the title's column, under
+    // the kind, never a cell of its own (it stood in the number column, one word a line,
+    // #716 P1-2).
+    var main = holder.querySelector(
+      ":scope > .row-main, :scope > .building > .row-main, :scope > .item-what"
+    );
     if (main) return { parent: main, before: null };
     return { parent: holder, before: null };
   }

@@ -72,7 +72,7 @@
       {#- What the reader would follow of it, from their own words, and how far they got.
           Leaf, because a green thing is always progress (§13). -#}
       <div class="parts-known">
-        <p><span>{{ t("parts.page.you-know", "You know {n}% of its words", n=known_all) }}</span>
+        <p><span>{{ known_said }}</span>
         <span>{% if layout == 'film' %}{{ t("parts.page.watched-of", "{done} of {count} watched", done=read_count, count=count) }}{% else %}{{ t("parts.page.read-of", "{done} of {count} read", done=read_count, count=count) }}{% endif %}</span></p>
         <progress class="parts-meter" max="100" value="{{ known_all }}" aria-hidden="true"></progress>
       </div>
