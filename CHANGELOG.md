@@ -36,6 +36,38 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   button as #1235 left it.
 - Strings: eleven `you.page.*` keys and four `serve.*` refusals in English and Russian.
   The Russian is a first draft for ling-ru. `you.page.email` is gone.
+- Meanings in the language itself, bought a tap at a time (targum-internal#538, design.md
+  §12, 2026-11-14). **Built behind a per-language switch that is off everywhere** until
+  each language's owner has read the model's answers (ling-he 100, ling-fr, ling-ru and
+  ling-it 50 each): `accounts.MEANINGS_OPEN` is empty, and `TARGUM_MEANINGS_OPEN=he`
+  opens a language on one install for trying it.
+  - Your languages gets "Meanings of Hebrew words: In English | In Hebrew" (and French,
+    Russian, Italian), one row per learned language the install offers it for. Never
+    Aramaic or Yiddish. Off by default, no level gate, not asked by the arrival. Kept on
+    `person.meanings` (accounts schema 68→69, one ALTER), saved at
+    `POST /account/meanings`, carried by `/account/me` (`meaningsInItself`,
+    `meaningsOffered`), the export, and cleared by a wipe.
+  - `/gloss` now buys `source == target` only for a reader who chose it for that
+    language, learns it, and is on an install that offers it. Everybody else is still
+    refused as #1220 left it, and so is any other target the page names. Same path, same
+    shared cache, keyed on the pair (`he`, `he`). `models.SCHEMA_VERSION` is untouched.
+  - The model is asked with a second prompt, used only where source and target are one
+    language (`gloss.system_for`): a learner's dictionary line in simple Hebrew. Every
+    other pair's prompt is byte for byte what it was, so nothing held is bought again.
+    Hebrew definitions are unpointed, and any nikkud the model writes is taken off.
+  - A build, a rebuild and `fill_from_cache` never buy one (`build_glossary` refuses to
+    buy where source == target). There is no backfill.
+  - On the card, with it on: the meaning in the language leads, in the Hebrew face, and
+    "In English: …" sits under it, quieter. A meaning not held is asked for in the
+    background (cache first, then one word with its sentence), and the card redraws when
+    it lands. A failure leaves the English up and says nothing new. Offline, the queued
+    lookup asks in the language itself. "This meaning is wrong" still corrects the
+    translation meaning.
+  - Your Words and the practice card show the meaning in the language where a card
+    already bought it, and the translation meaning where not. Neither asks `/gloss`.
+  - Strings: 16 new keys (`you.page.meanings-*`, `reader.card.also-in-en`/`-ru`,
+    `serve.meanings-not-offered`) in English and Russian. The Russian is a first draft
+    for ling-ru.
 
 ### Changed
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`

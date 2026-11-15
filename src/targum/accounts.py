@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 import secrets
 import sqlite3
@@ -463,10 +464,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    Nothing of Google's own is kept: no account id, name, picture or token. Two added
 #    columns, two ALTERs; every account before them reads as never linked.
 #
+# 68→69: person.meanings — the languages whose word meanings this reader asked for in the
+#    language itself (targum-internal#538, design.md §12 2026-11-14, "Meanings in the
+#    language itself, bought a tap at a time"). A comma-separated list of learned codes,
+#    "he,ru"; '' is off for every language, which is every account before it. One ALTER.
+#
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 68
+SCHEMA_VERSION = 69
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -973,7 +979,29 @@ MIGRATIONS: tuple[str, ...] = (
     # used, 1 linked, 0 unlinked by the person; then when it was last used.
     "ALTER TABLE person ADD COLUMN google INTEGER",
     "ALTER TABLE person ADD COLUMN google_used INTEGER NOT NULL DEFAULT 0",
+    # The languages whose meanings are asked for in the language itself (schema 69,
+    # targum-internal#538): '' is off everywhere.
+    "ALTER TABLE person ADD COLUMN meanings TEXT NOT NULL DEFAULT ''",
 )
+
+#: The learned languages whose word meanings a reader may ask for in the language itself
+#: (targum-internal#538, design.md §12, "Meanings in the language itself, bought a tap at
+#: a time", 2026-11-14). Not Aramaic or Yiddish: neither has meanings of this kind.
+MEANINGS_IN_ITSELF = ("he", "fr", "ru", "it")
+
+#: Of those, the ones whose row is offered. Empty until each language's owner has read
+#: the model's answers (ling-he a hundred, ling-fr, ling-ru and ling-it fifty each): a
+#: language goes in here by a PR that says the read passed. `TARGUM_MEANINGS_OPEN`
+#: ("he,fr") opens languages on one install, for trying the row before then.
+MEANINGS_OPEN: frozenset[str] = frozenset()
+
+
+def meanings_open() -> frozenset[str]:
+    """The languages whose "Meanings of … words" row is offered here, and so whose
+    meanings in the language itself `/gloss` may buy for a reader who chose them."""
+    extra = {part.strip().lower() for part in os.environ.get("TARGUM_MEANINGS_OPEN", "").split(",")}
+    return frozenset(code for code in MEANINGS_OPEN | extra if code in MEANINGS_IN_ITSELF)
+
 
 #: The ways in an account can have (targum-internal#502). The email link is always one of
 #: them: the account is keyed on the address, so it can never be taken away.
@@ -2359,7 +2387,7 @@ class Store:
         they", which two pages need.
         """
         row = self.db.execute(
-            "SELECT email, name, picture, made, address, interest, declared "
+            "SELECT email, name, picture, made, address, interest, declared, meanings "
             "FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
@@ -2381,6 +2409,14 @@ class Store:
             # Every language's, since a French or Russian rung no longer takes Hebrew's
             # place (targum-internal#631): {"he": "bet", "ru": "a2"}.
             "declaredBy": self.declared_map(str(row["declared"] or "")),
+            # The languages whose meanings they asked for in the language itself
+            # (targum-internal#538), narrowed to the ones offered on this install: a
+            # choice kept while its row is not offered does nothing until it is.
+            "meaningsInItself": [
+                code
+                for code in self.meanings_of(str(row["meanings"] or ""))
+                if code in meanings_open()
+            ],
         }
 
     #: What a reader can say they are interested in, asked when they arrive
@@ -2575,6 +2611,52 @@ class Store:
                 (self._declared_column(rungs), person.id),
             )
         return said
+
+    # -- meanings in the language itself (targum-internal#538) ------------------------
+
+    @staticmethod
+    def meanings_of(stored: str) -> list[str]:
+        """The stored column read back: each language whose meanings are asked for in the
+        language itself, once, in order, and only languages that may have them."""
+        out: list[str] = []
+        for part in str(stored or "").lower().split(","):
+            code = part.strip()
+            if code in MEANINGS_IN_ITSELF and code not in out:
+                out.append(code)
+        return sorted(out)
+
+    def meanings_in_itself(self, person_id: int | None) -> list[str]:
+        """The languages this reader asked for meanings in the language itself, as kept.
+
+        Not narrowed to what the install offers: `/gloss` narrows, so the check that
+        buys is the one that knows which rows are open (`meanings_open`)."""
+        if person_id is None:
+            return []
+        row = self.db.execute(
+            "SELECT meanings FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return self.meanings_of(str(row["meanings"] or "")) if row is not None else []
+
+    def set_meanings(self, person: Person, language: str, itself: bool) -> list[str]:
+        """Keep, for one learned language, whether its meanings are said in itself (True)
+        or in the language the account reads into (False). The other languages' choices
+        stay as they were. A language with no meanings of this kind, Aramaic and Yiddish
+        among them, is refused (design.md §12, 2026-11-14). Returns the whole list."""
+        code = str(language or "").split("-")[0].strip().lower()
+        if code not in MEANINGS_IN_ITSELF:
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            row = db.execute("SELECT meanings FROM person WHERE id = ?", (person.id,)).fetchone()
+            kept = set(self.meanings_of(str(row["meanings"] or "") if row is not None else ""))
+            if itself:
+                kept.add(code)
+            else:
+                kept.discard(code)
+            db.execute(
+                "UPDATE person SET meanings = ?, ledger = ledger + 1 WHERE id = ?",
+                (",".join(sorted(kept)), person.id),
+            )
+        return sorted(kept)
 
     # -- the words check on arrival (targum-internal#613) ----------------------------
 
@@ -4040,7 +4122,8 @@ class Store:
             db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
             db.execute(
                 "UPDATE person SET name = '', picture = '', address = '', interest = '',"
-                " declared = '', events = '', granted = 0, revision = revision + 1,"
+                " declared = '', meanings = '', events = '', granted = 0,"
+                " revision = revision + 1,"
                 " ledger = ledger + 1"
                 " WHERE id = ?",
                 (person.id,),
@@ -4831,7 +4914,7 @@ class Store:
     def _settings_of(self, person: Person) -> dict[str, Any]:
         """The account's own settings, as the reader set them, for `everything`."""
         row = self.db.execute(
-            "SELECT address, interest, declared, events, granted, came_from"
+            "SELECT address, interest, declared, meanings, events, granted, came_from"
             " FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
@@ -4841,6 +4924,8 @@ class Store:
             # A rung per language, as the reader named them, not the packed column
             # ("bet,ru:a2"), which is targum's way of keeping them (qa-claude on #1112).
             "declared": self.declared_map(str(row["declared"] or "")),
+            # The languages whose meanings they asked for in the language itself (#538).
+            "meanings_in_itself": self.meanings_of(str(row["meanings"] or "")),
             "record": "off" if row["events"] == "off" else "kept",
             "granted": row["granted"],
             # Which page, or which link's tag, the account came in by (#676).

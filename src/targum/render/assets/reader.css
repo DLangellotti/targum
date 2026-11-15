@@ -5953,6 +5953,9 @@ body.list-ended .list-end .list-end-over {
 #gloss-card .lemma[lang="yi"],
 #gloss-card .lemma[lang="arc"] { line-height: 1.5; }
 #gloss-card .meaning { margin: 0; color: var(--ink); font-size: 1.0625rem; }
+/* A meaning in the language itself (targum-internal#538) in the meaning's place and size,
+   in the language's reading face; the translation meaning quieter under it. */
+#gloss-card .meaning.itself[lang|="he"] { font-family: var(--reading-hebrew); line-height: 1.5; }
 /* The copy keys wait for the pointer, as they do in a row: the board's card has none
    drawn, and a word is still copied from where it is. */
 #gloss-card .copy { opacity: 0; }
