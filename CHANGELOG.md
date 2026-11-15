@@ -5,6 +5,38 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Added
+- "Ways to sign in" on Your account: link and unlink Google (targum-internal#502,
+  design.md §12 "Sign in with Google goes live, and signup opens to anyone", 2026-11-14).
+  - The Account card's Email row becomes "Ways to sign in". "Email link" shows the
+    address and "Always on", with no press. "Google" says "Linked · last used 12
+    November" with Unlink, or "Not linked" with Link. The Google row is drawn only where
+    `google.configured()` holds.
+  - The store keeps, per person, whether Google is linked and when it was last used, as the
+    Privacy Notice says and no more (`person.google`, `google_used`; accounts schema
+    67→68, two ALTERs). No date it was linked, and nothing of Google's own.
+    `models.SCHEMA_VERSION` is untouched.
+  - `sign_in_verified(via="google")` records each use, and the first Continue with Google
+    links Google. After Unlink, Continue with Google is refused with "Google sign-in is
+    off for this account. Use the email link, or link Google again from Your account."
+    and nobody is signed in.
+  - Link goes through Google with `/account/google?link=1`, needs a session, never signs
+    anybody in, and comes back to `/you#ways`. It links only when Google proves the
+    account's own address. Any other address is refused in one line naming both, said
+    once through `/account/me` (`waysSaid`) so no address goes in a URL.
+  - `POST /account/google/unlink` asks nothing; the page says "Unlinked · Undo" for eight
+    seconds, and `POST /account/google/link-again` is that Undo, honoured for 30 seconds
+    after the Unlink. Both are refused from another site and without a JSON body.
+  - `accounts.removable` holds that the last way in is never removed. Email is always on,
+    so today it refuses nobody.
+  - `/account/me` returns `ways`.
+- Continue with Google under the front door's form (hero and ending), only while signup is
+  open and a client is configured, and never under a tried link. Today the door is shut,
+  so the front door draws no Google. The invitation's page (`?invited=1`) keeps the
+  button as #1235 left it.
+- Strings: eleven `you.page.*` keys and four `serve.*` refusals in English and Russian.
+  The Russian is a first draft for ling-ru. `you.page.email` is gone.
+
 ### Changed
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`
   (targum-internal#723, design.md §12 "The invitation's link leads with signing in",
@@ -58,6 +90,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian
     and taps each line. No spend.
+- Remove can be undone everywhere a copy is removed (targum-internal#720 follow-up,
+  design.md §12 "An offline copy follows its text when opened online, and Remove can be
+  undone", 2026-11-14).
+  - The reader's ⋯ "Remove from this device", and a playlist page's Remove, now say
+    "Removed · Undo" for 8 seconds, as Saved on this device does, and ask nothing first.
+    They use the same `TargumOffline.take` and `undo`, so Undo works offline, where a
+    saved reader is the only copy. The keyboard lands on Undo, comes back to Remove after
+    Undo, and the line goes, with the files, once it is left alone.
+  - The line waits only while the keyboard the browser shows (`:focus-visible`) or a
+    mouse or pen is on it (`TargumOffline.lingers`, now used by Saved too). On touch a
+    tap left focus and a stuck `:hover` behind it, and the line never went.
+  - When Undo finds the files gone (a sign-out in another tab, a browser that cleared its
+    storage), one quiet line says "The files are no longer on this device, so it couldn't
+    be put back." The keyboard goes to that line on Saved, and to Save for offline in a
+    row.
+  - A file saved before copies kept stamps now learns the server's current stamp the
+    next time the text is saved, so a later re-cut reaches it (qa-claude on #1234).
+  - A book's contents page now says which build of the text it lists (`X-Targum-Version`,
+    a hash of `contents.json` and the page's language). Opened online with a version
+    other than the copy's, the worker tells the page, and the copy fetches what the text
+    now takes. So a text that only gained a part gets that part, and nothing it already
+    held is fetched again.
+  - Four new strings in English and Russian: `offline.removed` «Убрано», `offline.undo`
+    «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
+    keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
+    устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 - Google sign-in is bound to the browser that started it (targum-internal#729, login
   CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
   SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
@@ -66,7 +124,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   session, and spends the `state` so the address works nowhere after. The cookie is cleared
   on every answer that reads it. So a callback address somebody started as themselves and
   sent on can no longer sign another browser into their account. No new strings: the
-  refusal is "That sign-in didn't finish." with Sign in again.
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
@@ -86,6 +146,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     newer "library record" now reads "library record chat" instead of losing `chat`.
     Disconnect still revokes everything for the app. `record_turn` and
     `Library.claim_turn` are unchanged. No spend.
+- At a desk the word's card opens over the listening view (targum-internal#730, found by
+  design's §14 pass on targum#1243). It floated at `.gloss-card`'s z-index 20 under
+  `.listen-view`'s 29, so a word tapped there opened a card that was drawn and out of
+  sight, and nothing on it could be pressed; the phone's sheet already stood over it at
+  30. `body.listening #gloss-card` now stands at 32 beside the pick card. A browser test
+  at 1440 taps a word in the listening view and presses a stage on its card. No new
+  strings.
 - A video's own subtitle track is punctuated when it has no full stops, and drawn into
   paragraphs (targum-internal#727). David's Doña Gracia video came with the creator's
   Hebrew track: 2,873 words with one full stop and one comma. It was taken as the source

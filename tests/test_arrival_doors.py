@@ -328,3 +328,12 @@ def test_every_invitation_link_says_it_came_from_the_invitation() -> None:
                 links = re.findall(r"/account/signin[^\s\"'<]*", body)
                 assert links, (language, connector)
                 assert all("invited=1" in one for one in links), (language, connector, links)
+
+
+def test_the_state_cookie_is_secure_only_over_https() -> None:
+    """A laptop's own serve is plain http on loopback, where a Secure cookie is never
+    sent back, and Google sign-in there would refuse every return."""
+    assert "Secure" not in serve.google_state_cookie("s", "http://127.0.0.1:8765")
+    assert "; Secure" in serve.google_state_cookie("s", "https://targum.page")
+    cleared = serve.google_state_cookie("", "https://targum.page")
+    assert f"{serve.GOOGLE_STATE_COOKIE}=;" in cleared and "Max-Age=0" in cleared

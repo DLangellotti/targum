@@ -306,3 +306,56 @@ def test_arriving_cold_to_listen_waits_for_the_press_and_says_nothing_wrong(
         page.wait_for_function("() => !TargumPlayer.paused() && TargumPlayer.at() > 0.1")
     finally:
         context.close()
+
+
+#: Whatever stands at the middle of the open card, and whether it is the card's own.
+ON_TOP = """
+() => {
+  const card = document.getElementById('gloss-card');
+  const box = card.getBoundingClientRect();
+  const top = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+  return {width: box.width, height: box.height, own: !!(top && card.contains(top)),
+          top: top ? (top.id || top.className) : null};
+}
+"""
+
+#: The word store, every language, as the reader keeps it.
+STORED = """
+() => Object.assign({}, ...Object.keys(localStorage)
+  .filter((key) => key.startsWith('targum:vocab:'))
+  .map((key) => JSON.parse(localStorage.getItem(key) || '{}')))
+"""
+
+
+def test_at_a_desk_a_word_s_card_opens_over_the_listening_view(
+    browser,  # noqa: F811
+    tmp_path,
+    monkeypatch,
+) -> None:
+    """targum-internal#730: at 1440 the card opened under the view (`.gloss-card`'s 20
+    under `.listen-view`'s 29), drawn and out of sight, so nothing on it could be pressed
+    from the listening view at a desk. The phone's sheet already stood over it. The card
+    stands over the view at every width, and a stage pressed on it is kept."""
+    monkeypatch.setenv("TARGUM_DIALOGUE_DIR", str(tmp_path / "dialogues"))
+    built = dialogue(
+        tmp_path / "dialogues", tmp_path / "reader", turns=TURNS, span=SPAN, words=True
+    )
+    context = opened(browser, viewport={"width": 1440, "height": 900})
+    try:
+        page = context.new_page()
+        page.goto(address(built))
+        page.wait_for_function("() => !!(window.TargumPlayer && window.TargumPlayer.lines)")
+        page.wait_for_function("() => window.TargumPlayer.length() > 0")
+        page.evaluate("() => document.querySelector('[data-listen-view]').click()")
+        page.wait_for_selector("#listen-view:not([hidden])")
+        page.click(".lv-now .w >> nth=0")
+        page.wait_for_selector("#gloss-card:not([hidden]) .vocab-editor .level-1")
+        seen = page.evaluate(ON_TOP)
+        assert seen["width"] > 0 and seen["height"] > 0
+        assert seen["own"], f"the card is under {seen['top']}"
+        # A real press, which Playwright refuses when something else takes the pointer.
+        page.click("#gloss-card .vocab-editor .level-1", timeout=3000)
+        kept = page.evaluate(STORED)
+        assert any(word.get("status") == 1 for word in kept.values()), kept
+    finally:
+        context.close()
