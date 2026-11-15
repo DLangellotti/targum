@@ -353,6 +353,11 @@
       pause.title = t("subs.pause", "Pause");
       pause.setAttribute("aria-label", t("subs.pause", "Pause") + " · " + nameOf(one));
       pause.appendChild(glyph("pause"));
+      // Said beside the glyph where the row is narrow (subs.css); hidden from the
+      // accessible name, which the label already gives with the subscription's.
+      var word = el("span", "sub-row-pause-word", t("subs.pause", "Pause"));
+      word.setAttribute("aria-hidden", "true");
+      pause.appendChild(word);
       pause.onclick = function () {
         pause.disabled = true;
         ask("/subscriptions/" + one.id, { action: "pause" }).then(function () {

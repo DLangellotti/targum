@@ -929,6 +929,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
   today and the seeded today are one day. Timers still run, and there are no sleeps.
   Tests only.
+- Finish-card leftovers (targum-internal#716 P2 19, #719 P2 11, #720 P2 12, #725 P2 12,
+  and #723 P2 8 for #703).
+  - Your targums: at 390 a playlist's ⋯ opens Rename and Delete in the head's own row
+    instead of floating over the first row's title and remove press at the screen's edge. On a
+    phone, a subscription row's Pause stands at the end of its name and says "Pause"
+    beside ‖, instead of a bare ‖ on a line of its own. At a desk the row's last column
+    keeps one width, so a paused row's Latest and Comes out line up with the others.
+  - Your account (plans on): the top-up amounts beside the greyed Top up are plain muted
+    text ("60 credits · 180 credits · 600 credits"), not a live-looking segment.
+  - Saved: Recent texts and Videos are one Tab stop each, and the arrow keys choose
+    between their options (mirrored under RTL), as Account's form of address does.
+  - Your Words: the practice card's line is cut to the sentence the word stands in. A
+    line could be a paragraph (nine lines from אהבת ציון). The translation is cut to the
+    sentence in the same place where it splits into as many sentences, and left off
+    where it doesn't, rather than a paragraph under one sentence.
+  - The reader: a byline the translation leaves as it was ("KhanAcademyHebrew") is said
+    once, and a byline is glued to what follows like a title plate, so on a phone with
+    the picture docked the first page holds the first line instead of only the title
+    and the source.
+  - No new strings. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

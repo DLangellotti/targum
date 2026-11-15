@@ -38,7 +38,10 @@
 .sub-head-row,
 .sub-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+  /* The last column is the row's two presses, at its width whether or not the row has
+     a Pause: an `auto` column was narrower on a paused row, and its Latest and Comes out
+     sat 12–25px right of every other row's (targum-internal#716, P2 19). */
+  grid-template-columns: minmax(0, 2.2fr) minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1.2fr) var(--sub-acts);
   gap: 0.75rem 1rem;
   align-items: center;
 }
@@ -119,8 +122,11 @@
 .sub-meta .tag { align-self: center; }
 .sub-names .sub-name + .sub-hebrew { margin-block-start: -0.1rem; }
 .sub-meter { flex: 1 0 100%; max-inline-size: 7.5rem; }
-.sub-row-acts { display: flex; align-items: center; gap: 0.125rem; }
+.sub-table { --sub-acts: 4.25rem; }
+.sub-row-acts { display: flex; align-items: center; justify-content: flex-end; gap: 0.125rem; }
 .sub-row-acts .btn { min-inline-size: 2rem; padding-inline: 0.4rem; }
+/* Pause's word is said only where the row is narrow and the press stands alone. */
+.sub-row-pause-word { display: none; }
 .sub-raise { padding-inline: 0; }
 .sub-foot a { display: inline-flex; align-items: center; gap: 0.3rem; }
 .sub-foot svg { inline-size: 1rem; block-size: 1rem; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
@@ -381,7 +387,15 @@ a.sub-item-title:hover { color: var(--teal); text-decoration: underline; }
    which it overrides. */
 @container sub-table (max-width: 40rem) {
   .sub-head-row { display: none; }
-  .sub-row { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  /* One column, with the row's presses at the end of its name rather than a bare ‖ on a
+     line of its own under everything (targum-internal#716, P2 19), and Pause saying its
+     word beside its glyph. */
+  .sub-row { grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem 0.75rem; }
+  .sub-row > * { grid-column: 1 / -1; }
+  .sub-row > .sub-who { grid-column: 1; grid-row: 1; }
+  .sub-row > .sub-row-acts { grid-column: 2; grid-row: 1; align-self: start; }
+  .sub-row-pause { gap: 0.3rem; }
+  .sub-row-pause-word { display: inline; }
   .sub-every { display: none; }
 }
 
@@ -616,6 +630,7 @@ body.press main.sub-gate { padding: 1.25rem 1rem 3rem; }
      height. The two presses take their width; the links take a centred reach that
      crosses no other press, as Tell us does (#471 B4). */
   .sub-row-acts .btn { min-inline-size: 44px; }
+  .sub-table { --sub-acts: 5.75rem; }
   .sub-back { display: inline-flex; align-items: center; min-block-size: 44px; }
   .sub-name,
   .sub-latest-title,
