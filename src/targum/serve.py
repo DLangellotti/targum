@@ -11982,9 +11982,8 @@ class Handler(BaseHTTPRequestHandler):
         past it. A word with no sound still goes in the deck, silent. Made in the
         background; one deck at a time a person.
         """
-        import unicodedata
 
-        from . import speech
+        from . import anki_send, speech
 
         person = self._person()
         if person is None:
@@ -12011,7 +12010,8 @@ class Handler(BaseHTTPRequestHandler):
             lemma = str(row["lemma"])
             if shown_set is not None and lemma not in shown_set:
                 continue
-            term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
+            # The one spelling Send to Anki matches an imported note by (`apkg_word`).
+            term = anki_send.apkg_word(row)
             given = backs.get(lemma) if isinstance(backs, dict) else None
             back = str(given)[:2000] if isinstance(given, str) else ""
             if not back:
@@ -12309,10 +12309,12 @@ class Handler(BaseHTTPRequestHandler):
         shared = self.library.shared
 
         def may_leave(folder: Path) -> bool:
+            # By the text's source wherever it sits: a catalogue text built into a
+            # reader's own home is held to its licence as on the shelf (qa-claude).
             try:
                 folder.resolve().relative_to(shared.resolve())
             except (OSError, ValueError):
-                return True
+                return anki_send.text_may_leave(folder, on_shelf=False)
             return anki_send.shared_may_leave(folder)
 
         def own() -> list[tuple[str, Path]]:

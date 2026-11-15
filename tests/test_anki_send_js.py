@@ -42,6 +42,7 @@ def word(lemma: str, meaning: str, *, stage: int = 2, **more: Any) -> dict[str, 
         "key": f"he:{lemma}",
         "lemma": lemma,
         "term": lemma,
+        "apkgWord": lemma,
         "meaning": meaning,
         "stage": stage,
         "add": stage in (1, 2, 3, 4),
@@ -180,18 +181,45 @@ def test_the_clips_come_from_targum_and_go_in_by_their_names() -> None:
 
 
 def test_an_apkg_word_gets_only_its_gap_card() -> None:
-    imported = {
-        "model": "targum word",
-        "fields": {"Word": "בית", "Meaning": "house", "Sound": ""},
-        "tags": ["targum", "targum::he"],
-    }
+    """Matched on the `.apkg`'s own Word string, never the line's form (qa-claude on
+    #1249): the line draws the word pointed (and may inflect it), the `.apkg` wrote the
+    saved word unpointed. And Word as Anki stores it, with `'` as `&#x27;`."""
+    imported = [
+        {
+            "model": "targum word",
+            "fields": {"Word": "בית", "Meaning": "house", "Sound": ""},
+            "tags": ["targum", "targum::he"],
+        },
+        {
+            "model": "targum word",
+            "fields": {"Word": "aujourd&#x27;hui", "Meaning": "today", "Sound": ""},
+            "tags": ["targum", "targum::fr"],
+        },
+    ]
+    pointed = "\u05d1\u05bc\u05b7\u05d9\u05b4\u05ea"  # בַּיִת
     said = run(
-        words=[word("בית", "house", gap="בית", before="אל ה"), word("ספר", "book")],
-        anki={"notes": [imported]},
+        words=[
+            word("בית", "house", term=pointed, gap=pointed, before="אל ה", apkgWord="בית"),
+            word("ספר", "book"),
+            word("aujourd'hui", "today", term="aujourd'hui", gap="aujourd'hui", before="C'est "),
+        ],
+        anki={"notes": imported},
     )
     sent = {n["fields"]["targum"]: n for n in said["notes"] if n["model"] == NOTETYPE}
-    assert sent["he:בית"]["fields"]["Word card"] == ""
+    assert pointed != "בית"
+    assert sent["he:בית"]["fields"]["Word card"] == "", "no second Word card"
     assert sent["he:ספר"]["fields"]["Word card"] == "y"
+    # The key goes in escaped, as every value does.
+    assert sent["he:aujourd&#39;hui"]["fields"]["Word card"] == ""
+
+
+def test_a_refused_update_is_counted_as_failed() -> None:
+    known = word("עיר", "city", stage=9)
+    held = {"model": NOTETYPE, "fields": {"targum": "he:עיר", "Sent": "old"}}
+    said = run(
+        words=[known], anki={"notes": [held], "models": [NOTETYPE], "refuseUpdate": "he:עיר"}
+    )
+    assert said["said"] == ["1 word couldn't be added."]
 
 
 def test_a_known_word_is_updated_and_never_added() -> None:

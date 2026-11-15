@@ -343,6 +343,45 @@ def test_a_line_that_may_not_leave_is_not_sent(
     assert (said["gap"], said["line"], said["source"]) == ("", "", ""), "no gap card"
 
 
+def test_a_closed_catalogue_text_built_into_a_reader_s_home_sends_no_line(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """qa-claude on #1249: the licence went by shelf, so an NC catalogue text a reader
+    built into their own home (a `/build` of a catalogue source, or a gift) sent its line.
+    It goes by source now, wherever the folder sits."""
+    import json
+
+    from targum import catalogue
+
+    port, token, out = served
+    cookie = sign_in(port, postbox)
+    # The one account here is the first, and its home is `p1` (`Library.home`).
+    folder = text(out / "p1" / "closed", {1: [("הילד הלך אל הבית", [w("בית", "בית")])]},
+                  content_hash="closed")  # fmt: skip
+    facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
+    facts["source"] = "sefaria:Closed Book"
+    (folder / "document.json").write_text(json.dumps(facts), encoding="utf-8")
+    recorded(folder, {"s1-0": [1.0, 3.5]})
+
+    class Row:
+        licence = "CC BY-NC 4.0"
+
+    real = catalogue.matching
+    monkeypatch.setattr(
+        catalogue,
+        "matching",
+        lambda source: Row() if source == "sefaria:Closed Book" else real(source),
+    )
+    keep(port, token, cookie, [("בית", 2)], [("closed", 1, ms(2026, 9))])
+    said = by_key(notes(port, token, cookie))["he:בית"]
+    assert (said["gap"], said["line"], said["source"]) == ("", "", ""), "no gap card"
+    # And a reader's own upload, which the catalogue does not know, still leaves.
+    assert anki_send.text_may_leave(folder, on_shelf=False) is False
+    monkeypatch.setattr(catalogue, "matching", lambda _source: None)
+    assert anki_send.text_may_leave(folder, on_shelf=False) is True
+    assert anki_send.text_may_leave(folder, on_shelf=True) is False
+
+
 def test_a_shared_text_the_catalogue_does_not_know_may_not_leave(tmp_path: Path) -> None:
     folder = text(tmp_path / "t", {1: [("שלום", [w("שלום", "שלום")])]})
     assert MAY_LEAVE(folder) is False
@@ -390,3 +429,56 @@ def test_the_notes_answer_names_no_file_on_this_disk(
     keep(port, token, cookie, [("בית", 2)], [("one", 1, ms(2026, 9))])
     said = notes(port, token, cookie)
     assert str(out) not in str(said) and "part-001" not in str(said)
+
+
+def test_a_note_carries_the_apkg_s_own_word() -> None:
+    """The `.apkg` writes Word as the saved word, NFC (`serve._deck_start`, through
+    `apkg_word`), and the page matches an imported note by that, not by the line's
+    pointed form (qa-claude on #1249)."""
+    import unicodedata
+
+    pointed = "בַּיִת"
+    line = {"before": "אל ה", "gap": pointed, "after": "", "translation": "", "title": "T"}
+    row = {"lemma": "בית", "status": 2, "surface": "בית", "meaning": "house", "note": ""}
+    said = anki_send.note(row, "he", line, None, None)
+    assert said["term"] == pointed
+    assert said["apkgWord"] == unicodedata.normalize("NFC", "בית") == anki_send.apkg_word(row)
+    assert anki_send.apkg_word({"lemma": "ספר", "surface": None}) == "ספר"
+
+
+def test_no_more_than_two_cuts_run_at_once(tmp_path: Path) -> None:
+    """One account's parallel line requests start at most two ffmpeg processes; the rest
+    wait their turn (qa-claude on #1249)."""
+    import threading
+
+    running = 0
+    most = 0
+    lock = threading.Lock()
+    gate = threading.Event()
+
+    def ffmpeg(command: list[str], **_kwargs: Any) -> Any:
+        nonlocal running, most
+        with lock:
+            running += 1
+            most = max(most, running)
+        gate.wait(5)
+        Path(command[-1]).write_bytes(b"ID3cut")
+        with lock:
+            running -= 1
+        return type("Done", (), {"returncode": 0})()
+
+    heard = [anki_send.Heard(tmp_path / f"r{n}.mp3", 1.0 + n, 2.0 + n) for n in range(5)]
+    threads = [
+        threading.Thread(target=anki_send.cut, args=(one,), kwargs={"run": ffmpeg}) for one in heard
+    ]
+    for one in threads:
+        one.start()
+    for _ in range(100):
+        with lock:
+            if running == 2:
+                break
+        threading.Event().wait(0.02)
+    gate.set()
+    for one in threads:
+        one.join(10)
+    assert most == 2

@@ -142,7 +142,7 @@
       .replace(/&lt;/g, "<")
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
+      .replace(/&#0*39;|&#x0*27;/gi, "'")
       .replace(/&nbsp;/g, " ")
       .replace(/&amp;/g, "&")
       .trim();
@@ -402,7 +402,8 @@
           var there = have.sent[word.key];
           if (!there) {
             // A word the `.apkg` already carries and with no line has no card to add.
-            if (word.add && !(have.imported[word.term] && !word.gap)) adds.push(word);
+            // Matched on the `.apkg`'s own Word string, not the line's form (qa-claude).
+            if (word.add && !(have.imported[word.apkgWord] && !word.gap)) adds.push(word);
           } else if (there.sent !== word.hash) {
             updates.push({ word: word, id: there.id });
           }
@@ -502,7 +503,7 @@
             var notes = some.map(function (word, n) {
               var values = fields(word, whole[n]);
               // A word an `.apkg` already carries gets only its Gap card.
-              values["Word card"] = imported[word.term] ? "" : "y";
+              values["Word card"] = imported[word.apkgWord] ? "" : "y";
               return {
                 deckName: where.deck,
                 modelName: NOTETYPE,
@@ -565,8 +566,19 @@
             });
             return call("multi", { actions: actions });
           })
-          .then(function () {
-            progress.updated += some.length;
+          .then(function (results) {
+            /* `multi` answers each action on its own: a failed one comes back as
+               { error } inside the list, not as the call's error. A word whose fields or
+               tags were refused is counted as failed; its Sent is unchanged, so the next
+               press tries it again. */
+            function refused(one) {
+              return !!(one && typeof one === "object" && one.error);
+            }
+            some.forEach(function (one, n) {
+              var list = results || [];
+              if (refused(list[2 * n]) || refused(list[2 * n + 1])) progress.failed += 1;
+              else progress.updated += 1;
+            });
             progress.done += some.length;
             sending();
             return batch(from + BATCH);

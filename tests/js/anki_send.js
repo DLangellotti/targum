@@ -117,6 +117,10 @@ function act(action, params, key) {
         error: null,
       };
     case "updateNoteFields":
+      // Inside `multi` a refusal is an answer of its own, not the call's error.
+      if (anki.refuseUpdate && notes[params.note.id].fields.targum === anki.refuseUpdate) {
+        return { result: null, error: "cannot update" };
+      }
       Object.assign(notes[params.note.id].fields, params.note.fields);
       return { result: null, error: null };
     case "updateNoteTags":

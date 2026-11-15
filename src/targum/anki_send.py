@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import threading
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -334,6 +335,13 @@ def tags(language: str, stage: int) -> str:
     return f"targum targum::{language} targum::level-{stage} {SENT_TAG}"
 
 
+def apkg_word(row: dict[str, Any]) -> str:
+    """The `Word` field an `.apkg` gives this saved word (`serve._deck_start`)."""
+    import unicodedata
+
+    return unicodedata.normalize("NFC", str(row.get("surface") or row["lemma"])).strip()
+
+
 def note(
     row: dict[str, Any],
     language: str,
@@ -360,6 +368,10 @@ def note(
         "key": key,
         "lemma": lemma,
         "term": line["gap"] if line is not None else surface,
+        # The Word an `.apkg` of this word carries, exactly as `serve._deck_start` writes
+        # it: the page finds an imported note by this, never by the line's form, which is
+        # pointed or inflected where the line has it (qa-claude on #1249).
+        "apkgWord": apkg_word(row),
         "meaning": " · ".join(part for part in (row.get("meaning"), row.get("note")) if part),
         "stage": stage,
         "add": stage in ADDED,
@@ -384,6 +396,12 @@ def sendable(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [row for row in rows if row.get("status") in ADDED or row.get("status") == KNOWN]
 
 
+#: At most two ffmpeg cuts at once on this server: one account firing parallel
+#: `/account/anki/line` requests would otherwise start one per uncached line (qa-claude
+#: on #1249). A third waits for one of the two.
+CUTTING = threading.BoundedSemaphore(2)
+
+
 def cut(heard: Heard, *, run: Callable[..., Any] | None = None) -> Path | None:
     """The line's clip, cut once into the cache: mono, 64k, `PAD` either side. None for a
     line too long to hold in the ear, or where ffmpeg could not cut it. Local compute
@@ -401,32 +419,36 @@ def cut(heard: Heard, *, run: Callable[..., Any] | None = None) -> Path | None:
     part = into.with_name(into.stem + ".part.mp3")
     run = run or subprocess.run
     try:
-        done = run(
-            [
-                "ffmpeg",
-                "-nostdin",
-                "-loglevel",
-                "error",
-                "-y",
-                "-ss",
-                f"{begin:.3f}",
-                "-t",
-                f"{length:.3f}",
-                "-i",
-                str(heard.path),
-                "-vn",
-                "-ac",
-                "1",
-                "-b:a",
-                "64k",
-                "-f",
-                "mp3",
-                str(part),
-            ],
-            capture_output=True,
-            timeout=60,
-            check=False,
-        )
+        with CUTTING:
+            if into.is_file() and into.stat().st_size > 0:
+                # Cut by another request while this one waited.
+                return into
+            done = run(
+                [
+                    "ffmpeg",
+                    "-nostdin",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-ss",
+                    f"{begin:.3f}",
+                    "-t",
+                    f"{length:.3f}",
+                    "-i",
+                    str(heard.path),
+                    "-vn",
+                    "-ac",
+                    "1",
+                    "-b:a",
+                    "64k",
+                    "-f",
+                    "mp3",
+                    str(part),
+                ],
+                capture_output=True,
+                timeout=60,
+                check=False,
+            )
     except (OSError, subprocess.SubprocessError):
         part.unlink(missing_ok=True)
         return None
@@ -437,17 +459,27 @@ def cut(heard: Heard, *, run: Callable[..., Any] | None = None) -> Path | None:
     return into
 
 
-def shared_may_leave(folder: Path) -> bool:
-    """Whether a shared-shelf text's lines may leave targum: its catalogue row's licence,
-    by `licensing.exportable`, the rule `targum licences` counts "may leave" by. A text
-    the catalogue does not know stays here."""
+def text_may_leave(folder: Path, *, on_shelf: bool) -> bool:
+    """Whether a text's lines may leave targum, by its source, wherever it sits: a
+    source the catalogue knows goes by that row's licence (`licensing.exportable`, the
+    rule `targum licences` counts "may leave" by), on the shared shelf or built into a
+    reader's own home alike (qa-claude on #1249). A source the catalogue does not know
+    is a reader's own upload or link, and leaves; on the shared shelf it stays."""
     from . import catalogue
     from .licensing import exportable
 
     try:
         facts = json.loads((folder / "document.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return False
+        return not on_shelf
     source = str(facts.get("source") or "") if isinstance(facts, dict) else ""
     entry = catalogue.matching(source) if source else None
-    return entry is not None and exportable(entry.licence)
+    if entry is not None:
+        return exportable(entry.licence)
+    return not on_shelf
+
+
+def shared_may_leave(folder: Path) -> bool:
+    """A shared-shelf text: by its catalogue row, and a text the catalogue does not
+    know stays here."""
+    return text_may_leave(folder, on_shelf=True)

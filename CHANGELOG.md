@@ -82,6 +82,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   unreachable, blocked by the browser, refused, old AnkiConnect, busy, key asked,
   stopped partway). New strings `yours.page.send-anki*` and `lists.anki-send.*` in
   English and Russian; the Russian waits on ling-ru. No spend.
+  - After qa-claude's review: an imported `.apkg` note is found by the `.apkg`'s own Word
+    (`anki_send.apkg_word`, which `_deck_start` now writes through), sent as `apkgWord`,
+    never by the line's pointed form, and Anki's `&#x27;` is read back as `'`. Whether a
+    line may leave goes by the text's source wherever it sits, so a closed catalogue text
+    built into a reader's own home sends none (`anki_send.text_may_leave`). At most two
+    ffmpeg cuts run at once (`CUTTING`). A refused update inside `multi` is counted as
+    failed. Russian: «Установить дополнения» and «введите код», and «Сейчас не удалось
+    загрузить ваши слова».
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
