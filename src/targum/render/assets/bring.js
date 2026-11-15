@@ -307,6 +307,15 @@
        (design.md §12, 2026-09-23). The same two strings the inbox warning uses, because
        it is the same warning in a different place and two wordings would drift. */
     var spare = Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0));
+    // None left is said as none left, with when they come back: "0 credits left this
+    // month. That's about 0 minutes of audio or video." (targum-internal#735).
+    if (Math.round(spare * 60) <= 0) {
+      var none = t("building.credits.none", "No credits left this month.");
+      if (got.ends) {
+        none += " " + t("building.hours.reset", "They reset on {date}.", { date: String(got.ends).replace(/ /g, "\u00a0") });
+      }
+      return none;
+    }
     var line =
       tn(
         "building.credits.left",

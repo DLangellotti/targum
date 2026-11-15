@@ -270,6 +270,13 @@ body.embed .chat-open-list[hidden] { display: none; }
 }
 .chat-play:hover { background: var(--paper-raised); }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
+/* Beside the answer's first line, not on a line of its own (David, 2026-11-15, calmer
+   turns): the turn is two columns while it has Hear, the line and anything under it in
+   the first, Hear at the top of the second. */
+.chat-turn.them:has(> .chat-play) { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+.chat-turn.them:has(> .chat-play) > * { grid-column: 1 / -1; }
+.chat-turn.them:has(> .chat-play) > .chat-line { grid-column: 1; grid-row: 1; }
+.chat-turn.them > .chat-play { grid-column: 2; grid-row: 1; align-self: start; margin-block-start: 0.2rem; }
 
 /* --- Hebrew, with the English under every line ------------------------------
    The record's own shape: a Hebrew line in the reading face at its own leading, its
@@ -346,9 +353,10 @@ body.embed .chat-open-list[hidden] { display: none; }
   display: grid;
   gap: 0.5rem;
   justify-items: start;
-  padding-block-start: 0.75rem;
-  border-block-start: 1px solid var(--hairline);
 }
+/* As a text card since 2026-11-15 (calmer turns): the stats and Save on one card, in the
+   card's own quiet face, rather than loose lines under the thread. */
+.chat-sum.text-card .chat-counts { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
 .chat-counts {
   margin: 0;
   font-family: var(--reading);
@@ -388,6 +396,10 @@ body.embed .chat-open-list[hidden] { display: none; }
 /* A recast that changed something says so in the label, and the words that changed
    carry a mark — the state in words as well as ink (§4). Why, from the model's one
    "~ " line, is folded under it and opened by a tap (targum-internal#242). */
+/* A correction folded to one quiet line until it is tapped (David, 2026-11-15, calmer
+   turns): its label, the corrected Hebrew a step quieter, and Why? beside it. */
+.chat-turn .chat-pair.corrected.folded { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.5rem; cursor: pointer; }
+.chat-turn .chat-pair.corrected.folded .chat-he { font-size: 0.9375rem; color: var(--ink-soft); }
 .chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .chat-turn .chat-pair .chat-why {
   font-size: 0.8125rem;
@@ -431,6 +443,18 @@ body.embed .chat-open-list[hidden] { display: none; }
   border: 1px solid var(--hairline);
   border-radius: var(--radius-control);
 }
+
+/* --- what a search found, and a set (targum-internal#735) ------------------- */
+
+/* A found article and a set are cards like a quote (composer.css), under the answer. */
+.chat-turn .found-card + .found-card { margin-block-start: 0.4rem; }
+.set-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; justify-self: stretch; }
+.set-items li { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 0.75rem; font-family: var(--reading); font-size: 0.9375rem; color: var(--ink); }
+.set-items .set-credits { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
+.set-card a.quote-go { text-decoration: none; }
+/* A web address the model wrote: a quiet link out on its own line, never dropped. */
+.chat-out-line { margin: 0.25rem 0; }
+.chat-turn .chat-line a.chat-out { font-family: var(--chrome); font-size: 0.875rem; color: var(--teal); overflow-wrap: anywhere; }
 
 /* --- a door ---------------------------------------------------------------- */
 
@@ -698,6 +722,22 @@ body.embed .chat-main:has(.turns > li) > .chat-reading { display: none; }
   color: var(--teal-ink);
   font-size: 0.9375rem;
 }
+/* A long title wraps between its words and never inside one (targum-internal#735). The
+   line's `overflow-wrap: anywhere` let a narrow pill break "Ope/n" between letters and
+   squeeze the title beside it: here "Open" and the title are two runs that wrap onto
+   lines of their own, each whole, and a pill that runs to two lines keeps its corners
+   rather than becoming a capsule. One line, the sheet's radius draws the same pill. */
+.chat-door {
+  flex-wrap: wrap;
+  column-gap: 0.3em;
+  max-inline-size: 100%;
+  padding-block: 0.45rem;
+  border-radius: var(--radius-sheet);
+  overflow-wrap: normal;
+  word-break: normal;
+  text-align: start;
+}
+.chat-door bdi { min-inline-size: 0; }
 .chat-door:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
 body.embed > .chat-main > .composer {
   margin-block-start: 0.5rem;

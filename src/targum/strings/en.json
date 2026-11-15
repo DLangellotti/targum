@@ -2138,6 +2138,7 @@
   "press.page.minutes-left.other": "about {n} minutes left",
   "add.credits.none": "You've used all your credits this month. Top up, or they reset on {date}.",
   "building.credits.rate": "That's about {clock} of audio or video.",
+  "building.credits.none": "No credits left this month.",
   "building.credits.left.one": "{n} credit left this month.",
   "building.credits.left.other": "{n} credits left this month.",
   "job.out-of.credits": "You've used this month's credits. Top up, or they reset on {date}.",

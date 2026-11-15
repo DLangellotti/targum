@@ -475,9 +475,6 @@ function drawn() {
       const pair = found[step.n || 0];
       if (pair.onkeydown) pair.onkeydown({ key: step.key || "Enter", preventDefault() {} });
     }
-    if (step.type === "english") {
-      byId["chat-english"].onclick();
-    }
     if (step.type === "first") {
       byId[step.yes === false ? "chat-first-no" : "chat-first-yes"].onclick();
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -615,12 +612,8 @@ function drawn() {
         const tail = line && line.children.find((c) => String(c.className) === "chat-partial");
         return tail ? tail.textContent : null;
       })(),
-      english: {
-        hidden: byId["chat-english"].hidden,
-        pressed: byId["chat-english"].attrs["aria-pressed"],
-        text: byId["chat-english"].textContent,
-        kept: global.localStorage.getItem("targum:chat-english"),
-      },
+      // The Show translations pill, gone since 2026-11-15: the page never asks for it.
+      english: { asked: "chat-english" in byId },
       chips: {
         hidden: byId["chat-chips"].hidden,
         ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),

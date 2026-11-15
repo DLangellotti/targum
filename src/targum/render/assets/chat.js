@@ -155,9 +155,27 @@
   // should not be the first a reader hears of it, and a count on every visit was the
   // metric in everybody's face (2026-09-10, targum-internal#237). The whole count is on
   // Your Progress and in the account panel.
+  //
+  // And only near a spend (David, 2026-11-15): a file held in the box, or a card in the
+  // thread that is waiting on its Confirm. Above every conversation it was a count in the
+  // reader's face whatever they were doing, which was talking, and talking uses none.
+  var hoursGot = null;
+  function nearSpend() {
+    if (typeof held !== "undefined" && held && held.length) return true;
+    if (!turns.querySelectorAll) return false;
+    return Array.prototype.some.call(turns.querySelectorAll(".quote-card"), function (card) {
+      var kind = String(card.className || "").split(" ");
+      if (kind.indexOf("set-card") >= 0) return true;
+      // A found article's Open only prices it; the card it becomes has the Confirm.
+      if (kind.indexOf("found-card") >= 0 || kind.indexOf("text-card") >= 0) return false;
+      var go = card.querySelector(".quote-go");
+      return !!go && !go.hidden && String(go.tagName).toLowerCase() === "button";
+    });
+  }
   function drawHours(got) {
-    if (!hoursLine || !got) return;
-    var line = window.TargumBring ? window.TargumBring.hoursWarning(got) : "";
+    if (got) hoursGot = got;
+    if (!hoursLine || !hoursGot) return;
+    var line = window.TargumBring && nearSpend() ? window.TargumBring.hoursWarning(hoursGot) : "";
     hoursLine.textContent = line;
     hoursLine.hidden = !line;
   }
@@ -326,57 +344,19 @@
   /* --- the English, on tap (targum-internal#241) --------------------------------
    *
    * "I would just ignore the Hebrew and read the English." With the English open under
-   * every line, it was. It is folded now and a tap on the pair opens it — the gesture
-   * that opens a word's gloss — with one Show English at the head of the thread for
-   * all of it at once, remembered. The recast is always open: it is the correction,
-   * and the reader's own words. A reader with no known words sees it all open.
+   * every line, it was. It is folded, and a tap on the pair opens it — the gesture that
+   * opens a word's gloss. There is no Show translations pill any more (David,
+   * 2026-11-15, calmer turns): a line is opened by a tap on it, and a reader with no
+   * known words yet sees it all open. A recast keeps its English open unless it is a
+   * correction, which is folded to one quiet line until it is tapped.
    */
-  var ENGLISH_KEY = "targum:chat-english";
-  var englishOpen = false;
-  try {
-    englishOpen = localStorage.getItem(ENGLISH_KEY) === "open";
-  } catch (e) {
-    englishOpen = false;
-  }
-  var englishToggle = document.getElementById("chat-english");
-
   function englishShown(p) {
-    return !!(p.recast || englishOpen || !hasKnown());
+    if (p.recast) return !p.why;
+    return !hasKnown();
   }
 
-  function drawEnglishToggle() {
-    if (!englishToggle) return;
-    // "Translations", not "English": the line under the Hebrew is in whichever language
-    // the reader reads into, Russian as often as English (2026-09-14).
-    englishToggle.textContent = englishOpen
-      ? t("chat.hide-translations", "Hide translations")
-      : t("chat.page.show-translations", "Show translations");
-    englishToggle.setAttribute("aria-pressed", englishOpen ? "true" : "false");
-    englishToggle.hidden = !turns.querySelector(".chat-pair") || !hasKnown();
-  }
-
-  function foldAll() {
-    Array.prototype.forEach.call(turns.querySelectorAll(".chat-pair"), function (pair) {
-      var en = pair.querySelector(".chat-en");
-      if (!en) return;
-      var recast = String(pair.className).split(" ").indexOf("recast") >= 0;
-      en.hidden = !(recast || englishOpen || !hasKnown());
-    });
-    drawEnglishToggle();
-  }
-
-  if (englishToggle) {
-    englishToggle.onclick = function () {
-      englishOpen = !englishOpen;
-      try {
-        if (window.targumKeep) window.targumKeep(ENGLISH_KEY, englishOpen ? "open" : "folded");
-        else localStorage.setItem(ENGLISH_KEY, englishOpen ? "open" : "folded");
-      } catch (e) {
-        /* nothing to remember it in; the thread still obeys the press */
-      }
-      foldAll();
-    };
-  }
+  // Kept for the callers that drew the pill: there is nothing left to draw.
+  function drawEnglishToggle() {}
 
   // What the reader's ledger says about one dictionary form: "known", "learning", or
   // "new" — and nothing for a name or a number, which are not vocabulary. Where the NER
@@ -501,6 +481,21 @@
   // And a subscription offered (design.md §12, 2026-10-09): the page where it is confirmed.
   var PATH = /(^|\s)(\/(?:reader|library)\/[^\s)]+|\/set\/\d+|\/subscribe\?[^\s)]+)/g;
   var ONLY_PATH = /^(?:\/(?:reader|library)\/\S+|\/set\/\d+|\/subscribe\?\S+)$/;
+  // A web address standing alone on a line.
+  var WEB = /^https?:\/\/\S+$/i;
+
+  // A web address the model wrote, as a link out that opens in its own tab, named by
+  // its site and path — never fetched by the page, and never a door of ours.
+  function outbound(url) {
+    var a = document.createElement("a");
+    a.className = "chat-out";
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.setAttribute("dir", "ltr");
+    a.textContent = String(url).replace(/^https?:\/\/(www\.)?/i, "");
+    return a;
+  }
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
   // opens it (design.md §9: the door-opening action is the ink call to action). The
@@ -510,6 +505,13 @@
     a.className = "chat-door";
     a.href = keyed(path);
     if (/^\/set\/\d+$/.test(path)) {
+      // A set drawn as its card already has this press on it: the model's own path to
+      // it is not drawn a second time (targum-internal#735).
+      if (setsDrawn[path.split("/")[2]]) {
+        var none = document.createElement("span");
+        none.hidden = true;
+        return none;
+      }
       a.appendChild(document.createTextNode(t("chat.open-set", "See the set")));
       return a;
     }
@@ -581,6 +583,13 @@
         out.push({ path: line });
         return;
       }
+      // A web address on its own line is drawn as the link it is, never dropped: three
+      // article addresses vanished from a talk turn, leaving "here are three articles"
+      // over nothing (targum-internal#735).
+      if (WEB.test(line)) {
+        out.push({ url: line });
+        return;
+      }
       var recast = line.indexOf("> ") === 0;
       var body = recast ? line.slice(2).trim() : line;
       if (inLanguage(body)) pending = { he: body, en: "", recast: recast };
@@ -631,6 +640,13 @@
           target.appendChild(door(p.path));
           return;
         }
+        if (p.url) {
+          var out = document.createElement("p");
+          out.className = "chat-out-line";
+          out.appendChild(outbound(p.url));
+          target.appendChild(out);
+          return;
+        }
         var pair = document.createElement("div");
         pair.className = "chat-pair" + (p.recast ? " recast" : "");
         if (p.recast) pair.setAttribute("data-said", t("chat.recast.you-said", "you said"));
@@ -663,7 +679,11 @@
               var why = document.createElement("span");
               why.className = "chat-why";
               why.textContent = p.why;
-              why.hidden = hasKnown();
+              // Folded to one quiet line — the label, the corrected Hebrew and Why? —
+              // until it is tapped, for every reader (David, 2026-11-15, calmer turns):
+              // the English and the reason open together.
+              why.hidden = true;
+              pair.className += " folded";
               why.id = "chat-why-" + ++whyCount;
               // A visible press says the reason is there (§14.3, "Nothing is hover-only",
               // #472 B6): a `title` never shows on a phone or to a keyboard.
@@ -675,6 +695,10 @@
               whyPress.setAttribute("aria-expanded", why.hidden ? "false" : "true");
               var flip = function () {
                 why.hidden = !why.hidden;
+                en.hidden = why.hidden;
+                pair.className = why.hidden
+                  ? pair.className + " folded"
+                  : pair.className.replace(/\s*\bfolded\b/g, "");
                 whyPress.setAttribute("aria-expanded", why.hidden ? "false" : "true");
               };
               whyPress.onclick = function (event) {
@@ -782,7 +806,162 @@
   // draw, from the server's state of the job and never from what the model wrote.
   var bringing = window.TargumBring;
   function quoteCard(li, job) {
-    return bringing.quoteCard(li, job);
+    var card = bringing.quoteCard(li, job);
+    drawHours();
+    return card;
+  }
+
+  /* --- what a search found, and a set (targum-internal#735) ----------------------
+   *
+   * The articles `search_sources` turns up arrive as `found`, beside the answer, and
+   * are drawn as cards in the thread: the title, where it is from, how it reads
+   * against the reader's words, and Open. Nothing has been fetched or priced; Open asks
+   * `/prepare`, which prices and never spends, and the quote card it answers stands in
+   * the found card's place, with its own Confirm. They used to arrive and be drawn
+   * nowhere, while the model wrote their addresses into lines the page then dropped.
+   */
+  // The Library's bands, read off the share the reader knows (`library.band.*`).
+  function band(share) {
+    if (share >= 0.9) return t("library.band.now", "Read it now");
+    if (share >= 0.8) return t("library.band.stretch", "A stretch");
+    return t("library.band.hard", "Hard for now");
+  }
+  function percentOf(share) {
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    // Never rounded into a lie, as `level.known_percent` keeps it.
+    if (share < 1 && percent >= 100) percent = 99;
+    if (share > 0 && percent <= 0) percent = 1;
+    return percent;
+  }
+  function foundCard(host, row) {
+    if (!row || !row.link) return null;
+    if (host.querySelector && host.querySelector('[data-found="' + String(row.link).replace(/"/g, "") + '"]')) return null;
+    var card = document.createElement("div");
+    card.className = "quote-card found-card";
+    card.setAttribute("data-found", row.link);
+    var title = document.createElement("p");
+    title.className = "quote-title";
+    var name = document.createElement("bdi");
+    var code = String(row.language || "").split("-")[0];
+    if (code) name.setAttribute("lang", code);
+    name.setAttribute("dir", HEBREW_LETTERS[code] ? "rtl" : "auto");
+    name.textContent = row.title || row.link;
+    title.appendChild(name);
+    card.appendChild(title);
+    var facts = [];
+    if (row.publisher) facts.push(String(row.publisher));
+    var share = row.known_share;
+    if (share !== null && share !== undefined && !isNaN(Number(share))) {
+      share = Number(share);
+      facts.push(band(share));
+      facts.push(
+        row.known_estimated
+          ? t("add.found.estimate", "You know about {n}% of the words (our estimate)", { n: percentOf(share) })
+          : t("add.found.share", "You know {n}% of the words", { n: percentOf(share) })
+      );
+    }
+    if (facts.length) {
+      var meta = document.createElement("p");
+      meta.className = "quote-meta";
+      meta.textContent = facts.join(" \u00b7 ");
+      card.appendChild(meta);
+    }
+    var go = document.createElement("button");
+    go.type = "button";
+    go.className = "quote-go";
+    go.textContent = t("building.open", "Open");
+    var note = document.createElement("p");
+    note.className = "quote-note";
+    note.hidden = true;
+    go.onclick = function () {
+      go.disabled = true;
+      note.hidden = false;
+      note.textContent = QUOTING;
+      var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
+      var asked = bringing.options(into, code || conversing());
+      asked.source = String(row.link);
+      // Priced, never spent: the card it answers carries Confirm, and the press is there.
+      ask("/prepare", asked).then(function (job) {
+        if (job && job.error && !job.id) {
+          go.disabled = false;
+          note.hidden = true;
+          note.textContent = "";
+          if (card.querySelector(".fault-line")) card.removeChild(card.querySelector(".fault-line"));
+          if (window.TargumFault) card.appendChild(window.TargumFault.line(job.error));
+          return;
+        }
+        var parent = card.parentNode;
+        if (parent) parent.removeChild(card);
+        quoteCard(parent || host, job);
+      });
+    };
+    card.appendChild(go);
+    card.appendChild(note);
+    host.appendChild(card);
+    return card;
+  }
+  function foundCards(li, rows) {
+    (rows || []).forEach(function (row) {
+      foundCard(li, row);
+    });
+  }
+
+  // A set the model quoted: its name, each text with its credits, what the whole set
+  // uses, and See the set — the page where it is confirmed. The press is there.
+  var setsDrawn = {};
+  function setCard(li, set) {
+    if (!set || !set.id || li.querySelector('[data-set="' + set.id + '"]')) return null;
+    setsDrawn[String(set.id)] = true;
+    var card = document.createElement("div");
+    card.className = "quote-card set-card";
+    card.setAttribute("data-set", String(set.id));
+    var title = document.createElement("p");
+    title.className = "quote-title";
+    var name = document.createElement("bdi");
+    name.setAttribute("dir", "auto");
+    name.textContent = set.name || t("chat.open-set", "See the set");
+    title.appendChild(name);
+    card.appendChild(title);
+    var list = document.createElement("ul");
+    list.className = "set-items";
+    (set.items || []).forEach(function (one) {
+      var item = document.createElement("li");
+      var called = document.createElement("bdi");
+      var code = String(one.language || "").split("-")[0];
+      if (code) called.setAttribute("lang", code);
+      called.setAttribute("dir", HEBREW_LETTERS[code] ? "rtl" : "auto");
+      called.textContent = one.title || "";
+      item.appendChild(called);
+      if (one.credits > 0) {
+        var cost = document.createElement("span");
+        cost.className = "set-credits";
+        cost.textContent = tn("bring.uses-credits", one.credits, "Uses {n} credit", "Uses {n} credits");
+        item.appendChild(cost);
+      }
+      list.appendChild(item);
+    });
+    card.appendChild(list);
+    var uses = document.createElement("p");
+    uses.className = "quote-uses";
+    uses.textContent =
+      set.credits > 0
+        ? tn("bring.uses-credits", set.credits, "Uses {n} credit", "Uses {n} credits")
+        : t("bring.uses-no-credits", "Uses none of your credits");
+    card.appendChild(uses);
+    var see = document.createElement("a");
+    see.className = "quote-go";
+    see.href = keyed(set.open && set.open.charAt(0) === "/" ? set.open : "/set/" + set.id);
+    see.textContent = t("chat.open-set", "See the set");
+    card.appendChild(see);
+    li.appendChild(card);
+    // A path to it the model already wrote is not drawn a second time.
+    Array.prototype.forEach.call(li.querySelectorAll ? li.querySelectorAll("a.chat-door") : [], function (a) {
+      if (/\/set\/\d+/.test(a.getAttribute("href") || "") && (a.getAttribute("href") || "").indexOf("/set/" + set.id) >= 0) {
+        a.hidden = true;
+      }
+    });
+    drawHours();
+    return card;
   }
 
   // A file chosen by the + is held in the box until Send (2026-09-07), the way a line
@@ -808,6 +987,7 @@
         showHeld();
       });
     }
+    drawHours();
   }
   // Pictures sent are seen in the thread as the reader's own turn: the pictures
   // themselves, from the files still in hand, so a screenshot sent is a screenshot
@@ -1362,10 +1542,27 @@
       seen[lemma] = true;
     });
     var count = Object.keys(fresh).length;
+    // One text card at the foot, and the stats and Save on it and nowhere else (David,
+    // 2026-11-15, calmer turns): they were loose lines under the thread. Named by the
+    // conversation's title, as the text it would become.
     var li = document.createElement("li");
-    li.className = "chat-sum";
+    li.className = "chat-sum quote-card text-card";
+    var mine = null;
+    chats.forEach(function (chat) {
+      if (chat.id === current) mine = chat;
+    });
+    if (mine && mine.title) {
+      var title = document.createElement("p");
+      title.className = "quote-title";
+      var called = document.createElement("bdi");
+      called.setAttribute("dir", "auto");
+      if (/[\u0590-\u05FF]/.test(mine.title)) called.setAttribute("lang", "he");
+      called.textContent = mine.title;
+      title.appendChild(called);
+      li.appendChild(title);
+    }
     var counts = document.createElement("p");
-    counts.className = "chat-counts";
+    counts.className = "chat-counts quote-meta";
     var minutes = Math.max(1, Math.round(footSeconds / 60));
     var parts = [];
     if (footSeconds > 0) parts.push(t("learn.minutes", "{n} min", { n: minutes }));
@@ -1592,6 +1789,10 @@
           // conversation opened again keeps its cards, not only its words.
           (one.quotes || []).forEach(function (job) {
             quoteCard(li, job);
+          });
+          foundCards(li, one.found);
+          (one.sets || []).forEach(function (set) {
+            setCard(li, set);
           });
         }
       });
@@ -2008,6 +2209,15 @@
         heardNow();
         quoteCard(li, JSON.parse(event.data || "{}"));
       });
+      // What a search found, and a set, each drawn as cards (targum-internal#735).
+      source.addEventListener("found", function (event) {
+        heardNow();
+        foundCards(li, (JSON.parse(event.data || "{}") || {}).items);
+      });
+      source.addEventListener("set", function (event) {
+        heardNow();
+        setCard(li, JSON.parse(event.data || "{}"));
+      });
       source.addEventListener("refused", function (event) {
         // A film we could not fetch. Remembered, not said: the model's own sentence is
         // the answer, and this is only what the next dropped file needs.
@@ -2054,6 +2264,10 @@
         render(line, text, words);
         (state.quotes || []).forEach(function (job) {
           if (!li.querySelector('[data-job="' + job.id + '"]')) quoteCard(li, job);
+        });
+        foundCards(li, state.found);
+        (state.sets || []).forEach(function (set) {
+          setCard(li, set);
         });
         if (state.refused) cameFrom = state.refused;
         if (state.done) return finish("done", { text: text, doors: state.doors });

@@ -2672,7 +2672,20 @@ def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
             languages=_language_names(language),
             embed=embed,
             strings=script_strings(
-                language, "chat.", "claim.", "speak.", "shelf.", "learn.", "vocab.", *BRING_STRINGS
+                language,
+                "chat.",
+                "claim.",
+                "speak.",
+                "shelf.",
+                "learn.",
+                "vocab.",
+                # What a search found, drawn as cards in the thread (targum-internal#735):
+                # the Add page's words for it, and the Library's bands.
+                "add.found.",
+                "library.band.now",
+                "library.band.stretch",
+                "library.band.hard",
+                *BRING_STRINGS,
             ),
         )
     )
