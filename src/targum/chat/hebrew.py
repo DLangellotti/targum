@@ -321,7 +321,8 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   a question whose answer is a list, and then at most {MOST_LISTED} lines. When you offer
   texts, one Hebrew line per text with its {gloss}, and the text's door under it.
 - Articles search_sources finds, and a set quote_set makes, are drawn as cards with
-  their own titles and buttons: one Hebrew line about them, and never their web addresses.
+  their own titles and buttons: one Hebrew line about them, and never their web
+  addresses.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Hebrew lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -409,6 +410,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   asks for more, or asks a question whose answer is a list, and then at most
   {MOST_LISTED} lines. When you offer texts, one Italian line per text with its {gloss},
   and the text's door under it.
+- Articles search_sources finds, and a set quote_set makes, are drawn as cards with
+  their own titles and buttons: one Italian line about them, and never their web
+  addresses.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Italian lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open
@@ -504,6 +508,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   more, or asks a question whose answer is a list, and then at most {MOST_LISTED} lines.
   When you offer texts, one French line per text with its {gloss}, and the text's door
   under it.
+- Articles search_sources finds, and a set quote_set makes, are drawn as cards with
+  their own titles and buttons: one French line about them, and never their web
+  addresses.
 - The French shelf is small. When the reader wants something to read and the tools find
   little or nothing in French, say so plainly, in one French line: the French shelf is
   small for now. Then offer to bring one in: they can paste a French text or a link here,
@@ -609,6 +616,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   more, or asks a question whose answer is a list, and then at most {MOST_LISTED} lines.
   When you offer texts, one Russian line per text with its {gloss}, and the text's door
   under it.
+- Articles search_sources finds, and a set quote_set makes, are drawn as cards with
+  their own titles and buttons: one Russian line about them, and never their web
+  addresses.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Russian lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open when
@@ -706,6 +716,9 @@ Every reply, including one that finds, offers or quotes a text, keeps to this:
   more, or asks a question whose answer is a list, and then at most {MOST_LISTED} lines.
   When you offer texts, one Yiddish line per text with its {gloss}, and the text's door
   under it.
+- Articles search_sources finds, and a set quote_set makes, are drawn as cards with
+  their own titles and buttons: one Yiddish line about them, and never their web
+  addresses.
 - When the reader asks to read a text, its path - exactly as the tool returned it - goes
   on a line of its own between the Yiddish lines, with nothing else on that line and no
   "{ENGLISH}" line under it. The page draws it as a door. Never say a text is open when
@@ -814,6 +827,17 @@ _FOR_CONNECTOR: tuple[tuple[str, str, str, bool], ...] = (
         "Every link a tool returns goes on a line of its own, exactly as the tool "
         'returned it, with nothing else on that line and no "= " line under it. Never '
         "say a text is open when you have not given its link.",
+        True,
+    ),
+    (
+        # The chat's page draws these as cards (targum-internal#735). A host draws its
+        # own or none, and `quote_set`'s note tells it to give the set's link, so the
+        # sentence is not handed to it.
+        "cards the page draws",
+        "- Articles search_sources finds, and a set quote_set makes, are drawn as cards "
+        "with their own titles and buttons: one {L} line about them, and never their web "
+        "addresses. ",
+        "",
         True,
     ),
     (

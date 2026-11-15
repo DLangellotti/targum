@@ -797,6 +797,8 @@ def test_save_as_targum_is_the_reader_s_press_and_draws_the_quote() -> None:
         "the same card the model's own save hands the page; the button is the spend"
     )
     assert page["foot"]["save"] is False, "one press; the card stands where it was"
+    # The counts go on the card Save answers, which is the text card (David, 2026-11-15).
+    assert page["turns"][-1]["cls"].split()[:2] == ["chat-turn", "them"]
 
 
 def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:

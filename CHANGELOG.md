@@ -999,21 +999,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `/chat/turn` carries `sets`, and a reopened conversation keeps it. The model's own path
     to the set is no longer drawn as a second door.
   - In targum's own chat, the `search_sources` and `quote_set` results tell the model the
-    page shows them as cards: say one line and write no links. The system prompts say the
-    same. Over the connector nothing changed.
+    page shows them as cards: say one line and write no links. Every talk contract says
+    the same, and `hebrew.for_connector` takes the sentence out of what `how_to_talk`
+    hands a host (a required rewrite, so a reworded contract fails a test). The stdio
+    connector's signed-out context now says `via="connector"`, as its docstring always
+    said, so it is not told of cards it does not draw.
   - A web address the model writes on a line of its own is a link out, never dropped.
   - The door's pill wraps between words, never inside one ("Ope/n"): `overflow-wrap:
     normal`, wrapping runs, and the sheet's radius so a two-line pill keeps its corners.
-    It stays the primary fill on both pages, as design.md's 2026-10-09 note on the doors'
-    press says, rather than being scoped to the drawer.
+    One `.chat-door` rule draws it on the page and in the drawer, in the primary, as
+    design.md §9's 2026-10-09 note on the doors' press says.
   - The operator is told of no monthly cap (`_hours()` sends `allowed: None` for an admin).
     At nothing left, the line above the box and the bell say "No credits left this month.
     They reset on {date}." instead of "0 credits … about 0 minutes".
   - Calmer turns (David, 2026-11-15): Hear stands beside the answer, not on a line of its
-    own; no Show translations pill, and a line opens by a tap; the stats and Save as a text
-    are one text card at the foot; the credits line shows only near a spend (a file in the
-    box, or a card waiting on its Confirm); a correction is one quiet line until tapped,
-    which opens its English and its reason together.
+    own; no Show translations pill, and a line opens by a tap; nothing under the thread:
+    Save as a text is a quiet action in the conversation's head, and the stats go on the
+    quote card it answers; the credits line shows only near a spend (a file in the box, or
+    a card waiting on its Confirm) and is drawn again once a Confirm is pressed; a
+    correction is one quiet line until tapped, which opens its English and its reason
+    together.
   - Strings: `building.credits.none` in English and Russian («В этом месяце баллов не
     осталось.»), a first draft for ling-ru. No spend.
 

@@ -331,15 +331,12 @@ function pairsDrawn() {
   return out;
 }
 
+// Save as a text, a quiet action in the head since 2026-11-15 (David): the counts it
+// carries for the card it answers, and whether it is offered.
 function foot() {
-  const li = (turns.children || []).find((c) => String(c.className).split(" ")[0] === "chat-sum");
-  if (!li) return null;
-  const by = (cls) => li.children.find((c) => String(c.className).split(" ").includes(cls));
-  return {
-    counts: by("chat-counts") ? by("chat-counts").textContent : "",
-    save: !!by("chat-save"),
-    note: by("note") ? by("note").textContent : "",
-  };
+  const save = byId["chat-save"];
+  if (!save || !save.attrs["data-stats"]) return null;
+  return { counts: save.attrs["data-stats"], save: !save.hidden };
 }
 
 function doors() {
@@ -527,6 +524,8 @@ function drawn() {
       };
       walk(turns);
       walk(byId["chat-list"]);
+      // Save as a text is in the head, from the template, by its id (2026-11-15).
+      if (step.selector === "chat-save" && byId["chat-save"]) found.push(byId["chat-save"]);
       found[found.length - 1].onclick();
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }

@@ -698,6 +698,12 @@
       else pendingWay = way;
     }
     var pendingWay = null;
+    // Tells the page the card is no longer waiting on its press, for what it draws from
+    // that (the chat's credits line, targum-internal#735).
+    function changed() {
+      if (typeof card.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
+      card.dispatchEvent(new CustomEvent("quote:changed", { bubbles: true }));
+    }
     if (job.stage === "ready") {
       var spends = uses(job);
       var cost = null;
@@ -720,12 +726,14 @@
           if (state.error || state.blocked) {
             go.hidden = true;
             refuse(state, "");
+            changed();
             return;
           }
           // The press is made: the button and its options give way to the progress.
           go.hidden = true;
           more.hidden = true;
           if (cost) cost.hidden = true;
+          changed();
           followBuild(state);
         });
       };

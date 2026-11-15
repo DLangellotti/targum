@@ -498,7 +498,8 @@
   }
 
   // A path is drawn as a door: the model can say where a text is, and only the reader
-  // opens it (design.md §9: the door-opening action is the ink call to action). The
+  // opens it (design.md §9: inside the product the door's one press is filled in the
+  // primary, since 2026-10-09). The
   // door names the text by its folder, since a path is not something a person reads.
   function door(path, given) {
     var a = document.createElement("a");
@@ -805,6 +806,13 @@
   // The card is bring.js's: the same one the Add page's press and the front door's +
   // draw, from the server's state of the job and never from what the model wrote.
   var bringing = window.TargumBring;
+  // A card pressed, or come to its end, may no longer be waiting on a Confirm: the credits
+  // line is drawn again (`bring.js` says so on the card).
+  if (turns.addEventListener) {
+    turns.addEventListener("quote:changed", function () {
+      drawHours();
+    });
+  }
   function quoteCard(li, job) {
     var card = bringing.quoteCard(li, job);
     drawHours();
@@ -835,7 +843,12 @@
   }
   function foundCard(host, row) {
     if (!row || !row.link) return null;
-    if (host.querySelector && host.querySelector('[data-found="' + String(row.link).replace(/"/g, "") + '"]')) return null;
+    // Compared, never built into a selector: a feed's address may hold anything, and a
+    // selector it broke would throw in the middle of drawing a turn (qa-claude on #1263).
+    var already = host.querySelectorAll ? host.querySelectorAll(".found-card") : [];
+    for (var i = 0; i < already.length; i++) {
+      if (already[i].getAttribute("data-found") === String(row.link)) return null;
+    }
     var card = document.createElement("div");
     card.className = "quote-card found-card";
     card.setAttribute("data-found", row.link);
@@ -950,7 +963,8 @@
     card.appendChild(uses);
     var see = document.createElement("a");
     see.className = "quote-go";
-    see.href = keyed(set.open && set.open.charAt(0) === "/" ? set.open : "/set/" + set.id);
+    // Always our own page for it, by its id (`//host` is a path too).
+    see.href = keyed("/set/" + encodeURIComponent(String(set.id)));
     see.textContent = t("chat.open-set", "See the set");
     card.appendChild(see);
     li.appendChild(card);
@@ -1512,22 +1526,25 @@
     }
   });
 
-  /* --- the foot of the record -------------------------------------------------
+  /* --- Save as a text --------------------------------------------------------
    *
-   * Under the last turn of a conversation in Hebrew: how long it has run, what the
-   * reader has not met, what share they knew — measured off the words on the page and
-   * the reader's own ledger, never a level — and the door out, Save as targum, which
-   * is the quote the model's own save hands the page, reached by the reader's press.
+   * A quiet action on the conversation, in the head beside New, and nothing under the
+   * thread (David, 2026-11-15: "Save as a text" is an action on the conversation, and the
+   * stats go on the card Save returns). Offered once the conversation has words the page
+   * could count. The stats — how long it has run, what the reader has not met, what share
+   * they knew, measured off the words on the page and the reader's own ledger and never a
+   * level — are written on the quote card the press answers, which is the text card.
+   * The card's own Confirm is the spend; Save only quotes.
    */
 
   var footSeconds = 0;
+  var saveButton = document.getElementById("chat-save");
+  var saveStats = "";
 
-  function drawFoot(seconds) {
-    if (seconds !== undefined && seconds !== null) footSeconds = Number(seconds) || 0;
-    var old = turns.querySelector(".chat-sum");
-    if (old) turns.removeChild(old);
+  // What the conversation's words say, as one line, or "" where none were counted.
+  function stats() {
     var marked = turns.querySelectorAll(".chat-w");
-    if (!marked.length) return;
+    if (!marked.length) return "";
     var seen = {};
     var fresh = {};
     var known = 0;
@@ -1542,35 +1559,12 @@
       seen[lemma] = true;
     });
     var count = Object.keys(fresh).length;
-    // One text card at the foot, and the stats and Save on it and nowhere else (David,
-    // 2026-11-15, calmer turns): they were loose lines under the thread. Named by the
-    // conversation's title, as the text it would become.
-    var li = document.createElement("li");
-    li.className = "chat-sum quote-card text-card";
-    var mine = null;
-    chats.forEach(function (chat) {
-      if (chat.id === current) mine = chat;
-    });
-    if (mine && mine.title) {
-      var title = document.createElement("p");
-      title.className = "quote-title";
-      var called = document.createElement("bdi");
-      called.setAttribute("dir", "auto");
-      if (/[\u0590-\u05FF]/.test(mine.title)) called.setAttribute("lang", "he");
-      called.textContent = mine.title;
-      title.appendChild(called);
-      li.appendChild(title);
-    }
-    var counts = document.createElement("p");
-    counts.className = "chat-counts quote-meta";
     var minutes = Math.max(1, Math.round(footSeconds / 60));
     var parts = [];
     if (footSeconds > 0) parts.push(t("learn.minutes", "{n} min", { n: minutes }));
     // A reader with nothing marked yet is not told they knew 0%: that is a score of
-    // zero, which the brand rules keep out. They are told how many words there were,
-    // and that marking begins in a text.
-    var marked = Object.keys(ledger()).length > 0;
-    if (!marked) {
+    // zero, which the brand rules keep out. They are told how many words there were.
+    if (!Object.keys(ledger()).length) {
       parts.push(
         tn("chat.foot.words", vocabulary, "{n} word", "{n} words") + " · " + t("chat.foot.none-marked", "none marked as known yet")
       );
@@ -1580,29 +1574,39 @@
         parts.push(t("chat.foot.known", "you know {share}%", { share: Math.round((known / vocabulary) * 100) }));
       }
     }
-    counts.textContent = parts.join(" · ");
-    li.appendChild(counts);
-    var save = document.createElement("button");
-    save.type = "button";
-    save.className = "chat-save";
-    save.textContent = t("chat.save", "Save as a text");
-    var note = document.createElement("p");
-    note.className = "note";
-    save.onclick = function () {
-      save.disabled = true;
+    return parts.join(" · ");
+  }
+
+  function drawFoot(seconds) {
+    if (seconds !== undefined && seconds !== null) footSeconds = Number(seconds) || 0;
+    saveStats = current ? stats() : "";
+    if (!saveButton) return;
+    saveButton.hidden = !saveStats;
+    saveButton.disabled = false;
+    saveButton.setAttribute("data-stats", saveStats);
+  }
+
+  if (saveButton) {
+    saveButton.onclick = function () {
+      if (!current) return;
+      saveButton.disabled = true;
+      var said = saveStats;
       ask("/chat/save", { chat: current }).then(function (got) {
         if (got.error) {
-          note.textContent = got.error;
-          save.disabled = false;
-          return;
+          saveButton.disabled = false;
+          return told(got);
         }
-        li.removeChild(save);
-        quoteCard(li, got.quote);
+        saveButton.hidden = true;
+        var li = turn("assistant", "", "");
+        var card = quoteCard(li, got.quote);
+        if (card && said) {
+          var line = document.createElement("p");
+          line.className = "quote-meta chat-counts";
+          line.textContent = said;
+          card.appendChild(line);
+        }
       });
     };
-    li.appendChild(save);
-    li.appendChild(note);
-    turns.appendChild(li);
   }
 
   /* --- loading ------------------------------------------------------------- */
@@ -1814,6 +1818,7 @@
     drawList();
     turns.textContent = "";
     tell("");
+    drawFoot(0);
     if (empty) empty.hidden = false;
     if (chips) chips.show(true);
     drawEnglishToggle();
