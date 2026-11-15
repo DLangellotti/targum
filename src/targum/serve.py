@@ -766,7 +766,10 @@ _TALMUD_ABSENT = (
 # page it reaches says "Coming soon" is worse than none at all — what gets indexed is
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
-PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
+#: A catalogue id is a slug, or for a curated video `video-<lang>-<YouTube id>`, whose own
+#: id keeps its capitals and `_` (targum-internal#628, the French fill of 2026-11-14). No
+#: dot or slash can match, so the id never reaches a path.
+PUBLIC_TEXT = re.compile(r"^/library/([A-Za-z0-9][A-Za-z0-9_-]{0,63})$")
 #: All of one language's texts of one kind, a kind's "All N →" on the public Library
 #: (targum-internal#519): `/library/k/he/story`. Two segments, so never a text's id.
 PUBLIC_KIND = re.compile(r"^/library/k/([a-z]{2,3})/([a-z]{1,16})$")

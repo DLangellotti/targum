@@ -179,6 +179,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
   sign-in links use), and past it gets a 429. An answer already held stays free and is
   never counted. One new string, in English and Russian. No spend.
+- A curated video's public page answers for an id with capitals or `_`
+  (`video-fr-_U1Fbsp6ugE`): `/library/<id>` only took lowercase slugs, so 42 of the 43
+  French videos shipped on 2026-11-15 linked from `/library/k/fr/talk` to "Not found".
+  Signed-in `/open/<id>` was never affected. Nothing with a dot or slash matches.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not

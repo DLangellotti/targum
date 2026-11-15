@@ -1372,3 +1372,15 @@ def test_lines_we_translated_name_targum_beside_the_english_in_the_json_ld(
         (None, "ru"),
     ]
     assert works[1]["translator"] == {"@type": "Organization", "name": "targum"}
+
+
+def test_a_curated_video_id_with_capitals_and_underscores_is_a_public_page() -> None:
+    """The French fill's ids keep the YouTube id's case and `_` (targum-internal#628);
+    the public route must answer them, and still refuse anything with a dot or slash."""
+    from targum.serve import PUBLIC_TEXT
+
+    for good in ("video-fr-_U1Fbsp6ugE", "video-fr-SrIh64XPsII", "a-slug-1"):
+        match = PUBLIC_TEXT.match(f"/library/{good}")
+        assert match is not None and match.group(1) == good
+    for bad in ("../etc", "a.b", "a/b", "-lead", "", "x" * 65):
+        assert PUBLIC_TEXT.match(f"/library/{bad}") is None, bad
