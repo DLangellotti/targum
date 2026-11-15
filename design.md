@@ -387,7 +387,7 @@ fallen behind the entries by half; the dates are the index.)
 ### A reader says our estimate until anything in it is marked — 2026-11-15
 
 Design's pick of option A in targum-internal#724 (split from #723 P2 7); David,
-2026-11-__. A new reader's first text said "0 of 235 known" and the Home that followed
+2026-11-15. A new reader's first text said "0 of 235 known" and the Home that followed
 it said "You know about 44% of the whole recording (our estimate)" for the same text.
 Both were true, and to somebody who had just done the words check they read as a
 contradiction. It amends "What does not change" in "A text's figure is our estimate
