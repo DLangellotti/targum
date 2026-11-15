@@ -171,7 +171,7 @@ def test_an_older_database_gains_the_column_with_no_goal_on_every_row(tmp_path: 
     columns = {row["name"] for row in opened.db.execute("PRAGMA table_info(person)")}
     assert "goal" in columns
     assert [row[0] for row in opened.db.execute("SELECT goal FROM person")] == [""]
-    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 68
+    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION >= 70
     assert opened.goals(person.id) == {}
 
 

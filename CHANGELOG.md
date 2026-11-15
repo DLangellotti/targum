@@ -5,6 +5,38 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Added
+- "Ways to sign in" on Your account: link and unlink Google (targum-internal#502,
+  design.md §12 "Sign in with Google goes live, and signup opens to anyone", 2026-11-14).
+  - The Account card's Email row becomes "Ways to sign in". "Email link" shows the
+    address and "Always on", with no press. "Google" says "Linked · last used 12
+    November" with Unlink, or "Not linked" with Link. The Google row is drawn only where
+    `google.configured()` holds.
+  - The store keeps, per person, whether Google is linked and when it was last used, as the
+    Privacy Notice says and no more (`person.google`, `google_used`; accounts schema
+    67→68, two ALTERs). No date it was linked, and nothing of Google's own.
+    `models.SCHEMA_VERSION` is untouched.
+  - `sign_in_verified(via="google")` records each use, and the first Continue with Google
+    links Google. After Unlink, Continue with Google is refused with "Google sign-in is
+    off for this account. Use the email link, or link Google again from Your account."
+    and nobody is signed in.
+  - Link goes through Google with `/account/google?link=1`, needs a session, never signs
+    anybody in, and comes back to `/you#ways`. It links only when Google proves the
+    account's own address. Any other address is refused in one line naming both, said
+    once through `/account/me` (`waysSaid`) so no address goes in a URL.
+  - `POST /account/google/unlink` asks nothing; the page says "Unlinked · Undo" for eight
+    seconds, and `POST /account/google/link-again` is that Undo, honoured for 30 seconds
+    after the Unlink. Both are refused from another site and without a JSON body.
+  - `accounts.removable` holds that the last way in is never removed. Email is always on,
+    so today it refuses nobody.
+  - `/account/me` returns `ways`.
+- Continue with Google under the front door's form (hero and ending), only while signup is
+  open and a client is configured, and never under a tried link. Today the door is shut,
+  so the front door draws no Google. The invitation's page (`?invited=1`) keeps the
+  button as #1235 left it.
+- Strings: eleven `you.page.*` keys and four `serve.*` refusals in English and Russian.
+  The Russian is a first draft for ling-ru. `you.page.email` is gone.
+
 ### Changed
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`
   (targum-internal#723, design.md §12 "The invitation's link leads with signing in",
@@ -27,7 +59,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   "Today's goal is met: N words read." once, on the first finish of the day the record
   reaches the goal, in type and with no motion. Nothing is sent to the reader: no mail,
   reminder, notification or chat line. Stored as `person.goal`, one setting per language
-  (accounts schema 67 to 68, one ALTER that does not depend on the number), set by
+  (accounts schema 69 to 70, one ALTER that does not depend on the number), set by
   `POST /account/goal`, carried in the export and cleared with the account.
   `events.js`'s `flush` now returns its request so the foot reads the record after the
   page's own events have arrived. The foot asks `/account/totals?only=goals` first and
@@ -81,8 +113,53 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian
     and taps each line. No spend.
-
+- Remove can be undone everywhere a copy is removed (targum-internal#720 follow-up,
+  design.md §12 "An offline copy follows its text when opened online, and Remove can be
+  undone", 2026-11-14).
+  - The reader's ⋯ "Remove from this device", and a playlist page's Remove, now say
+    "Removed · Undo" for 8 seconds, as Saved on this device does, and ask nothing first.
+    They use the same `TargumOffline.take` and `undo`, so Undo works offline, where a
+    saved reader is the only copy. The keyboard lands on Undo, comes back to Remove after
+    Undo, and the line goes, with the files, once it is left alone.
+  - The line waits only while the keyboard the browser shows (`:focus-visible`) or a
+    mouse or pen is on it (`TargumOffline.lingers`, now used by Saved too). On touch a
+    tap left focus and a stuck `:hover` behind it, and the line never went.
+  - When Undo finds the files gone (a sign-out in another tab, a browser that cleared its
+    storage), one quiet line says "The files are no longer on this device, so it couldn't
+    be put back." The keyboard goes to that line on Saved, and to Save for offline in a
+    row.
+  - A file saved before copies kept stamps now learns the server's current stamp the
+    next time the text is saved, so a later re-cut reaches it (qa-claude on #1234).
+  - A book's contents page now says which build of the text it lists (`X-Targum-Version`,
+    a hash of `contents.json` and the page's language). Opened online with a version
+    other than the copy's, the worker tells the page, and the copy fetches what the text
+    now takes. So a text that only gained a part gets that part, and nothing it already
+    held is fetched again.
+  - Four new strings in English and Russian: `offline.removed` «Убрано», `offline.undo`
+    «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
+    keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
+    устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
+  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
+  with the time of the ship. A saved copy refetches a file whose size or time changed, so
+  every re-ship made saved copies of the issue download its recording again. It sends
+  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
+  `index.json` sends stay as they are, since nothing saved holds the index.
+  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- Follow-ups to #1238 and #1247 (qa-claude):
+  - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
+    It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
+    rebuilt kept English keyed to paragraphs it no longer had. With `--spend`, its last
+    lines say what it really spent, by model, even when the build dies partway. It spends
+    outside `Library.claim`, so that line is what goes on targum-internal#727.
+  - A saved page held from before stamps, or whose stamp differs from the server's, no
+    longer takes the server's stamp (`offline.js`). It keeps one only while the two
+    agree, the rule before #1247. A recording or a film still learns the server's cut.
+  - Direction marks (U+200E/F and the embedding and isolate controls) no longer hide a
+    track's marks from `ingest.subtitles.drawn`. A punctuated track with an RLM after
+    each mark was read as bare of marks and closed a paragraph at every pause, mid-sentence
+    or not.
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
   design.md §12 2026-11-14).
   - Approving an app again revokes the reader's older access and refresh tokens for that
@@ -100,6 +177,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     newer "library record" now reads "library record chat" instead of losing `chat`.
     Disconnect still revokes everything for the app. `record_turn` and
     `Library.claim_turn` are unchanged. No spend.
+- At a desk the word's card opens over the listening view (targum-internal#730, found by
+  design's §14 pass on targum#1243). It floated at `.gloss-card`'s z-index 20 under
+  `.listen-view`'s 29, so a word tapped there opened a card that was drawn and out of
+  sight, and nothing on it could be pressed; the phone's sheet already stood over it at
+  30. `body.listening #gloss-card` now stands at 32 beside the pick card. A browser test
+  at 1440 taps a word in the listening view and presses a stage on its card. No new
+  strings.
 - A video's own subtitle track is punctuated when it has no full stops, and drawn into
   paragraphs (targum-internal#727). David's Doña Gracia video came with the creator's
   Hebrew track: 2,873 words with one full stop and one comma. It was taken as the source
@@ -882,6 +966,39 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     clears the line, and a Try again that works offers "Words you may already know"
     without a reload (qa-claude on #1231).
   - 21 new Russian strings and one changed, passed by ling-ru. No spend.
+- The Progress page's "words you knew" browser test no longer fails when a run crosses
+  midnight UTC between seeding the days and asserting "Today…" (targum-internal#731).
+  `tests/test_progress_level_browser.py` runs the page in UTC with its clock fixed at noon
+  on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
+  today and the seeded today are one day. Timers still run, and there are no sleeps.
+  Tests only.
+- Finish-card leftovers (targum-internal#716 P2 19, #719 P2 11, #720 P2 12, #725 P2 12,
+  and #723 P2 8 for #703).
+  - Your targums: at 390 a playlist's ⋯ opens Rename and Delete in the head's own row
+    instead of floating over the first row's title and remove press at the screen's edge. On a
+    phone, a subscription row's Pause stands at the end of its name and says "Pause"
+    beside ‖, instead of a bare ‖ on a line of its own. At a desk the row's last column
+    keeps one width, so a paused row's Latest and Comes out line up with the others.
+  - Your account (plans on): the top-up amounts beside the greyed Top up are plain muted
+    text ("60 credits · 180 credits · 600 credits"), not a live-looking segment.
+  - Saved: Recent texts and Videos are one Tab stop each, and the arrow keys choose
+    between their options (mirrored under RTL), as Account's form of address does.
+  - Your Words: the practice card's line is cut to the sentence the word stands in. A
+    line could be a paragraph (nine lines from אהבת ציון). The translation is cut to the
+    sentence in the same place where it splits into as many sentences, and left off
+    where it doesn't, rather than a paragraph under one sentence.
+  - The reader: a byline the translation leaves as it was ("KhanAcademyHebrew") is said
+    once, and a byline is glued to what follows like a title plate, so on a phone with
+    the picture docked the first page holds the first line instead of only the title
+    and the source.
+  - No new strings. No spend.
+- `/gloss` buys a word's meaning only for a language a text is read in here, with both
+  codes normalised first (targum-internal#732, found by qa-claude on #1220). The source
+  and target were compared as the page sent them, so "EN" into "en" or "ru-RU" into "ru"
+  passed the same-language refusal, and any source was accepted, so a page could make
+  targum buy Japanese meanings. Both are lowercased to their base code
+  (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
+  target == source still is until #538. A 400, with no model call. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
