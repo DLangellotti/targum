@@ -292,7 +292,9 @@ function told(key, client, tries) {
   return self.clients.matchAll({ type: "window" }).then(function (open) {
     var heard = false;
     open.forEach(function (one) {
-      if (!client || one.id === client || keyOf(one.url) === key) {
+      // The page that opened, by its id where the open named one: the page it replaces,
+      // at the same address and still unloading, is not it.
+      if (client ? one.id === client : keyOf(one.url) === key) {
         one.postMessage({ type: "refreshed", page: key });
         heard = true;
       }
