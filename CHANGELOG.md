@@ -866,6 +866,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     clears the line, and a Try again that works offers "Words you may already know"
     without a reload (qa-claude on #1231).
   - 21 new Russian strings and one changed, passed by ling-ru. No spend.
+- The Progress page's "words you knew" browser test no longer fails when a run crosses
+  midnight UTC between seeding the days and asserting "Today…" (targum-internal#731).
+  `tests/test_progress_level_browser.py` runs the page in UTC with its clock fixed at noon
+  on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
+  today and the seeded today are one day. Timers still run, and there are no sleeps.
+  Tests only.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
