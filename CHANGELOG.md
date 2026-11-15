@@ -929,6 +929,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
   today and the seeded today are one day. Timers still run, and there are no sleeps.
   Tests only.
+- קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
+  voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
+  voice" in all 16 places, because DICTA's menaked and its joint model both read the
+  spelling as קול + her.
+  - A new hand-kept table, `vocalize/pointing_overrides.json`, says what each entry
+    means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
+    `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
+    (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…) or a definite
+    adjective straight after it (קולה הצעיר). Either one keeps DICTA's pointing.
+  - One sense per text: once one occurrence is cued and none is guarded, every
+    occurrence in that text takes cola. A text with one guarded occurrence changes only
+    its cued ones.
+  - Only lines a model pointed. An edition's pointing, a changed letter or a lemma the
+    entry doesn't name is left alone. The file on disk keeps what the diacritizer said.
+  - A plain `targum rebuild`, with no `--words`, takes it to existing pages. No annotator
+    rename, no `SCHEMA_VERSION`, no model call, no spend.
+  - Laptop library, read-only: 0 of 708 Hebrew texts change. All 115 קולה there are
+    "her voice", 86 of them guarded and none cued.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

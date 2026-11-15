@@ -6805,6 +6805,12 @@ def render(
         from ..annotate.lemma_check import mended
 
         annotation = mended(annotation, segmented)
+    # A word the diacritizer pointed as another word that the words around it rule out
+    # (קולה, cola, read as קוֹלָהּ, her voice): put right from the hand-kept table, here,
+    # so a free rebuild reaches every page (`vocalize.overrides`, targum-internal#689).
+    from ..vocalize.overrides import overridden
+
+    vocalization = overridden(vocalization, segmented, annotation)
 
     from ..renderings import (
         EMPTY,
