@@ -1956,6 +1956,107 @@ def test_a_meaning_is_bought_only_for_a_language_read_here(
     assert bought == [("שלום", "he", "en"), ("שלום", "he", "en")]
 
 
+def test_meanings_bought_in_an_hour_have_a_ceiling(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every lemma a page names that nobody has looked up is a purchase, so an account
+    has an hour's ceiling on them, as `/phrase` does (targum-internal#737): past it the
+    answer is a 429 that never reaches the model."""
+    from targum import serve
+    from targum.annotate import gloss as gloss_module
+
+    port, session = hosted
+    bought: list[str] = []
+
+    def fake_gloss(self: object, lemmas: list[str], *_: object, **__: object) -> dict[str, object]:
+        bought.extend(lemmas)
+        return {lemma: gloss_module.Sense(gloss="book") for lemma in lemmas}
+
+    monkeypatch.setattr(gloss_module.AnthropicGlosses, "gloss", fake_gloss)
+    monkeypatch.setattr(gloss_module.AnthropicGlosses, "available", lambda self: (True, ""))
+    monkeypatch.setattr(serve, "GLOSSES_PER_HOUR", 0)
+
+    status, answer = _signed_post(
+        port, "/gloss", {"lemma": "ספרון", "source": "he", "target": "en"}, session
+    )
+    assert status == 429
+    assert answer["error"] == "That's a lot of words for one hour. Try again in an hour."
+    assert bought == []
+
+
+def test_a_meaning_already_held_is_never_counted(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only a tap that reaches the model counts toward the hour (targum-internal#737). A
+    meaning already grounded is answered at the ceiling, and so is one held bare without
+    a sentence. A bare one asked with its sentence would be bought again, so at the
+    ceiling it is answered as it stands, ungrounded, and nothing is bought. Under the
+    ceiling a word nobody has looked up is counted once and bought once."""
+    from targum import serve
+    from targum.accounts import Store
+    from targum.annotate.gloss import AnthropicGlosses, Sense, gloss_key, gloss_provider_name
+    from targum.cache import Cache
+
+    port, session = hosted
+    bought: list[str] = []
+    counted: list[str] = []
+
+    def fake_gloss(self: object, lemmas: list[str], *_: object, **__: object) -> dict[str, Sense]:
+        bought.extend(lemmas)
+        return {lemma: Sense(gloss="water") for lemma in lemmas}
+
+    real = Store.asking_too_often
+
+    def counting(self: Store, who: str, limit: int = 0) -> bool:
+        if who.startswith("gloss:"):
+            counted.append(who)
+        return real(self, who, limit=limit)
+
+    monkeypatch.setattr(AnthropicGlosses, "gloss", fake_gloss)
+    monkeypatch.setattr(AnthropicGlosses, "available", lambda self: (True, ""))
+    monkeypatch.setattr(Store, "asking_too_often", counting)
+    monkeypatch.setattr(serve, "GLOSSES_PER_HOUR", 0)
+
+    cache = Cache()
+    name = gloss_provider_name()
+    cache.put(
+        "gloss",
+        gloss_key(cache, "גבעה", "he", "en", name),
+        {"gloss": "hill", "part_of_speech": "noun", "grounded": True},
+    )
+    cache.put(
+        "gloss",
+        gloss_key(cache, "עמק", "he", "en", name),
+        {"gloss": "valley", "part_of_speech": "noun"},
+    )
+
+    def ask(lemma: str, sentence: str = "") -> tuple[int, dict[str, object]]:
+        return _signed_post(
+            port,
+            "/gloss",
+            {"lemma": lemma, "source": "he", "target": "en", "sentence": sentence},
+            session,
+        )
+
+    status, answer = ask("גבעה", "עלינו על הגבעה.")
+    assert status == 200 and answer["meaning"] == "hill" and answer["grounded"] is True
+    status, answer = ask("עמק")
+    assert status == 200 and answer["meaning"] == "valley"
+    assert counted == [], "a meaning held and not bought again is never counted"
+
+    status, answer = ask("עמק", "ירדנו לעמק.")
+    assert status == 200 and answer["meaning"] == "valley" and answer["grounded"] is False
+    assert bought == [], "past the ceiling the bare meaning stands and nothing is bought"
+    assert len(counted) == 1
+
+    monkeypatch.setattr(serve, "GLOSSES_PER_HOUR", 10_000)
+    status, answer = ask("מעיין", "שתינו מן המעיין.")
+    assert status == 200 and answer["meaning"] == "water"
+    assert bought == ["מעיין"] and len(counted) == 2
+    status, answer = ask("מעיין", "שתינו מן המעיין.")
+    assert status == 200 and bought == ["מעיין"] and len(counted) == 2, "bought once, free after"
+
+
 def test_a_language_code_is_its_base_in_lowercase() -> None:
     from targum.serve import language_code
 
