@@ -254,6 +254,57 @@ else
     || FAILED="$FAILED announce"
 fi
 
+# The weekly speed check (targum-internal#484): the read-only speed pass over the public
+# pages, on the phone, against design.md §14's 1.5 s. Once a week is the loop the card
+# asked for, and this run is the one thing here that happens every week by itself.
+#
+# It never stops the run and never tells the box. It comes after the mail, so a slow
+# page cannot hold back an issue that passed every guard, and a page over the budget is
+# a number for the §14 card, not a reason to wake anybody: it is written down beside the
+# issue and said in runs.log. It only GETs public pages, signs nothing in and spends
+# nothing (scripts/speed_pass.py), and it runs niced, one browser at a time.
+#
+# A run that has already failed skips it, so the verdict and the mail about it are not
+# held up by eight minutes of measuring. And the pass has a hard limit of SPEED_LIMIT
+# seconds: a wedged headless browser would otherwise hold this run open for good, and
+# launchd does not start next Monday's while this one is still running. Perl's alarm
+# rather than `timeout`, which macOS does not have without Homebrew. A pass that runs out
+# of time is said as one that could not run, like any other.
+# TARGUM_WEEKLY_SPEED=0 leaves it out.
+SPEED_LIMIT=1800
+speed_check() {
+  [ "${TARGUM_WEEKLY_SPEED:-1}" = "0" ] && return 0
+  [ -z "${FAILED:-}" ] || return 0
+  local week="${WEEK:-}"
+  [ -n "$week" ] || return 0
+  local python="$ROOT/.venv/bin/python" pass="$ROOT/scripts/speed_pass.py"
+  [ -x "$python" ] && [ -f "$pass" ] || return 0
+  local out="$ROOT/targum-out/weekly/speed" said over limit="${SPEED_LIMIT:-1800}"
+  mkdir -p "$out" 2>/dev/null || return 0
+  rm -f "$out/$week.json"
+  say "measuring the public pages on a phone (read-only, about eight minutes)"
+  nice -n 10 perl -e 'alarm shift; exec @ARGV or exit 127' "$limit" \
+    "$python" "$pass" --desk-runs 0 --json "$out/$week.json" >"$out/$week.txt" 2>&1
+  local code=$?
+  # The JSON is written only by a pass that finished, so a 1 with it is a page over the
+  # budget; anything else without a 0 is a pass that could not run (no browser, no
+  # network, killed, or out of time: SIGALRM is 142).
+  if [ "$code" -eq 0 ]; then
+    said="speed: every public page holds"
+  elif [ "$code" -eq 1 ] && [ -s "$out/$week.json" ]; then
+    over="$(grep -m1 '^§14' "$out/$week.txt" 2>/dev/null | sed 's/^[^:]*: //')"
+    said="speed: ${over:-over the budget}"
+  elif [ "$code" -eq 142 ]; then
+    said="speed: the pass could not run (out of time after ${limit} s)"
+  else
+    said="speed: the pass could not run (exit $code)"
+  fi
+  record "$said, $out/$week.txt"
+  say "$said (targum-out/weekly/speed/$week.txt)"
+  return 0
+}
+speed_check
+
 if [ -n "$FAILED" ]; then
   die "$WEEK is published, and this did not finish:$FAILED${MISSING:+, and no edition in$MISSING}.
    Run this again — it picks up where it stopped and re-does nothing."
