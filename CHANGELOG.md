@@ -937,8 +937,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
     `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
     (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
-    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…) or a definite
-    adjective straight after it (קולה הצעיר). Either one keeps DICTA's pointing.
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…), a speech verb
+    (אמרה, ענתה, קראה, שאלה, המשיכה and their common forms, ling-he via qa-claude), or a
+    definite adjective straight after it (קולה הצעיר). Any one keeps DICTA's pointing, so
+    "אמרה בקולה." beside a bottle of cola stays her voice.
   - One sense per text: once one occurrence is cued and none is guarded, every
     occurrence in that text takes cola. A text with one guarded occurrence changes only
     its cued ones.

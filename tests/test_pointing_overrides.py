@@ -124,6 +124,22 @@ def test_a_voice_in_the_text_keeps_the_rest_as_they_were() -> None:
     assert out.segments["s2"] == vocalization.segments["s2"]
 
 
+def test_said_in_her_voice_stays_her_voice_beside_a_bottle_of_cola() -> None:
+    """A speech verb is a guard (ling-he via qa-claude on #1254): a prose text with one
+    bottle of cola and "אמרה בקולה." elsewhere keeps her voice, and so the text is not
+    one sense and only the cued קולה moves."""
+    segmented, vocalization, annotation = _text(
+        ("קניתי בקבוק קולה", f"קָנִיתִי בַּקְבּוּק {VOICE}"),
+        ("אמרה בקולה.", f"אָמְרָה בְּ{VOICE}."),
+        ("ושאלה בקולה השקט", f"וְשָׁאֲלָה בְּ{VOICE} הַשָּׁקֵט"),
+    )
+    out = overridden(vocalization, segmented, annotation)
+    assert out is not None
+    assert out.segments["s0"] == f"קָנִיתִי בַּקְבּוּק {COLA}"
+    assert out.segments["s1"] == f"אָמְרָה בְּ{VOICE}."
+    assert out.segments["s2"] == vocalization.segments["s2"]
+
+
 def test_a_cue_across_a_full_stop_is_no_cue() -> None:
     segmented, vocalization, annotation = _text(
         ("היא פתחה בקבוק. קולה רעד", f"הִיא פָּתְחָה בַּקְבּוּק. {VOICE} רָעַד"),

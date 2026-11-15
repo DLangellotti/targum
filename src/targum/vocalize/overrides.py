@@ -10,7 +10,8 @@ only the words around it can pick cola.
 So the table (`pointing_overrides.json`) names a bare spelling, the pointing it should
 have, and the words that say so: a cue (בקבוק, פחית, קוקה, a form of שתה) within three
 words of it and inside its clause, and nothing that says the other reading. A guard is a
-word of the voice's (את before it, שמע, נתנה, הרימה, רעד…), or a definite adjective
+word of the voice's (את before it, שמע, נתנה, הרימה, רעד, and the speech verbs
+אמרה, ענתה, קראה, שאלה, המשיכה in their common forms), or a definite adjective
 straight after a bare word (קולה הצעיר is "her young voice"; cola would be הקולה הצעיר).
 Where the entry says `whole_text`, one sense holds for a text: once one occurrence is
 cued and none is guarded, every occurrence in the text takes the pointing, because a
