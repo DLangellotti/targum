@@ -116,6 +116,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
+
 - Send to Anki on Your Words (targum-internal#540, design.md §12 "Send to Anki talks to
   the Anki on your own computer", 2026-11-14). At a desk, a quiet "Send to Anki" press
   beside "Export as an Anki deck" sends every word the reader is learning in the language
@@ -156,6 +168,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
   `index.json` sends stay as they are, since nothing saved holds the index.
   `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- `/phrase` holds a selection's meaning to the same languages `/gloss` does
+  (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
+  language: any source into any target was bought, the words' own language too, and the
+  reader did not say which text it was in. Both codes are normalised
+  (`serve.language_code`), the source has to be in `translate.prompts.READING`, the
+  target one the reader reads or the text is translated into (the reader now sends
+  `document`), and target == source is refused: a 400 before any model call. Since the
+  sentence and translation are the page's, every new pair is a new purchase, so an
+  account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
+  sign-in links use), and past it gets a 429. An answer already held stays free and is
+  never counted. One new string, in English and Russian. No spend.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
@@ -1008,6 +1031,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   targum buy Japanese meanings. Both are lowercased to their base code
   (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
   target == source still is until #538. A 400, with no model call. No spend.
+- קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
+  voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
+  voice" in all 16 places, because DICTA's menaked and its joint model both read the
+  spelling as קול + her.
+  - A new hand-kept table, `vocalize/pointing_overrides.json`, says what each entry
+    means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
+    `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
+    (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…), a speech verb
+    (אמרה, ענתה, קראה, שאלה, המשיכה and their common forms, ling-he via qa-claude), or a
+    definite adjective straight after it (קולה הצעיר). Any one keeps DICTA's pointing, so
+    "אמרה בקולה." beside a bottle of cola stays her voice.
+  - One sense per text: once one occurrence is cued and none is guarded, every
+    occurrence in that text takes cola. A text with one guarded occurrence changes only
+    its cued ones.
+  - Only lines a model pointed. An edition's pointing, a changed letter or a lemma the
+    entry doesn't name is left alone. The file on disk keeps what the diacritizer said.
+  - A plain `targum rebuild`, with no `--words`, takes it to existing pages. No annotator
+    rename, no `SCHEMA_VERSION`, no model call, no spend.
+  - Laptop library, read-only: 0 of 708 Hebrew texts change. All 115 קולה there are
+    "her voice", 86 of them guarded and none cued.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
