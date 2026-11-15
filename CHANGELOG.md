@@ -77,6 +77,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     two options would both be that language.
 
 ### Changed
+- `/gloss` has an hour's ceiling per account, as `/phrase` has (targum-internal#737,
+  raised by qa-claude on #1258). It had none: a signed-in page could name lemma after
+  lemma and targum bought each meaning. An account may now buy 300 meanings an hour
+  (`GLOSSES_PER_HOUR`, on the `asked` table `/phrase` and the sign-in links use), and past
+  it gets a 429, "That's a lot of words for one hour. Try again in an hour." Only a tap
+  that reaches the model counts: a meaning already held, or held grounded, is free and
+  never counted. A bare meaning asked with its sentence past the ceiling is answered as
+  it stands, ungrounded, so the card keeps what it had and only the purchase waits. One
+  new string, in English and Russian. A lemma longer than 64 characters after stripping
+  (`MAX_LEMMA`) is now a 400 before any gate, free or bought: it had no limit, so 300 an
+  hour could each be a page of text. The longest lemma in the library is 30 characters.
+  No spend.
 - A1 is Easy's two ceilings and short (targum-internal#728, design.md §12 "A1 is Easy's
   two ceilings and short", 2026-11-15). For placement an Easy text is A1 where its share
   is at most 15, its mean sentence at most 9.5 words, and it runs more than none and at

@@ -1176,6 +1176,15 @@ FAULTS_PER_HOUR_FOR_EVERYBODY = 600
 #: Phrases one account may have bought in an hour (targum-internal#734). An answer
 #: already held is free and never counted.
 PHRASES_PER_HOUR = 120
+#: Word meanings one account may have bought in an hour (targum-internal#737). Only a
+#: tap that reaches the model counts: a meaning already held, and one already grounded in
+#: a sentence, is free and never counted. A reader opening a card every twelve seconds for
+#: an hour on words nobody has looked up meets it; a script naming lemmas does sooner.
+GLOSSES_PER_HOUR = 300
+#: The longest lemma `/gloss` takes. The longest in the library on 2026-11-15 was 30
+#: characters (a hyphenated Russian adjective); the longest Hebrew 23, pointed with a
+#: Strong's number, and the longest multi-word Hebrew name 14 (`tanakh.json`).
+MAX_LEMMA = 64
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -19322,7 +19331,10 @@ class Handler(BaseHTTPRequestHandler):
         # Which text they were reading, so a judgement made in it can be held to that
         # text's licence when the corpus leaves (targum-internal#164, acceptance 5).
         document = str(payload.get("document", "")).strip()[:200]
-        if not lemma or not source:
+        # A lemma is a word, so it is refused rather than cut when it is longer than any
+        # word: cut, it would still be a purchase of whatever a page put there
+        # (targum-internal#737). The longest in the library is 30 characters.
+        if not lemma or not source or len(lemma) > MAX_LEMMA:
             return self._json({"error": "bad request"}, 400)
 
         from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
@@ -19378,6 +19390,35 @@ class Handler(BaseHTTPRequestHandler):
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
+        # And a ceiling per account an hour on what is bought (targum-internal#737), as
+        # `/phrase` has. `gloss_one` buys only where nothing is held, or where what is
+        # held was bought bare and a sentence has arrived; everything else is free and
+        # never counted. Past the ceiling a bare meaning already held is still answered,
+        # ungrounded, so the card keeps what it had and only the new purchase waits.
+        held = cached_gloss(lemma, source, target, provider.name)
+        if held is None or (sentence and not held.grounded):
+            person = self._person()
+            who = f"gloss:{person.id}" if person is not None else "gloss:" + digest(self._visitor())
+            if self.store.asking_too_often(who, limit=GLOSSES_PER_HOUR):
+                if held is not None:
+                    return self._json(
+                        {
+                            "lemma": lemma,
+                            "meaning": held.gloss,
+                            "citation": held.citation,
+                            "plural": held.plural,
+                            "grounded": False,
+                        }
+                    )
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.gloss.too-often",
+                            "That's a lot of words for one hour. Try again in an hour.",
+                        )
+                    },
+                    429,
+                )
         try:
             sense = gloss_one(
                 lemma,
