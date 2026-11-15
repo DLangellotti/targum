@@ -9250,7 +9250,10 @@ class Handler(BaseHTTPRequestHandler):
           places are added here, so a text opened on another device is never left out.
         - `catalogue=0`: no catalogue measured. Only the Library draws it.
         - `name=<folder>`: of the reader's own, only that one, and nothing taken off the
-          shelf: what a reader's contents page asks about itself.
+          shelf: what a reader's contents page asks about itself. Without `shared=0`,
+          the shared shelf's text of that folder too, and only it: what a reader asks
+          for its own figure, the one Home prints (design.md §12, "A reader says our
+          estimate until anything in it is marked", 2026-11-15).
         """
         home = self._home()
         person = self._person()
@@ -9267,7 +9270,9 @@ class Handler(BaseHTTPRequestHandler):
         shared: list[dict[str, Any]] = []
         if asked != "0":
             shared = self.library.readers(self.library.shared)
-            if asked is not None:
+            if name:
+                shared = [reader for reader in shared if reader.get("name") == name]
+            elif asked is not None:
                 shared = self._opened_of(shared, asked, person)
             for reader in shared:
                 reader["shared"] = True

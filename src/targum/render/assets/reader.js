@@ -3568,6 +3568,70 @@ var targumReader = function () {
   var listStats = document.getElementById("list-stats");
   var headerKnown = document.getElementById("known");
 
+  /* Our estimate for this text, the figure Home prints for it, as a whole percentage:
+     said in the bar and the list until anything in the text is marked (design.md §12,
+     "A reader says our estimate until anything in it is marked", 2026-11-15;
+     targum-internal#724). A new reader's first text said "0 of 235 known" a minute
+     before Home said "about 44% (our estimate)". Null until the server answers, and
+     always where it is not asked. */
+  var ourEstimate = null;
+
+  /* A shelf row's estimate as Home rounds it (`figure.js`, `level.known_percent`): never
+     100 under all of it nor 0 above none. Null where the row is not measured, its figure
+     is what was marked, or it estimates none of the text. */
+  function estimateOf(row) {
+    if (!row || ("words" in row && !row.words)) return null;
+    var share = row.estimated;
+    if (typeof share !== "number" || !(share > 0)) return null;
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    if (share < 1 && percent >= 100) percent = 99;
+    if (percent <= 0) percent = 1;
+    return percent;
+  }
+
+  /* Asked once, of the server's own row for this text (`/readers?name=`, what Home and
+     the Library read), and only where it can be answered: served, signed in or keyed,
+     and online. Signed out, off the disk and a saved copy offline ask nothing new. */
+  function askEstimate() {
+    var folder = buildFolder();
+    if (!folder || !canAsk() || away() || typeof fetch !== "function") return;
+    fetch(keyed("/readers?catalogue=0&name=" + encodeURIComponent(folder)), {
+      credentials: "same-origin",
+      headers: keyHeaders({}),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        if (!answer) return;
+        // The reader's own copy first, as the server serves it first.
+        var rows = (answer.readers || []).concat(answer.shared || []);
+        var row = rows.filter(function (one) {
+          return one && one.name === folder;
+        })[0];
+        var percent = estimateOf(row);
+        if (percent === null) return;
+        ourEstimate = percent;
+        renderStats();
+      })
+      .catch(function () {
+        /* the count stands */
+      });
+  }
+
+  // "About 44% (our estimate)", the label quiet beside the number, as Home says it. The
+  // bar's number takes its ledger treatment (`b`); the list's line is plain.
+  function estimateInto(element, percent, tag) {
+    var number = document.createElement(tag || "b");
+    number.textContent = t("reader.estimate.about", "About {share}%", { share: percent });
+    var ours = document.createElement("span");
+    ours.className = "estimate-ours";
+    ours.textContent = t("reader.estimate.ours", "(our estimate)");
+    element.appendChild(number);
+    element.appendChild(document.createTextNode(" "));
+    element.appendChild(ours);
+  }
+
   // How much of what is in front of you you have already dealt with. The reason to
   // know it is choosing what to read next, so it counts this text and not the language.
   function coverage() {
@@ -3644,6 +3708,9 @@ var targumReader = function () {
     // numeral, a word from another language — and counting it as known would make the
     // figure something you could raise without learning anything.
     var scored = counts.total - counts.ignored;
+    // Nothing in the text marked known or learning yet, and the server's estimate in hand:
+    // say Home's figure rather than "0 of M known" (targum-internal#724).
+    var estimating = ourEstimate !== null && !counts.known && !counts.learning;
 
     // In the header, beside the title: how much of this text you can already read. The
     // words are counted here and the knowing is counted across the language, so a word
@@ -3673,6 +3740,8 @@ var targumReader = function () {
           headerKnown.appendChild(
             document.createTextNode(t("reader.header.nothing-left", "nothing left to mark here"))
           );
+        } else if (estimating) {
+          estimateInto(headerKnown, ourEstimate);
         } else {
           var whole = document.createElement("b");
           whole.textContent = String(counts.known);
@@ -3704,6 +3773,16 @@ var targumReader = function () {
     if (!listStats) return;
     if (!counts.total) {
       listStats.textContent = "";
+      return;
+    }
+    if (estimating) {
+      listStats.textContent = "";
+      estimateInto(listStats, ourEstimate, "span");
+      listStats.appendChild(
+        document.createTextNode(
+          " · " + tn("reader.list.to-mark", counts.fresh, "{n} word to mark", "{n} words to mark")
+        )
+      );
       return;
     }
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
@@ -10073,7 +10152,13 @@ var targumReader = function () {
       if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
-    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
+    if (window.TargumSync.settled) {
+      window.TargumSync.settled().then(notePart, notePart);
+      // Once the account has said who is reading: signed out asks nothing.
+      window.TargumSync.settled().then(askEstimate, function () {});
+    }
+  } else if (served && passKey) {
+    askEstimate();
   }
 
   // The way in from this page, for the card's "Sign in to look this up" and the
