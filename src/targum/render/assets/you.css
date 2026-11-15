@@ -35,6 +35,13 @@ b.acct-name { font-weight: 600; }
 .acct-rows > .row.acct-wrap { flex-wrap: wrap; }
 .acct-rows > .row.acct-wrap > .row-main { flex: 1 1 18rem; }
 .acct-wrap > .said { flex: 1 1 100%; }
+/* Ways to sign in (targum-internal#502): a heading over one row a way, inside the
+   Account card's list, so the email link and Google read as one question. */
+.acct-rows > .row.ways { flex-direction: column; align-items: stretch; gap: 0; }
+.ways-title { margin: 0; color: var(--ink); font-size: 0.9375rem; font-weight: 600; }
+.ways-rows { margin: 0; padding: 0; }
+.ways-rows > .row { padding-block: 0.75rem; }
+.ways-rows > .row:last-child { padding-block-end: 0; }
 .acct-inline,
 .acct-link { color: var(--teal); font-weight: 600; text-underline-offset: 2px; }
 .acct-link { font-size: 0.875rem; }
@@ -88,7 +95,11 @@ b.acct-name { font-weight: 600; }
 .plan-offer { margin: 1rem 0 0; padding-block-start: 1rem; border-block-start: 1px solid var(--rule); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
 .plan-pay-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 1rem 0 0; }
 .plan-pay-row .acct-soon { margin: 0; }
-.plan-top-ups > span { padding-inline: 0.75rem; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; }
+/* The amounts are said, not offered, while there is no provider: plain muted text with a
+   dot between (you.js), never a segment beside the greyed Top up, which read as a choice that
+   could be made and then could not (targum-internal#719, P2 11). */
+.plan-top-ups { color: var(--ink-soft); font-size: 0.875rem; }
+.plan-top-ups > span { white-space: nowrap; }
 #plan-free[hidden], #plan-paid[hidden] { display: none; }
 @media (max-width: 40rem) {
   .plan-pay-row > button { flex: 1 0 100%; }

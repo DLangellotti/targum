@@ -53,6 +53,7 @@ from .accounts import (
     SUB_BUILDS,
     TOLD_PER_HOUR,
     TOLD_STATES,
+    GoogleOff,
     Person,
     Store,
     digest,
@@ -317,6 +318,21 @@ class Refusal(str):
         made.fact = fact
         made.act = act
         return made
+
+
+def language_code(value: object) -> str:
+    """A language code as targum writes it: lowercase, the base language alone, so
+    "EN", "ru-RU" and "he_IL" are "en", "ru" and "he". "" for anything that is not one."""
+    code = str(value or "").strip().lower().replace("_", "-").split("-")[0]
+    return code if code.isascii() and code.isalpha() else ""
+
+
+def reading_languages() -> frozenset[str]:
+    """The languages a text may be read in here, and so the only ones a word's meaning
+    may be bought for (`translate.prompts.READING`)."""
+    from .translate.prompts import READING
+
+    return frozenset(code for code, _ in READING)
 
 
 def no_key(ui: str) -> Refusal:
@@ -862,6 +878,13 @@ SIGNUP_POST = "/signup"
 #: A form on another site could post to any of them, so each refuses a browser that
 #: says the post came from another site.
 MAILING_POSTS = frozenset({"/account/sign-in", "/waitlist", SIGNUP_POST, "/weekly/subscribe"})
+
+#: Account's presses on the ways in (targum-internal#502): Unlink, and its Undo.
+WAY_POSTS = frozenset({"/account/google/unlink", "/account/google/link-again"})
+
+#: How long after Unlink its Undo still works. The page draws Undo for eight seconds;
+#: the rest is a slow connection's, and after it Google is linked again only by Link.
+UNDO_UNLINK_SECONDS = 30
 
 #: A series id as `series.py` names them: a slug, nothing else.
 SERIES_ID = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
@@ -11109,6 +11132,12 @@ class Handler(BaseHTTPRequestHandler):
         if route in MAILING_POSTS and self._cross_site():
             self.close_connection = True
             return self._json({"error": "forbidden"}, 403)
+        # Unlink and Undo change how an account is signed into (targum-internal#502), so
+        # a form on another site must not press them for the reader, cookie or not; and
+        # they are pressed only by our own script, which always names its body as JSON.
+        if route in WAY_POSTS and (self._cross_site() or not self._json_body()):
+            self.close_connection = True
+            return self._json({"error": "forbidden"}, 403)
         # Sign-in reads its body as JSON, and a form on another site can send JSON as
         # text/plain without asking first. Our own script always names the type.
         if route == "/account/sign-in" and not self._json_body():
@@ -11322,6 +11351,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._sign_out()
         if route == "/account/forget":
             return self._forget()
+        if route == "/account/google/unlink":
+            return self._google_unlink()
+        if route == "/account/google/link-again":
+            return self._google_link_again()
         if route == "/sync":
             return self._sync(payload)
         if route == "/account/name":
@@ -13021,6 +13054,9 @@ class Handler(BaseHTTPRequestHandler):
             # reader can take it back, and this is that somewhere — see design.md §12,
             # "A scope is a press that lasts". Never the token itself.
             "connections": self.store.connections(person.id),
+            # How this account signs in (targum-internal#502): the email link, and Google
+            # where this install offers it. Nothing of Google's own, because none is kept.
+            "ways": self._ways(person),
             # And what they wrote for those connectors to offer (note 17). Listed here so
             # the page that writes them is the page that shows them.
             "prompts": self.store.prompts(person.id),
@@ -13036,6 +13072,10 @@ class Handler(BaseHTTPRequestHandler):
         # nothing.
         if self.telegram is not None:
             answer["telegram"] = {"chats": self.store.telegram_chats(person.id)}
+        # A Link that came back without linking, said once on Account (#502).
+        said_of_ways = self._ways_said_once(person.id)
+        if said_of_ways:
+            answer["waysSaid"] = said_of_ways
         answer.update(self.store.profile(person))
         self._json(answer)
 
@@ -15173,6 +15213,34 @@ class Handler(BaseHTTPRequestHandler):
     #: The room each of those was started from, by the same `state` (QA 2026-10-11, D2),
     #: kept beside rather than on `Begun`, which is Google's half and knows no pages.
     _google_next: ClassVar[dict[str, str]] = {}
+    #: The sign-ins started from Account's Link rather than from a door (targum-internal
+    #: #502), by the same `state`: the person whose account Google is to be linked to.
+    #: One of these never signs anybody in.
+    _google_linking: ClassVar[dict[str, int]] = {}
+    #: When each person last pressed Unlink, by person id, so Undo works for the few
+    #: seconds it is drawn for and not as a way to link Google without Google. In memory,
+    #: like the two above: a restart costs a Link press, and no date of it is kept.
+    _google_unlinked: ClassVar[dict[int, float]] = {}
+    #: What Account says once about a Link that came back without linking, by person id:
+    #: an address that was not theirs, a cancel, a sign-in left too long. Said through
+    #: `/account/me` rather than the URL, which would put an address in the access log.
+    #: Each with when it was said, and gone after `WAYS_SAID_FOR` seconds unread, so
+    #: another address is not held in memory until a restart (qa-claude on #1242).
+    _ways_said: ClassVar[dict[int, tuple[float, str]]] = {}
+    WAYS_SAID_FOR = 10 * 60
+
+    def _say_of_ways(self, person_id: int, said: str) -> None:
+        """Keep one line for Account to say about a Link, and drop any left too long."""
+        now = time.monotonic()
+        for who, (when, _) in list(self._ways_said.items()):
+            if now - when > self.WAYS_SAID_FOR:
+                self._ways_said.pop(who, None)
+        self._ways_said[person_id] = (now, said)
+
+    def _ways_said_once(self, person_id: int) -> str:
+        """The line about a Link, once, unless it waited past `WAYS_SAID_FOR`."""
+        when, said = self._ways_said.pop(person_id, (0.0, ""))
+        return said if said and time.monotonic() - when <= self.WAYS_SAID_FOR else ""
 
     #: The language one answer is said in where the request named it (`_sign_in`), over
     #: the browser's; empty everywhere else.
@@ -15188,6 +15256,14 @@ class Handler(BaseHTTPRequestHandler):
 
         if not google_module.configured() or not self._host_is_ours() or not self.address:
             return self._send(404, b"not found", "text/plain")
+        query = parse_qs(urlparse(self.path).query)
+        # Link from Account (targum-internal#502): only for somebody signed in, whose
+        # account is the one Google is linked to. Signed out, it is the door's job.
+        linking = None
+        if query.get("link", [""])[0] == "1":
+            linking = self._person()
+            if linking is None:
+                return self._go("/account/signin?next=%2Fyou")
         begun = google_module.begin(self._google_redirect())
         # Swept before it grows: nothing here is ever read after ten minutes, and a box
         # left running would otherwise keep every abandoned sign-in for ever.
@@ -15195,11 +15271,121 @@ class Handler(BaseHTTPRequestHandler):
             if google_module.stale(old):
                 self._google_begun.pop(state, None)
                 self._google_next.pop(state, None)
+                self._google_linking.pop(state, None)
         self._google_begun[begun.state] = begun
-        back = safe_next(parse_qs(urlparse(self.path).query).get("next", [""])[0])
-        if back:
-            self._google_next[begun.state] = back
+        if linking is not None:
+            self._google_linking[begun.state] = linking.id
+        else:
+            back = safe_next(query.get("next", [""])[0])
+            if back:
+                self._google_next[begun.state] = back
         self._go(begun.where)
+
+    def _google_linked(self, person_id: int, begun: Any, query: dict[str, list[str]]) -> None:
+        """Finish a Link pressed on Account, and go back there (targum-internal#502).
+
+        Never signs anybody in: the session that pressed Link must still be the person
+        it was started for, and Google must prove that account's own address, exactly.
+        Any other address is refused in one line naming both, because two addresses are
+        two accounts and Link does not open a second one (design.md §12, 2026-11-14).
+        """
+        from . import google as google_module
+
+        person = self._person()
+        if person is None or person.id != person_id:
+            return self._go("/account/signin?next=%2Fyou")
+        if begun is None or google_module.stale(begun):
+            self._say_of_ways(
+                person.id,
+                self._say("serve.that-sign-in-took-too-long", "That sign-in took too long."),
+            )
+            return self._go("/you#ways")
+        code = (query.get("code") or [""])[0]
+        if (query.get("error") or [""])[0] or not code:
+            # Cancel on Google's own screen: nothing to say, Not linked says it.
+            return self._go("/you#ways")
+        try:
+            answer = google_module.exchange(code, begun.verifier, self._google_redirect())
+            email = google_module.address_from(answer)
+        except google_module.Refused as error:
+            self._say_of_ways(person.id, str(error))
+            return self._go("/you#ways")
+        if email != person.email:
+            self._say_of_ways(
+                person.id,
+                self._say(
+                    "serve.google-other-address",
+                    "That Google account is for {address}. Choose the one for {yours}.",
+                    address=email,
+                    yours=person.email,
+                ),
+            )
+            return self._go("/you#ways")
+        self.store.link_google(person.id)
+        self._google_unlinked.pop(person.id, None)
+        self._go("/you#ways")
+
+    def _google_unlink(self) -> None:
+        """Account's Unlink (targum-internal#502): no question asked, and Undo for a few
+        seconds after. Refused where Google is the last way in, which today it never is."""
+        from . import google as google_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if not google_module.configured():
+            return self._json({"error": "not found"}, 404)
+        if not self.store.ways_in(person.id)["linked"]:
+            return self._json({"ways": self._ways(person)})
+        if not self.store.unlink_google(person.id):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.last-way-in",
+                        "That's your last way to sign in, so it stays.",
+                    ),
+                    "ways": self._ways(person),
+                },
+                409,
+            )
+        self._google_unlinked[person.id] = time.monotonic()
+        self._json({"ways": self._ways(person)})
+
+    def _google_link_again(self) -> None:
+        """Undo, inside the few seconds it is drawn for (targum-internal#502). After that
+        Google is linked again only through Google, by Link."""
+        from . import google as google_module
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        if not google_module.configured():
+            return self._json({"error": "not found"}, 404)
+        pressed = self._google_unlinked.pop(person.id, None)
+        if pressed is None or time.monotonic() - pressed > UNDO_UNLINK_SECONDS:
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.google-undo-too-late",
+                        "That's too late to undo. Press Link to link Google again.",
+                    ),
+                    "ways": self._ways(person),
+                },
+                409,
+            )
+        self.store.relink_google(person.id)
+        self._json({"ways": self._ways(person)})
+
+    def _ways(self, person: Person) -> list[dict[str, Any]]:
+        """The ways this account signs in, as Account draws them (targum-internal#502):
+        the email link always, and Google where this install can offer it."""
+        from . import google as google_module
+
+        ways: list[dict[str, Any]] = [{"kind": "email", "address": person.email}]
+        if google_module.configured():
+            held = self.store.ways_in(person.id)
+            ways.append({"kind": "google", "linked": held["linked"], "used": held["used"]})
+        return ways
 
     def _google_back(self, query: dict[str, list[str]]) -> None:
         """Finish a sign-in Google has proved, or say plainly why not.
@@ -15218,6 +15404,9 @@ class Handler(BaseHTTPRequestHandler):
         state = (query.get("state") or [""])[0]
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
+        linking = self._google_linking.pop(state, None) if state else None
+        if linking is not None:
+            return self._google_linked(linking, begun, query)
 
         def refuse(said: str, again: str = "") -> None:
             # The room they were turned away from stays with them through a refusal
@@ -15268,7 +15457,18 @@ class Handler(BaseHTTPRequestHandler):
                 return refuse(held[0])
         elif self.require_account and not self.store.may_join(email):
             return refuse(self._not_open())
-        got = self.store.sign_in_verified(email)
+        try:
+            got = self.store.sign_in_verified(email, via="google")
+        except GoogleOff:
+            # Unlinked from Account (targum-internal#502): only Account links it again,
+            # and the form beside this line is the way in meanwhile.
+            return refuse(
+                self._say(
+                    "serve.google-off",
+                    "Google sign-in is off for this account. Use the email link, or link "
+                    "Google again from Your account.",
+                )
+            )
         if got is None:
             return refuse(self._not_open())
         self._door_keeps(email)
@@ -16616,7 +16816,9 @@ class Handler(BaseHTTPRequestHandler):
         practise = []
         for lemma in learning[: meetings_module.PRACTISE]:
             line = lines.get(lemma)
-            said = meetings_module.card_line(line, into) if line else None
+            # Cut to the sentence the word is in: a line can be a paragraph
+            # (targum-internal#725, P2 12).
+            said = meetings_module.card_line(line, into, sentence=True) if line else None
             if said:
                 practise.append(said)
         return marked, finished, folder_for, met, practise
@@ -18732,8 +18934,12 @@ class Handler(BaseHTTPRequestHandler):
         what you look up is cached, so the same word is free everywhere after that.
         """
         lemma = str(payload.get("lemma", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as the cache and the checks below write them: lowercase, the base
+        # language alone. Compared as the page sent them, "EN" was not "en" and "ru-RU"
+        # was not "ru", so a meaning in the word's own language could be bought by
+        # spelling it differently.
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
         # The sentence it was tapped in, which is what tells עם from עם. Capped: a
         # sentence is what this is for, and a paragraph is what a page could send.
         sentence = str(payload.get("sentence", "")).strip()[:400]
@@ -18771,7 +18977,14 @@ class Handler(BaseHTTPRequestHandler):
         # targum's account with no job row behind it, so a page that could name any
         # target could make targum buy meanings into any language it liked. A meaning
         # in the word's own language is not approved yet (targum-internal#538).
-        if target == source or target not in self._gloss_targets(document):
+        # And the word has to be in a language somebody may read here: a page that could
+        # name any source could make targum buy Japanese meanings, or English
+        # definitions of English words (`translate.prompts.READING`).
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
             return self._json(
                 {
                     "error": self._say(
@@ -20108,7 +20321,22 @@ class Handler(BaseHTTPRequestHandler):
             mine=mine,
             picture=cover or folder.name,
         )
-        self._send(200, html.encode("utf-8"), "text/html; charset=utf-8", frames="out")
+        # Which build of the text this page lists, for a saved copy to follow: the
+        # contents as built, in the language the page is drawn in. Not where the reader
+        # stopped, which moves with every open, but a text that gained a part says another
+        # one, and the worker has the copy fetch what it now takes (`sw.js` `opening`;
+        # design.md §12, "An offline copy follows its text when opened online", 2026-11-14).
+        try:
+            built = (folder / "reader" / CONTENTS).read_bytes()
+        except OSError:
+            built = b""
+        self._send(
+            200,
+            html.encode("utf-8"),
+            "text/html; charset=utf-8",
+            frames="out",
+            version=reader_version(built, self._ui_language()) if built else "",
+        )
         return True
 
     def _torah_book(self, target: Path) -> str | None:

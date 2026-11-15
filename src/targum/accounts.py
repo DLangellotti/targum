@@ -38,7 +38,7 @@ import secrets
 import sqlite3
 import threading
 import time
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -454,7 +454,15 @@ REGISTRATIONS_PER_HOUR = 60
 #    so the deploy ends no working connection; one UPDATE, and nothing for it to touch
 #    the second time, since nothing writes a 0 there any more.
 #
-# 67→68: word.ear and word.ear_at — a word known by ear, apart from known when read, and
+# 67→68: person.google, person.google_used — the ways in an account has besides its
+#    email link (targum-internal#502, design.md §12 2026-11-14, "Sign in with Google goes
+#    live"). `google` is NULL where Google has never been used, 1 where it is linked and
+#    0 where the person unlinked it; `google_used` is when it last signed them in, 0 for
+#    never. Exactly what the Privacy Notice says is recorded (14 November, #1240):
+#    whether Google is linked and when it was last used, and no date it was linked.
+#    Nothing of Google's own is kept: no account id, name, picture or token. Two added
+#    columns, two ALTERs; every account before them reads as never linked.
+# 68→69: word.ear and word.ear_at — a word known by ear, apart from known when read, and
 #    when it became so (targum-internal#536; design.md §12, "A word can be known by ear,
 #    and only the reader says so", 2026-11-14). Only the reader's press writes `ear`;
 #    `ear_at` is set by the account the way `known_at` is, from `began` on, and cleared
@@ -464,7 +472,7 @@ REGISTRATIONS_PER_HOUR = 60
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 68
+SCHEMA_VERSION = 69
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -967,11 +975,34 @@ MIGRATIONS: tuple[str, ...] = (
     "UPDATE oauth_token SET expires ="
     f" (CAST(strftime('%s', 'now') AS INTEGER) + {REFRESH_IDLE_DAYS} * 86400) * 1000"
     " WHERE kind = 'refresh' AND expires = 0 AND revoked = 0",
-    # Known by ear, and when (schema 68, targum-internal#536): nought and NULL on every
+    # The ways in besides the email link (schema 68, targum-internal#502): NULL is never
+    # used, 1 linked, 0 unlinked by the person; then when it was last used.
+    "ALTER TABLE person ADD COLUMN google INTEGER",
+    "ALTER TABLE person ADD COLUMN google_used INTEGER NOT NULL DEFAULT 0",
+    # Known by ear, and when (schema 69, targum-internal#536): nought and NULL on every
     # word before it, since nobody had said so.
     "ALTER TABLE word ADD COLUMN ear INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE word ADD COLUMN ear_at INTEGER",
 )
+
+#: The ways in an account can have (targum-internal#502). The email link is always one of
+#: them: the account is keyed on the address, so it can never be taken away.
+ALWAYS_ON = frozenset({"email"})
+
+
+def removable(ways_on: Collection[str], way: str) -> bool:
+    """Whether `way` may be taken off an account that has `ways_on` (design.md §12, "Sign
+    in with Google goes live", 2026-11-14): never a way that is always on, never one it
+    does not have, and never the last one, so nobody unlinks themselves out of their own
+    account. Today email is always on and so always left, and the rule refuses nobody; it
+    is written for the way in that is added after Google."""
+    on = set(ways_on)
+    return way in on and way not in ALWAYS_ON and len(on) > 1
+
+
+class GoogleOff(Exception):
+    """Continue with Google for an account whose person unlinked it (#502). Said beside the
+    email form; only Account links it again."""
 
 
 def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> None:
@@ -4301,7 +4332,7 @@ class Store:
             )
         return token
 
-    def sign_in_verified(self, email: str) -> tuple[Person, str] | None:
+    def sign_in_verified(self, email: str, via: str = "") -> tuple[Person, str] | None:
         """Sign in an address somebody else has proved, and hand back a session.
 
         The mailed link proves an address by sending something to it. A sign-in provider
@@ -4316,6 +4347,12 @@ class Store:
         None for somebody on their way out, the one refusal `finish_sign_in` also makes:
         a person inside their deletion grace period does not get to sign in again by
         another door.
+
+        `via="google"` is the way in it was (targum-internal#502). The first Continue
+        with Google links Google, because Google proved the address as the mailed link
+        does and the press is the consent; every one records when it was last used. An
+        account whose person unlinked Google raises `GoogleOff` and gets no session: only
+        Account links it again (design.md §12, 2026-11-14).
         """
         address = tidy(email)
         if not address:
@@ -4323,16 +4360,68 @@ class Store:
         with self.write() as db:
             _open_account(db, address)
             row = db.execute(
-                "SELECT id, email, leaving FROM person WHERE email = ?", (address,)
+                "SELECT id, email, leaving, google FROM person WHERE email = ?", (address,)
             ).fetchone()
             if row is None or row["leaving"] is not None:
                 return None
+            if via == "google":
+                if row["google"] is not None and not row["google"]:
+                    raise GoogleOff(address)
+                at = now()
+                db.execute(
+                    "UPDATE person SET google = 1, google_used = ? WHERE id = ?",
+                    (at, row["id"]),
+                )
             session = secrets.token_urlsafe(TOKEN_BYTES)
             db.execute(
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), row["id"], now(), now()),
             )
         return Person(int(row["id"]), str(row["email"]), self.is_admin(str(row["email"]))), session
+
+    def ways_in(self, person_id: int) -> dict[str, Any]:
+        """The ways this account signs in besides its address (targum-internal#502):
+        whether Google is linked and when it was last used, in ms or None. Nothing
+        more: that is all the Privacy Notice says is recorded, and nothing of Google's own
+        is kept."""
+        row = self.db.execute(
+            "SELECT google, google_used FROM person WHERE id = ?", (person_id,)
+        ).fetchone()
+        linked = row is not None and bool(row["google"])
+        return {
+            "linked": linked,
+            "used": (int(row["google_used"]) or None) if linked else None,
+        }
+
+    def link_google(self, person_id: int) -> None:
+        """Link Google from Account, after Google proved this account's own address.
+        Proving the address was a use of it, so it is the last use too."""
+        with self.write() as db:
+            db.execute(
+                "UPDATE person SET google = 1, google_used = ? WHERE id = ?",
+                (now(), person_id),
+            )
+
+    def unlink_google(self, person_id: int) -> bool:
+        """Take Google off as a way in. False where it was not on, or where it is the last
+        way in (`removable`). When it was last used stays, so an Undo
+        (`relink_google`) puts back exactly what was."""
+        on = {"email"} | ({"google"} if self.ways_in(person_id)["linked"] else set())
+        if not removable(on, "google"):
+            return False
+        with self.write() as db:
+            db.execute("UPDATE person SET google = 0 WHERE id = ? AND google = 1", (person_id,))
+        return True
+
+    def relink_google(self, person_id: int) -> bool:
+        """Undo an Unlink: Google on again with its last use as it was. Only from unlinked, so it
+        cannot link an account that never used Google; the server holds it to the few
+        seconds Undo is drawn for."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE person SET google = 1 WHERE id = ? AND google = 0", (person_id,)
+            ).rowcount
+        return bool(done)
 
     def peek_sign_in(self, token: str) -> Person | None:
         """Who this link would sign in, without spending it.

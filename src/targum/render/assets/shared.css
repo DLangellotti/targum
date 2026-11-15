@@ -1105,6 +1105,23 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   cursor: pointer;
 }
 .offline-row .offline-remove:hover { color: var(--ink); }
+/* Removed · Undo (design.md §12, 2026-11-14): what Remove leaves for a few seconds, in
+   the row's own place, and Undo the way on. */
+.offline-row .offline-held-line { justify-content: flex-start; align-items: center; gap: 0.5rem; color: var(--ink-soft); }
+.offline-row .offline-held-line .offline-label { flex: 0 0 auto; color: var(--ink-soft); }
+.offline-row .offline-undo {
+  min-block-size: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--teal);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.offline-row .offline-undo:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+.offline-row .offline-undo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .offline-row .offline-bar {
   display: block;
   flex: 1 0 100%;
@@ -1128,7 +1145,9 @@ body.pm-sheet-open .bar-more { visibility: hidden; }
   .offline-go,
   .offline-stop,
   .offline-again,
-  .offline-remove { min-block-size: 44px; }
+  .offline-remove,
+  .offline-undo { min-block-size: 44px; }
+  .offline-undo { min-inline-size: 44px; }
 }
 
 /* --- Refusals: the five surfaces (design.md §12, "A refusal is drawn on one of five

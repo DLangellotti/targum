@@ -57,6 +57,20 @@ def test_every_rsync_to_the_box_is_received_as_targum(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", SCRIPTS)
+def test_every_rsync_of_served_files_keeps_their_times(name: str) -> None:
+    """A saved copy refetches a file whose size or time changed (#1247), so a ship that
+    stamps its files new makes every saved copy download its recording again. `-a` or
+    `-t` keeps the time. The index is the exception: it is renamed into place, nothing
+    saved holds it, and the weekly's cache reads a new time as a new index."""
+    sends = [line for line in code(name) if re.match(r"\s*rsync\b", line) and "$HOST:" in line]
+    for line in sends:
+        if "index.json.new" in line:
+            continue
+        flags = [word for word in line.split() if re.fullmatch(r"-[A-Za-z]+", word)]
+        assert any("a" in flag or "t" in flag for flag in flags), line
+
+
+@pytest.mark.parametrize("name", SCRIPTS)
 def test_nothing_is_copied_into_targum_s_tree_by_scp(name: str) -> None:
     """scp has no way to run its far end as targum, so it carries only what root places
     itself (the catalogue, through /tmp into /etc/targum)."""

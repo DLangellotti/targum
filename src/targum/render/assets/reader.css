@@ -5046,6 +5046,10 @@ body.film .m-menu .more-close { display: none; }
 .m-menu .m-offline .offline-remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .m-menu .m-offline .offline-said,
 .m-menu .m-offline .fault-line { grid-column: 1 / -1; }
+.m-menu .m-offline .offline-held-line { flex-wrap: nowrap; align-items: center; }
+.m-menu .m-offline .offline-held-line .offline-label { color: var(--ink-soft); }
+.m-menu .m-offline .offline-undo { min-block-size: 44px; font-size: 0.9375rem; }
+.m-menu .m-offline.offline-lost .offline-note { grid-row: 2; }
 
 @media (max-width: 60rem) {
   body:not(.has-keyboard) .m-menu .m-last:not(:has(#fullscreen-group:not([hidden]))) { display: none; }
@@ -6229,8 +6233,11 @@ body.film-theatre .film-end { margin-inline: auto; }
 body.listening .list-now,
 body.listening .list-tab,
 body.listening .turn { visibility: hidden; }
-/* The card and the reader's own ⋯ stand over it. */
-body.listening .pick-card { z-index: 32; }
+/* The card and the reader's own ⋯ stand over it. The word's card too at a desk, where
+   it floats at `.gloss-card`'s 20 and opened under the view, drawn and out of reach; the
+   phone's sheet stood over it at 30 already (targum-internal#730). */
+body.listening .pick-card,
+body.listening #gloss-card { z-index: 32; }
 body.listening .bar:has(.bar-more.open) { z-index: 33; }
 
 .lv-col {

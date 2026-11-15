@@ -334,6 +334,14 @@ def reading_days(*days: tuple[datetime.date, int, int]) -> dict[str, Any]:
     }
 
 
+# The page's today is pinned, not read off the wall: seeded at 23:59 UTC and asserted at
+# 00:01, "Today" read "On November 14" (targum-internal#731). The page runs in UTC with
+# its clock fixed at noon on the day the records were seeded for, so it cannot cross a
+# midnight between the two.
+TODAY = datetime.date.today()
+NOON = datetime.datetime.combine(TODAY, datetime.time(12), tzinfo=datetime.UTC)
+
+
 def open_state(
     chromium: Any,
     name: str,
@@ -381,7 +389,10 @@ def open_state(
 
     phone = width < 600
     context = chromium.browser().new_context(
-        viewport={"width": width, "height": 900}, has_touch=phone, is_mobile=phone
+        viewport={"width": width, "height": 900},
+        has_touch=phone,
+        is_mobile=phone,
+        timezone_id="UTC",
     )
     # Signed out, the words are this browser's own, as a reader's are before an account.
     vocab = {
@@ -395,6 +406,8 @@ def open_state(
         + ("" if signed else f"localStorage.setItem('targum:vocab:{language}', {stored});")
     )
     page = context.new_page()
+    # Date only: timers still run, so nothing waits on a hand-advanced clock.
+    page.clock.set_fixed_time(NOON)
     thrown: list[str] = []
     page.on("pageerror", lambda error: thrown.append(str(error)))
     page.route(f"{SITE}/**", answer)
@@ -480,8 +493,6 @@ LAYOUT = """() => {
           ladder: [ladder.x, ladder.y, ladder.width, ladder.bottom],
           reading: [reading.x, reading.y, reading.width, reading.bottom]};
 }"""
-
-TODAY = datetime.date.today()
 
 
 def a_record() -> dict[str, Any]:

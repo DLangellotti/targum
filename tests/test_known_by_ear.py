@@ -42,7 +42,7 @@ def _row(store: Store, person: Any, lemma: str) -> sqlite3.Row:
 
 
 def test_the_schema_is_past_the_ear_columns() -> None:
-    assert accounts.SCHEMA_VERSION >= 68
+    assert accounts.SCHEMA_VERSION >= 69
     assert "ear" in accounts.KINDS["words"].fields
     assert "ear_at" in accounts.KINDS["words"].fields
     assert "ear_at" in accounts.NULLABLE and "ear" in accounts.NUMERIC
@@ -62,7 +62,7 @@ def test_an_older_database_gains_both_columns_and_nothing_is_filled_in(tmp_path:
         " revision INTEGER NOT NULL DEFAULT 0, known_at INTEGER, PRIMARY KEY (person,"
         " language, lemma))"
     )
-    raw.execute("PRAGMA user_version = 67")
+    raw.execute("PRAGMA user_version = 68")
     raw.execute(
         "INSERT INTO word (person, language, lemma, status, seen) VALUES (1, 'he', 'x', 9, 5)"
     )
