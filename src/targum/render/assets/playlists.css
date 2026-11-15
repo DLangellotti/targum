@@ -327,6 +327,22 @@ body.playlists main { gap: 1.75rem; }
 }
 .pl-menu[hidden] { display: none; }
 .playlists .pl-menu .ghost { justify-content: flex-start; }
+/* On a phone the two presses open in the head's own row, beside ⋯, rather than floating
+   over the first row's title and its remove press, flush to the screen's edge (targum-internal#716,
+   P2 19): the row wraps to take them, and nothing is covered. */
+@media (max-width: 40rem) {
+  .pl-more-wrap { flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .pl-menu {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+}
 .pl-head .rename { flex: 1; }
 
 /* The texts in order: number or where you are, the grip, the picture, the title and its

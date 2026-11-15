@@ -906,6 +906,58 @@ def test_the_saved_page_s_choices_are_this_device_s(browser, saved_served: Serve
         context.close()
 
 
+def test_each_saved_segment_is_one_tab_stop_with_arrows_between(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720 P2 12: a radio group is one Tab stop, and the arrows choose."""
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(saved_served.url("/you/saved"))
+        page.wait_for_selector("#saved-choices:not([hidden])")
+        stops = page.evaluate(
+            """() => [...document.querySelectorAll('.saved-segment')].map((group) =>
+              [...group.querySelectorAll('[role=radio]')]
+                .filter((one) => one.tabIndex === 0)
+                .map((one) => one.getAttribute('aria-checked')))"""
+        )
+        assert stops == [["true"], ["true"]], "one stop per group, on the chosen option"
+
+        page.focus('[data-recent="5"]')
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert page.evaluate("() => document.activeElement.dataset.recent") == "10"
+        assert page.locator('[data-recent="10"]').get_attribute("tabindex") == "0"
+        assert page.locator('[data-recent="5"]').get_attribute("tabindex") == "-1"
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+
+        page.focus('[data-film="1"]')
+        page.keyboard.press("ArrowDown")
+        page.wait_for_function(
+            "() => document.querySelector('[data-film=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert (
+            page.evaluate("() => JSON.parse(localStorage.getItem('targum:offline'))")["film"]
+            is False
+        )
+    finally:
+        context.close()
+
+
 def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
     browser,  # noqa: F811
     saved_served: Served,
