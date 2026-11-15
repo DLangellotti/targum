@@ -929,6 +929,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
   today and the seeded today are one day. Timers still run, and there are no sleeps.
   Tests only.
+- `/gloss` buys a word's meaning only for a language a text is read in here, with both
+  codes normalised first (targum-internal#732, found by qa-claude on #1220). The source
+  and target were compared as the page sent them, so "EN" into "en" or "ru-RU" into "ru"
+  passed the same-language refusal, and any source was accepted, so a page could make
+  targum buy Japanese meanings. Both are lowercased to their base code
+  (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
+  target == source still is until #538. A 400, with no model call. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
