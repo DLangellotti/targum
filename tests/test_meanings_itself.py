@@ -197,16 +197,16 @@ def test_an_account_from_before_the_column_opens(tmp_path: Path) -> None:
     token = store.start_sign_in("reader@example.com")
     assert store.finish_sign_in(token) is not None
     store.close()
-    # As schema 68 left it: no `meanings` on person.
+    # As schema 70 left it: no `meanings` on person.
     db = sqlite3.connect(path)
     db.execute("ALTER TABLE person DROP COLUMN meanings")
-    db.execute("PRAGMA user_version = 68")
+    db.execute("PRAGMA user_version = 70")
     db.commit()
     db.close()
     again = Store(path)
     row = again.db.execute("SELECT meanings FROM person").fetchone()
     assert row["meanings"] == ""
-    assert again.db.execute("PRAGMA user_version").fetchone()[0] >= 69
+    assert again.db.execute("PRAGMA user_version").fetchone()[0] >= 71
 
 
 # -- the server -----------------------------------------------------------------------

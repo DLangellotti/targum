@@ -712,8 +712,10 @@
          reads as six hours twelve, which is the fault the account page was fixed for on
          2026-09-14 and this line kept. */
       var spare = Math.max(0, (Number(hours.allowed) || 0) - (Number(hours.used) || 0));
-      var used =
-        tn(
+      // None left is said as none left, never "about 0 minutes" (targum-internal#735).
+      var used = Math.round(spare * 60) <= 0
+        ? t("building.credits.none", "No credits left this month.")
+        : tn(
           "building.credits.left",
           Math.round(spare * 60),
           "{n} credit left this month.",

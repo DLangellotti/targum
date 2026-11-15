@@ -1941,7 +1941,8 @@ body.has-player .next-up:has(~ .credits) { margin-block-end: 2rem; }
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.finished.is-done .finished-marked {
+.finished.is-done .finished-marked,
+.finished.is-done .finished-goal {
   display: block;
   margin-block-start: 0.2rem;
   color: color-mix(in srgb, var(--page-max) 72%, transparent);
@@ -4521,6 +4522,10 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 /* What is left to mark is the word list's line; the row says how many of how many. */
 .bar .known-left { display: none; }
 .bar-title .known.done { color: var(--leaf); }
+/* Our estimate's label, quiet beside its number, as Home and the Library say it (design.md
+   §12, "A reader says our estimate until anything in it is marked", 2026-11-15). */
+.bar-title .known .estimate-ours,
+.list-stats .estimate-ours { font-weight: 400; color: var(--ink-soft); }
 
 /* --- the tools at the end --- */
 .bar-tools { display: flex; align-items: center; gap: 0.2rem; }
@@ -6895,3 +6900,5 @@ body.correcting main .pair[data-id]:hover { outline: 1px solid var(--rule); outl
    screen's edges (`viewport-fit=cover`) and the bar's ground reaches up under the status
    bar while its row starts below it. Last, so no width's padding sets it back to 0. */
 .bar { padding-block-start: env(safe-area-inset-top, 0px); }
+/* The day's goal met (targum-internal#537): one line under the figures, in type. */
+.finished.is-done .finished-goal { margin-block-start: 0.85rem; }

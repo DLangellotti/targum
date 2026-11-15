@@ -1180,7 +1180,10 @@ def test_google_opens_exactly_the_address_it_proved(
         monkeypatch.setattr(
             google, "exchange", lambda *_: {"id_token": f"h.{payload.rstrip('=')}.s"}
         )
-        status, headers, _ = _exchange(port, "GET", f"/account/google/back?state={state}&code=x")
+        bound = headers["set-cookie"].split(";")[0]
+        status, headers, _ = _exchange(
+            port, "GET", f"/account/google/back?state={state}&code=x", cookie=bound
+        )
         assert status in (302, 303), status
         return headers
 
@@ -1235,12 +1238,14 @@ def test_free_mail_the_readers_use_is_never_counted_by_domain() -> None:
 
 
 def _exchange(
-    port: int, method: str, path: str, body: bytes = b"", kind: str = ""
+    port: int, method: str, path: str, body: bytes = b"", kind: str = "", cookie: str = ""
 ) -> tuple[int, dict[str, str], bytes]:
     """One request with no redirect followed, for what the door answers itself."""
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest(method, path, skip_host=True)
     conn.putheader("Host", "targum.page")
+    if cookie:
+        conn.putheader("Cookie", cookie)
     if body:
         conn.putheader("Content-Type", kind)
         conn.putheader("Content-Length", str(len(body)))
@@ -1250,6 +1255,10 @@ def _exchange(
     response = conn.getresponse()
     said = response.read()
     headers = {name.lower(): value for name, value in response.getheaders()}
+    # Every cookie set, not only the last one named.
+    cookies = response.headers.get_all("Set-Cookie") or []
+    if cookies:
+        headers["set-cookie"] = "\n".join(cookies)
     conn.close()
     return response.status, headers, said
 
@@ -2020,6 +2029,103 @@ def test_a_phrase_already_answered_is_free_to_ask_for(
     assert ask(phrase="א", sentence="א" * 601)[0] == 400, "a paragraph, not a sentence"
     assert ask(translation="")[0] == 400
     assert ask(source="")[0] == 400
+
+
+def test_a_phrase_is_bought_only_for_a_language_read_here(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`/phrase` is the second door `/gloss` was (targum-internal#734): both codes are
+    normalised, the words have to be in a language read here, and the answer in one the
+    reader or the text allows and never the words' own. "EN" into "en", "ru-RU" into
+    "ru", Japanese, German and Hebrew into Hebrew are each a 400 that never reaches the
+    model. Hebrew into English still buys, and so does a recased "HE" into "EN"."""
+    from targum.annotate import phrase as phrase_module
+
+    port, session = hosted
+    bought: list[tuple[str, str, str]] = []
+
+    def fake_phrase_one(
+        phrase: str, sentence: str, translation: str, source: str, target: str, *_: object
+    ) -> phrase_module.PhraseAnswer:
+        bought.append((phrase, source, target))
+        return phrase_module.PhraseAnswer(meaning="a new committee", quoted=True)
+
+    monkeypatch.setattr(phrase_module, "phrase_one", fake_phrase_one)
+    monkeypatch.setattr(phrase_module.AnthropicPhrases, "available", lambda self: (True, ""))
+
+    hebrew = {
+        "phrase": "ועדה חדשה",
+        "sentence": "באיסטנבול נפתחת ועדה חדשה.",
+        "translation": "In Istanbul a new committee opens.",
+    }
+    english = {
+        "phrase": "new committee",
+        "sentence": "In Istanbul a new committee opens.",
+        "translation": "In Istanbul a new committee opens.",
+    }
+    russian = {
+        "phrase": "новый комитет",
+        "sentence": "В Стамбуле открывается новый комитет.",
+        "translation": "В Стамбуле открывается новый комитет.",
+    }
+    for words, source, target in [
+        (english, "EN", "en"),
+        (russian, "ru-RU", "ru"),
+        ({**english, "phrase": "new"}, "ja", "en"),
+        (hebrew, "he", "de"),
+        (hebrew, "he", "he"),
+        (hebrew, "HE", "he-IL"),
+    ]:
+        status, answer = _signed_post(
+            port, "/phrase", {**words, "source": source, "target": target}, session
+        )
+        assert status == 400, (source, target)
+        assert answer["error"] == "We can't look words up in that language."
+    assert bought == [], "nothing refused reached the model"
+
+    for source, target in [("he", "en"), ("HE", "EN")]:
+        status, answer = _signed_post(
+            port, "/phrase", {**hebrew, "source": source, "target": target}, session
+        )
+        assert status == 200 and answer["meaning"] == "a new committee"
+    assert bought == [("ועדה חדשה", "he", "en"), ("ועדה חדשה", "he", "en")]
+
+
+def test_phrases_bought_in_an_hour_have_a_ceiling(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every new sentence a page makes up is a new purchase, so an account has an hour's
+    ceiling on them (targum-internal#734): past it the answer is a 429 that never
+    reaches the model."""
+    from targum import serve
+    from targum.annotate import phrase as phrase_module
+
+    port, session = hosted
+    bought: list[str] = []
+
+    def fake_phrase_one(phrase: str, *_: object) -> phrase_module.PhraseAnswer:
+        bought.append(phrase)
+        return phrase_module.PhraseAnswer(meaning="committee")
+
+    monkeypatch.setattr(phrase_module, "phrase_one", fake_phrase_one)
+    monkeypatch.setattr(phrase_module.AnthropicPhrases, "available", lambda self: (True, ""))
+    monkeypatch.setattr(serve, "PHRASES_PER_HOUR", 0)
+
+    status, answer = _signed_post(
+        port,
+        "/phrase",
+        {
+            "phrase": "ועדה",
+            "sentence": "נפתחת ועדה.",
+            "translation": "A committee opens.",
+            "source": "he",
+            "target": "en",
+        },
+        session,
+    )
+    assert status == 429
+    assert answer["error"] == "That's a lot of phrases for one hour. Try again in an hour."
+    assert bought == []
 
 
 def test_no_page_stops_for_want_of_a_key() -> None:

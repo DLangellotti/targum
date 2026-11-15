@@ -42,7 +42,7 @@ import time
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 # The pool of web finds (targum-internal#619): its own module says what it holds and why.
 from .finds.pool import SCHEMA as FINDS
@@ -463,16 +463,29 @@ REGISTRATIONS_PER_HOUR = 60
 #    whether Google is linked and when it was last used, and no date it was linked.
 #    Nothing of Google's own is kept: no account id, name, picture or token. Two added
 #    columns, two ALTERs; every account before them reads as never linked.
-#
-# 68→69: person.meanings — the languages whose word meanings this reader asked for in the
+# 68→69: word.ear and word.ear_at — a word known by ear, apart from known when read, and
+#    when it became so (targum-internal#536; design.md §12, "A word can be known by ear,
+#    and only the reader says so", 2026-11-14). Only the reader's press writes `ear`;
+#    `ear_at` is set by the account the way `known_at` is, from `began` on, and cleared
+#    when the mark comes off. Nought and NULL on every row before them, and nothing is
+#    filled in. On a table every box has, so they are in MIGRATIONS.
+# 69→70: person.goal — a daily goal per language, words read or minutes listening, from
+#    fixed steps (targum-internal#537, design.md §12 2026-11-14, "A daily goal counts
+#    days, never a run"). A setting the reader chose, like `declared`: a JSON map,
+#    {"he": "words:250"}. No goal history and no "met" row: the page reads the record
+#    against the goal as it is now. One added column with a default, so one ALTER; ''
+#    on every row before it, which is no goal, the default. The ALTER does not depend on
+#    the number: another schema that merges first only moves this one along.
+# 70→71: person.meanings — the languages whose word meanings this reader asked for in the
 #    language itself (targum-internal#538, design.md §12 2026-11-14, "Meanings in the
 #    language itself, bought a tap at a time"). A comma-separated list of learned codes,
-#    "he,ru"; '' is off for every language, which is every account before it. One ALTER.
+#    "he,ru"; '' is off for every language, which is every account before it. One ALTER,
+#    which does not depend on the number.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 69
+SCHEMA_VERSION = 71
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -979,7 +992,15 @@ MIGRATIONS: tuple[str, ...] = (
     # used, 1 linked, 0 unlinked by the person; then when it was last used.
     "ALTER TABLE person ADD COLUMN google INTEGER",
     "ALTER TABLE person ADD COLUMN google_used INTEGER NOT NULL DEFAULT 0",
-    # The languages whose meanings are asked for in the language itself (schema 69,
+    # Known by ear, and when (schema 69, targum-internal#536): nought and NULL on every
+    # word before it, since nobody had said so.
+    "ALTER TABLE word ADD COLUMN ear INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE word ADD COLUMN ear_at INTEGER",
+    # A daily goal per language (schema 70, targum-internal#537): '' for none, as every
+    # reader has until they set one. Order-free like every line here: an ALTER that has
+    # already run fails harmlessly, so it lands whichever schema number merges first.
+    "ALTER TABLE person ADD COLUMN goal TEXT NOT NULL DEFAULT ''",
+    # The languages whose meanings are asked for in the language itself (schema 71,
     # targum-internal#538): '' is off everywhere.
     "ALTER TABLE person ADD COLUMN meanings TEXT NOT NULL DEFAULT ''",
 )
@@ -1144,6 +1165,10 @@ CREATE TABLE IF NOT EXISTS word (
   -- When the word became known, set by the account at the push that made it so and
   -- cleared when it leaves known; NULL for a word known before 2026-10-30.
   known_at INTEGER,
+  -- Known by ear (targum-internal#536): 1 only where the reader pressed it, apart from
+  -- the stage, and when it became so, set by the account as known_at is.
+  ear      INTEGER NOT NULL DEFAULT 0,
+  ear_at   INTEGER,
   PRIMARY KEY (person, language, lemma)
 );
 
@@ -2047,10 +2072,10 @@ def _kept(row: sqlite3.Row) -> Kept:
 # argument four times and the only thing that differs is the shape.
 # Fields that default to a number rather than to empty text when nothing is known.
 #: Fields that stay NULL when nothing is known, rather than nought or empty.
-NULLABLE = frozenset({"status", "known_at"})
+NULLABLE = frozenset({"status", "known_at", "ear_at"})
 
 NUMERIC = frozenset(
-    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds"}
+    {"at", "updated", "opened", "done", "span_start", "span_end", "count", "seconds", "ear"}
 )
 
 
@@ -2178,6 +2203,9 @@ KINDS: dict[str, Kind] = {
             "source",
             "at",
             "known_at",
+            # Known by ear (targum-internal#536): the reader's press, and when.
+            "ear",
+            "ear_at",
         ),
     ),
     "meanings": Kind(
@@ -2611,6 +2639,76 @@ class Store:
                 (self._declared_column(rungs), person.id),
             )
         return said
+
+    # -- a daily goal (targum-internal#537) -------------------------------------------
+
+    #: The steps a goal may take, by unit (design.md §12, "A daily goal counts days, never
+    #: a run", 2026-11-14). Fixed, not typed, so nobody sets 5,000 and misses every day.
+    #: Words are words read; minutes are minutes listening and watching, as the "Time
+    #: listening" figure adds them, since reading time is not recorded.
+    GOAL_STEPS: ClassVar[dict[str, tuple[int, ...]]] = {
+        "words": (100, 250, 500, 1000, 2500),
+        "minutes": (5, 10, 15, 30, 60),
+    }
+
+    @classmethod
+    def goals_map(cls, stored: str) -> dict[str, dict[str, Any]]:
+        """The stored column read back as a goal per language: {"he": {"unit": "words",
+        "amount": 250}}. Anything off the steps, or not a map, is no goal."""
+        try:
+            said = json.loads(stored) if stored else {}
+        except ValueError:
+            return {}
+        out: dict[str, dict[str, Any]] = {}
+        if not isinstance(said, dict):
+            return out
+        for code, value in said.items():
+            unit, _, amount = str(value).partition(":")
+            if unit in cls.GOAL_STEPS and amount.isdigit() and int(amount) in cls.GOAL_STEPS[unit]:
+                out[str(code)] = {"unit": unit, "amount": int(amount)}
+        return out
+
+    def goals(self, person_id: int | None) -> dict[str, dict[str, Any]]:
+        """Every daily goal the reader set, by language; {} where they set none."""
+        if person_id is None:
+            return {}
+        row = self.db.execute("SELECT goal FROM person WHERE id = ?", (int(person_id),)).fetchone()
+        return self.goals_map(str(row["goal"] or "")) if row is not None else {}
+
+    def set_goal(self, person: Person, language: str, unit: str, amount: int) -> dict[str, Any]:
+        """Keep a daily goal for `language`, replacing the one it had; `amount` 0 removes
+        it. A unit or an amount off the fixed steps is refused. The other languages'
+        goals stay as they were. Nothing is kept about the days themselves: whether a day
+        met the goal is the page's reading of the record, never a row here."""
+        from .translate.prompts import READING
+
+        code = str(language or "").split("-")[0].strip().lower()
+        # Only a language targum reads (qa on #1246): a goal in any other has no record
+        # to be read against.
+        if code not in {reading for reading, _how in READING}:
+            raise ValueError("No such choice.")
+        try:
+            amount = int(amount)
+        except (TypeError, ValueError):
+            raise ValueError("No such choice.") from None
+        if amount and (unit not in self.GOAL_STEPS or amount not in self.GOAL_STEPS[unit]):
+            raise ValueError("No such choice.")
+        with self.write() as db:
+            row = db.execute("SELECT goal FROM person WHERE id = ?", (person.id,)).fetchone()
+            goals = self.goals_map(str(row["goal"] or "") if row is not None else "")
+            if amount:
+                goals[code] = {"unit": unit, "amount": amount}
+            else:
+                goals.pop(code, None)
+            column = json.dumps(
+                {key: f"{one['unit']}:{one['amount']}" for key, one in sorted(goals.items())},
+                separators=(",", ":"),
+            )
+            db.execute(
+                "UPDATE person SET goal = ? WHERE id = ?",
+                (column if goals else "", person.id),
+            )
+        return goals.get(code, {})
 
     # -- meanings in the language itself (targum-internal#538) ------------------------
 
@@ -4122,7 +4220,7 @@ class Store:
             db.execute("DELETE FROM reads WHERE email = ?", (person.email,))
             db.execute(
                 "UPDATE person SET name = '', picture = '', address = '', interest = '',"
-                " declared = '', meanings = '', events = '', granted = 0,"
+                " declared = '', goal = '', meanings = '', events = '', granted = 0,"
                 " revision = revision + 1,"
                 " ledger = ledger + 1"
                 " WHERE id = ?",
@@ -4848,6 +4946,9 @@ class Store:
 
         if kind.table == "word":
             item = {**item, "known_at": self._known_at(item, existing, seen)}
+            item = {**item, "ear_at": self._ear_at(item, existing, seen)}
+            if "ear" in item:
+                item["ear"] = 1 if item["ear"] else 0
 
         columns = ["person", *kind.key, *kind.fields, "seen", "gone", "revision"]
         row = [
@@ -4888,6 +4989,27 @@ class Store:
             return None if kept is None else int(kept)
         return seen if seen >= self.began() else None
 
+    def _ear_at(self, item: dict[str, Any], existing: sqlite3.Row | None, seen: int) -> int | None:
+        """When the word became known by ear, as this push leaves it (targum-internal#536).
+
+        `_known_at`'s rule for the ear mark. No page sends it. A push that does not say
+        `ear` at all — an older page, or a saved reader carrying old JS — leaves the mark
+        and its date as they are stored. A word not known by ear has none; one known by
+        ear already keeps its date; one becoming so takes this edit's time, from `began`
+        on, and nothing earlier is dated by a guess.
+        """
+        if "ear" not in item:
+            if existing is None or not existing["ear"]:
+                return None
+            kept = existing["ear_at"]
+            return None if kept is None else int(kept)
+        if not item.get("ear") or item.get("gone"):
+            return None
+        if existing is not None and existing["ear"] and not existing["gone"]:
+            kept = existing["ear_at"]
+            return None if kept is None else int(kept)
+        return seen if seen >= self.began() else None
+
     def began(self) -> int:
         """When the word records began on this box, in milliseconds (targum-internal#603)."""
         row = self.db.execute("SELECT at FROM began WHERE what = 'words'").fetchone()
@@ -4914,7 +5036,7 @@ class Store:
     def _settings_of(self, person: Person) -> dict[str, Any]:
         """The account's own settings, as the reader set them, for `everything`."""
         row = self.db.execute(
-            "SELECT address, interest, declared, meanings, events, granted, came_from"
+            "SELECT address, interest, declared, goal, meanings, events, granted, came_from"
             " FROM person WHERE id = ?",
             (person.id,),
         ).fetchone()
@@ -4924,6 +5046,8 @@ class Store:
             # A rung per language, as the reader named them, not the packed column
             # ("bet,ru:a2"), which is targum's way of keeping them (qa-claude on #1112).
             "declared": self.declared_map(str(row["declared"] or "")),
+            # A daily goal per language, as the reader set it (targum-internal#537).
+            "goals": self.goals_map(str(row["goal"] or "")),
             # The languages whose meanings they asked for in the language itself (#538).
             "meanings_in_itself": self.meanings_of(str(row["meanings"] or "")),
             "record": "off" if row["events"] == "off" else "kept",
@@ -5205,7 +5329,8 @@ class Store:
             add(int(row["at"]), str(row["language"]), "met")
         for row in self.db.execute(
             "SELECT language, at, known_at, status FROM word WHERE person = ? AND gone = 0"
-            " AND COALESCE(status, 1) != 0 AND COALESCE(band, '') NOT IN ('name', 'number')"
+            " AND COALESCE(status, 1) != 0 AND NOT (status IS NULL AND ear = 1)"
+            " AND COALESCE(band, '') NOT IN ('name', 'number')"
             # A bulk claim on "Words you may already know" is neither saved nor come to
             # know in its period (David, 2026-10-30): hundreds in a minute, all old.
             " AND source != 'claimed'",
@@ -5278,7 +5403,8 @@ class Store:
             (str(row["lemma"]), row["status"], str(row["source"] or ""))
             for row in self.db.execute(
                 "SELECT lemma, status, source FROM word"
-                " WHERE person = ? AND language = ? AND gone = 0 ORDER BY lemma",
+                " WHERE person = ? AND language = ? AND gone = 0"
+                " AND NOT (status IS NULL AND ear = 1) ORDER BY lemma",
                 (int(person_id), code),
             )
         ]
@@ -5330,13 +5456,43 @@ class Store:
         first, with the surface it was met as, its stage, and what they wrote for it: what
         an Anki export is made of (targum-internal#496), from the account rather than from
         what a page sends."""
+        # A word known by ear and never marked when reading has no stage, and is still
+        # the reader's word to take away (targum-internal#536): it goes in, tagged by ear.
         rows = self.db.execute(
-            "SELECT lemma, surface, status, meaning, note FROM word"
+            "SELECT lemma, surface, status, meaning, note, ear FROM word"
             " WHERE person = ? AND language = ? AND gone = 0"
-            " AND status IS NOT NULL AND status != 0 ORDER BY at",
+            " AND COALESCE(status, -1) != 0 AND (status IS NOT NULL OR ear = 1) ORDER BY at",
             (person.id, language.split("-")[0].lower()),
         )
         return [dict(row) for row in rows]
+
+    def ear_count(self, person: Person, language: str) -> int:
+        """How many words this person knows by ear in one language (targum-internal#536):
+        a count beside the reading one, never a share of a text. Names and numbers, and
+        an ignored word, are not vocabulary."""
+        from .level import NOT_VOCABULARY
+
+        bands = sorted(NOT_VOCABULARY)
+        row = self.db.execute(
+            "SELECT COUNT(*) AS n FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND ear = 1 AND COALESCE(status, -1) != 0"
+            f" AND COALESCE(band, '') NOT IN ({', '.join('?' for _ in bands)})",
+            (person.id, language.split("-")[0].lower(), *bands),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def ear_words(self, person_id: int | None, language: str) -> dict[str, int | None]:
+        """Every word the reader knows by ear in one language, with its stage when read
+        (None for one never marked when reading) — what the connector's word list says
+        (targum-internal#536)."""
+        if person_id is None:
+            return {}
+        rows = self.db.execute(
+            "SELECT lemma, status FROM word WHERE person = ? AND language = ? AND gone = 0"
+            " AND ear = 1 AND COALESCE(band, '') NOT IN ('name', 'number')",
+            (int(person_id), language.split("-")[0].lower()),
+        )
+        return {str(row["lemma"]): row["status"] for row in rows}
 
     def anki_clips_since(self, owner: int, since: int) -> int:
         """How many sounds this person's Anki exports have had made since `since`: the
@@ -5355,7 +5511,7 @@ class Store:
         search, everywhere", 2026-10-09)."""
         rows = self.db.execute(
             "SELECT lemma, meaning, status FROM word WHERE person = ? AND language = ?"
-            " AND gone = 0",
+            " AND gone = 0 AND NOT (status IS NULL AND ear = 1)",
             (person.id, language.split("-")[0].lower()),
         )
         return [(str(row["lemma"]), str(row["meaning"] or ""), row["status"]) for row in rows]
@@ -5380,7 +5536,10 @@ class Store:
             return []
         rows = self.db.execute(
             "SELECT lemma, status, band, at FROM word"
-            " WHERE person = ? AND language = ? AND gone = 0",
+            # A word known by ear alone has no reading stage, and nothing that weighs
+            # the reading marks sees it (targum-internal#536).
+            " WHERE person = ? AND language = ? AND gone = 0"
+            " AND NOT (status IS NULL AND ear = 1)",
             (person_id, language.split("-")[0].lower()),
         )
         return [

@@ -60,6 +60,30 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .ledger .counts span.count-roots {
   margin-block-start: 0.1rem;
 }
+/* Known by ear beside "words known" (targum-internal#536): a second figure in the label's
+   size, the way to Your Words with the filter on. Underlined, so it reads as the press it
+   is on the inverted block; a thumb's reach under a coarse pointer. */
+.progress .ledger .counts a.count-ear {
+  display: inline-block;
+  margin-block-start: 0.1rem;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--page-max);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.progress .ledger .counts a.count-ear:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: none) and (pointer: coarse) {
+  .progress .ledger .counts a.count-ear { display: inline-flex; align-items: center; min-block-size: 44px; }
+}
+/* The story's second line, in the ledger's own quiet note (targum-internal#536). */
+.progress .ledger-ear {
+  margin: 1rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--page-max);
+}
+.progress .ledger-ear + .ledger-note { margin-block-start: 0.35rem; }
 
 /* §9 makes this block the only surface --leaf-bright and --sun are allowed on: neither
    reaches 3:1 against paper. §4 says which is which — leaf for what has been reached,
@@ -144,6 +168,33 @@ body.progress main { padding-block-start: 1.5rem; gap: 1.5rem; }
 .progress .day { display: block; inline-size: 1.375rem; block-size: 1.375rem; border-radius: 5px; background: var(--divider); }
 .progress .day.on { background: var(--step-4); }
 .progress .days-range { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+/* A daily goal (targum-internal#537): leaf where it was met, the lighter step where the
+   reader was active under it, resting where nothing; never clay, and nothing moves. */
+.progress .day.under { background: var(--step-2); }
+.progress .how-goal { display: grid; gap: 0.125rem; }
+.progress .how-goal[hidden], .progress .how-goal [hidden] { display: none; }
+.progress .goal-said { margin: 0; font-size: 0.875rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.progress .goal-set { justify-self: start; }
+.progress .goal-set[hidden], .progress .goal-form[hidden], .progress .days[hidden],
+.progress .days-range[hidden], .progress .how-sub[hidden] { display: none; }
+.progress .goal-form { display: grid; gap: 0.75rem; justify-items: start; max-inline-size: 24rem; }
+.progress .goal-amount { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--ink-soft); font-size: 0.9375rem; }
+.progress .goal-amount select {
+  min-block-size: 2.25rem;
+  padding: 0 2rem 0 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-control);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-variant-numeric: tabular-nums;
+}
+.progress .goal-amount select:focus-visible { outline: 0; border-color: var(--teal); box-shadow: 0 0 0 2px var(--focus); }
+.progress .goal-says { margin: 0; font-size: 0.8125rem; color: var(--ink-soft); }
+.progress .goal-presses { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.progress .goal-refused { margin: 0; font-size: 0.875rem; color: var(--ink); }
+.progress .goal-refused[hidden] { display: none; }
 /* Three bars, the label, the bar and the exact count, each the length of its count
    against the longest: lighter for met, leaf for known. */
 .progress .how-bars { display: grid; gap: 0.75rem; }

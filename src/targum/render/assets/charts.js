@@ -67,8 +67,19 @@
   // filter, here, and every count on every page moves by it.
   function kept(words) {
     return vocabulary(words).filter(function (word) {
+      // A word known by ear and never marked when reading has no stage (status null),
+      // and is on no list and in no count of the reading marks (targum-internal#536, D2).
+      if (word.ear && (word.status === null || word.status === undefined)) return false;
       return word.status !== IGNORED;
     });
+  }
+
+  /* Words known by ear (targum-internal#536): a count beside the reading one, never a
+     share of anything. Names, numbers and an ignored word are not vocabulary. */
+  function byEar(words) {
+    return vocabulary(words).filter(function (word) {
+      return !!word.ear && word.status !== IGNORED;
+    }).length;
   }
 
   var EARLIEST = Date.UTC(2024, 0, 1);
@@ -351,6 +362,7 @@
     });
     return {
       saved: words.length,
+      ear: byEar(entry.words),
       learned: learned,
       known: known,
       learning: learning,
@@ -499,6 +511,8 @@
             // loses whatever it does not mention.
             learned: item.learned ? 1 : 0,
             at: item.at || 0,
+            // Known by ear (targum-internal#536), the reader's press beside the stage.
+            ear: item.ear ? 1 : 0,
           });
         });
       }
@@ -880,6 +894,7 @@
     days: days,
     longest: longest,
     known: known,
+    byEar: byEar,
     vocabulary: vocabulary,
     read: read,
     EARLIEST: EARLIEST,

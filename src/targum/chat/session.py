@@ -273,6 +273,13 @@ def run_turn(
                 quoted = json.loads(text).get("quote")
                 if quoted:
                     feed.put("quote", quoted)
+            if name == "quote_set" and not failed:
+                # A set is drawn as a card of its own: its texts and their credits, and
+                # its button to the page where it is confirmed (targum-internal#735). It
+                # was a lone "See the set" link the model then called a card.
+                drawn = _set_card(text)
+                if drawn:
+                    feed.put("set", drawn)
             if name == "search_sources" and not failed:
                 # What the search turned up, for a page that draws the results itself
                 # rather than reading them out of the model's prose (Add's description
@@ -408,6 +415,34 @@ def _found_rows(text: str) -> list[dict[str, Any]]:
         if len(rows) >= MOST_FOUND:
             break
     return rows
+
+
+def _set_card(text: str) -> dict[str, Any] | None:
+    """What a set's card draws, from a `quote_set` result: its id, its name, each text's
+    title and credits, the whole set's credits, and the page it is confirmed on. None
+    for a result that made no set."""
+    try:
+        made = json.loads(text)
+    except ValueError:
+        return None
+    held = made.get("set") if isinstance(made, dict) else None
+    if not isinstance(held, dict) or not held.get("id"):
+        return None
+    return {
+        "id": held["id"],
+        "name": str(held.get("name") or ""),
+        "items": [
+            {
+                "title": str(one.get("title") or ""),
+                "credits": int(one.get("credits") or 0),
+                "language": str(one.get("language") or ""),
+            }
+            for one in held.get("items") or []
+            if isinstance(one, dict)
+        ],
+        "credits": int(held.get("credits") or 0),
+        "open": str(made.get("open") or f"/set/{held['id']}"),
+    }
 
 
 def _refused_video(text: str, given: dict[str, Any]) -> str:

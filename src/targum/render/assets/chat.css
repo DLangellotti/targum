@@ -134,7 +134,9 @@ body.chat > .chat-main {
   white-space: nowrap;
 }
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
-.chat-list button.on { color: var(--ink); font-weight: 600; }
+/* The open conversation, in the row hover draws and in weight, which the Hebrew face
+   barely shows; `aria-current` says it to a screen reader (targum-internal#733). */
+.chat-list button.on { color: var(--ink); font-weight: 600; background: var(--teal-wash); }
 /* The title, and under it when it was last opened (targum-internal#238). */
 /* Clipped on the title itself, which carries its own direction: on the button around it
    the clip fell at the start of a Hebrew line (2026-09-14). A block keeps its row's edge. */
@@ -146,6 +148,9 @@ body.chat > .chat-main {
 
 /* On a phone the list is a sheet: the page's one overlay, with the shadow §8 allows an
    overlay, opened by the pill and closed by a row or Escape (targum-internal#238). */
+/* Chats is not drawn while there is nothing in it (targum-internal#733). */
+.chat-open-list[hidden],
+body.embed .chat-open-list[hidden] { display: none; }
 @media (max-width: 48rem) {
   .chat-open-list { display: inline-block; }
   .chat-list { display: none; }
@@ -181,6 +186,9 @@ body.chat > .chat-main {
   background: var(--paper-raised);
   overflow: auto;
   overscroll-behavior: contain;
+  /* Room for a focused control's ring at either edge when it is scrolled into view: a
+     focused Confirm at the foot was cut off (targum-internal#733). */
+  scroll-padding-block: 0.75rem;
 }
 .chat-empty {
   margin: 0;
@@ -262,6 +270,13 @@ body.chat > .chat-main {
 }
 .chat-play:hover { background: var(--paper-raised); }
 .chat-play:disabled { opacity: 0.5; cursor: default; }
+/* Beside the answer's first line, not on a line of its own (David, 2026-11-15, calmer
+   turns): the turn is two columns while it has Hear, the line and anything under it in
+   the first, Hear at the top of the second. */
+.chat-turn.them:has(> .chat-play) { grid-template-columns: minmax(0, 1fr) auto; column-gap: 0.5rem; }
+.chat-turn.them:has(> .chat-play) > * { grid-column: 1 / -1; }
+.chat-turn.them:has(> .chat-play) > .chat-line { grid-column: 1; grid-row: 1; }
+.chat-turn.them > .chat-play { grid-column: 2; grid-row: 1; align-self: start; margin-block-start: 0.2rem; }
 
 /* --- Hebrew, with the English under every line ------------------------------
    The record's own shape: a Hebrew line in the reading face at its own leading, its
@@ -332,37 +347,26 @@ body.chat > .chat-main {
 }
 .chat-look:disabled { opacity: 0.6; cursor: default; }
 
-/* The foot: the counts in the reading face, real numbers and never a level; the door
-   out is a call to action and takes the max-contrast pair (§9). */
-.chat-sum {
-  display: grid;
-  gap: 0.5rem;
-  justify-items: start;
-  padding-block-start: 0.75rem;
-  border-block-start: 1px solid var(--hairline);
-}
-.chat-counts {
-  margin: 0;
-  font-family: var(--reading);
-  font-size: 1.0625rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
+/* Save as a text: a quiet action on the conversation, in the head beside New (David,
+   2026-11-15). A text press, teal on no fill; it only quotes, and the card it answers
+   carries the conversation's counts and the Confirm that spends. */
 .chat-save {
   font: inherit;
   font-size: 0.8125rem;
   font-weight: 600;
-  padding: 0.55rem 1rem;
+  padding: 0.4rem 0.6rem;
   border: 0;
-  border-radius: var(--radius-control);
-  background: var(--ink);
-  color: var(--paper);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--teal);
   cursor: pointer;
 }
-.chat-save:hover { background: var(--ink-soft); }
+.chat-save[hidden] { display: none; }
+.chat-save:hover { background: var(--teal-wash); }
+.chat-save:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .chat-save:disabled { opacity: 0.5; cursor: default; }
-.chat-sum .note { margin: 0; font-size: 0.8125rem; color: var(--clay); }
-.chat-sum .note:empty { display: none; }
+/* The counts on the card Save answers, in the card's own quiet face. */
+.quote-card .chat-counts { font-variant-numeric: tabular-nums; }
 
 /* The label over the recast itself, on its own line (2026-09-14). It stood at the start
    of the English line under the Hebrew, at the far edge from it, and "CORRECTED I want to
@@ -380,6 +384,10 @@ body.chat > .chat-main {
 /* A recast that changed something says so in the label, and the words that changed
    carry a mark — the state in words as well as ink (§4). Why, from the model's one
    "~ " line, is folded under it and opened by a tap (targum-internal#242). */
+/* A correction folded to one quiet line until it is tapped (David, 2026-11-15, calmer
+   turns): its label, the corrected Hebrew a step quieter, and Why? beside it. */
+.chat-turn .chat-pair.corrected.folded { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.5rem; cursor: pointer; }
+.chat-turn .chat-pair.corrected.folded .chat-he { font-size: 0.9375rem; color: var(--ink-soft); }
 .chat-turn .chat-pair.recast .chat-w.fix { text-decoration: underline; text-decoration-style: double; text-underline-offset: 0.15em; }
 .chat-turn .chat-pair .chat-why {
   font-size: 0.8125rem;
@@ -392,6 +400,12 @@ body.chat > .chat-main {
 /* A failed turn's Try again stands on its sentence's line, on its baseline, rather than
    a line below it (#472 polish 1). */
 .chat-turn .fault-line { flex-wrap: nowrap; align-items: baseline; }
+/* A line that never left (targum-internal#733): it looked sent. "Not sent" and its Try
+   again stand under it, and the line itself is drawn quieter. */
+.chat-turn.unsent .chat-line { opacity: 0.7; }
+.chat-turn.unsent > .fault-line { justify-self: end; font-size: 0.8125rem; }
+/* Tell us is one size on every panel in the thread (targum-internal#733). */
+.chat-main .fault-panel-row .fault-act { font-size: 0.9375rem; }
 .chat-turn .fault-line .fault-said { flex: 1 1 auto; }
 .chat-turn .fault-line .fault-icon { flex: none; }
 /* "Why?" says the reason is there, beside the label it explains (#472 B6). */
@@ -418,25 +432,53 @@ body.chat > .chat-main {
   border-radius: var(--radius-control);
 }
 
+/* --- what a search found, and a set (targum-internal#735) ------------------- */
+
+/* A found article and a set are cards like a quote (composer.css), under the answer. */
+.chat-turn .found-card + .found-card { margin-block-start: 0.4rem; }
+.set-items { margin: 0; padding: 0; list-style: none; display: grid; gap: 0.25rem; justify-self: stretch; }
+.set-items li { display: flex; flex-wrap: wrap; justify-content: space-between; column-gap: 0.75rem; font-family: var(--reading); font-size: 0.9375rem; color: var(--ink); }
+.set-items .set-credits { font-family: var(--chrome); font-size: 0.8125rem; color: var(--ink-soft); }
+.set-card a.quote-go { text-decoration: none; }
+/* A web address the model wrote: a quiet link out on its own line, never dropped. */
+.chat-out-line { margin: 0.25rem 0; }
+.chat-turn .chat-line a.chat-out { font-family: var(--chrome); font-size: 0.875rem; color: var(--teal); overflow-wrap: anywhere; }
+
 /* --- a door ---------------------------------------------------------------- */
 
 /* A path the model hands over is drawn as the one thing a path is for: opening the
-   text. It is a call to action and takes the max-contrast pair (§9), the same press
-   the quote's button is, and it sits on its own line between the sentences. */
+   text. It is the door's one press, and inside the product that is filled in the primary
+   (design.md §9, the 2026-10-09 note; boards ChatDesk and ChatPhone), on the page and in
+   the drawer alike; it sits on its own line between the sentences.
+
+   A long title wraps between its words and never inside one (targum-internal#735). The
+   line's `overflow-wrap: anywhere` let a narrow pill break "Ope/n" between letters and
+   squeeze the title beside it: here "Open" and the title are two runs that wrap onto
+   lines of their own, each whole, and a pill that runs to two lines keeps its corners
+   rather than becoming a capsule. On one line, the sheet's radius draws the same pill. */
 .chat-door {
-  display: inline-block;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.3em;
+  max-inline-size: 100%;
+  min-block-size: 2.5rem;
   margin-block: 0.35rem 0.6rem;
+  padding: 0.45rem 1.25rem;
+  border-radius: var(--radius-sheet);
+  background: var(--teal);
+  color: var(--teal-ink);
   font-family: var(--chrome);
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 600;
   line-height: 1.2;
-  padding: 0.55rem 1rem;
-  border-radius: var(--radius-control);
-  background: var(--ink);
-  color: var(--paper);
   text-decoration: none;
+  text-align: start;
+  overflow-wrap: normal;
+  word-break: normal;
 }
-.chat-door:hover { background: var(--ink-soft); color: var(--paper); }
+.chat-door bdi { min-inline-size: 0; }
+.chat-door:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
 .chat-door:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* The box sits in its own area of this page's grid; its own rules are composer.css's. */
@@ -521,6 +563,9 @@ body.embed > .chat-main.cannot {
 .chat-main.cannot .chat-chips,
 .chat-main.cannot .chat-empty,
 .chat-main.cannot .chat-turn:has(> .chat-claim) { display: none; }
+/* And no empty raised thread under the fault: one raised layer to a view (§9,
+   targum-internal#733). A conversation already had still shows. */
+.chat-main.cannot .chat-thread:not(:has(.chat-turn)) { visibility: hidden; }
 body.embed .chat-open-list { display: inline-block; }
 body.embed .chat-list { display: none; }
 body.embed .chat-list.open { display: block; }
@@ -671,17 +716,6 @@ body.embed > .chat-main > .composer {
    sized to what was said; a door to a text is the primary; the box is one field. */
 body.embed .chat-main:has(.turns > li) > .chat-reading { display: none; }
 .chat-turn.me .chat-line { justify-self: end; }
-.chat-door {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: 2.5rem;
-  padding: 0 1.25rem;
-  border-radius: 999px;
-  background: var(--teal);
-  color: var(--teal-ink);
-  font-size: 0.9375rem;
-}
-.chat-door:hover { background: var(--teal); color: var(--teal-ink); filter: brightness(1.08); }
 body.embed > .chat-main > .composer {
   margin-block-start: 0.5rem;
   padding: 0.375rem 0.375rem 0.375rem 0.5rem;

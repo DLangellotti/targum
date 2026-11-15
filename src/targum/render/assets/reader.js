@@ -1423,6 +1423,8 @@ var targumReader = function () {
       window.TargumSync.forgetSection(documentId, sectionId);
     }
     if (window.TargumSync) window.TargumSync.touched();
+    if (on) goalFoot();
+    else goalLine = "";
     renderFinished();
     say(
       on
@@ -1691,6 +1693,12 @@ var targumReader = function () {
         );
         finishedSaid.appendChild(row);
       }
+      if (goalLine) {
+        var goalSaid = document.createElement("span");
+        goalSaid.className = "finished-goal";
+        goalSaid.textContent = goalLine;
+        finishedSaid.appendChild(goalSaid);
+      }
       finishedSaid.hidden = false;
     } else {
       finishedSaid.hidden = true;
@@ -1710,6 +1718,102 @@ var targumReader = function () {
     var onward = document.getElementById("next-up");
     if (onward && onward.classList.contains("here")) onward.hidden = !when;
     renderFoot();
+  }
+
+  /* The day's goal, said once at the foot (targum-internal#537; design.md §12, "A daily
+   * goal counts days, never a run", 2026-11-14). Good news only: on the first finished
+   * section of a day whose record reaches the reader's goal in this language, one line in
+   * type in the finished block, and nothing on a day it is not reached — no count of
+   * what is left, no run of days, no motion. Read off the account's own record, after
+   * what this page holds has been handed over, against the goal as it is now. Which day
+   * it was last said on is kept in this browser, by language, so it is said once.
+   */
+  var GOAL_SAID = "targum:goal-said";
+  var GOAL_WATCHED = { arc: true, yi: true };
+  var goalLine = "";
+
+  function goalToday() {
+    var now = new Date();
+    var two = function (n) {
+      return (n < 10 ? "0" : "") + n;
+    };
+    return now.getFullYear() + "-" + two(now.getMonth() + 1) + "-" + two(now.getDate());
+  }
+
+  // In the interface's language: 1 250 in Russian, 1,250 in English.
+  function goalGrouped(count) {
+    try {
+      return Number(count).toLocaleString(uiLanguage);
+    } catch (e) {
+      return String(count);
+    }
+  }
+
+  function goalFoot() {
+    goalLine = "";
+    if (!served || !window.fetch || !window.Promise) return;
+    if (!(window.TargumSync && window.TargumSync.who)) return;
+    var today = goalToday();
+    var said = read(GOAL_SAID, "{}");
+    if (said[language] === today) return;
+    function asked(only) {
+      return fetch(keyed("/account/totals?only=" + only), {
+        credentials: "same-origin",
+        headers: keyHeaders({}),
+      }).then(function (answer) {
+        return answer.json();
+      });
+    }
+    // The goals first, alone (qa on #1246): a reader with no goal in this language, or
+    // with the record stopped, stops here, before the finish's events are sent early
+    // and before the record is read at all.
+    var goal = null;
+    asked("goals")
+      .then(function (answer) {
+        if (!answer || !answer.signedIn || !answer.on) return null;
+        goal = (answer.goals || {})[language];
+        if (!goal || !finishedAt()) return null;
+        var handed = happenings && happenings.flush ? happenings.flush() : null;
+        return Promise.resolve(handed).then(function () {
+          return asked("goal");
+        });
+      })
+      .then(function (answer) {
+        if (!answer || !answer.signedIn || !answer.on) return;
+        goal = (answer.goals || {})[language] || null;
+        if (!goal || !finishedAt()) return;
+        var sum = 0;
+        (answer.totals || []).forEach(function (row) {
+          if (row.day !== today || (row.language && row.language !== language)) return;
+          if (goal.unit === "words") sum += row.words || 0;
+          else sum += GOAL_WATCHED[language] ? row.watched || 0 : (row.listened || 0) + (row.watched || 0);
+        });
+        if (sum < (goal.unit === "words" ? goal.amount : goal.amount * 60)) return;
+        said = read(GOAL_SAID, "{}");
+        if (said[language] === today) return;
+        said[language] = today;
+        try {
+          targumKeep(GOAL_SAID, JSON.stringify(said));
+        } catch (e) {}
+        if (goal.unit === "words") {
+          goalLine = tn(
+            "reader.foot.goal-words",
+            sum,
+            "Today's goal is met: {n} word read.",
+            "Today's goal is met: {n} words read.",
+            { n: goalGrouped(sum) }
+          );
+        } else {
+          var minutes = Math.floor(sum / 60);
+          goalLine = GOAL_WATCHED[language]
+            ? tn("reader.foot.goal-watched", minutes, "Today's goal is met: {n} minute watching.", "Today's goal is met: {n} minutes watching.")
+            : tn("reader.foot.goal-minutes", minutes, "Today's goal is met: {n} minute listening.", "Today's goal is met: {n} minutes listening.");
+        }
+        renderFinished();
+      })
+      .catch(function () {
+        /* no record to read is no line, which is how the foot already stood */
+      });
   }
 
   // The words here never marked, the ones met most first, and how many there are: for
@@ -2321,6 +2425,9 @@ var targumReader = function () {
         translation: translationFor(picked.segmentId),
         source: language,
         target: into,
+        // Which text it is, so the server can hold the target to the languages this
+        // text is translated into, as `/gloss` does (targum-internal#734).
+        document: documentId,
       }),
     })
       .then(function (response) {
@@ -2346,7 +2453,32 @@ var targumReader = function () {
 
   function statusOf(lemma) {
     var item = vocab[lemma];
-    return item ? item.status : undefined;
+    // A word known by ear and never marked when reading has a record and no stage
+    // (targum-internal#536, D2): the page asks about it as it asks about any unmarked word.
+    return item && item.status !== null ? item.status : undefined;
+  }
+
+  // Known by ear: the reader's own press, beside the stage and never moved by it.
+  function earOf(lemma) {
+    return !!(vocab[lemma] && vocab[lemma].ear);
+  }
+
+  // The ear mark set or taken off (targum-internal#536). Only the card's toggle calls
+  // this: no player, no finish, no practice. A word with no record gets one with no stage
+  // and `at` nought; taking the mark off a word with no stage takes the record away.
+  function setEar(index, surface, band, on) {
+    var lemma = lemmas[index];
+    if (!lemma) return;
+    var item = vocab[lemma];
+    if (!item) {
+      if (!on) return;
+      item = vocab[lemma] = { status: null, surface: surface || lemma, band: band || "", learned: 0, at: 0 };
+    }
+    if (on) item.ear = 1;
+    else delete item.ear;
+    stamp(item);
+    if (!on && statusOf(lemma) === undefined) forgetWord(lemma, true);
+    remember();
   }
 
   // Unmarked: a word the page is still asking about.
@@ -2366,7 +2498,7 @@ var targumReader = function () {
   function setNote(index, surface, band, text) {
     var lemma = lemmas[index];
     if (!lemma) return;
-    if (!vocab[lemma]) {
+    if (statusOf(lemma) === undefined) {
       if (!text) return;
       setStatus(index, surface, band, TargumVocab.LEARNING[0]);
     }
@@ -2445,7 +2577,21 @@ var targumReader = function () {
   // written in — from this page's own copies and from the store, which `sync.js` sweeps
   // and tombstones. Left behind, a meaning with no word under it kept a language in the
   // definitions switcher after the last word learned through it was gone.
-  function forgetWord(lemma) {
+  function forgetWord(lemma, all) {
+    // A word known by ear keeps its record, without a stage, when its stage is taken
+    // back (targum-internal#536): the ear mark is the reader's other press, and undoing
+    // a stage does not undo it. `all` is the ear mark itself coming off.
+    if (!all && vocab[lemma] && vocab[lemma].ear) {
+      vocab[lemma] = stamp({
+        status: null,
+        surface: vocab[lemma].surface || lemma,
+        band: vocab[lemma].band || "",
+        learned: 0,
+        at: 0,
+        ear: 1,
+      });
+      return;
+    }
     delete vocab[lemma];
     var theirs = termTongue(lemma);
     Object.keys(meaningStores).forEach(function (pair) {
@@ -2479,7 +2625,8 @@ var targumReader = function () {
     unmarkedHere().forEach(function (lemma) {
       if (statusOf(lemma) !== undefined) return;
       var index = lemmas.indexOf(lemma);
-      batch.push({ lemma: lemma, before: null });
+      var ear = earOf(lemma);
+      batch.push({ lemma: lemma, before: ear ? JSON.parse(JSON.stringify(vocab[lemma])) : null });
       vocab[lemma] = {
         status: KNOWN,
         surface: lemma,
@@ -2490,6 +2637,8 @@ var targumReader = function () {
         at: nextOrder(),
         seen: Date.now(),
       };
+      // Known by ear stays as it was (targum-internal#536).
+      if (ear) vocab[lemma].ear = 1;
       keepMeaning(lemma, glosses[index]);
     });
     if (!batch.length) return 0;
@@ -2990,12 +3139,21 @@ var targumReader = function () {
     return "";
   }
 
+  // A record handed back by undo, with the ear mark as it stands now: undo takes back a
+  // stage, and the ear mark is a press of its own (targum-internal#536).
+  function earKept(lemma, before) {
+    var record = stamp(JSON.parse(JSON.stringify(before)));
+    if (earOf(lemma)) record.ear = 1;
+    else delete record.ear;
+    return record;
+  }
+
   function undo() {
     var last = undoable.pop();
     if (!last) return false;
     if (last.bulk) {
       last.bulk.forEach(function (item) {
-        if (item.before) vocab[item.lemma] = item.before;
+        if (item.before) vocab[item.lemma] = earKept(item.lemma, item.before);
         else forgetWord(item.lemma);
       });
       remember();
@@ -3004,7 +3162,7 @@ var targumReader = function () {
       return true;
     }
     if (last.before) {
-      vocab[last.lemma] = last.before;
+      vocab[last.lemma] = earKept(last.lemma, last.before);
     } else {
       forgetWord(last.lemma);
     }
@@ -3084,6 +3242,7 @@ var targumReader = function () {
     if (status === null || status === undefined) {
       forgetWord(lemma);
     } else {
+      var ear = earOf(lemma);
       vocab[lemma] = {
         status: status,
         surface: vocab[lemma] ? vocab[lemma].surface || surface : surface,
@@ -3095,6 +3254,8 @@ var targumReader = function () {
         at: vocab[lemma] ? vocab[lemma].at || nextOrder() : nextOrder(),
         seen: Date.now(),
       };
+      // A stage press never touches the ear mark (targum-internal#536).
+      if (ear) vocab[lemma].ear = 1;
       // What the page says it means, kept beside the word under the language it was
       // said in. The word record used to hold it, which made one slot for a fact that
       // has one answer per language: keeping a word while reading in Russian overwrote
@@ -3653,6 +3814,74 @@ var targumReader = function () {
   var listStats = document.getElementById("list-stats");
   var headerKnown = document.getElementById("known");
 
+  /* Our estimate for this text, the figure Home prints for it, as a whole percentage:
+     said in the bar and the list until anything in the text is marked (design.md §12,
+     "A reader says our estimate until anything in it is marked", 2026-11-15;
+     targum-internal#724). A new reader's first text said "0 of 235 known" a minute
+     before Home said "about 44% (our estimate)". Null until the server answers, and
+     always where it is not asked. */
+  var ourEstimate = null;
+
+  /* A shelf row's estimate as Home rounds it (`figure.js`, `level.known_percent`): never
+     100 under all of it nor 0 above none. Null where the row is not measured, its figure
+     is what was marked, or it estimates none of the text. */
+  function estimateOf(row) {
+    if (!row || ("words" in row && !row.words)) return null;
+    var share = row.estimated;
+    if (typeof share !== "number" || !(share > 0)) return null;
+    var percent = Math.max(0, Math.min(100, Math.round(share * 100)));
+    if (share < 1 && percent >= 100) percent = 99;
+    if (percent <= 0) percent = 1;
+    return percent;
+  }
+
+  /* Asked once, of the server's own row for this text (`/readers?name=`, what Home and
+     the Library read), and only where it can be answered: served, signed in or keyed,
+     and online. Signed out, off the disk and a saved copy offline ask nothing new, and
+     nor does a text that already holds a mark, whose answer could never be said: most
+     texts past a reader's first, and every part of one in parts (qa-claude on #1250). */
+  function askEstimate() {
+    var folder = buildFolder();
+    if (!folder || !canAsk() || away() || typeof fetch !== "function") return;
+    var marked = coverage();
+    if (marked.known || marked.learning) return;
+    fetch(keyed("/readers?catalogue=0&name=" + encodeURIComponent(folder)), {
+      credentials: "same-origin",
+      headers: keyHeaders({}),
+    })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (answer) {
+        if (!answer) return;
+        // The reader's own copy first, as the server serves it first.
+        var rows = (answer.readers || []).concat(answer.shared || []);
+        var row = rows.filter(function (one) {
+          return one && one.name === folder;
+        })[0];
+        var percent = estimateOf(row);
+        if (percent === null) return;
+        ourEstimate = percent;
+        renderStats();
+      })
+      .catch(function () {
+        /* the count stands */
+      });
+  }
+
+  // "About 44% (our estimate)", the label quiet beside the number, as Home says it. The
+  // bar's number takes its ledger treatment (`b`); the list's line is plain.
+  function estimateInto(element, percent, tag) {
+    var number = document.createElement(tag || "b");
+    number.textContent = t("reader.estimate.about", "About {share}%", { share: percent });
+    var ours = document.createElement("span");
+    ours.className = "estimate-ours";
+    ours.textContent = t("reader.estimate.ours", "(our estimate)");
+    element.appendChild(number);
+    element.appendChild(document.createTextNode(" "));
+    element.appendChild(ours);
+  }
+
   // How much of what is in front of you you have already dealt with. The reason to
   // know it is choosing what to read next, so it counts this text and not the language.
   function coverage() {
@@ -3729,6 +3958,9 @@ var targumReader = function () {
     // numeral, a word from another language — and counting it as known would make the
     // figure something you could raise without learning anything.
     var scored = counts.total - counts.ignored;
+    // Nothing in the text marked known or learning yet, and the server's estimate in hand:
+    // say Home's figure rather than "0 of M known" (targum-internal#724).
+    var estimating = ourEstimate !== null && !counts.known && !counts.learning;
 
     // In the header, beside the title: how much of this text you can already read. The
     // words are counted here and the knowing is counted across the language, so a word
@@ -3758,6 +3990,8 @@ var targumReader = function () {
           headerKnown.appendChild(
             document.createTextNode(t("reader.header.nothing-left", "nothing left to mark here"))
           );
+        } else if (estimating) {
+          estimateInto(headerKnown, ourEstimate);
         } else {
           var whole = document.createElement("b");
           whole.textContent = String(counts.known);
@@ -3789,6 +4023,16 @@ var targumReader = function () {
     if (!listStats) return;
     if (!counts.total) {
       listStats.textContent = "";
+      return;
+    }
+    if (estimating) {
+      listStats.textContent = "";
+      estimateInto(listStats, ourEstimate, "span");
+      listStats.appendChild(
+        document.createTextNode(
+          " · " + tn("reader.list.to-mark", counts.fresh, "{n} word to mark", "{n} words to mark")
+        )
+      );
       return;
     }
     var share = scored ? Math.round((counts.known / scored) * 100) : 0;
@@ -5375,6 +5619,13 @@ var targumReader = function () {
     return TargumVocab.editor({
       status: statusOf(lemma),
       note: noteOf(lemma),
+      // Known by ear (targum-internal#536), under the scale on every word card: the text,
+      // Beside, Under, Theatre, the listening view and Hear first all draw this one. It
+      // writes the ear mark alone, and redraws nothing: the word is drawn by its stage.
+      ear: earOf(lemma),
+      onEar: function (on) {
+        setEar(index, surface, band, on);
+      },
       // The scale says what the pressed step means. "1 2 3" alone had to be explained
       // — the first alpha reader asked — and the names were only ever in tooltips.
       legend: true,
@@ -10212,7 +10463,14 @@ var targumReader = function () {
       if (!placeLeft && (!paged() || current === 0)) resume(placeFound);
     });
     window.TargumSync.start();
-    if (window.TargumSync.settled) window.TargumSync.settled().then(notePart, notePart);
+    if (window.TargumSync.settled) {
+      window.TargumSync.settled().then(notePart, notePart);
+      // Once the account has said who is reading: signed out asks nothing.
+      window.TargumSync.settled().then(askEstimate, function () {});
+    }
+  } else {
+    // No sync layer: `canAsk` says whether a key lets this page ask at all.
+    askEstimate();
   }
 
   // The way in from this page, for the card's "Sign in to look this up" and the

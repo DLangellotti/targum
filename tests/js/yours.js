@@ -53,6 +53,9 @@ install({
     : undefined,
 });
 
+// Your Progress's way in with the Known by ear filter on (`/words?ear=1`, #536).
+if (payload.locationSearch) global.location.search = payload.locationSearch;
+
 /* The search field and the filter come from the template, so a stub document has
    neither. Made here with the value the payload asks for: the page reads `.value`
    before it has drawn a row. */
@@ -82,6 +85,8 @@ global.window.TargumVocab.editor = (options) => {
     scale.appendChild(button);
   });
   box.appendChild(scale);
+  // Known by ear, the real toggle (`vocab.js` `earButton`), where the caller asks (#536).
+  if (options.onEar) box.appendChild(global.window.TargumVocab.earButton(!!options.ear, options.onEar));
   return box;
 };
 require(path.join(assets, "lists.js"));
@@ -171,6 +176,8 @@ const part = (name) => claimBody.querySelector("." + name) || { hidden: true, ch
 function words() {
   return at("word-rows").children.map((row) => {
     const [word, said, met, status, stage] = row.children;
+    // Known by ear, under the stages in their own cell (#536).
+    const earToggle = stage ? stage.querySelector(".ear-toggle") : null;
     const find = (node, name) => (node && node.querySelector(name)) || null;
     const form = (word.children || []).find((node) => String(node.className).includes("form"));
     const scale = ((stage || { children: [] }).children[0] || { children: [] }).children[0];
@@ -188,6 +195,9 @@ function words() {
       met: met ? met.textContent : "",
       status: status ? (find(status, ".status-name") || {}).textContent || "" : "",
       stage: on ? Number(on.getAttribute("data-value")) : null,
+      // Known by ear, the column after the stages (targum-internal#536).
+      ear: earToggle ? earToggle.getAttribute("aria-pressed") : null,
+      pressEar: () => earToggle.fire("click", { stopPropagation() {} }),
       press: (value) => {
         const button = scale.children.find((b) => b.getAttribute("data-value") === String(value));
         button.fire("click");
@@ -216,6 +226,8 @@ function practise() {
     note: (find(".word-note") || {}).textContent || "",
     translation: (find(".practise-translation") || {}).textContent || "",
     stage: on ? Number(on.getAttribute("data-value")) : null,
+    // Known by ear under its stage (#536).
+    ear: find(".ear-toggle") ? find(".ear-toggle").attrs["aria-pressed"] : null,
     next: next ? !next.hidden : false,
     coming: (find(".practise-coming-words") || { children: [] }).children.map((b) => b.textContent),
   };
@@ -327,6 +339,16 @@ function phrases() {
       const row = words().find((one) => one.term === step.word);
       if (row) row.press(step.value);
     }
+    // Known by ear pressed on a row: `{type: "ear", word: "…"}` (#536).
+    if (step.type === "ear") {
+      const row = words().find((one) => one.term === step.word);
+      if (row) row.pressEar();
+    }
+    // Known by ear on the open card: `{type: "card-ear"}`.
+    if (step.type === "card-ear") {
+      const toggle = at("list-card").querySelector(".ear-toggle");
+      if (toggle) toggle.fire("click", { stopPropagation() {} });
+    }
     // A stage tab over the table: `{type: "chip", stage: "9"}`, "often" for Met often.
     if (step.type === "chip") {
       const chip = at("stage-chips").children.find((c) => c.getAttribute("data-stage") === step.stage);
@@ -403,6 +425,8 @@ function phrases() {
           form: find(".form"),
           meaning: find(".meaning"),
           levels: !!card.querySelector(".levels"),
+          // Known by ear on the card (#536): its state, or null where none is drawn.
+          ear: card.querySelector(".ear-toggle") ? card.querySelector(".ear-toggle").attrs["aria-pressed"] : null,
           role: card.attrs.role || "",
         };
       })(),

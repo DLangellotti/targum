@@ -58,6 +58,10 @@ def draw(
     record_off: bool = False,
     understand: dict[str, Any] | None = None,
     pick: str | None = None,
+    goals: dict[str, Any] | None = None,
+    goal_steps: list[list[str]] | None = None,
+    goal_refused: bool = False,
+    goal_signed_out: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -82,6 +86,10 @@ def draw(
                     "recordOff": record_off,
                     "understand": understand,
                     "pick": pick,
+                    "goals": goals,
+                    "goalSteps": goal_steps,
+                    "goalRefused": goal_refused,
+                    "goalSignedOut": goal_signed_out,
                     **({} if period is None else {"period": period}),
                 }
             ),
@@ -1523,7 +1531,9 @@ def test_the_words_are_drawn_with_the_record_of_use_stopped() -> None:
     """The words are the account's own and not the record of use: stopped, the figures
     and the days go, the quiet line says why, and the words stay."""
     drawn = effort([], words=_words_days(), record_off=True)
-    assert drawn["off"] and not drawn["spent"] and drawn["days"] is None
+    # The days block stays only for setting a daily goal (#537): no squares, no count.
+    assert drawn["off"] and not drawn["spent"] and not drawn["days"]["drawn"]
+    assert drawn["days"]["squares"] == [] and drawn["goal"]["set"]
     assert drawn["words"] and drawn["by"]
 
 
@@ -1546,3 +1556,61 @@ def test_the_experimental_note_starts_where_the_phone_title_does() -> None:
     title = ".progress .page-title { margin-block-start: 1.25rem; padding-inline: 1rem;"
     phone = text[text.index(title) :]
     assert ".progress .beta-note { padding-inline: 1rem; }" in phone[:400]
+
+
+# --- known by ear (targum-internal#536) ------------------------------------------------
+
+
+def _with_ear(ear: int, known: int = 3) -> dict[str, Any]:
+    words = vocab(known=known, learning=1)
+    for i in range(ear):
+        # Half on known words, half on words never marked when reading.
+        if i % 2 == 0 and f"known-{i}" in words:
+            words[f"known-{i}"]["ear"] = 1
+        else:
+            words[f"ear-{i}"] = {"status": None, "surface": f"ear-{i}", "at": 0, "ear": 1}
+    return {"targum:vocab:he": words}
+
+
+def test_progress_says_how_many_words_are_known_by_ear_beside_the_reading_count() -> None:
+    plain = draw({"targum:vocab:he": vocab(known=3, learning=1)})
+    drawn = draw(_with_ear(4))
+    # Nothing that counts the reading marks moves: the ear-only words are on no list.
+    assert drawn["counts"] == plain["counts"]
+    assert drawn["ear"]["figure"] == "4 known by ear"
+    assert drawn["ear"]["href"].startswith("/words?ear=1")
+    # Said once (design's §14 pass on #1243): the linked figure, and no sentence under the
+    # totals repeating it.
+    assert drawn["ear"]["line"] == ""
+    assert draw(_with_ear(1))["ear"]["figure"] == "1 known by ear"
+
+
+def test_the_ear_figure_stands_below_the_roots_line() -> None:
+    """ "from 8 roots" describes "words known", so it stands straight under it and the ear
+    figure under that (design's §14 pass on #1243), though the story that brings the
+    roots arrives after the ear figure is drawn."""
+    drawn = draw(_with_ear(2), story={**LADDER, "roots": 8})
+    order = drawn["ear"]["order"]
+    assert "count-roots" in order and "count-ear" in order
+    assert order.index("count-roots") < order.index("count-ear")
+
+
+def test_before_the_first_word_known_by_ear_progress_says_how_to_mark_one() -> None:
+    drawn = draw({"targum:vocab:he": vocab(known=3)})
+    assert drawn["ear"]["figure"] == ""
+    assert drawn["ear"]["line"] == (
+        "Mark a word Known by ear on its card when you know it by sound."
+    )
+
+
+@pytest.mark.parametrize("ear", [1, 3, 5, 11])
+def test_russian_says_the_ear_figure(ear: int) -> None:
+    from targum import strings
+
+    russian = strings.catalogue("ru")
+    keys = {key: text for key, text in russian.items() if "ear" in key}
+    drawn = draw(_with_ear(ear, known=ear), strings={"strings": keys, "language": "ru"})
+    assert drawn["ear"]["line"] == ""
+    assert drawn["ear"]["figure"] == f"на слух: {ear}"
+    start = draw({"targum:vocab:he": vocab(known=3)}, strings={"strings": keys, "language": "ru"})
+    assert start["ear"]["line"] == russian["progress.ear.start"]

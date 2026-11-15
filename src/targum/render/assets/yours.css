@@ -235,6 +235,10 @@ table.words-table .status-met { display: none; }
 table.words-table td.stage { white-space: nowrap; cursor: auto; }
 table.words-table td.stage .vocab-editor { gap: 0; }
 table.words-table td.stage .vocab-editor .levels { flex-wrap: nowrap; }
+/* Known by ear (targum-internal#536): the toggle on its own line under the row's five
+   stages, the way it stands under the card's. A word known by ear alone has no stage, so its dot is the hairline's. */
+table.words-table td.stage .ear-toggle { margin-block-start: 0.35rem; }
+table.words-table .dot-none { background: none; box-shadow: inset 0 0 0 1px var(--rule); }
 /* A word just ignored (QA 2026-10-11, decision D6): its row says where it went, quietly,
    with Undo after it in teal, as a deleted text's row does on home. Not a row that opens
    a card, so it takes no hover. Kept clear of the phone's bar of places when the
@@ -376,6 +380,8 @@ table.words-table .copy.copied { opacity: 1; }
   table.words-table .status-met { display: inline; }
   table.words-table td.stage { grid-area: stage; }
   table.words-table td.stage .vocab-editor .level { min-inline-size: 3rem; }
+  /* Known by ear under the stages, a thumb tall (targum-internal#536). */
+  table.words-table td.stage .btn.ear-toggle.compact { min-block-size: 44px; }
   table.words-table tbody tr.held,
   table.words-table.is-rtl tbody tr.held,
   table.words-table tbody tr.met-row { display: block; padding-block-start: 0; }
@@ -449,6 +455,21 @@ table.words-table .copy.copied { opacity: 1; }
    and what they wrote that the line does not have is struck, so neither rests on colour
    alone (design.md §4). Nothing here is a verdict: no clay, no count. */
 .sentence-play { margin: 0 0 0.75rem; }
+/* A word in dictation's result opens its card (targum-internal#536, D6): the word as it
+   stands in the line, a dotted rule under it to say it is a press, and the reading face
+   kept. Nothing moves the line: no padding, no box. */
+.sentence-word {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline dotted var(--ink-soft);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+.sentence-word:hover { color: var(--teal); }
+.sentence-word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-control); }
 .sentence-play:disabled { color: var(--ink-soft); cursor: default; }
 .sentence-field {
   box-sizing: border-box;
@@ -487,6 +508,9 @@ body.yours table.words-table[hidden] { display: none; }
    21-40px on a phone. Drawn at 44px rather than given a reach: each stands a line from
    text, and a reach would cross it. */
 @media (hover: none) and (pointer: coarse) {
+  /* Known by ear's row toggle keeps a thumb's 44px under a coarse pointer at any width
+     (design's §14 pass on #1243). */
+  table.words-table td.stage .btn.ear-toggle.compact { min-block-size: 44px; }
   .words-back,
   .came-back,
   .words-exports .link-quiet:not([hidden]),
@@ -516,3 +540,12 @@ body.yours table.words-table[hidden] { display: none; }
    being made, then the deck ready, in the quiet line's ink. */
 .export-said { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .export-said[hidden] { display: none; }
+
+/* Send to Anki's set-up lines and the key AnkiConnect may ask for (targum-internal#540):
+   quiet type under the exports, opened by its own press, never a tooltip (§14 rule 3). */
+.anki-how { flex-basis: 100%; margin-block-start: 0.25rem; color: var(--ink-soft); font-size: 0.875rem; }
+.anki-how[hidden], .anki-key[hidden] { display: none; }
+.anki-scope { margin: 0 0 0.25rem; }
+.anki-steps { margin: 0; padding-inline-start: 1.25rem; }
+.anki-steps li + li { margin-block-start: 0.125rem; }
+.anki-key { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-block-start: 0.5rem; font-size: 0.875rem; }

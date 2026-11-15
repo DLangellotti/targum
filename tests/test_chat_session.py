@@ -1764,3 +1764,45 @@ def test_a_search_that_answers_nothing_useful_puts_nothing_on_the_feed() -> None
     assert _found_rows('{"count": 0, "items": []}') == []
     assert _found_rows('{"note": "no publishers"}') == []
     assert _found_rows('{"items": ["a string, not a row"]}') == []
+
+
+# -- a set, drawn as a card (targum-internal#735) --------------------------------------
+
+
+def test_a_set_the_model_quotes_is_sent_to_the_page_as_a_card(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    library, store = world(tmp_path)
+    made = {
+        "set": {
+            "id": 16,
+            "name": "חדשות היום",
+            "items": [{"title": "כתבה", "credits": 0, "job": "j1"}],
+            "credits": 0,
+        },
+        "open": "/set/16",
+        "note": "x",
+    }
+    from dataclasses import replace
+
+    monkeypatch.setitem(
+        tools.BY_NAME, "quote_set", replace(tools.BY_NAME["quote_set"], run=lambda ctx, args: made)
+    )
+    script = Script(
+        [
+            reply(
+                [{"type": "tool_use", "id": "q1", "name": "quote_set", "input": {"items": []}}],
+                stop="tool_use",
+            ),
+            reply([{"type": "text", "text": "One set of today's news."}]),
+        ]
+    )
+    feed = _turn_over(script, library, store)
+    (card,) = [json.loads(data) for kind, data in feed.events if kind == "set"]
+    assert card == {
+        "id": 16,
+        "name": "חדשות היום",
+        "items": [{"title": "כתבה", "credits": 0, "language": ""}],
+        "credits": 0,
+        "open": "/set/16",
+    }

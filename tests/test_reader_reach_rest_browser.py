@@ -68,9 +68,16 @@ def test_the_word_card_s_close_and_add_your_meaning_answer_a_thumb(browser, serv
         tap_a_word(page)
         shut = page.evaluate(REACH, "#gloss-card .card-x")
         assert shut["middle"] and shut["across"] >= 44 and shut["up"] >= 44, shut
+        # The sheet scrolls; Known by ear's line (targum-internal#536) can put Add your
+        # meaning just past its fold at 390, so it is brought into the sheet's view first.
+        page.evaluate(
+            "() => document.querySelector('#gloss-card .note-open')"
+            ".scrollIntoView({block: 'center'})"
+        )
         add = page.evaluate(REACH, "#gloss-card .note-open")
         assert not add.get("missing"), "the card offers Add your meaning"
         assert add["middle"] and add["up"] >= 44, add
+        page.evaluate("() => { document.getElementById('gloss-card').scrollTop = 0; }")
         assert page.evaluate(COVERED, "#gloss-card button") == []
         assert page.evaluate(UNDER_CARD) == [], "a reach crosses the card's text"
     finally:

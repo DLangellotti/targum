@@ -71,11 +71,11 @@
       clearTimeout(timer);
       timer = null;
     }
-    if (!held.length || decide() !== true || !about.address) return;
+    if (!held.length || decide() !== true || !about.address) return null;
     var batch = held;
     held = [];
     try {
-      fetch(about.address("/events"), {
+      return fetch(about.address("/events"), {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -97,7 +97,9 @@
         .catch(function () {
           /* lost, and that is the right failure: a record is not worth a retry queue */
         });
-    } catch (e) {}
+    } catch (e) {
+      return null;
+    }
   }
 
   function note(event) {
@@ -169,9 +171,10 @@
       about.address = (said && said.address) || null;
     },
     note: note,
-    /** Send what is held. `last` where the page is going, so the request outlives it. */
+    /** Send what is held. `last` where the page is going, so the request outlives it.
+        Answers the request, settled once the account has it, or null where nothing went. */
     flush: function (last) {
-      send(!!last);
+      return send(!!last);
     },
     //: For a test: what is waiting to go.
     held: function () {

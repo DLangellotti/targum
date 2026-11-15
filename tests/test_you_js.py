@@ -375,8 +375,26 @@ def test_a_prompt_and_a_telegram_chat_are_rows_like_the_languages() -> None:
     )
     assert page["promptRows"] == [{"className": "row", "clamped": True, "press": "Remove"}]
     assert page["telegram"][0]["className"] == "row"
-    assert page["telegram"][0]["name"] == "A Telegram chat"
+    assert page["telegram"][0]["name"] == "Telegram · …7"
     assert page["telegram"][0]["says"].startswith("Linked September")
+
+
+def test_two_telegram_chats_are_told_apart_by_their_last_four_digits() -> None:
+    """Finish pass on Your account, P2 12 (targum-internal#719): every row said "A Telegram
+    chat". Each now ends in the last four digits of its chat id, which the server already
+    sends; a group's minus sign is not one of them, and no title is ever asked for."""
+    page = run(
+        who={
+            **CONNECTED,
+            "telegram": {
+                "chats": [
+                    {"chat": 5551234567, "linked": 1758700800000},
+                    {"chat": -1009876543210, "linked": 1758700800000},
+                ]
+            },
+        }
+    )
+    assert [row["name"] for row in page["telegram"]] == ["Telegram · …4567", "Telegram · …3210"]
 
 
 def test_saving_one_posts_both_fields_and_says_what_it_was_called() -> None:

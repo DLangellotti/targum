@@ -306,6 +306,37 @@
     var read = wordsRead(code);
     if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
     drawRoots(code);
+    drawEar(host, sums.ear);
+  }
+
+  /* Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and
+     only the reader says so", 2026-11-14). Two things, both counts and never a share: a
+     second figure under "words known" (and under its roots line), which opens Your Words
+     with the filter on (the way a stage is reached from here), and, before the first
+     mark only, a line under the totals saying how to make one. Nothing else on the page moves: the
+     level, what you can read and every percentage stay the reading marks. */
+  function drawEar(host, ear) {
+    var tile = host.querySelector(".count-known");
+    if (tile) {
+      var old = tile.querySelector(".count-ear");
+      if (old) old.remove();
+      if (ear > 0) {
+        var go = el(
+          "a",
+          "count-ear",
+          tn("progress.count.ear", ear, "{n} known by ear", "{n} known by ear", { n: grouped(ear) })
+        );
+        go.href = keyed("/words?ear=1");
+        tile.appendChild(go);
+      }
+    }
+    // The start line, only before the first ear mark: after it the linked figure says it,
+    // and "You know 11 words by ear." straight under "11 known by ear" said it twice
+    // (design's §14 pass on #1243).
+    var line = document.getElementById("ear-line");
+    if (!line) return;
+    line.textContent = ear > 0 ? "" : t("progress.ear.start", "Mark a word Known by ear on its card when you know it by sound.");
+    line.hidden = ear > 0;
   }
 
   /* "from N roots" under "words known" (design.md §12, '"from N roots" is a label on the
@@ -313,15 +344,20 @@
      of its own. The account's count, so it waits for the story; Hebrew only, and none
      without a root lexicon (`roots` is null) or with no root to say. */
   function drawRoots(code) {
-    var tile = document.querySelector("#counts .count-known");
+    var counts = document.getElementById("counts");
+    var tile = counts && counts.querySelector(".count-known");
     if (!tile) return;
     var old = tile.querySelector(".count-roots");
     if (old) old.remove();
     var said = story[code];
     var roots = said && typeof said.roots === "number" ? said.roots : 0;
     if (roots < 1) return;
-    tile.appendChild(
-      el("span", "count-roots", tn("progress.count.roots", roots, "from {n} root", "from {n} roots", { n: grouped(roots) }))
+    // Straight under "words known", which it describes, and above the ear figure, which
+    // it does not (design's §14 pass on #1243): the story can arrive after the ear figure
+    // is drawn, so it goes in before it rather than at the end.
+    tile.insertBefore(
+      el("span", "count-roots", tn("progress.count.roots", roots, "from {n} root", "from {n} roots", { n: grouped(roots) })),
+      tile.querySelector(".count-ear")
     );
   }
 
@@ -1035,20 +1071,83 @@
     return out;
   }
 
+  /* A daily goal (targum-internal#537; design.md §12, "A daily goal counts days, never a
+     run", 2026-11-14). A lens on the record, never a promise to it: a threshold the
+     reader chose, laid over the same rows the days active are counted from, and read
+     against the goal as it is now. Change it and the same days are read again. Nothing
+     here walks back from today, counts days that follow one another, or says how far
+     today has to go: today is a day like any other until its record reaches the goal.
+     Words are words read; minutes are listening and watching added, as "Time listening"
+     adds them, or watching alone where a language has no recordings. Practice is not
+     in it, because nothing records practice. */
+  var goals = {};
+  //: Whether the account answered the totals, so a goal can be set; apart from the
+  //: story's `signedIn`, which is null until it is asked.
+  var totalsSignedIn = false;
+  var recordOff = false;
+  var GOAL_STEPS = { words: [100, 250, 500, 1000, 2500], minutes: [5, 10, 15, 30, 60] };
+
+  //: How much of the goal's unit each day holds in this language: words, or seconds.
+  function goalAmounts(code, unit) {
+    var out = {};
+    (spentRows || []).forEach(function (row) {
+      if (row.language && row.language !== code) return;
+      var add =
+        unit === "words"
+          ? row.words || 0
+          : SILENT[code]
+            ? row.watched || 0
+            : (row.listened || 0) + (row.watched || 0);
+      out[row.day] = (out[row.day] || 0) + add;
+    });
+    return out;
+  }
+
+  //: Whether one day's amount reaches the goal. Minutes are kept as seconds.
+  function goalMet(goal, amount) {
+    return amount >= (goal.unit === "words" ? goal.amount : goal.amount * 60);
+  }
+
+  //: The goal as words: "250 words read a day".
+  function goalSaid(code, goal) {
+    if (goal.unit === "words") {
+      return tn("progress.goal.words", goal.amount, "{n} word read a day", "{n} words read a day", {
+        n: grouped(goal.amount),
+      });
+    }
+    return SILENT[code]
+      ? tn("progress.goal.watched", goal.amount, "{n} minute watching a day", "{n} minutes watching a day")
+      : tn("progress.goal.minutes", goal.amount, "{n} minute listening a day", "{n} minutes listening a day");
+  }
+
   /* A square a day of the period, leaf where the reader read, listened or watched (David,
      2026-10-30: "active"). One count of days and nothing about runs of them. Not drawn
      on All time: the day strip was retired on 2026-10-09, and a field of ninety squares
-     under "All time" would bring it back while describing ninety days, not all of them. */
+     under "All time" would bring it back while describing ninety days, not all of them.
+     With a goal set, leaf is the goal met, the lighter step a day active under it, and
+     resting a day with nothing: a day under the goal keeps the tint it earned, and
+     nothing is ever clay or called missed. */
   function drawDays(code) {
     var box = document.getElementById("how-days");
     if (!box) return false;
-    box.hidden = !spentPeriod || !recorded(code);
+    // Stopped, there is no record to read, and the goal can still be set (#537).
+    var settable = Boolean(spentPeriod) && totalsSignedIn && recordOff;
+    box.hidden = !spentPeriod || !(recorded(code) || settable);
+    var goal = goals[code] || null;
+    drawGoal(code, goal, box.hidden);
     if (box.hidden) return false;
+    var drawn = recorded(code);
+    ["days-title", "days-grid", "days-range"].forEach(function (id) {
+      document.getElementById(id).hidden = !drawn;
+    });
+    if (!drawn) return true;
     var total = Number(spentPeriod);
     var active = activeDays(code);
+    var amounts = goal ? goalAmounts(code, goal.unit) : {};
     var grid = document.getElementById("days-grid");
     grid.textContent = "";
     var count = 0;
+    var met = 0;
     var first = "";
     var last = "";
     for (var back = total - 1; back >= 0; back--) {
@@ -1059,19 +1158,184 @@
       last = day;
       var on = Boolean(active[day]);
       if (on) count += 1;
-      grid.appendChild(el("span", on ? "day on" : "day"));
+      var reached = Boolean(goal) && goalMet(goal, amounts[day] || 0);
+      if (reached) met += 1;
+      var kind = "day";
+      if (on) kind = goal && !reached ? "day under" : "day on";
+      grid.appendChild(el("span", kind));
     }
     var title = document.getElementById("days-title");
     title.textContent = "";
     title.appendChild(document.createTextNode(t("progress.days.title", "Days active")));
     title.appendChild(el("span", "how-count", " " + t("progress.days.of", "· {n} of {all}", { n: count, all: total })));
+    var goalTitle = document.getElementById("goal-title");
+    if (goal && goalTitle) {
+      goalTitle.textContent = "";
+      goalTitle.appendChild(document.createTextNode(t("progress.goal.title", "Daily goal")));
+      goalTitle.appendChild(
+        el("span", "how-count", " " + t("progress.goal.of", "· {n} of {all}", { n: met, all: total }))
+      );
+    }
     grid.setAttribute(
       "aria-label",
-      t("progress.days.label", "You were active on {n} of the last {all} days.", { n: count, all: total })
+      goal
+        ? t(
+            "progress.goal.label",
+            "You were active on {n} of the last {all} days, and reached your goal on {met} of them.",
+            { n: count, all: total, met: met }
+          )
+        : t("progress.days.label", "You were active on {n} of the last {all} days.", { n: count, all: total })
     );
     document.getElementById("days-range").textContent = shortDay(dayOf(first)) + " → " + shortDay(dayOf(last));
     return true;
   }
+
+  //: The goal's lines and its link, under the days active; the form stays as it was.
+  function drawGoal(code, goal, hidden) {
+    var head = document.getElementById("goal-head");
+    var set = document.getElementById("goal-set");
+    var form = document.getElementById("goal-form");
+    if (!head || !set || !form) return;
+    if (hidden) {
+      head.hidden = true;
+      set.hidden = true;
+      form.hidden = true;
+      return;
+    }
+    // A form opened for another language is that language's, and closes on the switch.
+    if (!form.hidden && form.getAttribute("data-language") !== code) form.hidden = true;
+    var editing = !form.hidden;
+    head.hidden = !goal;
+    // Stopped, the goal is said and not counted: there is no record to count it on.
+    document.getElementById("goal-title").hidden = !goal || recordOff;
+    if (goal) document.getElementById("goal-said").textContent = goalSaid(code, goal);
+    set.hidden = Boolean(goal) || editing;
+    document.getElementById("goal-change").hidden = editing;
+  }
+
+  //: The Words | Minutes presses, read off the `.seg` itself.
+  function unitPresses() {
+    var box = document.getElementById("goal-unit");
+    return Array.prototype.filter.call((box && box.children) || [], function (button) {
+      return Boolean(button.getAttribute && button.getAttribute("data-unit"));
+    });
+  }
+
+  function goalUnit() {
+    var pressed = unitPresses().filter(function (button) {
+      return button.getAttribute("aria-pressed") === "true";
+    })[0];
+    return (pressed && pressed.getAttribute("data-unit")) || "words";
+  }
+
+  //: The select's fixed steps for a unit, with `chosen` picked where it is one of them.
+  function goalSteps(unit, chosen) {
+    var select = document.getElementById("goal-amount");
+    select.textContent = "";
+    var steps = GOAL_STEPS[unit];
+    var pick = steps.indexOf(chosen) >= 0 ? chosen : steps[1];
+    steps.forEach(function (step) {
+      var option = el("option", "", grouped(step));
+      option.value = String(step);
+      if (step === pick) option.selected = true;
+      select.appendChild(option);
+    });
+    select.value = String(pick);
+  }
+
+  function pressUnit(unit) {
+    unitPresses().forEach(function (button) {
+      button.setAttribute("aria-pressed", button.getAttribute("data-unit") === unit ? "true" : "false");
+    });
+  }
+
+  function openGoal() {
+    var form = document.getElementById("goal-form");
+    var goal = goals[currentCode] || null;
+    var watched = document.getElementById("goal-unit-minutes");
+    if (watched) {
+      watched.textContent = SILENT[currentCode]
+        ? t("progress.goal.unit-watched", "Minutes watching")
+        : t("progress.goal.unit-minutes", "Minutes listening");
+    }
+    var unit = goal ? goal.unit : "words";
+    pressUnit(unit);
+    goalSteps(unit, goal ? goal.amount : 0);
+    document.getElementById("goal-remove").hidden = !goal;
+    document.getElementById("goal-refused").hidden = true;
+    form.setAttribute("data-language", currentCode);
+    form.hidden = false;
+    drawGoal(currentCode, goal, false);
+    var first = unitPresses().filter(function (button) {
+      return button.getAttribute("aria-pressed") === "true";
+    })[0];
+    if (first && first.focus) first.focus();
+  }
+
+  function closeGoal() {
+    document.getElementById("goal-form").hidden = true;
+    drawHow(currentCode);
+  }
+
+  function sendGoal(unit, amount) {
+    var code = currentCode;
+    var refused = document.getElementById("goal-refused");
+    if (!window.fetch) return;
+    fetch(keyed("/account/goal"), {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: code, unit: unit, amount: amount }),
+    })
+      .then(function (answer) {
+        return answer.json().then(function (said) {
+          return { ok: answer.ok !== false, said: said };
+        });
+      })
+      .then(function (got) {
+        // A session that ended while the page was open is not a refused choice (qa on
+        // #1246): it is said as the save that did not happen.
+        if (got.said && got.said.signedIn === false) {
+          refused.textContent = t("progress.goal.failed", "We couldn't save that. Try again.");
+          refused.hidden = false;
+          return;
+        }
+        if (!got.ok || !got.said || !got.said.signedIn) {
+          refused.textContent = t("progress.goal.refused", "No such choice.");
+          refused.hidden = false;
+          return;
+        }
+        goals = got.said.goals || {};
+        closeGoal();
+      })
+      .catch(function () {
+        refused.textContent = t("progress.goal.failed", "We couldn't save that. Try again.");
+        refused.hidden = false;
+      });
+  }
+
+  function wireGoal() {
+    var form = document.getElementById("goal-form");
+    if (!form) return;
+    document.getElementById("goal-set").addEventListener("click", openGoal);
+    document.getElementById("goal-change").addEventListener("click", openGoal);
+    unitPresses().forEach(function (button) {
+      button.addEventListener("click", function () {
+        var unit = button.getAttribute("data-unit") || "words";
+        pressUnit(unit);
+        var goal = goals[currentCode] || null;
+        goalSteps(unit, goal && goal.unit === unit ? goal.amount : 0);
+      });
+    });
+    form.addEventListener("submit", function (event) {
+      if (event && event.preventDefault) event.preventDefault();
+      sendGoal(goalUnit(), Number(document.getElementById("goal-amount").value) || 0);
+    });
+    document.getElementById("goal-remove").addEventListener("click", function () {
+      sendGoal(goalUnit(), 0);
+    });
+  }
+  wireGoal();
 
   /* The period's words: met for the first time, saved, and become known, as exact counts,
      each bar the length of its count against the longest. Met and known are counted from
@@ -1175,9 +1439,13 @@
       })
       .then(function (said) {
         if (!said || !said.signedIn) return;
+        totalsSignedIn = true;
+        // The reader's daily goal per language (#537), read against the record below.
+        goals = said.goals || {};
         // The words are the account's own, kept whether or not the record of use is on.
         wordDays = said.words || null;
         if (!said.on) {
+          recordOff = true;
           var off = document.getElementById("spent-off");
           if (off) off.hidden = false;
         } else {

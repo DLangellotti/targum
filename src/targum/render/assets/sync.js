@@ -167,6 +167,10 @@
           // already know", "" for one met in a text (targum-internal#245).
           source: word.source || "",
           at: word.at || 0,
+          // Known by ear (targum-internal#536): the reader's press, and only that. Sent
+          // on every record this page pushes; a page from before it sends nothing, and
+          // the account keeps what it has.
+          ear: word.ear ? 1 : 0,
           seen: touchedAt(word),
         });
       });
@@ -497,6 +501,9 @@
         at: row.at || 0,
         seen: row.seen || 0,
       };
+      // Known by ear (targum-internal#536): kept only where it is, so a word without it
+      // is the record it always was.
+      if (row.ear) store[row.lemma].ear = 1;
       seed(row.language, row.lemma, row);
     });
     Object.keys(stores).forEach(function (name) {

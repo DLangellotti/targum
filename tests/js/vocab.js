@@ -96,8 +96,23 @@ if (payload.copy !== undefined) {
   }, 20);
 }
 
+/* Known by ear (targum-internal#536), when a test asks: `setEar` writes the store a page
+ * with no copy of its own writes, `ear` a press on a fresh editor's toggle. What comes
+ * back is the store, the toggle's state, and every press handed on. */
+if (payload.setEar) {
+  payload.setEar.forEach((step) => window.TargumVocab.setEar(step.language, step.lemma, step.on, step.surface));
+  const after = {};
+  for (let n = 0; n < localStorage.length; n += 1) {
+    const name = localStorage.key(n);
+    after[name] = JSON.parse(localStorage.getItem(name));
+  }
+  process.stdout.write(JSON.stringify({ stored: after }));
+  process.exit(0);
+}
+
 const kept = [];
 const levels = [];
+const ears = [];
 let saved = 0;
 const box = window.TargumVocab.editor({
   onSaved: () => (saved += 1),
@@ -109,7 +124,15 @@ const box = window.TargumVocab.editor({
   // note must not be given one, nor a button to press on it.
   onNote: payload.noNote ? undefined : (text) => kept.push(text),
   onStatus: (value) => levels.push(value),
+  levels: payload.noLevels ? false : undefined,
+  ear: Boolean(payload.ear),
+  onEar: payload.withEar ? (on) => ears.push(on) : undefined,
 });
+const toggle = box.querySelector(".ear-toggle");
+const toggleSaid = () =>
+  toggle ? { pressed: toggle.attrs["aria-pressed"], label: toggle.textContent, title: toggle.title } : null;
+const toggleBefore = toggleSaid();
+for (let n = 0; n < (payload.earPresses || 0); n += 1) if (toggle) toggle.fire("click", { stopPropagation() {} });
 
 const field = box.querySelector(".note-field");
 const save = box.querySelector(".note-save");
@@ -150,5 +173,10 @@ if (payload.copy === undefined)
     ignoreSays: (box.querySelector(".level-ignore-says") || {}).textContent || null,
     kept,
     levels,
+    ears,
+    toggleBefore,
+    toggle: toggleSaid(),
+    // Where the toggle stands among the editor's children: under the scale and its legend.
+    order: box.children.map((child) => child.className),
   })
 );
