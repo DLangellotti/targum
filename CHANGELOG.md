@@ -116,6 +116,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
+
 ### Fixed
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file

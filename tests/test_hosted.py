@@ -1180,7 +1180,10 @@ def test_google_opens_exactly_the_address_it_proved(
         monkeypatch.setattr(
             google, "exchange", lambda *_: {"id_token": f"h.{payload.rstrip('=')}.s"}
         )
-        status, headers, _ = _exchange(port, "GET", f"/account/google/back?state={state}&code=x")
+        bound = headers["set-cookie"].split(";")[0]
+        status, headers, _ = _exchange(
+            port, "GET", f"/account/google/back?state={state}&code=x", cookie=bound
+        )
         assert status in (302, 303), status
         return headers
 
@@ -1235,12 +1238,14 @@ def test_free_mail_the_readers_use_is_never_counted_by_domain() -> None:
 
 
 def _exchange(
-    port: int, method: str, path: str, body: bytes = b"", kind: str = ""
+    port: int, method: str, path: str, body: bytes = b"", kind: str = "", cookie: str = ""
 ) -> tuple[int, dict[str, str], bytes]:
     """One request with no redirect followed, for what the door answers itself."""
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest(method, path, skip_host=True)
     conn.putheader("Host", "targum.page")
+    if cookie:
+        conn.putheader("Cookie", cookie)
     if body:
         conn.putheader("Content-Type", kind)
         conn.putheader("Content-Length", str(len(body)))
@@ -1250,6 +1255,10 @@ def _exchange(
     response = conn.getresponse()
     said = response.read()
     headers = {name.lower(): value for name, value in response.getheaders()}
+    # Every cookie set, not only the last one named.
+    cookies = response.headers.get_all("Set-Cookie") or []
+    if cookies:
+        headers["set-cookie"] = "\n".join(cookies)
     conn.close()
     return response.status, headers, said
 
