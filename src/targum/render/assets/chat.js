@@ -199,16 +199,35 @@
     );
   }
 
+  // targum answered, but not with what was asked: a server fault, said as one. A 500 on
+  // the list was told as "We can't reach targum", by the banner and again under the box
+  // (targum-internal#733, the fault #681 fixed on sign-in). A refusal the server words
+  // itself still arrives as its own JSON, whatever its status.
+  var SERVER_FAULT = { error: CANNOT_ANSWER, fault: true };
   function ask(path, body) {
     return fetch(keyed(path), {
       method: body ? "POST" : "GET",
       headers: keyHeaders({ "Content-Type": "application/json" }),
       body: body ? JSON.stringify(body) : undefined,
-    })
-      .then(function (response) {
-        return response.json();
-      })
-      .catch(unreached);
+    }).then(
+      function (response) {
+        return response.json().then(
+          function (got) {
+            if (response.ok === false && !(got && got.error)) return SERVER_FAULT;
+            return got;
+          },
+          function () {
+            return SERVER_FAULT;
+          }
+        );
+      },
+      unreached
+    );
+  }
+  // Says an answer's error under the box, unless it is the connection's, which the banner
+  // has already said once (design.md §12).
+  function told(answer) {
+    if (!answer.unreached) tell(answer.error);
   }
 
   /* Which language this conversation is in (2026-09-13): the switcher's, or — in the
@@ -795,26 +814,55 @@
   // seen and not a filename (2026-09-07). Drawn from the browser's copy and kept
   // nowhere — a conversation opened again shows the card the reading became. Any
   // other file is named by its card, which is enough.
+  //
+  // As `data:` addresses, which the served page's policy allows (`img-src 'self' data:`),
+  // and never `blob:`, which it refuses: every picture sent was a broken image on a served
+  // page (targum-internal#733), and the policy readers are held to stays as it is. A
+  // small copy where the browser can draw one, so thirty phone photos are not thirty
+  // ten-megabyte strings; the file read whole where it cannot.
+  var THUMB = 480;
+  function thumbnail(file, img) {
+    function whole() {
+      if (typeof FileReader === "undefined") return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        img.src = String(reader.result || "");
+      };
+      reader.readAsDataURL(file);
+    }
+    if (typeof createImageBitmap !== "function") return whole();
+    createImageBitmap(file).then(function (bitmap) {
+      var scale = Math.min(1, THUMB / Math.max(bitmap.width, bitmap.height, 1));
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      var drawing = canvas.getContext("2d");
+      if (!drawing) return whole();
+      drawing.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (bitmap.close) bitmap.close();
+      img.src = canvas.toDataURL("image/jpeg", 0.85);
+    }, whole);
+  }
   function sentTurn(chosen) {
     var pictures = chosen.filter(function (one) {
       return bringing.isPicture(one);
     });
-    if (!pictures.length || typeof URL === "undefined" || !URL.createObjectURL) return null;
+    if (!pictures.length) return null;
     var li = turn("user", "");
     var line = li.querySelector(".chat-line");
     var sent = document.createElement("div");
     sent.className = "chat-sent";
     pictures.forEach(function (one) {
       var img = document.createElement("img");
-      img.src = URL.createObjectURL(one);
       img.alt = one.name;
+      thumbnail(one, img);
       sent.appendChild(img);
     });
     line.appendChild(sent);
     return li;
   }
 
-  function brought(chosen, opening) {
+  function brought(chosen, opening, spoke) {
     if (!bringing) return Promise.resolve();
     chosen = bringing.listed(chosen);
     if (!chosen.length) return Promise.resolve();
@@ -823,6 +871,19 @@
     tell("");
     sentTurn(chosen);
     var li = turn("assistant", "", "working");
+    // A file refused is drawn as a refusal is, with the clay mark (design.md §12), and
+    // the files go back in the box so the reader need not choose them again; the line
+    // said with them goes back too, where the box is empty (targum-internal#733).
+    function refused(message, fact, act) {
+      li.className = "chat-turn them";
+      failed(li, message, null, fact, act);
+      held = chosen.concat(held);
+      showHeld();
+      if (spoke && !field.value) {
+        field.value = spoke;
+        grow();
+      }
+    }
     var line = li.querySelector(".chat-line");
     line.textContent = t("chat.uploading", "Thanks. We're uploading it…");
     var into = window.TargumLang ? window.TargumLang.into() || "en" : "en";
@@ -843,12 +904,11 @@
               language: job.language,
             })
           );
-          return;
+          return job;
         }
         if (job.error) {
-          li.className = "chat-turn them bad";
-          line.textContent = job.error;
-          return;
+          refused(job.error, job.fact, job.act);
+          return null;
         }
         // Send with a file in the box is the press (2026-09-07): started here, and
         // the card is its progress. A quote the rails refused shows its sentence.
@@ -872,8 +932,8 @@
         });
       })
       .catch(function (why) {
-        li.className = "chat-turn them bad";
-        line.textContent = String(why || t("chat.could-not-send", "We couldn't send that. Try again."));
+        refused(String(why || t("chat.could-not-send", "We couldn't send that. Try again.")));
+        return null;
       })
       .then(function (job) {
         busy = false;
@@ -905,10 +965,11 @@
       held = [];
       showHeld();
       field.value = "";
-    grow();
       grow();
-      brought(files, !spec).then(function (job) {
-        if (spec) say(spec, job && job.id);
+      // The line is said only once the file became a text: a picture never read is not
+      // a turn to spend on (targum-internal#733).
+      brought(files, !spec, text).then(function (job) {
+        if (spec && job && !job.error && !job.blocked) say(spec, job.id);
       });
       return;
     }
@@ -929,7 +990,7 @@
   // its card is drawn as a turn in the conversation named beside it.
   function showJob(id) {
     return ask("/job/" + encodeURIComponent(id)).then(function (job) {
-      if (job.error) return tell(job.error);
+      if (job.error) return told(job);
       var li = turn("assistant", "", "");
       quoteCard(li, job);
     });
@@ -1053,6 +1114,15 @@
       thread.scrollTop = thread.scrollHeight;
     }
   }
+  // A control focused at the thread's foot is brought wholly into view, its ring with it:
+  // the scrolling thread clipped a focused Confirm (targum-internal#733). The stylesheet's
+  // scroll padding is the room the ring is given.
+  if (thread && thread.addEventListener) {
+    thread.addEventListener("focusin", function (event) {
+      var on = event.target;
+      if (on && on !== thread && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+    });
+  }
 
   function turn(role, text, state, words) {
     if (role === "user") lastAsked = text;
@@ -1104,6 +1174,8 @@
 
   function drawList() {
     list.textContent = "";
+    // Chats opens nothing while there is nothing in it (targum-internal#733).
+    if (listPill) listPill.hidden = !chats.length;
     chats.forEach(function (chat) {
       var li = document.createElement("li");
       var button = document.createElement("button");
@@ -1122,7 +1194,10 @@
       when.textContent = ago(chat.seen);
       button.appendChild(when);
       button.setAttribute("data-chat", chat.id);
-      if (chat.id === current) button.className = "on";
+      if (chat.id === current) {
+        button.className = "on";
+        button.setAttribute("aria-current", "true");
+      }
       button.onclick = function () {
         showList(false);
         open(chat.id);
@@ -1143,7 +1218,7 @@
         ask(
           "/chat/list?limit=" + PAGE + "&offset=" + moreFrom + "&language=" + encodeURIComponent(listedIn)
         ).then(function (answer) {
-          if (answer.error) return tell(answer.error);
+          if (answer.error) return told(answer);
           var got = answer.chats || [];
           chats = chats.concat(got);
           moreFrom = got.length === PAGE ? moreFrom + PAGE : 0;
@@ -1319,7 +1394,7 @@
       placeholder([t("chat.write-in", "{language} or English", { language: named })]);
     }
     return ask("/chat/list?language=" + encodeURIComponent(listedIn)).then(function (answer) {
-      if (answer.error) return tell(answer.error);
+      if (answer.error) return told(answer);
       meaningsIn = answer.into || "en";
       chats = answer.chats || [];
       moreFrom = chats.length === PAGE ? PAGE : 0;
@@ -1470,7 +1545,7 @@
     turns.textContent = "";
     tell("");
     return ask("/chat/" + encodeURIComponent(id)).then(function (answer) {
-      if (answer.error) return tell(answer.error);
+      if (answer.error) return told(answer);
       openedIn = answer.chat && answer.chat.language ? String(answer.chat.language).split("-")[0] : "";
       var pending = null;
       var lastAsked = 0;
@@ -1527,6 +1602,22 @@
   var chips = window.TargumChips;
   var offered = [];
 
+  /* Offline, the chips are dimmed with the box (targum-internal#733): each is a Send,
+   * and they stood live teal while Send could not go. Back as soon as the browser says
+   * it is online. */
+  function drawOnline() {
+    var off = typeof navigator !== "undefined" && navigator.onLine === false;
+    var main = document.querySelector(".chat-main");
+    if (main && main.classList) main.classList.toggle("offline", off);
+    var host = document.getElementById("chat-chips");
+    if (!host || !host.querySelectorAll) return;
+    Array.prototype.forEach.call(host.querySelectorAll("button"), function (button) {
+      button.disabled = off;
+    });
+  }
+  window.addEventListener("online", drawOnline);
+  window.addEventListener("offline", drawOnline);
+
   function drawChips(list) {
     if (!chips) return;
     chips.draw(list, {
@@ -1543,6 +1634,7 @@
       },
     });
     chips.show(!current);
+    drawOnline();
   }
 
   function suggest() {
@@ -1701,8 +1793,12 @@
     if (reading && (reading.sentence || reading.document)) {
       line.about = { document: reading.document, section: reading.section, sentence: reading.sentence, title: reading.title };
     }
-    // Try again sends the same line again, in place of the one that failed.
+    // Try again sends the same line again, in place of the one that failed. Once: the
+    // banner's Try again and the turn's own are the same press.
+    var retried = false;
     function again() {
+      if (retried) return;
+      retried = true;
       if (asked.parentNode) asked.parentNode.removeChild(asked);
       if (answer.parentNode) answer.parentNode.removeChild(answer);
       say(text, brought);
@@ -1712,9 +1808,14 @@
       send.disabled = false;
       if (got.unreached) {
         // Said by the banner, whose Try again sends it again; nothing stands in the
-        // thread for an answer that never started.
+        // thread for an answer that never started. The line itself says it never left,
+        // with a Try again of its own (targum-internal#733): it looked sent.
         if (answer.parentNode) answer.parentNode.removeChild(answer);
-        if (window.TargumFault) window.TargumFault.unreachable(again);
+        asked.className += " unsent";
+        if (window.TargumFault) {
+          asked.appendChild(window.TargumFault.line(t("chat.not-sent", "Not sent"), again, true));
+          window.TargumFault.unreachable(again);
+        }
         return;
       }
       if (got.error) return failed(answer, got.error, got.fact || got.act ? null : again, got.fact, got.act);
@@ -1851,8 +1952,13 @@
           if (!partial) {
             partial = document.createElement("span");
             partial.className = "chat-partial";
+            // Its own direction while it arrives, so a Hebrew tail stands at the right
+            // from its first word rather than jumping there when its line ends (§14.3).
+            partial.setAttribute("dir", "auto");
             line.appendChild(partial);
           }
+          if (HEBREW_LETTERS[conversing()] && inLanguage(tail)) partial.setAttribute("lang", conversing());
+          else partial.removeAttribute("lang");
           partial.textContent = tail;
         } else if (partial) {
           partial.textContent = "";

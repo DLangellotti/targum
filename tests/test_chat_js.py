@@ -987,9 +987,12 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
     ]
     assert page["posted"][-2]["body"]["uploads"] == ["u1", "u1"]
     sent = page["turns"][0]
-    assert "me" in sent["cls"].split() and sent["pictures"] == ["blob:p1.jpg", "blob:p2.png"], (
+    assert "me" in sent["cls"].split() and len(sent["pictures"]) == 2, (
         "the pictures sent are seen in the thread, as the reader's own turn"
     )
+    # As `data:` addresses, which the served policy draws; `blob:` it refuses
+    # (targum-internal#733, pinned under the real policy in test_chat_finish_browser).
+    assert all(src.startswith("data:") for src in sent["pictures"]), sent["pictures"]
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"] and "started" in card["cls"]
     assert card["meta"].startswith("2 pages")

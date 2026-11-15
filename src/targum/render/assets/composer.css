@@ -412,6 +412,18 @@
   color: var(--ink-soft);
 }
 .chat-bring:hover, .chat-mic:hover { background: var(--teal-wash); color: var(--teal); }
+/* Disabled looks disabled (targum-internal#733): while nothing can be asked the `+` and
+   Speak were drawn at full ink, and only Send looked out of reach. */
+.chat-bring:disabled, .chat-mic:disabled { opacity: 0.5; cursor: default; }
+.chat-bring:disabled:hover, .chat-mic:disabled:hover { background: transparent; color: var(--ink-soft); }
+/* Offline the chips dim with the box: each is a Send (targum-internal#733). */
+.chat-ask:disabled { opacity: 0.5; cursor: default; }
+.chat-ask:disabled:hover { background: var(--teal-wash); }
+/* A refusal on a quote card is the card's own line, its way on inline beside it, never a
+   panel inside the card (targum-internal#733). */
+.quote-way { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.75rem; font-size: 0.8125rem; }
+.quote-way .fault-act { padding: 0; font-size: 0.8125rem; text-decoration: none; }
+.quote-way .quote-fact { color: var(--ink-soft); }
 .chat-mic[aria-pressed="true"] { background: var(--teal); color: var(--teal-ink); }
 .chat-send { width: 2.6rem; height: 2.6rem; }
 .chat-ask { border: 0; background: var(--teal-wash); color: var(--teal); padding: 0.5rem 0.9rem; }

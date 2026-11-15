@@ -949,6 +949,38 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the picture docked the first page holds the first line instead of only the title
     and the source.
   - No new strings. No spend.
+- Chat at the finish bar (targum-internal#733, design's §14 pass of 2026-11-15).
+  - Pictures sent with the `+` are seen. The reader's own turn drew them from `blob:`
+    addresses, which the served policy (`img-src 'self' data:`) refuses, so every one was
+    a broken image on a served page. They are `data:` thumbnails now (a 480px copy where
+    the browser can draw one, the file read whole where it cannot), and `serve.POLICY` is
+    unchanged, so the policy readers are held to did not widen.
+  - A Russian reader's quote card is Russian throughout. The chat page shipped only
+    `bring.` of the words `bring.js` says; `add.job.*`, `add.doubtful`, `job.said.*`,
+    `building.*` and `account.hours/minutes` fell back to English ("42 sentences · Будет
+    готово через мгновение."). `builder.BRING_STRINGS` is handed to both pages that carry
+    `bring.js` (the Add page lacked `building.` and `account.` too).
+  - A streaming answer's tail has `dir="auto"` and the conversation's `lang` where it is in
+    Hebrew letters, so it stands at the right from its first word.
+  - A server fault on a chat request (a 500, a page that is not JSON) is "We can't answer
+    right now", said once under the box. It was "We can't reach targum", by the banner and
+    again under the box. The connection's own fault is said by the banner alone.
+  - A line that never reached targum stays in the thread marked "Not sent", with a Try
+    again of its own; the banner's Try again and the turn's are one press.
+  - A picture that could not be read is drawn as a refusal with the clay mark. The files
+    go back in the box, the line typed with them goes back in the field, and that line is
+    no longer sent as a turn about a picture that was never read.
+  - While nothing can be asked, the `+` and Speak look disabled and no empty raised thread
+    stands under the fault. Offline, the chips dim with the box. On a phone with no
+    conversations, Chats is not drawn.
+  - Tab reaches the `+` before the field, as they are drawn. The open conversation is
+    `aria-current` and drawn in the row hover draws. A focused control at the thread's foot
+    is scrolled wholly into view, its ring with it.
+  - A refused quote card says its refusal as the card's own line, with its way on and the
+    fact beside it inline, not a panel inside the card. Tell us is one size on every panel
+    in the thread.
+  - Strings: `chat.not-sent` in English and Russian («Не отправлено»), a first draft for
+    ling-ru. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

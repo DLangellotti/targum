@@ -150,8 +150,9 @@ function fakeFile(spec) {
     _content: spec.content || "text",
   };
 }
-// A picture sent is drawn from the browser's own copy of the file.
-global.URL = { createObjectURL: (file) => "blob:" + file.name };
+// A picture sent is drawn from the browser's own copy of the file, read as a `data:`
+// address (targum-internal#733): no `URL.createObjectURL` here, so a page that went back
+// to `blob:` addresses draws nothing and the test says so.
 global.FileReader = class {
   readAsDataURL(file) {
     this.result = "data:text/plain;base64," + Buffer.from(file._content).toString("base64");
