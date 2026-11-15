@@ -254,6 +254,41 @@ else
     || FAILED="$FAILED announce"
 fi
 
+# The weekly speed check (targum-internal#484): the read-only speed pass over the public
+# pages, on the phone, against design.md §14's 1.5 s. Once a week is the loop the card
+# asked for, and this run is the one thing here that happens every week by itself.
+#
+# It never stops the run and never tells the box. It comes after the mail, so a slow
+# page cannot hold back an issue that passed every guard, and a page over the budget is
+# a number for the §14 card, not a reason to wake anybody: it is written down beside the
+# issue and said in runs.log. It only GETs public pages, signs nothing in and spends
+# nothing (scripts/speed_pass.py), and it runs niced, one browser at a time.
+# TARGUM_WEEKLY_SPEED=0 leaves it out.
+speed_check() {
+  [ "${TARGUM_WEEKLY_SPEED:-1}" = "0" ] && return 0
+  local python="$ROOT/.venv/bin/python" pass="$ROOT/scripts/speed_pass.py"
+  [ -x "$python" ] && [ -f "$pass" ] || return 0
+  local out="$ROOT/targum-out/weekly/speed" said
+  mkdir -p "$out" 2>/dev/null || return 0
+  rm -f "$out/$WEEK.json"
+  say "measuring the public pages on a phone (read-only, about eight minutes)"
+  nice -n 10 "$python" "$pass" --desk-runs 0 --json "$out/$WEEK.json" >"$out/$WEEK.txt" 2>&1
+  local code=$?
+  # The JSON is written only by a pass that finished, so a 1 with it is a page over the
+  # budget and a 1 without it is a pass that could not run (no browser, no network).
+  if [ "$code" -eq 0 ]; then
+    said="speed: every public page holds"
+  elif [ -s "$out/$WEEK.json" ]; then
+    said="speed: $(grep -m1 '^§14' "$out/$WEEK.txt" | sed 's/^[^:]*: //')"
+  else
+    said="speed: the pass could not run (exit $code)"
+  fi
+  record "$said, $out/$WEEK.txt"
+  say "$said (targum-out/weekly/speed/$WEEK.txt)"
+  return 0
+}
+speed_check
+
 if [ -n "$FAILED" ]; then
   die "$WEEK is published, and this did not finish:$FAILED${MISSING:+, and no edition in$MISSING}.
    Run this again — it picks up where it stopped and re-does nothing."
