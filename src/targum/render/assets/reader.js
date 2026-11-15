@@ -1423,6 +1423,8 @@ var targumReader = function () {
       window.TargumSync.forgetSection(documentId, sectionId);
     }
     if (window.TargumSync) window.TargumSync.touched();
+    if (on) goalFoot();
+    else goalLine = "";
     renderFinished();
     say(
       on
@@ -1691,6 +1693,12 @@ var targumReader = function () {
         );
         finishedSaid.appendChild(row);
       }
+      if (goalLine) {
+        var goalSaid = document.createElement("span");
+        goalSaid.className = "finished-goal";
+        goalSaid.textContent = goalLine;
+        finishedSaid.appendChild(goalSaid);
+      }
       finishedSaid.hidden = false;
     } else {
       finishedSaid.hidden = true;
@@ -1710,6 +1718,88 @@ var targumReader = function () {
     var onward = document.getElementById("next-up");
     if (onward && onward.classList.contains("here")) onward.hidden = !when;
     renderFoot();
+  }
+
+  /* The day's goal, said once at the foot (targum-internal#537; design.md §12, "A daily
+   * goal counts days, never a run", 2026-11-14). Good news only: on the first finished
+   * section of a day whose record reaches the reader's goal in this language, one line in
+   * type in the finished block, and nothing on a day it is not reached — no count of
+   * what is left, no run of days, no motion. Read off the account's own record, after
+   * what this page holds has been handed over, against the goal as it is now. Which day
+   * it was last said on is kept in this browser, by language, so it is said once.
+   */
+  var GOAL_SAID = "targum:goal-said";
+  var GOAL_WATCHED = { arc: true, yi: true };
+  var goalLine = "";
+
+  function goalToday() {
+    var now = new Date();
+    var two = function (n) {
+      return (n < 10 ? "0" : "") + n;
+    };
+    return now.getFullYear() + "-" + two(now.getMonth() + 1) + "-" + two(now.getDate());
+  }
+
+  // In the interface's language: 1 250 in Russian, 1,250 in English.
+  function goalGrouped(count) {
+    try {
+      return Number(count).toLocaleString(uiLanguage);
+    } catch (e) {
+      return String(count);
+    }
+  }
+
+  function goalFoot() {
+    goalLine = "";
+    if (!served || !window.fetch || !window.Promise) return;
+    if (!(window.TargumSync && window.TargumSync.who)) return;
+    var today = goalToday();
+    var said = read(GOAL_SAID, "{}");
+    if (said[language] === today) return;
+    var handed = happenings && happenings.flush ? happenings.flush() : null;
+    Promise.resolve(handed)
+      .then(function () {
+        return fetch(keyed("/account/totals"), { credentials: "same-origin", headers: keyHeaders({}) });
+      })
+      .then(function (answer) {
+        return answer.json();
+      })
+      .then(function (answer) {
+        if (!answer || !answer.signedIn || !answer.on) return;
+        var goal = (answer.goals || {})[language];
+        if (!goal || !finishedAt()) return;
+        var sum = 0;
+        (answer.totals || []).forEach(function (row) {
+          if (row.day !== today || (row.language && row.language !== language)) return;
+          if (goal.unit === "words") sum += row.words || 0;
+          else sum += GOAL_WATCHED[language] ? row.watched || 0 : (row.listened || 0) + (row.watched || 0);
+        });
+        if (sum < (goal.unit === "words" ? goal.amount : goal.amount * 60)) return;
+        said = read(GOAL_SAID, "{}");
+        if (said[language] === today) return;
+        said[language] = today;
+        try {
+          targumKeep(GOAL_SAID, JSON.stringify(said));
+        } catch (e) {}
+        if (goal.unit === "words") {
+          goalLine = tn(
+            "reader.foot.goal-words",
+            sum,
+            "Today's goal is met: {n} word read.",
+            "Today's goal is met: {n} words read.",
+            { n: goalGrouped(sum) }
+          );
+        } else {
+          var minutes = Math.floor(sum / 60);
+          goalLine = GOAL_WATCHED[language]
+            ? tn("reader.foot.goal-watched", minutes, "Today's goal is met: {n} minute watching.", "Today's goal is met: {n} minutes watching.")
+            : tn("reader.foot.goal-minutes", minutes, "Today's goal is met: {n} minute listening.", "Today's goal is met: {n} minutes listening.");
+        }
+        renderFinished();
+      })
+      .catch(function () {
+        /* no record to read is no line, which is how the foot already stood */
+      });
   }
 
   // The words here never marked, the ones met most first, and how many there are: for

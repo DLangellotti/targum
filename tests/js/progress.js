@@ -78,8 +78,23 @@ global.document.createElementNS = (namespace, tag) => element(tag);
    answers as a server with nothing to say. Settled in microtasks, so the report below
    waits a turn for them. */
 const asked = [];
-global.fetch = global.window.fetch = (url) => {
+/* A daily goal set or removed (targum-internal#537): what was posted, and the account's
+   answer — the goals as they stand after it, or a refusal where a test asks for one. */
+const posted = [];
+let goalsNow = Object.assign({}, payload.goals || {});
+global.fetch = global.window.fetch = (url, options) => {
   asked.push(String(url));
+  if (String(url).indexOf("/account/goal") === 0) {
+    const sent = JSON.parse((options && options.body) || "{}");
+    posted.push(sent);
+    if (payload.goalRefused) {
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: "No such choice." }) });
+    }
+    goalsNow = Object.assign({}, goalsNow);
+    if (sent.amount) goalsNow[sent.language] = { unit: sent.unit, amount: sent.amount };
+    else delete goalsNow[sent.language];
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ signedIn: true, goals: goalsNow }) });
+  }
   let body = { signedIn: false };
   if (String(url).indexOf("/account/reading") === 0 && (payload.reading || payload.understand)) {
     body = { signedIn: true, measurable: 20, reading: payload.reading || {}, understand: payload.understand || {} };
@@ -91,6 +106,7 @@ global.fetch = global.window.fetch = (url) => {
       kept: true,
       on: !payload.recordOff,
       totals: payload.recordOff ? [] : payload.totals || [],
+      goals: goalsNow,
       words: payload.words || null,
     };
   } else if (String(url).indexOf("/account/story") === 0 && payload.storyFails) {
@@ -131,6 +147,17 @@ const howBy = global.document.getElementById("how-by");
   press.setAttribute("data-period", period);
   press.setAttribute("aria-pressed", period === "30" ? "true" : "false");
   howBy.appendChild(press);
+});
+/* The goal's markup, hidden as the template has it, and its Words | Minutes presses. */
+["goal-head", "goal-set", "goal-form", "goal-remove", "goal-refused"].forEach((id) => {
+  global.document.getElementById(id).hidden = true;
+});
+const goalUnit = global.document.getElementById("goal-unit");
+["words", "minutes"].forEach((unit) => {
+  const press = unit === "minutes" ? global.document.getElementById("goal-unit-minutes") : element("button");
+  press.setAttribute("data-unit", unit);
+  press.setAttribute("aria-pressed", unit === "words" ? "true" : "false");
+  goalUnit.appendChild(press);
 });
 require(path.join(assets, "progress.js"));
 
@@ -263,9 +290,27 @@ function how() {
           title: at("days-title").textContent,
           label: at("days-grid").getAttribute("aria-label"),
           squares: at("days-grid").children.map((node) => (String(node.className) === "day on" ? 1 : 0)),
+          kinds: at("days-grid").children.map((node) => String(node.className)),
+          drawn: at("days-grid").hidden !== true,
           range: at("days-range").textContent,
         }
       : null,
+    goal: {
+      head: at("goal-head").hidden === false,
+      title: at("goal-title").hidden === false ? at("goal-title").textContent : "",
+      said: at("goal-said").textContent,
+      set: at("goal-set").hidden === false,
+      change: at("goal-change").hidden !== true,
+      form: at("goal-form").hidden === false,
+      unit: (goalUnit.children.find((node) => node.getAttribute("aria-pressed") === "true") || { getAttribute: () => "" })
+        .getAttribute("data-unit"),
+      minutesLabel: at("goal-unit-minutes").textContent,
+      steps: at("goal-amount").children.map((node) => node.textContent),
+      chosen: at("goal-amount").value,
+      remove: at("goal-remove").hidden === false,
+      refused: at("goal-refused").hidden === false ? at("goal-refused").textContent : "",
+      posted: posted,
+    },
     words: at("how-words").hidden === false
       ? {
           title: at("words-title").textContent,
@@ -293,8 +338,22 @@ settle(() => {
     const press = howBy.children.find((node) => node.getAttribute("data-period") === payload.period);
     if (press) press.fire("click");
   }
-  report();
+  goalSteps(payload.goalSteps || [], () => report());
 });
+
+/* A test's presses on the goal, one a turn so a save's answer has settled before the
+   next: ["open"], ["change"], ["unit", "minutes"], ["amount", "500"], ["save"], ["remove"]. */
+function goalSteps(steps, then) {
+  if (!steps.length) return then();
+  const [what, value] = steps[0];
+  if (what === "open") at("goal-set").fire("click");
+  else if (what === "change") at("goal-change").fire("click");
+  else if (what === "unit") goalUnit.children.find((node) => node.getAttribute("data-unit") === value).fire("click");
+  else if (what === "amount") at("goal-amount").value = value;
+  else if (what === "save") at("goal-form").fire("submit", { preventDefault: () => {} });
+  else if (what === "remove") at("goal-remove").fire("click");
+  settle(() => goalSteps(steps.slice(1), then));
+}
 
 function report() {
   process.stdout.write(

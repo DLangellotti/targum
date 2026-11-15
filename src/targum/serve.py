@@ -11330,6 +11330,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._interest(payload)
         if route == "/account/level":
             return self._declared(payload)
+        if route == "/account/goal":
+            return self._goal(payload)
         if route == "/account/check":
             return self._checked(payload)
         if route == "/events":
@@ -14354,6 +14356,10 @@ class Handler(BaseHTTPRequestHandler):
                 "kept": keeps_events(),
                 "on": on,
                 "totals": self.store.totals(person.id) if on else [],
+                # The daily goal per language (targum-internal#537): a setting the reader
+                # chose, handed back with the record the page reads it against. Whether a
+                # day met it is worked out there, never here.
+                "goals": self.store.goals(person.id),
                 "words": {
                     "began": self.store.began(),
                     "days": self.store.words_by_day(person.id, zone),
@@ -14490,6 +14496,25 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001 - the message is kept; the mail is a courtesy
             log.exception("could not mail Tell us message %s", told_id)
         self._json({"kept": True})
+
+    def _goal(self, payload: dict[str, Any]) -> None:
+        """A daily goal for one language (targum-internal#537; design.md §12, "A daily
+        goal counts days, never a run", 2026-11-14): `unit` words or minutes, `amount`
+        one of its fixed steps, 0 to remove it. Nothing is sent to the reader because of
+        it, ever: no mail, no reminder, no line in the chat's or the connector's answers."""
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        try:
+            kept = self.store.set_goal(
+                person,
+                str(payload.get("language") or ""),
+                str(payload.get("unit") or ""),
+                payload.get("amount") or 0,
+            )
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "goal": kept, "goals": self.store.goals(person.id)})
 
     def _declared(self, payload: dict[str, Any]) -> None:
         """The rung a reader named on arrival (targum-internal#306, 2026-09-19).
