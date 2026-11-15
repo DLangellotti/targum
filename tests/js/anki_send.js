@@ -30,12 +30,17 @@ global.window.TARGUM_KEY = "";
 global.window.TargumLists = {
   ankiContext: () => ({ code: "he", name: "Hebrew", deck: "targum Hebrew" }),
 };
-global.navigator = {
-  onLine: payload.online !== false,
-  permissions: {
-    query: () => Promise.resolve({ state: payload.lna || "granted" }),
+// Node 21 and later define `navigator` as a getter, so it is defined over, not assigned.
+Object.defineProperty(global, "navigator", {
+  configurable: true,
+  writable: true,
+  value: {
+    onLine: payload.online !== false,
+    permissions: {
+      query: () => Promise.resolve({ state: payload.lna || "granted" }),
+    },
   },
-};
+});
 global.window.navigator = global.navigator;
 ["send-anki", "send-anki-help", "send-anki-how", "send-anki-key", "export-said"].forEach((id) => {
   global.document.getElementById(id).hidden = true;
