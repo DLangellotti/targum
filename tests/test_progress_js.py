@@ -58,6 +58,10 @@ def draw(
     record_off: bool = False,
     understand: dict[str, Any] | None = None,
     pick: str | None = None,
+    goals: dict[str, Any] | None = None,
+    goal_steps: list[list[str]] | None = None,
+    goal_refused: bool = False,
+    goal_signed_out: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -82,6 +86,10 @@ def draw(
                     "recordOff": record_off,
                     "understand": understand,
                     "pick": pick,
+                    "goals": goals,
+                    "goalSteps": goal_steps,
+                    "goalRefused": goal_refused,
+                    "goalSignedOut": goal_signed_out,
                     **({} if period is None else {"period": period}),
                 }
             ),
@@ -1523,7 +1531,9 @@ def test_the_words_are_drawn_with_the_record_of_use_stopped() -> None:
     """The words are the account's own and not the record of use: stopped, the figures
     and the days go, the quiet line says why, and the words stay."""
     drawn = effort([], words=_words_days(), record_off=True)
-    assert drawn["off"] and not drawn["spent"] and drawn["days"] is None
+    # The days block stays only for setting a daily goal (#537): no squares, no count.
+    assert drawn["off"] and not drawn["spent"] and not drawn["days"]["drawn"]
+    assert drawn["days"]["squares"] == [] and drawn["goal"]["set"]
     assert drawn["words"] and drawn["by"]
 
 

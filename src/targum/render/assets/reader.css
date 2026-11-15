@@ -1941,7 +1941,8 @@ body.has-player .next-up:has(~ .credits) { margin-block-end: 2rem; }
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
-.finished.is-done .finished-marked {
+.finished.is-done .finished-marked,
+.finished.is-done .finished-goal {
   display: block;
   margin-block-start: 0.2rem;
   color: color-mix(in srgb, var(--page-max) 72%, transparent);
@@ -6896,3 +6897,5 @@ body.correcting main .pair[data-id]:hover { outline: 1px solid var(--rule); outl
    screen's edges (`viewport-fit=cover`) and the bar's ground reaches up under the status
    bar while its row starts below it. Last, so no width's padding sets it back to 0. */
 .bar { padding-block-start: env(safe-area-inset-top, 0px); }
+/* The day's goal met (targum-internal#537): one line under the figures, in type. */
+.finished.is-done .finished-goal { margin-block-start: 0.85rem; }
