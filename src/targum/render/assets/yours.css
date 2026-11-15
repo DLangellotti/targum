@@ -540,3 +540,12 @@ body.yours table.words-table[hidden] { display: none; }
    being made, then the deck ready, in the quiet line's ink. */
 .export-said { display: block; margin-block-start: 0.25rem; color: var(--ink-soft); font-size: 0.8125rem; }
 .export-said[hidden] { display: none; }
+
+/* Send to Anki's set-up lines and the key AnkiConnect may ask for (targum-internal#540):
+   quiet type under the exports, opened by its own press, never a tooltip (§14 rule 3). */
+.anki-how { flex-basis: 100%; margin-block-start: 0.25rem; color: var(--ink-soft); font-size: 0.875rem; }
+.anki-how[hidden], .anki-key[hidden] { display: none; }
+.anki-scope { margin: 0 0 0.25rem; }
+.anki-steps { margin: 0; padding-inline-start: 1.25rem; }
+.anki-steps li + li { margin-block-start: 0.125rem; }
+.anki-key { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-block-start: 0.5rem; font-size: 0.875rem; }

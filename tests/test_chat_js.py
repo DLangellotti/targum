@@ -375,12 +375,40 @@ def test_a_refused_press_says_why_on_the_card() -> None:
     assert page["stripAsked"] == 0
 
 
+def _near_a_spend(hours: dict[str, Any]) -> dict[str, Any]:
+    """A conversation whose answer quoted a card waiting on its Confirm: a spend is near."""
+    return run(
+        answers={
+            "/chat/list": {
+                "chats": [{"id": "abc", "title": "t", "seen": 1}],
+                "usable": True,
+                "hours": hours,
+            },
+            "/chat/abc": {
+                "chat": {"id": "abc"},
+                "turns": [
+                    {"n": 1, "role": "user", "said": "hi", "stage": "done", "error": ""},
+                    {
+                        "n": 2,
+                        "role": "assistant",
+                        "said": "Here.",
+                        "stage": "done",
+                        "error": "",
+                        "quotes": [QUOTE],
+                    },
+                ],
+            },
+        }
+    )
+
+
 def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> None:
     """The count stood in the side column on every visit: the metric "right in your face"
     (notes of 2026-09-10, targum-internal#237). Now it is on Your Progress and in the
     account panel, and the box says it only past three quarters used, with the day the
-    month turns, so the cap is not the first anybody hears of it."""
-    page = run(
+    month turns, so the cap is not the first anybody hears of it — and since 2026-11-15
+    only near a spend (David, calmer turns): talking uses none."""
+    talking = run(
         answers={
             "/chat/list": {
                 "chats": [],
@@ -389,6 +417,8 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
             }
         }
     )
+    assert talking["hours"] == "" and talking["hoursHidden"], "no spend near, no count"
+    page = _near_a_spend({"used": 6.5, "allowed": 8, "ends": "1 October"})
     # Credits with the rate beside them, and what is left rather than what is gone
     # (design.md §12, 2026-09-23). It said "6 hours 30 minutes of your 8 hours" before
     # that, which is the balance told twice in two units and neither of them the one a
@@ -398,16 +428,14 @@ def test_the_hours_are_said_above_the_box_only_when_they_are_nearly_gone() -> No
         "They reset on 1\u00a0October."
     ), "the date is never broken from its month (#472 polish 6)"
     assert not page["hoursHidden"]
-    quiet = run(
-        answers={
-            "/chat/list": {
-                "chats": [],
-                "usable": True,
-                "hours": {"used": 5.9, "allowed": 8, "ends": "1 October"},
-            }
-        }
-    )
+    quiet = _near_a_spend({"used": 5.9, "allowed": 8, "ends": "1 October"})
     assert quiet["hours"] == "" and quiet["hoursHidden"]
+    none = _near_a_spend({"used": 8.2, "allowed": 8, "ends": "1 October"})
+    assert none["hours"] == "No credits left this month. They reset on 1\u00a0October.", (
+        "none left is said as none, never about 0 minutes (targum-internal#735)"
+    )
+    admin = _near_a_spend({"used": 11.1, "allowed": None, "ends": "1 October"})
+    assert admin["hours"] == "" and admin["hoursHidden"], "no cap, nothing to warn of"
     unlimited = run(
         answers={
             "/chat/list": {
@@ -769,6 +797,8 @@ def test_save_as_targum_is_the_reader_s_press_and_draws_the_quote() -> None:
         "the same card the model's own save hands the page; the button is the spend"
     )
     assert page["foot"]["save"] is False, "one press; the card stands where it was"
+    # The counts go on the card Save answers, which is the text card (David, 2026-11-15).
+    assert page["turns"][-1]["cls"].split()[:2] == ["chat-turn", "them"]
 
 
 def test_a_conversation_come_back_to_is_drawn_with_its_words() -> None:
@@ -987,9 +1017,12 @@ def test_pictures_chosen_by_the_plus_are_one_text_and_one_turn() -> None:
     ]
     assert page["posted"][-2]["body"]["uploads"] == ["u1", "u1"]
     sent = page["turns"][0]
-    assert "me" in sent["cls"].split() and sent["pictures"] == ["blob:p1.jpg", "blob:p2.png"], (
+    assert "me" in sent["cls"].split() and len(sent["pictures"]) == 2, (
         "the pictures sent are seen in the thread, as the reader's own turn"
     )
+    # As `data:` addresses, which the served policy draws; `blob:` it refuses
+    # (targum-internal#733, pinned under the real policy in test_chat_finish_browser).
+    assert all(src.startswith("data:") for src in sent["pictures"]), sent["pictures"]
     (card,) = page["cards"]
     assert card["title"] == QUOTE["title"] and "started" in card["cls"]
     assert card["meta"].startswith("2 pages")
@@ -1238,13 +1271,12 @@ def test_the_english_is_folded_under_the_hebrew_and_the_recast_is_open() -> None
     page = said(ledger=KNOWN)
     assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
     assert [p["recast"] for p in page["pairs"]] == [True, False, False]
-    assert not page["english"]["hidden"] and page["english"]["text"] == "Show translations"
+    assert not page["english"]["asked"], "no Show translations pill (David, 2026-11-15)"
 
 
 def test_a_reader_with_no_known_words_sees_the_english_open() -> None:
     page = said()
     assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
-    assert page["english"]["hidden"], "nothing to fold for them, so no toggle"
 
 
 def test_a_tap_on_a_pair_opens_its_english_and_another_folds_it() -> None:
@@ -1280,14 +1312,12 @@ def test_a_pair_is_reachable_from_a_keyboard_and_enter_opens_it() -> None:
     assert spaced["pairs"][1]["enHidden"] is False, "space too, as a control would"
 
 
-def test_show_english_opens_all_of_it_and_is_remembered() -> None:
-    page = said(ledger=KNOWN, then=[{"type": "english"}])
-    assert [p["enHidden"] for p in page["pairs"]] == [False, False, False]
-    assert page["english"]["pressed"] == "true" and page["english"]["text"] == "Hide translations"
-    assert page["english"]["kept"] == "open"
+def test_there_is_no_show_translations_pill_and_a_line_opens_by_a_tap() -> None:
+    """David, 2026-11-15 (calmer turns): no Show translations pill; a line's English
+    opens with a tap on it. A preference the pill remembered no longer opens them all."""
     remembered = said(ledger=KNOWN, stored={"targum:chat-english": "open"})
-    assert [p["enHidden"] for p in remembered["pairs"]] == [False, False, False]
-    assert remembered["english"]["pressed"] == "true"
+    assert [p["enHidden"] for p in remembered["pairs"]] == [False, True, True]
+    assert not remembered["english"]["asked"]
 
 
 def test_a_reopened_thread_folds_its_english_and_offers_the_toggle() -> None:
@@ -1307,7 +1337,6 @@ def test_a_reopened_thread_folds_its_english_and_offers_the_toggle() -> None:
         },
     )
     assert [p["enHidden"] for p in page["pairs"]] == [False, True, True]
-    assert not page["english"]["hidden"]
 
 
 # -- the correction, said so (targum-internal#242) ----------------------------------
@@ -1379,11 +1408,15 @@ def test_a_right_line_recast_for_idiom_is_not_called_corrected() -> None:
     assert explained["pairs"][0]["fixed"] == [], "nothing to mark against an English line"
 
 
-def test_why_opens_on_a_tap_and_is_open_for_a_reader_with_no_words() -> None:
+def test_a_correction_is_one_quiet_line_until_a_tap_opens_its_why_and_english() -> None:
+    """David, 2026-11-15 (calmer turns): the Corrected block stays, folded to one quiet
+    line until it is tapped, for every reader; the tap opens the reason and the English."""
     page = corrected("אני הלך אתמול לחנות", ledger=KNOWN, then=[{"type": "pair", "n": 0}])
     assert page["pairs"][0]["why"]["hidden"] is False
+    assert page["pairs"][0]["enHidden"] is False
     fresh = corrected("אני הלך אתמול לחנות")
-    assert fresh["pairs"][0]["why"]["hidden"] is False, "open by default with nothing on the ledger"
+    assert fresh["pairs"][0]["why"]["hidden"] is True, "folded with nothing on the ledger too"
+    assert fresh["pairs"][0]["enHidden"] is True
 
 
 def test_a_card_says_how_much_of_the_text_the_reader_has_in_words() -> None:

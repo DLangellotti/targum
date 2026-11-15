@@ -551,6 +551,11 @@ def _about(raw: object) -> dict[str, str] | None:
     return about
 
 
+#: The reader's own AnkiConnect, the one host other than `'self'` a policy names, and on
+#: Your Words alone (design.md §12, 2026-11-14). `127.0.0.1`, never `localhost`, which
+#: can resolve to ::1 while AnkiConnect listens on IPv4.
+ANKI_CONNECT = "http://127.0.0.1:8765"
+
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
@@ -761,7 +766,10 @@ _TALMUD_ABSENT = (
 # page it reaches says "Coming soon" is worse than none at all — what gets indexed is
 # the holding page, and that is then what ranks for the product's own name later. So
 # while this is off the sitemap is gone and robots refuses the whole site.
-PUBLIC_TEXT = re.compile(r"^/library/([a-z0-9][a-z0-9-]{0,63})$")
+#: A catalogue id is a slug, or for a curated video `video-<lang>-<YouTube id>`, whose own
+#: id keeps its capitals and `_` (targum-internal#628, the French fill of 2026-11-14). No
+#: dot or slash can match, so the id never reaches a path.
+PUBLIC_TEXT = re.compile(r"^/library/([A-Za-z0-9][A-Za-z0-9_-]{0,63})$")
 #: All of one language's texts of one kind, a kind's "All N →" on the public Library
 #: (targum-internal#519): `/library/k/he/story`. Two segments, so never a text's id.
 PUBLIC_KIND = re.compile(r"^/library/k/([a-z]{2,3})/([a-z]{1,16})$")
@@ -1165,6 +1173,9 @@ SIGNUPS_PER_HOUR_FOR_EVERYBODY = 60
 #: is not ours pretending to be one, and for a loop nobody meant.
 FAULTS_PER_HOUR = 30
 FAULTS_PER_HOUR_FOR_EVERYBODY = 600
+#: Phrases one account may have bought in an hour (targum-internal#734). An answer
+#: already held is free and never counted.
+PHRASES_PER_HOUR = 120
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -6672,6 +6683,33 @@ SESSION_COOKIE = "targum_session"
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
 
+# The browser a Google sign-in was started in (targum-internal#729): a digest of its
+# `state`, set as the reader is sent to Google and checked when Google sends them back,
+# so a callback address somebody else started cannot sign this browser into their
+# account (login CSRF). Only on `/account/google`, as long as a sign-in may take, and
+# cleared once the callback has read it. Never the state itself, nothing about anybody.
+GOOGLE_STATE_COOKIE = "targum_google"
+
+
+def google_state_digest(state: str) -> str:
+    """What the state cookie holds for `state`: a digest, so the cookie is no copy of it."""
+    return hashlib.sha256(("targum-google-state\0" + state).encode("utf-8")).hexdigest()[:32]
+
+
+def google_state_cookie(state: str, address: str) -> str:
+    """The cookie that binds a Google sign-in to its browser; an empty `state` clears it.
+    HttpOnly, SameSite=Lax (Google's return is a top-level GET, which Lax still carries),
+    and Secure where the site is served over https."""
+    from .google import BEGUN_MINUTES
+
+    secure = "; Secure" if address.startswith("https://") else ""
+    value, age = (google_state_digest(state), BEGUN_MINUTES * 60) if state else ("", 0)
+    return (
+        f"{GOOGLE_STATE_COOKIE}={value}; HttpOnly; SameSite=Lax; Path=/account/google; "
+        f"Max-Age={age}{secure}"
+    )
+
+
 # Which set of the desk's own files this browser last fetched in full (design.md §12, "A
 # first visit gets the page whole", 2026-10-19; Privacy Notice clause 3.13). Its value is
 # the set's hash, the same for every visitor to the same build: no identifier, nothing
@@ -7518,6 +7556,14 @@ class Handler(BaseHTTPRequestHandler):
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
+        # Your Words may call the reader's own AnkiConnect, and no other page may (design.md
+        # §12, "Send to Anki talks to the Anki on your own computer", 2026-11-14). Read
+        # off the page as written, like the frames: only a page holding the Send to Anki
+        # press names it, and every other page, every reader and every saved copy keeps
+        # `connect-src 'self'` exactly. Nothing is loaded from it: the page hands Anki
+        # bytes from targum's own origin, never an address to fetch.
+        if re.search(rb'<button\b[^>]*\bid="send-anki"', body):
+            policy = policy.replace("connect-src 'self'", f"connect-src 'self' {ANKI_CONNECT}")
         # A desk page names its own stylesheets and scripts under `/assets/` (design.md
         # §12, 2026-10-18), and `'self'` is what lets it load them. Read off the page as
         # written, like the frames: a page that names none — every reader, every public
@@ -9273,7 +9319,10 @@ class Handler(BaseHTTPRequestHandler):
           places are added here, so a text opened on another device is never left out.
         - `catalogue=0`: no catalogue measured. Only the Library draws it.
         - `name=<folder>`: of the reader's own, only that one, and nothing taken off the
-          shelf: what a reader's contents page asks about itself.
+          shelf: what a reader's contents page asks about itself. Without `shared=0`,
+          the shared shelf's text of that folder too, and only it: what a reader asks
+          for its own figure, the one Home prints (design.md §12, "A reader says our
+          estimate until anything in it is marked", 2026-11-15).
         """
         home = self._home()
         person = self._person()
@@ -9290,7 +9339,9 @@ class Handler(BaseHTTPRequestHandler):
         shared: list[dict[str, Any]] = []
         if asked != "0":
             shared = self.library.readers(self.library.shared)
-            if asked is not None:
+            if name:
+                shared = [reader for reader in shared if reader.get("name") == name]
+            elif asked is not None:
                 shared = self._opened_of(shared, asked, person)
             for reader in shared:
                 reader["shared"] = True
@@ -11013,6 +11064,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._deck_state(parse_qs(urlparse(self.path).query))
         if route == "/account/anki/deck":
             return self._deck_file(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/notes":
+            return self._anki_notes(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/sound":
+            return self._anki_sound(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/line":
+            return self._anki_line(parse_qs(urlparse(self.path).query))
         if route == "/account/met":
             return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
@@ -11475,9 +11532,20 @@ class Handler(BaseHTTPRequestHandler):
             # "press the card" over a thread with no card in it. A quote lives in
             # the tool result the model was handed; it is drawn under the answer that
             # followed, in the state the job is in now.
+            from .chat import session as chat_session
+
             waiting: list[dict[str, Any]] = []
+            # And what a search found and the sets it quoted (targum-internal#735), drawn
+            # as cards under the answer that followed them, as the stream drew them.
+            # Found rows are read by the tool that made them, named in the turn before.
+            tools_named: dict[str, str] = {}
+            found_waiting: list[dict[str, Any]] = []
+            sets_waiting: list[dict[str, Any]] = []
             for turn in store.chat_turns(chat["id"]):
                 waiting.extend(self._quoted(turn))
+                more_found, more_sets = self._found_and_sets(turn, tools_named)
+                found_waiting.extend(more_found)
+                sets_waiting.extend(more_sets)
                 if not (turn["said"] or turn["role"] == "user"):
                     continue
                 content = turn["content"]
@@ -11513,6 +11581,12 @@ class Handler(BaseHTTPRequestHandler):
                 if turn["role"] == "assistant" and turn["said"] and waiting:
                     entry["quotes"] = waiting
                     waiting = []
+                if turn["role"] == "assistant" and turn["said"] and found_waiting:
+                    entry["found"] = found_waiting[: chat_session.MOST_FOUND]
+                    found_waiting = []
+                if turn["role"] == "assistant" and turn["said"] and sets_waiting:
+                    entry["sets"] = sets_waiting
+                    sets_waiting = []
                 turns.append(entry)
             return self._json(
                 {
@@ -11523,6 +11597,39 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         return self._json({"error": "not found"}, 404)
+
+    @staticmethod
+    def _found_and_sets(
+        turn: dict[str, Any], named: dict[str, str]
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The rows a `search_sources` result turned up and the sets a `quote_set` result
+        made, in one stored turn, cut as the stream cut them (`session._found_rows`,
+        `session._set_card`). `named` learns each tool call's name from the assistant
+        turns, so a result is read by the tool that made it."""
+        from .chat import session as chat_session
+
+        content = turn.get("content")
+        if not isinstance(content, list):
+            return [], []
+        found: list[dict[str, Any]] = []
+        sets: list[dict[str, Any]] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                named[str(block.get("id") or "")] = str(block.get("name") or "")
+                continue
+            if block.get("type") != "tool_result" or block.get("is_error"):
+                continue
+            tool = named.get(str(block.get("tool_use_id") or ""), "")
+            text = str(block.get("content") or "")
+            if tool == "search_sources":
+                found.extend(chat_session._found_rows(text))
+            elif tool == "quote_set":
+                drawn = chat_session._set_card(text)
+                if drawn:
+                    sets.append(drawn)
+        return found, sets
 
     def _quoted(self, turn: dict[str, Any]) -> list[dict[str, Any]]:
         """The cards quoted in a tool-result turn, as the jobs stand now.
@@ -11579,6 +11686,8 @@ class Handler(BaseHTTPRequestHandler):
                     if kind == "found"
                     for row in json.loads(data).get("items", [])
                 ],
+                # And a set a turn quoted, drawn as its own card (targum-internal#735).
+                "sets": [json.loads(data) for kind, data in feed.events if kind == "set"],
                 # And the film it could not fetch, so a page without EventSource keeps
                 # the link the same way a streaming one does (targum-internal#331).
                 "refused": next(
@@ -11996,9 +12105,8 @@ class Handler(BaseHTTPRequestHandler):
         past it. A word with no sound still goes in the deck, silent. Made in the
         background; one deck at a time a person.
         """
-        import unicodedata
 
-        from . import speech
+        from . import anki_send, speech
 
         person = self._person()
         if person is None:
@@ -12031,7 +12139,8 @@ class Handler(BaseHTTPRequestHandler):
             lemma = str(row["lemma"])
             if shown_set is not None and lemma not in shown_set:
                 continue
-            term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
+            # The one spelling Send to Anki matches an imported note by (`apkg_word`).
+            term = anki_send.apkg_word(row)
             given = backs.get(lemma) if isinstance(backs, dict) else None
             back = str(given)[:2000] if isinstance(given, str) else ""
             if not back:
@@ -12312,6 +12421,160 @@ class Handler(BaseHTTPRequestHandler):
         deck.path.unlink(missing_ok=True)
         with ANKI_LOCK:
             self.library.decks.pop(deck.id, None)
+
+    # -- Send to Anki (targum-internal#540) --------------------------------------------
+
+    def _anki_reading(
+        self, person: Person, language: str
+    ) -> tuple[list[dict[str, Any]], Callable[[list[str]], dict[str, Any]], Any]:
+        """What Send to Anki reads for one person and language: the words that may be
+        sent (`anki_send.sendable`), a finder of each word's first line, and the texts'
+        files read once. Read off the account and builds on this disk; spends nothing."""
+        from . import anki_send
+
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        shared = self.library.shared
+
+        def may_leave(folder: Path) -> bool:
+            # By the text's source wherever it sits: a catalogue text built into a
+            # reader's own home is held to its licence as on the shelf (qa-claude).
+            try:
+                folder.resolve().relative_to(shared.resolve())
+            except (OSError, ValueError):
+                return anki_send.text_may_leave(folder, on_shelf=False)
+            return anki_send.shared_may_leave(folder)
+
+        def own() -> list[tuple[str, Path]]:
+            # The reader's own shelf, by folder name so the order never moves.
+            rows = self.library.readers(homes[0])
+            found = [
+                (str(row.get("document") or ""), homes[0] / str(row["name"]))
+                for row in rows
+                if row.get("name")
+            ]
+            return sorted(found, key=lambda pair: pair[1].name)
+
+        finished = self.store.finished(person.id)
+        rows = anki_send.sendable(self.store.saved_words(person, language))
+
+        def lines(lemmas: list[str]) -> dict[str, Any]:
+            return anki_send.first_lines(
+                lemmas, finished, folder_for, language, own=own(), may_leave=may_leave
+            )
+
+        return rows, lines, anki_send.Texts(into=self._page_language())
+
+    def _anki_word(
+        self, row: dict[str, Any], language: str, place: Any, texts: Any
+    ) -> tuple[dict[str, Any], Any, Path | None]:
+        """One word's note, and the line's clock and the word's clip behind it."""
+        from . import anki_send
+
+        line = texts.line(place) if place is not None else None
+        heard = None
+        if line is not None and place is not None:
+            clock = texts.heard(place.folder, place.section).get(place.segment)
+            if anki_send.held(clock) and anki_send.recording_may_leave(clock):
+                heard = clock
+        # The clip Hear or the deck export already made, by whichever form it was said
+        # in: the word as the line points it, as it was saved, or its dictionary form.
+        kept = None
+        tried = (line["gap"] if line else "", row.get("surface") or "", row["lemma"])
+        for form in dict.fromkeys(str(one).strip(EDGES_SAID) for one in tried):
+            if form and self._sayable(form):
+                kept = said_clip(form, language)[1]
+                if kept is not None:
+                    break
+        return anki_send.note(row, language, line, heard, kept), heard, kept
+
+    def _anki_notes(self, query: dict[str, list[str]]) -> None:
+        """The reader's words as Send to Anki adds them, `anki_send.PAGE` a page
+        (design.md §12, "Send to Anki talks to the Anki on your own computer",
+        2026-11-14): learning words to add, known words to update where Anki has them,
+        ignored words never. Read-only, and nothing spends: no voice, no job, no claim."""
+        from . import anki_send
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        try:
+            page = max(0, int((query.get("page") or ["0"])[0]))
+        except ValueError:
+            page = 0
+        rows, lines, texts = self._anki_reading(person, language)
+        mine = rows[page * anki_send.PAGE : (page + 1) * anki_send.PAGE]
+        places = lines([str(row["lemma"]) for row in mine])
+        words = [
+            self._anki_word(row, language, places.get(str(row["lemma"])), texts)[0] for row in mine
+        ]
+        more = (page + 1) * anki_send.PAGE < len(rows)
+        self._json(
+            {
+                "signedIn": True,
+                "language": language,
+                "notetype": anki_send.NOTETYPE,
+                "total": len(rows),
+                "words": words,
+                "next": page + 1 if more else None,
+            }
+        )
+
+    def _anki_one(self, query: dict[str, list[str]]) -> tuple[Any, Any, Path | None] | None:
+        """The one word a sound or a line is asked for, and only where it is this
+        person's: a key they do not save, or an ignored word, is nobody's."""
+        person = self._person()
+        if person is None:
+            return None
+        key = str((query.get("key") or [""])[0])
+        language, _, lemma = key.partition(":")
+        language = language.strip().lower()
+        if not language or not lemma:
+            return None
+        rows, lines, texts = self._anki_reading(person, language)
+        row = next((one for one in rows if str(one["lemma"]) == lemma), None)
+        if row is None:
+            return None
+        place = lines([lemma]).get(lemma)
+        return self._anki_word(row, language, place, texts)
+
+    def _anki_file(self, path: Path | None) -> None:
+        if path is None or not path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        kind = "audio/wav" if path.suffix == ".wav" else "audio/mpeg"
+        self.send_response(200)
+        body = path.read_bytes()
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _anki_sound(self, query: dict[str, list[str]]) -> None:
+        """A word's clip where the voice already made one, or 404: never made here."""
+        found = self._anki_one(query)
+        self._anki_file(found[2] if found else None)
+
+    def _anki_line(self, query: dict[str, list[str]]) -> None:
+        """A word's line, cut once from a recording already on disk, or 404."""
+        from . import anki_send
+
+        found = self._anki_one(query)
+        heard = found[1] if found else None
+        self._anki_file(anki_send.cut(heard) if heard is not None else None)
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.
@@ -12979,7 +13242,13 @@ class Handler(BaseHTTPRequestHandler):
         signed in — which every page asks, so Your Progress and the account panel can
         say the count without a request of their own (targum-internal#237)."""
         person = self.store.person_by_id(person_id) if self.store and person_id else None
-        allowed = self.library.allowance(paid_plan=plans.paid(person))
+        # An admin is not held to the month's allowance at claim (`Library.claim`), so
+        # none is said: the operator was told "0 credits left" (targum-internal#735).
+        allowed = (
+            None
+            if person is not None and person.admin
+            else self.library.allowance(paid_plan=plans.paid(person))
+        )
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
         used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0
@@ -15279,7 +15548,8 @@ class Handler(BaseHTTPRequestHandler):
             back = safe_next(query.get("next", [""])[0])
             if back:
                 self._google_next[begun.state] = back
-        self._go(begun.where)
+        # Bound to this browser, Link as much as a door (targum-internal#729).
+        self._go(begun.where, google_state_cookie(begun.state, self.address))
 
     def _google_linked(self, person_id: int, begun: Any, query: dict[str, list[str]]) -> None:
         """Finish a Link pressed on Account, and go back there (targum-internal#502).
@@ -15291,25 +15561,27 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import google as google_module
 
+        # Every answer here clears the cookie that bound the Link to this browser.
+        cleared = google_state_cookie("", self.address)
         person = self._person()
         if person is None or person.id != person_id:
-            return self._go("/account/signin?next=%2Fyou")
+            return self._go("/account/signin?next=%2Fyou", cleared)
         if begun is None or google_module.stale(begun):
             self._say_of_ways(
                 person.id,
                 self._say("serve.that-sign-in-took-too-long", "That sign-in took too long."),
             )
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         code = (query.get("code") or [""])[0]
         if (query.get("error") or [""])[0] or not code:
             # Cancel on Google's own screen: nothing to say, Not linked says it.
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         try:
             answer = google_module.exchange(code, begun.verifier, self._google_redirect())
             email = google_module.address_from(answer)
         except google_module.Refused as error:
             self._say_of_ways(person.id, str(error))
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         if email != person.email:
             self._say_of_ways(
                 person.id,
@@ -15320,10 +15592,10 @@ class Handler(BaseHTTPRequestHandler):
                     yours=person.email,
                 ),
             )
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         self.store.link_google(person.id)
         self._google_unlinked.pop(person.id, None)
-        self._go("/you#ways")
+        self._go("/you#ways", cleared)
 
     def _google_unlink(self) -> None:
         """Account's Unlink (targum-internal#502): no question asked, and Undo for a few
@@ -15402,10 +15674,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
 
         state = (query.get("state") or [""])[0]
+        # Started in this browser, or nothing here is spent on it (targum-internal#729).
+        bound = self._cookie(GOOGLE_STATE_COOKIE)
+        ours = bool(state and bound) and secrets.compare_digest(bound, google_state_digest(state))
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
         linking = self._google_linking.pop(state, None) if state else None
+        cleared = google_state_cookie("", self.address)
         if linking is not None:
+            if begun is not None and not ours:
+                # A Link callback this browser did not start: spent above, nothing linked,
+                # and said on Account, where the person pressing Link already is.
+                person = self._person()
+                if person is not None:
+                    self._say_of_ways(
+                        person.id,
+                        self._say(
+                            "serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."
+                        ),
+                    )
+                return self._go("/you#ways", cleared)
             return self._google_linked(linking, begun, query)
 
         def refuse(said: str, again: str = "") -> None:
@@ -15416,8 +15704,16 @@ class Handler(BaseHTTPRequestHandler):
             if again and back:
                 again += "?next=" + quote(back, safe="/")
             page = signin_page(language=self._page_language(), said=said, again=again, back=back)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
 
+        if begun is not None and not ours:
+            # A callback this browser did not start: somebody else's sign-in, sent here
+            # to sign this browser into their account. Refused before the code is spent,
+            # and the state is spent with it, so the address works nowhere now.
+            return refuse(
+                self._say("serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."),
+                "/account/google",
+            )
         if begun is None or google_module.stale(begun):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
@@ -15450,7 +15746,7 @@ class Handler(BaseHTTPRequestHandler):
         # is a takeover wherever `+` is a separate mailbox.
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
         if self.require_account and not self.store.may_join(email) and signup_is_open():
             held = self._door_holds(email) or self._door_opens(email)
             if held is not None:
@@ -15476,7 +15772,7 @@ class Handler(BaseHTTPRequestHandler):
         from .accounts import SESSION_DAYS
 
         landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(safe_next(back) or landed, self._session_cookie(session, SESSION_DAYS))
+        self._go(safe_next(back) or landed, [self._session_cookie(session, SESSION_DAYS), cleared])
 
     def _enter(self, token: str, back: str = "") -> None:
         if token and self.require_account and signup_is_open():
@@ -19064,8 +19360,12 @@ class Handler(BaseHTTPRequestHandler):
         phrase = str(payload.get("phrase", "")).strip()
         sentence = str(payload.get("sentence", "")).strip()
         translation = str(payload.get("translation", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as `_gloss_word` writes them, for the reason it gives: compared as
+        # the page sent them, "EN" was not "en" (targum-internal#734).
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
+        # Which text the sentence is from, so the target can be one it is translated into.
+        document = str(payload.get("document", "")).strip()[:200]
 
         from .annotate.phrase import (
             PHRASE_MODEL,
@@ -19095,9 +19395,42 @@ class Handler(BaseHTTPRequestHandler):
                     "cached": True,
                 }
             )
+        # Buying is held as `/gloss` holds it (targum-internal#734): an answer is bought on
+        # targum's account with no job row behind it, and the sentence and translation
+        # are the page's, so every new pair of them is a new purchase. The words have to
+        # be in a language read here, the answer in one the reader or this text allows,
+        # and never in the words' own language. A 400, before any model is asked.
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.gloss-not-in-that-language",
+                        "We can't look words up in that language.",
+                    )
+                },
+                400,
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
+        # And a ceiling per account an hour, which a reader selecting as they read never
+        # meets and a script asking for every sentence it can make up does.
+        person = self._person()
+        who = f"phrase:{person.id}" if person is not None else "phrase:" + digest(self._visitor())
+        if self.store.asking_too_often(who, limit=PHRASES_PER_HOUR):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.phrase.too-often",
+                        "That's a lot of phrases for one hour. Try again in an hour.",
+                    )
+                },
+                429,
+            )
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:

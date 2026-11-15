@@ -1795,6 +1795,8 @@
       var button = at(id);
       if (button) button.hidden = !exportable || !have[id];
     });
+    // Send to Anki follows the same rule, and a desk's (`anki-send.js`).
+    if (window.TargumAnkiSend) window.TargumAnkiSend.offer(exportable && entry.words.length > 0);
   }
 
   /* --- what the page calls --------------------------------------------------- */
@@ -2104,5 +2106,10 @@
     },
     openWord: openWord,
     offerExports: offerExports,
+    /* What Send to Anki needs of the list on show: the language, its name, and the
+       deck the `.apkg` names, so sent cards sit beside imported ones. */
+    ankiContext: function () {
+      return { code: code, name: named(languages, code), deck: "targum " + named(languages, code) };
+    },
   };
 })();

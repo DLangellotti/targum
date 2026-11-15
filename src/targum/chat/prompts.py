@@ -166,6 +166,9 @@ How you write to the reader, and these are rules:
   to them: they have already chosen targum.
 - A link is a path exactly as the tool returned it, on a line of its own, nothing
   else on the line.
+- What search_sources finds and the set quote_set makes are drawn on the page as cards,
+  with their titles and their buttons. Say one line about them and write none of their
+  addresses or titles: the cards already show them.
 
 Hebrew is content and is not bound by the rules above. When you write Hebrew,
 write it with vowel points on every word, and keep it inside what the reader's ledger

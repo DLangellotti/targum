@@ -2440,6 +2440,24 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             job=one.get("job"),
         )
     link = f"{ctx.press_at}/set/{made['id']}"
+    note = (
+        "Give the reader the link in `open`, on a line of its own, and say in ONE "
+        "sentence what the set is. They press it on targum's own page, where every "
+        "text is listed and they can untick any; you cannot press it. Name anything "
+        "in `refused` in one short sentence, with its reason."
+    )
+    if not ctx.via and not ctx.press_at:
+        # targum's own chat draws the set as a card of its own — its texts, their
+        # credits and its button — so the model says what it is and nothing more
+        # (targum-internal#735: it called a bare link "the card", then sent the reader
+        # looking for it at the top of the chat).
+        note = (
+            "The page shows the reader this set as a card listing its texts and their "
+            "credits, with its own button to the page where they confirm it; you cannot "
+            "press it. Say in ONE sentence what the set is, and do not write its link or "
+            "list its texts again. Name anything in `refused` in one short sentence, with "
+            "its reason."
+        )
     return {
         "set": {
             "id": made["id"],
@@ -2449,12 +2467,7 @@ def quote_set(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
             "refused": refused,
         },
         "open": link,
-        "note": (
-            "Give the reader the link in `open`, on a line of its own, and say in ONE "
-            "sentence what the set is. They press it on targum's own page, where every "
-            "text is listed and they can untick any; you cannot press it. Name anything "
-            "in `refused` in one short sentence, with its reason."
-        ),
+        "note": note,
     }
 
 
@@ -3814,6 +3827,15 @@ def search_sources(ctx: Ctx, args: dict[str, Any]) -> dict[str, Any]:
         "language": language or "all",
         "items": items[:limit],
     }
+    if items and not ctx.via and not ctx.press_at:
+        # targum's own chat draws the first of these as cards in the thread, each with
+        # its title, publisher, how much the reader knows and Open (targum-internal#735).
+        # Written out as well, an address was a line the page could only drop.
+        out["note"] = (
+            "The page shows the reader the first few of these as cards, each with its "
+            "title, its publisher, how much of it they know and a button to open it. Say "
+            "ONE line about what you found, and do not write their links or titles."
+        )
     if skipped:
         out["unreachable"] = skipped
     if late:
