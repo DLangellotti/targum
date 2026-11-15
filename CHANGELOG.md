@@ -953,13 +953,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Pictures sent with the `+` are seen. The reader's own turn drew them from `blob:`
     addresses, which the served policy (`img-src 'self' data:`) refuses, so every one was
     a broken image on a served page. They are `data:` thumbnails now (a 480px copy where
-    the browser can draw one, the file read whole where it cannot), and `serve.POLICY` is
-    unchanged, so the policy readers are held to did not widen.
+    the browser can draw one, on white, decoded one picture at a time and each bitmap
+    closed; a file the browser cannot decode keeps its name as alt text and is not read
+    whole), and `serve.POLICY` is unchanged, so the policy readers are held to did not
+    widen.
   - A Russian reader's quote card is Russian throughout. The chat page shipped only
     `bring.` of the words `bring.js` says; `add.job.*`, `add.doubtful`, `job.said.*`,
     `building.*` and `account.hours/minutes` fell back to English ("42 sentences · Будет
-    готово через мгновение."). `builder.BRING_STRINGS` is handed to both pages that carry
-    `bring.js` (the Add page lacked `building.` and `account.` too).
+    готово через мгновение."). The ones actually missing were `add.job.`, `add.doubtful`
+    and `job.said.` (and `shelf.building.` on the Add page); `building.` and `account.`
+    ride every page already. `builder.BRING_STRINGS` is handed to both pages that carry
+    `bring.js`.
   - A streaming answer's tail has `dir="auto"` and the conversation's `lang` where it is in
     Hebrew letters, so it stands at the right from its first word.
   - A server fault on a chat request (a 500, a page that is not JSON) is "We can't answer
@@ -971,8 +975,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     go back in the box, the line typed with them goes back in the field, and that line is
     no longer sent as a turn about a picture that was never read.
   - While nothing can be asked, the `+` and Speak look disabled and no empty raised thread
-    stands under the fault. Offline, the chips dim with the box. On a phone with no
-    conversations, Chats is not drawn.
+    stands under the fault. Offline, the chips dim with the box. With no conversations,
+    Chats is not drawn, on a phone or in the drawer.
   - Tab reaches the `+` before the field, as they are drawn. The open conversation is
     `aria-current` and drawn in the row hover draws. A focused control at the thread's foot
     is scrolled wholly into view, its ring with it.

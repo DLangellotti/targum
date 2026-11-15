@@ -815,33 +815,60 @@
   // nowhere — a conversation opened again shows the card the reading became. Any
   // other file is named by its card, which is enough.
   //
-  // As `data:` addresses, which the served page's policy allows (`img-src 'self' data:`),
+  // As `data:` addresses, which the served policy allows (`img-src 'self' data:`),
   // and never `blob:`, which it refuses: every picture sent was a broken image on a served
-  // page (targum-internal#733), and the policy readers are held to stays as it is. A
-  // small copy where the browser can draw one, so thirty phone photos are not thirty
-  // ten-megabyte strings; the file read whole where it cannot.
+  // page (targum-internal#733), and the policy readers are held to stays as it is.
+  //
+  // A small copy, made one picture at a time, so only one full decode is alive while the
+  // same files upload: thirty phone photos decoded at once were over a gigabyte of
+  // bitmaps, enough to kill a phone's tab. Drawn on white, so a screenshot with
+  // transparency does not come out black in the JPEG. Where the browser cannot decode the
+  // file (a HEIC outside Safari) nothing is read whole: the picture would stay broken and
+  // the memory spent, so its name stands for it as alt text. A file is read whole only
+  // where there is no `createImageBitmap` at all, and only when it is small.
   var THUMB = 480;
+  var WHOLE_LIMIT = 4 * 1024 * 1024;
+  var thumbnails = Promise.resolve();
   function thumbnail(file, img) {
-    function whole() {
-      if (typeof FileReader === "undefined") return;
-      var reader = new FileReader();
-      reader.onload = function () {
-        img.src = String(reader.result || "");
-      };
-      reader.readAsDataURL(file);
+    thumbnails = thumbnails.then(function () {
+      return drawThumbnail(file, img);
+    });
+  }
+  function drawThumbnail(file, img) {
+    if (typeof createImageBitmap !== "function") {
+      if (typeof FileReader === "undefined" || !(file.size <= WHOLE_LIMIT)) return null;
+      return new Promise(function (done) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          img.src = String(reader.result || "");
+          done();
+        };
+        reader.onerror = done;
+        reader.readAsDataURL(file);
+      });
     }
-    if (typeof createImageBitmap !== "function") return whole();
-    createImageBitmap(file).then(function (bitmap) {
-      var scale = Math.min(1, THUMB / Math.max(bitmap.width, bitmap.height, 1));
-      var canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      var drawing = canvas.getContext("2d");
-      if (!drawing) return whole();
-      drawing.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      if (bitmap.close) bitmap.close();
-      img.src = canvas.toDataURL("image/jpeg", 0.85);
-    }, whole);
+    return createImageBitmap(file).then(
+      function (bitmap) {
+        try {
+          var scale = Math.min(1, THUMB / Math.max(bitmap.width, bitmap.height, 1));
+          var canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          var drawing = canvas.getContext("2d");
+          if (drawing) {
+            drawing.fillStyle = "#ffffff";
+            drawing.fillRect(0, 0, canvas.width, canvas.height);
+            drawing.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+            img.src = canvas.toDataURL("image/jpeg", 0.85);
+          }
+        } finally {
+          if (bitmap.close) bitmap.close();
+        }
+      },
+      function () {
+        // Not a picture this browser can draw: its name stands for it.
+      }
+    );
   }
   function sentTurn(chosen) {
     var pictures = chosen.filter(function (one) {

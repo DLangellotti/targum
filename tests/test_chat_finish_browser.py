@@ -31,15 +31,17 @@ TOKEN = "test-key"
 SITE = "http://finish.test"
 
 
-def png(width: int = 24, height: int = 16) -> bytes:
-    """A real picture, small: a grey PNG the browser can decode."""
+def png(width: int = 24, height: int = 16, clear: bool = False) -> bytes:
+    """A real picture, small: a grey PNG the browser can decode, or a wholly transparent
+    one with `clear`."""
 
     def chunk(kind: bytes, data: bytes) -> bytes:
         body = kind + data
         return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
 
-    rows = b"".join(b"\x00" + b"\x80\x80\x80" * width for _ in range(height))
-    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    pixel, kind = (b"\x00\x00\x00\x00", 6) if clear else (b"\x80\x80\x80", 2)
+    rows = b"".join(b"\x00" + pixel * width for _ in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, kind, 0, 0, 0)
     return (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", header)
@@ -93,9 +95,9 @@ def browser():
 class Served:
     """The chat page under its real policy, every other path a stub, and what was asked."""
 
-    def __init__(self, routes: dict[str, Any], language: str = "en") -> None:
+    def __init__(self, routes: dict[str, Any], language: str = "en", embed: bool = False) -> None:
         self.routes = routes
-        self.body = chat_page(TOKEN, language=language).encode("utf-8")
+        self.body = chat_page(TOKEN, embed=embed, language=language).encode("utf-8")
         self.policy = Handler._policy(self.body)
         self.posted: list[str] = []
 
@@ -376,10 +378,91 @@ def test_offline_the_chips_dim_with_the_box(browser) -> None:
     dim = page.eval_on_selector(".chat-ask", "b => getComputedStyle(b).opacity")
     context.set_offline(False)
     page.wait_for_function("() => !document.querySelector('.chat-ask').disabled")
-    pill = page.eval_on_selector("#chat-open-list", "b => b.hidden")
+    pill = page.eval_on_selector("#chat-open-list", "b => getComputedStyle(b).display")
     context.close()
     assert live is False and float(dim) < 1
-    assert pill is True, "Chats opens nothing while there are none"
+    assert pill == "none", "Chats opens nothing while there are none"
+
+
+def test_in_the_drawer_chats_is_not_drawn_while_there_are_none(browser) -> None:
+    """qa-claude on #1256: framed, `body.embed .chat-open-list` beat `[hidden]`, and a
+    test that read the property stayed green while the pill was drawn."""
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = context.new_page()
+    served = Served({"/chat/list": {"chats": [], "usable": True}}, embed=True)
+    page.route(f"{SITE}/**", served)
+    page.goto(f"{SITE}/chat?k={TOKEN}")
+    page.wait_for_function("() => document.getElementById('chat-open-list').hidden")
+    shown = page.eval_on_selector("#chat-open-list", "b => getComputedStyle(b).display")
+    context.close()
+    assert shown == "none", shown
+
+
+#: Counts the full decodes alive at once, and every one that was never closed.
+DECODES = """(() => {
+  const made = window.createImageBitmap.bind(window);
+  window.__decodes = { alive: 0, most: 0, made: 0 };
+  window.createImageBitmap = (file) =>
+    made(file).then((bitmap) => {
+      const seen = window.__decodes;
+      seen.made += 1;
+      seen.alive += 1;
+      seen.most = Math.max(seen.most, seen.alive);
+      const close = bitmap.close.bind(bitmap);
+      bitmap.close = () => { seen.alive -= 1; close(); };
+      return bitmap;
+    });
+})();"""
+
+
+def test_a_batch_of_pictures_is_drawn_one_decode_at_a_time(browser) -> None:
+    """qa-claude on #1256 (P2): every picture was decoded at once, thirty phone photos
+    over a gigabyte of bitmaps; a picture the browser cannot decode was read whole for
+    nothing; and a transparent screenshot came out black."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    page.add_init_script(DECODES)
+    served = Served(picture_routes(QUOTE))
+    page.route(f"{SITE}/**", served)
+    page.goto(f"{SITE}/chat?k={TOKEN}")
+    page.wait_for_selector("#chat-bring")
+    files = [
+        {"name": f"page{n}.png", "mimeType": "image/png", "buffer": png(30 + n, 20)}
+        for n in range(6)
+    ]
+    files.append({"name": "clear.png", "mimeType": "image/png", "buffer": png(20, 20, clear=True)})
+    files.append({"name": "phone.heic", "mimeType": "image/heic", "buffer": b"not a picture" * 64})
+    page.set_input_files("#chat-file", files=files)
+    page.click("#chat-send")
+    page.wait_for_function(
+        """() => {
+          const shown = [...document.querySelectorAll('.chat-sent img')].slice(0, 7);
+          return shown.length === 7 && shown.every((img) => img.complete && img.naturalWidth > 0);
+        }""",
+        timeout=8000,
+    )
+    page.wait_for_function("() => window.__decodes.alive === 0")
+    got = page.evaluate(
+        """() => {
+          const all = [...document.querySelectorAll('.chat-sent img')];
+          const clear = all[6];
+          const canvas = document.createElement('canvas');
+          canvas.width = clear.naturalWidth;
+          canvas.height = clear.naturalHeight;
+          const pen = canvas.getContext('2d');
+          pen.drawImage(clear, 0, 0);
+          return {
+            decodes: window.__decodes,
+            corner: [...pen.getImageData(0, 0, 1, 1).data],
+            heic: all[7].getAttribute('src'),
+            alt: all[7].alt,
+          };
+        }"""
+    )
+    context.close()
+    assert got["decodes"]["most"] == 1 and got["decodes"]["made"] == 7, got["decodes"]
+    assert min(got["corner"][:3]) > 240, f"a transparent picture is drawn on white: {got}"
+    assert got["heic"] is None and got["alt"] == "phone.heic", "nothing read whole for nothing"
 
 
 def test_a_refused_quote_card_has_no_panel_inside_it(browser) -> None:

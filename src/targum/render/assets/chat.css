@@ -149,7 +149,8 @@ body.chat > .chat-main {
 /* On a phone the list is a sheet: the page's one overlay, with the shadow §8 allows an
    overlay, opened by the pill and closed by a row or Escape (targum-internal#238). */
 /* Chats is not drawn while there is nothing in it (targum-internal#733). */
-.chat-open-list[hidden] { display: none; }
+.chat-open-list[hidden],
+body.embed .chat-open-list[hidden] { display: none; }
 @media (max-width: 48rem) {
   .chat-open-list { display: inline-block; }
   .chat-list { display: none; }
