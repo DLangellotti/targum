@@ -386,26 +386,32 @@ fallen behind the entries by half; the dates are the index.)
 
 ### A reader says our estimate until anything in it is marked — 2026-11-15
 
-Option A of design's proposal on the first run (targum-internal#724, split from #723 P2
-7): a new reader's first text said "0 of 235 known" and the Home that followed it said
-"You know about 44% of the whole recording (our estimate)" for the same text. Both were
-true, and to somebody who had just done the words check they read as a contradiction. It
-amends "What does not change" in "A text's figure is our estimate until your marks
-settle it" (2026-11-04) for the reader's bar and its list line only.
+Design's pick of option A in targum-internal#724 (split from #723 P2 7); David,
+2026-11-__. A new reader's first text said "0 of 235 known" and the Home that followed
+it said "You know about 44% of the whole recording (our estimate)" for the same text.
+Both were true, and to somebody who had just done the words check they read as a
+contradiction. It amends "What does not change" in "A text's figure is our estimate
+until your marks settle it" (2026-11-04) for the reader's bar and its list line only.
 
-- **Until anything in the text is marked known or learning, the reader says Home's
-  figure:** "About 44% (our estimate)" in the bar, "(our estimate)" quiet beside the
-  number, and "About 44% (our estimate) · 235 words to mark" on the list. It is the
-  server's own figure for the text (`estimate.shown`, through `/readers?name=`, the row
-  Home and the Library read), so the two pages print one number. A word ignored is not a
-  mark of knowing and does not end it.
+- **Until any word in the text is marked known or learning, here or in another text
+  (marks are the language's, not the text's), the reader says Home's figure:** "About
+  44% (our estimate)" in the bar, "(our estimate)" quiet beside the number, and "About
+  44% (our estimate) · 235 words to mark" on the list. It is the server's own figure for
+  the text (`estimate.shown`, through `/readers?name=`, the row Home and the Library
+  read), so the two pages print one number. A word ignored is not a mark of knowing and
+  does not end it.
+- **On a text in parts** the figure is the whole text's, as Home's is, and the count that
+  replaces it is the part's.
 - **The first mark brings the count back**, "1 of 235 known", which counts marks only as
   before; the reader has just made it. The finish box and every figure about the reader
   still count marks only.
 - **Asked only where it can be answered:** served, signed in (or on a machine with a
   key), and online. Signed out, opened from disk and a saved copy offline ask nothing
   new and say the count as before. A text the server does not measure, or estimates at
-  none of it, says the count.
+  none of it, says the count, and a reader with a mark in the text already asks nothing.
+- **Home keeps our estimate until the reader's marks settle the text,** so after the first
+  mark Home can still say "About 44% (our estimate)" while the reader says "1 of 235
+  known". That is a count in its own words, not a second percentage.
 
 ### Sign in with Google goes live, and signup opens to anyone — 2026-11-14
 
@@ -1395,9 +1401,9 @@ marked" (2026-11-03, below), and it holds the marked figure itself to marks only
 - **What does not change.** The reader's own bar ("N of M known"), the finish box and
   every figure about the reader rather than a text count marks only. Pages that still
   print the marked share for a text of the reader's own (a playlist's rows, Your targums'
-  meters, a contents page) are the next to follow. *(Since 2026-11-15 the reader's bar
-  and list say our estimate until anything in the text is marked: "A reader says our
-  estimate until anything in it is marked", above.)*
+  meters, a contents page) are the next to follow. *(Amended 2026-11-15 for the reader's
+  bar and list line: "A reader says our estimate until anything in it is marked",
+  above.)*
 
 ### Your level comes from your words check until your marks reach one — 2026-11-04
 

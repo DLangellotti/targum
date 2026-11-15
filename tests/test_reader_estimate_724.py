@@ -102,3 +102,14 @@ def test_the_contents_page_s_ask_still_takes_nothing_off_the_shelf(
     _, _, _, store, person = b1
     ask = asking(store, person, *shelves)
     assert ask(shared="0", catalogue="0", name="first")["shared"] == []
+
+
+def test_a_name_on_neither_shelf_is_answered_with_nothing(
+    b1: Any,  # noqa: F811
+    shelves: tuple[Path, Path],
+) -> None:
+    _, _, _, store, person = b1
+    ask = asking(store, person, *shelves)
+    for name in ("nowhere", "../home/mine"):
+        said = ask(catalogue="0", name=name)
+        assert (said["readers"], said["shared"]) == ([], []), name

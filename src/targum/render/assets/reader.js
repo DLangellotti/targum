@@ -3591,10 +3591,14 @@ var targumReader = function () {
 
   /* Asked once, of the server's own row for this text (`/readers?name=`, what Home and
      the Library read), and only where it can be answered: served, signed in or keyed,
-     and online. Signed out, off the disk and a saved copy offline ask nothing new. */
+     and online. Signed out, off the disk and a saved copy offline ask nothing new, and
+     nor does a text that already holds a mark, whose answer could never be said: most
+     texts past a reader's first, and every part of one in parts (qa-claude on #1250). */
   function askEstimate() {
     var folder = buildFolder();
     if (!folder || !canAsk() || away() || typeof fetch !== "function") return;
+    var marked = coverage();
+    if (marked.known || marked.learning) return;
     fetch(keyed("/readers?catalogue=0&name=" + encodeURIComponent(folder)), {
       credentials: "same-origin",
       headers: keyHeaders({}),

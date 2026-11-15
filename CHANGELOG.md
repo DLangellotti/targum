@@ -68,9 +68,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   also finds the folder on the shared shelf (with `shared=0`, as the contents page asks,
   it still takes nothing off the shelf). The first word marked known or learning brings
   the count back. Signed out, opened from disk and offline, the reader asks nothing new
-  and says the count as before. Four new strings in English and Russian
-  (`reader.estimate.about`, `reader.estimate.ours`, `reader.list.to-mark.*`); the
-  Russian waits on ling-ru's first pass. No spend.
+  and says the count as before, and a text that already holds a mark asks nothing at
+  all, since its answer could never be said. Four new strings in English and Russian
+  (`reader.estimate.about`, `reader.estimate.ours`, `reader.list.to-mark.*`; the
+  reader's table carries only `reader.` and `vocab.` keys, so Home's `known.estimate.*`
+  cannot be reused); ling-ru passed the Russian on review. No spend.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,

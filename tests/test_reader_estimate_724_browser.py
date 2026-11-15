@@ -76,6 +76,7 @@ def open_reader(
     me: dict[str, Any] | None = None,
     shelf: str = "readers",
     offline: bool = False,
+    row: dict[str, Any] | None = None,
 ):
     """The reader at `width`, `/account/me` answering `me` and `/readers` holding ROW on
     `shelf` (the reader's own, or the shared shelf's); the caller closes it."""
@@ -103,7 +104,7 @@ def open_reader(
             said = me if me is not None else ME
         elif path == "/readers":
             said = {"readers": [], "shared": [], "trash": []}
-            said[shelf] = [ROW]
+            said[shelf] = [row if row is not None else ROW]
         return route.fulfill(status=200, content_type="application/json", body=json.dumps(said))
 
     page.route(ORIGIN + "/**", serve)
@@ -199,7 +200,59 @@ def test_signed_out_and_offline_ask_nothing_and_say_the_count(
         page.wait_for_load_state("networkidle")
         assert [one for one in asked if one.startswith("/readers")] == [], asked
         assert re.match(r"0 of \d+ known", page.evaluate(BAR)), page.evaluate(BAR)
+        # Offline holds back the ask on its own, not by way of a signed-out account.
+        signed_in = page.evaluate("() => !!(window.TargumSync && window.TargumSync.who)")
+        assert signed_in is (state == "offline"), state
         shot(page, state, 1440)
         assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_a_word_ignored_keeps_the_estimate(browser, built: Path) -> None:  # noqa: F811
+    """Ignore is for names and numbers, not a mark of knowing: the estimate stands."""
+    context, page, thrown, _ = open_reader(browser, built, 1440)
+    try:
+        page.wait_for_function(f"({BAR})().startsWith('About ')")
+        page.locator(".pair .src .w").first.click()
+        page.keyboard.press("i")
+        page.wait_for_function(
+            "() => Object.keys(localStorage).some((key) => key.startsWith('targum:vocab:')"
+            " && Object.keys(JSON.parse(localStorage.getItem(key) || '{}')).length > 0)"
+        )
+        assert page.evaluate(BAR) == "About 44% (our estimate)", page.evaluate(BAR)
+        assert page.evaluate(LIST).startswith("About 44% (our estimate) · "), page.evaluate(LIST)
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_a_row_with_no_estimate_keeps_the_count(browser, built: Path) -> None:  # noqa: F811
+    """A row the server does not estimate (marks settle it, or it is not measured)."""
+    bare = {key: value for key, value in ROW.items() if key != "estimated"}
+    context, page, thrown, asked = open_reader(browser, built, 1440, row=bare)
+    try:
+        page.wait_for_function(f"/^0 of \\d+ known/.test(({BAR})())")
+        page.wait_for_load_state("networkidle")
+        assert any(one.startswith("/readers?") for one in asked), "it asked"
+        assert re.match(r"0 of \d+ known", page.evaluate(BAR)), page.evaluate(BAR)
+        assert "estimate" not in page.evaluate(LIST)
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_a_reader_opened_from_disk_asks_nothing(browser, built: Path) -> None:  # noqa: F811
+    context = opened(browser, viewport={"width": 1440, "height": 900})
+    page = context.new_page()
+    asked: list[str] = []
+    page.on("request", lambda request: asked.append(request.url))
+    try:
+        page.goto(built.as_uri())
+        page.wait_for_selector(".pair")
+        page.wait_for_function(f"/^0 of \\d+ known/.test(({BAR})())")
+        page.wait_for_load_state("networkidle")
+        assert [one for one in asked if "readers" in one] == [], asked
+        assert not any(one.startswith("http") for one in asked), asked
     finally:
         context.close()
