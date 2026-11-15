@@ -34,6 +34,36 @@ _RSS_IN_TEXT = re.compile(r'https?://[^"\'\s<>\\]+?\.rss\b')
 #: usually sits in the page's embedded JSON under this name.
 _ASSET = re.compile(r'"assetUrl"\s*:\s*"((?:[^"\\]|\\.)+)"')
 
+#: What a page says it is, in schema.org's words (`"@type"` in its ld+json, a list or one
+#: name). Matched lowercased.
+_LD_TYPE = re.compile(r'"@type"\s*:\s*\[?\s*"([A-Za-z]+)"')
+_ARTICLE_TYPES = frozenset(
+    {
+        "article",
+        "newsarticle",
+        "opinionnewsarticle",
+        "analysisnewsarticle",
+        "reportagenewsarticle",
+        "backgroundnewsarticle",
+        "reviewnewsarticle",
+        "blogposting",
+        "report",
+    }
+)
+_EPISODE_TYPES = frozenset(
+    {"podcastepisode", "radioepisode", "episode", "audioobject", "podcastseries"}
+)
+
+#: An article's own words, at least, before its player is taken for a read-aloud of it
+#: rather than the point of the page (targum-internal#736). Show notes run shorter.
+ARTICLE_WORDS = 200
+
+#: An enclosure a news feed hangs on its items is a picture as often as not, and an
+#: untyped one passes `feeds._enclosure` (targum-internal#736).
+_NOT_AUDIO = frozenset(
+    {".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".svg", ".mp4", ".mov", ".webm"}
+)
+
 
 class Episode(BaseModel):
     audio_url: str
@@ -203,21 +233,29 @@ def _bare(url: str) -> str:
     return f"{parsed.netloc}{parsed.path}".rstrip("/").lower()
 
 
-def _from_feed(xml: bytes, base: str, *, page: str = "", feed: str = "") -> Episode | None:
+def _from_feed(
+    xml: bytes, base: str, *, page: str = "", feed: str = "", exact: bool = False
+) -> Episode | None:
     """The feed's episode for `page` where the feed says which, else its newest.
 
     A player page often carries no audio of its own, only the feed it belongs to —
     and the feed's newest episode is not the one whose page somebody pasted. The
     items name their own pages, so the match is asked for before the newest stands.
+    `exact` asks for the match alone: an article's site feed has a newest item too,
+    and it is somebody else's (targum-internal#736).
     """
     from ..weekly import feeds
 
-    items = [item for item in feeds.parse(xml) if item.enclosure]
+    items = [
+        item
+        for item in feeds.parse(xml)
+        if item.enclosure and Path(urlparse(item.enclosure).path).suffix.lower() not in _NOT_AUDIO
+    ]
     chosen = None
     if page:
         wanted = _bare(page)
         chosen = next((item for item in items if _bare(item.link) == wanted), None)
-    if chosen is None:
+    if chosen is None and not exact:
         chosen = next(iter(items), None)
     if chosen is None:
         return None
@@ -241,8 +279,14 @@ def _from_page(html: str, base: str) -> Episode | None:
 
     page = BeautifulSoup(html, "html.parser")
 
+    # An article is read, whatever player sits beside it (targum-internal#736). Israel
+    # Hayom puts an <audio> of a machine reading the article aloud on every opinion
+    # piece, and that player was quoted as an hour-long podcast episode. Only the
+    # article's own feed can still say otherwise: an item for this very page, with audio.
+    article = _is_article(page, html)
+
     # The page's own player.
-    for sound in page.find_all("audio"):
+    for sound in [] if article else page.find_all("audio"):
         src = sound.get("src") or next(
             (
                 inner.get("src")
@@ -252,17 +296,19 @@ def _from_page(html: str, base: str) -> Episode | None:
             None,
         )
         if src:
-            return Episode(audio_url=urljoin(base, str(src)), title=_title(page))
+            return _played(urljoin(base, str(src)), page)
 
     # Open Graph's word for the same thing.
     for name in ("og:audio", "og:audio:url", "og:audio:secure_url"):
+        if article:
+            break
         meta = page.find("meta", property=name) or page.find("meta", attrs={"name": name})
         if meta and meta.get("content"):
-            return Episode(audio_url=urljoin(base, str(meta["content"])), title=_title(page))
+            return _played(urljoin(base, str(meta["content"])), page)
 
     # A player page that draws itself usually still carries the enclosure in its
     # embedded JSON. The address is enough; the markup around it is not consulted.
-    for match in _ASSET.finditer(html):
+    for match in [] if article else _ASSET.finditer(html):
         try:
             # The value is a JSON string and is unescaped as one: unicode_escape does
             # not know about \/ and would leave the address broken.
@@ -270,7 +316,7 @@ def _from_page(html: str, base: str) -> Episode | None:
         except json.JSONDecodeError:
             continue
         if sounds_like_audio(address):
-            return Episode(audio_url=urljoin(base, address), title=_title(page))
+            return _played(urljoin(base, address), page)
 
     # The feed this page belongs to, one hop, never more. Player pages that draw
     # themselves — omny and its cousins — often name the feed only inside a script,
@@ -287,11 +333,60 @@ def _from_page(html: str, base: str) -> Episode | None:
         except Exception:  # noqa: BLE001 - a dead feed link is not the page's fault
             continue
         found = _from_feed(
-            got.raw or got.text.encode("utf-8"), base, page=base, feed=urljoin(base, address)
+            got.raw or got.text.encode("utf-8"),
+            base,
+            page=base,
+            feed=urljoin(base, address),
+            exact=article,
         )
         if found is not None:
             return found
     return None
+
+
+def _is_article(page: object, html: str) -> bool:
+    """Whether a page is an article first, and any audio on it is beside the point.
+
+    It says so (Open Graph's `article`, or schema.org's Article or one of its news kinds),
+    it does not also say it is an episode, and its article runs to `ARTICLE_WORDS` words as
+    the ingester reads it — so a podcast's own page, which usually calls itself an article
+    too, still plays where its show notes are a paragraph.
+    """
+    from bs4 import BeautifulSoup
+
+    from ..ingest.url import article_paragraphs
+
+    assert isinstance(page, BeautifulSoup)
+    meta = page.find("meta", property="og:type") or page.find("meta", attrs={"name": "og:type"})
+    said = str(meta.get("content") or "").strip().lower() if meta else ""
+    kinds = {kind.lower() for kind in _LD_TYPE.findall(html)}
+    if kinds & _EPISODE_TYPES or said.startswith(("music", "video")):
+        return False
+    if said != "article" and not kinds & _ARTICLE_TYPES:
+        return False
+    words = sum(len(text.split()) for _, _, text in article_paragraphs(html))
+    return words >= ARTICLE_WORDS
+
+
+def _played(address: str, page: object) -> Episode:
+    """A page's own recording, timed from its front where nothing on the page says how
+    long it runs — a length read is a price that is true, and the hour `Library.
+    _prepare_episode` stands in with is for a recording nobody could time
+    (targum-internal#736)."""
+    return Episode(audio_url=address, title=_title(page), seconds=_timed(address))
+
+
+def _timed(address: str) -> float:
+    """How long the recording at `address` runs, from its first bytes; 0.0 where that
+    cannot be read. Through the one outbound door, and never the whole file."""
+    from ..ingest.url import opening
+    from .probe import timed
+
+    try:
+        front = opening(address)
+    except Exception:  # noqa: BLE001 - an untimed recording is still a recording
+        return 0.0
+    return timed(front.head, front.length)
 
 
 def _title(page: object) -> str:
