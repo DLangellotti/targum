@@ -906,6 +906,58 @@ def test_the_saved_page_s_choices_are_this_device_s(browser, saved_served: Serve
         context.close()
 
 
+def test_each_saved_segment_is_one_tab_stop_with_arrows_between(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720 P2 12: a radio group is one Tab stop, and the arrows choose."""
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(saved_served.url("/you/saved"))
+        page.wait_for_selector("#saved-choices:not([hidden])")
+        stops = page.evaluate(
+            """() => [...document.querySelectorAll('.saved-segment')].map((group) =>
+              [...group.querySelectorAll('[role=radio]')]
+                .filter((one) => one.tabIndex === 0)
+                .map((one) => one.getAttribute('aria-checked')))"""
+        )
+        assert stops == [["true"], ["true"]], "one stop per group, on the chosen option"
+
+        page.focus('[data-recent="5"]')
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert page.evaluate("() => document.activeElement.dataset.recent") == "10"
+        assert page.locator('[data-recent="10"]').get_attribute("tabindex") == "0"
+        assert page.locator('[data-recent="5"]').get_attribute("tabindex") == "-1"
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+
+        page.focus('[data-film="1"]')
+        page.keyboard.press("ArrowDown")
+        page.wait_for_function(
+            "() => document.querySelector('[data-film=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert (
+            page.evaluate("() => JSON.parse(localStorage.getItem('targum:offline'))")["film"]
+            is False
+        )
+    finally:
+        context.close()
+
+
 def test_with_no_connection_an_unsaved_page_opens_the_saved_one(
     browser,  # noqa: F811
     saved_served: Served,
@@ -1745,6 +1797,46 @@ def test_a_file_kept_before_stamps_learns_the_server_s_cut(browser, served: Serv
             )
             == 5003
         )
+    finally:
+        context.close()
+
+
+#: That entry with every page's stamp set to a cut the server never had.
+MISSTAMPED = """async (id) => {
+  const cache = await caches.open('targum-offline');
+  const index = await (await cache.match('/offline/index')).json();
+  const stamps = index.items[id].stamps;
+  for (const key of Object.keys(stamps)) if (key.endsWith('.html')) stamps[key] = 'old';
+  await cache.put('/offline/index', new Response(JSON.stringify(index),
+    { headers: { 'Content-Type': 'application/json' } }));
+}"""
+
+
+def test_a_held_page_never_takes_the_server_s_stamp(browser, served: Served) -> None:  # noqa: F811
+    """qa-claude on #1247: a held recording learns the server's cut, but a held page is
+    the build it was kept from, so it keeps a stamp only while the server's agrees, and
+    never takes one that would claim a cut its bytes may not be."""
+    reader = book(served.out / "local" / "book-he")
+    (reader / "audio").mkdir()
+    (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"r" * 4000)
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    text = "/reader/book-he/reader/"
+
+    def pages() -> dict[str, str]:
+        stamps = page.evaluate(ENTRY, text).get("stamps") or {}
+        return {key: value for key, value in stamps.items() if key.endswith(".html")}
+
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert pages(), "a page fetched keeps the server's stamp"
+        page.evaluate(MISSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a held page whose stamp differs takes neither"
+        page.evaluate(UNSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a page held from before stamps learns none"
+        stamps = page.evaluate(ENTRY, text)["stamps"]
+        assert any(key.endswith("audio/recut.mp3") for key in stamps), "a recording does"
     finally:
         context.close()
 

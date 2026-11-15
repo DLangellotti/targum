@@ -69,12 +69,16 @@ done
 # reader who opens the issue while scp is halfway through it gets a page whose second
 # half has not arrived. Rename is atomic within a filesystem, so an edition is either
 # the old one or the new one and never a mixture.
+#
+# `-t` keeps each file's time. A saved copy refetches a file whose size or time changed
+# (#1247), so without it every re-ship stamped the recording new and every saved copy
+# of the issue downloaded it again. `-L` sends what a link points at, with that time.
 echo "== copying =="
 ssh "$HOST" "$AS_TARGUM mkdir -p '$REMOTE/.staging'"
 for folder in $FOLDERS; do
   echo "   $folder"
   ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/.staging/$folder'"
-  rsync -rL -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$folder/" "$HOST:$REMOTE/.staging/$folder/"
+  rsync -rLt -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$folder/" "$HOST:$REMOTE/.staging/$folder/"
 done
 
 # The issue's own sources ride along — the markdown the editions were composed as, and
@@ -83,7 +87,7 @@ done
 # with "No such file or directory: …-aleph.md" the first time somebody pressed one.
 echo "   $WEEK (sources)"
 ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/.staging/$WEEK'"
-rsync -rL -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$WEEK/" "$HOST:$REMOTE/.staging/$WEEK/"
+rsync -rLt -q --rsync-path="$AS_TARGUM rsync" "$LOCAL/$WEEK/" "$HOST:$REMOTE/.staging/$WEEK/"
 
 echo "== putting in place =="
 ssh "$HOST" "$AS_TARGUM rm -rf '$REMOTE/$WEEK' && $AS_TARGUM mv '$REMOTE/.staging/$WEEK' '$REMOTE/$WEEK'"

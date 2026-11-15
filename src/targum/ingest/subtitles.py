@@ -196,11 +196,7 @@ def owes_punctuation(refined: Refined) -> bool:
     names = refined.refiner.split("+")
     if names[0] != FRESH or UNMARKED in names or any(n.startswith("punctuate/") for n in names):
         return False
-    words = [
-        word.model_copy(update={"text": word.text.translate(_BIDI)})
-        for paragraph in refined.paragraphs
-        for word in paragraph.words
-    ]
+    words = _unbidi([word for paragraph in refined.paragraphs for word in paragraph.words])
     if needs_punctuation(words):
         return True
     tokens = [token for word in words for token in word.text.split()]
@@ -245,7 +241,8 @@ def drawn(words: list[Word], opens: set[int] | None = None) -> list[RefinedParag
     inside is cut there, so no paragraph stops mid-sentence; every other cue stays whole.
     """
     opens = opens or set()
-    marked = not sparse(words)
+    # A direction mark after a full stop hides it from the count (qa-claude on #1238).
+    marked = not sparse(_unbidi(words))
     pieces = [
         (index, piece) for index, word in enumerate(words) for piece in _at_sentence_ends(word)
     ]
@@ -295,6 +292,11 @@ def drawn(words: list[Word], opens: set[int] | None = None) -> list[RefinedParag
             )
         )
     return out
+
+
+def _unbidi(words: list[Word]) -> list[Word]:
+    """These words with their direction marks taken out, for counting marks only."""
+    return [word.model_copy(update={"text": word.text.translate(_BIDI)}) for word in words]
 
 
 def _ends(text: str) -> bool:

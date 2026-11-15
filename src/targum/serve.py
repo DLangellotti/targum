@@ -320,6 +320,21 @@ class Refusal(str):
         return made
 
 
+def language_code(value: object) -> str:
+    """A language code as targum writes it: lowercase, the base language alone, so
+    "EN", "ru-RU" and "he_IL" are "en", "ru" and "he". "" for anything that is not one."""
+    code = str(value or "").strip().lower().replace("_", "-").split("-")[0]
+    return code if code.isascii() and code.isalpha() else ""
+
+
+def reading_languages() -> frozenset[str]:
+    """The languages a text may be read in here, and so the only ones a word's meaning
+    may be bought for (`translate.prompts.READING`)."""
+    from .translate.prompts import READING
+
+    return frozenset(code for code, _ in READING)
+
+
 def no_key(ui: str) -> Refusal:
     """Nothing new can be made on this box: what still works, and the way to it."""
     return Refusal(
@@ -16844,7 +16859,9 @@ class Handler(BaseHTTPRequestHandler):
         practise = []
         for lemma in learning[: meetings_module.PRACTISE]:
             line = lines.get(lemma)
-            said = meetings_module.card_line(line, into) if line else None
+            # Cut to the sentence the word is in: a line can be a paragraph
+            # (targum-internal#725, P2 12).
+            said = meetings_module.card_line(line, into, sentence=True) if line else None
             if said:
                 practise.append(said)
         return marked, finished, folder_for, met, practise
@@ -18960,8 +18977,12 @@ class Handler(BaseHTTPRequestHandler):
         what you look up is cached, so the same word is free everywhere after that.
         """
         lemma = str(payload.get("lemma", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as the cache and the checks below write them: lowercase, the base
+        # language alone. Compared as the page sent them, "EN" was not "en" and "ru-RU"
+        # was not "ru", so a meaning in the word's own language could be bought by
+        # spelling it differently.
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
         # The sentence it was tapped in, which is what tells עם from עם. Capped: a
         # sentence is what this is for, and a paragraph is what a page could send.
         sentence = str(payload.get("sentence", "")).strip()[:400]
@@ -18999,7 +19020,14 @@ class Handler(BaseHTTPRequestHandler):
         # targum's account with no job row behind it, so a page that could name any
         # target could make targum buy meanings into any language it liked. A meaning
         # in the word's own language is not approved yet (targum-internal#538).
-        if target == source or target not in self._gloss_targets(document):
+        # And the word has to be in a language somebody may read here: a page that could
+        # name any source could make targum buy Japanese meanings, or English
+        # definitions of English words (`translate.prompts.READING`).
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
             return self._json(
                 {
                     "error": self._say(

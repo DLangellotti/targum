@@ -257,6 +257,23 @@ def test_commas_without_full_stops_or_hidden_by_direction_marks(tmp_path) -> Non
     assert len(marked.paragraphs) > 1
 
 
+def test_direction_marks_do_not_make_a_marked_track_close_at_every_pause() -> None:
+    """qa-claude on #1238: `drawn` read a track whose every mark had an RLM after it as
+    bare of marks, and closed a paragraph at each pause, mid-sentence or not."""
+    from targum.ingest.subtitles import drawn
+    from targum.transcribe.models import Word
+
+    # Commas inside each sentence, a full stop every third cue, two seconds between cues.
+    texts = [f"{cue}{'.' if n % 3 == 2 else ','}\u200f" for n, cue in enumerate(CUES * 3)]
+    words = [Word(text=t, start=n * 4.0, end=n * 4.0 + 2.0) for n, t in enumerate(texts)]
+    paragraphs = drawn(words)
+    plain = drawn([w.model_copy(update={"text": w.text.replace("\u200f", "")}) for w in words])
+    assert len(paragraphs) == len(plain), "drawn as the same track without them"
+    assert len(paragraphs) < len(words), "not a paragraph at every pause"
+    for paragraph in paragraphs[:-1]:
+        assert paragraph.text.rstrip("\u200f").endswith("."), "closed at a sentence end"
+
+
 def two_parts(tmp_path: Path, step: float = 4.0) -> Path:
     """A 25-minute track: the cues in part 1's first minute and part 2's first minute."""
     from targum.audio import PAD  # noqa: F401 - the parts are cut with it either side
