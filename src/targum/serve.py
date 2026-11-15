@@ -14350,6 +14350,23 @@ class Handler(BaseHTTPRequestHandler):
         # reader's own figures from the weeks it was on are still theirs (design.md §12,
         # "The mockups win on Your Progress", 2026-10-09). Stopped by the reader, nothing.
         on = self.store.collects(person.id)
+        # The reader's foot asks twice, and never for the words of each day, which it
+        # does not draw (qa on #1246): `only=goals` is the goals alone, asked before the
+        # finish's events are sent, so a reader with no goal in the language sends and
+        # asks nothing more; `only=goal` is the goals and the record, for the line.
+        only = str(((query or {}).get("only") or [""])[0])
+        goals = self.store.goals(person.id)
+        if only == "goals":
+            return self._json({"signedIn": True, "on": on, "goals": goals})
+        if only == "goal":
+            return self._json(
+                {
+                    "signedIn": True,
+                    "on": on,
+                    "goals": goals,
+                    "totals": self.store.totals(person.id) if on else [],
+                }
+            )
         self._json(
             {
                 "signedIn": True,
@@ -14359,7 +14376,7 @@ class Handler(BaseHTTPRequestHandler):
                 # The daily goal per language (targum-internal#537): a setting the reader
                 # chose, handed back with the record the page reads it against. Whether a
                 # day met it is worked out there, never here.
-                "goals": self.store.goals(person.id),
+                "goals": goals,
                 "words": {
                     "began": self.store.began(),
                     "days": self.store.words_by_day(person.id, zone),

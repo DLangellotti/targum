@@ -2596,8 +2596,12 @@ class Store:
         it. A unit or an amount off the fixed steps is refused. The other languages'
         goals stay as they were. Nothing is kept about the days themselves: whether a day
         met the goal is the page's reading of the record, never a row here."""
+        from .translate.prompts import READING
+
         code = str(language or "").split("-")[0].strip().lower()
-        if not re.fullmatch(r"[a-z]{2,3}", code):
+        # Only a language targum reads (qa on #1246): a goal in any other has no record
+        # to be read against.
+        if code not in {reading for reading, _how in READING}:
             raise ValueError("No such choice.")
         try:
             amount = int(amount)

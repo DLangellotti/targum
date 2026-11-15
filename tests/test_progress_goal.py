@@ -146,6 +146,8 @@ def test_a_goal_is_kept_per_language_and_off_the_steps_is_refused(tmp_path: Path
             store.set_goal(person, "he", unit, amount)
     with pytest.raises(ValueError):
         store.set_goal(person, "../he", "words", 100)
+    with pytest.raises(ValueError, match="No such choice."):
+        store.set_goal(person, "zz", "words", 100)
     assert store.set_goal(person, "he", "words", 0) == {}, "0 removes"
     assert store.goals(person.id) == {"ru": {"unit": "minutes", "amount": 15}}
     store.set_goal(person, "ru", "", 0)
@@ -221,6 +223,21 @@ def test_the_goal_is_set_through_the_door_and_handed_back_with_the_totals(
     assert status == 200 and said["goal"] == {"unit": "words", "amount": 250}
     status, said, _ = call(port, "GET", f"/account/totals?k={token}&tz=UTC", cookie=cookie)
     assert status == 200 and said["goals"] == {"he": {"unit": "words", "amount": 250}}
+    # The reader's foot asks the goals alone, then the goals and the record, and never
+    # the words of each day (qa on #1246).
+    status, said, _ = call(port, "GET", f"/account/totals?k={token}&only=goals", cookie=cookie)
+    assert status == 200 and said["goals"] == {"he": {"unit": "words", "amount": 250}}
+    assert "words" not in said and "totals" not in said
+    status, said, _ = call(port, "GET", f"/account/totals?k={token}&only=goal", cookie=cookie)
+    assert status == 200 and "totals" in said and "words" not in said
+    status, said, _ = call(
+        port,
+        "POST",
+        f"/account/goal?k={token}",
+        {"language": "xx", "unit": "words", "amount": 250},
+        cookie=cookie,
+    )
+    assert status == 400, "only a language targum reads"
     status, said, _ = call(
         port,
         "POST",
@@ -355,6 +372,11 @@ def test_a_refused_goal_says_so_and_keeps_the_form() -> None:
     assert drawn["goal"]["form"] and drawn["goal"]["refused"] == "No such choice."
 
 
+def test_a_session_ended_mid_page_is_a_failed_save_not_a_refusal() -> None:
+    drawn = _effort([_row(_ago(1), words=5)], goal_steps=[["open"], ["save"]], goal_signed_out=True)
+    assert drawn["goal"]["form"] and drawn["goal"]["refused"] == "We couldn't save that. Try again."
+
+
 def _russian() -> dict[str, Any]:
     from targum import strings
 
@@ -443,3 +465,9 @@ def test_the_foot_says_the_goal_once_a_day_and_only_good_news() -> None:
     assert "if (on) goalFoot();" in reader
     # Off the disk, signed out or with no goal it asks nothing and says nothing.
     assert "if (!served" in foot and "TargumSync.who" in foot and "if (!goal" in foot
+    # The goals are asked alone first, and a finish with no goal in the language stops
+    # there: before the events are flushed and before the record is read (qa on #1246).
+    assert "/account/totals?only=" in foot and '"/account/totals"' not in foot
+    goals_at = foot.index('asked("goals")')
+    stop_at = foot.index("if (!goal || !finishedAt()) return null;")
+    assert goals_at < stop_at < foot.index("happenings.flush") < foot.index('asked("goal")')

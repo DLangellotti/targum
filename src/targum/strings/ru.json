@@ -4999,7 +4999,7 @@
   "progress.goal.amount": "В день",
   "progress.goal.save": "Сохранить",
   "progress.goal.remove": "Убрать цель",
-  "progress.goal.says": "Считаем дни, когда цель выполнена, из последних 7 или 30.",
+  "progress.goal.says": "Считаем дни, когда цель выполнена, из последних 7 или 30 дней.",
   "progress.goal.label": "Вы занимались {n} из последних {all} дней, и в {met} из них цель выполнена.",
   "progress.goal.refused": "Такого варианта нет.",
   "progress.goal.failed": "Не удалось сохранить. Попробуйте ещё раз.",

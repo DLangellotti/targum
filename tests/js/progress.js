@@ -87,6 +87,9 @@ global.fetch = global.window.fetch = (url, options) => {
   if (String(url).indexOf("/account/goal") === 0) {
     const sent = JSON.parse((options && options.body) || "{}");
     posted.push(sent);
+    if (payload.goalSignedOut) {
+      return Promise.resolve({ ok: false, json: () => Promise.resolve({ signedIn: false }) });
+    }
     if (payload.goalRefused) {
       return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: "No such choice." }) });
     }

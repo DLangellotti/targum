@@ -30,7 +30,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (accounts schema 67 to 68, one ALTER that does not depend on the number), set by
   `POST /account/goal`, carried in the export and cleared with the account.
   `events.js`'s `flush` now returns its request so the foot reads the record after the
-  page's own events have arrived. New strings `progress.goal.*` and `reader.foot.goal-*`
+  page's own events have arrived. The foot asks `/account/totals?only=goals` first and
+  stops there when the language has no goal, before any flush; only then does it flush
+  and ask `?only=goal`, which never works out the words of each day. A goal is kept only
+  for a language targum reads, and a save refused because the session ended says the
+  save failed rather than "No such choice." New strings `progress.goal.*` and `reader.foot.goal-*`
   in English and Russian; the Russian waits on ling-ru's first pass.
 - A signed-in reader's /connect now says which apps are connected, for example "You've
   connected Claude.", with "Manage connections in Your account" linking to

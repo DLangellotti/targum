@@ -1756,17 +1756,31 @@ var targumReader = function () {
     var today = goalToday();
     var said = read(GOAL_SAID, "{}");
     if (said[language] === today) return;
-    var handed = happenings && happenings.flush ? happenings.flush() : null;
-    Promise.resolve(handed)
-      .then(function () {
-        return fetch(keyed("/account/totals"), { credentials: "same-origin", headers: keyHeaders({}) });
-      })
-      .then(function (answer) {
+    function asked(only) {
+      return fetch(keyed("/account/totals?only=" + only), {
+        credentials: "same-origin",
+        headers: keyHeaders({}),
+      }).then(function (answer) {
         return answer.json();
+      });
+    }
+    // The goals first, alone (qa on #1246): a reader with no goal in this language, or
+    // with the record stopped, stops here, before the finish's events are sent early
+    // and before the record is read at all.
+    var goal = null;
+    asked("goals")
+      .then(function (answer) {
+        if (!answer || !answer.signedIn || !answer.on) return null;
+        goal = (answer.goals || {})[language];
+        if (!goal || !finishedAt()) return null;
+        var handed = happenings && happenings.flush ? happenings.flush() : null;
+        return Promise.resolve(handed).then(function () {
+          return asked("goal");
+        });
       })
       .then(function (answer) {
         if (!answer || !answer.signedIn || !answer.on) return;
-        var goal = (answer.goals || {})[language];
+        goal = (answer.goals || {})[language] || null;
         if (!goal || !finishedAt()) return;
         var sum = 0;
         (answer.totals || []).forEach(function (row) {

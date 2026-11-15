@@ -1257,6 +1257,13 @@
         });
       })
       .then(function (got) {
+        // A session that ended while the page was open is not a refused choice (qa on
+        // #1246): it is said as the save that did not happen.
+        if (got.said && got.said.signedIn === false) {
+          refused.textContent = t("progress.goal.failed", "We couldn't save that. Try again.");
+          refused.hidden = false;
+          return;
+        }
         if (!got.ok || !got.said || !got.said.signedIn) {
           refused.textContent = t("progress.goal.refused", "No such choice.");
           refused.hidden = false;

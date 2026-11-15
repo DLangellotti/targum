@@ -61,6 +61,7 @@ def draw(
     goals: dict[str, Any] | None = None,
     goal_steps: list[list[str]] | None = None,
     goal_refused: bool = False,
+    goal_signed_out: bool = False,
 ) -> dict[str, Any]:
     with tempfile.TemporaryDirectory() as where:
         payload = Path(where) / "payload.json"
@@ -88,6 +89,7 @@ def draw(
                     "goals": goals,
                     "goalSteps": goal_steps,
                     "goalRefused": goal_refused,
+                    "goalSignedOut": goal_signed_out,
                     **({} if period is None else {"period": period}),
                 }
             ),
