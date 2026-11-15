@@ -313,6 +313,9 @@ acts.
   targum's are the same ink under a quiet label, never two colours of bubble; sending is
   a working action and takes the accent; the send button, the new-conversation door and
   the rows of the list are in `test_brand.py`'s thumb registry. Added 2026-09-05.
+  *(Amended 2026-11-15, David: for the reader's lines, superseded by "Talk is a sheet
+  over a dimmed page", 2026-10-09 — the reader's lines are in the teal wash at the end
+  edge, targum's on the card.)*
 - **The box is the front door, and it is not a raised layer.** The same field stands
   on Learn, under the ledger's own sentence, and on the conversation page, from one file
   (`_composer.html.j2`): a hairline field on paper, Send in the accent, Speak and the
@@ -10706,6 +10709,9 @@ caret; the thread follows the newest line only while the reader was at the botto
 turn fades in over 200ms, or not at all under prefers-reduced-motion. What it keeps: one
 raised layer, the thread; the box a hairline field; no bubbles, no avatars, no second
 column, no iframe — the shell cut on 2026-09-06 stays cut.
+*(Amended 2026-11-15, David: for the reader's lines, superseded by "Talk is a sheet
+over a dimmed page", 2026-10-09 — the reader's lines are in the teal wash at the end
+edge, targum's on the card.)*
 
 The line under each Hebrew line is in the language the reader reads (2026-09-10,
 targum-internal#243). It was English by name in the contract, whatever the account said
