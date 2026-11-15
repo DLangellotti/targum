@@ -77,6 +77,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     two options would both be that language.
 
 ### Changed
+- A1 is Easy's two ceilings and short (targum-internal#728, design.md §12 "A1 is Easy's
+  two ceilings and short", 2026-11-15). For placement an Easy text is A1 where its share
+  is at most 15, its mean sentence at most 9.5 words, and it runs more than none and at
+  most 3 minutes (`levelmap.places_a1`); both of the spec's floors are dropped, so a text
+  easier than a floor is no longer placed A2, above texts harder than it. The rest of Easy
+  is A2. `level_for`, and so `text_level`, `tally` and `cefr_rows`, read the new rule
+  together.
+  - `meets_easy` keeps its floors: it is still what the weekly is written to and what the
+    Easy-spec target row counts. `Shelf.easy` stays that row; `Shelf.a1` is the new A1
+    count `cefr_rows` reads.
+  - On the laptop's catalogue the modern ladder moves A2 → A1 by 2 texts in Hebrew
+    (201/82 → 203/80), 14 in Russian (130/63 → 144/49) and 34 in French (50/40 → 84/6).
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`
   (targum-internal#723, design.md §12 "The invitation's link leads with signing in",
   2026-11-14). From that link the page leads with signing in and does not show "New here?
