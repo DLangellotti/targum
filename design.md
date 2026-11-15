@@ -384,6 +384,81 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### A1 is Easy's two ceilings and short — 2026-11-15
+
+David, 2026-11-15 (targum-internal#728), choosing option A′ of design's measurement on
+the card. A1 placement ran backwards at the easy end: `level_for` put an Easy text at A1
+only where it met the Easy spec in full, floors included, so a text easier than a floor
+(difficulty 2 to 4, or sentences under 4 words) was placed A2, above texts harder than
+it. It amends the mapping in "A badge is a promise, checked" (2026-10-12) and its
+restatement in "Your level leads with what you can read" (2026-10-28, the rows bullet),
+each in place.
+
+- **For CEFR placement, A1 is an Easy text under both of Easy's ceilings and short:**
+  difficulty at most 15, a mean sentence of at most 9.5 words, and more than none and at
+  most 3 minutes. Both Easy floors are dropped for placement. The rest of Easy is A2.
+- **The floors stay the weekly writer's.** The Easy spec in full, both floors and both
+  ceilings and short (`meets_easy`), is still what the weekly is written to and what the
+  Easy-spec target row counts. Only placement changes, so the shelf counts the spec apart
+  from A1.
+- **One rule for every count.** `text_level`, `cefr_rows` and the stage floors read the
+  new placement together, as they read the old one.
+
+What it does not overturn: B1, B2 and up and every written level stay as they were, and
+"short" still decides A2. Whether the 3-minute rule should is left for its own decision.
+
+### Signup opens before payments, and the beta is comped to Plan — 2026-11-15
+
+David, 2026-11-15. Open signup no longer waits for payments (targum-internal#59). On the
+day the open-signup switch goes on, plans go on with it, and the people already reading
+keep what they had. It amends "Sign in with Google goes live, and signup opens to anyone"
+(2026-11-14), "Free and Plan, behind a switch" and "A monthly cap is the second press that
+lasts" (both 2026-10-09), each in place.
+
+- **`TARGUM_PLANS=1` from switch day.** Free and Plan are as the 2026-10-09 entry draws
+  them.
+- **Comped to Plan until 2027-03-04:** every account that exists on switch day, and
+  anyone let in from the waitlist while invitations are still going out.
+- **A new sign-up gets Free:** 60 credits a month, a word list of 300 words, and no
+  subscriptions to a channel or a podcast.
+
+What it does not overturn: the open door's safety, the box ceiling and `Library.claim` as
+the one gate, as the 2026-11-14 entry says. A comp is Plan, so it spends on the same rails.
+
+### Payments are Paddle's, by a hosted checkout — 2026-11-15
+
+David, 2026-11-15. Paddle is the payment provider, as merchant of record, so the provider
+the older entries waited for is chosen. It amends "Free and Plan, behind a switch", "The
+plans page is the one place money shows", "Your account is the board's sections", "A
+refusal is drawn on one of five surfaces" and "Refusals say what to do next" (all
+2026-10-09), each in place.
+
+- **Paddle is the merchant of record.** It is the seller on the reader's receipt and
+  handles the sales tax, so targum keeps no card and no tax table.
+- **The checkout is Paddle's hosted one, reached by a redirect.** A pay press goes to
+  targum's own server, which answers with a redirect to the checkout Paddle hands it. The
+  reader pays on Paddle's page and Paddle sends them back to targum's.
+- **No provider script on targum's own pages.** No Paddle script, frame, overlay, font or
+  image is on any page of ours, `/plans` included. The only Paddle script a reader's
+  browser runs is the checkout's own, on Paddle's origin, after the reader has left ours.
+- **How that squares with "A reader fetches nothing from any other site"** (2026-10-30).
+  The rule is about what a page of ours loads, and with this a page of ours still loads
+  nothing from Paddle: `script-src`, `style-src`, `font-src`, `img-src`, `frame-src` and
+  `connect-src` stay as they are. The checkout is a navigation the reader chose by
+  pressing, the same kind of exception as an outbound link, and like Continue with
+  Google, whose page holds an anchor to Google and no Google script (2026-11-14). The one
+  policy change is the pay press's own page: its `form-action` names Paddle's checkout
+  origin and nothing else, because Chrome checks a form's redirect against it, as the
+  approval page names a client's callback. Readers, saved copies and every other page
+  keep the policy they have.
+- **Prices as set.** Plan is $16 a month or $39 a quarter, with 480 credits a month.
+  Top-ups are 60, 180 or 300 credits at $3 an hour: $3, $9 and $15. The $3 top-up stays
+  even though Paddle's fixed fee for each sale takes a larger share of it.
+
+What it does not overturn: a cost is still credits everywhere but `/plans` and the
+checkout, a build is still quoted and pressed, and `Library.claim` is still the one gate.
+The pay buttons stay greyed, with "Payments open soon", until the checkout is live.
+
 ### A reader says our estimate until anything in it is marked — 2026-11-15
 
 Design's pick of option A in targum-internal#724 (split from #723 P2 7); David,
@@ -478,6 +553,10 @@ in place.
   in, and say what it receives, before the button is drawn on the box. The switch goes on
   only on David's word, after that test. Until then the code and the copy merge with the
   switch off, and every page stays as the 2026-11-03 entry draws it, Google aside.
+  *(Amended 2026-11-15: open signup does not wait for payments (targum-internal#59).
+  `TARGUM_PLANS` goes on with it, the accounts of switch day and those let in while
+  invitations go out are comped to Plan until 2027-03-04, and a new sign-up gets Free;
+  see "Signup opens before payments, and the beta is comped to Plan".)*
 
 ### Connecting an app again replaces its older grant, and a grant left alone ends — 2026-11-14
 
@@ -3459,7 +3538,9 @@ comes back as one line at the foot.
   easier than a hard conversation, so a kind has no one difficulty). "Texts by level":
   Beginner · A1, A2, B1, B2 and up, each text placed by the rule the stage standard counts
   the shelf by (`levelmap.text_level`, the same as `cefr_rows`: the Easy spec in full is
-  A1, the rest of Easy A2, Simplified B1, Native B2 and up), from the catalogue's own
+  A1, the rest of Easy A2 *(2026-11-15: A1 is Easy's two ceilings and short, the floors
+  dropped; see "A1 is Easy's two ceilings and short")*, Simplified B1, Native B2 and
+  up), from the catalogue's own
   `difficulty` and `sentence`. An unmeasured text, and an older Hebrew, is on no row. A
   level with nothing at it in the language is not a row. Aramaic keeps its climb of
   Targums (2026-10-25), which no level has been measured for, without links or counts.
@@ -5156,7 +5237,9 @@ HTML one, and every list mail's one-click unsubscribe and List-Id.
 
 P15 of the polish plan (David, 2026-10-08 and 2026-10-09; boards PlanPricing,
 PlanPricingPhone, PlanUpgradeMoment, PlanTopUp and PlanAccount). **Everything here sits
-behind `TARGUM_PLANS`, which is off.** With it off nothing changes for anybody: every
+behind `TARGUM_PLANS`, which is off.** *(2026-11-15: it goes on with open signup; see
+"Signup opens before payments, and the beta is comped to Plan".)* With it off nothing
+changes for anybody: every
 account keeps 480 credits a month and a word list of any length, and Your account keeps
 its one early-access plan. What the switch turns on:
 
@@ -5165,7 +5248,9 @@ its one early-access plan. What the switch turns on:
   three months. Reading, the library, word cards and text uploads are unmetered on both.
   Until there is a payment provider nobody is on Plan, so on means the operator alone
   (`Person.admin`), which is how a box can be tried with plans on before anybody can buy
-  one (`plans.paid`).
+  one (`plans.paid`). *(Amended 2026-11-15: the accounts of switch day, and those let in
+  from the waitlist while invitations go out, are on Plan until 2027-03-04, and the
+  provider is Paddle; see the two entries of that day.)*
 - **The free word list holds 300 words.** A word counts while it is being learned (stages
   1 to 3, across every language). A word marked known or ignored does not, so reading
   goes on marking as it always did. A reader already past 300 when the switch goes on keeps
@@ -5175,6 +5260,8 @@ its one early-access plan. What the switch turns on:
 - **Monthly credits start fresh on the 1st, and topped-up credits stay until they are
   used.** The first is what the ledger already did (`SUM(length)` since the 1st). The
   second waits for a provider: nothing can buy a credit yet, so nothing stores one.
+  *(2026-11-15: the provider is Paddle, and a top-up is stored once its checkout is
+  live.)*
 - **No top-up on Free.** A free reader out of credits is offered the plan; a reader on
   Plan is offered Top up. Both are greyed.
 - **Chatting stays included on Free**, held by the daily rail and not by the month's 60.
@@ -5205,11 +5292,14 @@ what Plan costs, in US dollars, because a price nobody may read is not a price.
   figures (2026-09-16), and a stranger asking for `/plans` is sent to sign in.
 - **Every pay button is drawn and greyed**, with "Payments open soon" beside it: Start the
   plan, Start a plan, Top up, Switch and Cancel plan. There is no payment provider and none
-  is chosen.
+  is chosen. *(Amended 2026-11-15: Paddle is chosen, as merchant of record, with a hosted
+  checkout by redirect; the buttons stay greyed until it is live. See "Payments are
+  Paddle's, by a hosted checkout".)*
 - **A cost is still credits everywhere else.** The panels name the plan by its credits
   ("A plan gives you 480 credits a month, which is 8 hours of audio or video") and send
   the reader here for the price; no panel, card or mail carries a figure in money.
-- **What the board drew and is not here:** the tax line (no checkout exists to add it),
+- **What the board drew and is not here:** the tax line (no checkout exists to add it;
+  2026-11-15, the tax is Paddle's as merchant of record, on its checkout),
   the example of hearing a chapter read aloud (its figure was a placeholder), "Hear any
   text read aloud" among Plan's lines (a free reader hears text too, inside their 60),
   and receipts and a payment method on Your account (there are none). The library's size
@@ -5396,7 +5486,8 @@ for each section:
 - **Plan.** There is one plan while targum is in early access: "480 credits a month while
   targum is in early access · back on November 1". Top up's two buttons (60 and 180
   credits) are drawn and greyed, with "Payments open soon" under them, as the refusal
-  surfaces draw Top up until a payment provider is chosen. There are no receipts to list,
+  surfaces draw Top up until a payment provider is chosen *(2026-11-15: Paddle, greyed
+  until its checkout is live)*. There are no receipts to list,
   no plan to change and no money anywhere.
 - **Your languages, as rows.** Each language being learned has Remove, except Hebrew,
   which the server also keeps on. "Start another language" offers the rest. "Read and
@@ -6232,7 +6323,8 @@ What this departs from, and why:
   account would be.
 - **Top up is drawn and greyed.** The out-of-credits panels carry a Top up button that
   cannot be pressed, with "Payments open soon" beside it, until a payment provider is
-  chosen. The sentence already names Top up (the entry below), and a name with nothing
+  chosen *(2026-11-15: Paddle, so until its checkout is live)*. The sentence already
+  names Top up (the entry below), and a name with nothing
   drawn behind it read as a promise; a greyed button with the reason beside it reads as a
   date.
 - **The action leaves the sentence once it has a control.** "Until a surface is built, the
@@ -6874,7 +6966,9 @@ itself needs a second, and this is it, said before any of it is built.
   raises a cap or resumes a subscription.
 - **Paid plans only**, behind `TARGUM_PLANS`: a free account may subscribe to series and
   news but not to a channel or a podcast. With the switch off, as it is until a payment
-  provider is chosen, everybody may.
+  provider is chosen, everybody may. *(2026-11-15: the switch goes on with open signup,
+  so a new sign-up on Free may not, and a comped account on Plan may; see "Signup opens
+  before payments, and the beta is comped to Plan".)*
 
 What it does not overturn: a build a reader asks for is still quoted and pressed; the
 `chat` scope stays the one standing consent a host can hold; and a cost is still credits,
@@ -7002,7 +7096,9 @@ entry makes the three words promises to the reader, in order, and makes a test k
 - **The shelf is counted on the library's own ruler**, which places a text on three
   levels by hard-word share and sentence length, and the floors are stated in CEFR by a
   mapping said rather than measured: A1 is a text meeting the Easy spec in full, A2 the
-  rest of Easy, B1 Simplified, and **Native is one level, B2 and up**, until there is a
+  rest of Easy, B1 Simplified *(2026-11-15, targum-internal#728: A1 is Easy's two
+  ceilings and short, both floors dropped for placement; see "A1 is Easy's two ceilings
+  and short")*, and **Native is one level, B2 and up**, until there is a
   better ruler than a median nobody measured. The floors were set on 2026-10-12, once the
   difficulty sweep had measured the catalogue, just under Hebrew's thinnest level for
   Beta (90 texts and 35 with a recording at every level) and at two fifths of that for
@@ -7151,7 +7247,8 @@ place, a connection banner, a whole page) come in a slice of their own.
   are retired there.
 - **Out of credits names Top up.** "You've used this month's credits. Top up, or they
   come back on 1 November." The button is drawn but stays greyed until a payment
-  provider is chosen, and until then the date is the way on; "There is no top-up to send
+  provider is chosen *(2026-11-15: Paddle, so until its checkout is live)*, and until
+  then the date is the way on; "There is no top-up to send
   them to yet" (the parts entry, 2026-10-07) is still true of the button.
 - **That refusal no longer recites the allowance and the rate.** The rate goes beside
   every balance (2026-09-23), and a refusal for credits that are spent shows no balance:
