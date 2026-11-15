@@ -432,10 +432,59 @@ def _is_point(char: str) -> bool:
     return unicodedata.category(char) == "Mn"
 
 
-def card_line(line: Line, into: str) -> dict[str, object] | None:
+def _spans(text: str, language: str) -> list[tuple[int, int]]:
+    """Where each of the text's sentences stands in it, by the rules the build draws a
+    text's lines with (`segment.hebrew.HebrewSegmenter`, less Stanza, which audits no
+    tokenizer today). One span, the whole text, where the rules find one sentence."""
+    from .segment import cased
+    from .segment.hebrew import HEBREW_SCRIPT, sentences
+
+    code = (language or "").split("-")[0].lower()
+    pieces = sentences(text) if code in HEBREW_SCRIPT else cased.sentences(text, code)
+    spans: list[tuple[int, int]] = []
+    at = 0
+    for piece in pieces:
+        start = text.find(piece, at)
+        if start < 0:
+            return [(0, len(text))]
+        spans.append((start, start + len(piece)))
+        at = start + len(piece)
+    return spans or [(0, len(text))]
+
+
+def one_sentence(
+    shown: str, start: int, end: int, translation: str, language: str, into: str
+) -> tuple[str, int, int, str]:
+    """The sentence of `shown` that holds the word, the word's place in it, and the
+    sentence of the translation that says it (targum-internal#725, P2 12).
+
+    A line is a build's segment, and a segment drawn before the rules drew Hebrew
+    sentences (targum#71) can be a whole paragraph: a line from אהבת ציון ran to nine
+    lines of Hebrew and six of English on the practice card. Cut to the sentence the word
+    stands in. The translation is cut to the sentence in the same place where it has as
+    many sentences as the line; where it does not, which of them says this one cannot be
+    told, so the card says none rather than a paragraph under a sentence.
+    """
+    spans = _spans(shown, language)
+    if len(spans) < 2:
+        return shown, start, end, translation
+    at = next((n for n, (a, b) in enumerate(spans) if a <= start < b), None)
+    if at is None or end > spans[at][1]:
+        return shown, start, end, translation
+    a, b = spans[at]
+    said = ""
+    if translation:
+        theirs = _spans(translation, into)
+        if len(theirs) == len(spans):
+            said = translation[theirs[at][0] : theirs[at][1]]
+    return shown[a:b], start - a, end - a, said
+
+
+def card_line(line: Line, into: str, sentence: bool = False) -> dict[str, object] | None:
     """What the practice card says about one line: the text it is in and where, the line
     with the word's place in it, and the line's translation. None where the segment is
-    gone from the text."""
+    gone from the text. With `sentence`, the line and its translation are cut to the
+    sentence the word stands in (`one_sentence`)."""
     from .models import SegmentedDocument, read_artifact
 
     segmented = read_artifact(SegmentedDocument, line.folder / "segments.json")
@@ -450,17 +499,23 @@ def card_line(line: Line, into: str) -> dict[str, object] | None:
         facts = json.loads((line.folder / "document.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         facts = {}
+    language = str(facts.get("language") or segmented.language)
+    translation = _translation(line.folder, into).get(line.segment, "")
+    if sentence:
+        shown, start, end, translation = one_sentence(
+            shown, start, end, translation, language, into
+        )
     return {
         "lemma": line.lemma,
         "line": shown,
         "start": start,
         "end": end,
         "word": shown[start:end],
-        "translation": _translation(line.folder, into).get(line.segment, ""),
+        "translation": translation,
         "title": str(facts.get("title") or ""),
         # A text of more than one part names the one the line is in, as Continue does.
         "chapter": line.section if sections > 1 else 0,
         "name": line.folder.name,
-        "language": str(facts.get("language") or segmented.language),
+        "language": language,
         "case": line.case,
     }

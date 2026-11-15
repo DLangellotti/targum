@@ -1404,7 +1404,9 @@
         : "";
       var ups = document.getElementById("plan-top-ups");
       ups.textContent = "";
-      (plan.topUps || []).forEach(function (n) {
+      (plan.topUps || []).forEach(function (n, at) {
+        // Said, not offered (targum-internal#719, P2 11): a dot between, as a line says it.
+        if (at) ups.appendChild(document.createTextNode(" \u00b7 "));
         var one = document.createElement("span");
         one.textContent = t("you.plan.top-up-credits", "{n} credits", { n: n });
         ups.appendChild(one);

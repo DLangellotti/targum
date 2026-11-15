@@ -658,3 +658,39 @@ def test_a_grant_whose_answer_was_lost_is_accepted(browser) -> None:
     finally:
         context.close()
     assert "now offers a correction" in said
+
+
+def test_top_up_amounts_are_said_not_offered_while_top_up_is_off(browser) -> None:
+    """targum-internal#719 P2 11: beside a greyed Top up, the amounts were a live `.seg` in
+    full ink, a choice that could be made and then could not. They are plain muted text."""
+    plan = {
+        "on": True,
+        "plan": "plan",
+        "credits": 480,
+        "planCredits": 480,
+        "words": None,
+        "listed": 0,
+        "topUps": [60, 180, 600],
+    }
+    context, page, _ = opened(browser, me={**ME, "plan": plan})
+    try:
+        page.wait_for_selector("#plan-paid:not([hidden])")
+        ups = page.locator("#plan-top-ups")
+        assert ups.inner_text().split() == "60 credits · 180 credits · 600 credits".split()
+        drawn = ups.evaluate(
+            """(el) => ({
+              seg: el.classList.contains('seg'),
+              fill: getComputedStyle(el).backgroundColor,
+              presses: el.querySelectorAll('button, [role=radio], [tabindex]').length,
+              ink: getComputedStyle(el.firstElementChild).color,
+              greyed: el.nextElementSibling.disabled,
+            })"""
+        )
+        assert drawn["seg"] is False and drawn["presses"] == 0
+        assert drawn["fill"] in ("rgba(0, 0, 0, 0)", "transparent"), "no segment's field"
+        assert drawn["greyed"] is True, "Top up itself stays greyed"
+        assert drawn["ink"] != page.evaluate(
+            "getComputedStyle(document.querySelector('#plan-paid .acct-name')).color"
+        ), "not in full ink"
+    finally:
+        context.close()

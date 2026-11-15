@@ -1176,3 +1176,110 @@ def test_a_paused_subscription_promises_no_mail(browser) -> None:
     mail = page.evaluate("() => document.querySelectorAll('.sub-mail').length")
     context.close()
     assert mail == 0
+
+
+def _tab_at(browser, width: int, touch: bool = False):
+    """The Subscriptions tab over ROWS (the fourth is paused) at `width`."""
+    context = browser.new_context(
+        viewport={"width": width, "height": 1600}, has_touch=touch, is_mobile=touch
+    )
+    page = context.new_page()
+    thrown: list[str] = []
+    page.on("pageerror", lambda error: thrown.append(str(error)))
+    listed = {
+        "signedIn": True,
+        "subscriptions": ROWS,
+        "series": SERIES,
+        "credits": {"left": 354, "back": "November 1"},
+    }
+    serve(
+        page,
+        {
+            "/": list_page("", "texts"),
+            "/readers": {
+                "readers": [
+                    {"name": "own", "document": "own", "title": "כתבה", "language": "he",
+                     "entry": "", "built": 1, "minutes": 3, "seconds": 0, "sections": 1,
+                     "chapters": []}
+                ],
+                "shared": [],
+                "trash": [],
+            },
+            "/subscriptions.json": listed,
+        },
+        [],
+    )  # fmt: skip
+    page.goto(f"{SITE}/?show=subscriptions")
+    page.wait_for_selector("#subs-rows .sub-row")
+    return context, page, thrown
+
+
+COLUMNS = """() => [...document.querySelectorAll('#subs-rows .sub-row')].map((row) => ({
+  paused: row.classList.contains('is-paused'),
+  latest: Math.round(row.querySelector('.sub-latest').getBoundingClientRect().left),
+  every: Math.round(row.querySelector('.sub-every').getBoundingClientRect().left),
+  month: Math.round(row.querySelector('.sub-month').getBoundingClientRect().left),
+}))"""
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_paused_row_s_columns_line_up_with_the_others_at_a_desk(browser, touch: bool) -> None:
+    """targum-internal#716 P2 19: with no Pause, the paused row's last column was
+    narrower, and its Latest and Comes out sat 12–25px right of the other rows'."""
+    context, page, thrown = _tab_at(browser, 1440, touch=touch)
+    try:
+        rows = page.evaluate(COLUMNS)
+        assert any(row["paused"] for row in rows) and not all(row["paused"] for row in rows)
+        for column in ("latest", "every", "month"):
+            assert len({row[column] for row in rows}) == 1, (column, rows)
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+
+def test_on_a_phone_pause_says_its_word_at_the_end_of_the_name(browser) -> None:
+    """targum-internal#716 P2 19: at 390, Pause was a bare ‖ on a line of its own under
+    each row. It stands at the end of the row's name, and says Pause."""
+    context, page, thrown = _tab_at(browser, 390, touch=True)
+    try:
+        got = page.evaluate(
+            """() => [...document.querySelectorAll('#subs-rows .sub-row')]
+              .filter((row) => row.querySelector('.sub-row-pause'))
+              .map((row) => {
+                const who = row.querySelector('.sub-who').getBoundingClientRect();
+                const acts = row.querySelector('.sub-row-acts').getBoundingClientRect();
+                const pause = row.querySelector('.sub-row-pause');
+                return {
+                  sameLine: acts.top < who.bottom && acts.bottom > who.top,
+                  after: acts.left >= who.right - 1,
+                  inside: acts.right <= row.getBoundingClientRect().right + 1,
+                  said: pause.innerText.trim(),
+                  label: pause.getAttribute('aria-label'),
+                };
+              })"""
+        )
+        assert got, "rows with a Pause"
+        for one in got:
+            assert one["sameLine"] and one["after"] and one["inside"], one
+            assert one["said"] == "Pause", one
+            assert one["label"].startswith("Pause · "), one
+        assert (
+            page.evaluate(
+                "() => getComputedStyle(document.querySelector('.sub-row-pause-word')).display"
+            )
+            != "none"
+        )
+        assert not thrown, thrown
+    finally:
+        context.close()
+
+    context, page, _ = _tab_at(browser, 1440)
+    try:
+        assert (
+            page.evaluate(
+                "() => getComputedStyle(document.querySelector('.sub-row-pause-word')).display"
+            )
+            == "none"
+        ), "a desk keeps the glyph alone, with its title"
+    finally:
+        context.close()

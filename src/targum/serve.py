@@ -16805,7 +16805,9 @@ class Handler(BaseHTTPRequestHandler):
         practise = []
         for lemma in learning[: meetings_module.PRACTISE]:
             line = lines.get(lemma)
-            said = meetings_module.card_line(line, into) if line else None
+            # Cut to the sentence the word is in: a line can be a paragraph
+            # (targum-internal#725, P2 12).
+            said = meetings_module.card_line(line, into, sentence=True) if line else None
             if said:
                 practise.append(said)
         return marked, finished, folder_for, met, practise

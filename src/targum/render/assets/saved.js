@@ -338,6 +338,7 @@
     Array.prototype.forEach.call(document.querySelectorAll("[data-film]"), function (button) {
       button.setAttribute("aria-checked", String((button.getAttribute("data-film") === "1") === chosen.film));
     });
+    Array.prototype.forEach.call(document.querySelectorAll(".saved-segment"), rove);
     at("saved-playlist").setAttribute("aria-checked", String(chosen.playlist));
     var says;
     if (!chosen.recent && !chosen.playlist) {
@@ -483,6 +484,35 @@
       drawRoom(shown, space);
     });
   }
+
+  // One Tab stop for each segment, on the chosen option, and the arrows between them, as a
+  // radio group keys (§14.3; targum-internal#720, P2 12, the same as Account's #719 P2 10).
+  // Every option was its own Tab stop, and the arrows did nothing.
+  function rove(group) {
+    var options = group.querySelectorAll('[role="radio"]');
+    var chosen = group.querySelector('[aria-checked="true"]') || options[0];
+    Array.prototype.forEach.call(options, function (option) {
+      option.tabIndex = option === chosen ? 0 : -1;
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll(".saved-segment"), function (group) {
+    rove(group);
+    group.addEventListener("keydown", function (event) {
+      var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (!step) return;
+      var options = Array.prototype.slice.call(group.querySelectorAll('[role="radio"]'));
+      var from = options.indexOf(event.target);
+      if (from < 0) return;
+      event.preventDefault();
+      // Right is forward in a left-to-right page and back in a right-to-left one.
+      var rtl = getComputedStyle(group).direction === "rtl";
+      if (rtl && (event.key === "ArrowRight" || event.key === "ArrowLeft")) step = -step;
+      var next = options[(from + step + options.length) % options.length];
+      next.focus();
+      next.click();
+    });
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll("[data-recent]"), function (button) {
     button.addEventListener("click", function () {
