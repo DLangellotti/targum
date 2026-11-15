@@ -921,3 +921,56 @@ def test_russian_says_every_credit_amount_in_points() -> None:
         and "балл" not in said
     ]
     assert not in_minutes, f"a credit amount said in minutes: {in_minutes[:5]}"
+
+
+def test_every_page_carrying_bring_js_ships_every_word_it_asks_for() -> None:
+    """targum-internal#733, P1 2: a Russian reader's quote card was half English — "42
+    sentences · Будет готово через мгновение." Every key was in ru.json; the chat page's
+    bundle just did not carry `add.job.`, `building.` or `account.`, so `t()` fell back.
+    The catalogue test above checks what is translated, not what each page ships, and
+    stayed green. This reads what `bring.js` asks for and what each page that loads it
+    hands `strings.js`."""
+    from targum.render.builder import add_page, chat_page
+    from targum.strings import catalogue, desk_languages
+
+    root = Path(__file__).parents[1] / "src" / "targum" / "render"
+    script = (root / "assets" / "bring.js").read_text(encoding="utf-8")
+    asked = set(re.findall(r'\btn?\(\s*"([^"]+)"', script))
+    assert len(asked) > 40, f"only {len(asked)} keys found; the scan is broken"
+
+    carrying = sorted(
+        path.name
+        for path in root.glob("templates/*.j2")
+        if "script('bring.js')" in path.read_text(encoding="utf-8")
+    )
+    pages = {
+        "add.html.j2": lambda code: [add_page("k", language=code)],
+        "chat.html.j2": lambda code: [
+            chat_page("k", language=code),
+            chat_page("k", embed=True, language=code),
+        ],
+    }
+    assert carrying == sorted(pages), (
+        f"a page loads bring.js that this test does not render: {carrying}"
+    )
+
+    def shipped(html: str) -> set[str]:
+        found = re.search(r"window\.TARGUM_STRINGS = (\{.*?\});\n", html)
+        assert found, "the page ships no strings"
+        return set(json.loads(found.group(1)).get("strings", {}))
+
+    for code in desk_languages():
+        if code == "en":
+            continue
+        said = catalogue(code)
+        # A count's key is its forms in the catalogue: `add.job.sentences.few`.
+        wanted = {key for key in asked if key in said or any(k.startswith(key + ".") for k in said)}
+        for name, render in pages.items():
+            for html in render(code):
+                carried = shipped(html)
+                missing = sorted(
+                    key
+                    for key in wanted
+                    if key not in carried and not any(k.startswith(key + ".") for k in carried)
+                )
+                assert not missing, f"{name} in {code} leaves bring.js to say in English: {missing}"

@@ -134,7 +134,9 @@ body.chat > .chat-main {
   white-space: nowrap;
 }
 .chat-list button:hover { color: var(--ink); background: var(--paper-raised); }
-.chat-list button.on { color: var(--ink); font-weight: 600; }
+/* The open conversation, in the row hover draws and in weight, which the Hebrew face
+   barely shows; `aria-current` says it to a screen reader (targum-internal#733). */
+.chat-list button.on { color: var(--ink); font-weight: 600; background: var(--teal-wash); }
 /* The title, and under it when it was last opened (targum-internal#238). */
 /* Clipped on the title itself, which carries its own direction: on the button around it
    the clip fell at the start of a Hebrew line (2026-09-14). A block keeps its row's edge. */
@@ -146,6 +148,9 @@ body.chat > .chat-main {
 
 /* On a phone the list is a sheet: the page's one overlay, with the shadow §8 allows an
    overlay, opened by the pill and closed by a row or Escape (targum-internal#238). */
+/* Chats is not drawn while there is nothing in it (targum-internal#733). */
+.chat-open-list[hidden],
+body.embed .chat-open-list[hidden] { display: none; }
 @media (max-width: 48rem) {
   .chat-open-list { display: inline-block; }
   .chat-list { display: none; }
@@ -181,6 +186,9 @@ body.chat > .chat-main {
   background: var(--paper-raised);
   overflow: auto;
   overscroll-behavior: contain;
+  /* Room for a focused control's ring at either edge when it is scrolled into view: a
+     focused Confirm at the foot was cut off (targum-internal#733). */
+  scroll-padding-block: 0.75rem;
 }
 .chat-empty {
   margin: 0;
@@ -392,6 +400,12 @@ body.chat > .chat-main {
 /* A failed turn's Try again stands on its sentence's line, on its baseline, rather than
    a line below it (#472 polish 1). */
 .chat-turn .fault-line { flex-wrap: nowrap; align-items: baseline; }
+/* A line that never left (targum-internal#733): it looked sent. "Not sent" and its Try
+   again stand under it, and the line itself is drawn quieter. */
+.chat-turn.unsent .chat-line { opacity: 0.7; }
+.chat-turn.unsent > .fault-line { justify-self: end; font-size: 0.8125rem; }
+/* Tell us is one size on every panel in the thread (targum-internal#733). */
+.chat-main .fault-panel-row .fault-act { font-size: 0.9375rem; }
 .chat-turn .fault-line .fault-said { flex: 1 1 auto; }
 .chat-turn .fault-line .fault-icon { flex: none; }
 /* "Why?" says the reason is there, beside the label it explains (#472 B6). */
@@ -521,6 +535,9 @@ body.embed > .chat-main.cannot {
 .chat-main.cannot .chat-chips,
 .chat-main.cannot .chat-empty,
 .chat-main.cannot .chat-turn:has(> .chat-claim) { display: none; }
+/* And no empty raised thread under the fault: one raised layer to a view (§9,
+   targum-internal#733). A conversation already had still shows. */
+.chat-main.cannot .chat-thread:not(:has(.chat-turn)) { visibility: hidden; }
 body.embed .chat-open-list { display: inline-block; }
 body.embed .chat-list { display: none; }
 body.embed .chat-list.open { display: block; }

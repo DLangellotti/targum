@@ -452,6 +452,37 @@
     });
   }
 
+  /* The one way on from a refused card, and the quiet fact beside it: the panel's act
+     and fact (`fault.js`), drawn as a line of the card; null where there is neither. */
+  function wayOn(act, fact) {
+    var row = document.createElement("p");
+    row.className = "quote-way";
+    var go = null;
+    var drawn = 0;
+    if (act === "library") go = [t("fault.open-library", "Open the library"), "/library"];
+    else if (act === "yours") go = [t("fault.open-yours", "Open your targums"), "/"];
+    else if (act === "plan") go = [t("fault.see-plans", "See plans"), "/plans"];
+    if (go) {
+      var link = document.createElement("a");
+      link.className = "fault-act";
+      link.href = keyed(go[1]);
+      link.textContent = go[0];
+      row.appendChild(link);
+      drawn += 1;
+    }
+    // Top up has nowhere to go yet (§12): said, not drawn as a press.
+    var quiet = act === "top-up" ? t("fault.payments-soon", "Payments open soon") : "";
+    [quiet, fact || ""].forEach(function (line) {
+      if (!line) return;
+      var span = document.createElement("span");
+      span.className = "quote-fact";
+      span.textContent = line;
+      row.appendChild(span);
+      drawn += 1;
+    });
+    return drawn ? row : null;
+  }
+
   function quoteCard(host, job) {
     var card = document.createElement("div");
     // Not `quote`: that is the reader's own class for a quotation inside a text, and
@@ -641,21 +672,23 @@
       });
       return card.finished;
     }
-    // A refusal on the card: the sentence with the clay mark, or, where the rail that
-    // stopped it sent what still works, a panel with its way on (design.md §12,
-    // 2026-10-09). It was a sentence in clay.
+    // A refusal on the card: the sentence with the clay mark, and, where the rail that
+    // stopped it sent what still works, its way on and that fact inline under it
+    // (design.md §12, 2026-10-09). It was a panel inside the card — a raised layer in a
+    // raised card, padded twice at a phone's width (targum-internal#733).
     function refuse(state, fallback) {
       var said = state.blocked || state.error || fallback;
       card.classList.add("refused");
-      if (window.TargumFault && state.blocked && (state.fact || state.act)) {
-        note.textContent = "";
-        note.hidden = true;
-        card.appendChild(window.TargumFault.refusal(said, state.fact, state.act));
-        return;
-      }
       note.textContent = said;
       note.classList.add("fault-marked");
+      var way = wayOn(state.act, state.fact);
+      if (!way) return;
+      // Under the sentence it follows, which is the card's last line once it is drawn,
+      // and is drawn with it where the card is still being made.
+      if (note.parentNode === card) card.appendChild(way);
+      else pendingWay = way;
     }
+    var pendingWay = null;
     if (job.stage === "ready") {
       var spends = uses(job);
       var cost = null;
@@ -706,6 +739,7 @@
     }
     card.appendChild(progress);
     card.appendChild(note);
+    if (pendingWay) card.appendChild(pendingWay);
     host.appendChild(card);
     return card;
   }

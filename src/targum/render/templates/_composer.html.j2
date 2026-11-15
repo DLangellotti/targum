@@ -17,10 +17,6 @@
     look for. -#}
 {% include '_glyphs.html.j2' %}
 <form class="composer" id="composer">
-  {#- One row from the start: the field grows with what is typed, to six lines or so,
-      and then scrolls. `rows="1"` is the resting height; the stylesheet does the rest. -#}
-  <textarea id="say" rows="1" dir="auto" placeholder="{{ placeholder }}" spellcheck="true"
-            aria-label="{{ t("chat.page.your-message", "Your message") }}"></textarea>
   {#- A file, a recording or a book, chosen here and priced in place: the Add page's
       job in one press, since 2026-09-06. A link goes in the field like anything else
       said to targum. The card it draws carries "More options", which is the Add page,
@@ -28,6 +24,12 @@
   <button type="button" class="chat-bring" id="chat-bring"
           aria-label="{{ t("chat.page.bring-a-file-a-picture-or-a", "Bring a file, a picture or a recording") }}"
           title="{{ t("chat.page.bring-a-file-a-picture-or-a", "Bring a file, a picture or a recording") }}">+</button>
+  {#- The `+` comes before the field in the markup as it does on the screen, so Tab
+      reaches them in the order they are seen (targum-internal#733). -#}
+  {#- One row from the start: the field grows with what is typed, to six lines or so,
+      and then scrolls. `rows="1"` is the resting height; the stylesheet does the rest. -#}
+  <textarea id="say" rows="1" dir="auto" placeholder="{{ placeholder }}" spellcheck="true"
+            aria-label="{{ t("chat.page.your-message", "Your message") }}"></textarea>
   {#- `multiple` for the pictures: several chosen together are the pages of one text
       (2026-09-07). Anything else is taken one at a time, whatever was selected. -#}
   <input type="file" id="chat-file" hidden multiple

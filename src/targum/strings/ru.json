@@ -1036,6 +1036,7 @@
   "chat.look-up": "найти в словаре",
   "chat.looking": "ищем…",
   "chat.not-found": "Нам не удалось найти значение этого слова.",
+  "chat.not-sent": "Не отправлено",
   "chat.open-text": "Открыть {name}",
   "chat.open-the-text": "Открыть текст",
   "chat.why-corrected": "Почему это исправлено",
