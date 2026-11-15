@@ -10161,7 +10161,8 @@ var targumReader = function () {
       // Once the account has said who is reading: signed out asks nothing.
       window.TargumSync.settled().then(askEstimate, function () {});
     }
-  } else if (served && passKey) {
+  } else {
+    // No sync layer: `canAsk` says whether a key lets this page ask at all.
     askEstimate();
   }
 
