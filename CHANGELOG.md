@@ -116,6 +116,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Account's Telegram rows can be told apart (targum-internal#719 P2 12). Each said "A
+  Telegram chat"; each now says "Telegram · …4567", the last four digits of the chat id
+  already stored. No title is asked of Telegram and nothing new is kept. One string
+  changes in English and Russian: `you.telegram.chat` «Telegram · …{last}», for ling-ru.
 ### Fixed
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.

@@ -2436,7 +2436,7 @@
   "you.telegram.heading": "Telegram",
   "you.telegram.says": "Send our bot a voice note, a video, a picture, a PDF or some text, and we'll add it to Your targums. If you forward a message, we don't keep who it came from.",
   "you.telegram.link": "Link Telegram",
-  "you.telegram.chat": "A Telegram chat",
+  "you.telegram.chat": "Telegram · …{last}",
   "you.telegram.linked-on": "Linked {made}",
   "you.telegram.unlink": "Unlink",
   "you.telegram.unlinked": "Unlinked.",

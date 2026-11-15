@@ -2628,7 +2628,7 @@
   "you.telegram.heading": "Telegram",
   "you.telegram.says": "Отправьте нашему боту голосовое сообщение, видео, картинку, PDF или текст, и мы добавим это в раздел «Ваши тексты». Мы храним то, что вы прислали, но никогда — кто прислал это первым.",
   "you.telegram.link": "Подключить Telegram",
-  "you.telegram.chat": "Чат в Telegram",
+  "you.telegram.chat": "Telegram · …{last}",
   "you.telegram.linked-on": "Подключено {made}",
   "you.telegram.unlink": "Отключить",
   "you.telegram.unlinked": "Отключено.",
