@@ -100,6 +100,18 @@ def meets_easy(difficulty: int, sentence: float, minutes: int) -> bool:
     )
 
 
+def places_a1(difficulty: int, sentence: float, minutes: int) -> bool:
+    """Whether a measured text is placed A1: under both of Easy's ceilings, and short
+    (design.md §12, "A1 is Easy's two ceilings and short", 2026-11-15).
+
+    `meets_easy` without its floors. A text easier than a floor (a share under 5, or
+    sentences under 4 words) is no harder for being so, and placing it A2, above texts
+    harder than it, ran the ladder backwards at the easy end. The floors stay the weekly
+    writer's: `meets_easy` is what an issue is written to and what the Easy-spec row counts.
+    """
+    return place(difficulty, sentence) is Level.aleph and 0 < minutes <= EASY_MINUTES
+
+
 def medium(
     source: str,
     *,
@@ -182,7 +194,12 @@ class Shelf:
     language: str
     #: (level name or UNMEASURED, medium) -> texts.
     cells: Counter[tuple[str, str]] = field(default_factory=Counter)
+    #: The texts meeting the Easy spec in full, floors included (`meets_easy`), or written
+    #: at A1: the Easy target's row, which the weekly is written to.
     easy: Counter[str] = field(default_factory=Counter)
+    #: The texts placed A1 (`level_for`), which `cefr_rows` counts: the spec without its
+    #: floors since 2026-11-15, so a superset of `easy`.
+    a1: Counter[str] = field(default_factory=Counter)
     #: The Native texts again, by the text ruler (`native_level`): (B2, C1, C2 or
     #: `PAST_C2`, medium) -> texts. A Native text the ruler has not counted is on B2.
     native: Counter[tuple[str, str]] = field(default_factory=Counter)
@@ -223,7 +240,7 @@ def tally(
         shelf = shelves.setdefault(entry.language, Shelf(entry.language))
         how = medium(entry.source, spoken=spoken, video=video)
         # One decision, `level_for`, which `text_level` makes too, read back onto the
-        # weekly's three levels: A1 and A2 are Easy and A1 the Easy spec, B1 Simplified,
+        # weekly's three levels: A1 and A2 are Easy, B1 Simplified,
         # B2 and up Native. So `cefr_rows` and the Library never disagree on a text.
         level = level_for(entry, sentence(entry), native)
         if not level:
@@ -235,7 +252,12 @@ def tally(
             continue
         shelf.cells[((Level.bet if level == "B1" else Level.aleph).value, how)] += 1
         if level == "A1":
-            shelf.easy[how] += 1
+            shelf.a1[how] += 1
+            written = authored_level(entry)
+            if (written and written != UNKNOWN_RUNG) or meets_easy(
+                int(entry.difficulty or 0), float(sentence(entry) or 0), int(entry.minutes or 0)
+            ):
+                shelf.easy[how] += 1
     return dict(sorted(shelves.items(), key=lambda item: (-item[1].total, item[0])))
 
 
@@ -277,18 +299,19 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
     "A badge is a promise, checked", 2026-10-12): texts and texts with a recording at each.
 
     The ruler is the one above — three levels by hard share and sentence length — and the
-    mapping is stated rather than measured: a text meeting the Easy spec in full is A1,
-    the rest of Easy is A2, Simplified is B1. A conversation targum wrote is counted at
+    mapping is stated rather than measured: an Easy text under both of Easy's ceilings and
+    short is A1 (`places_a1`: the Easy spec without its floors, 2026-11-15), the rest of
+    Easy is A2, Simplified is B1. A conversation targum wrote is counted at
     its written level instead, and a text under `NATIVE_MIN_WORDS` is never Native
-    (`level_for`, which `tally` counts by and `text_level` says). The Easy spec is a
-    subset of Easy, so A2 is Easy less the spec. Native is split into B2, C1, C2 and Past
+    (`level_for`, which `tally` counts by and `text_level` says). A1 is a subset of Easy,
+    so A2 is Easy less A1. Native is split into B2, C1, C2 and Past
     C2 by the vocabulary a text needs (`native_level`, design.md §12, "Your level, v3",
     2026-10-29), and `B2+` is still there as the four together: the stage standard's
     floors are stated at B2 and up, and old addresses name it. So the rows do not add up
     to the shelf — `B2+` is the last four again — and nothing should sum them.
     """
     easy = [shelf.cells[(Level.aleph.value, how)] for how in MEDIA]
-    spec = [shelf.easy[how] for how in MEDIA]
+    first = [shelf.a1[how] for how in MEDIA]
     simplified = [shelf.cells[(Level.bet.value, how)] for how in MEDIA]
     native = [shelf.cells[(Level.gimel.value, how)] for how in MEDIA]
     recorded = [MEDIA.index(how) for how in RECORDED]
@@ -297,8 +320,8 @@ def cefr_rows(shelf: Shelf) -> dict[str, tuple[int, int]]:
         return sum(cells), sum(cells[at] for at in recorded)
 
     rows = {
-        "A1": counted(spec),
-        "A2": counted([have - met for have, met in zip(easy, spec, strict=True)]),
+        "A1": counted(first),
+        "A2": counted([have - met for have, met in zip(easy, first, strict=True)]),
         "B1": counted(simplified),
     }
     for level in NATIVE_LEVELS:
@@ -517,11 +540,11 @@ def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
     says and `tally` (and so `cefr_rows`) counts by.
 
     A conversation targum wrote keeps its written level (`authored_level`). Anything
-    else is placed by the measure, `difficulty` and `sentence`: Easy is A1 where it meets
-    the Easy spec in full and A2 otherwise, Simplified is B1, and Native is placed by
-    `native` on B2, C1, C2 or Past C2, unless it is shorter than `NATIVE_MIN_WORDS`, when
-    it is unmeasured: too short to say, never easy. A scene whose rung is not on this
-    machine is measured, and never placed Native.
+    else is placed by the measure, `difficulty` and `sentence`: Easy is A1 where it is
+    short (`places_a1`, the Easy spec without its floors) and A2 otherwise, Simplified is
+    B1, and Native is placed by `native` on B2, C1, C2 or Past C2, unless it is shorter
+    than `NATIVE_MIN_WORDS`, when it is unmeasured: too short to say, never easy. A scene
+    whose rung is not on this machine is measured, and never placed Native.
     """
     written = authored_level(entry)
     if written and written != UNKNOWN_RUNG:
@@ -532,7 +555,7 @@ def level_for(entry: Any, sentence: float, native: Callable[[Any], str]) -> str:
         return ""
     if placed is Level.aleph:
         minutes = int(getattr(entry, "minutes", 0) or 0)
-        return "A1" if meets_easy(difficulty, float(sentence), minutes) else "A2"
+        return "A1" if places_a1(difficulty, float(sentence), minutes) else "A2"
     if placed is Level.bet:
         return "B1"
     if written or int(getattr(entry, "words", 0) or 0) < NATIVE_MIN_WORDS:

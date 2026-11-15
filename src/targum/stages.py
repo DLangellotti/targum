@@ -43,8 +43,9 @@ read before the next stranger arrives.
 
 The shelf is counted on the library's own ruler (`levelmap`), which places a text on
 three levels. CEFR is finer, and the floors are stated in CEFR by the mapping in
-`levelmap.cefr_rows`: A1 is a text meeting the Easy spec in full, A2 the rest of Easy,
-B1 is Simplified, and Native is counted as one level, B2 and up (David, 2026-10-12). The
+`levelmap.cefr_rows`: A1 is an Easy text under both of Easy's ceilings and short (the Easy
+spec without its floors, 2026-11-15), A2 the rest of Easy, B1 is Simplified, and Native
+is counted as one level, B2 and up (David, 2026-10-12). The
 text ruler splits Native into B2, C1, C2 and Past C2 for a text's own level since
 2026-10-29 (design.md §12, "Your level, v3"), and `cefr_rows` still gives `B2+` as the four
 together, which is what the floors read. The counts a test reads are the
