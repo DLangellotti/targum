@@ -95,7 +95,11 @@ b.acct-name { font-weight: 600; }
 .plan-offer { margin: 1rem 0 0; padding-block-start: 1rem; border-block-start: 1px solid var(--rule); font-size: 0.9375rem; line-height: 1.55; color: var(--ink); }
 .plan-pay-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 1rem 0 0; }
 .plan-pay-row .acct-soon { margin: 0; }
-.plan-top-ups > span { padding-inline: 0.75rem; color: var(--ink-soft); font-size: 0.875rem; white-space: nowrap; }
+/* The amounts are said, not offered, while there is no provider: plain muted text with a
+   dot between (you.js), never a segment beside the greyed Top up, which read as a choice that
+   could be made and then could not (targum-internal#719, P2 11). */
+.plan-top-ups { color: var(--ink-soft); font-size: 0.875rem; }
+.plan-top-ups > span { white-space: nowrap; }
 #plan-free[hidden], #plan-paid[hidden] { display: none; }
 @media (max-width: 40rem) {
   .plan-pay-row > button { flex: 1 0 100%; }

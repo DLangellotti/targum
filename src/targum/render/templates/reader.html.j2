@@ -1117,7 +1117,9 @@
     {% if segment.id in unaccented %}
     <p class="src unaccented" data-form="unaccented" lang="{{ source_language }}" dir="{{ source_direction }}">{{ unaccented[segment.id]|isolate(source_direction) }}</p>
     {% endif %}
-    {% if translated %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
+    {#- A name the translation leaves as it was ("KhanAcademyHebrew" under both columns)
+        is said once (targum-internal#723 P2 8, for #703). -#}
+    {% if translated and (primary.get(segment.id, '')|trim) != (segment.text|trim) %}<p class="tr{% if primary_commentary %} commented{% endif %}" lang="{{ target_language }}" dir="{{ target_direction }}">{{ primary.get(segment.id, '')|isolate(target_direction) }}</p>{% endif %}
   </div>
   {% elif segment.kind.value == 'turn' %}
   {#- A line of a dialogue. Who said it sits beside the words rather than inside them, so

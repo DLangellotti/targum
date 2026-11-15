@@ -224,7 +224,7 @@ setTimeout(() => {
           see: at("plan-see").hidden,
           paidSays: at("plan-paid-says").textContent,
           back: at("plan-back").textContent,
-          topUps: at("plan-top-ups").children.map((one) => one.textContent),
+          topUps: at("plan-top-ups").children.filter((one) => one.tagName).map((one) => one.textContent),
         },
         posted,
         restarted,

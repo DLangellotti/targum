@@ -117,6 +117,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- Follow-ups to #1238 and #1247 (qa-claude):
+  - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
+    It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
+    rebuilt kept English keyed to paragraphs it no longer had. With `--spend`, its last
+    lines say what it really spent, by model, even when the build dies partway. It spends
+    outside `Library.claim`, so that line is what goes on targum-internal#727.
+  - A saved page held from before stamps, or whose stamp differs from the server's, no
+    longer takes the server's stamp (`offline.js`). It keeps one only while the two
+    agree, the rule before #1247. A recording or a film still learns the server's cut.
+  - Direction marks (U+200E/F and the embedding and isolate controls) no longer hide a
+    track's marks from `ingest.subtitles.drawn`. A punctuated track with an RLM after
+    each mark was read as bare of marks and closed a paragraph at every pause, mid-sentence
+    or not.
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
   design.md §12 2026-11-14).
   - Approving an app again revokes the reader's older access and refresh tokens for that
@@ -929,6 +942,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   on the day the records are seeded for (`page.clock.set_fixed_time`), so the page's
   today and the seeded today are one day. Timers still run, and there are no sleeps.
   Tests only.
+- Finish-card leftovers (targum-internal#716 P2 19, #719 P2 11, #720 P2 12, #725 P2 12,
+  and #723 P2 8 for #703).
+  - Your targums: at 390 a playlist's ⋯ opens Rename and Delete in the head's own row
+    instead of floating over the first row's title and remove press at the screen's edge. On a
+    phone, a subscription row's Pause stands at the end of its name and says "Pause"
+    beside ‖, instead of a bare ‖ on a line of its own. At a desk the row's last column
+    keeps one width, so a paused row's Latest and Comes out line up with the others.
+  - Your account (plans on): the top-up amounts beside the greyed Top up are plain muted
+    text ("60 credits · 180 credits · 600 credits"), not a live-looking segment.
+  - Saved: Recent texts and Videos are one Tab stop each, and the arrow keys choose
+    between their options (mirrored under RTL), as Account's form of address does.
+  - Your Words: the practice card's line is cut to the sentence the word stands in. A
+    line could be a paragraph (nine lines from אהבת ציון). The translation is cut to the
+    sentence in the same place where it splits into as many sentences, and left off
+    where it doesn't, rather than a paragraph under one sentence.
+  - The reader: a byline the translation leaves as it was ("KhanAcademyHebrew") is said
+    once, and a byline is glued to what follows like a title plate, so on a phone with
+    the picture docked the first page holds the first line instead of only the title
+    and the source.
+  - No new strings. No spend.
 - קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
   voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
   voice" in all 16 places, because DICTA's menaked and its joint model both read the
