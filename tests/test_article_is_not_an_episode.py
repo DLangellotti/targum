@@ -26,6 +26,9 @@ YNET = "https://www.ynet.co.il/news/article/abc123"
 YNET_FEED = "https://www.ynet.co.il/Integration/StoryRss2.xml"
 PODCAST = "https://podcast.example/42"
 PODCAST_AUDIO = "https://cdn.podcast.example/ep42.mp3"
+READ_ALOUD = (
+    "https://www.israelhayom.co.il/wp-content/uploads/2026/11/15/speech-21851931-20261115.mp3"
+)
 
 
 def _html(name: str) -> tuple[str, bytes]:
@@ -62,12 +65,14 @@ def _answering(pages: dict[str, tuple[str, bytes]], knocked: list[str]) -> Itera
     url_module._session = lambda proxy="": Client()  # type: ignore[assignment]
     url_module.POLITE_S = 0.0
     url_module.PAGES.clear()
+    episode_module.TIMED.clear()
     try:
         yield
     finally:
         url_module._session = real_session  # type: ignore[assignment]
         url_module.POLITE_S = real_polite
         url_module.PAGES.clear()
+        episode_module.TIMED.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -77,13 +82,105 @@ def _no_dns(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(url_module, "_reachable", lambda target: None)
 
 
-def test_an_article_with_a_read_aloud_player_is_not_an_episode() -> None:
-    """The case as it happened: the player is real audio, and it is the article read by
-    a machine. The page is an article; its recording is never fetched or timed."""
+def test_an_article_with_a_read_aloud_player_is_not_an_episode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The case as it happened: the player is real audio, served by the publisher, and
+    runs about as long as the article's words take to say — the article read by a
+    machine (Israel Hayom's ran 258 s for 529 words). The page is an article."""
+    from targum.audio import probe
+
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 140.0)
     knocked: list[str] = []
-    with _answering({ISRAEL_HAYOM: _html("israelhayom-opinion.html")}, knocked):
+    pages = {ISRAEL_HAYOM: _html("israelhayom-opinion.html"), READ_ALOUD: ("audio/mpeg", b"x")}
+    with _answering(pages, knocked):
         assert episode_module.find(ISRAEL_HAYOM) is None
-    assert knocked == [ISRAEL_HAYOM]
+    assert knocked == [ISRAEL_HAYOM, READ_ALOUD], "the page, and the recording's front"
+
+
+def test_a_read_aloud_nobody_can_time_is_still_the_article() -> None:
+    """A recording beside an article that cannot be timed is no evidence of an episode;
+    the hour it would have been quoted at was the bug."""
+    with _answering({ISRAEL_HAYOM: _html("israelhayom-opinion.html")}, []):
+        assert episode_module.find(ISRAEL_HAYOM) is None
+
+
+def test_an_article_whose_recording_runs_far_past_its_words_is_an_episode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The general rule under the host list: a recording many times longer than the
+    article's words take to say is not the article spoken."""
+    from targum.audio import probe
+
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 1800.0)
+    pages = {ISRAEL_HAYOM: _html("israelhayom-opinion.html"), READ_ALOUD: ("audio/mpeg", b"x")}
+    with _answering(pages, []):
+        found = episode_module.find(ISRAEL_HAYOM)
+    assert found is not None and found.audio_url == READ_ALOUD and found.seconds == 1800.0
+
+
+def test_a_podcast_page_that_calls_itself_an_article_still_plays(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Streetwise Hebrew on tlv1.fm: Yoast says Article, the show notes run past 200
+    words, and the site feed holds only its ten newest posts — so for an older episode
+    the feed says nothing. The player is on libsyn, which settles it (qa-claude on
+    targum#1265)."""
+    from targum.audio import probe
+
+    monkeypatch.setattr(probe, "timed", lambda head, declared: 720.0)
+    page = "https://tlv1.fm/streetwise-hebrew/2026/04/01/ep-441/?p=68843"
+    audio = "https://traffic.libsyn.com/streetwisehebrew/SWH_Ep441.mp3?_=1"
+    with _answering({page: _html("streetwise-episode.html"), audio: ("audio/mpeg", b"x")}, []):
+        found = episode_module.find(page)
+    assert found is not None
+    assert found.audio_url == audio and found.seconds == 720.0
+
+
+def test_a_list_of_types_is_read_whole_and_an_episode_anywhere_wins() -> None:
+    from bs4 import BeautifulSoup
+
+    words = " ".join(["מילה"] * 300)
+    html = (
+        '<html><head><meta property="og:type" content="article">'
+        '<script type="application/ld+json">{"@type":["NewsArticle","PodcastEpisode"]}'
+        f"</script></head><body><article><p>{words}</p></article></body></html>"
+    )
+    assert episode_module._article_words(BeautifulSoup(html, "html.parser"), html) == 0
+    plain = html.replace(',"PodcastEpisode"', "")
+    assert episode_module._article_words(BeautifulSoup(plain, "html.parser"), plain) >= 200
+
+
+def test_a_page_named_by_its_query_matches_its_own_item_and_no_other() -> None:
+    """WordPress's `?p=` is the page: every post shares the path, so the newest item on
+    the path is not this page's."""
+    feed = b"""<rss><channel>
+      <item><title>newest</title><link>https://tlv1.fm/?p=70000</link>
+        <enclosure url="https://cdn.example/70000.mp3" type="audio/mpeg"/></item>
+      <item><title>mine</title><link>https://tlv1.fm/?p=68843</link>
+        <enclosure url="https://cdn.example/68843.mp3" type="audio/mpeg"/></item>
+    </channel></rss>"""
+    found = episode_module._from_feed(
+        feed, "https://tlv1.fm/", page="https://tlv1.fm/?p=68843&utm_source=x", exact=True
+    )
+    assert found is not None and found.title == "mine"
+    gone = episode_module._from_feed(
+        feed, "https://tlv1.fm/", page="https://tlv1.fm/?p=1", exact=True
+    )
+    assert gone is None
+
+
+def test_an_untyped_enclosure_with_no_audio_name_is_not_audio() -> None:
+    """An image resizer has no suffix; untyped, it is not taken for audio. Typed
+    audio/* it is, whatever its name."""
+    feed = b"""<rss><channel>
+      <item><title>picture</title><link>https://n.example/1</link>
+        <enclosure url="https://n.example/img?src=1"/></item>
+    </channel></rss>"""
+    assert episode_module._from_feed(feed, "https://n.example/") is None
+    typed = feed.replace(b'img?src=1"', b'play?id=1" type="audio/mpeg"')
+    found = episode_module._from_feed(typed, "https://n.example/")
+    assert found is not None and found.audio_url == "https://n.example/play?id=1"
 
 
 def test_an_article_naming_its_sites_feed_is_not_that_feeds_newest_item() -> None:
@@ -160,7 +257,8 @@ def test_a_news_article_in_a_quote_is_priced_as_a_text_in_hebrew(
     job = Job(id="ih", source=ISRAEL_HAYOM, home=tmp_path)
     job.options = {"gloss": True, "words": False, "to": "en", "source": ISRAEL_HAYOM}
     knocked: list[str] = []
-    with _answering({ISRAEL_HAYOM: _html("israelhayom-opinion.html")}, knocked):
+    pages = {ISRAEL_HAYOM: _html("israelhayom-opinion.html"), READ_ALOUD: ("audio/mpeg", b"x")}
+    with _answering(pages, knocked):
         Library(tmp_path).prepare(job)
 
     assert job.error == "" and job.stage == "ready", job.error
@@ -168,4 +266,4 @@ def test_a_news_article_in_a_quote_is_priced_as_a_text_in_hebrew(
     assert not job.audio and job.seconds == 0 and job.transcription == 0
     assert job.language == "he"
     assert job.title.startswith("הסכם בדרך")
-    assert knocked == [ISRAEL_HAYOM], "read once, and its recording never touched"
+    assert knocked == [ISRAEL_HAYOM, READ_ALOUD], "read once, and its recording's front"

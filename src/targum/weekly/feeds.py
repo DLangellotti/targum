@@ -63,6 +63,8 @@ class Item:
     #: The audio a podcast feed attaches, where it attaches one. RSS writes an
     #: <enclosure url type>; Atom writes a link with rel="enclosure".
     enclosure: str = ""
+    #: The type the enclosure states (`audio/mpeg`), or "" where it states none.
+    enclosure_type: str = ""
     #: A transcript the feed points at (Podcasting 2.0's <podcast:transcript>), which
     #: makes an import free of transcription. The url and its stated type.
     transcript: str = ""
@@ -225,6 +227,18 @@ def _transcript(entry: ElementTree.Element) -> tuple[str, str]:
     return offered[0] if offered else ("", "")
 
 
+def _enclosure_type(entry: ElementTree.Element) -> str:
+    """The type `_enclosure`'s choice states, lowercased; "" where it states none."""
+    for child in entry:
+        name = _name(child.tag)
+        kind = child.get("type", "").strip().lower()
+        if name == "enclosure" and (not kind or kind.startswith("audio/")):
+            return kind
+        if name == "link" and child.get("rel") == "enclosure" and kind.startswith("audio/"):
+            return kind
+    return ""
+
+
 def _enclosure_length(entry: ElementTree.Element) -> int:
     for child in entry:
         if _name(child.tag) == "enclosure":
@@ -333,6 +347,7 @@ def parse(xml: bytes) -> list[Item]:
                 published=_when(stamp),
                 guid=_text(fields.get("guid")) or _text(fields.get("id")),
                 enclosure=_enclosure(element),
+                enclosure_type=_enclosure_type(element),
                 transcript=spoken,
                 transcript_type=spoken_type,
                 seconds=_seconds(_text(fields.get("duration"))),

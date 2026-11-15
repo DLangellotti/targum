@@ -217,22 +217,39 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
+  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
+  with the time of the ship. A saved copy refetches a file whose size or time changed, so
+  every re-ship made saved copies of the issue download its recording again. It sends
+  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
+  `index.json` sends stay as they are, since nothing saved holds the index.
+  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
 - A news article is never a one-hour episode (targum-internal#736). An Israel Hayom
   opinion piece put in a chat set was quoted as a podcast episode of an hour, 60 credits.
   Its page has a "listen" button whose `<audio>` is a machine reading of the article, and
   `episode.find` took that player for an episode. Nothing said how long it ran, so
   `_prepare_episode` used its one-hour guess.
   - A page that calls itself an article (Open Graph `article`, or a schema.org Article
-    type), doesn't also call itself an episode, and whose article runs to 200 words is
-    read as a text. Its `<audio>`, `og:audio` and embedded `assetUrl` are not used. Only
-    its own feed can still make it an episode, with an item for that exact page that has
-    audio. The site feed's newest item is somebody else's story. A podcast's own page
-    calls itself an article too, but its show notes are a paragraph, so it still plays.
-  - A feed enclosure that names a picture or a video is not audio. A news feed hangs
-    untyped pictures on its items, and those passed as enclosures.
+    type), doesn't also call itself an episode, and whose article runs to 200 words has
+    its player checked before it is taken for an episode. The player is kept when it is
+    served from a podcast host (libsyn, megaphone, simplecast, omny, anchor, buzzsprout,
+    transistor, podbean, acast, spreaker, captivate, podtrac and others,
+    `episode.PODCAST_HOSTS`). It is also kept when it runs more than twice as long as the
+    article's words take to say at `SPEECH_WORDS_PER_MINUTE`. Otherwise it is the article
+    read aloud, and the page is read as a text. Israel Hayom's read-aloud runs 258 s for
+    529 words. Streetwise Hebrew's pages on tlv1.fm say Article, have 240–370 words of
+    notes and play from libsyn, so they stay episodes (qa-claude on targum#1265).
+  - Only the article's own feed can still make it an episode, with an item for that exact
+    page that has audio. The site feed's newest item is somebody else's story. The match
+    keeps the query that names a page (WordPress's `?p=`) and drops `utm_` and the like.
+  - `@type` lists are read whole, so a PodcastEpisode anywhere in one counts.
+  - An enclosure is audio only when it is typed `audio/*` or its name is an audio file
+    (new `feeds.Item.enclosure_type`). News feeds hang untyped pictures on their items,
+    some behind an image resizer with no suffix.
   - A recording found on a page is timed from its first megabyte (`ingest.url.opening`
     and `probe.timed`, as `describe_source` does for a bare link), so the quote is its
-    own length. The hour stays only for a recording nothing could time.
+    own length. The length is kept for ten minutes by address, so the describe, the quote
+    and the ingester pull it once. The hour stays only for a recording nothing could time.
   - The language was never taken from the title. The job's language column was empty,
     because the episode path sets none, and "היום" was the end of the title ("… | היום").
     The article now goes the text path, where the language is detected from its body.
@@ -241,13 +258,6 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     omny recordings.
   - Tests: `tests/test_article_is_not_an_episode.py`, on saved pages in
     `tests/fixtures/articles/` (the publishers' shapes with made-up sentences).
-- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
-  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
-  with the time of the ship. A saved copy refetches a file whose size or time changed, so
-  every re-ship made saved copies of the issue download its recording again. It sends
-  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
-  `index.json` sends stay as they are, since nothing saved holds the index.
-  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
 - `/phrase` holds a selection's meaning to the same languages `/gloss` does
   (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
   language: any source into any target was bought, the words' own language too, and the
