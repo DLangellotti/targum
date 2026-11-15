@@ -356,10 +356,16 @@
                      as it opens (`sw.js`), and a file kept before stamps were kept is
                      held as it is, so an old copy does not fetch its films again
                      (design.md §12, 2026-11-14). Such a file learns the cut the server
-                     has now, so a later re-cut reaches it too (qa-claude on #1234). */
-                  var recut = had && file.stamp && held && held !== file.stamp && !/\.html$/i.test(at);
+                     has now, so a later re-cut reaches it too (qa-claude on #1234). A
+                     page never learns one: its bytes are the build it was kept from,
+                     so it keeps a stamp only while the server's says the same
+                     (qa-claude on #1247). */
+                  var page = /\.html$/i.test(at);
+                  var recut = had && file.stamp && held && held !== file.stamp && !page;
                   if (had && !recut) {
-                    if (file.stamp || held) stamps[at] = file.stamp || held;
+                    if (page) {
+                      if (held && held === file.stamp) stamps[at] = held;
+                    } else if (file.stamp || held) stamps[at] = file.stamp || held;
                     done += Number(file.bytes || 0);
                     told();
                     return null;
