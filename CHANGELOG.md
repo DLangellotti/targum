@@ -160,6 +160,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     ffmpeg cuts run at once (`CUTTING`). A refused update inside `multi` is counted as
     failed. Russian: «Установить дополнения» and «введите код», and «Сейчас не удалось
     загрузить ваши слова».
+- A new reader's first text says our estimate, the figure Home shows, until anything in
+  it is marked (targum-internal#724, design.md §12 "A reader says our estimate until
+  anything in it is marked", 2026-11-15). The reader said "0 of 235 known" a minute
+  before Home said "You know about 44% of the whole recording (our estimate)". Now the
+  bar says "About 44% (our estimate)" and the list "About 44% (our estimate) · 235 words
+  to mark", with "(our estimate)" quiet beside the number. The figure is the server's own
+  row for the text, asked once through `/readers?catalogue=0&name=<folder>`, which now
+  also finds the folder on the shared shelf (with `shared=0`, as the contents page asks,
+  it still takes nothing off the shelf). The first word marked known or learning brings
+  the count back. Signed out, opened from disk and offline, the reader asks nothing new
+  and says the count as before, and a text that already holds a mark asks nothing at
+  all, since its answer could never be said. Four new strings in English and Russian
+  (`reader.estimate.about`, `reader.estimate.ours`, `reader.list.to-mark.*`; the
+  reader's table carries only `reader.` and `vocab.` keys, so Home's `known.estimate.*`
+  cannot be reused); ling-ru passed the Russian on review. No spend.
 ### Fixed
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
