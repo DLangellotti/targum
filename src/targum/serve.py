@@ -320,6 +320,21 @@ class Refusal(str):
         return made
 
 
+def language_code(value: object) -> str:
+    """A language code as targum writes it: lowercase, the base language alone, so
+    "EN", "ru-RU" and "he_IL" are "en", "ru" and "he". "" for anything that is not one."""
+    code = str(value or "").strip().lower().replace("_", "-").split("-")[0]
+    return code if code.isascii() and code.isalpha() else ""
+
+
+def reading_languages() -> frozenset[str]:
+    """The languages a text may be read in here, and so the only ones a word's meaning
+    may be bought for (`translate.prompts.READING`)."""
+    from .translate.prompts import READING
+
+    return frozenset(code for code, _ in READING)
+
+
 def no_key(ui: str) -> Refusal:
     """Nothing new can be made on this box: what still works, and the way to it."""
     return Refusal(
@@ -1150,6 +1165,9 @@ SIGNUPS_PER_HOUR_FOR_EVERYBODY = 60
 #: is not ours pretending to be one, and for a loop nobody meant.
 FAULTS_PER_HOUR = 30
 FAULTS_PER_HOUR_FOR_EVERYBODY = 600
+#: Phrases one account may have bought in an hour (targum-internal#734). An answer
+#: already held is free and never counted.
+PHRASES_PER_HOUR = 120
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -19027,8 +19045,12 @@ class Handler(BaseHTTPRequestHandler):
         phrase = str(payload.get("phrase", "")).strip()
         sentence = str(payload.get("sentence", "")).strip()
         translation = str(payload.get("translation", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as `_gloss_word` writes them, for the reason it gives: compared as
+        # the page sent them, "EN" was not "en" (targum-internal#734).
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
+        # Which text the sentence is from, so the target can be one it is translated into.
+        document = str(payload.get("document", "")).strip()[:200]
 
         from .annotate.phrase import (
             PHRASE_MODEL,
@@ -19058,9 +19080,42 @@ class Handler(BaseHTTPRequestHandler):
                     "cached": True,
                 }
             )
+        # Buying is held as `/gloss` holds it (targum-internal#734): an answer is bought on
+        # targum's account with no job row behind it, and the sentence and translation
+        # are the page's, so every new pair of them is a new purchase. The words have to
+        # be in a language read here, the answer in one the reader or this text allows,
+        # and never in the words' own language. A 400, before any model is asked.
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.gloss-not-in-that-language",
+                        "We can't look words up in that language.",
+                    )
+                },
+                400,
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
+        # And a ceiling per account an hour, which a reader selecting as they read never
+        # meets and a script asking for every sentence it can make up does.
+        person = self._person()
+        who = f"phrase:{person.id}" if person is not None else "phrase:" + digest(self._visitor())
+        if self.store.asking_too_often(who, limit=PHRASES_PER_HOUR):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.phrase.too-often",
+                        "That's a lot of phrases for one hour. Try again in an hour.",
+                    )
+                },
+                429,
+            )
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:

@@ -117,6 +117,17 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- `/phrase` holds a selection's meaning to the same languages `/gloss` does
+  (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
+  language: any source into any target was bought, the words' own language too, and the
+  reader did not say which text it was in. Both codes are normalised
+  (`serve.language_code`), the source has to be in `translate.prompts.READING`, the
+  target one the reader reads or the text is translated into (the reader now sends
+  `document`), and target == source is refused: a 400 before any model call. Since the
+  sentence and translation are the page's, every new pair is a new purchase, so an
+  account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
+  sign-in links use), and past it gets a 429. An answer already held stays free and is
+  never counted. One new string, in English and Russian. No spend.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
