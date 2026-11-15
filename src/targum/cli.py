@@ -419,15 +419,26 @@ def comp_beta(
     comps nobody. A comp running longer is never shortened. `--dry-run` says who would be
     comped and changes nothing.
     """
-    from datetime import date
-
     from .accounts import Store
     from .serve import default_store
 
+    # Only the canonical form, YYYY-MM-DD: the store compares days as text, so
+    # "20270304" (which `fromisoformat` takes) would sort before every real day and
+    # could never be overwritten by a longer comp (qa-claude on targum#1267).
     try:
-        date.fromisoformat(until)
+        day = date.fromisoformat(until)
     except ValueError:
+        day = None
+    if day is None or day.isoformat() != until:
         fail(TargumError(f"{until} is not a day.", "Try: targum comp-beta --until 2027-03-04"))
+    # A day already here comps nobody, and a typo of the year would say it worked.
+    if day <= datetime.now(UTC).date():
+        fail(
+            TargumError(
+                f"{until} is not after today, so the comp would already have ended.",
+                "Give the first day the comp no longer holds, e.g. --until 2027-03-04",
+            )
+        )
     keeping = Store(store or default_store())
     accounts, invited = keeping.comp_everyone(until, dry_run=dry_run)
     for email in accounts:

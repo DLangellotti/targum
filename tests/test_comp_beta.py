@@ -20,7 +20,7 @@ from targum.accounts import Person, Store
 from targum.cli import app
 from targum.doorway import _comp, let_in, open_the_door
 from targum.render.builder import plans_page
-from targum.serve import UPLOAD_SECONDS, Library
+from targum.serve import UPLOAD_SECONDS, Job, Library
 
 UNTIL = "2027-03-04"
 
@@ -101,6 +101,27 @@ def test_comp_beta_refuses_a_day_that_is_not_one(tmp_path: Path) -> None:
     assert result.exit_code != 0
 
 
+@pytest.mark.parametrize("given", ["20270304", "2027-W09-4", "2027-3-4", "garbage"])
+def test_comp_beta_takes_only_the_canonical_day(tmp_path: Path, given: str) -> None:
+    """The store compares days as text, so "20270304" would sort before every real day
+    and never be overwritten (qa-claude on #1267)."""
+    db = tmp_path / "targum.db"
+    signed_up(Store(db), "a@example.com")
+    result = CliRunner().invoke(app, ["comp-beta", "--until", given, "--store", str(db)])
+    assert result.exit_code != 0 and "is not a day" in result.output
+    assert Store(db).person_by_email("a@example.com").plan_until == ""  # type: ignore[union-attr]
+
+
+@pytest.mark.parametrize("given", ["2020-01-01", date.today().isoformat()])
+def test_comp_beta_refuses_a_day_already_here(tmp_path: Path, given: str) -> None:
+    db = tmp_path / "targum.db"
+    signed_up(Store(db), "a@example.com")
+    for dry in ([], ["--dry-run"]):
+        result = CliRunner().invoke(app, ["comp-beta", "--until", given, *dry, "--store", str(db)])
+        assert result.exit_code != 0 and "not after today" in result.output
+    assert Store(db).person_by_email("a@example.com").plan_until == ""  # type: ignore[union-attr]
+
+
 def test_an_account_made_after_the_comp_is_free(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     signed_up(store, "a@example.com")
@@ -131,6 +152,84 @@ def test_on_a_comped_reader_has_plan_and_everyone_else_free(
     assert said["plan"] == "plan" and said["credits"] == 480 and said["words"] is None
     assert said["comp"] == UNTIL and said["compSaid"] == "March 4, 2027"
     assert "comp" not in plans.summary(stranger)
+
+
+def recording(library: Library, who: int, seconds: float, ident: str) -> Job:
+    job = Job(
+        id=ident,
+        source=f"upload:{ident}.mp3",
+        estimate=0.10,
+        owner=who,
+        home=library.out / "local",
+        audio=True,
+        seconds=seconds,
+    )
+    library.jobs[ident] = job
+    library.remember(job)
+    return job
+
+
+def two(tmp_path: Path) -> tuple[Library, Person, Person]:
+    store = Store(tmp_path / "targum.db")
+    signed_up(store, "beta@example.com")
+    store.comp_everyone(UNTIL)
+    beta = store.person_by_email("beta@example.com")
+    assert beta is not None
+    return a_library(tmp_path, store), beta, signed_up(store, "new@example.com")
+
+
+def test_on_a_comped_reader_spends_plans_month_at_the_real_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`Library.claim` is the one gate, and a comp is Plan on it (qa-claude on #1267): a
+    comped reader spends past 60 up to 480; a reader not comped is held at 60."""
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    library, beta, stranger = two(tmp_path)
+    hour = 3600.0
+    assert library.claim(recording(library, beta.id, 2 * hour, "b1")) == ""
+    assert library.claim(recording(library, beta.id, 5 * hour, "b2")) == ""
+    over = library.claim(recording(library, beta.id, 2 * hour, "b3"))
+    assert over and over.act == "top-up", "past 480, Plan's Top up rather than the plan"
+    # Free: 60, and the plan is what is offered.
+    refused = library.claim(recording(library, stranger.id, 2 * hour, "s1"))
+    assert refused.act == "plan" and "you have 60 left" in refused
+    assert library.claim(recording(library, stranger.id, 50 * 60, "s2")) == ""
+    # The quote says what the press would: nothing for the comped reader's next hour.
+    quoted = recording(library, beta.id, 30 * 60, "b4")
+    quoted.stage = "ready"
+    library.short_of_month(quoted)
+    assert quoted.stage == "ready"
+    held = recording(library, stranger.id, 30 * 60, "s3")
+    held.stage = "ready"
+    library.short_of_month(held)
+    assert held.stage == "blocked" and held.blocked.act == "plan"
+
+
+def test_on_a_comped_readers_set_and_voice_use_plans_month(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TARGUM_PLANS", "1")
+    library, beta, stranger = two(tmp_path)
+    hour = 3600.0
+    sets = [recording(library, beta.id, hour, f"set{n}") for n in range(3)]
+    assert library.claim_set(sets)[0] == ""
+    refused, _, rail = library.claim_set([recording(library, stranger.id, 2 * hour, "free-set")])
+    assert rail == "hours" and "A plan gives you 480" in refused
+    voice = Job(id="v1", source="voice", estimate=0.001, owner=beta.id, seconds=2 * hour)
+    assert library.claim_turn(voice, kind="voice") == ""
+    free_voice = Job(id="v2", source="voice", estimate=0.001, owner=stranger.id, seconds=2 * hour)
+    assert library.claim_turn(free_voice, kind="voice").act == "plan"
+
+
+def test_off_the_gate_is_as_it_was_for_both(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("TARGUM_PLANS", raising=False)
+    library, beta, stranger = two(tmp_path)
+    for who in (beta, stranger):
+        assert library.claim(recording(library, who.id, 7 * 3600.0, f"o{who.id}")) == ""
+        over = library.claim(recording(library, who.id, 2 * 3600.0, f"p{who.id}"))
+        assert over.act == "top-up"
 
 
 def test_off_a_comp_changes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

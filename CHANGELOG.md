@@ -83,13 +83,16 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     untouched. A comp on an invitation becomes the account's when it is opened.
   - `targum comp-beta --until 2027-03-04 [--dry-run]` comps every account and every
     unused invitation, once, on switch day. Running it again comps nobody, and it never
-    shortens a longer comp.
+    shortens a longer comp. It takes only the canonical YYYY-MM-DD and refuses a day
+    that is today or earlier.
   - Let in from the waitlist (one by one, or `open-the-door`) comps the address until
     `plans.BETA_UNTIL` while that day is still ahead. `targum invite` comps nobody.
   - `plans.paid` is the operator or a comp that holds today. With plans on, a comped
     reader gets Plan (480 credits, any length of word list, channel and podcast
     subscriptions) and everyone else Free (60 credits, 300 words, no subscriptions).
-    With plans off nothing changes for anybody. The back office counts a comped reader's
+    The spend gate sees it too: `Library.claim`, `claim_set`, `claim_turn` (voice) and
+    the quote's `short_of_month` hold a comped reader to Plan's month, not Free's. With
+    plans off nothing changes for anybody. The back office counts a comped reader's
     month as the plan's.
   - On the comp's day it simply ends and the reader is on Free. Nothing mails them and
     nothing else happens, because what happens then is not decided yet.
