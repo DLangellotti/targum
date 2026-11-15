@@ -117,6 +117,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- A curated video's public page answers for an id with capitals or `_`
+  (`video-fr-_U1Fbsp6ugE`): `/library/<id>` only took lowercase slugs, so 42 of the 43
+  French videos shipped on 2026-11-15 linked from `/library/k/fr/talk` to "Not found".
+  Signed-in `/open/<id>` was never affected. Nothing with a dot or slash matches.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
