@@ -142,17 +142,35 @@ bdi.unbroken { white-space: nowrap; }
    the scale, filled with the teal wash in ink when pressed — never leaf, which is Known's
    step on the ramp. The label does not change; `aria-pressed` and the wash say the state.
    A thumb tall under a coarse pointer, and nothing moves: the fill is not animated. */
-.ear-toggle { align-self: flex-start; min-block-size: 2.25rem; padding-inline: 0.875rem; font-size: 0.8125rem; transition: none; }
-.btn.ghost.outline.ear-toggle[aria-pressed="true"],
-.btn.ghost.outline.ear-toggle[aria-pressed="true"]:hover:not(:disabled) {
+/* Regular weight at the scale's own height beside it (36px), so the toggle is no louder
+   than the stage it sits under (design's §14 pass on #1243). `.btn` is named so this
+   wins over `.btn`'s 2.5rem and 600, which come later in this file. */
+.btn.ear-toggle { align-self: flex-start; min-block-size: 2.25rem; padding-inline: 0.875rem; font-size: 0.8125rem; font-weight: 400; transition: none; }
+.btn.ghost.outline.ear-toggle[aria-pressed="true"] {
   background: var(--teal-wash);
   color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--teal);
 }
-.ear-toggle.compact { min-block-size: 2rem; padding-inline: 0.625rem; }
+/* The wash means pressed and nothing else (§14 P1 on #1243). `.btn.ghost.outline:hover`
+   fills with the same wash, and `:hover` sticks after a tap on touch, so an un-pressed
+   toggle a thumb has just turned off read as still on. Un-pressed, hovering keeps the
+   card's ground everywhere; only a real pointer's hover rings it in teal. */
+.btn.ghost.outline.ear-toggle[aria-pressed="false"]:hover:not(:disabled) { background: var(--card); }
+@media (hover: hover) {
+  .btn.ghost.outline.ear-toggle[aria-pressed="false"]:hover:not(:disabled) { box-shadow: inset 0 0 0 1px var(--teal); }
+}
+/* The row's toggle on Your Words (`compact`) recedes at a desk (design's §14 pass on
+   #1243): the segments' size and about their height, and un-pressed in --ink-soft, so
+   the few words known by ear stand out in a long list instead of fifty identical pills.
+   Pressed, it keeps ink and the wash. The phone row stays in ink, a thumb tall. */
+.btn.ear-toggle.compact { min-block-size: 1.75rem; padding-inline: 0.625rem; }
+.btn.ghost.outline.ear-toggle.compact[aria-pressed="false"] { color: var(--ink-soft); }
+@media (max-width: 40rem) {
+  .btn.ghost.outline.ear-toggle.compact[aria-pressed="false"] { color: var(--ink); }
+}
 @media (hover: none) and (pointer: coarse) {
-  .ear-toggle,
-  .ear-toggle.compact { min-block-size: 44px; }
+  .btn.ear-toggle,
+  .btn.ear-toggle.compact { min-block-size: 44px; }
   /* "Add your meaning" under it reaches 44px around its line; this keeps that reach off
      the toggle, so a thumb on either lands on the one it meant. */
   #gloss-card .ear-toggle { margin-block-end: 0.5rem; }

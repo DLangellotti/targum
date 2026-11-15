@@ -11,7 +11,7 @@ reading marks. Measured the way `test_reader_reach_browser.py` measures.
 from __future__ import annotations
 
 from test_reader_browser import browser  # noqa: F401
-from test_reader_qa_browser import PHONE, opened, served  # noqa: F401
+from test_reader_qa_browser import PHONE, WIDE, opened, served  # noqa: F401
 from test_reader_reach_browser import REACH
 from test_reader_reach_rest_browser import tap_a_word
 
@@ -74,5 +74,56 @@ def test_the_card_s_known_by_ear_answers_a_thumb_and_writes_the_mark_alone(
         toggle.tap()
         assert toggle.get_attribute("aria-pressed") == "false"
         assert marked[0] not in page.evaluate(STORED), "a second press takes it back"
+        # The wash means pressed and nothing else (design's §14 P1 on #1243): a thumb
+        # leaves :hover stuck on what it tapped, and the un-pressed toggle still read on.
+        look = page.evaluate(LOOK, "#gloss-card .ear-toggle")
+        assert look["background"] == look["card"], look
+    finally:
+        context.close()
+
+
+#: A toggle's fill and ring, its height and weight, beside the card's own ground and the
+#: scale's segment it sits under.
+LOOK = """
+(selector) => {
+  const toggle = document.querySelector(selector);
+  const box = toggle.closest('.vocab-editor') || toggle.parentElement;
+  const probe = document.createElement('span');
+  probe.style.background = 'var(--card)';
+  box.appendChild(probe);
+  const card = getComputedStyle(probe).backgroundColor;
+  probe.remove();
+  const style = getComputedStyle(toggle);
+  const level = box.querySelector('.level');
+  return {background: style.backgroundColor, ring: style.boxShadow, card,
+          height: toggle.getBoundingClientRect().height, weight: style.fontWeight,
+          scale: level ? level.getBoundingClientRect().height : 0};
+}
+"""
+
+
+def test_at_a_desk_hover_rings_the_un_pressed_toggle_and_never_fills_it(
+    browser, served: str
+) -> None:
+    """Design's §14 pass on #1243: hovering an un-pressed toggle showed the pressed look
+    ahead of the press. Hover changes the ring only; the wash is the pressed state. And the
+    card's toggle is the scale's height in regular weight, no louder than the stage."""
+    context, page = opened(browser, served, WIDE)
+    try:
+        page.click(".pair.verse .src .w")
+        page.wait_for_selector("#gloss-card:not([hidden]) .ear-toggle")
+        toggle = page.locator("#gloss-card .ear-toggle")
+        rest = page.evaluate(LOOK, "#gloss-card .ear-toggle")
+        assert rest["weight"] == "400", rest
+        assert abs(rest["height"] - rest["scale"]) <= 1, rest
+        toggle.hover()
+        page.wait_for_timeout(50)
+        hovered = page.evaluate(LOOK, "#gloss-card .ear-toggle")
+        assert hovered["background"] == hovered["card"], hovered
+        assert hovered["ring"] != rest["ring"], "hover says itself by the ring"
+        toggle.click()
+        pressed = page.evaluate(LOOK, "#gloss-card .ear-toggle")
+        assert toggle.get_attribute("aria-pressed") == "true"
+        assert pressed["background"] != pressed["card"], "pressed wears the wash"
     finally:
         context.close()

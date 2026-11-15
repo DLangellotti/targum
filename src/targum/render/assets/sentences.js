@@ -389,11 +389,14 @@
       press.appendChild(shown);
       press.addEventListener("click", function (event) {
         if (event && event.stopPropagation) event.stopPropagation();
+        // Its meaning from the text's glossary, as every word card has one (design's §14
+        // pass on #1243: the card said "No meaning yet" with no field under it).
         window.TargumLists.openWord(press, {
           lemma: word.lemma,
           surface: piece.text,
+          meaning: word.meaning || "",
           language: item.language || language,
-          into: into,
+          into: word.into || into,
         });
       });
       line.appendChild(press);

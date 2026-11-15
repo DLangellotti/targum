@@ -990,7 +990,7 @@ def test_the_anki_deck_says_why_words_have_no_sound(deck: dict[str, Any], said: 
 # --- known by ear (targum-internal#536) ------------------------------------------------
 #
 # design.md §12, "A word can be known by ear, and only the reader says so" (2026-11-14):
-# Your Words counts both, filters by ear, and carries the toggle in a column of its own.
+# Your Words counts both, filters by ear, and carries the toggle under each row's stages.
 
 
 def _eared() -> dict[str, str]:
@@ -1003,11 +1003,13 @@ def _eared() -> dict[str, str]:
 
 
 def test_the_head_counts_known_and_known_by_ear_and_says_nothing_new_before_one() -> None:
+    """The ear count goes on the end of the head line, once there is one (design's §14
+    pass on #1243): a second counts line under the tabs said "known" twice."""
     drawn = draw(_eared())
-    assert drawn["both"] == "2 known · 2 known by ear"
-    # The word known by ear alone is on no list: the head's figures are the reading ones.
-    assert drawn["summary"] == "3 on your list · 2 known"
-    assert draw(vocabulary(word("ספר", "book", status=9)))["both"] == ""
+    # The word known by ear alone is on no list: the head's other figures are the
+    # reading ones, and the ear count is its own.
+    assert drawn["summary"] == "3 on your list · 2 known · 2 known by ear"
+    assert draw(vocabulary(word("ספר", "book", status=9)))["summary"] == "1 on your list · 1 known"
 
 
 def test_known_by_ear_is_a_filter_across_the_stages() -> None:

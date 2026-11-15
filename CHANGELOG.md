@@ -69,24 +69,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - A toggle, Known by ear, on its own line under the five stages on every word card:
     the reader card in each view, the listening view, Hear first, Practise these, Home's
     words to know first, and under each row's five stages on Your Words. A
-    second press takes it back. Never on a phrase card. The quiet outlined press, filled
-    with the teal wash when pressed; 44px under a coarse pointer.
+    second press takes it back. Never on a phrase card. The quiet outlined press in
+    regular weight at the scale's height, filled with the teal wash only when pressed:
+    hovering an un-pressed one rings it in teal and never fills it, and only under
+    `(hover: hover)`, so a touch's stuck hover no longer reads as still on (design's §14
+    pass on #1243, P1). On a desk row of Your Words it recedes, in `--ink-soft` at about
+    the segments' height; 44px under a coarse pointer.
   - A word known by ear and never marked when reading has no stage (status NULL): it is
     on no list, not in the free cap, drawn unmarked in the text, and its `at` is nought,
     so it is never "saved" on a day. Every "% known", the level, coverage, the estimate
     and the chat's known sample stay on the reading marks.
-  - Your Words: "N known · M known by ear" under the tabs, a Known by ear filter beside Met
-    often that narrows any stage, "Not marked" for a word with no stage, and `?ear=1`
-    to open with the filter on. Your Progress: a second figure beside "words known",
-    linking there, and a line "You know N words by ear." (or how to mark the first).
+  - Your Words: "· M known by ear" on the end of the head line once there is one, a Known
+    by ear filter beside Met often that narrows any stage, "Not marked" for a word with
+    no stage, and `?ear=1` to open with the filter on. Your Progress: a second figure
+    under "words known" and its roots line, linking there, and before the first mark a
+    line saying how to make one.
   - Exports: `targum::ear` on Anki notes (the `.apkg` and the text deck), no `level-None`
     for a word with no stage, a "known by ear" CSV column, and the connector's
     `my_vocabulary` (`by_ear`, per word and as a count) and `my_progress`
     (`known_by_ear`). No tool writes it.
-  - Dictation's result opens a word's card on a tap (D6); the result still writes
-    nothing. New strings in English and Russian (`vocab.ear*`, `lists.stage.ear`,
-    `lists.stage.unmarked`, `lists.counts`, `lists.csv.by-ear`,
-    `lists.csv.yes`, `lists.ear.label`, `progress.where.ear`, `progress.ear.start`,
+  - Dictation's result opens a word's card on a tap (D6), with its meaning from the text's
+    own glossary in the reader's language (`dictation_item.words` carries `meaning` and
+    `into`); the result still writes nothing. New strings in English and Russian
+    (`vocab.ear*`, `lists.stage.ear`, `lists.stage.unmarked`, `lists.head.ear`,
+    `lists.csv.by-ear`, `lists.csv.yes`, `lists.ear.label`, `progress.ear.start`,
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 

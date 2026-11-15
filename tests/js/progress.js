@@ -304,13 +304,15 @@ function report() {
     nothing: at("nothing").hidden === false,
     counts: counts(),
     tiles: counts_(),
-    // Known by ear (#536): the story's second line, and the figure beside words known.
+    // Known by ear (#536): the start line, and the figure under words known.
     ear: (() => {
       const known = at("counts").children.find((box) => String(box.className).includes("count-known"));
       const link = known ? known.children.find((child) => String(child.className).includes("count-ear")) : null;
       return {
         line: at("ear-line").hidden === false ? at("ear-line").textContent : "",
         figure: link ? link.textContent : "",
+        // The tile's lines in order: the figure, its label, then roots and the ear figure.
+        order: known ? known.children.map((child) => String(child.className || child.tagName)) : [],
         href: link ? link.href : "",
       };
     })(),

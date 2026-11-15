@@ -392,8 +392,6 @@ function phrases() {
       // The head (design.md §12, 2026-10-09): what the list adds up to, the tab counts,
       // and the stage chips with the one pressed.
       summary: at("words-summary").textContent,
-      // Both counts under the tabs, once a word is known by ear (#536).
-      both: at("words-both").hidden ? "" : at("words-both").textContent,
       counts: { words: at("count-words").textContent, phrases: at("count-phrases").textContent },
       chips: at("stage-chips").children.map((c) => c.textContent),
       chipOn: (at("stage-chips").children.find((c) => c.getAttribute("aria-pressed") === "true") || {}).textContent || "",

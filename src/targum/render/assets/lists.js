@@ -1951,20 +1951,12 @@
           tn("lists.head.learned", sums.learned, "{n} learned on targum", "{n} learned on targum", grouped(sums.learned))
         );
       }
+      // Known by ear on the end of the same line, once a word is (targum-internal#536;
+      // design's §14 pass on #1243: a second counts line under the tabs said "known" twice).
+      if (sums.ear) {
+        parts.push(tn("lists.head.ear", sums.ear, "{n} known by ear", "{n} known by ear", grouped(sums.ear)));
+      }
       summary.textContent = parts.join(" · ");
-    }
-    // Both counts, under the tabs (targum-internal#536): known when read, and known by
-    // ear, real counts in tabular figures. Only once a word is known by ear: before that
-    // the head above already says the first.
-    var both = at("words-both");
-    if (both) {
-      both.hidden = !sums.ear;
-      both.textContent = sums.ear
-        ? tn("lists.counts", sums.ear, "{n} known · {m} known by ear", "{n} known · {m} known by ear", {
-            n: grouped(sums.known).n,
-            m: grouped(sums.ear).n,
-          })
-        : "";
     }
     // Grouped as the head groups them: "4,560 on your list" over a tab that said 4560.
     if (at("count-words")) at("count-words").textContent = grouped(sums.saved).n;
