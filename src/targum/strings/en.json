@@ -1333,6 +1333,7 @@
   "serve.already-drawn": "Already drawn.",
   "serve.gloss-not-in-that-language": "We can't look words up in that language.",
   "serve.we-couldn-t-look-that-word": "We couldn't look this word up.",
+  "serve.phrase.too-often": "That's a lot of phrases for one hour. Try again in an hour.",
   "serve.we-couldn-t-look-that-phrase": "We couldn't look this phrase up.",
   "serve.this-file-is-protected-so-we": "This file is protected, so we can't read it.",
   "serve.we-can-only-read-a-recording": "We can only read a recording, a video, a picture or a PDF.",
