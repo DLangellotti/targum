@@ -77,6 +77,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     newer "library record" now reads "library record chat" instead of losing `chat`.
     Disconnect still revokes everything for the app. `record_turn` and
     `Library.claim_turn` are unchanged. No spend.
+- At a desk the word's card opens over the listening view (targum-internal#730, found by
+  design's §14 pass on targum#1243). It floated at `.gloss-card`'s z-index 20 under
+  `.listen-view`'s 29, so a word tapped there opened a card that was drawn and out of
+  sight, and nothing on it could be pressed; the phone's sheet already stood over it at
+  30. `body.listening #gloss-card` now stands at 32 beside the pick card. A browser test
+  at 1440 taps a word in the listening view and presses a stage on its card. No new
+  strings.
 - A video's own subtitle track is punctuated when it has no full stops, and drawn into
   paragraphs (targum-internal#727). David's Doña Gracia video came with the creator's
   Hebrew track: 2,873 words with one full stop and one comma. It was taken as the source
