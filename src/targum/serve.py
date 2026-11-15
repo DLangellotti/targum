@@ -18926,8 +18926,12 @@ class Handler(BaseHTTPRequestHandler):
         what you look up is cached, so the same word is free everywhere after that.
         """
         lemma = str(payload.get("lemma", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as the cache and the checks below write them: lowercase, the base
+        # language alone. Compared as the page sent them, "EN" was not "en" and "ru-RU"
+        # was not "ru", so a meaning in the word's own language could be bought by
+        # spelling it differently.
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
         # The sentence it was tapped in, which is what tells עם from עם. Capped: a
         # sentence is what this is for, and a paragraph is what a page could send.
         sentence = str(payload.get("sentence", "")).strip()[:400]
@@ -18965,7 +18969,14 @@ class Handler(BaseHTTPRequestHandler):
         # targum's account with no job row behind it, so a page that could name any
         # target could make targum buy meanings into any language it liked. A meaning
         # in the word's own language is not approved yet (targum-internal#538).
-        if target == source or target not in self._gloss_targets(document):
+        # And the word has to be in a language somebody may read here: a page that could
+        # name any source could make targum buy Japanese meanings, or English
+        # definitions of English words (`translate.prompts.READING`).
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
             return self._json(
                 {
                     "error": self._say(

@@ -117,6 +117,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
+  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
+  with the time of the ship. A saved copy refetches a file whose size or time changed, so
+  every re-ship made saved copies of the issue download its recording again. It sends
+  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
+  `index.json` sends stay as they are, since nothing saved holds the index.
+  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
 - `/phrase` holds a selection's meaning to the same languages `/gloss` does
   (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
   language: any source into any target was bought, the words' own language too, and the
@@ -973,6 +980,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the picture docked the first page holds the first line instead of only the title
     and the source.
   - No new strings. No spend.
+- `/gloss` buys a word's meaning only for a language a text is read in here, with both
+  codes normalised first (targum-internal#732, found by qa-claude on #1220). The source
+  and target were compared as the page sent them, so "EN" into "en" or "ru-RU" into "ru"
+  passed the same-language refusal, and any source was accepted, so a page could make
+  targum buy Japanese meanings. Both are lowercased to their base code
+  (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
+  target == source still is until #538. A 400, with no model call. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

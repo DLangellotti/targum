@@ -1892,6 +1892,73 @@ def test_a_meaning_is_bought_only_in_the_pair_the_page_shows(
     assert bought == [("שלום", "he", "en")], "nothing refused reached the model"
 
 
+def test_a_meaning_is_bought_only_for_a_language_read_here(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Both codes are normalised before anything is compared, and the word's language
+    has to be one a text is read in here (targum-internal#732). "EN" into "en" is the
+    word's own language spelled differently, "ru-RU" into "ru" the same with a region,
+    and "ja" a language nobody reads here: each is refused and never reaches the model.
+    Hebrew into English still buys, and so does a recased "HE"."""
+    from targum.annotate import gloss as gloss_module
+
+    port, session = hosted
+    bought: list[tuple[str, str, str]] = []
+
+    def fake_gloss_one(
+        lemma: str, source: str, target: str, provider: object, **_: object
+    ) -> gloss_module.Sense:
+        bought.append((lemma, source, target))
+        return gloss_module.Sense(gloss="peace")
+
+    monkeypatch.setattr(gloss_module, "gloss_one", fake_gloss_one)
+    monkeypatch.setattr(gloss_module.AnthropicGlosses, "available", lambda self: (True, ""))
+
+    def ask(lemma: str, source: str, target: str) -> tuple[int, dict[str, object]]:
+        body = json.dumps({"lemma": lemma, "source": source, "target": target}).encode()
+        conn = HTTPConnection("127.0.0.1", port, timeout=5)
+        conn.putrequest("POST", "/gloss", skip_host=True)
+        conn.putheader("Host", "targum.page")
+        conn.putheader("Cookie", f"targum_session={session}")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders()
+        conn.send(body)
+        response = conn.getresponse()
+        out = json.loads(response.read())
+        conn.close()
+        return response.status, out
+
+    for lemma, source, target in [
+        ("peace", "EN", "en"),
+        ("мир", "ru-RU", "ru"),
+        ("平和", "ja", "en"),
+        ("peace", "en", "en"),
+    ]:
+        status, answer = ask(lemma, source, target)
+        assert status == 400, (source, target)
+        assert answer["error"] == "We can't look words up in that language."
+    assert bought == [], "nothing refused reached the model"
+
+    status, answer = ask("שלום", "he", "en")
+    assert status == 200 and answer["meaning"] == "peace"
+    status, answer = ask("שלום", "HE", "EN")
+    assert status == 200
+    assert bought == [("שלום", "he", "en"), ("שלום", "he", "en")]
+
+
+def test_a_language_code_is_its_base_in_lowercase() -> None:
+    from targum.serve import language_code
+
+    assert language_code("EN") == "en"
+    assert language_code("ru-RU") == "ru"
+    assert language_code("he_IL") == "he"
+    assert language_code(" fr ") == "fr"
+    assert language_code("") == ""
+    assert language_code("עב") == ""
+    assert language_code(None) == ""
+
+
 def test_a_phrase_already_answered_is_free_to_ask_for(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
