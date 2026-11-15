@@ -54,7 +54,8 @@ def on() -> bool:
 
 def _until(person: Person | None) -> date | None:
     """The day this reader's comp ends, if they have one that reads as a day."""
-    said = person.plan_until if person is not None else ""
+    # Read leniently: a stand-in for a person that says only `admin` has no comp.
+    said = str(getattr(person, "plan_until", "") or "")
     try:
         return date.fromisoformat(said) if said else None
     except ValueError:
