@@ -551,6 +551,11 @@ def _about(raw: object) -> dict[str, str] | None:
     return about
 
 
+#: The reader's own AnkiConnect, the one host other than `'self'` a policy names, and on
+#: Your Words alone (design.md §12, 2026-11-14). `127.0.0.1`, never `localhost`, which
+#: can resolve to ::1 while AnkiConnect listens on IPv4.
+ANKI_CONNECT = "http://127.0.0.1:8765"
+
 POLICY = (
     "default-src 'none'; "
     "img-src 'self' data:; "
@@ -7548,6 +7553,14 @@ class Handler(BaseHTTPRequestHandler):
             policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
         if re.search(rb"<iframe\b", body):
             policy = policy + "; frame-src 'self'"
+        # Your Words may call the reader's own AnkiConnect, and no other page may (design.md
+        # §12, "Send to Anki talks to the Anki on your own computer", 2026-11-14). Read
+        # off the page as written, like the frames: only a page holding the Send to Anki
+        # press names it, and every other page, every reader and every saved copy keeps
+        # `connect-src 'self'` exactly. Nothing is loaded from it: the page hands Anki
+        # bytes from targum's own origin, never an address to fetch.
+        if re.search(rb'<button\b[^>]*\bid="send-anki"', body):
+            policy = policy.replace("connect-src 'self'", f"connect-src 'self' {ANKI_CONNECT}")
         # A desk page names its own stylesheets and scripts under `/assets/` (design.md
         # §12, 2026-10-18), and `'self'` is what lets it load them. Read off the page as
         # written, like the frames: a page that names none — every reader, every public
@@ -11043,6 +11056,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._deck_state(parse_qs(urlparse(self.path).query))
         if route == "/account/anki/deck":
             return self._deck_file(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/notes":
+            return self._anki_notes(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/sound":
+            return self._anki_sound(parse_qs(urlparse(self.path).query))
+        if route == "/account/anki/line":
+            return self._anki_line(parse_qs(urlparse(self.path).query))
         if route == "/account/met":
             return self._met_texts(parse_qs(urlparse(self.path).query))
         if route == "/account/practice":
@@ -12026,9 +12045,8 @@ class Handler(BaseHTTPRequestHandler):
         past it. A word with no sound still goes in the deck, silent. Made in the
         background; one deck at a time a person.
         """
-        import unicodedata
 
-        from . import speech
+        from . import anki_send, speech
 
         person = self._person()
         if person is None:
@@ -12055,7 +12073,8 @@ class Handler(BaseHTTPRequestHandler):
             lemma = str(row["lemma"])
             if shown_set is not None and lemma not in shown_set:
                 continue
-            term = unicodedata.normalize("NFC", str(row["surface"] or lemma)).strip()
+            # The one spelling Send to Anki matches an imported note by (`apkg_word`).
+            term = anki_send.apkg_word(row)
             given = backs.get(lemma) if isinstance(backs, dict) else None
             back = str(given)[:2000] if isinstance(given, str) else ""
             if not back:
@@ -12331,6 +12350,160 @@ class Handler(BaseHTTPRequestHandler):
         deck.path.unlink(missing_ok=True)
         with ANKI_LOCK:
             self.library.decks.pop(deck.id, None)
+
+    # -- Send to Anki (targum-internal#540) --------------------------------------------
+
+    def _anki_reading(
+        self, person: Person, language: str
+    ) -> tuple[list[dict[str, Any]], Callable[[list[str]], dict[str, Any]], Any]:
+        """What Send to Anki reads for one person and language: the words that may be
+        sent (`anki_send.sendable`), a finder of each word's first line, and the texts'
+        files read once. Read off the account and builds on this disk; spends nothing."""
+        from . import anki_send
+
+        homes = [self.library.home(person), self.library.shared, self.library.weekly]
+        folders: dict[str, tuple[Path, str] | None] = {}
+
+        def folder_for(hash_: str) -> tuple[Path, str] | None:
+            if hash_ not in folders:
+                folders[hash_] = self.library.document_folder(homes, hash_)
+            return folders[hash_]
+
+        shared = self.library.shared
+
+        def may_leave(folder: Path) -> bool:
+            # By the text's source wherever it sits: a catalogue text built into a
+            # reader's own home is held to its licence as on the shelf (qa-claude).
+            try:
+                folder.resolve().relative_to(shared.resolve())
+            except (OSError, ValueError):
+                return anki_send.text_may_leave(folder, on_shelf=False)
+            return anki_send.shared_may_leave(folder)
+
+        def own() -> list[tuple[str, Path]]:
+            # The reader's own shelf, by folder name so the order never moves.
+            rows = self.library.readers(homes[0])
+            found = [
+                (str(row.get("document") or ""), homes[0] / str(row["name"]))
+                for row in rows
+                if row.get("name")
+            ]
+            return sorted(found, key=lambda pair: pair[1].name)
+
+        finished = self.store.finished(person.id)
+        rows = anki_send.sendable(self.store.saved_words(person, language))
+
+        def lines(lemmas: list[str]) -> dict[str, Any]:
+            return anki_send.first_lines(
+                lemmas, finished, folder_for, language, own=own(), may_leave=may_leave
+            )
+
+        return rows, lines, anki_send.Texts(into=self._page_language())
+
+    def _anki_word(
+        self, row: dict[str, Any], language: str, place: Any, texts: Any
+    ) -> tuple[dict[str, Any], Any, Path | None]:
+        """One word's note, and the line's clock and the word's clip behind it."""
+        from . import anki_send
+
+        line = texts.line(place) if place is not None else None
+        heard = None
+        if line is not None and place is not None:
+            clock = texts.heard(place.folder, place.section).get(place.segment)
+            if anki_send.held(clock) and anki_send.recording_may_leave(clock):
+                heard = clock
+        # The clip Hear or the deck export already made, by whichever form it was said
+        # in: the word as the line points it, as it was saved, or its dictionary form.
+        kept = None
+        tried = (line["gap"] if line else "", row.get("surface") or "", row["lemma"])
+        for form in dict.fromkeys(str(one).strip(EDGES_SAID) for one in tried):
+            if form and self._sayable(form):
+                kept = said_clip(form, language)[1]
+                if kept is not None:
+                    break
+        return anki_send.note(row, language, line, heard, kept), heard, kept
+
+    def _anki_notes(self, query: dict[str, list[str]]) -> None:
+        """The reader's words as Send to Anki adds them, `anki_send.PAGE` a page
+        (design.md §12, "Send to Anki talks to the Anki on your own computer",
+        2026-11-14): learning words to add, known words to update where Anki has them,
+        ignored words never. Read-only, and nothing spends: no voice, no job, no claim."""
+        from . import anki_send
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        language = str((query.get("language") or [""])[0]).split("-")[0].strip().lower()
+        if not language:
+            return self._json({"error": "no language"}, 400)
+        try:
+            page = max(0, int((query.get("page") or ["0"])[0]))
+        except ValueError:
+            page = 0
+        rows, lines, texts = self._anki_reading(person, language)
+        mine = rows[page * anki_send.PAGE : (page + 1) * anki_send.PAGE]
+        places = lines([str(row["lemma"]) for row in mine])
+        words = [
+            self._anki_word(row, language, places.get(str(row["lemma"])), texts)[0] for row in mine
+        ]
+        more = (page + 1) * anki_send.PAGE < len(rows)
+        self._json(
+            {
+                "signedIn": True,
+                "language": language,
+                "notetype": anki_send.NOTETYPE,
+                "total": len(rows),
+                "words": words,
+                "next": page + 1 if more else None,
+            }
+        )
+
+    def _anki_one(self, query: dict[str, list[str]]) -> tuple[Any, Any, Path | None] | None:
+        """The one word a sound or a line is asked for, and only where it is this
+        person's: a key they do not save, or an ignored word, is nobody's."""
+        person = self._person()
+        if person is None:
+            return None
+        key = str((query.get("key") or [""])[0])
+        language, _, lemma = key.partition(":")
+        language = language.strip().lower()
+        if not language or not lemma:
+            return None
+        rows, lines, texts = self._anki_reading(person, language)
+        row = next((one for one in rows if str(one["lemma"]) == lemma), None)
+        if row is None:
+            return None
+        place = lines([lemma]).get(lemma)
+        return self._anki_word(row, language, place, texts)
+
+    def _anki_file(self, path: Path | None) -> None:
+        if path is None or not path.is_file():
+            return self._send(404, b"not found", "text/plain")
+        kind = "audio/wav" if path.suffix == ".wav" else "audio/mpeg"
+        self.send_response(200)
+        body = path.read_bytes()
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "private, max-age=86400")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _anki_sound(self, query: dict[str, list[str]]) -> None:
+        """A word's clip where the voice already made one, or 404: never made here."""
+        found = self._anki_one(query)
+        self._anki_file(found[2] if found else None)
+
+    def _anki_line(self, query: dict[str, list[str]]) -> None:
+        """A word's line, cut once from a recording already on disk, or 404."""
+        from . import anki_send
+
+        found = self._anki_one(query)
+        heard = found[1] if found else None
+        self._anki_file(anki_send.cut(heard) if heard is not None else None)
 
     def _chat_hear(self, query: dict[str, list[str]]) -> None:
         """A line spoken into the microphone, written down and asked. Push-to-talk in.
