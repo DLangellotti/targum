@@ -175,6 +175,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   (`reader.estimate.about`, `reader.estimate.ours`, `reader.list.to-mark.*`; the
   reader's table carries only `reader.` and `vocab.` keys, so Home's `known.estimate.*`
   cannot be reused); ling-ru passed the Russian on review. No spend.
+- Account's Telegram rows can be told apart (targum-internal#719 P2 12). Each said "A
+  Telegram chat"; each now says "Telegram · …4567", the last four digits of the chat id
+  already stored. No title is asked of Telegram and nothing new is kept. One string
+  changes in English and Russian: `you.telegram.chat` «Telegram · …{last}», for ling-ru.
 ### Fixed
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file

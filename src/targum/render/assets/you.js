@@ -1291,6 +1291,13 @@
     }
 
 
+    /* Which chat a row is (targum-internal#719 P2 12): the last four digits of the
+       chat id we already hold, never the chat's title, which for a private chat is the
+       person's Telegram name and is not ours to keep. */
+    function lastFour(chat) {
+      return String(Math.abs(Number(chat) || 0)).slice(-4);
+    }
+
     function paint(chats) {
       rows.textContent = "";
       (chats || []).forEach(function (one) {
@@ -1312,7 +1319,7 @@
         };
         rows.appendChild(
           acctRow(
-            t("you.telegram.chat", "A Telegram chat"),
+            t("you.telegram.chat", "Telegram · …{last}", { last: lastFour(one.chat) }),
             t("you.telegram.linked-on", "Linked {made}", { made: day(one.linked) }),
             press,
             false
