@@ -117,6 +117,13 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
+- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
+  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
+  with the time of the ship. A saved copy refetches a file whose size or time changed, so
+  every re-ship made saved copies of the issue download its recording again. It sends
+  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
+  `index.json` sends stay as they are, since nothing saved holds the index.
+  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
