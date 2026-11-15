@@ -85,7 +85,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   that reaches the model counts: a meaning already held, or held grounded, is free and
   never counted. A bare meaning asked with its sentence past the ceiling is answered as
   it stands, ungrounded, so the card keeps what it had and only the purchase waits. One
-  new string, in English and Russian. No spend.
+  new string, in English and Russian. A lemma longer than 64 characters after stripping
+  (`MAX_LEMMA`) is now a 400 before any gate, free or bought: it had no limit, so 300 an
+  hour could each be a page of text. The longest lemma in the library is 30 characters.
+  No spend.
 - A1 is Easy's two ceilings and short (targum-internal#728, design.md §12 "A1 is Easy's
   two ceilings and short", 2026-11-15). For placement an Easy text is A1 where its share
   is at most 15, its mean sentence at most 9.5 words, and it runs more than none and at

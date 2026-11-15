@@ -1984,6 +1984,40 @@ def test_meanings_bought_in_an_hour_have_a_ceiling(
     assert bought == []
 
 
+def test_a_lemma_longer_than_any_word_is_refused(
+    hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A lemma is a word, and the longest in the library is 30 characters, so one past
+    `MAX_LEMMA` is a 400 before any gate or model (targum-internal#737). Free or bought,
+    and after the ends are stripped: 64 characters still buys."""
+    from targum.annotate import gloss as gloss_module
+
+    port, session = hosted
+    bought: list[str] = []
+
+    def fake_gloss_one(lemma: str, *_: object, **__: object) -> gloss_module.Sense:
+        bought.append(lemma)
+        return gloss_module.Sense(gloss="long")
+
+    monkeypatch.setattr(gloss_module, "gloss_one", fake_gloss_one)
+    monkeypatch.setattr(gloss_module.AnthropicGlosses, "available", lambda self: (True, ""))
+
+    for free in (False, True):
+        status, answer = _signed_post(
+            port,
+            "/gloss",
+            {"lemma": "א" * 65, "source": "he", "target": "en", "free": free},
+            session,
+        )
+        assert status == 400 and answer == {"error": "bad request"}
+    assert bought == []
+
+    status, answer = _signed_post(
+        port, "/gloss", {"lemma": "  " + "ב" * 64 + "  ", "source": "he", "target": "en"}, session
+    )
+    assert status == 200 and bought == ["ב" * 64]
+
+
 def test_a_meaning_already_held_is_never_counted(
     hosted: tuple[int, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

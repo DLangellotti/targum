@@ -1181,6 +1181,10 @@ PHRASES_PER_HOUR = 120
 #: a sentence, is free and never counted. A reader opening a card every twelve seconds for
 #: an hour on words nobody has looked up meets it; a script naming lemmas does sooner.
 GLOSSES_PER_HOUR = 300
+#: The longest lemma `/gloss` takes. The longest in the library on 2026-11-15 was 30
+#: characters (a hyphenated Russian adjective); the longest Hebrew 23, pointed with a
+#: Strong's number, and the longest multi-word Hebrew name 14 (`tanakh.json`).
+MAX_LEMMA = 64
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -19327,7 +19331,10 @@ class Handler(BaseHTTPRequestHandler):
         # Which text they were reading, so a judgement made in it can be held to that
         # text's licence when the corpus leaves (targum-internal#164, acceptance 5).
         document = str(payload.get("document", "")).strip()[:200]
-        if not lemma or not source:
+        # A lemma is a word, so it is refused rather than cut when it is longer than any
+        # word: cut, it would still be a purchase of whatever a page put there
+        # (targum-internal#737). The longest in the library is 30 characters.
+        if not lemma or not source or len(lemma) > MAX_LEMMA:
             return self._json({"error": "bad request"}, 400)
 
         from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
