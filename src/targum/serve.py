@@ -1168,6 +1168,9 @@ SIGNUPS_PER_HOUR_FOR_EVERYBODY = 60
 #: is not ours pretending to be one, and for a loop nobody meant.
 FAULTS_PER_HOUR = 30
 FAULTS_PER_HOUR_FOR_EVERYBODY = 600
+#: Phrases one account may have bought in an hour (targum-internal#734). An answer
+#: already held is free and never counted.
+PHRASES_PER_HOUR = 120
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -6674,6 +6677,33 @@ SESSION_COOKIE = "targum_session"
 # rather than followed. Ten minutes, which is a sign-in and no more.
 CONNECT_COOKIE = "targum_connect"
 CONNECT_MINUTES = 10
+
+# The browser a Google sign-in was started in (targum-internal#729): a digest of its
+# `state`, set as the reader is sent to Google and checked when Google sends them back,
+# so a callback address somebody else started cannot sign this browser into their
+# account (login CSRF). Only on `/account/google`, as long as a sign-in may take, and
+# cleared once the callback has read it. Never the state itself, nothing about anybody.
+GOOGLE_STATE_COOKIE = "targum_google"
+
+
+def google_state_digest(state: str) -> str:
+    """What the state cookie holds for `state`: a digest, so the cookie is no copy of it."""
+    return hashlib.sha256(("targum-google-state\0" + state).encode("utf-8")).hexdigest()[:32]
+
+
+def google_state_cookie(state: str, address: str) -> str:
+    """The cookie that binds a Google sign-in to its browser; an empty `state` clears it.
+    HttpOnly, SameSite=Lax (Google's return is a top-level GET, which Lax still carries),
+    and Secure where the site is served over https."""
+    from .google import BEGUN_MINUTES
+
+    secure = "; Secure" if address.startswith("https://") else ""
+    value, age = (google_state_digest(state), BEGUN_MINUTES * 60) if state else ("", 0)
+    return (
+        f"{GOOGLE_STATE_COOKIE}={value}; HttpOnly; SameSite=Lax; Path=/account/google; "
+        f"Max-Age={age}{secure}"
+    )
+
 
 # Which set of the desk's own files this browser last fetched in full (design.md §12, "A
 # first visit gets the page whole", 2026-10-19; Privacy Notice clause 3.13). Its value is
@@ -15271,7 +15301,8 @@ class Handler(BaseHTTPRequestHandler):
             back = safe_next(query.get("next", [""])[0])
             if back:
                 self._google_next[begun.state] = back
-        self._go(begun.where)
+        # Bound to this browser, Link as much as a door (targum-internal#729).
+        self._go(begun.where, google_state_cookie(begun.state, self.address))
 
     def _google_linked(self, person_id: int, begun: Any, query: dict[str, list[str]]) -> None:
         """Finish a Link pressed on Account, and go back there (targum-internal#502).
@@ -15283,25 +15314,27 @@ class Handler(BaseHTTPRequestHandler):
         """
         from . import google as google_module
 
+        # Every answer here clears the cookie that bound the Link to this browser.
+        cleared = google_state_cookie("", self.address)
         person = self._person()
         if person is None or person.id != person_id:
-            return self._go("/account/signin?next=%2Fyou")
+            return self._go("/account/signin?next=%2Fyou", cleared)
         if begun is None or google_module.stale(begun):
             self._say_of_ways(
                 person.id,
                 self._say("serve.that-sign-in-took-too-long", "That sign-in took too long."),
             )
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         code = (query.get("code") or [""])[0]
         if (query.get("error") or [""])[0] or not code:
             # Cancel on Google's own screen: nothing to say, Not linked says it.
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         try:
             answer = google_module.exchange(code, begun.verifier, self._google_redirect())
             email = google_module.address_from(answer)
         except google_module.Refused as error:
             self._say_of_ways(person.id, str(error))
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         if email != person.email:
             self._say_of_ways(
                 person.id,
@@ -15312,10 +15345,10 @@ class Handler(BaseHTTPRequestHandler):
                     yours=person.email,
                 ),
             )
-            return self._go("/you#ways")
+            return self._go("/you#ways", cleared)
         self.store.link_google(person.id)
         self._google_unlinked.pop(person.id, None)
-        self._go("/you#ways")
+        self._go("/you#ways", cleared)
 
     def _google_unlink(self) -> None:
         """Account's Unlink (targum-internal#502): no question asked, and Undo for a few
@@ -15394,10 +15427,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(404, b"not found", "text/plain")
 
         state = (query.get("state") or [""])[0]
+        # Started in this browser, or nothing here is spent on it (targum-internal#729).
+        bound = self._cookie(GOOGLE_STATE_COOKIE)
+        ours = bool(state and bound) and secrets.compare_digest(bound, google_state_digest(state))
         begun = self._google_begun.pop(state, None) if state else None
         back = self._google_next.pop(state, "") if state else ""
         linking = self._google_linking.pop(state, None) if state else None
+        cleared = google_state_cookie("", self.address)
         if linking is not None:
+            if begun is not None and not ours:
+                # A Link callback this browser did not start: spent above, nothing linked,
+                # and said on Account, where the person pressing Link already is.
+                person = self._person()
+                if person is not None:
+                    self._say_of_ways(
+                        person.id,
+                        self._say(
+                            "serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."
+                        ),
+                    )
+                return self._go("/you#ways", cleared)
             return self._google_linked(linking, begun, query)
 
         def refuse(said: str, again: str = "") -> None:
@@ -15408,8 +15457,16 @@ class Handler(BaseHTTPRequestHandler):
             if again and back:
                 again += "?next=" + quote(back, safe="/")
             page = signin_page(language=self._page_language(), said=said, again=again, back=back)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
 
+        if begun is not None and not ours:
+            # A callback this browser did not start: somebody else's sign-in, sent here
+            # to sign this browser into their account. Refused before the code is spent,
+            # and the state is spent with it, so the address works nowhere now.
+            return refuse(
+                self._say("serve.that-sign-in-didn-t-finish", "That sign-in didn't finish."),
+                "/account/google",
+            )
         if begun is None or google_module.stale(begun):
             # Also what an abandoned tab looks like an hour later, so it is said the way
             # a spent link is: not an error, just start again.
@@ -15442,7 +15499,7 @@ class Handler(BaseHTTPRequestHandler):
         # is a takeover wherever `+` is a separate mailbox.
         if self.store.is_leaving(email):
             page = signin_page(language=self._page_language(), closing=True)
-            return self._send(200, page.encode("utf-8"), HTML)
+            return self._send(200, page.encode("utf-8"), HTML, cookie=cleared)
         if self.require_account and not self.store.may_join(email) and signup_is_open():
             held = self._door_holds(email) or self._door_opens(email)
             if held is not None:
@@ -15468,7 +15525,7 @@ class Handler(BaseHTTPRequestHandler):
         from .accounts import SESSION_DAYS
 
         landed = f"/?k={self.token}&signin=welcome" if self.token else "/?signin=welcome"
-        self._go(safe_next(back) or landed, self._session_cookie(session, SESSION_DAYS))
+        self._go(safe_next(back) or landed, [self._session_cookie(session, SESSION_DAYS), cleared])
 
     def _enter(self, token: str, back: str = "") -> None:
         if token and self.require_account and signup_is_open():
@@ -19056,8 +19113,12 @@ class Handler(BaseHTTPRequestHandler):
         phrase = str(payload.get("phrase", "")).strip()
         sentence = str(payload.get("sentence", "")).strip()
         translation = str(payload.get("translation", "")).strip()
-        source = str(payload.get("source", "")).strip()
-        target = str(payload.get("target", "en")).strip() or "en"
+        # Both codes as `_gloss_word` writes them, for the reason it gives: compared as
+        # the page sent them, "EN" was not "en" (targum-internal#734).
+        source = language_code(payload.get("source", ""))
+        target = language_code(payload.get("target", "en")) or "en"
+        # Which text the sentence is from, so the target can be one it is translated into.
+        document = str(payload.get("document", "")).strip()[:200]
 
         from .annotate.phrase import (
             PHRASE_MODEL,
@@ -19087,9 +19148,42 @@ class Handler(BaseHTTPRequestHandler):
                     "cached": True,
                 }
             )
+        # Buying is held as `/gloss` holds it (targum-internal#734): an answer is bought on
+        # targum's account with no job row behind it, and the sentence and translation
+        # are the page's, so every new pair of them is a new purchase. The words have to
+        # be in a language read here, the answer in one the reader or this text allows,
+        # and never in the words' own language. A 400, before any model is asked.
+        if (
+            source not in reading_languages()
+            or target == source
+            or target not in self._gloss_targets(document)
+        ):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.gloss-not-in-that-language",
+                        "We can't look words up in that language.",
+                    )
+                },
+                400,
+            )
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
+        # And a ceiling per account an hour, which a reader selecting as they read never
+        # meets and a script asking for every sentence it can make up does.
+        person = self._person()
+        who = f"phrase:{person.id}" if person is not None else "phrase:" + digest(self._visitor())
+        if self.store.asking_too_often(who, limit=PHRASES_PER_HOUR):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.phrase.too-often",
+                        "That's a lot of phrases for one hour. Try again in an hour.",
+                    )
+                },
+                429,
+            )
         try:
             answer = phrase_one(phrase, sentence, translation, source, target, provider)
         except TargumError as error:
