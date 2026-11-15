@@ -116,6 +116,50 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
+
+- Send to Anki on Your Words (targum-internal#540, design.md §12 "Send to Anki talks to
+  the Anki on your own computer", 2026-11-14). At a desk, a quiet "Send to Anki" press
+  beside "Export as an Anki deck" sends every word the reader is learning in the language
+  into their own Anki through the AnkiConnect add-on (2055492159), with a "How to set it
+  up" disclosure in four lines. A phone shows no Send and keeps the deck and CSV. The
+  notes are a new notetype, "targum word and sentence", with a Word card and a Gap card
+  whose fronts are conditional: the gap is the first line the word was met in (the
+  earliest finished text, else the reader's own shelf), split at the word, with its
+  translation, the word's clip where one is already made, and the line's clip cut once
+  with ffmpeg from a recording already on disk (at most 20 s, credit in Source). Known
+  words are updated where Anki has them and never added; ignored words never leave;
+  words an `.apkg` import already carries get only the Gap card. Anki's own `Sent`
+  field holds what targum last wrote, so a second press with nothing changed writes
+  nothing and a send that stopped is finished by the next. The page calls only an
+  allowlist of AnkiConnect actions, never `deleteNotes` and never scheduling, with no
+  Content-Type so there is no preflight, and HTML-escapes every value. The server half
+  is read-only and spends nothing: `GET /account/anki/notes` (200 a page, owner-only),
+  `/account/anki/sound` and `/account/anki/line` (404 for a key the account does not
+  save); a shared text whose licence does not let it leave gives no line. Your Words'
+  policy alone is `connect-src 'self' http://127.0.0.1:8765`; every other page and
+  every reader keeps `connect-src 'self'`. Every state has its line (offline, asking,
+  unreachable, blocked by the browser, refused, old AnkiConnect, busy, key asked,
+  stopped partway). New strings `yours.page.send-anki*` and `lists.anki-send.*` in
+  English and Russian; the Russian waits on ling-ru. No spend.
+  - After qa-claude's review: an imported `.apkg` note is found by the `.apkg`'s own Word
+    (`anki_send.apkg_word`, which `_deck_start` now writes through), sent as `apkgWord`,
+    never by the line's pointed form, and Anki's `&#x27;` is read back as `'`. Whether a
+    line may leave goes by the text's source wherever it sits, so a closed catalogue text
+    built into a reader's own home sends none (`anki_send.text_may_leave`). At most two
+    ffmpeg cuts run at once (`CUTTING`). A refused update inside `multi` is counted as
+    failed. Russian: «Установить дополнения» and «введите код», and «Сейчас не удалось
+    загрузить ваши слова».
 - A new reader's first text says our estimate, the figure Home shows, until anything in
   it is marked (targum-internal#724, design.md §12 "A reader says our estimate until
   anything in it is marked", 2026-11-15). The reader said "0 of 235 known" a minute
@@ -139,6 +183,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
   `index.json` sends stay as they are, since nothing saved holds the index.
   `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- `/phrase` holds a selection's meaning to the same languages `/gloss` does
+  (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
+  language: any source into any target was bought, the words' own language too, and the
+  reader did not say which text it was in. Both codes are normalised
+  (`serve.language_code`), the source has to be in `translate.prompts.READING`, the
+  target one the reader reads or the text is translated into (the reader now sends
+  `document`), and target == source is refused: a 400 before any model call. Since the
+  sentence and translation are the page's, every new pair is a new purchase, so an
+  account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
+  sign-in links use), and past it gets a 429. An answer already held stays free and is
+  never counted. One new string, in English and Russian. No spend.
+- A curated video's public page answers for an id with capitals or `_`
+  (`video-fr-_U1Fbsp6ugE`): `/library/<id>` only took lowercase slugs, so 42 of the 43
+  French videos shipped on 2026-11-15 linked from `/library/k/fr/talk` to "Not found".
+  Signed-in `/open/<id>` was never affected. Nothing with a dot or slash matches.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
@@ -991,6 +1050,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   targum buy Japanese meanings. Both are lowercased to their base code
   (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
   target == source still is until #538. A 400, with no model call. No spend.
+- קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
+  voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
+  voice" in all 16 places, because DICTA's menaked and its joint model both read the
+  spelling as קול + her.
+  - A new hand-kept table, `vocalize/pointing_overrides.json`, says what each entry
+    means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
+    `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
+    (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…), a speech verb
+    (אמרה, ענתה, קראה, שאלה, המשיכה and their common forms, ling-he via qa-claude), or a
+    definite adjective straight after it (קולה הצעיר). Any one keeps DICTA's pointing, so
+    "אמרה בקולה." beside a bottle of cola stays her voice.
+  - One sense per text: once one occurrence is cued and none is guarded, every
+    occurrence in that text takes cola. A text with one guarded occurrence changes only
+    its cued ones.
+  - Only lines a model pointed. An edition's pointing, a changed letter or a lemma the
+    entry doesn't name is left alone. The file on disk keeps what the diacritizer said.
+  - A plain `targum rebuild`, with no `--words`, takes it to existing pages. No annotator
+    rename, no `SCHEMA_VERSION`, no model call, no spend.
+  - Laptop library, read-only: 0 of 708 Hebrew texts change. All 115 קולה there are
+    "her voice", 86 of them guarded and none cued.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,
