@@ -90,7 +90,32 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian
     and taps each line. No spend.
-
+- Remove can be undone everywhere a copy is removed (targum-internal#720 follow-up,
+  design.md §12 "An offline copy follows its text when opened online, and Remove can be
+  undone", 2026-11-14).
+  - The reader's ⋯ "Remove from this device", and a playlist page's Remove, now say
+    "Removed · Undo" for 8 seconds, as Saved on this device does, and ask nothing first.
+    They use the same `TargumOffline.take` and `undo`, so Undo works offline, where a
+    saved reader is the only copy. The keyboard lands on Undo, comes back to Remove after
+    Undo, and the line goes, with the files, once it is left alone.
+  - The line waits only while the keyboard the browser shows (`:focus-visible`) or a
+    mouse or pen is on it (`TargumOffline.lingers`, now used by Saved too). On touch a
+    tap left focus and a stuck `:hover` behind it, and the line never went.
+  - When Undo finds the files gone (a sign-out in another tab, a browser that cleared its
+    storage), one quiet line says "The files are no longer on this device, so it couldn't
+    be put back." The keyboard goes to that line on Saved, and to Save for offline in a
+    row.
+  - A file saved before copies kept stamps now learns the server's current stamp the
+    next time the text is saved, so a later re-cut reaches it (qa-claude on #1234).
+  - A book's contents page now says which build of the text it lists (`X-Targum-Version`,
+    a hash of `contents.json` and the page's language). Opened online with a version
+    other than the copy's, the worker tells the page, and the copy fetches what the text
+    now takes. So a text that only gained a part gets that part, and nothing it already
+    held is fetched again.
+  - Four new strings in English and Russian: `offline.removed` «Убрано», `offline.undo`
+    «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
+    keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
+    устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
   design.md §12 2026-11-14).

@@ -203,6 +203,8 @@
     });
     if (holding && holding.item && holding.mine === mine) {
       list.insertBefore(heldRow(holding), list.children[Math.min(holding.at, list.children.length)] || null);
+    } else if (lost && lost.item && lost.mine === mine) {
+      list.insertBefore(lostLine("li"), list.children[Math.min(lost.at, list.children.length)] || null);
     }
   }
 
@@ -218,6 +220,7 @@
   var holding = null;
 
   function holdFor(next) {
+    lost = null;
     holding = next;
     holding.timer = setTimeout(expire, UNDO_FOR);
     draw().then(function () {
@@ -238,12 +241,13 @@
 
   /* Not out from under the person: while Undo has the keyboard or the pointer is on its
      line, the line waits, and looks again a second later (WCAG 2.2.1; qa-claude on
-     #1234). */
+     #1234). Only the keyboard and a real pointer: a tap leaves focus and a stuck :hover
+     behind it, and the line would wait for ever (`offline.lingers`). */
   function expire() {
     if (!holding) return;
     var undo = document.querySelector(".saved-undo");
     var line = undo && undo.parentNode;
-    if (undo && (document.activeElement === undo || (line && line.matches && line.matches(":hover")))) {
+    if (undo && offline.lingers(line)) {
       holding.timer = setTimeout(expire, 1000);
       return;
     }
@@ -255,13 +259,33 @@
     var was = holding;
     holding = null;
     clearTimeout(was.timer);
-    was.hold.undo().then(draw).then(function () {
-      // Back where it was, with the keyboard on the press that took it.
-      var back = was.item
-        ? document.querySelector('.saved-row[data-id="' + String(was.item.id).replace(/"/g, '\\"') + '"] .saved-x')
-        : at("saved-all");
-      if (back) back.focus({ preventScroll: true });
-    });
+    was.hold.undo().then(function (back) {
+      if (back) return draw().then(function () {
+        // Back where it was, with the keyboard on the press that took it.
+        var again = was.item
+          ? document.querySelector('.saved-row[data-id="' + String(was.item.id).replace(/"/g, '\\"') + '"] .saved-x')
+          : at("saved-all");
+        if (again) again.focus({ preventScroll: true });
+      });
+      /* Its files had gone meanwhile (a sign-out in another tab, a browser that cleared
+         its storage): nothing to put back, said in one quiet line where the line was,
+         and the keyboard on that line, which says what happened. */
+      lost = { item: was.item, mine: was.mine, at: was.at };
+      return draw().then(function () {
+        var said = document.querySelector(".saved-lost");
+        if (said) said.focus({ preventScroll: true });
+      });
+    }, draw);
+  }
+
+  // The line Undo leaves when there was nothing left to put back, until the next press.
+  var lost = null;
+  function lostLine(tag) {
+    var line = element(tag, "saved-held saved-lost");
+    line.setAttribute("role", "status");
+    line.setAttribute("tabindex", "-1");
+    line.textContent = t("offline.undo-gone", "The files are no longer on this device, so it couldn't be put back.");
+    return line;
   }
 
   function undoPress(label) {
@@ -289,9 +313,14 @@
   function drawHeldAll() {
     var line = at("saved-all-held");
     var all = !!(holding && !holding.item);
+    var gone = !all && !!(lost && !lost.item);
     at("saved-all").hidden = all;
-    line.hidden = !all;
+    line.hidden = !all && !gone;
     line.textContent = "";
+    if (gone) {
+      line.appendChild(lostLine("span"));
+      return;
+    }
     if (!all) return;
     var said = element("span", "saved-held-note", t("saved.removed", "Removed"));
     said.setAttribute("role", "status");
@@ -436,8 +465,11 @@
         );
       fill(at("saved-auto-rows"), auto, false);
       fill(at("saved-mine-rows"), mine, true);
-      var heldOne = holding && holding.item ? (holding.mine ? "mine" : "auto") : "";
-      var heldAll = !!(holding && !holding.item);
+      // The line a removal leaves, "Removed · Undo" or that nothing could be put back,
+      // keeps its group (or the end of the page) open while it is said.
+      var line = holding || lost;
+      var heldOne = line && line.item ? (line.mine ? "mine" : "auto") : "";
+      var heldAll = !!(line && !line.item);
       at("saved-auto").hidden = !auto.length && heldOne !== "auto";
       at("saved-mine").hidden = !mine.length && heldOne !== "mine";
       at("saved-none").hidden = !!shown.length || !!heldOne;
