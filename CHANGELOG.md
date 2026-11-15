@@ -58,6 +58,30 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `ne-dropped-alone`, `on-we`, `on-who`, `on-open`); ling-ru's first pass came through
     qa-claude's review. A browser test opens a French reader in English and in Russian
     and taps each line. No spend.
+- Send to Anki on Your Words (targum-internal#540, design.md §12 "Send to Anki talks to
+  the Anki on your own computer", 2026-11-14). At a desk, a quiet "Send to Anki" press
+  beside "Export as an Anki deck" sends every word the reader is learning in the language
+  into their own Anki through the AnkiConnect add-on (2055492159), with a "How to set it
+  up" disclosure in four lines. A phone shows no Send and keeps the deck and CSV. The
+  notes are a new notetype, "targum word and sentence", with a Word card and a Gap card
+  whose fronts are conditional: the gap is the first line the word was met in (the
+  earliest finished text, else the reader's own shelf), split at the word, with its
+  translation, the word's clip where one is already made, and the line's clip cut once
+  with ffmpeg from a recording already on disk (at most 20 s, credit in Source). Known
+  words are updated where Anki has them and never added; ignored words never leave;
+  words an `.apkg` import already carries get only the Gap card. Anki's own `Sent`
+  field holds what targum last wrote, so a second press with nothing changed writes
+  nothing and a send that stopped is finished by the next. The page calls only an
+  allowlist of AnkiConnect actions, never `deleteNotes` and never scheduling, with no
+  Content-Type so there is no preflight, and HTML-escapes every value. The server half
+  is read-only and spends nothing: `GET /account/anki/notes` (200 a page, owner-only),
+  `/account/anki/sound` and `/account/anki/line` (404 for a key the account does not
+  save); a shared text whose licence does not let it leave gives no line. Your Words'
+  policy alone is `connect-src 'self' http://127.0.0.1:8765`; every other page and
+  every reader keeps `connect-src 'self'`. Every state has its line (offline, asking,
+  unreachable, blocked by the browser, refused, old AnkiConnect, busy, key asked,
+  stopped partway). New strings `yours.page.send-anki*` and `lists.anki-send.*` in
+  English and Russian; the Russian waits on ling-ru. No spend.
 
 ### Fixed
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
