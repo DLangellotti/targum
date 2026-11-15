@@ -1801,6 +1801,46 @@ def test_a_file_kept_before_stamps_learns_the_server_s_cut(browser, served: Serv
         context.close()
 
 
+#: That entry with every page's stamp set to a cut the server never had.
+MISSTAMPED = """async (id) => {
+  const cache = await caches.open('targum-offline');
+  const index = await (await cache.match('/offline/index')).json();
+  const stamps = index.items[id].stamps;
+  for (const key of Object.keys(stamps)) if (key.endsWith('.html')) stamps[key] = 'old';
+  await cache.put('/offline/index', new Response(JSON.stringify(index),
+    { headers: { 'Content-Type': 'application/json' } }));
+}"""
+
+
+def test_a_held_page_never_takes_the_server_s_stamp(browser, served: Served) -> None:  # noqa: F811
+    """qa-claude on #1247: a held recording learns the server's cut, but a held page is
+    the build it was kept from, so it keeps a stamp only while the server's agrees, and
+    never takes one that would claim a cut its bytes may not be."""
+    reader = book(served.out / "local" / "book-he")
+    (reader / "audio").mkdir()
+    (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"r" * 4000)
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    text = "/reader/book-he/reader/"
+
+    def pages() -> dict[str, str]:
+        stamps = page.evaluate(ENTRY, text).get("stamps") or {}
+        return {key: value for key, value in stamps.items() if key.endswith(".html")}
+
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert pages(), "a page fetched keeps the server's stamp"
+        page.evaluate(MISSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a held page whose stamp differs takes neither"
+        page.evaluate(UNSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a page held from before stamps learns none"
+        stamps = page.evaluate(ENTRY, text)["stamps"]
+        assert any(key.endswith("audio/recut.mp3") for key in stamps), "a recording does"
+    finally:
+        context.close()
+
+
 def test_a_book_that_gained_a_part_refreshes_its_copy(browser, served: Served) -> None:  # noqa: F811
     """A text that only gained a part kept every page it had, so no page it held said
     another build, and the new part never reached the copy. The contents page says which

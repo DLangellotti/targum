@@ -1367,6 +1367,7 @@
   "serve.already-drawn": "Уже нарисовано.",
   "serve.gloss-not-in-that-language": "Мы не можем искать значения слов на этом языке.",
   "serve.we-couldn-t-look-that-word": "Мы не смогли найти это слово.",
+  "serve.phrase.too-often": "Слишком много фраз за один час. Попробуйте снова через час.",
   "serve.we-couldn-t-look-that-phrase": "Мы не смогли найти эту фразу.",
   "serve.this-file-is-protected-so-we": "Этот файл защищён, поэтому мы не можем его прочитать.",
   "serve.we-can-only-read-a-recording": "Мы читаем только запись, видео, изображение или PDF.",

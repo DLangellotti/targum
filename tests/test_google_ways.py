@@ -157,12 +157,14 @@ def _exchange(
     session: str = "",
     body: bytes = b"",
     headers: dict[str, str] | None = None,
+    cookie: str = "",
 ) -> tuple[int, dict[str, str], str]:
     conn = HTTPConnection("127.0.0.1", port, timeout=5)
     conn.putrequest(method, path, skip_host=True)
     conn.putheader("Host", "targum.page")
-    if session:
-        conn.putheader("Cookie", f"{serve.SESSION_COOKIE}={session}")
+    jar = [one for one in (f"{serve.SESSION_COOKIE}={session}" if session else "", cookie) if one]
+    if jar:
+        conn.putheader("Cookie", "; ".join(jar))
     for name, value in (headers or {}).items():
         conn.putheader(name, value)
     if method == "POST":
@@ -173,6 +175,10 @@ def _exchange(
     response = conn.getresponse()
     said = response.read().decode("utf-8", errors="replace")
     answered = {name.lower(): value for name, value in response.getheaders()}
+    # Every cookie set, not only the last one named.
+    cookies = response.headers.get_all("Set-Cookie") or []
+    if cookies:
+        answered["set-cookie"] = "\n".join(cookies)
     conn.close()
     return response.status, answered, said
 
@@ -186,14 +192,25 @@ def _proving(monkeypatch: pytest.MonkeyPatch, address: str) -> None:
 
 
 def _through_google(
-    port: int, monkeypatch: pytest.MonkeyPatch, address: str, start: str, session: str = ""
+    port: int,
+    monkeypatch: pytest.MonkeyPatch,
+    address: str,
+    start: str,
+    session: str = "",
+    bound: bool = True,
 ) -> tuple[int, dict[str, str], str]:
+    """Out to Google and back, carrying the cookie the start set, as the browser that
+    started it does (targum-internal#729); `bound=False` is another browser."""
     status, headers, _ = _exchange(port, "GET", start, session)
     assert status in (302, 303), status
     assert headers["location"].startswith(google.AUTHORIZE)
     state = parse_qs(urlparse(headers["location"]).query)["state"][0]
+    carried = headers["set-cookie"].split(";")[0] if bound else ""
+    assert not bound or carried.startswith(f"{serve.GOOGLE_STATE_COOKIE}=")
     _proving(monkeypatch, address)
-    return _exchange(port, "GET", f"/account/google/back?state={state}&code=x", session)
+    return _exchange(
+        port, "GET", f"/account/google/back?state={state}&code=x", session, cookie=carried
+    )
 
 
 def _session(headers: dict[str, str]) -> str:
@@ -300,6 +317,48 @@ def test_link_from_account_with_its_own_address(
     # And the door opens for Google again.
     status, headers, _ = _through_google(port, monkeypatch, "dina@example.com", "/account/google")
     assert status in (302, 303) and _session(headers)
+
+
+def test_a_link_callback_from_another_browser_links_nothing(
+    tmp_path: Path, free_port: Callable[[], int], client: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#729 on Link: a callback this browser did not start is refused
+    before the code is spent, links nothing, spends the state, and is said on Account."""
+    port, store = _box(tmp_path, free_port)
+    session = _signed_in(port, store, monkeypatch, "dina@example.com")
+    assert _press(port, "/account/google/unlink", session)[0] == 200
+    status, started, _ = _exchange(port, "GET", "/account/google?link=1", session)
+    assert status in (302, 303)
+    state = parse_qs(urlparse(started["location"]).query)["state"][0]
+    spent: list[str] = []
+    monkeypatch.setattr(google, "exchange", lambda *_: spent.append("code") or {})
+    callback = f"/account/google/back?state={state}&code=x"
+    status, headers, _ = _exchange(port, "GET", callback, session)
+    assert status in (302, 303) and headers["location"] == "/you#ways"
+    assert f"{serve.GOOGLE_STATE_COOKIE}=;" in headers["set-cookie"]
+    assert not spent, "the code is never spent"
+    me = _me(port, session)
+    assert _google_way(me)["linked"] is False
+    assert me["waysSaid"] == "That sign-in didn't finish."
+    # Spent: the browser that started it cannot finish it now either.
+    _proving(monkeypatch, "dina@example.com")
+    bound = started["set-cookie"].split(";")[0]
+    _exchange(port, "GET", callback, session, cookie=bound)
+    assert _google_way(_me(port, session))["linked"] is False
+
+
+def test_a_link_finishes_in_the_browser_that_started_it_and_clears_the_cookie(
+    tmp_path: Path, free_port: Callable[[], int], client: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, store = _box(tmp_path, free_port)
+    session = _signed_in(port, store, monkeypatch, "dina@example.com")
+    assert _press(port, "/account/google/unlink", session)[0] == 200
+    status, headers, _ = _through_google(
+        port, monkeypatch, "dina@example.com", "/account/google?link=1", session
+    )
+    assert status in (302, 303) and headers["location"] == "/you#ways"
+    assert f"{serve.GOOGLE_STATE_COOKIE}=;" in headers["set-cookie"], "cleared once read"
+    assert _google_way(_me(port, session))["linked"] is True
 
 
 def test_link_with_another_address_is_refused_and_signs_nobody_in(

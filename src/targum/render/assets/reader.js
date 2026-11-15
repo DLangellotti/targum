@@ -2236,6 +2236,9 @@ var targumReader = function () {
         translation: translationFor(picked.segmentId),
         source: language,
         target: into,
+        // Which text it is, so the server can hold the target to the languages this
+        // text is translated into, as `/gloss` does (targum-internal#734).
+        document: documentId,
       }),
     })
       .then(function (response) {
