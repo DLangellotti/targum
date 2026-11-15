@@ -419,7 +419,7 @@
     term.setAttribute("lang", language);
     head.appendChild(term);
     var sense = word.note || word.meaning;
-    if (sense) head.appendChild(inTarget(el("span", "practise-sense", sense), word.into));
+    if (sense) head.appendChild(inTarget(el("span", "practise-sense", sense), word.note ? word.into : word.meaningInto || word.into));
     meaning.appendChild(head);
     var note = noteLine(item);
     if (note) meaning.appendChild(note);
@@ -855,7 +855,7 @@
         form.appendChild(window.TargumVocab.copyButton(word.lemma, {}));
         host.appendChild(form);
       }
-      var meaning = meaningLine(word.note, word.meaning, word.into);
+      var meaning = meaningLine(word.note, word.meaning, word.note ? word.into : word.meaningInto || word.into);
       host.appendChild(meaning);
       host.appendChild(
         window.TargumVocab.editor({
@@ -1280,7 +1280,10 @@
       if (note && note.said) term.appendChild(el("span", "said", "/" + note.said + "/"));
       tr.appendChild(term);
 
-      var meaning = inTarget(el("td", "meaning" + (word.note ? " mine" : "")), word.into);
+      var meaning = inTarget(
+        el("td", "meaning" + (word.note ? " mine" : "")),
+        word.note ? word.into : word.meaningInto || word.into
+      );
       meaning.appendChild(el("span", "sense", word.note || word.meaning));
       if (word.note && word.meaning) meaning.title = "targum: " + word.meaning;
       rowNotes(word, meaning);

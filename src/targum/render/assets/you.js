@@ -386,6 +386,84 @@
     drawReads();
     drawAddress();
     drawLevelRows();
+    drawMeanings();
+  }
+
+  /* Meanings in the language itself (targum-internal#538, design.md §12, 2026-11-14): a
+     row per learned language this install offers it for, In English | In Hebrew, kept on
+     the account per language and saved on the press. Off is the first option, named
+     after the language the account reads into. */
+  var MEANINGS = ["he", "fr", "ru", "it"];
+  var meaningsOffered = [];
+  var meaningsInItself = [];
+
+  function meaningsIntoLabel() {
+    var into = reads[0] || "en";
+    if (into === "ru") return t("you.page.meanings-in-ru", "In Russian");
+    if (into === "en") return t("you.page.meanings-in-en", "In English");
+    var rows = window.TARGUM_INTO || [];
+    return named(rows, into);
+  }
+
+  function drawMeanings() {
+    MEANINGS.forEach(function (code) {
+      var row = at("you-meanings-" + code + "-row");
+      if (!row) return;
+      // Not for the language the account reads into: its two options would both be
+      // that language ("In Russian | In Russian", qa-claude on #1251).
+      row.hidden =
+        meaningsOffered.indexOf(code) < 0 || learning.indexOf(code) < 0 || (reads[0] || "en") === code;
+      var on = meaningsInItself.indexOf(code) >= 0;
+      var off = at("meanings-" + code + "-off");
+      var itself = at("meanings-" + code + "-on");
+      if (off) {
+        off.textContent = meaningsIntoLabel();
+        off.setAttribute("aria-checked", String(!on));
+        off.tabIndex = on ? -1 : 0;
+      }
+      if (itself) {
+        itself.setAttribute("aria-checked", String(on));
+        itself.tabIndex = on ? 0 : -1;
+      }
+    });
+  }
+
+  function wireMeanings() {
+    MEANINGS.forEach(function (code) {
+      [false, true].forEach(function (wanted) {
+        var press = at("meanings-" + code + (wanted ? "-on" : "-off"));
+        if (!press) return;
+        function send() {
+          ask("/account/meanings", { language: code, itself: wanted })
+            .then(function (answer) {
+              if (answer.error || answer.signedIn === false) {
+                drawMeanings();
+                return say("you-languages-said", answer.error || SIGNED_OUT, true);
+              }
+              meaningsInItself = (answer.meaningsInItself || []).slice();
+              drawMeanings();
+              say("you-languages-said", SAVED);
+            })
+            .catch(function () {
+              drawMeanings();
+              say("you-languages-said", NOT_SAVED, true, send);
+            });
+        }
+        press.addEventListener("click", function () {
+          if ((meaningsInItself.indexOf(code) >= 0) === wanted) return;
+          send();
+        });
+        press.addEventListener("keydown", function (event) {
+          var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+          if (!step) return;
+          event.preventDefault();
+          var next = at("meanings-" + code + (wanted ? "-off" : "-on"));
+          if (!next) return;
+          next.focus();
+          next.click();
+        });
+      });
+    });
   }
 
   /* How the conversation says "you" in Hebrew: 'm', 'f', or '' where they have not said.
@@ -1456,6 +1534,8 @@
       drawWho(who);
       drawWays(who);
       address = who.address || "";
+      meaningsOffered = (who.meaningsOffered || []).slice();
+      meaningsInItself = (who.meaningsInItself || []).slice();
       drawLanguages(who);
       drawLevel(who);
       drawRecord(who);
@@ -1467,6 +1547,7 @@
       drawPlan(who);
       wireLanguages();
       wireAddress();
+      wireMeanings();
       ending();
       if (window.TargumSync) window.TargumSync.start();
     })

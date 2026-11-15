@@ -132,6 +132,73 @@ For each {source} dictionary form you are given, return one short {target} gloss
   guessing."""
 
 
+#: The prompt when a word's meaning is asked for in its own language (targum-internal#538,
+#: design.md §12, "Meanings in the language itself, bought a tap at a time", 2026-11-14).
+#: Used only where source and target are one language, so every other pair's prompt, and
+#: so every meaning already bought, is exactly what it was.
+SYSTEM_ITSELF = """You are writing a learner's dictionary of {source}, in simple {source}, for
+somebody learning {source} who can already read a definition in it.
+
+For each {source} dictionary form you are given, return one short definition in {source}.
+
+- Each entry is a dictionary form after `form:`, sometimes followed by the sentence the
+  reader met it in after `in:`. Define the form, and return it exactly as it was given.
+- A form may end in `(verb)`, `(preposition)`, `(noun)`, `(pronoun)`, `(adverb)`,
+  `(adjective)`, `(determiner)`, `(number)`, `(particle)`, `(conjunction)` or
+  `(participle)`. It says which word a shared spelling is here: define that word, not
+  another spelled the same, and return the form with the mark still on it.
+- Three to twelve everyday {source} words, simpler than the word itself. The sense the
+  sentence gives first, where a sentence is given; a second sense after a semicolon
+  only where the word is genuinely ambiguous.
+- Never the word itself, or a word of its own family, as the explanation. No
+  transliteration, no translation into another language, no example sentence.
+- For a grammatical word, say in {source} what it does.{unpointed}
+- Give the part of speech as one of: noun, verb, adjective, adverb, preposition,
+  pronoun, conjunction, particle, other.
+- For a verb, give citation: the form a learner would keep, in {source} — the
+  infinitive, with the preposition the verb takes where it takes one. Otherwise leave
+  citation empty.
+- For a noun whose plural is irregular — the ending does not match the gender, or the
+  stem changes — give plural: that plural form, in {source}. For a regular plural
+  leave it empty.
+- If a form is not a word of {source}, return it with an empty gloss rather than
+  guessing."""
+
+#: Hebrew definitions go unpointed to start (Decision 3 on #538): whoever chooses them
+#: reads unpointed Hebrew, and nikkud is the least sure part of a model's Hebrew.
+_UNPOINTED = {
+    "he": "\n- Write the definition without nikkud: plain letters only, as a newspaper does.",
+}
+
+
+def system_for(source_language: str, target_language: str) -> str:
+    """The system prompt a batch is asked under: a translation glossary for a pair, and a
+    learner's dictionary in the language itself where the two are one."""
+    source = language_name(source_language)
+    if _same(source_language, target_language):
+        code = _base(source_language)
+        return SYSTEM_ITSELF.format(source=source, unpointed=_UNPOINTED.get(code, ""))
+    return SYSTEM.format(source=source, target=language_name(target_language))
+
+
+def _base(code: str) -> str:
+    return str(code or "").split("-")[0].strip().lower()
+
+
+def _same(source_language: str, target_language: str) -> bool:
+    return bool(_base(source_language)) and _base(source_language) == _base(target_language)
+
+
+#: The Hebrew points and accents, U+0591 to U+05C7 less the letters' own punctuation
+#: (maqaf, paseq, sof pasuq, nun hafukha, which a definition may write).
+_POINTS = {chr(c) for c in range(0x0591, 0x05C8)} - {"\u05be", "\u05c0", "\u05c3", "\u05c6"}
+
+
+def unpointed(text: str) -> str:
+    """A Hebrew definition with any nikkud the model wrote anyway taken off."""
+    return "".join(ch for ch in text if ch not in _POINTS)
+
+
 def filed_as(batch: list[str]) -> dict[str, str]:
     """What a returned form is filed under: itself, or — where the model was asked for
     `משנה (verb)` and handed back `משנה`, the one instruction it drops most — the marked
@@ -194,9 +261,10 @@ class AnthropicGlosses:
 
         from ..translate.anthropic_provider import output_config
 
-        system = SYSTEM.format(
-            source=language_name(source_language), target=language_name(target_language)
-        )
+        system = system_for(source_language, target_language)
+        # A definition in Hebrew is kept unpointed (Decision 3 on #538); the citation and
+        # the plural are a form to keep and stay as written.
+        bare = _same(source_language, target_language) and _base(source_language) == "he"
         out: dict[str, Sense] = {}
 
         def ask(batch: list[str]) -> Any:
@@ -251,9 +319,12 @@ class AnthropicGlosses:
                     wanted = filed_as(part)
                     for entry in parsed.entries:
                         asked = wanted.get(entry.lemma.strip())
-                        if asked and entry.gloss.strip():
+                        said = entry.gloss.strip()
+                        if bare:
+                            said = unpointed(said).strip()
+                        if asked and said:
                             out[asked] = Sense(
-                                entry.gloss.strip(),
+                                said,
                                 entry.part_of_speech.strip(),
                                 entry.citation.strip(),
                                 entry.plural.strip(),
@@ -659,6 +730,10 @@ def build_glossary(
     at the end meant every word showed a blank card for as long as the whole run took.
     """
     cache = cache or Cache()
+    if _same(annotation.language, target_language):
+        # Meanings in the language itself are bought a tap at a time and never by a build,
+        # a rebuild or a pass over the catalogue (design.md §12, 2026-11-14, #538).
+        buy = False
     wanted = unique_lemmas(annotation, min_band=min_band, only=only)
 
     entries: dict[str, str] = {}

@@ -398,6 +398,16 @@
     return (code || "").split("-")[0].toLowerCase();
   }
 
+  /* Whether this reader chose meanings of `code` in `code` itself (targum-internal#538),
+   * as `sync.js` mirrors it from the account. Absent is no. */
+  function itselfFor(code) {
+    var said = [];
+    try {
+      said = JSON.parse(localStorage.getItem("targum:meanings-in-itself") || "[]") || [];
+    } catch (e) {}
+    return said.indexOf(code) >= 0;
+  }
+
   function meanings(source, into) {
     return into ? read("targum:meanings:" + source + ":" + into, "{}") : {};
   }
@@ -475,17 +485,25 @@
         var code = name.slice("targum:vocab:".length);
         var vocab = read(name, "{}");
         var said = meanings(code, into);
+        // Meanings in the language itself, where this reader chose them for it and a card
+        // has already bought one (targum-internal#538). Read and shown, never asked for:
+        // the Words page and the practice card buy nothing.
+        var itself = itselfFor(code) && code !== into ? meanings(code, code) : {};
         Object.keys(vocab).forEach(function (lemma) {
           var item = vocab[lemma] || {};
           var meant = said[lemma] || {};
+          var own = (itself[lemma] || {}).meaning || "";
           slot(code).words.push({
             lemma: lemma,
             term: item.surface || lemma,
-            meaning: meant.meaning || "",
+            meaning: own || meant.meaning || "",
             note: meant.note || "",
             // Which language the two above are written in, so the page can mark them up
             // as what they are rather than leaving Russian inside an English page.
             into: into || "",
+            // And the meaning's own, where it is the one in the language itself; the note
+            // stays the reader's, in `into`.
+            meaningInto: own ? code : into || "",
             band: item.band || "",
             status: item.status,
             // Named here or dropped here. This is the third list of field names a word

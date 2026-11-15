@@ -54,6 +54,9 @@
   // And which it says are being learned, for the same reason and read by `lang.js`: the
   // switcher on the reading pages is drawn before the account answers.
   var LEARNING = "targum:learning";
+  // And the learned languages whose meanings it asked for in the language itself
+  // (targum-internal#538), for the reader's card and Your Words on the first frame.
+  var ITSELF = "targum:meanings-in-itself";
 
   // A tombstone is a few bytes and a delete is rare, but a browser that has been in use
   // for years should not carry every word it ever unmarked. Anything this old has long
@@ -1004,6 +1007,7 @@
   function adopt(me, asked) {
     write(READS, me.reads || []);
     write(LEARNING, me.learning || []);
+    write(ITSELF, me.meaningsInItself || []);
     // The rung they named on arrival, a plain string, for the Library's first band
     // on a browser that never drew the arrival (targum-internal#306, 2026-09-19).
     // Adopted and never cleared from here, as Learn does with the subjects.

@@ -11432,6 +11432,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._counting_choice(payload)
         if route == "/account/address":
             return self._address(payload)
+        if route == "/account/meanings":
+            return self._meanings_choice(payload)
         if route.startswith("/slips/"):
             return self._know_slip(route[len("/slips/") :], payload)
         if route == "/practice":
@@ -13261,6 +13263,8 @@ class Handler(BaseHTTPRequestHandler):
         }
 
     def _me(self) -> None:
+        from .accounts import meanings_open
+
         person = self._person()
         if person is None:
             # `signedOut` where the account's own routes would refuse this browser, so a
@@ -13297,6 +13301,10 @@ class Handler(BaseHTTPRequestHandler):
             # Whether `reads` is their answer or the default, so the arrival asks which
             # language they read only of somebody who has never said (2026-09-20).
             "readsSaid": self.store.said_reading(person.id),
+            # Which learned languages may have their meanings said in the language itself
+            # here (targum-internal#538): Your languages draws a row for each one this
+            # account is learning, and none while the list is empty.
+            "meaningsOffered": sorted(meanings_open()),
             # The language the switcher shows (2026-09-13), so every page and every device
             # opens in the language the reader last chose.
             "language": self.store.language(person.id),
@@ -14877,6 +14885,36 @@ class Handler(BaseHTTPRequestHandler):
                 "declaredBy": self.store.declared_by(person.id),
             }
         )
+
+    def _meanings_choice(self, payload: dict[str, Any]) -> None:
+        """Whether one learned language's word meanings are said in the language itself
+        (targum-internal#538, design.md §12, "Meanings in the language itself, bought a tap
+        at a time", 2026-11-14): `{"language": "he", "itself": true}`.
+
+        Only for a language the account is learning whose row this install offers
+        (`accounts.meanings_open`). Saving spends nothing: a meaning is bought only when a
+        card is opened on a word whose meaning in the language is not held."""
+        from .accounts import meanings_open
+
+        person = self._person()
+        if person is None:
+            return self._json({"signedIn": False}, 401)
+        code = str(payload.get("language") or "").split("-")[0].strip().lower()
+        if code not in meanings_open() or code not in self._learning(person):
+            return self._json(
+                {
+                    "error": self._say(
+                        "serve.meanings-not-offered",
+                        "We can't show meanings in that language yet.",
+                    )
+                },
+                400,
+            )
+        try:
+            kept = self.store.set_meanings(person, code, bool(payload.get("itself")))
+        except ValueError as error:
+            return self._json({"error": str(error)}, 400)
+        self._json({"signedIn": True, "meaningsInItself": kept})
 
     def _checked(self, payload: dict[str, Any]) -> None:
         """The words a new reader ticked on the arrival's words check (design.md §12, "The
@@ -19314,15 +19352,20 @@ class Handler(BaseHTTPRequestHandler):
         # Buying is held to the pair the page is showing. A meaning is bought on
         # targum's account with no job row behind it, so a page that could name any
         # target could make targum buy meanings into any language it liked. A meaning
-        # in the word's own language is not approved yet (targum-internal#538).
-        # And the word has to be in a language somebody may read here: a page that could
-        # name any source could make targum buy Japanese meanings, or English
-        # definitions of English words (`translate.prompts.READING`).
-        if (
-            source not in reading_languages()
-            or target == source
-            or target not in self._gloss_targets(document)
-        ):
+        # in the word's own language is bought only for a reader who chose it for that
+        # language, on a row this install offers (targum-internal#538, design.md §12,
+        # "Meanings in the language itself, bought a tap at a time", 2026-11-14). And the
+        # word has to be in a language somebody may read here: a page that could name any
+        # source could make targum buy Japanese meanings (`translate.prompts.READING`,
+        # targum-internal#732). Both codes were normalised above, so "EN" into "en" is
+        # the same language and meets the same-language gate.
+        if source not in reading_languages():
+            allowed = False
+        elif target == source:
+            allowed = source in self._meanings_in_itself()
+        else:
+            allowed = target in self._gloss_targets(document)
+        if not allowed:
             return self._json(
                 {
                     "error": self._say(
@@ -19369,6 +19412,18 @@ class Handler(BaseHTTPRequestHandler):
                 "grounded": bool(sense and sense.grounded),
             }
         )
+
+    def _meanings_in_itself(self) -> set[str]:
+        """The languages whose meanings may be bought in the language itself for whoever
+        is asking: the ones they chose, that they are learning, on rows this install
+        offers. Nobody signed in has none (targum-internal#538)."""
+        from .accounts import meanings_open
+
+        person = self._person()
+        if person is None or self.store is None:
+            return set()
+        chosen = set(self.store.meanings_in_itself(person.id))
+        return chosen & set(meanings_open()) & set(self._learning(person))
 
     def _gloss_targets(self, document: str) -> set[str]:
         """The languages a word's meaning may be bought in for whoever is asking.

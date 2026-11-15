@@ -2125,6 +2125,89 @@ var targumReader = function () {
   var asked = {};
   // Words whose meaning the card has already asked the cache for, found or not.
   var peeked = {};
+
+  /* Meanings in the language itself (targum-internal#538, design.md §12, "Meanings in the
+   * language itself, bought a tap at a time", 2026-11-14). Whether this reader chose them
+   * for the page's language: mirrored by `sync.js` for the first frame, then the
+   * account's answer (`askGranted`). Off, nothing below asks anything, and the card and
+   * its requests are what they were. */
+  var ITSELF = "targum:meanings-in-itself";
+  var itselfChosen = (function () {
+    try {
+      var said = JSON.parse(localStorage.getItem(ITSELF) || "[]") || [];
+      return said.indexOf(language) >= 0;
+    } catch (e) {
+      return false;
+    }
+  })();
+  // Each form's look-up in the language itself, once a page: "asking", "done", "none",
+  // or "failed" until the next card opened on a word, so a redraw of the card that
+  // failed never buys again (qa-claude on #1251).
+  var itselfAsked = {};
+
+  function itselfRetry() {
+    for (var form in itselfAsked) {
+      if (itselfAsked[form] === "failed") delete itselfAsked[form];
+    }
+  }
+
+  function rtlLanguage(code) {
+    return ["he", "yi", "arc", "ar"].indexOf(String(code || "").split("-")[0]) >= 0;
+  }
+
+  function itselfOn(index) {
+    return itselfChosen && wordLanguage(index) === language && (targetLanguage || "en") !== language;
+  }
+
+  function itselfOf(index) {
+    return itselfOn(index) ? meaningOf(lemmas[index], language) : "";
+  }
+
+  function postGloss(body) {
+    return fetch(keyed("/gloss"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }).then(function (response) {
+      return response.json();
+    });
+  }
+
+  // The cache first, and only where nothing is held, the one word bought with its
+  // sentence through `/gloss`, as a tap buys a translation meaning. A failure says nothing
+  // new: the translation meaning stays up, and the next card opened on it asks again.
+  function askItself(index, word, onDone) {
+    var form = glossedAs(index);
+    var lemma = lemmas[index];
+    if (!lemma || itselfAsked[form] || !canAsk() || away() || typeof fetch !== "function") return;
+    itselfAsked[form] = "asking";
+    var base = { lemma: form, source: language, target: language, document: documentId };
+    function took(answer) {
+      if (answer && answer.meaning) {
+        keepMeaning(lemma, answer.meaning, language);
+        itselfAsked[form] = "done";
+        onDone();
+        return true;
+      }
+      return false;
+    }
+    postGloss({ lemma: base.lemma, source: base.source, target: base.target, free: true, document: base.document })
+      .then(function (answer) {
+        if (took(answer)) return;
+        return postGloss({
+          lemma: base.lemma,
+          source: base.source,
+          target: base.target,
+          document: base.document,
+          sentence: sentenceOf(word) || "",
+        }).then(function (bought) {
+          if (!took(bought)) itselfAsked[form] = bought && bought.error ? "failed" : "none";
+        });
+      })
+      .catch(function () {
+        itselfAsked[form] = "failed";
+      });
+  }
   // Words whose meaning a sentence has chosen — the server's, or asked for from here
   // this session. A meaning the build shipped was bought for the whole text at once,
   // with no sentence per word, and עם came back "people" on a page where it was "with".
@@ -2218,7 +2301,9 @@ var targumReader = function () {
       body: {
         lemma: glossedAs(index),
         source: wordLanguage(index),
-        target: targetLanguage || "en",
+        // In the language itself, for a reader who chose it (#538): the meaning they
+        // asked for, queued as a tap would have asked for it.
+        target: itselfOn(index) ? language : targetLanguage || "en",
         document: documentId,
         sentence: sentenceOf(word) || "",
       },
@@ -6147,6 +6232,9 @@ var targumReader = function () {
      anybody who was already reading. A reader who has not accepted sees nothing at all
      here — not a greyed control, which would be an invitation to a door that is shut. */
   var granted = null;
+  // Whether the account's answer turned meanings in the language itself on or off from
+  // what this page opened with, so the open card is drawn again (#538).
+  var itselfMoved = false;
   var askingGrant = false;
 
   function askGranted(then) {
@@ -6158,6 +6246,11 @@ var targumReader = function () {
       })
       .then(function (me) {
         granted = !!(me && me.granted);
+        if (me && me.signedIn) {
+          var chose = (me.meaningsInItself || []).indexOf(language) >= 0;
+          itselfMoved = chose !== itselfChosen;
+          itselfChosen = chose;
+        }
         var plan = (me && me.plan) || {};
         planWords = plan.on && plan.words ? Number(plan.words) || null : null;
         if (then) then();
@@ -6413,7 +6506,8 @@ var targumReader = function () {
     // Who is reading, once, before a stage is pressed: the plan's word cap rides it. The
     // card is drawn again only where the answer adds the correction row to it.
     askGranted(function () {
-      if (granted && lookedUp === word) showCard(word);
+      if ((granted || itselfMoved) && lookedUp === word) showCard(word);
+      itselfMoved = false;
     });
     var askedIn = word.closest ? word.closest("[data-id]") : null;
     // And which word, as the ledger files it — its dictionary form, under the language of
@@ -6426,6 +6520,9 @@ var targumReader = function () {
       language: wordLanguage(index),
     });
 
+    // A card opened on a word, rather than drawn again over the same one, may ask once
+    // more for a meaning in the language itself that failed on an earlier open.
+    if (lookedUp !== word) itselfRetry();
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
     hideCard();
@@ -6482,6 +6579,15 @@ var targumReader = function () {
     meaning.className = "meaning";
     var own = noteOf(lemma);
     var sense = own || (named ? "" : glosses[index]) || "";
+    // A meaning in the language itself leads, for a reader who chose it (#538, design.md
+    // §12, 2026-11-14), with the translation meaning quieter under it as the check.
+    var itself = own || named ? "" : itselfOf(index);
+    if (itself) {
+      sense = itself;
+      meaning.classList.add("itself");
+      meaning.setAttribute("lang", language);
+      meaning.setAttribute("dir", rtlLanguage(language) ? "rtl" : "ltr");
+    }
     meaning.textContent = sense;
     if (own) meaning.classList.add("mine");
     // Only where there is a meaning to copy: the placeholder below is not one.
@@ -6490,11 +6596,36 @@ var targumReader = function () {
       meaning.appendChild(window.TargumVocab.copyButton(sense, { say: say }));
     }
     if (sense || !named) card.appendChild(meaning);
+    if (itself && glosses[index]) {
+      var also = document.createElement("span");
+      also.className = "caveat card-also";
+      var into = (targetLanguage || "en").split("-")[0];
+      // Said in the card's language, the meaning inside it marked up as its own.
+      var line =
+        into === "ru"
+          ? t("reader.card.also-in-ru", "In Russian: {meaning}")
+          : into === "en"
+          ? t("reader.card.also-in-en", "In English: {meaning}")
+          : "{meaning}";
+      var cut = line.indexOf("{meaning}");
+      if (cut < 0) cut = line.length;
+      also.appendChild(document.createTextNode(line.slice(0, cut)));
+      inTarget(also.appendChild(document.createElement("bdi"))).textContent = glosses[index];
+      also.appendChild(document.createTextNode(line.slice(cut + "{meaning}".length)));
+      card.appendChild(also);
+    }
+    if (!own && !named && !itself && itselfOn(index)) {
+      // Not held: the translation meaning stays up, and the one in the language itself
+      // is asked for in the background; the card is drawn again when it lands.
+      askItself(index, word, function () {
+        if (lookedUp === word) showCard(word);
+      });
+    }
     // The meanings are the text's and the card is the reader's (design.md §12, "A
     // reader's chrome is the reader's language", 2026-11-03): a Russian card over a text
     // that has only English meanings says so once, quietly, under the meaning, rather
     // than leaving the reader to wonder why the one line they came for is not theirs.
-    if (sense && !own && uiLanguage !== "en" && (targetLanguage || "en").split("-")[0] === "en") {
+    if (sense && !own && !itself && uiLanguage !== "en" && (targetLanguage || "en").split("-")[0] === "en") {
       var elsewhere = document.createElement("span");
       elsewhere.className = "caveat card-elsewhere";
       elsewhere.textContent = t("reader.card.meanings-in-english", "This text's meanings are in English for now.");
@@ -6505,7 +6636,7 @@ var targumReader = function () {
     // translation is beside the line; write down what you make of it, or ask.
     if (named) {
       // Nothing to look up; see `named`.
-    } else if (!own && !glosses[index]) {
+    } else if (!own && !glosses[index] && !itself) {
       var outcome = lookup[glossedAs(index)];
       if (outcome === "none") {
         // Asked and answered: there is nothing to find. Offering the button again
@@ -6593,7 +6724,7 @@ var targumReader = function () {
           }
         }
       }
-    } else if (!own) {
+    } else if (!own && glosses[index]) {
       // A meaning is up. If no sentence chose it, this one does — see `grounded`.
       ground(index, word, function () {
         if (lookedUp === word) showCard(word);
@@ -7116,12 +7247,15 @@ var targumReader = function () {
       card.appendChild(held);
     }
 
-    // A meaning can only be called wrong where there is one to call wrong.
-    if (sense && !own) {
+    // A meaning can only be called wrong where there is one to call wrong. The one the
+    // correction is about is the translation meaning, in the pair it was bought in, even
+    // where a meaning in the language itself leads the card (#538).
+    var stood = itself ? glosses[index] || "" : sense;
+    if (stood && !own) {
       askGranted(function () {
         if (lookedUp === word) showCard(word);
       });
-      if (granted) card.appendChild(correctionRow(index, word, lemma, sense));
+      if (granted) card.appendChild(correctionRow(index, word, lemma, stood));
     }
 
     if (word.classList.contains("split") && !built) {
