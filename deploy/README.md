@@ -315,7 +315,9 @@ takes the shared lock like any other.
 The weekly run (`deploy/weekly-run.sh`) runs the same pass on the phone once the issue is
 out and writes `targum-out/weekly/speed/<week>.txt` and `.json`, with one line in
 `runs.log`. It never stops the run and never tells the box: a miss there is a number for
-the §14 card, not a reason to hold an issue. `TARGUM_WEEKLY_SPEED=0` leaves it out.
+the §14 card, not a reason to hold an issue. A run that has already failed skips it, and
+the pass is cut off after 30 minutes, so a wedged browser cannot keep the run open into
+next Monday. `TARGUM_WEEKLY_SPEED=0` leaves it out.
 
 The signed-in surfaces (home, Subscriptions, the signed-in Library and two readers) are
 measured as the test account, and never as a reader (targum-internal#552; David's word to
