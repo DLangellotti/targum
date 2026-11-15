@@ -632,3 +632,54 @@ def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
     assert drawn["back"] == "Your credits reset on November 1"
     assert drawn["topUps"] == ["60 credits", "180 credits", "300 credits"]
     assert drawn["see"] is False, "on the plan, the head's See plans"
+
+
+# -- ways to sign in (targum-internal#502) ---------------------------------------------
+
+WAYS_LINKED = {
+    **SIGNED_IN,
+    "ways": [
+        {"kind": "email", "address": "yosef@example.com"},
+        {"kind": "google", "linked": True, "used": 1_700_000_000_000},
+    ],
+}
+UNLINKED = [
+    {"kind": "email", "address": "yosef@example.com"},
+    {"kind": "google", "linked": False, "used": None},
+]
+
+
+def test_googles_row_says_linked_with_the_day_and_unlink() -> None:
+    page = run(who=WAYS_LINKED)
+    assert page["email"] == "yosef@example.com"
+    assert page["ways"]["hidden"] is False
+    assert page["ways"]["says"].startswith("Linked · last used ")
+    assert page["ways"]["press"] == ["Unlink"]
+
+
+def test_without_google_in_ways_the_row_stays_hidden() -> None:
+    assert run()["ways"]["hidden"] is True
+
+
+def test_not_linked_offers_link_through_google() -> None:
+    page = run(who={**SIGNED_IN, "ways": UNLINKED})
+    assert page["ways"]["says"] == "Not linked"
+    assert page["ways"]["press"] == ["Link"]
+    assert page["ways"]["href"][0].startswith("/account/google?link=1")
+
+
+def test_unlink_asks_nothing_and_offers_undo() -> None:
+    page = run(
+        who=WAYS_LINKED,
+        do=[{"type": "press", "id": "way-google-end:0"}],
+        answers={"/account/google/unlink": {"ways": UNLINKED}},
+    )
+    assert [one["path"] for one in page["posted"]] == ["/account/google/unlink"]
+    assert page["ways"]["says"] == "Unlinked"
+    assert page["ways"]["press"] == ["Undo"]
+
+
+def test_a_link_that_came_back_without_linking_is_said_on_the_row() -> None:
+    said = "That Google account is for a@x.com. Choose the one for yosef@example.com."
+    page = run(who={**SIGNED_IN, "ways": UNLINKED, "waysSaid": said})
+    assert page["ways"]["said"] == said
