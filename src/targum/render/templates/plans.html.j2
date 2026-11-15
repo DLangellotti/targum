@@ -65,6 +65,9 @@
         <p class="plan-or">{{ t("plans.page.or-month", "That's ${each} a month, or ${month} paid monthly", each=quarter_each, month=price_month) }}</p>
       </div>
       <p class="plan-says">{{ t("plans.page.plan-says", "Everything in Free, and the audio and video you bring.") }}</p>
+      {%- if plan.comp %}
+      <p class="plan-comp">{{ t("plans.page.comp", "Free for beta readers until {date}", date=plan.compSaid) }}</p>
+      {%- endif %}
       <ul class="plan-lines is-pluses">
         <li><b>{{ t("plans.page.plan-credits", "{n} credits a month, which is {hours} hours of audio or video", n=plan_credits, hours=plan_hours) }}</b></li>
         <li>{{ t("plans.page.plan-upload", "Upload a YouTube video, a podcast episode or a recording. We transcribe it and time every word to the sound.") }}</li>
@@ -72,7 +75,9 @@
         <li>{{ t("plans.page.plan-words", "Keep every word you meet on your list, however long it gets") }}</li>
         <li>{{ t("plans.page.plan-top-up", "Top up at ${price} an hour if you need more in a month", price=top_up_hour) }}</li>
       </ul>
-      {%- if mine != 'plan' %}
+      {#- A beta reader comped to Plan still sees the press they will use once payments
+          open, greyed like everybody's (targum-internal#59). -#}
+      {%- if mine != 'plan' or plan.comp %}
       <div class="plan-pay">
         <button type="button" class="btn soon plan-start" disabled>{{ t("plans.page.start", "Start the plan") }}</button>
         <span class="fault-fact fault-soon"><svg class="fault-clock" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 2.25a5.75 5.75 0 1 0 0 11.5a5.75 5.75 0 1 0 0-11.5z"/><path d="M8 5v3.2l2 1.3"/></svg>{{ t("fault.payments-soon", "Payments open soon") }}</span>

@@ -9,13 +9,21 @@ and anybody may subscribe to a channel or a podcast.
 With it on there are two plans. **Free** gets 60 credits a month and a word list of 300
 words being learned; **Plan** gets the whole month and no cap, and is the only one that
 may subscribe to something that gets ready by itself. Until there is a payment provider
-nobody is on Plan, so on means the operator alone (`Person.admin`), which is how a box
-can be tried with plans on before anybody can buy one.
+nobody can buy Plan, so on means the operator (`Person.admin`), which is how a box can
+be tried with plans on before anybody can buy one, and the beta comped to Plan.
+
+**The comp** (design.md §12, "Signup opens before payments, and the beta is comped to
+Plan", 2026-11-15; targum-internal#59). Every account that exists on switch day, and
+anyone let in from the waitlist while invitations are still going out, is on Plan until
+`BETA_UNTIL` (`Person.plan_until`, set by `targum comp-beta` and by `doorway`'s Let in).
+On that day the comp simply ends and the reader is on Free: no mail, nothing automatic,
+because what happens then is not decided yet.
 """
 
 from __future__ import annotations
 
 import os
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -35,6 +43,8 @@ PRICE_QUARTER = 39
 TOP_UP_HOUR = 3
 #: The top-ups a reader on Plan is offered, in credits. Greyed until there is a provider.
 TOP_UPS = (60, 180, 300)
+#: The first day the beta's comp to Plan no longer holds: Launch (targum-internal#481).
+BETA_UNTIL = "2027-03-04"
 
 
 def on() -> bool:
@@ -42,10 +52,36 @@ def on() -> bool:
     return os.environ.get("TARGUM_PLANS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _until(person: Person | None) -> date | None:
+    """The day this reader's comp ends, if they have one that reads as a day."""
+    said = person.plan_until if person is not None else ""
+    try:
+        return date.fromisoformat(said) if said else None
+    except ValueError:
+        return None
+
+
+def comped(person: Person | None, today: date | None = None) -> bool:
+    """Whether this reader is comped to Plan today: before the comp's day, never on it."""
+    until = _until(person)
+    return until is not None and (today or datetime.now(UTC).date()) < until
+
+
 def paid(person: Person | None) -> bool:
-    """Whether this account is on a paid plan. Nobody is until there is a way to pay; the
-    operator stands in for one so the switch can be tried."""
-    return person is not None and bool(person.admin)
+    """Whether this account is on Plan. Nobody can pay yet; the operator stands in for
+    one so the switch can be tried, and a beta reader is comped until `BETA_UNTIL`."""
+    return person is not None and (bool(person.admin) or comped(person))
+
+
+def until_said(until: str, language: str = "en") -> str:
+    """The comp's day in a sentence, month first in English as every date in the product
+    ("March 4, 2027"), «4 марта 2027» in Russian."""
+    from .strings import said_day
+
+    when = date.fromisoformat(until)
+    if language.split("-")[0].lower() == "en":
+        return when.strftime("%B %-d, %Y")
+    return said_day(when, language, year=True)
 
 
 def free(person: Person | None) -> bool:
@@ -75,13 +111,18 @@ def word_cap(person: Person | None) -> int | None:
     return FREE_WORDS if free(person) else None
 
 
-def summary(person: Person | None, *, listed: int = 0) -> dict[str, Any]:
+def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> dict[str, Any]:
     """What a page needs to draw the plan: whether plans are on, which plan this is, the
-    month's credits, and the word cap with how many words are on the list now."""
+    month's credits, and the word cap with how many words are on the list now. A comped
+    reader's also says until when (`comp`, an ISO day, and `compSaid`, in `language`)."""
     if not on():
         return {"on": False}
     is_paid = paid(person)
+    comp: dict[str, Any] = {}
+    if comped(person) and person is not None:
+        comp = {"comp": person.plan_until, "compSaid": until_said(person.plan_until, language)}
     return {
+        **comp,
         "on": True,
         "plan": "plan" if is_paid else "free",
         "credits": PLAN_CREDITS if is_paid else FREE_CREDITS,

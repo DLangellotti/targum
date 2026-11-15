@@ -13343,7 +13343,9 @@ class Handler(BaseHTTPRequestHandler):
             # a switch", 2026-10-09): `{"on": false}` and nothing else while they are off,
             # so every page draws exactly what it drew before the switch existed.
             "plan": plans.summary(
-                person, listed=self.store.listed_words(person.id) if plans.on() else 0
+                person,
+                listed=self.store.listed_words(person.id) if plans.on() else 0,
+                language=self._ui_language(),
             ),
         }
         # The chats bound to Telegram (targum-internal#328), only where there is a bot:
@@ -13685,8 +13687,9 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._go("/account/signin")
+        language = self._page_language()
         page = plans_page(
-            plans.summary(person), language=self._page_language(), token=self._key_if_given()
+            plans.summary(person, language=language), language=language, token=self._key_if_given()
         )
         self._send(200, page.encode("utf-8"), HTML)
 
