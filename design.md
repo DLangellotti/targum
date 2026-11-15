@@ -493,8 +493,9 @@ carries each word's sound" (2026-10-21), whose export is unchanged.
   never an address to fetch.
 - **Recordings go into the deck with their credit, where the licence lets them.** A
   line's recording carries the credit its licence asks for in the note's Source. A line
-  from a shared-shelf text whose licence does not let it leave is not sent, and that word
-  gets no gap card.
+  from a shared-shelf text whose licence does not let it leave is never sent: the word
+  takes its first line from a text that may leave, and gets no gap card only where there
+  is none. (David, 2026-11-15.)
 - **Send never makes new sounds.** It sends the word sounds and line recordings already
   on disk, with no claim and no job. A word with no sound yet goes in silent until Hear,
   or the deck export, makes one.
