@@ -18,7 +18,8 @@
 
     While the door is open (`door_is_open()`, design.md §12, 2026-11-10) the same one
     field signs up: it posts to `/signup`, which mails the sign-in link /account/signin
-    would, and a tried link rides in it so Upload opens holding it once they are in. -#}
+    would, and a tried link rides in it so Upload opens holding it once they are in. Under
+    it then, where this install has a client, "or" and Continue with Google. -#}
 <form class="join-form" method="post" action="{% if door_is_open() %}/signup{% else %}/waitlist{% endif %}{% if asked|default('') %}?lang={{ asked }}{% endif %}">
   <input type="hidden" name="from" value="{{ joined_from|default(canonical|default('')) }}">
   {%- if link|default('') %}
@@ -28,6 +29,16 @@
     <input type="email" name="email" required inputmode="email" autocapitalize="off" spellcheck="false" autocomplete="email" placeholder="{{ t("landing.page.you-example-com", "you@example.com") }}" aria-label="{{ t("landing.page.your-email", "Your email") }}">
     <button class="btn cta" type="submit">{% if door_is_open() %}{{ t("open-door.sign-up", "Sign up") }}{% else %}{{ t("landing.page.join-the-waitlist", "Join the waitlist") }}{% endif %}</button>
   </label>
+  {#- Continue with Google under the field, only while the door is open and this install
+      has a client (design.md §12, "Sign in with Google goes live", 2026-11-14). While it
+      is shut the field joins the waitlist, and a Google press beside it could only be
+      refused, so a shut front door draws no Google. An anchor, never a Google script. Not
+      under a tried link either: the link rides `/signup`, and Google's `state` carries
+      no link, so the popup that holds one keeps the one field. -#}
+  {%- if door_is_open() and google_is_configured() and not link|default('') %}
+  <p class="join-or">{{ t("signin.page.or", "or") }}</p>
+  <a class="btn join-google" href="/account/google">{{ t("signin.page.continue-with-google", "Continue with Google") }}</a>
+  {%- endif %}
   {%- if note|default(false) and not door_is_open() %}
   <p class="join-note">{{ t("landing.page.we-re-opening-in-small-groups-we-ll", "We’re opening in small groups. We’ll email you when your turn comes.") }}</p>
   {%- endif %}

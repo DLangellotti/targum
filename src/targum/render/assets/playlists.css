@@ -327,6 +327,22 @@ body.playlists main { gap: 1.75rem; }
 }
 .pl-menu[hidden] { display: none; }
 .playlists .pl-menu .ghost { justify-content: flex-start; }
+/* On a phone the two presses open in the head's own row, beside ⋯, rather than floating
+   over the first row's title and its remove press, flush to the screen's edge (targum-internal#716,
+   P2 19): the row wraps to take them, and nothing is covered. */
+@media (max-width: 40rem) {
+  .pl-more-wrap { flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .pl-menu {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-inline-size: 0;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+  }
+}
 .pl-head .rename { flex: 1; }
 
 /* The texts in order: number or where you are, the grip, the picture, the title and its
@@ -654,7 +670,8 @@ a.item-title:hover { text-decoration: underline; }
   .pl-presses .start { flex: 1 0 100%; justify-content: center; }
   .pl-presses .pl-offline { flex: 1 1 0; min-inline-size: 0; }
   .pl-presses .pl-offline.offline-idle,
-  .pl-presses .pl-offline.offline-saved { border-radius: var(--radius-row); }
+  .pl-presses .pl-offline.offline-saved,
+  .pl-presses .pl-offline.offline-held { border-radius: var(--radius-row); }
   .pl-table { padding-inline: 0.75rem; }
   .pl-cols { display: none; }
   .pl-items .item {
@@ -732,7 +749,8 @@ a.item-title:hover { text-decoration: underline; }
    in a quieter cut, the size said before it is pressed as well as after. */
 .pl-presses .pl-offline { flex: 0 1 auto; }
 .pl-presses .pl-offline.offline-idle,
-.pl-presses .pl-offline.offline-saved {
+.pl-presses .pl-offline.offline-saved,
+.pl-presses .pl-offline.offline-held {
   flex-wrap: nowrap;
   gap: 0.5rem;
   min-block-size: 2.75rem;
@@ -767,6 +785,8 @@ a.item-title:hover { text-decoration: underline; }
 .pl-presses .pl-offline.offline-failed,
 .pl-presses .pl-offline.offline-full { flex: 1 1 16rem; max-inline-size: 24rem; }
 .pl-presses .pl-offline .offline-remove { font-size: 0.8125rem; }
+/* Undo found the files gone: the pill, and the line under it. */
+.pl-presses .pl-offline.offline-lost { flex-wrap: wrap; border-radius: var(--radius-row); padding-block: 0.5rem; }
 
 /* A playlist's own page has its name for a title (board PlaylistDetail): "Your
    targums" over "‹ Playlists" goes, and the name is the page's heading. */

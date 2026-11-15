@@ -372,3 +372,47 @@ def test_met_in_a_torah_book_opens_its_portion_at_the_verse(
     _, said, _ = call(port, "GET", asked, cookie=cookie)
     (one,) = said["texts"]
     assert one["href"].endswith("/reader/sec-0001.html?met=%D7%99%D7%9D#s1-1")
+
+
+def test_a_paragraph_line_is_cut_to_the_sentence_that_holds_the_word() -> None:
+    """targum-internal#725 P2 12: a line from אהבת ציון ran to nine lines on the card."""
+    shown = "הָיָה בַּיִת. בַּבַּיִת גָּר אִישׁ זָקֵן, וְלוֹ סֵפֶר. הַסֵּפֶר יָשָׁן מְאֹד!"
+    start = shown.index("סֵפֶר")
+    end = start + len("סֵפֶר")
+    english = (
+        "There was a house. In the house lived an old man, and he had a book. The book is very old!"
+    )
+    line, at, to, said = meetings.one_sentence(shown, start, end, english, "he", "en")
+    assert line == "בַּבַּיִת גָּר אִישׁ זָקֵן, וְלוֹ סֵפֶר."
+    assert line[at:to] == "סֵפֶר"
+    assert said == "In the house lived an old man, and he had a book."
+
+
+def test_a_translation_that_does_not_split_alike_is_not_said_under_a_sentence() -> None:
+    shown = "הָיָה בַּיִת. בַּבַּיִת גָּר אִישׁ."
+    start = shown.index("אִישׁ")
+    english = "Once there was a house, and a man lived in it."
+    line, at, to, said = meetings.one_sentence(shown, start, start + 5, english, "he", "en")
+    assert line == "בַּבַּיִת גָּר אִישׁ." and line[at:to] == "אִישׁ"
+    assert said == "", "which English sentence says it cannot be told"
+
+
+def test_a_line_of_one_sentence_is_left_as_it_was() -> None:
+    shown = "ולנעמי מודע לאישה"
+    said = meetings.one_sentence(shown, 7, 11, "Naomi had a kinsman", "he", "en")
+    assert said == (shown, 7, 11, "Naomi had a kinsman")
+
+
+def test_the_practice_card_s_line_is_one_sentence(tmp_path: Path) -> None:
+    folder = text(
+        tmp_path / "t",
+        {1: [("היה בית. בבית גר מודע זקן.", [w("מודע", "מודע")])], 2: [("סוף", [])]},
+        translation={"s1-0": "There was a house. A kinsman lived in it."},
+    )
+    line = meetings.lines_met(["מודע"], [("book", "1", 1)], {"book": (folder, "he")}.get, "he")
+    whole = meetings.card_line(line["מודע"], "en")
+    cut = meetings.card_line(line["מודע"], "en", sentence=True)
+    assert whole is not None and cut is not None
+    assert whole["line"] == "היה בית. בבית גר מודע זקן.", "only the card asks for the cut"
+    assert cut["line"] == "בבית גר מודע זקן." and cut["word"] == "מודע"
+    assert cut["translation"] == "A kinsman lived in it."
