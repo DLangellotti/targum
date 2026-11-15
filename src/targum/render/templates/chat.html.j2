@@ -35,6 +35,9 @@
   <aside class="chat-side">
     <div class="chat-side-head">
       <button type="button" id="chat-new" class="chat-new">{{ t("chat.page.new", "New") }}</button>
+      {#- Save as a text: a quiet action on the conversation, shown once it has words the
+          page can count (David, 2026-11-15). Its stats go on the card it answers. -#}
+      <button type="button" id="chat-save" class="chat-save" hidden>{{ t("chat.save", "Save as a text") }}</button>
       {#- On a phone the list is not in the flow — it stood under the whole thread and
           the box, past everything — but behind this: the page's one overlay, a sheet
           (2026-09-10, targum-internal#238). Drawn only at phone width; the stylesheet
@@ -52,11 +55,9 @@
       scrolls inside itself and the box stays in view at any length of conversation,
       where it used to sit under a thread of unbounded height and scroll away with it. -#}
   <section class="chat-thread" id="chat-thread" aria-live="polite">
-    {#- The English under every Hebrew line is folded, and a tap on the pair opens it
-        (2026-09-10, targum-internal#241): "I would just ignore the Hebrew and read the
-        English." This opens all of it at once, and is remembered. Hidden until there
-        is a pair to open, and for a reader with no known words, who sees it all open. -#}
-    <button type="button" class="chat-english" id="chat-english" aria-pressed="false" hidden>{{ t("chat.page.show-translations", "Show translations") }}</button>
+    {#- No Show translations pill since 2026-11-15 (David, calmer turns): a line's
+        English opens with a tap on the line (targum-internal#241), and a reader with no
+        known words sees it all open. -#}
     {#- What this is, said once to a reader with no conversations yet. The copy is the
         product's register: precise, unpatronising, no selling. -#}
     <p class="chat-empty" id="chat-empty">{{ t("chat.page.ask-us-for-something-to-read-or", "Ask us for something to read, or ask which words you know. We look through your texts, the library and the web.") }}</p>

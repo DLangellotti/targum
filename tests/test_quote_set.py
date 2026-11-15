@@ -107,6 +107,29 @@ def test_over_the_connector_the_set_comes_back_as_a_link(world, monkeypatch) -> 
     assert (store.playlist(person.id, got["set"]["id"]) or {})["made_by"] == "connector"
 
 
+def test_in_the_chat_the_set_is_a_card_and_the_model_is_told_so(world, monkeypatch) -> None:
+    """targum-internal#735: the chat drew a set as a lone "See the set" link, and the model
+    called it a card and sent the reader to look for it. Now the page draws a card from
+    `session._set_card`, and the note tells the model it is there."""
+    from targum.chat import session
+
+    library, store, person, home = world
+    monkeypatch.setattr(library, "prepare", priced)
+    got = tools.quote_set(context(library, store, person, home), {"name": "Reels", "items": REELS})
+    assert "as a card" in got["note"] and "do not write its link" in got["note"]
+    card = session._set_card(json.dumps(got))
+    assert card is not None
+    assert card["id"] == got["set"]["id"] and card["name"] == "Reels"
+    assert [one["title"] for one in card["items"]] == ["Reel 0", "Reel 1", "Reel 2"]
+    assert [one["credits"] for one in card["items"]] == [1, 1, 1] and card["credits"] == 3
+    assert card["open"] == f"/set/{got['set']['id']}"
+    assert session._set_card(json.dumps({"error": "Nothing in that set can be made now."})) is None
+    ctx = context(library, store, person, home)
+    ctx.press_at = "https://targum.page"
+    linked = tools.quote_set(ctx, {"name": "Reels", "items": REELS[:1]})
+    assert "Give the reader the link" in linked["note"], "a host with no card gets the link"
+
+
 def test_an_item_that_cannot_be_made_is_named_and_left_out(world, monkeypatch) -> None:
     library, store, person, home = world
 

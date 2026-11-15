@@ -11527,9 +11527,20 @@ class Handler(BaseHTTPRequestHandler):
             # "press the card" over a thread with no card in it. A quote lives in
             # the tool result the model was handed; it is drawn under the answer that
             # followed, in the state the job is in now.
+            from .chat import session as chat_session
+
             waiting: list[dict[str, Any]] = []
+            # And what a search found and the sets it quoted (targum-internal#735), drawn
+            # as cards under the answer that followed them, as the stream drew them.
+            # Found rows are read by the tool that made them, named in the turn before.
+            tools_named: dict[str, str] = {}
+            found_waiting: list[dict[str, Any]] = []
+            sets_waiting: list[dict[str, Any]] = []
             for turn in store.chat_turns(chat["id"]):
                 waiting.extend(self._quoted(turn))
+                more_found, more_sets = self._found_and_sets(turn, tools_named)
+                found_waiting.extend(more_found)
+                sets_waiting.extend(more_sets)
                 if not (turn["said"] or turn["role"] == "user"):
                     continue
                 content = turn["content"]
@@ -11565,6 +11576,12 @@ class Handler(BaseHTTPRequestHandler):
                 if turn["role"] == "assistant" and turn["said"] and waiting:
                     entry["quotes"] = waiting
                     waiting = []
+                if turn["role"] == "assistant" and turn["said"] and found_waiting:
+                    entry["found"] = found_waiting[: chat_session.MOST_FOUND]
+                    found_waiting = []
+                if turn["role"] == "assistant" and turn["said"] and sets_waiting:
+                    entry["sets"] = sets_waiting
+                    sets_waiting = []
                 turns.append(entry)
             return self._json(
                 {
@@ -11575,6 +11592,39 @@ class Handler(BaseHTTPRequestHandler):
                 }
             )
         return self._json({"error": "not found"}, 404)
+
+    @staticmethod
+    def _found_and_sets(
+        turn: dict[str, Any], named: dict[str, str]
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """The rows a `search_sources` result turned up and the sets a `quote_set` result
+        made, in one stored turn, cut as the stream cut them (`session._found_rows`,
+        `session._set_card`). `named` learns each tool call's name from the assistant
+        turns, so a result is read by the tool that made it."""
+        from .chat import session as chat_session
+
+        content = turn.get("content")
+        if not isinstance(content, list):
+            return [], []
+        found: list[dict[str, Any]] = []
+        sets: list[dict[str, Any]] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                named[str(block.get("id") or "")] = str(block.get("name") or "")
+                continue
+            if block.get("type") != "tool_result" or block.get("is_error"):
+                continue
+            tool = named.get(str(block.get("tool_use_id") or ""), "")
+            text = str(block.get("content") or "")
+            if tool == "search_sources":
+                found.extend(chat_session._found_rows(text))
+            elif tool == "quote_set":
+                drawn = chat_session._set_card(text)
+                if drawn:
+                    sets.append(drawn)
+        return found, sets
 
     def _quoted(self, turn: dict[str, Any]) -> list[dict[str, Any]]:
         """The cards quoted in a tool-result turn, as the jobs stand now.
@@ -11631,6 +11681,8 @@ class Handler(BaseHTTPRequestHandler):
                     if kind == "found"
                     for row in json.loads(data).get("items", [])
                 ],
+                # And a set a turn quoted, drawn as its own card (targum-internal#735).
+                "sets": [json.loads(data) for kind, data in feed.events if kind == "set"],
                 # And the film it could not fetch, so a page without EventSource keeps
                 # the link the same way a streaming one does (targum-internal#331).
                 "refused": next(
@@ -13174,7 +13226,13 @@ class Handler(BaseHTTPRequestHandler):
         signed in — which every page asks, so Your Progress and the account panel can
         say the count without a request of their own (targum-internal#237)."""
         person = self.store.person_by_id(person_id) if self.store and person_id else None
-        allowed = self.library.allowance(paid_plan=plans.paid(person))
+        # An admin is not held to the month's allowance at claim (`Library.claim`), so
+        # none is said: the operator was told "0 credits left" (targum-internal#735).
+        allowed = (
+            None
+            if person is not None and person.admin
+            else self.library.allowance(paid_plan=plans.paid(person))
+        )
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
         used = self.store.hours_used(person_id, self.library._month_from()) if self.store else 0.0

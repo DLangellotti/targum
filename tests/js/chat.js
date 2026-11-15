@@ -331,15 +331,12 @@ function pairsDrawn() {
   return out;
 }
 
+// Save as a text, a quiet action in the head since 2026-11-15 (David): the counts it
+// carries for the card it answers, and whether it is offered.
 function foot() {
-  const li = (turns.children || []).find((c) => String(c.className).split(" ")[0] === "chat-sum");
-  if (!li) return null;
-  const by = (cls) => li.children.find((c) => String(c.className).split(" ").includes(cls));
-  return {
-    counts: by("chat-counts") ? by("chat-counts").textContent : "",
-    save: !!by("chat-save"),
-    note: by("note") ? by("note").textContent : "",
-  };
+  const save = byId["chat-save"];
+  if (!save || !save.attrs["data-stats"]) return null;
+  return { counts: save.attrs["data-stats"], save: !save.hidden };
 }
 
 function doors() {
@@ -475,9 +472,6 @@ function drawn() {
       const pair = found[step.n || 0];
       if (pair.onkeydown) pair.onkeydown({ key: step.key || "Enter", preventDefault() {} });
     }
-    if (step.type === "english") {
-      byId["chat-english"].onclick();
-    }
     if (step.type === "first") {
       byId[step.yes === false ? "chat-first-no" : "chat-first-yes"].onclick();
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
@@ -530,6 +524,8 @@ function drawn() {
       };
       walk(turns);
       walk(byId["chat-list"]);
+      // Save as a text is in the head, from the template, by its id (2026-11-15).
+      if (step.selector === "chat-save" && byId["chat-save"]) found.push(byId["chat-save"]);
       found[found.length - 1].onclick();
       for (let i = 0; i < 6; i++) await new Promise((resolve) => setImmediate(resolve));
     }
@@ -615,12 +611,8 @@ function drawn() {
         const tail = line && line.children.find((c) => String(c.className) === "chat-partial");
         return tail ? tail.textContent : null;
       })(),
-      english: {
-        hidden: byId["chat-english"].hidden,
-        pressed: byId["chat-english"].attrs["aria-pressed"],
-        text: byId["chat-english"].textContent,
-        kept: global.localStorage.getItem("targum:chat-english"),
-      },
+      // The Show translations pill, gone since 2026-11-15: the page never asks for it.
+      english: { asked: "chat-english" in byId },
       chips: {
         hidden: byId["chat-chips"].hidden,
         ids: (byId["chat-chips"].children || []).map((li) => li.children[0].attrs["data-chip"]),

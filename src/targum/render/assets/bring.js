@@ -307,6 +307,15 @@
        (design.md §12, 2026-09-23). The same two strings the inbox warning uses, because
        it is the same warning in a different place and two wordings would drift. */
     var spare = Math.max(0, (Number(got.allowed) || 0) - (Number(got.used) || 0));
+    // None left is said as none left, with when they come back: "0 credits left this
+    // month. That's about 0 minutes of audio or video." (targum-internal#735).
+    if (Math.round(spare * 60) <= 0) {
+      var none = t("building.credits.none", "No credits left this month.");
+      if (got.ends) {
+        none += " " + t("building.hours.reset", "They reset on {date}.", { date: String(got.ends).replace(/ /g, "\u00a0") });
+      }
+      return none;
+    }
     var line =
       tn(
         "building.credits.left",
@@ -689,6 +698,12 @@
       else pendingWay = way;
     }
     var pendingWay = null;
+    // Tells the page the card is no longer waiting on its press, for what it draws from
+    // that (the chat's credits line, targum-internal#735).
+    function changed() {
+      if (typeof card.dispatchEvent !== "function" || typeof CustomEvent !== "function") return;
+      card.dispatchEvent(new CustomEvent("quote:changed", { bubbles: true }));
+    }
     if (job.stage === "ready") {
       var spends = uses(job);
       var cost = null;
@@ -711,12 +726,14 @@
           if (state.error || state.blocked) {
             go.hidden = true;
             refuse(state, "");
+            changed();
             return;
           }
           // The press is made: the button and its options give way to the progress.
           go.hidden = true;
           more.hidden = true;
           if (cost) cost.hidden = true;
+          changed();
           followBuild(state);
         });
       };

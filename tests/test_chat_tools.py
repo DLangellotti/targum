@@ -1248,6 +1248,13 @@ def test_search_sources_reads_the_registered_feeds(world, monkeypatch, tmp_path)
     assert got["unreachable"] == ["dead"]
     assert tools.search_sources(ctx, {"kind": "podcast"})["count"] == 1
 
+    # targum's own chat draws the first of these as cards, and says so to the model, so
+    # it writes no addresses the page would have to drop (targum-internal#735).
+    assert "as cards" in got["note"] and "do not write their links" in got["note"]
+    ctx.press_at = "https://targum.page"
+    assert "note" not in tools.search_sources(ctx, {"query": "הים"}), "a host draws its own"
+    ctx.press_at = ""
+
     monkeypatch.setenv("TARGUM_SOURCES", str(tmp_path / "none.json"))
     assert tools.search_sources(ctx, {})["note"] == "We don't follow any publishers yet."
 
