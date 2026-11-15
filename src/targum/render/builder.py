@@ -3197,7 +3197,7 @@ def torah_forward_page(book: str, chapter: int, language: str = "en") -> str:
 
 #: The date the four legal pages say they were last changed on. One line rather than
 #: four, because the date is the sentence on those pages nobody would notice going stale.
-LEGAL_CHANGED = "14 November 2026"
+LEGAL_CHANGED = "15 November 2026"
 
 #: The four pages A7 owes a reader about their own data, and what a search engine is told
 #: each one is. Keyed on the route so `serve` dispatches from this rather than from a
@@ -6835,6 +6835,12 @@ def render(
         from ..annotate.lemma_check import mended
 
         annotation = mended(annotation, segmented)
+    # A word the diacritizer pointed as another word that the words around it rule out
+    # (קולה, cola, read as קוֹלָהּ, her voice): put right from the hand-kept table, here,
+    # so a free rebuild reaches every page (`vocalize.overrides`, targum-internal#689).
+    from ..vocalize.overrides import overridden
+
+    vocalization = overridden(vocalization, segmented, annotation)
 
     from ..renderings import (
         EMPTY,

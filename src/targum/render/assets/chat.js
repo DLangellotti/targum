@@ -1024,9 +1024,13 @@
   var WHOLE_LIMIT = 4 * 1024 * 1024;
   var thumbnails = Promise.resolve();
   function thumbnail(file, img) {
-    thumbnails = thumbnails.then(function () {
-      return drawThumbnail(file, img);
-    });
+    // A draw that throws leaves its picture to its alt text and the queue running: a
+    // rejected chain would skip every later picture (qa-claude on #1256).
+    thumbnails = thumbnails
+      .then(function () {
+        return drawThumbnail(file, img);
+      })
+      .catch(function () {});
   }
   function drawThumbnail(file, img) {
     if (typeof createImageBitmap !== "function") {

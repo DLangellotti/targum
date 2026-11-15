@@ -116,7 +116,50 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
+
 ### Fixed
+- Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
+  `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
+  with the time of the ship. A saved copy refetches a file whose size or time changed, so
+  every re-ship made saved copies of the issue download its recording again. It sends
+  with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
+  `index.json` sends stay as they are, since nothing saved holds the index.
+  `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- `/phrase` holds a selection's meaning to the same languages `/gloss` does
+  (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
+  language: any source into any target was bought, the words' own language too, and the
+  reader did not say which text it was in. Both codes are normalised
+  (`serve.language_code`), the source has to be in `translate.prompts.READING`, the
+  target one the reader reads or the text is translated into (the reader now sends
+  `document`), and target == source is refused: a 400 before any model call. Since the
+  sentence and translation are the page's, every new pair is a new purchase, so an
+  account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
+  sign-in links use), and past it gets a 429. An answer already held stays free and is
+  never counted. One new string, in English and Russian. No spend.
+- Follow-ups to #1238 and #1247 (qa-claude):
+  - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
+    It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
+    rebuilt kept English keyed to paragraphs it no longer had. With `--spend`, its last
+    lines say what it really spent, by model, even when the build dies partway. It spends
+    outside `Library.claim`, so that line is what goes on targum-internal#727.
+  - A saved page held from before stamps, or whose stamp differs from the server's, no
+    longer takes the server's stamp (`offline.js`). It keeps one only while the two
+    agree, the rule before #1247. A recording or a film still learns the server's cut.
+  - Direction marks (U+200E/F and the embedding and isolate controls) no longer hide a
+    track's marks from `ingest.subtitles.drawn`. A punctuated track with an RLM after
+    each mark was read as bare of marks and closed a paragraph at every pause, mid-sentence
+    or not.
 - Connector tokens: one grant per app, and a grant left alone ends (targum-internal#722,
   design.md §12 2026-11-14).
   - Approving an app again revokes the reader's older access and refresh tokens for that
@@ -949,6 +992,34 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     the picture docked the first page holds the first line instead of only the title
     and the source.
   - No new strings. No spend.
+- `/gloss` buys a word's meaning only for a language a text is read in here, with both
+  codes normalised first (targum-internal#732, found by qa-claude on #1220). The source
+  and target were compared as the page sent them, so "EN" into "en" or "ru-RU" into "ru"
+  passed the same-language refusal, and any source was accepted, so a page could make
+  targum buy Japanese meanings. Both are lowercased to their base code
+  (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
+  target == source still is until #538. A 400, with no model call. No spend.
+- קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
+  voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
+  voice" in all 16 places, because DICTA's menaked and its joint model both read the
+  spelling as קול + her.
+  - A new hand-kept table, `vocalize/pointing_overrides.json`, says what each entry
+    means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
+    `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
+    (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…), a speech verb
+    (אמרה, ענתה, קראה, שאלה, המשיכה and their common forms, ling-he via qa-claude), or a
+    definite adjective straight after it (קולה הצעיר). Any one keeps DICTA's pointing, so
+    "אמרה בקולה." beside a bottle of cola stays her voice.
+  - One sense per text: once one occurrence is cued and none is guarded, every
+    occurrence in that text takes cola. A text with one guarded occurrence changes only
+    its cued ones.
+  - Only lines a model pointed. An edition's pointing, a changed letter or a lemma the
+    entry doesn't name is left alone. The file on disk keeps what the diacritizer said.
+  - A plain `targum rebuild`, with no `--words`, takes it to existing pages. No annotator
+    rename, no `SCHEMA_VERSION`, no model call, no spend.
+  - Laptop library, read-only: 0 of 708 Hebrew texts change. All 115 קולה there are
+    "her voice", 86 of them guarded and none cued.
 - Chat at the finish bar (targum-internal#733, design's §14 pass of 2026-11-15).
   - Pictures sent with the `+` are seen. The reader's own turn drew them from `blob:`
     addresses, which the served policy (`img-src 'self' data:`) refuses, so every one was
