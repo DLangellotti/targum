@@ -6,6 +6,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The waitlist once the door is open (targum-internal#477, C). Only while
+  `signup_is_open()`; shut, or asked for without plans, every door is as it was, byte for
+  byte, and a test pins both.
+  - `POST /waitlist`, from a cached front page or an old popup, is the open door's form
+    (`_signup_post`): it mails the sign-in link through the same gates and keeps no
+    waitlist row. A link posted with it rides to Upload for the reader's own press, as
+    `/signup`'s does, and is never saved where Let in would build it as a gift.
+  - `/waitlist/confirm` from an old mail, GET or POST, opens the sign-in page headed
+    "targum is open now", in the language the address joined in, with the address in
+    the field where the token is still waiting, Send a link, and Google where configured.
+    Nothing is confirmed and the token is not spent. `/waitlist/stop` works as before.
+  - The back office keeps the waitlist as it stands under "Signup is open, so nobody new
+    joins this list. Let in still works for anyone still waiting."; Let in and Open the
+    door stay.
+  - `signin_page` takes `heading` and `email`. New string `open-door.open-now` (en, ru).
 - "Ways to sign in" on Your account: link and unlink Google (targum-internal#502,
   design.md §12 "Sign in with Google goes live, and signup opens to anyone", 2026-11-14).
   - The Account card's Email row becomes "Ways to sign in". "Email link" shows the

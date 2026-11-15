@@ -8599,6 +8599,8 @@ class Handler(BaseHTTPRequestHandler):
             else self._public_language()
         )
         if route == "/waitlist/confirm":
+            if signup_is_open():
+                return self._open_now(said, store.peek_waiting(token) or "")
             waiting = store.peek_waiting(token)
             if waiting is None:
                 return self._waitlist_note(
@@ -8619,6 +8621,28 @@ class Handler(BaseHTTPRequestHandler):
             heading=heading,
             pending={"action": route, "token": token, "button": button},
         )
+
+    def _open_now(self, said: str, email: str) -> None:
+        """What an old waitlist mail opens once the door is open (targum-internal#477, C):
+        the sign-in page, headed "targum is open now", with the address it joined with
+        in the field, Send a link, and Google where this install has it.
+
+        Nothing is confirmed onto a list nobody is let in from by turn any more, and the
+        token is left as it was, so a press here spends nothing. The address is filled in
+        only for a token still waiting to be confirmed, which is what the shut door's
+        page already names ("Keep me on the list as …"); a spent or made-up token gets the
+        same page with an empty field.
+        """
+        from .strings import text
+
+        page = signin_page(
+            language=said,
+            asked=said,
+            address=self.address,
+            heading=text("open-door.open-now", said),
+            email=email,
+        )
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _visitor(self) -> str:
         """The address a request came from: Caddy's `X-Forwarded-For` where the
@@ -8707,6 +8731,18 @@ class Handler(BaseHTTPRequestHandler):
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
+
+        # With the door open nobody waits (targum-internal#477, C): a cached front page or
+        # an old popup still posts here, and it is answered as the open door's own form,
+        # with the sign-in link. A link tried beside it rides in that link to Upload and
+        # is built only on their own press, never as Let in's gift.
+        if route == "/waitlist" and signup_is_open():
+            return self._signup_post(form)
+        if route == "/waitlist/confirm" and signup_is_open():
+            pressed = form.get("t", "")
+            return self._open_now(
+                store.waiting_language(pressed), store.peek_waiting(pressed) or ""
+            )
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()
