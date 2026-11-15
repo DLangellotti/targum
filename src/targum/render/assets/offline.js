@@ -355,10 +355,17 @@
                      an unchanged film is never fetched twice. A page follows its build
                      as it opens (`sw.js`), and a file kept before stamps were kept is
                      held as it is, so an old copy does not fetch its films again
-                     (design.md §12, 2026-11-14). */
-                  var recut = had && file.stamp && held && held !== file.stamp && !/\.html$/i.test(at);
+                     (design.md §12, 2026-11-14). Such a file learns the cut the server
+                     has now, so a later re-cut reaches it too (qa-claude on #1234). A
+                     page never learns one: its bytes are the build it was kept from,
+                     so it keeps a stamp only while the server's says the same
+                     (qa-claude on #1247). */
+                  var page = /\.html$/i.test(at);
+                  var recut = had && file.stamp && held && held !== file.stamp && !page;
                   if (had && !recut) {
-                    if (held && held === file.stamp) stamps[at] = held;
+                    if (page) {
+                      if (held && held === file.stamp) stamps[at] = held;
+                    } else if (file.stamp || held) stamps[at] = file.stamp || held;
                     done += Number(file.bytes || 0);
                     told();
                     return null;
@@ -987,9 +994,145 @@
   /* One row that says where a text or a playlist stands and offers the one thing to do
      next: save, stop, remove, try again. `what` is { id, title, start(progress) → handle,
      kind: "text"|"playlist" }, and `row` is redrawn in place. */
+  /* --- Removed · Undo, in a row (design.md §12, "An offline copy follows its text when
+     opened online, and Remove can be undone", 2026-11-14) -------------------------------
+
+     The reader's ⋯ "Remove from this device" and a playlist page's Remove say what Saved
+     on this device says: "Removed · Undo" for a few seconds, and nothing asked first.
+     Offline a saved reader is the only copy there is, so Undo puts it back from the files
+     that wait in the cache (`take`), with nothing fetched. One at a time on a page: a
+     second removal finishes the first. */
+  var UNDO_FOR = 8000;
+  var rowHold = null; // { id, title, row, what, taking, timer }
+  // Texts whose Undo found their files gone, by id: the row says so, once, quietly.
+  var lost = {};
+  // A press the next drawing of a row puts the keyboard on, by id.
+  var aim = {};
+
+  /* Whether a "Removed · Undo" line should wait: while the keyboard is on it, or a real
+     pointer rests on it. A tap leaves focus, and on touch a stuck :hover, where it
+     landed, so neither counts there: focus only where the browser shows it
+     (:focus-visible), hover only from a mouse or a pen (qa-claude on #1234). */
+  var pointed = null;
+  if (typeof document !== "undefined" && document.addEventListener) {
+    document.addEventListener(
+      "pointerover",
+      function (event) {
+        pointed = event.pointerType === "mouse" || event.pointerType === "pen" ? event.target : null;
+      },
+      true
+    );
+    document.addEventListener(
+      "pointerout",
+      function (event) {
+        if (!event.relatedTarget) pointed = null;
+      },
+      true
+    );
+  }
+  function lingers(line) {
+    if (!line) return false;
+    var active = document.activeElement;
+    if (active && active !== document.body && line.contains(active)) {
+      try {
+        if (active.matches(":focus-visible")) return true;
+      } catch (e) {
+        return true;
+      }
+    }
+    return !!(pointed && line.contains(pointed));
+  }
+
+  function rowSettle() {
+    if (!rowHold) return Promise.resolve();
+    var was = rowHold;
+    rowHold = null;
+    clearTimeout(was.timer);
+    return was.taking
+      .then(function (hold) {
+        return hold.done();
+      })
+      .catch(function () {})
+      .then(function () {
+        drawRow(was.row, was.what);
+      });
+  }
+
+  function rowExpire() {
+    if (!rowHold) return;
+    if (lingers(rowHold.row.querySelector(".offline-held-line"))) {
+      rowHold.timer = setTimeout(rowExpire, 1000);
+      return;
+    }
+    rowSettle();
+  }
+
+  function rowTake(row, what) {
+    rowSettle().then(function () {
+      delete lost[what.id];
+      var hold = { id: what.id, title: what.title, row: row, what: what, timer: null };
+      rowHold = hold;
+      hold.taking = take(what.id);
+      hold.timer = setTimeout(rowExpire, UNDO_FOR);
+      aim[what.id] = "offline-undo";
+      drawRow(row, what);
+      hold.taking.catch(function () {
+        if (rowHold === hold) rowHold = null;
+        drawRow(row, what);
+      });
+    });
+  }
+
+  function rowUndo() {
+    if (!rowHold) return;
+    var was = rowHold;
+    rowHold = null;
+    clearTimeout(was.timer);
+    was.taking
+      .then(function (hold) {
+        return hold.undo();
+      })
+      .then(
+        function (back) {
+          if (back) {
+            aim[was.id] = "offline-remove";
+          } else {
+            // Gone from under it: a sign-out in another tab, or a browser that cleared
+            // its storage. Said in one line, and the keyboard on the way to save it again.
+            lost[was.id] = true;
+            aim[was.id] = "offline-go";
+          }
+          drawRow(was.row, was.what);
+        },
+        function () {
+          lost[was.id] = true;
+          aim[was.id] = "offline-go";
+          drawRow(was.row, was.what);
+        }
+      );
+  }
+
+  /* Each row drawn again keeps the keyboard where it was, on the press of the same name
+     (an index change draws it again a moment after a press), or puts it where a press
+     asked it to go. */
   function drawRow(row, what) {
+    var active = document.activeElement;
+    var kept = active && row.contains(active) ? String(active.className).split(" ")[0] : "";
+    paintRow(row, what);
+    var wanted = aim[what.id] || kept;
+    if (!wanted) return;
+    var next = row.querySelector("." + wanted);
+    if (next) {
+      delete aim[what.id];
+      try {
+        next.focus({ preventScroll: true });
+      } catch (e) {}
+    }
+  }
+
+  function paintRow(row, what) {
     row.textContent = "";
-    row.className = row.className.replace(/\boffline-(idle|saving|saved|failed|full)\b/g, "").trim();
+    row.className = row.className.replace(/\boffline-(idle|saving|saved|failed|full|held|lost)\b/g, "").trim();
     var state = running[what.id];
     var item = known && known.items[what.id];
     var playlist = what.kind === "playlist";
@@ -997,6 +1140,7 @@
       drawRow(row, what);
     }
     function begin() {
+      delete lost[what.id];
       var job = { progress: { done: 0, total: 0 }, error: null };
       running[what.id] = job;
       job.handle = what.start(function (progress) {
@@ -1078,6 +1222,21 @@
       }
       return;
     }
+    if (rowHold && rowHold.id === what.id) {
+      row.classList.add("offline-held");
+      var line = element("span", "offline-what offline-held-line");
+      var note = element("span", "offline-label", t("offline.removed", "Removed"));
+      note.setAttribute("role", "status");
+      line.appendChild(note);
+      var dot = element("span", "offline-dot", "\u00b7");
+      dot.setAttribute("aria-hidden", "true");
+      line.appendChild(dot);
+      var undo = press("offline-undo", t("offline.undo", "Undo"), rowUndo);
+      undo.setAttribute("aria-label", t("offline.undo-named", "Undo removing {title}", { title: what.title || "" }));
+      line.appendChild(undo);
+      row.appendChild(line);
+      return;
+    }
     // A text kept only in the parts that were opened is not saved: the row offers the whole.
     if (item && !item.part) {
       row.classList.add("offline-saved");
@@ -1100,7 +1259,7 @@
           "offline-remove",
           playlist ? t("offline.remove", "Remove") : t("offline.remove-here", "Remove from this device"),
           function () {
-            remove(what.id).then(redraw);
+            rowTake(row, what);
           }
         )
       );
@@ -1114,6 +1273,12 @@
     var meta = element("span", "offline-size", what.bytes ? size(what.bytes) : "");
     go.appendChild(meta);
     row.appendChild(go);
+    if (lost[what.id]) {
+      row.classList.add("offline-lost");
+      var gone = element("p", "offline-note", t("offline.undo-gone", "The files are no longer on this device, so it couldn't be put back."));
+      gone.setAttribute("role", "status");
+      row.appendChild(gone);
+    }
   }
 
   /* --- in a reader --------------------------------------------------------------- */
@@ -1852,6 +2017,8 @@
     take: take,
     removeAll: removeAll,
     takeAll: takeAll,
+    // Whether a "Removed · Undo" line waits: the keyboard on it, or a real pointer.
+    lingers: lingers,
     // What runs as every page opens, here for a test to run and wait on.
     sweep: sweep,
     keep: keepIt,

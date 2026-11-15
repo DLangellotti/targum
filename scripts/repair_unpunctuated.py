@@ -2,9 +2,10 @@
 
 Two shapes, both found on the box on 2026-11-14:
 
-- A subtitle reader written before #727 (`subtitles/1`): its paragraphs are redrawn at
-  sentence ends (`--redraw`, free) and its refiner set back to fresh, so the build
-  below buys its full stops where it is sparse (`ingest.subtitles.owes_punctuation`).
+- A subtitle reader written before #727 (`subtitles/1`): the parts named in `--parts`
+  have their paragraphs redrawn at sentence ends (`--redraw`, free) and their refiner
+  set back to fresh, so the build below buys their full stops where they are sparse
+  (`ingest.subtitles.owes_punctuation`).
 - A whisper reader refined before #261 (`rules/1`, `rules/2`): the build below redoes
   it with the punctuating rules from the hearing kept beside each part. Never heard
   again.
@@ -12,7 +13,9 @@ Two shapes, both found on the box on 2026-11-14:
 Either way the named parts are then rebuilt the way a part press is
 (`Library.run_part`): Sonnet, owner's cache scope, words on, no glossing. Their
 sentences change, so their English is bought again. Without `--spend` it prints what
-it would buy and writes nothing at all.
+it would buy and writes nothing at all. With it, the last thing it prints is what it
+really spent, even when the build dies partway: it spends outside `Library.claim`, so the
+box's ledger never sees it, and that line is what goes on targum-internal#727.
 
 Run on the box as the service user, never as root:
 
@@ -35,23 +38,28 @@ from targum.transcribe.models import Refined
 
 if TYPE_CHECKING:
     from targum.pipeline import Build
+    from targum.usage import Usage
 
 
-def redrawn(folder: Path) -> dict[int, Refined]:
-    """Every `subtitles/1` part, its paragraphs drawn again and its refiner made fresh."""
+def redrawn(folder: Path, parts: list[int]) -> dict[int, Refined]:
+    """Each named `subtitles/1` part, its paragraphs drawn again and its refiner made
+    fresh. Only the named ones: a part redrawn and not rebuilt would keep English keyed to
+    paragraphs it no longer has (qa-claude on #1238)."""
+    from targum.ingest.audio import refined_path
     from targum.ingest.subtitles import FRESH, drawn
     from targum.transcribe.models import load
 
     out: dict[int, Refined] = {}
-    for path in sorted((folder / "audio" / "refined").glob("part-*.json")):
-        kept = load(Refined, path)
+    for number in sorted(set(parts)):
+        path = refined_path(folder / "audio", number)
+        kept = load(Refined, path) if path.exists() else None
         if kept is None or kept.provider != "subtitles":
             continue
         names = kept.refiner.split("+")
         if names[0] != "subtitles/1":
             continue
         words = [word for paragraph in kept.paragraphs for word in paragraph.words]
-        out[int(path.stem.split("-")[1])] = kept.model_copy(
+        out[number] = kept.model_copy(
             update={"refiner": "+".join([FRESH, *names[1:]]), "paragraphs": drawn(words)}
         )
     return out
@@ -67,6 +75,17 @@ def write_redrawn(folder: Path, parts: dict[int, Refined]) -> None:
         shutil.copytree(folder / "audio" / "refined", backup)
     for number, refined in parts.items():
         write(refined_path(folder / "audio", number), refined)
+
+
+def receipt(spent: Usage) -> list[str]:
+    """What the run really spent, to the cent and by model, for targum-internal#727."""
+    lines = [f"spent ${spent.cost():.4f} outside Library.claim, calls: {spent.calls}"]
+    for model, (used_in, used_out) in sorted(spent.by_model.items()):
+        lines.append(f"  {model}: {used_in} tokens in, {used_out} out")
+    for model, seconds in sorted(spent.seconds_by_model.items()):
+        lines.append(f"  {model}: {seconds / 60:.1f} minutes")
+    lines.append("record this on targum-internal#727")
+    return lines
 
 
 def builder(folder: Path, source: str, owner: str) -> Build:
@@ -109,7 +128,7 @@ def main() -> None:
 
     from targum.ingest.subtitles import owes_punctuation
 
-    fresh = redrawn(args.folder) if args.redraw else {}
+    fresh = redrawn(args.folder, args.parts) if args.redraw else {}
     print("parts redrawn:", sorted(fresh))
     build = builder(args.folder, args.source, args.owner)
     punctuator = getattr(build._refiner(), "punctuator", None)
@@ -134,8 +153,10 @@ def main() -> None:
         return
     if fresh:
         write_redrawn(args.folder, fresh)
-    result = build.run(chapters=FIRST_CHAPTERS, also=args.parts)
-    print(f"spent ${result.spent.cost():.4f}")
+    try:
+        build.run(chapters=FIRST_CHAPTERS, also=args.parts)
+    finally:
+        print("\n".join(receipt(build.spent)))
 
 
 if __name__ == "__main__":

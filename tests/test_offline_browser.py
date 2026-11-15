@@ -569,8 +569,13 @@ def test_save_for_offline_says_the_room_then_saves_and_removes(browser, served: 
         assert row.locator(".offline-label").inner_text() == "Saved on this device"
         assert page.evaluate(LIST)[0]["how"] == "you"
         row.locator(".offline-remove").click()
-        page.wait_for_selector("#offline-row.offline-idle")
-        assert page.evaluate(LIST) == []
+        # Removed · Undo for a few seconds (design.md §12, 2026-11-14): out of the list
+        # at once, back on Undo, and gone for good once the line goes.
+        page.wait_for_selector("#offline-row.offline-held")
+        until(page, "async () => (await window.TargumOffline.list()).length === 0")
+        row.locator(".offline-undo").click()
+        page.wait_for_selector("#offline-row.offline-saved")
+        assert page.evaluate(LIST)[0]["how"] == "you"
     finally:
         context.close()
 
@@ -732,9 +737,24 @@ def test_a_playlist_opened_is_kept_whole_and_its_page_saves_and_removes_it(
         page.wait_for_selector("#slot.offline-saved")
         assert page.locator("#slot .offline-label").inner_text() == "Saved for offline"
         page.locator("#slot .offline-remove").click()
-        page.wait_for_selector("#slot.offline-idle")
+        page.wait_for_selector("#slot.offline-held")
+        until(
+            page,
+            "async () => !(await window.TargumOffline.list()).some((i) => i.id === 'playlist:7')",
+        )
         left = [item["id"] for item in page.evaluate(LIST)]
         assert left == ["/reader/one-he/reader/"], "the text opened stays; the one only held goes"
+        # Removed · Undo, as on Saved on this device (design.md §12, 2026-11-14): the
+        # playlist and the text it held come back exactly as they were.
+        assert page.locator("#slot .offline-label").inner_text() == "Removed"
+        page.locator("#slot .offline-undo").click()
+        page.wait_for_selector("#slot.offline-saved")
+        assert {item["id"]: item for item in page.evaluate(LIST)} == saved
+        page.locator("#slot .offline-remove").click()
+        page.wait_for_selector("#slot.offline-held")
+        page.mouse.move(0, 0)
+        page.evaluate("() => document.activeElement && document.activeElement.blur()")
+        page.wait_for_selector("#slot.offline-idle", timeout=15000)
 
         page.locator("#slot .offline-go").click()
         page.wait_for_selector("#slot.offline-saved")
@@ -881,6 +901,58 @@ def test_the_saved_page_s_choices_are_this_device_s(browser, saved_served: Serve
         assert page.locator("#saved-playlist").get_attribute("aria-checked") == "false"
         assert page.locator("#saved-auto-says").inner_text() == (
             "Your last 10 texts. Newer ones take their place."
+        )
+    finally:
+        context.close()
+
+
+def test_each_saved_segment_is_one_tab_stop_with_arrows_between(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """targum-internal#720 P2 12: a radio group is one Tab stop, and the arrows choose."""
+    context = browser.new_context(service_workers="allow")
+    page = context.new_page()
+    try:
+        page.goto(saved_served.url("/you/saved"))
+        page.wait_for_selector("#saved-choices:not([hidden])")
+        stops = page.evaluate(
+            """() => [...document.querySelectorAll('.saved-segment')].map((group) =>
+              [...group.querySelectorAll('[role=radio]')]
+                .filter((one) => one.tabIndex === 0)
+                .map((one) => one.getAttribute('aria-checked')))"""
+        )
+        assert stops == [["true"], ["true"]], "one stop per group, on the chosen option"
+
+        page.focus('[data-recent="5"]')
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert page.evaluate("() => document.activeElement.dataset.recent") == "10"
+        assert page.locator('[data-recent="10"]').get_attribute("tabindex") == "0"
+        assert page.locator('[data-recent="5"]').get_attribute("tabindex") == "-1"
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        page.keyboard.press("ArrowLeft")
+        page.wait_for_function(
+            "() => document.querySelector('[data-recent=\"10\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+
+        page.focus('[data-film="1"]')
+        page.keyboard.press("ArrowDown")
+        page.wait_for_function(
+            "() => document.querySelector('[data-film=\"0\"]')"
+            ".getAttribute('aria-checked') === 'true'"
+        )
+        assert (
+            page.evaluate("() => JSON.parse(localStorage.getItem('targum:offline'))")["film"]
+            is False
         )
     finally:
         context.close()
@@ -1400,7 +1472,11 @@ def test_remove_and_remove_all_can_be_undone_offline_too(
         page.locator("#saved-mine .saved-remove").first.click()
         page.wait_for_selector("#saved-mine .saved-held")
         page.mouse.move(0, 0)
-        page.locator("#saved-mine .saved-undo").focus()
+        # The keyboard's own way there: a tap leaves focus behind it too, and that one
+        # does not hold the line (`offline.lingers`).
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("Tab")
+        assert page.evaluate("() => document.activeElement.matches('.saved-undo:focus-visible')")
         page.clock.run_for(12000)
         assert page.locator("#saved-mine .saved-held").count() == 1, "it waits on the keyboard"
         page.locator("#saved-mine .saved-undo").blur()
@@ -1500,4 +1576,320 @@ def test_a_refetch_that_fails_leaves_the_copy_as_it_was(browser, served: Served)
         )
     finally:
         handler._get = real
+        context.close()
+
+
+# -- Remove can be undone everywhere a copy is removed (#720 follow-up) ------------------
+
+#: The ⋯'s offline row, opened, and the row as it stands.
+MENU = "#offline-row"
+
+
+def _open_menu(page) -> None:
+    page.click(".bar-tools [data-more]")
+    page.wait_for_selector(f"{MENU}.offline-saved", state="attached")
+
+
+def test_the_reader_s_remove_can_be_undone_offline_too(browser, served: Served) -> None:  # noqa: F811
+    """The reader's ⋯ "Remove from this device" took the copy at once, and a saved reader
+    opened offline is the only copy there is. Now it says "Removed · Undo" for a few
+    seconds, as Saved on this device does, and Undo puts it back with no connection. The
+    line waits while the keyboard is on it, and goes, with the files, once left alone."""
+    book(served.out / "local" / "book-he")
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    end = "/reader/book-he/reader/sec-0001.html"
+    try:
+        page.goto(served.url(end))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept(page, "/reader/book-he/reader/")
+        whole = page.evaluate(HELD)
+        files = sorted(page.evaluate(KEYS))
+
+        served.gone()
+        context.set_offline(True)
+        page.clock.install()
+        page.goto(served.url(end))
+        page.clock.resume()
+        page.wait_for_selector(".pair")
+        _open_menu(page)
+        row = page.locator(MENU)
+
+        # By the keyboard: Undo takes the keyboard, and the line waits on it.
+        row.locator(".offline-remove").focus()
+        page.keyboard.press("Enter")
+        page.wait_for_selector(f"{MENU}.offline-held", state="attached")
+        assert row.locator(".offline-label").inner_text() == "Removed"
+        assert row.locator(".offline-undo").inner_text() == "Undo"
+        assert row.locator(".offline-undo").get_attribute("aria-label") == "Undo removing A Book"
+        page.wait_for_function(
+            "() => document.activeElement.matches('.offline-undo:focus-visible')"
+        )
+        until(page, "async () => (await (" + HELD + ")()).length === 0")
+        assert sorted(page.evaluate(KEYS)) == files, "the files wait while Undo can be pressed"
+        page.clock.run_for(12000)
+        assert row.locator(".offline-undo").count() == 1, "it waits on the keyboard"
+        page.keyboard.press("Enter")
+        page.wait_for_selector(f"{MENU}.offline-saved", state="attached")
+        assert page.evaluate(HELD) == whole, "put back exactly as it was, offline"
+        page.wait_for_function("() => document.activeElement.matches('.offline-remove')")
+
+        # Left alone, the line goes after a few seconds, and the files with it.
+        page.mouse.move(0, 0)
+        row.locator(".offline-remove").click()
+        page.wait_for_selector(f"{MENU}.offline-held", state="attached")
+        page.mouse.move(0, 0)
+        page.evaluate("() => document.activeElement.blur()")
+        page.clock.run_for(7000)
+        assert row.locator(".offline-undo").count() == 1, "still there at 7 s"
+        page.clock.run_for(1500)
+        page.wait_for_selector(f"{MENU}.offline-idle", state="attached")
+        until(
+            page,
+            "async (names) => { const cache = await caches.open('targum-offline');"
+            " const urls = (await cache.keys()).map((r) => r.url);"
+            " return names.every((n) => !urls.includes(n)); }",
+            whole[0]["files"],
+        )
+        assert page.evaluate(HELD) == []
+    finally:
+        context.close()
+
+
+def test_a_tap_does_not_hold_the_line_for_ever(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """qa-claude on #1234: on touch a tap leaves :hover stuck on what it pressed, and the
+    keyboard put on Undo after it, so a line that waits on either waited for ever. Only
+    the keyboard the browser shows and a real pointer hold it now."""
+    served = saved_served
+    book(served.out / "local" / "mine-he", chapters=1)
+    context = browser.new_context(service_workers="allow", has_touch=True, is_mobile=True)
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    try:
+        page.goto(served.url("/reader/mine-he/reader/"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept(page, "/reader/mine-he/reader/")
+        page.clock.install()
+        page.goto(served.url("/you/saved"))
+        page.clock.resume()
+        page.wait_for_selector("#saved-mine .saved-row")
+        page.locator("#saved-mine .saved-remove").tap()
+        page.wait_for_selector("#saved-mine .saved-held")
+        assert page.evaluate("() => document.activeElement.className").find("saved-undo") >= 0
+        page.clock.run_for(8500)
+        page.wait_for_function("() => !document.querySelector('#saved-mine .saved-held')")
+        assert page.evaluate(HELD) == []
+    finally:
+        context.close()
+
+
+def test_undo_says_so_when_the_files_have_gone(
+    browser,  # noqa: F811
+    saved_served: Served,
+) -> None:
+    """qa-claude on #1234: Undo rightly puts back nothing once a sign-out in another tab
+    has cleared the device, and then said nothing, and the keyboard was nowhere. Now one
+    quiet line says why, and the keyboard is on it (Saved) or on Save for offline (⋯)."""
+    served = saved_served
+    book(served.out / "local" / "book-he")
+    context = browser.new_context(service_workers="allow")
+    context.add_init_script(NONE_ON_ITS_OWN)
+    page = context.new_page()
+    gone = "The files are no longer on this device, so it couldn't be put back."
+    try:
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        page.wait_for_function("() => navigator.serviceWorker.controller !== null")
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept(page, "/reader/book-he/reader/")
+        other = context.new_page()
+
+        # In a reader's ⋯.
+        page.goto(served.url("/reader/book-he/reader/sec-0001.html"))
+        _open_menu(page)
+        row = page.locator(MENU)
+        row.locator(".offline-remove").click()
+        page.wait_for_selector(f"{MENU}.offline-held", state="attached")
+        other.goto(served.url("/reader/book-he/reader/sec-0002.html"))
+        other.wait_for_function("() => !!window.TargumOffline")
+        other.evaluate("() => window.TargumOffline.removeAll()")
+        row.locator(".offline-undo").click()
+        page.wait_for_selector(f"{MENU}.offline-lost", state="attached")
+        assert row.locator(".offline-note").inner_text() == gone
+        assert row.locator(".offline-note").get_attribute("role") == "status"
+        page.wait_for_function("() => document.activeElement.matches('.offline-go')")
+        assert page.evaluate(HELD) == []
+
+        # On Saved on this device.
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept(page, "/reader/book-he/reader/")
+        page.goto(served.url("/you/saved"))
+        page.wait_for_selector("#saved-mine .saved-row")
+        page.locator("#saved-mine .saved-remove").click()
+        page.wait_for_selector("#saved-mine .saved-held")
+        other.evaluate("() => window.TargumOffline.removeAll()")
+        page.locator("#saved-mine .saved-undo").click()
+        page.wait_for_selector("#saved-mine .saved-lost")
+        assert page.locator("#saved-mine .saved-lost").inner_text() == gone
+        page.wait_for_function("() => document.activeElement.matches('.saved-lost')")
+        assert page.locator("#saved-mine .saved-row").count() == 0
+    finally:
+        context.close()
+
+
+#: The saved index's entry for a text, from the cache.
+ENTRY = """async (id) => {
+  const answer = await (await caches.open('targum-offline')).match('/offline/index');
+  return (await answer.json()).items[id] || null;
+}"""
+
+#: That entry as a copy kept before stamps were kept: the same files, and no stamps.
+UNSTAMPED = """async (id) => {
+  const cache = await caches.open('targum-offline');
+  const index = await (await cache.match('/offline/index')).json();
+  delete index.items[id].stamps;
+  await cache.put('/offline/index', new Response(JSON.stringify(index),
+    { headers: { 'Content-Type': 'application/json' } }));
+}"""
+
+
+def test_a_file_kept_before_stamps_learns_the_server_s_cut(browser, served: Served) -> None:  # noqa: F811
+    """qa-claude on #1234: a file saved before copies kept stamps is held as it is, so its
+    film is not fetched again, but it never learned a stamp, so a later re-cut of it never
+    reached the copy. A save now has it learn the cut the server has."""
+    reader = book(served.out / "local" / "book-he")
+    (reader / "audio").mkdir()
+    (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"r" * 4000)
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    clip = "/reader/book-he/reader/audio/recut.mp3"
+    text = "/reader/book-he/reader/"
+
+    def asked() -> int:
+        return sum(1 for one in served.asked if one.split("?")[0] == clip)
+
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        page.evaluate(UNSTAMPED, text)
+        page.reload()
+        page.wait_for_function("() => !!window.TargumOffline")
+        assert not (page.evaluate(ENTRY, text).get("stamps") or {})
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert asked() == 1, "held, not fetched again"
+        stamps = page.evaluate(ENTRY, text)["stamps"]
+        assert any(
+            key.endswith("audio/recut.mp3") and value.startswith("4003-")
+            for key, value in stamps.items()
+        )
+
+        (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"R" * 5000)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert asked() == 2, "the re-cut reaches the copy"
+        assert (
+            page.evaluate(
+                "async (c) => (await (await (await caches.open('targum-offline'))"
+                ".match(c)).arrayBuffer()).byteLength",
+                clip,
+            )
+            == 5003
+        )
+    finally:
+        context.close()
+
+
+#: That entry with every page's stamp set to a cut the server never had.
+MISSTAMPED = """async (id) => {
+  const cache = await caches.open('targum-offline');
+  const index = await (await cache.match('/offline/index')).json();
+  const stamps = index.items[id].stamps;
+  for (const key of Object.keys(stamps)) if (key.endsWith('.html')) stamps[key] = 'old';
+  await cache.put('/offline/index', new Response(JSON.stringify(index),
+    { headers: { 'Content-Type': 'application/json' } }));
+}"""
+
+
+def test_a_held_page_never_takes_the_server_s_stamp(browser, served: Served) -> None:  # noqa: F811
+    """qa-claude on #1247: a held recording learns the server's cut, but a held page is
+    the build it was kept from, so it keeps a stamp only while the server's agrees, and
+    never takes one that would claim a cut its bytes may not be."""
+    reader = book(served.out / "local" / "book-he")
+    (reader / "audio").mkdir()
+    (reader / "audio" / "recut.mp3").write_bytes(b"ID3" + b"r" * 4000)
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    text = "/reader/book-he/reader/"
+
+    def pages() -> dict[str, str]:
+        stamps = page.evaluate(ENTRY, text).get("stamps") or {}
+        return {key: value for key, value in stamps.items() if key.endswith(".html")}
+
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert pages(), "a page fetched keeps the server's stamp"
+        page.evaluate(MISSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a held page whose stamp differs takes neither"
+        page.evaluate(UNSTAMPED, text)
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        assert not pages(), "a page held from before stamps learns none"
+        stamps = page.evaluate(ENTRY, text)["stamps"]
+        assert any(key.endswith("audio/recut.mp3") for key in stamps), "a recording does"
+    finally:
+        context.close()
+
+
+def test_a_book_that_gained_a_part_refreshes_its_copy(browser, served: Served) -> None:  # noqa: F811
+    """A text that only gained a part kept every page it had, so no page it held said
+    another build, and the new part never reached the copy. The contents page says which
+    build of the text it lists now, and opened online with another one, the copy fetches
+    what the text takes: the new part, and nothing it already held."""
+    folder = served.out / "local" / "book-he"
+    book(folder, chapters=2)
+    context, page = opened(browser, served, "/reader/book-he/reader/sec-0001.html")
+    contents = "/reader/book-he/reader/index.html"
+    text = "/reader/book-he/reader/"
+
+    def asked(path: str) -> int:
+        return sum(1 for one in served.asked if one.split("?")[0] == path)
+
+    try:
+        assert "item" in page.evaluate(SAVE, {"page": page.url, "film": True})
+        kept(page, text)
+        assert not any(f.endswith("sec-0003.html") for f in page.evaluate(ENTRY, text)["files"])
+        page.goto(served.url(contents))
+        page.wait_for_function("() => !!window.TargumOffline")
+        until(
+            page,
+            "async () => { const c = await (await caches.open('targum-offline'))"
+            ".match('/reader/book-he/reader/index.html');"
+            " return !!c && !!c.headers.get('x-targum-version'); }",
+        )
+        # Opened again as it is: nothing for the copy to follow.
+        plans = asked("/offline.json")
+        page.goto(served.url(contents))
+        page.wait_for_function("() => !!window.TargumOffline")
+        first = asked("/reader/book-he/reader/sec-0001.html")
+
+        book(folder, chapters=3)
+        page.goto(served.url(contents))
+        until(
+            page,
+            "async (id) => { const e = await (" + ENTRY + ")(id);"
+            " return !!e && e.files.some((f) => f.endsWith('sec-0003.html')); }",
+            text,
+        )
+        assert asked("/reader/book-he/reader/sec-0003.html") == 1
+        assert asked("/offline.json") >= plans + 1
+        assert asked("/reader/book-he/reader/sec-0001.html") == first, (
+            "nothing held is fetched again"
+        )
+        has = page.evaluate(
+            "async () => !!(await (await caches.open('targum-offline'))"
+            ".match('/reader/book-he/reader/sec-0003.html'))"
+        )
+        assert has
+    finally:
         context.close()

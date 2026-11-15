@@ -151,7 +151,7 @@
             <span class="acct-says">{{ t("you.page.top-up-stays", "Credits you top up stay until you use them") }}</span>
           </span>
           <span class="acct-end">
-            <span class="seg plan-top-ups" id="plan-top-ups"></span>
+            <span class="plan-top-ups" id="plan-top-ups"></span>
             <button type="button" class="btn soon" disabled aria-describedby="soon-paid">{{ t("you.page.top-up", "Top up") }}</button>
           </span>
         </li>
@@ -289,11 +289,31 @@
   <section class="card" id="ending" aria-labelledby="ending-title" hidden>
     <h2 class="section-title" id="ending-title">{{ t("you.page.account", "Account") }}</h2>
     <ul class="rows acct-rows">
-      <li class="row">
-        <span class="row-main">
-          <span class="acct-name">{{ t("you.page.email", "Email") }}</span>
-          <span class="acct-says" id="you-email"></span>
-        </span>
+      {#- Ways to sign in (targum-internal#502; design.md §12, "Sign in with Google goes
+          live", 2026-11-14), where the Email row stood: the email link, always on and
+          with no press, and Google with Link or Unlink. Google's row is drawn only where
+          this install can finish a Google sign-in, and `you.js` shows it from `ways`. -#}
+      <li class="row acct-wrap ways" id="ways">
+        <h3 class="ways-title">{{ t("you.page.ways-to-sign-in", "Ways to sign in") }}</h3>
+        <ul class="rows acct-rows ways-rows">
+          <li class="row">
+            <span class="row-main">
+              <span class="acct-name">{{ t("you.page.email-link", "Email link") }}</span>
+              <span class="acct-says" id="you-email"></span>
+              <span class="acct-says">{{ t("you.page.always-on", "Always on") }}</span>
+            </span>
+          </li>
+          {%- if google %}
+          <li class="row" id="way-google" hidden>
+            <span class="row-main">
+              <span class="acct-name">{{ t("you.page.google", "Google") }}</span>
+              <span class="acct-says" id="way-google-says"></span>
+            </span>
+            <span class="acct-end" id="way-google-end"></span>
+          </li>
+          {%- endif %}
+        </ul>
+        <p class="said" id="ways-said" role="status" hidden></p>
       </li>
       {#- What opens without a connection (design.md §12, 2026-10-09): this browser's,
           so a page of its own. -#}

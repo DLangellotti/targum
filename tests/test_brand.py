@@ -280,6 +280,7 @@ THUMBED = (
     ".offline-stop",
     ".offline-again",
     ".offline-remove",
+    ".offline-undo",
     # Beside, the line between the picture and the transcript (design.md §12, 2026-10-08).
     ".film-split",
     # The next part under the picture, and its Try again (design.md §12, 2026-10-07).

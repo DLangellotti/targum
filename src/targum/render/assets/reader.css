@@ -5050,6 +5050,10 @@ body.film .m-menu .more-close { display: none; }
 .m-menu .m-offline .offline-remove:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .m-menu .m-offline .offline-said,
 .m-menu .m-offline .fault-line { grid-column: 1 / -1; }
+.m-menu .m-offline .offline-held-line { flex-wrap: nowrap; align-items: center; }
+.m-menu .m-offline .offline-held-line .offline-label { color: var(--ink-soft); }
+.m-menu .m-offline .offline-undo { min-block-size: 44px; font-size: 0.9375rem; }
+.m-menu .m-offline.offline-lost .offline-note { grid-row: 2; }
 
 @media (max-width: 60rem) {
   body:not(.has-keyboard) .m-menu .m-last:not(:has(#fullscreen-group:not([hidden]))) { display: none; }

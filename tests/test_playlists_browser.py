@@ -972,3 +972,42 @@ def test_the_tab_shows_the_header_language_and_counts_the_rest(browser, tmp_path
     assert hebrew["sets"] == ["In the kitchen"]
     assert hebrew["line"] == "1 playlist in Italian · 1 playlist in Russian"
     assert hebrew["header"] == "he"
+
+
+def test_on_a_phone_the_menu_opens_in_the_head_and_covers_nothing(
+    browser,
+    tmp_path: Path,
+) -> None:
+    """targum-internal#716 P2 19: at 390 the ⋯ menu (Rename, Delete) floated over the
+    first row's title and ✕, flush to the screen's edge. It opens in the head's own row."""
+    context, page, thrown = opened_with(
+        browser, tmp_path, "", wait="#one .item", query="?playlist=1"
+    )
+    try:
+        page.locator(".pl-more").click()
+        page.wait_for_selector(".pl-menu:not([hidden])")
+        got = page.evaluate(
+            """() => {
+              const box = (el) => el.getBoundingClientRect();
+              const menu = box(document.querySelector('.pl-menu'));
+              const first = document.querySelector('#one .item');
+              const hit = (a, b) => a.left < b.right && a.right > b.left
+                && a.top < b.bottom && a.bottom > b.top;
+              return {
+                over: [...first.querySelectorAll('*')]
+                  .filter((el) => el.getClientRects().length && hit(menu, box(el))).length,
+                left: menu.left,
+                right: innerWidth - menu.right,
+                presses: [...document.querySelectorAll('.pl-menu button')]
+                  .map((b) => b.textContent),
+                position: getComputedStyle(document.querySelector('.pl-menu')).position,
+              };
+            }"""
+        )
+        assert got["presses"] == ["Rename", "Delete"], got
+        assert got["position"] == "static", got
+        assert got["over"] == 0, "nothing of the first row is under the menu"
+        assert got["left"] >= 16 and got["right"] >= 16, "inside the page's gutter"
+        assert not thrown, thrown
+    finally:
+        context.close()

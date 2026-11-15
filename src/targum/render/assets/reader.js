@@ -8713,9 +8713,14 @@ var targumReader = function () {
     // was one, under the player.
     var over = bar ? bar.getBoundingClientRect().bottom + window.scrollY : window.scrollY;
     var lead = tops.length ? Math.max(0, tops[0] - over) : 0;
-    // Which pairs are plates rather than text — the built page marks them `head`.
+    // Which pairs are plates rather than text — the built page marks them `head` — and
+    // the byline under a title, which belongs to it: a page never closes on either. On a
+    // phone with the picture docked over the page, the first text's first page was its
+    // title and source alone, and the first line a swipe away (targum-internal#723 P2 8,
+    // for #703). Glued, the first line comes onto page 1, cut between its lines where
+    // the room is short (`sliced`).
     var glue = pairs.map(function (pair) {
-      return pair.classList.contains("head");
+      return pair.classList.contains("head") || pair.classList.contains("byline");
     });
     var budget = Math.max(160, room() - lead);
     pages = boundariesFrom(tops, heights, budget, opens, glue);
