@@ -78,6 +78,15 @@ function element(tag) {
       child.parentNode = this;
       return child;
     },
+    // Before a child already here, or at the end when there is none (`null`), as the
+    // DOM does: Your Progress puts "from N roots" above the ear figure (#536).
+    insertBefore(child, before) {
+      const at = before ? this.children.indexOf(before) : -1;
+      if (at < 0) this.children.push(child);
+      else this.children.splice(at, 0, child);
+      child.parentNode = this;
+      return child;
+    },
     removeChild(child) {
       this.children = this.children.filter((c) => c !== child);
       return child;

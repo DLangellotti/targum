@@ -1911,6 +1911,8 @@
   "lists.head.known.other": "{n} known",
   "lists.head.learned.one": "{n} learned on targum",
   "lists.head.learned.other": "{n} learned on targum",
+  "lists.head.ear.one": "{n} known by ear",
+  "lists.head.ear.other": "{n} known by ear",
   "lists.head.phrases.one": "{n} phrase saved",
   "lists.head.phrases.other": "{n} phrases saved",
   "library.build.start-listening": "Start listening",
@@ -4936,5 +4938,16 @@
   "progress.where.unmeasured-arc": "We don't place Aramaic texts by level yet.",
   "progress.next.texts-arc-all": "Every Aramaic text is in the Library.",
   "progress.next.texts-first": "Start with the beginner conversations.",
-  "progress.next.texts-first-easiest": "Start with the easiest texts in the Library."
+  "progress.next.texts-first-easiest": "Start with the easiest texts in the Library.",
+  "vocab.ear": "Known by ear",
+  "vocab.ear.title": "You know this word when you hear it",
+  "lists.stage.ear": "Known by ear",
+  "lists.stage.unmarked": "Not marked",
+  "lists.csv.by-ear": "known by ear",
+  "lists.csv.yes": "yes",
+  "lists.ear.label": "Known by ear: {word}",
+  "progress.ear.start": "Mark a word Known by ear on its card when you know it by sound.",
+  "progress.count.ear.one": "{n} known by ear",
+  "progress.count.ear.other": "{n} known by ear",
+  "sentences.open-word": "Open the card for {word}"
 }

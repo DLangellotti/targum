@@ -179,6 +179,43 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Telegram chat"; each now says "Telegram · …4567", the last four digits of the chat id
   already stored. No title is asked of Telegram and nothing new is kept. One string
   changes in English and Russian: `you.telegram.chat` «Telegram · …{last}», for ling-ru.
+- A word can be marked Known by ear, apart from known when read, and only by the reader's
+  own press (targum-internal#536, design.md §12 "A word can be known by ear, and only the
+  reader says so", 2026-11-14).
+  - Accounts schema 68→69: `word.ear` and `word.ear_at`. `ear_at` is set by the account
+    the way `known_at` is, from `began` on, and cleared when the mark comes off; nothing
+    from before is filled in. A push without `ear` (an older page, or a saved reader with
+    old JS) keeps what is stored. `models.SCHEMA_VERSION` is untouched: nothing is
+    rebuilt or re-measured.
+  - A toggle, Known by ear, on its own line under the five stages on every word card:
+    the reader card in each view, the listening view, Hear first, Practise these, Home's
+    words to know first, and under each row's five stages on Your Words. A
+    second press takes it back. Never on a phrase card. The quiet outlined press in
+    regular weight at the scale's height, filled with the teal wash only when pressed:
+    hovering an un-pressed one rings it in teal and never fills it, and only under
+    `(hover: hover)`, so a touch's stuck hover no longer reads as still on (design's §14
+    pass on #1243, P1). On a desk row of Your Words it recedes, in `--ink-soft` at about
+    the segments' height; 44px under a coarse pointer.
+  - A word known by ear and never marked when reading has no stage (status NULL): it is
+    on no list, not in the free cap, drawn unmarked in the text, and its `at` is nought,
+    so it is never "saved" on a day. Every "% known", the level, coverage, the estimate
+    and the chat's known sample stay on the reading marks.
+  - Your Words: "· M known by ear" on the end of the head line once there is one, a Known
+    by ear filter beside Met often that narrows any stage, "Not marked" for a word with
+    no stage, and `?ear=1` to open with the filter on. Your Progress: a second figure
+    under "words known" and its roots line, linking there, and before the first mark a
+    line saying how to make one.
+  - Exports: `targum::ear` on Anki notes (the `.apkg` and the text deck), no `level-None`
+    for a word with no stage, a "known by ear" CSV column, and the connector's
+    `my_vocabulary` (`by_ear`, per word and as a count) and `my_progress`
+    (`known_by_ear`). No tool writes it.
+  - Dictation's result opens a word's card on a tap (D6), with its meaning from the text's
+    own glossary in the reader's language (`dictation_item.words` carries `meaning` and
+    `into`); the result still writes nothing. New strings in English and Russian
+    (`vocab.ear*`, `lists.stage.ear`, `lists.stage.unmarked`, `lists.head.ear`,
+    `lists.csv.by-ear`, `lists.csv.yes`, `lists.ear.label`, `progress.ear.start`,
+    `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
+    pass.
 ### Fixed
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file

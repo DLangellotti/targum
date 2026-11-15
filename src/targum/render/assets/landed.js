@@ -150,12 +150,21 @@
     Object.keys(byTongue).forEach(function (tongue) {
       var name = "targum:vocab:" + tongue;
       var theirs = read(name, "{}");
+      var kept = false;
       var gone = byTongue[tongue].filter(function (word) {
         var record = theirs[word];
         if (!record || record.status !== KNOWN || record.learned) return false;
+        // Known by ear is the reader's other press, and stays, without a stage
+        // (targum-internal#536).
+        if (record.ear) {
+          theirs[word] = { status: null, surface: record.surface || word, band: record.band || "", learned: 0, at: 0, ear: 1, seen: Date.now() };
+          kept = true;
+          return false;
+        }
         delete theirs[word];
         return true;
       });
+      if (kept && !gone.length) keep(name, JSON.stringify(theirs));
       if (!gone.length) return;
       taken[tongue] = gone;
       keep(name, JSON.stringify(theirs));

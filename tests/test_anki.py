@@ -401,3 +401,48 @@ def test_each_sound_is_on_the_job_row_as_it_is_made(
     serve.Handler._deck_voice(host, deck, found, [0, 1, 2], "he", owner, False, tmp_path, "en")  # type: ignore[arg-type]
     assert counted == [0, 1, 2], "each sound counted before the next is made"
     assert store.anki_clips_since(owner, 0) == 3
+
+
+def test_a_word_known_by_ear_is_tagged_and_one_known_by_ear_alone_has_no_level(
+    served: tuple[int, str, Path], postbox: Postbox, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """targum-internal#536, D7: `targum::ear` on every word known by ear, a word known by
+    ear and never marked when reading in the deck too, and never `targum::level-None`."""
+    import urllib.request
+
+    from targum import speech
+
+    port, token, _ = served
+    monkeypatch.setenv("TARGUM_CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.delenv(speech.KEY, raising=False)
+    monkeypatch.delenv(speech.VERTEX_KEY, raising=False)
+    cookie = sign_in(port, postbox)
+    rows = [
+        {"language": "he", "lemma": "ספר", "surface": "ספר", "status": 2, "at": 1, "seen": 1,
+         "ear": 1},
+        {"language": "he", "lemma": "דרך", "surface": "דרך", "status": 9, "at": 2, "seen": 2},
+        {"language": "he", "lemma": "שמע", "surface": "שמע", "status": None, "at": 0, "seen": 3,
+         "ear": 1},
+    ]  # fmt: skip
+    status, said, _ = call(port, "POST", f"/sync?k={token}", {"words": rows}, cookie=cookie)
+    assert status == 200, said
+    # The page asks for the stages it shows; a word with no stage goes by its lemma.
+    payload = {
+        "language": "he",
+        "deck": "targum Hebrew",
+        "statuses": [2, 9],
+        "lemmas": ["ספר", "דרך", "שמע"],
+    }
+    _, started, _ = call(port, "POST", f"/account/anki?k={token}", payload, cookie=cookie)
+    assert wait(port, token, cookie, started["id"])["state"] == "ready"
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/account/anki/deck?id={started['id']}&k={token}",
+        headers={"Cookie": cookie},
+    )
+    with urllib.request.urlopen(request) as response:
+        _, notes, _ = opened(response.read())
+    tags = {fields.split("\x1f")[0]: set(tagged.split()) for fields, tagged in notes}
+    assert tags["ספר"] == {"targum", "targum::he", "targum::level-2", "targum::ear"}
+    assert tags["דרך"] == {"targum", "targum::he", "targum::level-9"}
+    assert tags["שמע"] == {"targum", "targum::he", "targum::ear"}
+    assert not any("None" in tag or "null" in tag for words in tags.values() for tag in words)
