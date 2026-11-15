@@ -193,6 +193,20 @@ def test_every_cookie_the_server_sets_is_named_in_the_notice() -> None:
     assert KEPT_DAYS == 365 and "lasts for one year" in page, "how long"
 
 
+def test_the_google_sign_in_cookie_is_named_in_the_notice() -> None:
+    """The fourth cookie (targum-internal#729): set only while a sign-in through Google is
+    under way, for ten minutes, holding a digest of that request and nothing about
+    anybody. Clause 3.7 names it in David's words (2026-11-15, #1259)."""
+    from targum.serve import GOOGLE_STATE_COOKIE
+
+    page = " ".join(said(legal_page("privacy")).split())
+    assert GOOGLE_STATE_COOKIE == "targum_google"
+    assert (
+        "while a sign-in through Google is under way, one which holds a digest of that"
+        " request for no more than ten minutes" in page
+    )
+
+
 #: The four documents by the name each is cited under, so that a cross-reference like
 #: "clause 6.1 of the Terms of Service" resolves against the document it points into.
 BY_NAME = {

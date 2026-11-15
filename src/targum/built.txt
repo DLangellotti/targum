@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-14
+The play button by a line reads it aloud and shows its translation under it, one line at a time.
+On the Saved page, Remove can be undone, and a saved text is brought up to date when opened online.
+A video whose subtitles have no full stops now reads in sentences and paragraphs.
+
 2026-11-13
 A text being made can be cancelled, whether it is still waiting its turn or already under way.
 Home has one Listen press, and Upload your own stands apart so it is not pressed by mistake.
