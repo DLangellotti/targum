@@ -8600,7 +8600,7 @@ class Handler(BaseHTTPRequestHandler):
         )
         if route == "/waitlist/confirm":
             if signup_is_open():
-                return self._open_now(said, store.peek_waiting(token) or "")
+                return self._open_now(token)
             waiting = store.peek_waiting(token)
             if waiting is None:
                 return self._waitlist_note(
@@ -8622,7 +8622,7 @@ class Handler(BaseHTTPRequestHandler):
             pending={"action": route, "token": token, "button": button},
         )
 
-    def _open_now(self, said: str, email: str) -> None:
+    def _open_now(self, token: str) -> None:
         """What an old waitlist mail opens once the door is open (targum-internal#477, C):
         the sign-in page, headed "targum is open now", with the address it joined with
         in the field, Send a link, and Google where this install has it.
@@ -8632,12 +8632,23 @@ class Handler(BaseHTTPRequestHandler):
         only for a token still waiting to be confirmed, which is what the shut door's
         page already names ("Keep me on the list as …"); a spent or made-up token gets the
         same page with an empty field.
+
+        The row's language only where the token found that address, and the request's
+        otherwise: a made-up token and one whose row was stopped while pending must
+        draw the same page, and an unknown token must not carry a language the visitor
+        never pressed into the form (qa-claude on targum#1270).
         """
         from .strings import text
 
+        store = self.library.store
+        email = (store.peek_waiting(token) if store is not None else None) or ""
+        if email and store is not None:
+            said = asked = store.waiting_language(token)
+        else:
+            said, asked = self._public_language(), self._asked()
         page = signin_page(
             language=said,
-            asked=said,
+            asked=asked,
             address=self.address,
             heading=text("open-door.open-now", said),
             email=email,
@@ -8739,10 +8750,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/waitlist" and signup_is_open():
             return self._signup_post(form)
         if route == "/waitlist/confirm" and signup_is_open():
-            pressed = form.get("t", "")
-            return self._open_now(
-                store.waiting_language(pressed), store.peek_waiting(pressed) or ""
-            )
+            return self._open_now(form.get("t", ""))
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from http.client import HTTPConnection
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -145,7 +146,7 @@ def test_with_the_door_open_the_confirm_page_is_in_the_language_they_joined_in(
     _switched(monkeypatch, OPEN)
     status, page = _confirm(port, token)
     assert status == 200
-    assert "<h1>targum теперь открыт</h1>" in page
+    assert "<h1>targum уже открыт</h1>" in page
     assert '<html lang="ru"' in page
 
 
@@ -162,6 +163,48 @@ def test_with_the_door_open_a_spent_confirm_link_names_nobody(
     assert spent == made_up
     assert spent[0] == 200 and "<h1>targum is open now</h1>" in spent[1]
     assert "dina@example.com" not in spent[1]
+
+
+def test_with_the_door_open_the_filled_in_address_is_escaped(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Read off the raw bytes: `_ask` unescapes the body, so through it an address drawn
+    unescaped and one drawn escaped would look the same (qa-claude on targum#1270)."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    token = store.join_waitlist('o"ne<b>il&co@example.com')
+    assert token
+    _switched(monkeypatch, OPEN)
+    conn = HTTPConnection("127.0.0.1", port, timeout=5)
+    conn.putrequest("GET", f"/waitlist/confirm?t={token}", skip_host=True)
+    conn.putheader("Host", "targum.page")
+    conn.endheaders()
+    response = conn.getresponse()
+    raw = response.read().decode("utf-8")
+    conn.close()
+    assert response.status == 200
+    assert 'value="o&#34;ne&lt;b&gt;il&amp;co@example.com"' in raw
+    assert "<b>il" not in raw
+
+
+def test_with_the_door_open_a_stopped_token_and_a_made_up_one_are_one_page(
+    tmp_path: Path, free_port: Callable[[], int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A row stopped while pending keeps its confirm token, so its language would say
+    the token was real; only a token that finds a waiting address is answered in the
+    row's language (qa-claude on targum#1270)."""
+    links: list[tuple[str, str]] = []
+    port, store = _box(tmp_path, free_port, links)
+    token = store.join_waitlist("masha@example.com", "ru")
+    assert token
+    stop = str(store.db.execute("SELECT stop FROM waiting").fetchone()[0])
+    store.leave_waitlist(stop)
+    _switched(monkeypatch, OPEN)
+    stopped = _confirm(port, token)
+    assert stopped == _confirm(port, "not-a-token") == _confirm(port, stop)
+    assert '<html lang="en"' in stopped[1] and "targum is open now" in stopped[1]
+    # Nothing the visitor did not press is carried into the form.
+    assert "data-asked=" not in stopped[1]
 
 
 @pytest.mark.parametrize("switches", [SHUT, ASKED], ids=["shut", "asked-without-plans"])
