@@ -221,6 +221,12 @@
       <p class="words-summary" id="words-summary"></p>
       <p class="words-exports">
         {%- if which == 'words' %}
+        {#- Send to Anki, at a desk only (design.md §12, "Send to Anki talks to the Anki on
+            your own computer", 2026-11-14): `anki-send.js` shows it where the pointer is
+            fine and an account is there. This press is also what widens the page's
+            connect-src to the reader's own AnkiConnect (`serve._policy`). -#}
+        <button type="button" class="link-quiet" id="send-anki" hidden>{{ t("yours.page.send-anki", "Send to Anki") }}</button>
+        <button type="button" class="link-quiet" id="send-anki-help" aria-expanded="false" aria-controls="send-anki-how" hidden>{{ t("yours.page.send-anki-help", "How to set it up") }}</button>
         <button type="button" class="link-quiet" id="export-anki" hidden>{{ t("yours.page.export-anki", "Export as an Anki deck") }}</button>
         <button type="button" class="link-quiet" id="export-words" hidden>{{ t("yours.page.csv", "CSV") }}</button>
         <span class="export-said" id="export-said" role="status" aria-live="polite" hidden></span>
@@ -228,6 +234,22 @@
         <button type="button" class="link-quiet" id="export-phrases" hidden>{{ t("yours.page.csv", "CSV") }}</button>
         {%- endif %}
       </p>
+      {%- if which == 'words' %}
+      <div class="anki-how" id="send-anki-how" hidden>
+        <p class="anki-scope" id="send-anki-scope"></p>
+        <ol class="anki-steps">
+          <li>{{ t("yours.page.send-anki-help-1", "In Anki, choose Tools, then Add-ons, then Get Add-ons, and enter 2055492159.") }}</li>
+          <li>{{ t("yours.page.send-anki-help-2", "Restart Anki, keep it open, and press Send to Anki here.") }}</li>
+          <li>{{ t("yours.page.send-anki-help-3", "Your browser and Anki each ask once whether targum may connect. Allow both.") }}</li>
+          <li>{{ t("yours.page.send-anki-help-4", "To get the cards on your phone, sync Anki with AnkiWeb.") }}</li>
+        </ol>
+      </div>
+      <form class="anki-key" id="send-anki-key" hidden>
+        <label for="send-anki-key-field">{{ t("yours.page.send-anki-key", "AnkiConnect key") }}</label>
+        <input class="find" id="send-anki-key-field" type="password" autocomplete="off" spellcheck="false">
+        <button type="submit" class="btn">{{ t("yours.page.send-anki-key-send", "Send") }}</button>
+      </form>
+      {%- endif %}
     </div>
   </div>
   {#- The list as this browser holds it, said as that when the account's could not be had
@@ -466,6 +488,7 @@ window.TARGUM_LIST = "{{ which }}";
 {{ script('shelf.js') }}
 {%- if which == 'words' %}
 {{ script('claim.js') }}
+{{ script('anki-send.js') }}
 {%- endif %}
 {%- if which == 'grammar' %}
 {{ script('grammar.js') }}

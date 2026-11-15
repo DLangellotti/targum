@@ -889,6 +889,23 @@ SHARED_SCRIPT_KEYS = (
 )
 
 
+#: Every key `bring.js` says a word through, by prefix: the quote card's facts, its
+#: progress and its refusals, and the credits line above the box. Handed to each page that
+#: carries `bring.js`, so a Russian reader's card is not half English — the chat page
+#: shipped only `bring.` and `t()` fell back for the rest (targum-internal#733).
+#: `test_every_page_carrying_bring_js_ships_every_word_it_asks_for` keeps it whole.
+BRING_STRINGS = (
+    "bring.",
+    "add.job.",
+    "add.doubtful",
+    "job.said.",
+    "building.",
+    "shelf.building.",
+    "account.hours",
+    "account.minutes",
+)
+
+
 def script_strings(language: str, *prefixes: str) -> dict[str, Any]:
     """What a desk page's `strings.js` is handed (targum-internal#184): the keys under
     `prefixes` that `language` has filled, less the `.page.` ones its template has already
@@ -2613,7 +2630,7 @@ def add_page(token: str, no_key: str = "", language: str = "en") -> str:
         .render(
             t=page_words(language),
             page_language=_page_language(language),
-            strings=script_strings(language, "add.", "bring.", "speak."),
+            strings=script_strings(language, "add.", "speak.", *BRING_STRINGS),
             token=token,
             # What an upload may be, and what it may become. Narrower than `languages`
             # below, which is every language the rest of the app knows how to show.
@@ -2655,7 +2672,20 @@ def chat_page(token: str, embed: bool = False, language: str = "en") -> str:
             languages=_language_names(language),
             embed=embed,
             strings=script_strings(
-                language, "chat.", "bring.", "claim.", "speak.", "shelf.", "learn.", "vocab."
+                language,
+                "chat.",
+                "claim.",
+                "speak.",
+                "shelf.",
+                "learn.",
+                "vocab.",
+                # What a search found, drawn as cards in the thread (targum-internal#735):
+                # the Add page's words for it, and the Library's bands.
+                "add.found.",
+                "library.band.now",
+                "library.band.stretch",
+                "library.band.hard",
+                *BRING_STRINGS,
             ),
         )
     )
@@ -6805,6 +6835,12 @@ def render(
         from ..annotate.lemma_check import mended
 
         annotation = mended(annotation, segmented)
+    # A word the diacritizer pointed as another word that the words around it rule out
+    # (קולה, cola, read as קוֹלָהּ, her voice): put right from the hand-kept table, here,
+    # so a free rebuild reaches every page (`vocalize.overrides`, targum-internal#689).
+    from ..vocalize.overrides import overridden
+
+    vocalization = overridden(vocalization, segmented, annotation)
 
     from ..renderings import (
         EMPTY,

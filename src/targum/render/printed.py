@@ -447,6 +447,10 @@ def _chapters(
     it — none where `annotation` or `glossary` is None, or `lists` is off — and each
     companion's line beside its source. With a `marker` and an annotation, the words it
     marks are drawn into the source, their meanings in `chrome`."""
+    # The pointing the page shows, the table's words put right (`vocalize.overrides`).
+    from ..vocalize.overrides import overridden
+
+    vocalization = overridden(vocalization, segmented, annotation)
     pointed = dict(vocalization.segments) if vocalization is not None else {}
 
     def form_of(segment_id: str, text: str) -> str:

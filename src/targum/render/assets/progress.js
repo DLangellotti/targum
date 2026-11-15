@@ -306,6 +306,37 @@
     var read = wordsRead(code);
     if (read !== null) count(read, tn("progress.count.read", read, "word read", "words read"), null, null, "read");
     drawRoots(code);
+    drawEar(host, sums.ear);
+  }
+
+  /* Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and
+     only the reader says so", 2026-11-14). Two things, both counts and never a share: a
+     second figure under "words known" (and under its roots line), which opens Your Words
+     with the filter on (the way a stage is reached from here), and, before the first
+     mark only, a line under the totals saying how to make one. Nothing else on the page moves: the
+     level, what you can read and every percentage stay the reading marks. */
+  function drawEar(host, ear) {
+    var tile = host.querySelector(".count-known");
+    if (tile) {
+      var old = tile.querySelector(".count-ear");
+      if (old) old.remove();
+      if (ear > 0) {
+        var go = el(
+          "a",
+          "count-ear",
+          tn("progress.count.ear", ear, "{n} known by ear", "{n} known by ear", { n: grouped(ear) })
+        );
+        go.href = keyed("/words?ear=1");
+        tile.appendChild(go);
+      }
+    }
+    // The start line, only before the first ear mark: after it the linked figure says it,
+    // and "You know 11 words by ear." straight under "11 known by ear" said it twice
+    // (design's §14 pass on #1243).
+    var line = document.getElementById("ear-line");
+    if (!line) return;
+    line.textContent = ear > 0 ? "" : t("progress.ear.start", "Mark a word Known by ear on its card when you know it by sound.");
+    line.hidden = ear > 0;
   }
 
   /* "from N roots" under "words known" (design.md §12, '"from N roots" is a label on the
@@ -313,15 +344,20 @@
      of its own. The account's count, so it waits for the story; Hebrew only, and none
      without a root lexicon (`roots` is null) or with no root to say. */
   function drawRoots(code) {
-    var tile = document.querySelector("#counts .count-known");
+    var counts = document.getElementById("counts");
+    var tile = counts && counts.querySelector(".count-known");
     if (!tile) return;
     var old = tile.querySelector(".count-roots");
     if (old) old.remove();
     var said = story[code];
     var roots = said && typeof said.roots === "number" ? said.roots : 0;
     if (roots < 1) return;
-    tile.appendChild(
-      el("span", "count-roots", tn("progress.count.roots", roots, "from {n} root", "from {n} roots", { n: grouped(roots) }))
+    // Straight under "words known", which it describes, and above the ear figure, which
+    // it does not (design's §14 pass on #1243): the story can arrive after the ear figure
+    // is drawn, so it goes in before it rather than at the end.
+    tile.insertBefore(
+      el("span", "count-roots", tn("progress.count.roots", roots, "from {n} root", "from {n} roots", { n: grouped(roots) })),
+      tile.querySelector(".count-ear")
     );
   }
 

@@ -129,3 +129,42 @@ def test_the_sentences_play_from_a_token_and_take_out_a_learning_word(
     assert status == 200 and played.startswith(b"ID3"), "the token opens the recording"
     (gap,) = said["gaps"]
     assert gap["lemma"] == "בית", "a known word is never taken out"
+
+
+def test_a_dictation_line_names_its_words_so_each_opens_its_card(tmp_path: Path) -> None:
+    """targum-internal#536, D6: the result's words open their cards, so the line says
+    each word's dictionary form and where it stands in the line as shown. Nothing here
+    writes a mark: the press on the card does."""
+    folder = book(tmp_path / "t")
+    recorded(folder, {"s1-0": [1.0, 3.5]})
+    (line,) = sentences.heard_lines(
+        [("book", "1", ms(2026, 9))], {"book": (folder, "he")}.get, "he"
+    )
+    said = sentences.dictation_item(line, "en", "/heard?t=x")
+    words = {word["lemma"]: said["line"][word["start"] : word["end"]] for word in said["words"]}
+    assert words == {"ילד": "ילד", "בית": "בית"}
+    for word in said["words"]:
+        assert 0 <= word["start"] < word["end"] <= len(said["line"])
+
+
+def test_a_dictation_word_carries_its_meaning_from_the_texts_glossary(tmp_path: Path) -> None:
+    """Design's §14 pass on #1243: the card a word in dictation's result opened said "No
+    meaning yet" with no field under it. Each word carries the meaning the text's own
+    glossary holds in the reader's language, and where there is none, no meaning at all
+    rather than an empty one. Read from disk; nothing is bought."""
+    from targum.models import Glossary, glossary_path
+
+    folder = book(tmp_path / "t")
+    recorded(folder, {"s1-0": [1.0, 3.5]})
+    Glossary(
+        source_language="he", target_language="en", provider="test", entries={"ילד": "child; boy"}
+    ).write(glossary_path(folder, "en"))
+    (line,) = sentences.heard_lines(
+        [("book", "1", ms(2026, 9))], {"book": (folder, "he")}.get, "he"
+    )
+    said = sentences.dictation_item(line, "en", "/heard?t=x")
+    by_lemma = {word["lemma"]: word for word in said["words"]}
+    assert by_lemma["ילד"]["meaning"] == "child; boy" and by_lemma["ילד"]["into"] == "en"
+    assert "meaning" not in by_lemma["בית"], "no gloss held, no meaning said"
+    russian = sentences.dictation_item(line, "ru", "/heard?t=x")
+    assert all("meaning" not in word for word in russian["words"]), "only the reader's language"

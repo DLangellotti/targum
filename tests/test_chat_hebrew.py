@@ -346,6 +346,10 @@ def test_a_host_is_handed_a_contract_that_says_one_thing(code: str, gloss: str) 
     assert f"Its {gloss} only when the reader asks" in flat
     assert '"= " line at the end of the reply' in flat
     assert "Every link a tool returns goes on a line of its own" in flat
+    # The chat's page draws search results and sets as cards; a host does not, and is
+    # told to give a set's link (targum-internal#735, qa-claude on #1263).
+    assert "drawn as cards" not in flat and "web addresses" not in flat
+    assert "\n\n- When the reader" not in said, "no hole where the sentence was"
     # The recast keeps its own "= " line, which is what the reader wrote.
     assert '"> "' in flat and 'then a "= " line with its' in flat
     assert hebrew.for_connector(base, gloss) == said
@@ -359,6 +363,7 @@ def test_targums_own_chat_is_handed_the_contract_as_it_was(code: str) -> None:
     assert "line without its English line." in flat
     assert "The page draws it as a door." in flat
     assert "Its English only when the reader asks" not in flat
+    assert "are drawn as cards with their own titles and buttons" in flat
     assert hebrew.contract_for("he") == hebrew.CONTRACT
 
 

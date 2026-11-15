@@ -139,6 +139,106 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     «Отменить», `offline.undo-named` «Вернуть {title}» (the Saved page's wording, under
     keys every reader carries), and `offline.undo-gone` «Файлов уже нет на этом
     устройстве, поэтому вернуть не получилось.» They wait on ling-ru's first pass.
+- Google sign-in is bound to the browser that started it (targum-internal#729, login
+  CSRF). `/account/google` now sets `targum_google`, a short-lived cookie (HttpOnly,
+  SameSite=Lax, Secure over https, `Path=/account/google`, ten minutes) holding a digest of
+  the sign-in's `state`, never the state itself. `/account/google/back` refuses a callback
+  whose `state` the browser's cookie does not match, before the code is spent and with no
+  session, and spends the `state` so the address works nowhere after. The cookie is cleared
+  on every answer that reads it. So a callback address somebody started as themselves and
+  sent on can no longer sign another browser into their account. No new strings: the
+  refusal is "That sign-in didn't finish." with Sign in again. Link from Account
+  (#502) is bound the same way: a link callback without the cookie links nothing and
+  says the line on Account (`/you#ways`), and every Link answer clears the cookie.
+
+- Send to Anki on Your Words (targum-internal#540, design.md §12 "Send to Anki talks to
+  the Anki on your own computer", 2026-11-14). At a desk, a quiet "Send to Anki" press
+  beside "Export as an Anki deck" sends every word the reader is learning in the language
+  into their own Anki through the AnkiConnect add-on (2055492159), with a "How to set it
+  up" disclosure in four lines. A phone shows no Send and keeps the deck and CSV. The
+  notes are a new notetype, "targum word and sentence", with a Word card and a Gap card
+  whose fronts are conditional: the gap is the first line the word was met in (the
+  earliest finished text, else the reader's own shelf), split at the word, with its
+  translation, the word's clip where one is already made, and the line's clip cut once
+  with ffmpeg from a recording already on disk (at most 20 s, credit in Source). Known
+  words are updated where Anki has them and never added; ignored words never leave;
+  words an `.apkg` import already carries get only the Gap card. Anki's own `Sent`
+  field holds what targum last wrote, so a second press with nothing changed writes
+  nothing and a send that stopped is finished by the next. The page calls only an
+  allowlist of AnkiConnect actions, never `deleteNotes` and never scheduling, with no
+  Content-Type so there is no preflight, and HTML-escapes every value. The server half
+  is read-only and spends nothing: `GET /account/anki/notes` (200 a page, owner-only),
+  `/account/anki/sound` and `/account/anki/line` (404 for a key the account does not
+  save); a shared text whose licence does not let it leave gives no line. Your Words'
+  policy alone is `connect-src 'self' http://127.0.0.1:8765`; every other page and
+  every reader keeps `connect-src 'self'`. Every state has its line (offline, asking,
+  unreachable, blocked by the browser, refused, old AnkiConnect, busy, key asked,
+  stopped partway). New strings `yours.page.send-anki*` and `lists.anki-send.*` in
+  English and Russian; the Russian waits on ling-ru. No spend.
+  - After qa-claude's review: an imported `.apkg` note is found by the `.apkg`'s own Word
+    (`anki_send.apkg_word`, which `_deck_start` now writes through), sent as `apkgWord`,
+    never by the line's pointed form, and Anki's `&#x27;` is read back as `'`. Whether a
+    line may leave goes by the text's source wherever it sits, so a closed catalogue text
+    built into a reader's own home sends none (`anki_send.text_may_leave`). At most two
+    ffmpeg cuts run at once (`CUTTING`). A refused update inside `multi` is counted as
+    failed. Russian: «Установить дополнения» and «введите код», and «Сейчас не удалось
+    загрузить ваши слова».
+- A new reader's first text says our estimate, the figure Home shows, until anything in
+  it is marked (targum-internal#724, design.md §12 "A reader says our estimate until
+  anything in it is marked", 2026-11-15). The reader said "0 of 235 known" a minute
+  before Home said "You know about 44% of the whole recording (our estimate)". Now the
+  bar says "About 44% (our estimate)" and the list "About 44% (our estimate) · 235 words
+  to mark", with "(our estimate)" quiet beside the number. The figure is the server's own
+  row for the text, asked once through `/readers?catalogue=0&name=<folder>`, which now
+  also finds the folder on the shared shelf (with `shared=0`, as the contents page asks,
+  it still takes nothing off the shelf). The first word marked known or learning brings
+  the count back. Signed out, opened from disk and offline, the reader asks nothing new
+  and says the count as before, and a text that already holds a mark asks nothing at
+  all, since its answer could never be said. Four new strings in English and Russian
+  (`reader.estimate.about`, `reader.estimate.ours`, `reader.list.to-mark.*`; the
+  reader's table carries only `reader.` and `vocab.` keys, so Home's `known.estimate.*`
+  cannot be reused); ling-ru passed the Russian on review. No spend.
+- Account's Telegram rows can be told apart (targum-internal#719 P2 12). Each said "A
+  Telegram chat"; each now says "Telegram · …4567", the last four digits of the chat id
+  already stored. No title is asked of Telegram and nothing new is kept. One string
+  changes in English and Russian: `you.telegram.chat` «Telegram · …{last}», for ling-ru.
+- A word can be marked Known by ear, apart from known when read, and only by the reader's
+  own press (targum-internal#536, design.md §12 "A word can be known by ear, and only the
+  reader says so", 2026-11-14).
+  - Accounts schema 68→69: `word.ear` and `word.ear_at`. `ear_at` is set by the account
+    the way `known_at` is, from `began` on, and cleared when the mark comes off; nothing
+    from before is filled in. A push without `ear` (an older page, or a saved reader with
+    old JS) keeps what is stored. `models.SCHEMA_VERSION` is untouched: nothing is
+    rebuilt or re-measured.
+  - A toggle, Known by ear, on its own line under the five stages on every word card:
+    the reader card in each view, the listening view, Hear first, Practise these, Home's
+    words to know first, and under each row's five stages on Your Words. A
+    second press takes it back. Never on a phrase card. The quiet outlined press in
+    regular weight at the scale's height, filled with the teal wash only when pressed:
+    hovering an un-pressed one rings it in teal and never fills it, and only under
+    `(hover: hover)`, so a touch's stuck hover no longer reads as still on (design's §14
+    pass on #1243, P1). On a desk row of Your Words it recedes, in `--ink-soft` at about
+    the segments' height; 44px under a coarse pointer.
+  - A word known by ear and never marked when reading has no stage (status NULL): it is
+    on no list, not in the free cap, drawn unmarked in the text, and its `at` is nought,
+    so it is never "saved" on a day. Every "% known", the level, coverage, the estimate
+    and the chat's known sample stay on the reading marks.
+  - Your Words: "· M known by ear" on the end of the head line once there is one, a Known
+    by ear filter beside Met often that narrows any stage, "Not marked" for a word with
+    no stage, and `?ear=1` to open with the filter on. Your Progress: a second figure
+    under "words known" and its roots line, linking there, and before the first mark a
+    line saying how to make one.
+  - Exports: `targum::ear` on Anki notes (the `.apkg` and the text deck), no `level-None`
+    for a word with no stage, a "known by ear" CSV column, and the connector's
+    `my_vocabulary` (`by_ear`, per word and as a count) and `my_progress`
+    (`known_by_ear`). No tool writes it.
+  - Dictation's result opens a word's card on a tap (D6), with its meaning from the text's
+    own glossary in the reader's language (`dictation_item.words` carries `meaning` and
+    `into`); the result still writes nothing. New strings in English and Russian
+    (`vocab.ear*`, `lists.stage.ear`, `lists.stage.unmarked`, `lists.head.ear`,
+    `lists.csv.by-ear`, `lists.csv.yes`, `lists.ear.label`, `progress.ear.start`,
+    `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
+    pass.
 ### Fixed
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
@@ -147,6 +247,21 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
   `index.json` sends stay as they are, since nothing saved holds the index.
   `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- `/phrase` holds a selection's meaning to the same languages `/gloss` does
+  (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
+  language: any source into any target was bought, the words' own language too, and the
+  reader did not say which text it was in. Both codes are normalised
+  (`serve.language_code`), the source has to be in `translate.prompts.READING`, the
+  target one the reader reads or the text is translated into (the reader now sends
+  `document`), and target == source is refused: a 400 before any model call. Since the
+  sentence and translation are the page's, every new pair is a new purchase, so an
+  account may buy 120 phrases an hour (`PHRASES_PER_HOUR`, on the `asked` table the
+  sign-in links use), and past it gets a 429. An answer already held stays free and is
+  never counted. One new string, in English and Russian. No spend.
+- A curated video's public page answers for an id with capitals or `_`
+  (`video-fr-_U1Fbsp6ugE`): `/library/<id>` only took lowercase slugs, so 42 of the 43
+  French videos shipped on 2026-11-15 linked from `/library/k/fr/talk` to "Not found".
+  Signed-in `/open/<id>` was never affected. Nothing with a dot or slash matches.
 - Follow-ups to #1238 and #1247 (qa-claude):
   - `scripts/repair_unpunctuated.py --redraw` redraws only the parts named in `--parts`.
     It used to redraw every `subtitles/1` part in the folder, and a part redrawn but not
@@ -999,6 +1114,99 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   targum buy Japanese meanings. Both are lowercased to their base code
   (`serve.language_code`), a source outside `translate.prompts.READING` is refused, and
   target == source still is until #538. A 400, with no model call. No spend.
+- קולה is pointed קוֹלָה, cola, where the words around it say so, and stays קוֹלָהּ, "her
+  voice", everywhere else (targum-internal#689 item 3). Kan's cola video had it as "her
+  voice" in all 16 places, because DICTA's menaked and its joint model both read the
+  spelling as קול + her.
+  - A new hand-kept table, `vocalize/pointing_overrides.json`, says what each entry
+    means, its pointing, the lemmas DICTA may have given it, cue words and guard words.
+    `vocalize.overrides` applies it on the page, in `render` and the printed copy. A cue
+    (בקבוק, פחית, קוקה, a form of שתה…) has to stand within three words in the same
+    clause. A guard is a voice word (את before it, שמע, נתנה, הרימה, רעד…), a speech verb
+    (אמרה, ענתה, קראה, שאלה, המשיכה and their common forms, ling-he via qa-claude), or a
+    definite adjective straight after it (קולה הצעיר). Any one keeps DICTA's pointing, so
+    "אמרה בקולה." beside a bottle of cola stays her voice.
+  - One sense per text: once one occurrence is cued and none is guarded, every
+    occurrence in that text takes cola. A text with one guarded occurrence changes only
+    its cued ones.
+  - Only lines a model pointed. An edition's pointing, a changed letter or a lemma the
+    entry doesn't name is left alone. The file on disk keeps what the diacritizer said.
+  - A plain `targum rebuild`, with no `--words`, takes it to existing pages. No annotator
+    rename, no `SCHEMA_VERSION`, no model call, no spend.
+  - Laptop library, read-only: 0 of 708 Hebrew texts change. All 115 קולה there are
+    "her voice", 86 of them guarded and none cued.
+- Chat at the finish bar (targum-internal#733, design's §14 pass of 2026-11-15).
+  - Pictures sent with the `+` are seen. The reader's own turn drew them from `blob:`
+    addresses, which the served policy (`img-src 'self' data:`) refuses, so every one was
+    a broken image on a served page. They are `data:` thumbnails now (a 480px copy where
+    the browser can draw one, on white, decoded one picture at a time and each bitmap
+    closed; a file the browser cannot decode keeps its name as alt text and is not read
+    whole), and `serve.POLICY` is unchanged, so the policy readers are held to did not
+    widen.
+  - A Russian reader's quote card is Russian throughout. The chat page shipped only
+    `bring.` of the words `bring.js` says; `add.job.*`, `add.doubtful`, `job.said.*`,
+    `building.*` and `account.hours/minutes` fell back to English ("42 sentences · Будет
+    готово через мгновение."). The ones actually missing were `add.job.`, `add.doubtful`
+    and `job.said.` (and `shelf.building.` on the Add page); `building.` and `account.`
+    ride every page already. `builder.BRING_STRINGS` is handed to both pages that carry
+    `bring.js`.
+  - A streaming answer's tail has `dir="auto"` and the conversation's `lang` where it is in
+    Hebrew letters, so it stands at the right from its first word.
+  - A server fault on a chat request (a 500, a page that is not JSON) is "We can't answer
+    right now", said once under the box. It was "We can't reach targum", by the banner and
+    again under the box. The connection's own fault is said by the banner alone.
+  - A line that never reached targum stays in the thread marked "Not sent", with a Try
+    again of its own; the banner's Try again and the turn's are one press.
+  - A picture that could not be read is drawn as a refusal with the clay mark. The files
+    go back in the box, the line typed with them goes back in the field, and that line is
+    no longer sent as a turn about a picture that was never read.
+  - While nothing can be asked, the `+` and Speak look disabled and no empty raised thread
+    stands under the fault. Offline, the chips dim with the box. With no conversations,
+    Chats is not drawn, on a phone or in the drawer.
+  - Tab reaches the `+` before the field, as they are drawn. The open conversation is
+    `aria-current` and drawn in the row hover draws. A focused control at the thread's foot
+    is scrolled wholly into view, its ring with it.
+  - A refused quote card says its refusal as the card's own line, with its way on and the
+    fact beside it inline, not a panel inside the card. Tell us is one size on every panel
+    in the thread.
+  - Strings: `chat.not-sent` in English and Russian («Не отправлено»), a first draft for
+    ling-ru. No spend.
+- Chat: a news search shows what it found (targum-internal#735, David's live report of
+  2026-11-15, root cause in qa/keep/chat-live-2026-11-15.md).
+  - What `search_sources` finds is drawn as cards in the thread: the title in its own
+    language, the publisher, the Library's band (Read it now, A stretch, Hard for now), the
+    share of words known, and Open. Open asks `/prepare`, which prices and never spends,
+    and the quote card it answers takes the found card's place with its own Confirm. Drawn
+    from the stream (`found`), from `/chat/turn` for a polling page, and on a reopened
+    conversation (`/chat/<id>` now carries `found` beside `quotes`, read by the tool that
+    made each result).
+  - A set `quote_set` makes is a card of its own: its name, each text with its credits,
+    what the whole set uses, and See the set. `session.py` sends it as a `set` event,
+    `/chat/turn` carries `sets`, and a reopened conversation keeps it. The model's own path
+    to the set is no longer drawn as a second door.
+  - In targum's own chat, the `search_sources` and `quote_set` results tell the model the
+    page shows them as cards: say one line and write no links. Every talk contract says
+    the same, and `hebrew.for_connector` takes the sentence out of what `how_to_talk`
+    hands a host (a required rewrite, so a reworded contract fails a test). The stdio
+    connector's signed-out context now says `via="connector"`, as its docstring always
+    said, so it is not told of cards it does not draw.
+  - A web address the model writes on a line of its own is a link out, never dropped.
+  - The door's pill wraps between words, never inside one ("Ope/n"): `overflow-wrap:
+    normal`, wrapping runs, and the sheet's radius so a two-line pill keeps its corners.
+    One `.chat-door` rule draws it on the page and in the drawer, in the primary, as
+    design.md §9's 2026-10-09 note on the doors' press says.
+  - The operator is told of no monthly cap (`_hours()` sends `allowed: None` for an admin).
+    At nothing left, the line above the box and the bell say "No credits left this month.
+    They reset on {date}." instead of "0 credits … about 0 minutes".
+  - Calmer turns (David, 2026-11-15): Hear stands beside the answer, not on a line of its
+    own; no Show translations pill, and a line opens by a tap; nothing under the thread:
+    Save as a text is a quiet action in the conversation's head, and the stats go on the
+    quote card it answers; the credits line shows only near a spend (a file in the box, or
+    a card waiting on its Confirm) and is drawn again once a Confirm is pressed; a
+    correction is one quiet line until tapped, which opens its English and its reason
+    together.
+  - Strings: `building.credits.none` in English and Russian («В этом месяце баллов не
+    осталось.»), a first draft for ling-ru. No spend.
 
 ### Changed
 - Russian says every amount of credits in баллы, and «мин» only for a duration (David,

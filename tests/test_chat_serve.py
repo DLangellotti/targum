@@ -891,3 +891,99 @@ def test_a_word_the_voice_breaks_on_gives_its_claim_back(
     status, body, _ = call(port, "POST", f"/say-word?k={key}", {"text": "שלום", "language": "he"})
     assert status == 502 and body["error"] == "The voice did not answer."
     assert store.committed(0) == pytest.approx(before), "released, nothing held"
+
+
+# -- what a search found and the sets it quoted, kept (targum-internal#735) -----------
+
+
+def test_a_conversation_opened_again_draws_what_it_found_and_its_sets(chatting) -> None:
+    """The panel drew neither, live or reopened: the found rows went to Add alone and a set
+    was a lone link. Each is read from the tool result the model was handed, by the tool
+    that made it, and given to the answer that followed."""
+    port, key, store, _chats = chatting
+    chat = store.chat_open(None)
+    store.chat_say(chat, "user", "today's news", "today's news")
+    store.chat_say(
+        chat,
+        "assistant",
+        [
+            {"type": "tool_use", "id": "s1", "name": "search_sources", "input": {}},
+            {"type": "tool_use", "id": "q1", "name": "quote_set", "input": {}},
+            {"type": "tool_use", "id": "x1", "name": "find_text", "input": {}},
+        ],
+        "",
+    )
+    rows = [
+        {"title": f"כתבה {n}", "link": f"https://news.example/{n}", "publisher": "ynet"}
+        for n in range(5)
+    ]
+    made = {
+        "set": {
+            "id": 16,
+            "name": "חדשות היום",
+            "items": [{"title": "כתבה 0", "credits": 0}, {"title": "פרק", "credits": 4}],
+            "credits": 4,
+        },
+        "open": "/set/16",
+    }
+    store.chat_say(
+        chat,
+        "user",
+        [
+            {"type": "tool_result", "tool_use_id": "s1", "content": json.dumps({"items": rows})},
+            {"type": "tool_result", "tool_use_id": "q1", "content": json.dumps(made)},
+            # Another tool's rows are not search results, whatever their shape.
+            {"type": "tool_result", "tool_use_id": "x1", "content": json.dumps({"items": rows})},
+        ],
+        "",
+    )
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "הנה"}], "הנה")
+    store.chat_say(chat, "user", "thanks", "thanks")
+    store.chat_say(chat, "assistant", [{"type": "text", "text": "בבקשה"}], "בבקשה")
+    status, whole, _ = call(port, "GET", f"/chat/{chat}?k={key}")
+    assert status == 200
+    answers = [t for t in whole["turns"] if t["role"] == "assistant"]
+    assert [row["link"] for row in answers[0]["found"]] == [
+        "https://news.example/0",
+        "https://news.example/1",
+        "https://news.example/2",
+    ], "the first three, as the stream cuts them"
+    (card,) = answers[0]["sets"]
+    assert card["id"] == 16 and card["credits"] == 4 and card["open"] == "/set/16"
+    assert [one["title"] for one in card["items"]] == ["כתבה 0", "פרק"]
+    assert "found" not in answers[1] and "sets" not in answers[1]
+
+
+def test_a_turn_that_quoted_a_set_carries_its_card_to_a_polling_page(chatting) -> None:
+    port, key, _store, chats = chatting
+    _, asked, _ = call(port, "POST", f"/chat/say?k={key}", {"chat": "", "text": "a set"})
+    chats.answer(chats.queue.get())
+    feed = chats.feed_for(asked["chat"], 1)
+    assert feed is not None
+    feed.put("set", {"id": 3, "name": "News", "items": [], "credits": 0, "open": "/set/3"})
+    status, state, _ = call(port, "GET", f"/chat/turn/{asked['chat']}/1?k={key}")
+    assert status == 200 and [one["id"] for one in state["sets"]] == [3]
+
+
+def test_an_admin_is_told_of_no_monthly_cap(tmp_path: Path) -> None:
+    """targum-internal#735: the operator was told "0 credits left this month". An admin is
+    not held to the allowance at claim, so none is said."""
+    from types import SimpleNamespace
+
+    store = Store(tmp_path / "words.db")
+    out = tmp_path / "out"
+    out.mkdir()
+    library = Library(out, store=store)
+
+    def person(email: str) -> int:
+        store.invite(email)
+        store.start_sign_in(email)
+        row = store.db.execute("SELECT id FROM person WHERE email = ?", (email,)).fetchone()
+        return int(row["id"])
+
+    store.make_admin("boss@example.invalid")
+    boss = person("boss@example.invalid")
+    reader = person("reader@example.invalid")
+    here = SimpleNamespace(store=store, library=library, _ui_language=lambda: "en")
+    assert Handler._hours(here, boss)["allowed"] is None  # type: ignore[arg-type]
+    assert Handler._hours(here, reader)["allowed"] == 8.0  # type: ignore[arg-type]

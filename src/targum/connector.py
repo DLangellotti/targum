@@ -138,6 +138,9 @@ def context(
             level=level_module.EMPTY,
             reads={code for code, _ in INTO},
             learning={code for code, _ in READING},
+            # A host, not targum's own chat, as `Ctx.via` says of stdio too: the page's
+            # notes about cards it draws are not for it (qa-claude on #1263).
+            via="connector",
         )
     reads = store.reads(person.id) if store is not None else set()
     learning = store.learning(person.id) if store is not None else set()

@@ -355,6 +355,55 @@
     return line;
   }
 
+  /* The line it said, as `marked` draws it, with each word a press that opens its card
+     (targum-internal#536, D6; design.md §12, "A word can be known by ear, and only the
+     reader says so", 2026-11-14): a line written from the voice is the strongest sign of
+     hearing a reader has, and the card holds Known by ear. The result itself still writes
+     nothing and scores nothing; only a press on the card does. A word the line names no
+     card for (a name, a number, a line with no annotation) is drawn as it was. */
+  function heardLine(parts, item) {
+    var line = el("p", "practise-line");
+    var words = item.words || [];
+    var at = 0;
+    parts.forEach(function (piece) {
+      var start = at;
+      var end = at + piece.text.length;
+      at = end;
+      var shown = piece.found
+        ? document.createTextNode(piece.text)
+        : el("mark", "practise-word said-missed", piece.text);
+      var word = null;
+      if (piece.word && window.TargumLists && window.TargumLists.openWord) {
+        for (var n = 0; n < words.length; n++) {
+          if (words[n].start < end && words[n].end > start) {
+            word = words[n];
+            break;
+          }
+        }
+      }
+      if (!word) return line.appendChild(shown);
+      var press = el("button", "sentence-word");
+      press.type = "button";
+      press.setAttribute("aria-haspopup", "dialog");
+      press.setAttribute("aria-label", t("sentences.open-word", "Open the card for {word}", { word: piece.text }));
+      press.appendChild(shown);
+      press.addEventListener("click", function (event) {
+        if (event && event.stopPropagation) event.stopPropagation();
+        // Its meaning from the text's glossary, as every word card has one (design's §14
+        // pass on #1243: the card said "No meaning yet" with no field under it).
+        window.TargumLists.openWord(press, {
+          lemma: word.lemma,
+          surface: piece.text,
+          meaning: word.meaning || "",
+          language: item.language || language,
+          into: word.into || into,
+        });
+      });
+      line.appendChild(press);
+    });
+    return line;
+  }
+
   function field(item, label) {
     var input = inLanguage(el("input", "sentence-field"), item);
     input.type = "text";
@@ -396,10 +445,10 @@
     var said = el("div", "grammar-feedback");
     if (result.whole) {
       said.appendChild(el("p", "grammar-verdict", t("sentences.whole", "Every word is there.")));
-      said.appendChild(inLanguage(marked(result.line, "practise-line", "mark"), item));
+      said.appendChild(inLanguage(heardLine(result.line, item), item));
     } else {
       said.appendChild(el("p", "grammar-other", t("sentences.it-said", "It said:")));
-      said.appendChild(inLanguage(marked(result.line, "practise-line", "mark"), item));
+      said.appendChild(inLanguage(heardLine(result.line, item), item));
       if (state.written.trim()) {
         said.appendChild(el("p", "grammar-other", t("sentences.you-wrote", "You wrote:")));
         said.appendChild(inLanguage(marked(result.written, "practise-line sentence-written", "del"), item));

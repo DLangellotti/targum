@@ -367,6 +367,17 @@
       }
     }
 
+    // Known by ear (targum-internal#536; design.md §12, "A word can be known by ear, and
+    // only the reader says so", 2026-11-14): one flag beside the stage, on its own line
+    // under the scale and before the card's other presses, on a word's card only — a
+    // caller that hands no `onEar` gets none, which is every phrase. A toggle, unlike a
+    // stage: a second press takes the mark off, since a toggle that cannot be turned off
+    // is a trap. The label stays; `aria-pressed` and the teal wash say the state. It
+    // writes the ear mark alone, and a stage press never touches it.
+    if (options.onEar && options.levels !== false) {
+      box.appendChild(earButton(!!options.ear, options.onEar));
+    }
+
     if (options.onNote) {
       var note = (field = document.createElement("input"));
       note.type = "text";
@@ -438,6 +449,66 @@
       box.appendChild(save);
     }
     return box;
+  }
+
+  /* The Known by ear toggle, alone: the card's line, and the compact one in Your Words'
+     By ear column (`options.compact`). `onEar` is handed the new state, true or false. */
+  function earButton(on, onEar, options) {
+    options = options || {};
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn ghost outline ear-toggle" + (options.compact ? " compact" : "");
+    button.textContent = t("vocab.ear", "Known by ear");
+    // The title says it in a sentence; the visible label says the same, so nothing here
+    // is hover-only (design.md §14).
+    button.title = t("vocab.ear.title", "You know this word when you hear it");
+    if (options.label) button.setAttribute("aria-label", options.label);
+    button.setAttribute("aria-pressed", on ? "true" : "false");
+    if (on) button.classList.add("on");
+    button.addEventListener("click", function (event) {
+      event.stopPropagation();
+      on = !on;
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      button.classList.toggle("on", on);
+      onEar(on);
+    });
+    button.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+    });
+    return button;
+  }
+
+  /* The ear mark written into a language's word store from a page that holds no copy of
+     its own (Your Words, its cards, Home's words to know first; the reader keeps its own
+     and writes its own). A word with no record gets one with no stage — known by ear
+     and never marked when reading, which is on no list and in no count of the reading
+     marks (D2) — and `at` nought, so it is not "saved" on any day. Taking the mark off
+     a word that has no stage takes the record away, through the same tombstone a
+     reader's own delete leaves. */
+  function setEar(language, lemma, on, surface) {
+    var tag = String(language || "").split("-")[0].toLowerCase();
+    var name = "targum:vocab:" + tag;
+    var words = read(name, "{}");
+    var item = words[lemma];
+    var now = Date.now();
+    if (!item) {
+      if (!on) return null;
+      item = words[lemma] = { status: null, surface: surface || lemma, band: "", learned: 0, at: 0 };
+    }
+    if (on) item.ear = 1;
+    else delete item.ear;
+    item.seen = now;
+    var dropped = !on && !staged(item);
+    if (dropped) delete words[lemma];
+    write(name, words);
+    if (dropped && window.TargumSync) window.TargumSync.forgetWord(tag, lemma);
+    if (window.TargumSync) window.TargumSync.touched();
+    return words[lemma] || null;
+  }
+
+  /* Whether a record has a reading stage: an ear-only one (status null) has none. */
+  function staged(item) {
+    return !!item && item.status !== null && item.status !== undefined;
   }
 
   /* --- copying a word out ------------------------------------------------------ */
@@ -826,6 +897,9 @@
     },
     LEARNING: LEARNING,
     listed: listed,
+    earButton: earButton,
+    setEar: setEar,
+    staged: staged,
     KNOWN: KNOWN,
     IGNORED: IGNORED,
   };

@@ -148,3 +148,6 @@ def test_a_context_built_for_nobody_is_the_machine_s_own_reader(tmp_path: Path) 
     assert ctx.person is None
     assert ctx.home == library.home(None)
     assert ctx.admin is False
+    # `targum mcp` over stdio is a host too: no page of ours draws its cards, so it is
+    # not told they are drawn (qa-claude on #1263).
+    assert ctx.via == "connector"

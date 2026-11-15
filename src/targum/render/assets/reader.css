@@ -4522,6 +4522,10 @@ body.film-theatre:not(.film-panel) .video-list-on { display: inline-flex; }
 /* What is left to mark is the word list's line; the row says how many of how many. */
 .bar .known-left { display: none; }
 .bar-title .known.done { color: var(--leaf); }
+/* Our estimate's label, quiet beside its number, as Home and the Library say it (design.md
+   §12, "A reader says our estimate until anything in it is marked", 2026-11-15). */
+.bar-title .known .estimate-ours,
+.list-stats .estimate-ours { font-weight: 400; color: var(--ink-soft); }
 
 /* --- the tools at the end --- */
 .bar-tools { display: flex; align-items: center; gap: 0.2rem; }

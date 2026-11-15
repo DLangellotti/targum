@@ -156,9 +156,13 @@ def dictation_item(heard: Heard, into: str, src: str) -> dict[str, object]:
     pointed = meetings._pointed(heard.folder, heard.segment)
     facts = _facts(heard.folder)
     sections = len(list((heard.folder / "reader").glob("sec-*.html")))
+    line = strip_taamim(pointed or heard.text)
     return {
         "key": f"{heard.document}:{heard.segment}",
-        "line": strip_taamim(pointed or heard.text),
+        "line": line,
+        # Each word's dictionary form and its place in the line as shown, so a word in the
+        # result opens its card (targum-internal#536, D6). Nothing is written by it.
+        "words": line_words(heard, line, pointed, into),
         "src": src,
         "start": round(heard.start, 3),
         "end": round(heard.end, 3),
@@ -168,6 +172,72 @@ def dictation_item(heard: Heard, into: str, src: str) -> dict[str, object]:
         "name": heard.folder.name,
         "language": str(facts.get("language") or ""),
     }
+
+
+def line_words(
+    heard: Heard, line: str, pointed: str = "", into: str = ""
+) -> list[dict[str, object]]:
+    """The words of a dictation line as its annotation names them: each one's dictionary
+    form and where it stands in `line`, the line as the page shows it (targum-internal
+    #536, D6). Names, numbers and what is not a word are left out, as everywhere a word is
+    counted; a word whose place cannot be carried onto the shown line is left out rather
+    than put in the wrong place. Empty where the text has no annotation.
+
+    With `into`, each word carries its meaning from the text's own glossary in that
+    language, filed where the reader files it (`Token.glossed_as`, then the lemma), so the
+    card it opens reads like every other word card (design's §14 pass on #1243: it said
+    "No meaning yet" with no field under it). Read from disk; nothing is bought."""
+    from .annotate.base import NOT_A_WORD, not_vocabulary
+    from .coverage import ANNOTATION
+    from .models import glossaries_in
+
+    try:
+        loaded = json.loads((heard.folder / ANNOTATION).read_text(encoding="utf-8"))
+        tokens = (loaded.get("tokens") or {}).get(heard.segment) or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    book = glossaries_in(heard.folder).get(into) if into else None
+    entries = book.entries if book is not None else {}
+    out: list[dict[str, object]] = []
+    for token in tokens if isinstance(tokens, list) else []:
+        lemma = str(token.get("lemma") or "")
+        if (
+            not lemma
+            or lemma in NOT_A_WORD
+            or not_vocabulary(token.get("pos"), token.get("entity"))
+        ):
+            continue
+        place = meetings.Line(
+            lemma,
+            heard.document,
+            heard.folder,
+            heard.section,
+            heard.segment,
+            int(token.get("start") or 0),
+            int(token.get("end") or 0),
+        )
+        shown, start, end = meetings.drawn(place, heard.text, pointed)
+        if shown != line or not 0 <= start < end <= len(line):
+            continue
+        word: dict[str, object] = {"lemma": lemma, "start": start, "end": end}
+        if entries:
+            meaning = entries.get(_filed(token, lemma)) or entries.get(lemma) or ""
+            if meaning:
+                word["meaning"] = meaning
+                word["into"] = into
+        out.append(word)
+    return out
+
+
+def _filed(token: dict[str, object], lemma: str) -> str:
+    """Where a token's meaning is filed (`Token.glossed_as`), or the lemma where the
+    stored token will not read as one."""
+    from .models import Token
+
+    try:
+        return Token.model_validate(token).glossed_as
+    except ValueError:
+        return lemma
 
 
 def gap_items(
@@ -199,4 +269,4 @@ def gap_items(
     return out
 
 
-__all__ = ["LINES", "Heard", "dictation_item", "gap_items", "heard_lines"]
+__all__ = ["LINES", "Heard", "dictation_item", "gap_items", "heard_lines", "line_words"]

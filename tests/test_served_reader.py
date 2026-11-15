@@ -390,6 +390,21 @@ def test_a_served_reader_asks_nothing_of_another_site(served: tuple[int, Path]) 
                 )
 
 
+def test_a_served_reader_never_names_the_reader_s_own_anki(served: tuple[int, Path]) -> None:  # noqa: F811
+    """Only Your Words may call the reader's own AnkiConnect (design.md §12, "Send to Anki
+    talks to the Anki on your own computer", 2026-11-14): every reader, opened or saved,
+    keeps `connect-src 'self'` exactly."""
+    port, out = served
+    reader = book(out / "local" / "book-he")
+    for page in sorted(reader.glob("*.html")):
+        for navigate in (True, False):
+            status, head, _body = _get(
+                port, f"/reader/book-he/reader/{page.name}?k={TOKEN}", navigate=navigate
+            )
+            assert status == 200, page.name
+            assert _policy(head)["connect-src"] == ["'self'"], page.name
+
+
 # -- a portion's and a day's reader, which strangers open (targum-internal#661) ---------
 
 

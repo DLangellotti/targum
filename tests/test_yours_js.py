@@ -985,3 +985,115 @@ def test_the_anki_deck_says_why_words_have_no_sound(deck: dict[str, Any], said: 
     assert drawn["exportSaid"] == said
     posted = [one["body"] for one in drawn["told"] if one["url"].startswith("/account/anki")]
     assert posted and posted[0]["lemmas"] == ["ספר"], "the words on screen"
+
+
+# --- known by ear (targum-internal#536) ------------------------------------------------
+#
+# design.md §12, "A word can be known by ear, and only the reader says so" (2026-11-14):
+# Your Words counts both, filters by ear, and carries the toggle under each row's stages.
+
+
+def _eared() -> dict[str, str]:
+    return vocabulary(
+        word("ספר", "book", status=9, at=100, ear=1),
+        word("דרך", "road", status=2, at=200),
+        word("שמע", "hear", status=None, at=0, ear=1),
+        word("עיר", "city", status=9, at=300),
+    )
+
+
+def test_the_head_counts_known_and_known_by_ear_and_says_nothing_new_before_one() -> None:
+    """The ear count goes on the end of the head line, once there is one (design's §14
+    pass on #1243): a second counts line under the tabs said "known" twice."""
+    drawn = draw(_eared())
+    # The word known by ear alone is on no list: the head's other figures are the
+    # reading ones, and the ear count is its own.
+    assert drawn["summary"] == "3 on your list · 2 known · 2 known by ear"
+    assert draw(vocabulary(word("ספר", "book", status=9)))["summary"] == "1 on your list · 1 known"
+
+
+def test_known_by_ear_is_a_filter_across_the_stages() -> None:
+    drawn = draw(_eared(), do=[{"type": "chip", "stage": "all"}, {"type": "chip", "stage": "ear"}])
+    assert drawn["chips"][-1] == "Known by ear"
+    assert sorted(row["term"] for row in drawn["words"]) == ["ספר", "שמע"]
+    known = draw(_eared(), do=[{"type": "chip", "stage": "9"}, {"type": "chip", "stage": "ear"}])
+    assert [row["term"] for row in known["words"]] == ["ספר"], "known both ways"
+    # No word known by ear yet, no chip.
+    assert "Known by ear" not in draw(vocabulary(word("ספר", "book", status=9)))["chips"]
+
+
+def test_progress_opens_the_list_with_the_filter_on() -> None:
+    drawn = draw(_eared(), locationSearch="?ear=1")
+    assert drawn["chipOn"] in {"All", "Known by ear"}
+    assert sorted(row["term"] for row in drawn["words"]) == ["ספר", "שמע"]
+
+
+def test_a_word_known_by_ear_alone_says_not_marked_and_has_no_stage_lit() -> None:
+    drawn = draw(_eared(), filter="all")
+    row = next(one for one in drawn["words"] if one["term"] == "שמע")
+    assert row["status"] == "Not marked"
+    assert row["stage"] is None
+    assert row["ear"] == "true"
+
+
+def test_the_by_ear_column_writes_the_mark_alone_and_a_second_press_takes_it_back() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "ear", "word": "דרך"}])
+    assert drawn["ledger"]["דרך"]["ear"] == 1
+    assert drawn["ledger"]["דרך"]["status"] == 2, "the stage never moves"
+    back = draw(_eared(), filter="all", do=[{"type": "ear", "word": "ספר"}])
+    assert "ear" not in back["ledger"]["ספר"] and back["ledger"]["ספר"]["status"] == 9
+    gone = draw(_eared(), filter="all", do=[{"type": "ear", "word": "שמע"}])
+    assert "שמע" not in gone["ledger"], "a word with no stage and no ear mark is no record"
+
+
+def test_a_stage_press_leaves_the_ear_mark_alone() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "stage", "word": "ספר", "value": 2}])
+    assert drawn["ledger"]["ספר"]["status"] == 2 and drawn["ledger"]["ספר"]["ear"] == 1
+
+
+def test_a_stage_given_to_a_word_known_by_ear_alone_saves_it() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "stage", "word": "שמע", "value": 1}])
+    word_ = drawn["ledger"]["שמע"]
+    assert word_["status"] == 1 and word_["ear"] == 1 and word_["at"] > 0
+
+
+def test_the_word_card_carries_the_toggle_and_a_phrase_card_does_not() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "open", "in": "word-rows", "term": "ספר"}])
+    assert drawn["card"]["ear"] == "true"
+    pressed = draw(
+        _eared(),
+        filter="all",
+        do=[{"type": "open", "in": "word-rows", "term": "דרך"}, {"type": "card-ear"}],
+    )
+    assert pressed["ledger"]["דרך"]["ear"] == 1
+    assert pressed["card"] is not None, "the card stays open"
+    stored = with_phrase(vocabulary(word("ספר", "book", status=9, at=100)), "לב טוב")
+    phrase = draw(stored, do=[{"type": "open", "in": "phrase-list", "term": "לב טוב"}])
+    assert phrase["card"]["levels"] and phrase["card"]["ear"] is None
+
+
+def test_practise_these_carries_the_toggle_under_its_stage() -> None:
+    stored = vocabulary(word("מודע", "kinsman", status=2, ear=1))
+    drawn = draw(
+        stored, facts=facts(met={"מודע": 3}, practise=[line("מודע", "מוֹדַע", "מוֹדַע לְאִישָׁהּ")])
+    )
+    assert drawn["practise"]["ear"] == "true"
+
+
+def test_the_anki_text_deck_tags_by_ear_and_never_writes_level_null() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "export", "which": "anki"}])
+    _, notes = anki(drawn)
+    tags = {note[0]: note[2].split() for note in notes}
+    assert tags["ספר"] == ["targum", "targum::he", "targum::level-9", "targum::ear"]
+    assert tags["שמע"] == ["targum", "targum::he", "targum::ear"]
+    assert tags["דרך"] == ["targum", "targum::he", "targum::level-2"]
+
+
+def test_the_csv_has_a_known_by_ear_column() -> None:
+    drawn = draw(_eared(), filter="all", do=[{"type": "export", "which": "words"}])
+    text = next(file["text"] for file in drawn["saved"] if "csv" in file["type"])
+    rows = [line_.split(",") for line_ in text.lstrip("﻿").splitlines()]
+    assert rows[0][-1] == "known by ear"
+    by_word = {row[0]: row for row in rows[1:]}
+    assert by_word["ספר"][-1] == "yes" and by_word["דרך"][-1] == ""
+    assert by_word["שמע"][-1] == "yes"
