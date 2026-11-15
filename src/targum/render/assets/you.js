@@ -409,7 +409,10 @@
     MEANINGS.forEach(function (code) {
       var row = at("you-meanings-" + code + "-row");
       if (!row) return;
-      row.hidden = meaningsOffered.indexOf(code) < 0 || learning.indexOf(code) < 0;
+      // Not for the language the account reads into: its two options would both be
+      // that language ("In Russian | In Russian", qa-claude on #1251).
+      row.hidden =
+        meaningsOffered.indexOf(code) < 0 || learning.indexOf(code) < 0 || (reads[0] || "en") === code;
       var on = meaningsInItself.indexOf(code) >= 0;
       var off = at("meanings-" + code + "-off");
       var itself = at("meanings-" + code + "-on");

@@ -66,8 +66,15 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Your Words and the practice card show the meaning in the language where a card
     already bought it, and the translation meaning where not. Neither asks `/gloss`.
   - Strings: 16 new keys (`you.page.meanings-*`, `reader.card.also-in-en`/`-ru`,
-    `serve.meanings-not-offered`) in English and Russian. The Russian is a first draft
-    for ling-ru.
+    `serve.meanings-not-offered`) in English and Russian, passed by ling-ru, with their
+    two polishes taken: «Значения ивритских слов» and «Если вы уже понимаете толкования
+    на …».
+  - After qa-claude's read: both codes are normalised before the same-language gate, so
+    "EN" into "en" or "ru-RU" into "ru" meets it rather than passing as a pair, and a
+    source outside `READING` is refused (targum-internal#732, the same fix as #1253). A
+    buy that fails is not tried again by a redraw of the same card, only by the next
+    card opened. The row is not shown for the language the account reads into, whose
+    two options would both be that language.
 
 ### Changed
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`

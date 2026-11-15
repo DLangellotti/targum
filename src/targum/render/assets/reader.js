@@ -2036,8 +2036,16 @@ var targumReader = function () {
       return false;
     }
   })();
-  // Each form's look-up in the language itself, once a page: "asking", "done", "none".
+  // Each form's look-up in the language itself, once a page: "asking", "done", "none",
+  // or "failed" until the next card opened on a word, so a redraw of the card that
+  // failed never buys again (qa-claude on #1251).
   var itselfAsked = {};
+
+  function itselfRetry() {
+    for (var form in itselfAsked) {
+      if (itselfAsked[form] === "failed") delete itselfAsked[form];
+    }
+  }
 
   function rtlLanguage(code) {
     return ["he", "yi", "arc", "ar"].indexOf(String(code || "").split("-")[0]) >= 0;
@@ -2089,11 +2097,11 @@ var targumReader = function () {
           document: base.document,
           sentence: sentenceOf(word) || "",
         }).then(function (bought) {
-          if (!took(bought)) itselfAsked[form] = bought && bought.error ? "" : "none";
+          if (!took(bought)) itselfAsked[form] = bought && bought.error ? "failed" : "none";
         });
       })
       .catch(function () {
-        itselfAsked[form] = "";
+        itselfAsked[form] = "failed";
       });
   }
   // Words whose meaning a sentence has chosen — the server's, or asked for from here
@@ -6261,6 +6269,9 @@ var targumReader = function () {
       language: wordLanguage(index),
     });
 
+    // A card opened on a word, rather than drawn again over the same one, may ask once
+    // more for a meaning in the language itself that failed on an earlier open.
+    if (lookedUp !== word) itselfRetry();
     // The old card first, then the band: `hideCard` vacates the band, and taking it
     // before that would hand it straight back to the sheet under the new card.
     hideCard();
