@@ -45,6 +45,29 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   let-in, the batches and the resend all carry it, in English and Russian, next to
   `&lang=ru` where the letter adds it. The parameter only changes what the page shows. The
   guest list still decides who is sent a link. No new strings.
+- A daily goal on Your Progress, counted in days and never as a run (targum-internal#537,
+  design.md §12 "A daily goal counts days, never a run", 2026-11-14). Off by default: the
+  days block gains one text link, "Set a daily goal", which opens a form in place with
+  Words read | Minutes listening (Minutes watching for Aramaic and Yiddish) and fixed
+  steps (100, 250, 500, 1,000, 2,500 words; 5, 10, 15, 30, 60 minutes). With a goal set,
+  Week and Month show "Daily goal · N of 30" under "Days active", and the squares are
+  leaf where the goal was met, `--step-2` where the reader was active but under it, and
+  resting where nothing happened. The page works this out from `/account/totals`
+  against the goal as it is now, so changing the goal re-reads the same record. Nothing
+  is stored about which days met it, today is drawn like any other day, nothing counts
+  consecutive days, and practice is not counted. The foot of a finished section says
+  "Today's goal is met: N words read." once, on the first finish of the day the record
+  reaches the goal, in type and with no motion. Nothing is sent to the reader: no mail,
+  reminder, notification or chat line. Stored as `person.goal`, one setting per language
+  (accounts schema 69 to 70, one ALTER that does not depend on the number), set by
+  `POST /account/goal`, carried in the export and cleared with the account.
+  `events.js`'s `flush` now returns its request so the foot reads the record after the
+  page's own events have arrived. The foot asks `/account/totals?only=goals` first and
+  stops there when the language has no goal, before any flush; only then does it flush
+  and ask `?only=goal`, which never works out the words of each day. A goal is kept only
+  for a language targum reads, and a save refused because the session ended says the
+  save failed rather than "No such choice." New strings `progress.goal.*` and `reader.foot.goal-*`
+  in English and Russian; the Russian waits on ling-ru's first pass.
 - A signed-in reader's /connect now says which apps are connected, for example "You've
   connected Claude.", with "Manage connections in Your account" linking to
   `/you#connections` (targum-internal#721, design.md §12 "A signed-in reader's /connect

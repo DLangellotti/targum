@@ -209,8 +209,30 @@
     <div class="how-lower" id="how-lower" hidden>
       <div class="how-days" id="how-days" hidden>
         <h3 class="how-sub" id="days-title"></h3>
+        {#- A daily goal (targum-internal#537; design.md §12, "A daily goal counts days, never
+            a run", 2026-11-14): a count of the period's days that reached it, read off the
+            same record, and the goal itself in the soft ink. Off until the reader sets one;
+            nothing is sent to them because of it. -#}
+        <div class="how-goal" id="goal-head" hidden>
+          <p class="how-sub" id="goal-title"></p>
+          <p class="goal-said"><span id="goal-said"></span> <button type="button" class="btn text small" id="goal-change" aria-controls="goal-form">{{ t("progress.goal.change", "Change") }}</button></p>
+        </div>
         <div class="days" id="days-grid" role="img"></div>
         <p class="days-range" id="days-range" aria-hidden="true"></p>
+        <button type="button" class="btn text small goal-set" id="goal-set" aria-controls="goal-form" hidden>{{ t("progress.goal.set", "Set a daily goal") }}</button>
+        <form class="goal-form" id="goal-form" hidden>
+          <div class="seg goal-unit" id="goal-unit" role="group" aria-label="{{ t("progress.goal.unit", "What to count") }}">
+            <button type="button" data-unit="words" aria-pressed="true">{{ t("progress.goal.unit-words", "Words read") }}</button>
+            <button type="button" data-unit="minutes" id="goal-unit-minutes" aria-pressed="false">{{ t("progress.goal.unit-minutes", "Minutes listening") }}</button>
+          </div>
+          <label class="goal-amount"><span>{{ t("progress.goal.amount", "A day") }}</span> <select id="goal-amount"></select></label>
+          <p class="goal-says">{{ t("progress.goal.says", "We count the days you reach it, out of the last 7 or 30.") }}</p>
+          <div class="goal-presses">
+            <button type="submit" class="btn filled small" id="goal-save">{{ t("progress.goal.save", "Save") }}</button>
+            <button type="button" class="btn ghost small" id="goal-remove" hidden>{{ t("progress.goal.remove", "Remove goal") }}</button>
+          </div>
+          <p class="goal-refused" id="goal-refused" role="status" hidden></p>
+        </form>
       </div>
       <div class="how-words" id="how-words" hidden>
         <h3 class="how-sub" id="words-title"></h3>
