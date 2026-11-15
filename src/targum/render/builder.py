@@ -3750,6 +3750,8 @@ def signin_page(
     back: str = "",
     join: str = "",
     address: str = "",
+    heading: str = "",
+    email: str = "",
 ) -> str:
     """The door. Three states, one template.
 
@@ -3776,6 +3778,10 @@ def signin_page(
 
     `address` is the public origin, for the head every public page carries: its
     canonical and the picture a shared link shows (design's #477 pass, P2-13).
+
+    `heading` stands over the form in place of "Sign in to targum", and `email` fills
+    its field: an old waitlist mail opened once the door is open lands here, "targum is
+    open now" over the address it joined with (targum-internal#477, C).
     """
     from .. import google as google_module
 
@@ -3806,6 +3812,8 @@ def signin_page(
             connecting=connecting,
             back=back,
             join=join,
+            heading=heading,
+            email=email,
             # Only where this install can finish a Google sign-in. A door that fails at
             # its last step is worse than a door that is not there (#304).
             google=google_module.configured(),

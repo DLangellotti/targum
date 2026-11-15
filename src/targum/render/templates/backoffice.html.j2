@@ -404,6 +404,11 @@
   {%- set still = survey.waiting_list|rejectattr('invited')|list %}
   {%- set done = survey.waiting_list|selectattr('invited')|list %}
   <h2>The waitlist</h2>
+  {#- With the door open nobody joins (targum-internal#477, C): the list is the history
+      of who waited, read as it stands, and Let in stays for anyone still on it. -#}
+  {%- if door_is_open() %}
+  <p class="quiet">Signup is open, so nobody new joins this list. Let in still works for anyone still waiting.</p>
+  {%- endif %}
   <form method="get" action="/back-office#people" class="decide find" role="search">
     <input type="search" name="wq" value="{{ waiting_listing.q }}" maxlength="100"
            placeholder="Address" aria-label="Search the waitlist by address">
