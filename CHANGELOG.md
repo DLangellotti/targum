@@ -243,7 +243,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     a card refused at the checkout changes nothing.
   - The account is found by the subscription the store already holds, then by
     `custom_data.targum_account` where its `targum_tag` is the one our checkout writes (an
-    HMAC of the id and when the account was made), then by Paddle's customer id.
+    HMAC of the id and when the account was made), then by Paddle's customer id. While
+    the webhook secret rotates, `PADDLE_WEBHOOK_SECRET_PREVIOUS` keeps tags made under
+    the old one believed.
+  - A `canceled` trims the subscription's paid period to Paddle's `canceled_at`.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain

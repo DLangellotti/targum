@@ -32,6 +32,10 @@ if TYPE_CHECKING:
 #: The settings, all from the environment and none with a default but the environment.
 API_KEY_ENV = "PADDLE_API_KEY"
 WEBHOOK_SECRET_ENV = "PADDLE_WEBHOOK_SECRET"
+#: The secret before the last rotation, set only while one is under way: tags our
+#: checkout wrote under it are still believed (`account_tag`), for checkouts started
+#: before the rotation and paid after it. Paddle signs with both while it rotates.
+WEBHOOK_SECRET_PREVIOUS_ENV = "PADDLE_WEBHOOK_SECRET_PREVIOUS"
 ENVIRONMENT_ENV = "PADDLE_ENVIRONMENT"
 #: Plan, paid every month and every three months: Paddle's price ids (`pri_...`).
 PRICE_MONTH_ENV = "PADDLE_PRICE_MONTH"
@@ -213,12 +217,13 @@ def _account(store: Store, data: dict[str, Any]) -> Person | None:
         account = int(str(custom.get(ACCOUNT_KEY)))
     except ValueError:
         return None
-    tag = str(custom.get(TAG_KEY) or "")
+    tag = str(custom.get(TAG_KEY) or "").encode("utf-8", "replace")
     row = store.db.execute("SELECT made FROM person WHERE id = ?", (account,)).fetchone()
-    if row is None or not tag or not webhook_secret():
+    secrets = [one for one in (webhook_secret(), _env(WEBHOOK_SECRET_PREVIOUS_ENV)) if one]
+    if row is None or not tag or not secrets:
         return None
-    wanted = account_tag(account, int(row[0]))
-    if not hmac.compare_digest(wanted.encode(), tag.encode("utf-8", "replace")):
+    wanted = [account_tag(account, int(row[0]), one).encode() for one in secrets]
+    if not any(hmac.compare_digest(one, tag) for one in wanted):
         return None
     return store.person_by_id(account)
 
@@ -293,6 +298,7 @@ def _subscription(store: Store, kind: str, data: dict[str, Any], said_at: int | 
         subscription=subscription,
         said_at=said_at,
         period_start=starts,
+        ended_at=str(data.get("canceled_at") or ""),
     )
     return Outcome("plan" if applied else "ignored", person.id, status if applied else "stale")
 

@@ -201,6 +201,31 @@ def test_a_tag_made_for_an_earlier_account_with_the_same_id_names_nobody(
     assert billing.handle(store, event).kind == "unknown-account"
 
 
+def test_a_tag_under_the_previous_secret_is_believed_while_it_rotates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    event = fixture("transaction_completed_top_up", me.id, store)
+    monkeypatch.setenv(billing.WEBHOOK_SECRET_ENV, "pdl_ntfset_new")
+    assert billing.handle(store, event).kind == "unknown-account"
+    monkeypatch.setenv(billing.WEBHOOK_SECRET_PREVIOUS_ENV, SECRET)
+    assert billing.handle(store, event).kind == "top-up"
+
+
+def test_a_cancel_at_once_trims_the_paid_period(tmp_path: Path) -> None:
+    """qa-claude on #1279: a plan cancelled at once (or refunded and cancelled) counts
+    as Plan only until Paddle's `canceled_at`."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    at_once = fixture("subscription_canceled", me.id, store)
+    at_once["data"]["canceled_at"] = "2026-11-16T11:00:00.000Z"
+    billing.handle(store, at_once)
+    row = store.db.execute("SELECT starts, ends FROM plan_period").fetchone()
+    assert row[1] - row[0] == 3_600_000
+
+
 def test_the_held_subscription_wins_over_custom_data(tmp_path: Path) -> None:
     """What the store already holds comes first: a subscription keeps its account
     whatever a later event's `custom_data` names."""
