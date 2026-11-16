@@ -557,14 +557,27 @@ spot" (2026-10-13). It waits for David.
 
 - **One question: "Subjunctive, or present?"** It is asked of a finite verb in the
   present, in a clause opened by the conjunction *que*. The answers are the card's own
-  words. The rule says what each is for: "After que, what is wanted or doubted, not
-  stated, is in the subjunctive", or "After que, what is stated or believed stays in the
-  present."
+  words. The rule says what each is for: "The subjunctive follows que after wanting or
+  doubting, and after bien que, pour que and avant que", or "After que, what someone says
+  or thinks stays in the present."
 - **Only the conjunction.** The *que* must be one the tagger calls `SCONJ`, so the
-  relative *que* (*le livre que je lis*) asks nothing. An auxiliary is never asked,
-  because the card names a compound tense on its participle. Neither is a conditional.
-- **Hard is a form both moods spell alike:** a regular *-er* verb in the singular or the
-  third plural (*qu'il parle*), where only what comes before *que* tells them apart.
+  relative *que* (*le livre que je lis*) asks nothing. The verb is the clause's own: a
+  full verb, or *être* or *avoir* standing alone (*que tu sois là*). An auxiliary with a
+  participle is never asked, because the card names the compound tense on its
+  participle. Neither is a conditional.
+- **Hard is a form both moods spell alike** (*qu'il parle*, *qu'ils partent*, *qu'il
+  ouvre*). It is asked only where the words before *que* decide the mood by themselves,
+  and only where the tagger agrees. Those words are a closed list: *falloir*, *vouloir*,
+  *douter* and their kind, or *bien que*, *pour que*, *avant que* for the subjunctive;
+  *dire*, *savoir*, *penser*, *croire*, *parce que*, *pendant que* for the present. Its
+  answer never rests on the tagger's reading alone. A *penser* or *croire* that is
+  denied or asked as a question takes either mood, and *après que* is disputed, so a
+  form spelled alike after them is not asked. A form spelled otherwise (*soit*,
+  *fasse*, *vienne*) is the easy kind, asked after any such *que*.
+- **The Russian keeps the card's words**, «сослагательное» and «настоящее». A Russian
+  reader may take «сослагательное» for the *бы* form. Renaming it is a change to the
+  card's own word, which Italian's congiuntivo shares, so it is a follow-up for both
+  rather than a practice of its own.
 - On the Grammar tab, the spot is listed before gender. That keeps this PR and the past
   tenses' PR from touching the same lines.
 

@@ -101,10 +101,12 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   design.md §12, "The French subjunctive is practised after que", 2026-11-16).
   "Subjunctive, or present?" of a present-tense verb after the conjunction *que*, in the
   card's words. `stages._practices("fr")["subjunctive"]` is now true.
-  - `practices.mood_candidates`: `Sub` or `Ind` on a finite `Tense=Pres` VERB whose
-    clause opens with a `SCONJ` *que*. Not asked: the relative *que*, an auxiliary, the
-    conditional. A regular *-er* verb in a person where both moods are spelled alike is
-    the hard kind.
+  - `practices.mood_candidates`: `Sub` or `Ind` on a finite `Tense=Pres` verb, or *être*
+    or *avoir* standing alone, whose clause opens with a `SCONJ` *que*. Not asked: the
+    relative *que*, an auxiliary with its participle, the conditional. A form both moods
+    spell alike (`spelled_alike`) is the hard kind. It is asked only where a closed list
+    of words before *que* decides the mood and the tagger agrees (`_trigger`). A denied
+    or asked *penser*/*croire* is not on the list, and neither is *après que*.
   - Four new keys in English and Russian, Russian cleared by ling-ru. Tests in
     `tests/test_practice_mood.py`. Nothing spends.
 - The daily mail's weekly-portion row follows the reader's calendar, Israel's or the

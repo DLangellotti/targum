@@ -116,19 +116,19 @@ def _moods(name: str) -> list[tuple[str, list[dict[str, Any]]]]:
     return [
         (
             f"Il faut que tu viennes, {name}.",
-            [que(), verb("viennes", "venir", "Sub", "2")],
+            [verb("faut", "falloir", "Ind"), que(), verb("viennes", "venir", "Sub", "2")],
         ),
         (
             f"Je veux qu'il parle, {name}.",
-            [que("qu'"), verb("parle", "parler", "Sub")],
+            [verb("veux", "vouloir", "Ind", "1"), que("qu'"), verb("parle", "parler", "Sub")],
         ),
         (
             f"Je pense qu'il vient, {name}.",
-            [que("qu'"), verb("vient", "venir", "Ind")],
+            [verb("pense", "penser", "Ind", "1"), que("qu'"), verb("vient", "venir", "Ind")],
         ),
         (
             f"Je sais qu'il chante, {name}.",
-            [que("qu'"), verb("chante", "chanter", "Ind")],
+            [verb("sais", "savoir", "Ind", "1"), que("qu'"), verb("chante", "chanter", "Ind")],
         ),
     ]
 
@@ -161,3 +161,83 @@ def test_the_subjunctive_is_offered_on_the_grammar_tab(
         assert sorted(item["options"]) == ["present", "subjunctive"]
         assert item["options"][item["answer"]] == item["said"]
         assert item["contrast"] and item["contrast"]["said"] != item["said"]
+
+
+def test_spelled_alike_is_the_moods_not_the_conjugations() -> None:
+    """qa on #1286: *qu'ils partent* and *qu'il ouvre* are spelled as the present too."""
+    assert practices.spelled_alike("parler", "3", "Sing")
+    assert practices.spelled_alike("partir", "3", "Plur")
+    assert practices.spelled_alike("ouvrir", "3", "Sing")
+    assert practices.spelled_alike("découvrir", "1", "Sing")
+    assert not practices.spelled_alike("partir", "3", "Sing")
+    assert not practices.spelled_alike("aller", "3", "Sing")
+    assert not practices.spelled_alike("faire", "3", "Plur")
+    assert not practices.spelled_alike("parler", "1", "Plur")
+
+
+def test_a_third_plural_spelled_alike_is_asked_only_after_a_trigger() -> None:
+    line = "Il faut qu'ils partent."
+    words = [other("Il"), verb("faut", "falloir", "Ind"), que("qu'"), other("ils"),
+             verb("partent", "partir", "Sub", "3", "Plur")]  # fmt: skip
+    assert asked(line, words) == [("Sub", "Ind", True, "partent")]
+    # The same form after a verb the list does not know is left alone.
+    line = "Il arrive qu'ils partent."
+    words = [other("Il"), verb("arrive", "arriver", "Ind"), que("qu'"), other("ils"),
+             verb("partent", "partir", "Sub", "3", "Plur")]  # fmt: skip
+    assert asked(line, words) == []
+
+
+def test_an_ir_verb_spelled_alike_follows_its_trigger_not_the_tagger() -> None:
+    line = "Je doute qu'il ouvre."
+    words = [other("Je"), verb("doute", "douter", "Ind", "1"), que("qu'"), other("il"),
+             verb("ouvre", "ouvrir", "Sub")]  # fmt: skip
+    assert asked(line, words) == [("Sub", "Ind", True, "ouvre")]
+    # The tagger reading it present against a trigger of the subjunctive: not asked.
+    words[-1] = verb("ouvre", "ouvrir", "Ind")
+    assert asked(line, words) == []
+    # A conjunction in que decides it too.
+    line = "Bien qu'il ouvre."
+    words = [other("Bien", "ADV"), que("qu'"), other("il"), verb("ouvre", "ouvrir", "Sub")]
+    assert asked(line, words) == [("Sub", "Ind", True, "ouvre")]
+    line = "Parce qu'il ouvre."
+    words = [other("Parce", "ADV"), que("qu'"), other("il"), verb("ouvre", "ouvrir", "Ind")]
+    assert asked(line, words) == [("Ind", "Sub", True, "ouvre")]
+
+
+@pytest.mark.parametrize(
+    "line, words",
+    [
+        (
+            "Je ne crois pas qu'il chante.",
+            [other("Je"), other("ne", "ADV"), verb("crois", "croire", "Ind", "1"),
+             other("pas", "ADV"), que("qu'"), other("il"), verb("chante", "chanter", "Sub")],
+        ),
+        (
+            "Penses-tu qu'il chante ?",
+            [verb("Penses-tu", "penser", "Ind", "2"), que("qu'"), other("il"),
+             verb("chante", "chanter", "Sub")],
+        ),
+        (
+            "Après qu'il chante, on part.",
+            [other("Après", "ADP"), que("qu'"), other("il"), verb("chante", "chanter", "Ind")],
+        ),
+    ],
+)  # fmt: skip
+def test_a_denied_or_asked_thought_and_apres_que_ask_nothing_spelled_alike(
+    line: str, words: list[dict[str, Any]]
+) -> None:
+    assert asked(line, words) == []
+
+
+def test_etre_and_avoir_standing_alone_are_asked() -> None:
+    """qa on #1286: *que tu sois là* is the subjunctive of a copula the tagger calls AUX."""
+    sois = {**verb("sois", "être", "Sub", "2"), "pos": "AUX"}
+    line = "Il faut que tu sois là."
+    words = [other("Il"), verb("faut", "falloir", "Ind"), que(), other("tu"), sois,
+             other("là", "ADV")]  # fmt: skip
+    assert asked(line, words) == [("Sub", "Ind", False, "sois")]
+    ait = {**verb("ait", "avoir", "Sub"), "pos": "AUX"}
+    line = "Il faut qu'il ait du temps."
+    words = [other("Il"), verb("faut", "falloir", "Ind"), que("qu'"), other("il"), ait,
+             other("du", "DET"), other("temps", "NOUN")]  # fmt: skip
+    assert asked(line, words) == [("Sub", "Ind", False, "ait")]

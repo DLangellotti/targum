@@ -656,9 +656,74 @@ def _kind(code: str) -> str:
     return code.partition(":")[0]
 
 
-#: The persons where a regular *-er* verb's present subjunctive is spelled as its present
-#: indicative (*qu'il parle*, *il parle*): only the *que* clause tells them apart.
-_SHARED_PERSONS = frozenset({("1", "Sing"), ("2", "Sing"), ("3", "Sing"), ("3", "Plur")})
+#: Verbs whose third plural is spelled otherwise in the two moods (*ils sont*, *qu'ils
+#: soient*). Every other verb's is spelled alike (*qu'ils partent*, *ils partent*).
+_PLURAL_APART = frozenset(
+    {"être", "avoir", "aller", "faire", "pouvoir", "savoir", "vouloir", "valoir"}
+)
+
+#: Verbs not in *-er* whose singular is spelled alike in the two moods, as an *-er*
+#: verb's is (*qu'il ouvre*, *il ouvre*).
+_SINGULAR_ALIKE = ("ouvrir", "couvrir", "offrir", "souffrir", "cueillir")
+
+
+#: How far after *être* or *avoir* a participle may lean on it, as the card reaches back.
+_PARTICIPLE_REACH = 4
+
+
+def spelled_alike(lemma: str, person: str, number: str) -> bool:
+    """Whether a verb's present subjunctive is spelled as its present indicative in this
+    person (qa on #1286): the singular of an *-er* verb but *aller*, and of *ouvrir*,
+    *offrir* and their kind; the third plural of every verb but a few irregulars. *Nous*
+    and *vous* never are (*parlions*, *parlons*)."""
+    lemma = lemma.lower()
+    if number == "Plur":
+        return person == "3" and lemma not in _PLURAL_APART and not lemma.endswith("faire")
+    if number != "Sing" or person not in ("1", "2", "3"):
+        return False
+    return (lemma.endswith("er") and lemma != "aller") or lemma.endswith(_SINGULAR_ALIKE)
+
+
+#: The words before *que* that decide its mood by themselves, for a form both moods spell
+#: alike: a verb of wanting, needing or doubting, or a conjunction ending in *que*, and on
+#: the other side a verb of saying, knowing or thinking, or *parce que*, *pendant que*.
+#: Not *après que*, which grammars give the indicative and speakers the subjunctive.
+SUBJUNCTIVE_VERBS = frozenset(
+    {"falloir", "vouloir", "souhaiter", "désirer", "exiger", "préférer", "douter", "craindre"}
+)
+SUBJUNCTIVE_BEFORE = frozenset({"bien", "pour", "avant", "afin", "sans", "moins"})
+INDICATIVE_VERBS = frozenset({"penser", "croire", "dire", "savoir", "affirmer", "espérer"})
+INDICATIVE_BEFORE = frozenset({"parce", "pendant", "alors", "dès"})
+#: Verbs of thinking, which take the subjunctive when denied or asked (*je ne crois pas
+#: qu'il vienne*): after one of those, nothing is asked.
+_THINKING = frozenset({"penser", "croire"})
+_NEGATIONS = frozenset({"ne", "n'", "pas", "jamais", "plus", "guère"})
+
+
+def _trigger(text: str, stored: Sequence[Mapping[str, Any]], words: Sequence[Any], que: int) -> str:
+    """The mood the words before the *que* at `que` decide by themselves: "Sub", "Ind",
+    or "" where they decide nothing this list knows."""
+    from .annotate.french_register import _clause_start, norm
+
+    if que == 0:
+        return ""
+    before = norm(words[que - 1].surface)
+    if before in SUBJUNCTIVE_BEFORE:
+        return "Sub"
+    if before in INDICATIVE_BEFORE:
+        return "Ind"
+    start = _clause_start(text, words, que - 1)
+    said = [norm(word.surface) for word in words[start:que]]
+    for at in range(que - 1, start - 1, -1):
+        lemma = str(stored[at].get("lemma") or "").lower()
+        if lemma in SUBJUNCTIVE_VERBS:
+            return "Sub"
+        if lemma in INDICATIVE_VERBS:
+            asked = "?" in text or "-" in str(stored[at].get("surface") or "")
+            if lemma in _THINKING and (asked or any(word in _NEGATIONS for word in said)):
+                return ""
+            return "Ind"
+    return ""
 
 
 def mood_candidates(
@@ -669,17 +734,39 @@ def mood_candidates(
     "subjunctive", `Ind` where it says "present".
 
     Asked only in a clause opened by a *que* the tagger calls a conjunction (`SCONJ`), so
-    the relative *que* of *le livre que je lis* asks nothing, and never of an auxiliary,
-    whose compound tense the card names on the participle. The hard kind is a regular
-    *-er* verb in a person where both moods are spelled alike (*qu'il parle*)."""
+    the relative *que* of *le livre que je lis* asks nothing. The verb is the clause's
+    own: a full verb, or *être* or *avoir* standing alone (*que tu sois là*), never an
+    auxiliary, whose compound tense the card names on the participle.
+
+    A form both moods spell alike (`spelled_alike`: *qu'il parle*, *qu'ils partent*) is
+    the hard kind, and is asked only where the words before *que* decide the mood by
+    themselves (`_trigger`) and the tagger agrees: its answer never rests on the tagger's
+    reading alone (qa on #1286). A form spelled otherwise (*soit*, *fasse*, *vient*) is
+    the easy kind, asked after any such *que*."""
     from .annotate.french_register import Word, _clause_start, norm
 
     words = [
         Word(int(t.get("start") or 0), int(t.get("end") or 0), str(t.get("surface") or ""))
         for t in stored
     ]
+
+    def standing_alone(at: int) -> bool:
+        """Whether an *être* or *avoir* at `at` has no participle leaning on it."""
+        for k in range(at + 1, min(len(stored), at + 1 + _PARTICIPLE_REACH)):
+            if re.search(r"[.,;:!?\u2014]", text[words[k - 1].end : words[k].start]):
+                return True
+            feats = _feats(stored[k].get("feats"))
+            if feats.get("VerbForm") == "Part" and feats.get("Tense") == "Past":
+                return False
+        return True
+
     for at, token in enumerate(stored):
-        if str(token.get("pos") or "") != "VERB":
+        pos = str(token.get("pos") or "")
+        lemma = str(token.get("lemma") or "").lower()
+        if pos == "AUX":
+            if lemma not in ("être", "avoir") or not standing_alone(at):
+                continue
+        elif pos != "VERB":
             continue
         feats = _feats(token.get("feats"))
         if feats.get("VerbForm", "Fin") != "Fin" or feats.get("Tense") != "Pres":
@@ -692,14 +779,11 @@ def mood_candidates(
             continue
         if str(stored[start - 1].get("pos") or "") != "SCONJ":
             continue
-        lemma = str(token.get("lemma") or "").lower()
-        shared = (
-            lemma.endswith("er")
-            and lemma != "aller"
-            and (feats.get("Person", ""), feats.get("Number", "")) in _SHARED_PERSONS
-        )
+        alike = spelled_alike(lemma, feats.get("Person", ""), feats.get("Number", ""))
+        if alike and _trigger(text, stored, words, start - 1) != mood:
+            continue
         contrast = "Ind" if mood == "Sub" else "Sub"
-        yield Candidate("mood", segment, words[at].start, words[at].end, mood, contrast, shared)
+        yield Candidate("mood", segment, words[at].start, words[at].end, mood, contrast, alike)
 
 
 def _biblical(folder: Path) -> bool:
