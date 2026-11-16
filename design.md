@@ -387,6 +387,29 @@ Each entry below was a deliberate decision with a date, kept here so nobody "cor
 the code back to a rule that was already retired. (The count this line used to give had
 fallen behind the entries by half; the dates are the index.)
 
+### French gender is practised as masculine or feminine — 2026-11-16
+
+ling-fr, 2026-11-16, the first of French's seven practices toward Beta under "A practice
+for every hard spot" (2026-10-13), which it follows in every other respect: the Grammar
+tab, a worked example and five items, six lines across two texts, nothing scored.
+
+- **One question, of a noun only:** "Masculine or feminine?", on a French noun the card
+  names a gender for, in a line the reader finished. The answers are the card's own words.
+  Never an adjective or an article: those agree with the noun, and the noun is what a
+  learner has to remember.
+- **The ending decides the kind.** A noun whose ending says its gender and agrees with it
+  (*nation*, in -tion) is the easy kind, and its rule is the ending: "Most nouns ending in
+  -tion are feminine.", as the card says it. A noun with no such ending, or one whose
+  ending says the other gender (*la plage*, in -age), is the hard kind, and its rule is
+  the article it is learned with: "Learn this one with its article, la or une." The card
+  stays silent on the second kind (targum-internal#263); the practice is where it is
+  asked.
+- **French lines are asked French spots only.** The Hebrew spots read DICTA's features,
+  so a French verb or adjective is never asked its tense or agreement as if it were
+  Hebrew.
+- The page's note says "the parts of the language", not of Hebrew, and its empty line
+  says practice is in Hebrew and French.
+
 ### A1 is Easy's two ceilings and short — 2026-11-15
 
 David, 2026-11-15 (targum-internal#728), choosing option A′ of design's measurement on

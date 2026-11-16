@@ -108,6 +108,12 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         # suffix the line has against the one it is taken for (targum-internal#450).
         "pronoun suffixes": Practice("pronoun suffixes", "choice", "practice.ask.suffix"),
     },
+    # French's first (targum-internal#644's Beta list, 2026-11-16): masculine or feminine
+    # for a noun in a French line, as the card says it, with the ending the card names
+    # (`annotate/endings.py`) deciding which items are the easy kind.
+    "fr": {
+        "gender": Practice("gender", "choice", "practice.ask.gender"),
+    },
 }
 
 #: Short keys for the spots, as the cache, the store and the page name them.
@@ -121,6 +127,7 @@ KEYS: dict[str, str] = {
     "stress and pronunciation": "stress",
     "the vav-consecutive": "vav",
     "pronoun suffixes": "suffix",
+    "gender": "gender",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -293,6 +300,40 @@ def suffix_candidates(token: Mapping[str, Any], pointed: str, segment: str) -> I
     yield Candidate("suffix", segment, start, end, words(code), words(easy), False)
 
 
+#: A French noun's gender, as the card names it, by its code.
+GENDERS = {"Masc": "Fem", "Fem": "Masc"}
+
+
+def gender_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidate]:
+    """Masculine or feminine, for a French noun the card names a gender for
+    (targum-internal#644). The answer is the gender the line gives the noun, and the
+    contrast the other one.
+
+    The easy kind is a noun whose ending says its gender and agrees with it, which the card
+    says too ("like most nouns in -tion"): the answer carries that ending after a colon,
+    `Fem:tion`, for the rule. The hard kind is a noun with no such ending, or one whose
+    ending says the other gender (*la plage*, in -age): a word to learn, which is what the
+    card leaves unsaid, and what this item asks."""
+    from .annotate.endings import ending_of
+
+    if str(token.get("pos") or "") != "NOUN":
+        return
+    gender = _feats(token.get("feats")).get("Gender", "")
+    if gender not in GENDERS:
+        return
+    lemma = str(token.get("lemma") or token.get("surface") or "")
+    told, _, ending = ending_of(lemma).partition(":")
+    agrees = bool(ending) and told == gender[0].lower()
+    start, end = int(token.get("start") or 0), int(token.get("end") or 0)
+    answer = f"{gender}:{ending}" if agrees else gender
+    yield Candidate("gender", segment, start, end, answer, GENDERS[gender], not agrees)
+
+
+def _kind(code: str) -> str:
+    """What an answer says, less the rule's detail after a colon: `Fem:tion` is `Fem`."""
+    return code.partition(":")[0]
+
+
 def _biblical(folder: Path) -> bool:
     """Whether a built text is scripture, off its own document.json."""
     from .models import is_biblical
@@ -377,6 +418,8 @@ def count_text(folder: Path) -> TextPractice | None:
         return None
     tokens = loaded.get("tokens") or {}
     section_of = _sections(folder, segmented)
+    if segmented.language.split("-")[0] == "fr":
+        return _french(segmented, tokens, section_of)
     # The vav-consecutive is asked in Biblical text alone, where the spot is claimed.
     scripture = _biblical(folder)
     by_section: dict[int, list[Candidate]] = {}
@@ -422,6 +465,19 @@ def count_text(folder: Path) -> TextPractice | None:
         )
     heads = {lemma: head for words in homographs.values() for lemma, head in words.items()}
     return TextPractice(by_section=by_section, heads=heads)
+
+
+def _french(
+    segmented: Any, tokens: Mapping[str, Any], section_of: Mapping[str, int]
+) -> TextPractice:
+    """A French text's candidates: the Hebrew spots read DICTA's features and binyanim,
+    which a French token does not have, so none of them is asked here."""
+    by_section: dict[int, list[Candidate]] = {}
+    for segment in segmented.segments:
+        found = by_section.setdefault(section_of.get(segment.id, 1), [])
+        for token in tokens.get(segment.id) or ():
+            found.extend(gender_candidates(token, segment.id))
+    return TextPractice(by_section=by_section)
 
 
 def text_practice(folder: Path) -> TextPractice | None:
@@ -663,6 +719,8 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
     if spot == "suffix":
         # The card's words, after the code (`suffix_candidates`).
         return code.partition(":")[2] or code
+    if spot == "gender":
+        return t("reader.grammar.feminine" if _kind(code) == "Fem" else "reader.grammar.masculine")
     feats = _feats(code)
     if spot == "agreement":
         gender = t(
@@ -736,9 +794,20 @@ def rule(spot: str, code: str, ui: str) -> str:
         "stress": "practice.rule.stress",
         "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
         "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
+        "gender": _gender_rule(code),
     }
     key = keys[spot]
+    if spot == "gender" and code.partition(":")[2]:
+        return strings.text(key, ui, ending=code.partition(":")[2])
     return strings.text(key, ui, **_RULE_HEBREW.get(key, {}))
+
+
+def _gender_rule(code: str) -> str:
+    """The ending, where it told the gender (`gender_candidates`); the word itself, where
+    nothing about it does."""
+    gender, _, ending = code.partition(":")
+    which = "f" if gender == "Fem" else "m"
+    return f"practice.rule.gender-{'ending' if ending else 'word'}-{which}"
 
 
 # How a Hebrew reading is said in letters a learner reads, the way the reader's card says
@@ -862,7 +931,11 @@ def _item(
         (
             each
             for each in found
-            if each.candidate.answer == candidate.contrast
+            if (
+                _kind(each.candidate.answer) == candidate.contrast
+                if candidate.spot == "gender"
+                else each.candidate.answer == candidate.contrast
+            )
             and each.candidate.segment != candidate.segment
             and candidate.spot != "homograph"
         ),
