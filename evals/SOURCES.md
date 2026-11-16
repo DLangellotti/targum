@@ -37,6 +37,7 @@ found one, and is not read as free.
 | Wiktionary Russian examples | human-marked | CC BY-SA 4.0 and GFDL | eval only | `stress/wiktionary-ru` |
 | PocketTorah word onsets | human-marked | not stated | eval only | `align/pockettorah` |
 | HeQ | human-written | CC BY 4.0 | eval only | `ask/heq` |
+| French chat cases | hand-written (builder as ling-fr, 2026-11-17) | targum's own | eval only | `chat/fr-cases`, `fr-cases-ru` |
 | NTREX-128 | human-written | CC BY-SA 4.0 | eval only | `recast/ntrex-128`, `ntrex-128-ru`, `ntrex-128-in-fr`, `ntrex-128-in-ru` |
 | FLORES+ | human-written | CC BY-SA 4.0 | eval only | `recast/flores-plus` (no rows yet) |
 | FLORES-200 | human-written | CC BY-SA 4.0 | eval only | `recast/flores-200` (no rows yet) |
@@ -87,6 +88,7 @@ different set, and the two numbers are not measured on the same thing.
 | `register/fr-register-own` | `evals/french-register-gold.jsonl` (in the repository) |
 | `register/fr-register-heldout` | `evals/french-register-heldout.jsonl` (in the repository) |
 | `lemma/pd-fr-pc-imp` | `evals/french-pc-imparfait-gold.jsonl` (in the repository) |
+| `chat/fr-cases*` | `evals/chat-fr-cases.jsonl` (in the repository) |
 | `grading/` with `--pool` | the pool the openers were drawn from; without it there is no reference, and no pin |
 
 `suggest/shelf-*` and `align/tts-*` have no reference file, so their rows carry no pin.
@@ -530,6 +532,20 @@ two bugs; register-rule/3 fixed those four named things once.
   `register/fr-register-heldout`, and has no floor of its own: its numbers are reported
   beside the main gold's, never used to set a floor or change the rule. The next blind
   set comes from another seat.
+- **Licence:** targum's own.
+
+## French chat cases
+
+French's chat evals (targum-internal#644, `scripts/eval_chat_fr.py`): forty learner lines,
+each sent as the reader's turn, the reply scored by `chat/rubric.py` with no judge.
+
+- **Kind: hand-written.** The builder seat wrote all forty as ling-fr on 2026-11-17: 15
+  correct everyday lines (two of them a woman's, *je suis allée*, *contente*), 5 spoken
+  lines right in their register (*je sais pas*, *on va au cinéma ce soir ?*), and 20
+  learner errors of the kinds the French contract names. Each error case gives the words
+  that must be gone from the recast and, where French has few ways to say it, the fixes
+  that count. No person other than the seat has read them yet; a read by David or
+  another seat is wanted before the floors are moved on a run's evidence.
 - **Licence:** targum's own.
 
 ## French passé composé and imparfait

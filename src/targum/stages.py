@@ -527,6 +527,13 @@ BUILDS_UNATTENDED: frozenset[str] = frozenset({"he", "fr"})
 #: Russian-reading account, not Russian talk; Russian's own are targum-internal#286.
 CHAT_EVALS: frozenset[str] = frozenset({"he"})
 
+#: A language's own chat eval set, as (stage, corpus) in the ledger: its chat evals are
+#: present once every floor on that set has a row, and the newest row holds it. French's
+#: is forty learner lines and a rubric read off the reply (`scripts/eval_chat_fr.py`,
+#: `chat/rubric.py`, targum-internal#644); its floors are in `evals/floors.json` before
+#: its first run, so recording a run that holds them is what moves French.
+CHAT_EVAL_SETS: dict[str, tuple[str, str]] = {"fr": ("chat", "fr-cases")}
+
 #: What grows a language's shelf without anybody's hand: the parasha, the daily and the
 #: weekly for Hebrew; the weekly's Russian edition for Russian; for French, the catalogue's
 #: growing channels, built on the box inside a month's credits (`grow`, 2026-11-17).
@@ -606,6 +613,28 @@ def _lemmatiser_holds(language: str, floors: list[Any], rows: list[Any]) -> bool
     mine = _floors_for(language, floors)
     if not mine:
         return None
+    return not evals.breaches(rows, mine)
+
+
+def _chat_evals_hold(language: str, floors: list[Any], rows: list[Any]) -> bool:
+    """Whether a language has chat evals in the language, with floors: named in
+    `CHAT_EVALS`, or its set in `CHAT_EVAL_SETS` measured against every floor it has, the
+    newest row of each holding. A floor with no row yet is not met: the set has not run."""
+    from . import evals
+
+    if language in CHAT_EVALS:
+        return True
+    named = CHAT_EVAL_SETS.get(language)
+    if named is None:
+        return False
+    mine = [floor for floor in floors if (floor.stage, floor.corpus) == named]
+    if not mine:
+        return False
+    for floor in mine:
+        if not any(
+            row.key() == floor.key() and row.system.startswith(floor.system) for row in rows
+        ):
+            return False
     return not evals.breaches(rows, mine)
 
 
@@ -766,7 +795,7 @@ def facts(
         read_through=read,
         known_issues=listed,
         builds_unattended=code in BUILDS_UNATTENDED,
-        chat_evals=code in CHAT_EVALS,
+        chat_evals=_chat_evals_hold(code, limits, ledger),
         # Video, not recordings: a text read aloud is the same text, and the standard's
         # second medium is a video or a podcast (design.md §12).
         second_medium=None if code not in filmed else filmed[code] > 0,
