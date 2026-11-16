@@ -174,7 +174,7 @@ def test_the_emphatic_ending_is_met_on_day_one() -> None:
 
 
 @pytest.mark.skipif(not aramaic_frequency.available(), reason="no Aramaic frequency list")
-def test_forty_function_words_from_the_top_of_the_frequency_list() -> None:
+def test_forty_common_words_from_the_top_of_the_frequency_list() -> None:
     chosen = starter.FUNCTION_WORDS
     assert len(chosen) == 40 and len(set(chosen)) == 40
     for lemma in chosen:
@@ -182,7 +182,7 @@ def test_forty_function_words_from_the_top_of_the_frequency_list() -> None:
         assert rank is not None and rank <= 250, f"{lemma} ranks {rank}"
 
 
-def test_every_function_word_is_met_in_a_line_of_the_set() -> None:
+def test_every_common_word_is_met_in_a_line_of_the_set() -> None:
     """Met the way the reader meets it: tapped in Onkelos beside the Hebrew, where the
     card files the word under the same name the frequency list counts."""
     met: dict[str, str] = {}
@@ -217,3 +217,38 @@ def test_di_is_met_every_day_from_day_three() -> None:
             for token in aramaic.rendering_tokens(side(ref, "arc"), f"Onkelos {ref}")
         }
         assert "די" in lemmas, f"no דִּי on day {day.number}"
+
+
+def test_a_rerun_puts_this_file_over_the_set_and_keeps_its_place(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The file is the set's source: a line fixed here reaches a set already filed, and
+    the set stays where it stood among the collections."""
+    path = tmp_path / "catalogue.json"
+    path.write_text(
+        json.dumps(
+            {
+                "entries": [],
+                "collections": [
+                    {"id": "before", "title": "א"},
+                    {"id": starter.SET, "title": "old", "blurb": "old", "members": []},
+                    {"id": "after", "title": "ב"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TARGUM_CATALOGUE", str(path))
+    monkeypatch.setattr(sys, "argv", ["file_onkelos_starter.py", "--write"])
+    try:
+        starter.main()
+        starter.main()
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        assert [g["id"] for g in loaded["collections"]] == ["before", starter.SET, "after"]
+        filed = loaded["collections"][1]
+        assert filed["title"] == starter.TITLE and filed["blurb"] == starter.BLURB
+        assert filed["members"] == [day.id for day in starter.DAYS]
+        assert [row["id"] for row in loaded["entries"]] == [day.id for day in starter.DAYS]
+    finally:
+        monkeypatch.undo()
+        catalogue.reload()

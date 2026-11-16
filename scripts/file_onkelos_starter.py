@@ -12,7 +12,7 @@ published and pair by their verse numbers, and `targum seed` builds every member
 swipe set on the shared shelf.
 
 What each day is for comes from ling-arc's plan of 2026-10-25 (rung 0): the ־א ending,
-the sound shifts ש→ת, ז→ד and צ→ע, each on a real pair, and the forty function words met
+the sound shifts ש→ת, ז→ד and צ→ע, each on a real pair, and the forty common words met
 in the lines rather than as a list. The last day is Joseph's dreams, read whole, and its
 line hands the reader on to the week's portion, where Onkelos already stands beside every
 verse. Each claim a line makes about a word is pinned to a verse below, and
@@ -22,6 +22,8 @@ The catalogue is private data, so this runs on the machine that holds it. Rows g
 through `promote.merge_into_catalogue`, the one door the catalogue grows through, and the
 collection is written beside them the way `parasha entries --write` writes its own. It
 prints what it would do unless given `--write`, and running it twice changes nothing.
+This file is the source of the rows and the set: to change a line or the set, edit it
+here and run `--write` again, and its values replace what the catalogue holds.
 
     PYTHONPATH=src python scripts/file_onkelos_starter.py
     PYTHONPATH=src python scripts/file_onkelos_starter.py --write
@@ -73,7 +75,8 @@ DAYS: tuple[Day, ...] = (
         1,
         "Genesis 1:1-5",
         "בראשית א, א-ה",
-        "Most nouns end in ־א, and the ־א means “the”, so אַרְעָא is הָאָרֶץ. יָת does the work of אֶת.",
+        "Most nouns end in ־א, and the ־א mostly means “the”, so אַרְעָא is הָאָרֶץ. "
+        "יָת does the work of אֶת.",
         (
             ("Genesis 1:1", "אַרְעָא", "הָאָרֶץ"),
             ("Genesis 1:1", "שְׁמַיָּא", "הַשָּׁמַיִם"),
@@ -84,7 +87,7 @@ DAYS: tuple[Day, ...] = (
         2,
         "Genesis 1:6-19",
         "בראשית א, ו-יט",
-        "A plural noun ends in ־יָּא, so the stars are כּוֹכְבַיָּא. "
+        "A plural noun with “the” ends in ־יָּא, so the stars are כּוֹכְבַיָּא. "
         "Hebrew ש is often ת in Aramaic, and the second day is יוֹם תִּנְיָן.",
         (
             ("Genesis 1:16", "כּוֹכְבַיָּא", "הַכּוֹכָבִים"),
@@ -102,7 +105,8 @@ DAYS: tuple[Day, ...] = (
         4,
         "Genesis 2:4-14",
         "בראשית ב, ד-יד",
-        "The four rivers of Eden. Hebrew ז is often ד, so the gold of Havilah is דַּהֲבָא.",
+        "The garden of Eden and its four rivers. "
+        "Hebrew ז is often ד, so the gold of Havilah is דַּהֲבָא.",
         (("Genesis 2:11", "דַּהֲבָא", "הַזָּהָב"),),
     ),
     Day(
@@ -119,7 +123,7 @@ DAYS: tuple[Day, ...] = (
         6,
         "Genesis 6:9-22",
         "בראשית ו, ט-כב",
-        "Noah builds the ark. Hebrew ש is ת again, as in his three sons, תְּלָתָא בְנִין. "
+        "Noah builds the ark. Here ש is ת again, as in his three sons, תְּלָתָא בְנִין. "
         "And Hebrew צ can be ע, so the ark's wood is אָעִין.",
         (
             ("Genesis 6:10", "תְּלָתָא", "שְׁלֹשָׁה"),
@@ -150,10 +154,10 @@ SHIFTS: tuple[tuple[str, str, str, str, str], ...] = (
     ("ז", "ד", "Genesis 6:19", "דְּכַר", "זָכָר"),
 )
 
-#: The forty function words a reader meets in the set's lines, each by the name the
+#: The forty common words a reader meets in the set's lines, each by the name the
 #: frequency list counts it under (`annotate.aramaic_frequency`, targum#936): the hand
-#: table's headword with its points off. Chosen from the top of that list, and only words
-#: that are not nouns of the story.
+#: table's headword with its points off. Chosen from the top of that list: the small words,
+#: the commonest verbs and the first numbers, and no nouns of the story.
 FUNCTION_WORDS: tuple[str, ...] = (
     "ית", "על", "לא", "אמר", "מן", "כל", "הוה", "קדם", "די", "עם",
     "ארי", "עבד", "הוא", "עד", "אנא", "חד", "יהב", "הא", "לות", "תמן",
@@ -166,7 +170,7 @@ TITLE = "שבוע ראשון באונקלוס"
 ENGLISH = "A first week of Onkelos"
 BLURB = (
     "Read Onkelos under the Hebrew, one short passage a day for a week. "
-    "You need Hebrew and no Aramaic."
+    "For readers who know Hebrew and no Aramaic."
 )
 
 #: The editions every row carries beside its Hebrew: the `genesis` row's English and
@@ -293,12 +297,14 @@ def main() -> None:
     for one in rows:
         merge_into_catalogue(one)
     loaded = json.loads(path.read_text(encoding="utf-8"))
-    groups = [g for g in loaded.get("collections") or [] if g.get("id") != SET]
-    held: dict[str, Any] = next(
-        (g for g in loaded.get("collections") or [] if g.get("id") == SET), {}
-    )
-    # A name or a line somebody later wrote on the set stays; the members are this file's.
-    groups.append({**group, **held, "members": group["members"], "swipe": True})
+    # This file is the set's source, as it is the rows': its values win on a rerun, and
+    # the set keeps its place among the collections.
+    groups = list(loaded.get("collections") or [])
+    at = next((n for n, g in enumerate(groups) if g.get("id") == SET), None)
+    if at is None:
+        groups.append(group)
+    else:
+        groups[at] = {**groups[at], **group}
     loaded["collections"] = groups
     write_atomic(path, json.dumps(loaded, ensure_ascii=False, indent=2) + "\n")
     print(f"Merged {len(rows)} rows and the set into {path}.")

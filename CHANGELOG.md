@@ -16,10 +16,11 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   Hebrew-letter word a line quotes is in its day's verses, and a test reads each one there.
   - `scripts/file_onkelos_starter.py` files the seven rows and the `onkelos-starter`
     swipe set (ordered, behind the Aramaic door) into the private catalogue, dry by
-    default, `--write` to merge. `targum seed` then builds the rows on the shared shelf.
+    default, `--write` to merge. The file is their source: a rerun puts its values over
+    the catalogue's, and the set keeps its place. `targum seed` then builds the rows on the shared shelf.
   - `tests/test_onkelos_starter.py` checks every verse of every day against a saved copy
     of both sides (`fixtures/sefaria/onkelos-starter.json`), every pair and sound shift
-    in its verse, and that the forty function words, all from the top 250 of the
+    in its verse, and that the forty common words, all from the top 250 of the
     Aramaic frequency list (targum#936), are each met in a line of the set.
 - The waitlist once the door is open (targum-internal#477, C). Only while
   `signup_is_open()`; shut, or asked for without plans, every door is as it was, byte for
