@@ -427,3 +427,147 @@ def test_a_spot_met_often_enough_is_offered_and_an_answer_is_kept(
         port, "POST", f"/practice?k={token}", {"language": "he", "spot": "nonsense"}, cookie=cookie
     )
     assert status == 400
+
+
+# -- French ------------------------------------------------------------------------------
+
+
+def noun(surface: str, lemma: str, gender: str) -> dict[str, Any]:
+    return {
+        "surface": surface,
+        "lemma": lemma,
+        "pos": "NOUN",
+        "feats": f"UPOS=NOUN|Gender={gender}|Number=Sing",
+    }
+
+
+def test_french_gender_is_registered_and_the_standard_sees_it() -> None:
+    """The first of French's seven (targum-internal#644): the stage standard reads the
+    register, and the other six stay owed until each lands."""
+    said = stages._practices("fr")
+    assert said["gender"] is True
+    assert [name for name, held in said.items() if not held] == [
+        spot.name for spot in stages.HARD_SPOTS["fr"] if spot.name != "gender"
+    ]
+    assert practices.REGISTERED["fr"]["gender"].kind == "choice"
+    assert practices.KEYS["gender"] == "gender" and practices.SPOTS["gender"] == "gender"
+
+
+def test_a_french_noun_is_asked_its_gender_and_its_ending_decides_the_kind() -> None:
+    """Easy where the ending says the gender and agrees, as the card says it; hard where no
+    ending says it, or where the ending says the other one (*la plage*, in -age)."""
+
+    def asked(token: dict[str, Any]) -> list[tuple[str, str, bool]]:
+        found = practices.gender_candidates({"start": 0, "end": 1, **token}, "s")
+        return [(c.answer, c.contrast, c.hard) for c in found]
+
+    assert asked(noun("nation", "nation", "Fem")) == [("Fem:tion", "Masc", False)]
+    assert asked(noun("fromages", "fromage", "Masc")) == [("Masc:age", "Fem", False)]
+    assert asked(noun("plage", "plage", "Fem")) == [("Fem", "Masc", True)]
+    assert asked(noun("livre", "livre", "Masc")) == [("Masc", "Fem", True)]
+    # Nothing asked of a word the card names no gender for, or of a name.
+    assert asked({**noun("gens", "gens", "Masc"), "feats": "UPOS=NOUN|Number=Plur"}) == []
+    assert asked({**noun("Paris", "Paris", "Masc"), "pos": "PROPN"}) == []
+    assert asked({**noun("belle", "beau", "Fem"), "pos": "ADJ"}) == []
+
+
+def test_gender_is_not_asked_of_a_symbol_or_a_noun_of_either_gender() -> None:
+    """qa on #1278: *km/h* is no word to learn an article with, and *le* or *la malade*
+    has two, so "learn this one with its article" would be wrong of either."""
+
+    def asked(token: dict[str, Any]) -> bool:
+        return bool(list(practices.gender_candidates({"start": 0, "end": 1, **token}, "s")))
+
+    for lemma in ("km/h", "m.", "°c", "covid-19"):
+        assert not asked(noun(lemma, lemma, "Masc")), lemma
+    for lemma in ("malade", "camarade", "concierge", "journaliste", "Élève"):
+        assert not asked(noun(lemma, lemma, "Fem")), lemma
+    # A hyphenated word is still a word, and a noun of one gender is still asked.
+    assert asked(noun("arc-en-ciel", "arc-en-ciel", "Masc"))
+    assert asked(noun("victime", "victime", "Fem"))
+
+
+@pytest.mark.parametrize("ui", ["en", "ru"])
+def test_a_gender_is_said_and_its_rule_names_the_ending(ui: str) -> None:
+    from targum import strings
+
+    assert practices.said("gender", "Fem:tion", ui) == strings.text("reader.grammar.feminine", ui)
+    assert practices.said("gender", "Masc", ui) == strings.text("reader.grammar.masculine", ui)
+    told = practices.rule("gender", "Fem:tion", ui)
+    assert "-tion" in told and "{" not in told
+    assert told == strings.text("practice.rule.gender-ending-f", ui, ending="tion")
+    assert practices.rule("gender", "Masc:age", ui) == strings.text(
+        "practice.rule.gender-ending-m", ui, ending="age"
+    )
+    assert "une" in practices.rule("gender", "Fem", ui)
+    assert "un" in practices.rule("gender", "Masc", ui)
+
+
+def test_a_french_text_asks_only_its_own_spots(tmp_path: Path) -> None:
+    """The Hebrew spots read DICTA's features: a French verb in the past or an agreeing
+    adjective is not asked its tense, person or agreement as if it were Hebrew."""
+    words = [
+        noun("maison", "maison", "Fem"),
+        {"surface": "belle", "lemma": "beau", "pos": "ADJ", "feats": "Gender=Fem|Number=Sing"},
+        {"surface": "vendu", "lemma": "vendre", "pos": "VERB",
+         "feats": "Tense=Past|Person=3|Gender=Masc|Number=Sing"},
+    ]  # fmt: skip
+    folder = text(tmp_path / "fr", {1: [("La belle maison a vendu", words)]}, language="fr")
+    found = practices.count_text(folder)
+    assert found is not None
+    assert [(c.spot, c.answer) for c in found.by_section[1]] == [("gender", "Fem:ison")]
+    assert found.heads == {}
+
+
+def _nouns(name: str) -> list[tuple[str, list[dict[str, Any]]]]:
+    # Four lines a text: two feminine nouns and two masculine, so every item has a line
+    # where the other answer is right.
+    return [
+        (f"La nation {name}0 parle.", [noun("nation", "nation", "Fem")]),
+        (f"Une plage {name}1 attend.", [noun("plage", "plage", "Fem")]),
+        (f"Le fromage {name}2 sent.", [noun("fromage", "fromage", "Masc")]),
+        (f"Un livre {name}3 tombe.", [noun("livre", "livre", "Masc")]),
+    ]
+
+
+def test_french_gender_is_offered_on_the_grammar_tab(
+    served: tuple[int, str, Path], postbox: Postbox
+) -> None:
+    port, token, out = served
+    for name in ("un", "deux"):
+        text(out / "shared" / name, {1: _nouns(name)}, language="fr", content_hash=name)
+    cookie = sign_in(port, postbox)
+    sections = [
+        {"hash": name, "section": "1", "at": ms(2026, 11), "seen": ms(2026, 11)}
+        for name in ("un", "deux")
+    ]
+    status, answer, _ = call(
+        port, "POST", f"/sync?k={token}", {"sections": sections}, cookie=cookie
+    )
+    assert status == 200, answer
+
+    status, said, _ = call(port, "GET", f"/account/practice?language=fr&k={token}", cookie=cookie)
+    assert status == 200, said
+    assert [spot["key"] for spot in said["spots"]] == ["gender"]
+    (spot,) = said["spots"]
+    assert spot["encounters"] == 8 and spot["texts"] == 2 and spot["ready"]
+    round_ = said["round"]
+    assert round_["spot"] == "gender"
+    items = round_["items"]
+    assert len(items) == practices.ROUND + 1 and items[0]["example"]
+    for item in items:
+        assert item["ask"] == "Masculine or feminine?"
+        assert sorted(item["options"]) == ["feminine", "masculine"]
+        assert item["options"][item["answer"]] == item["said"]
+        assert item["line"][item["start"] : item["end"]] == item["word"]
+        assert item["rule"] and "{" not in item["rule"]
+        assert item["contrast"] and item["contrast"]["said"] != item["said"]
+
+    status, kept, _ = call(
+        port,
+        "POST",
+        f"/practice?k={token}",
+        {"language": "fr", "spot": "gender", "key": items[1]["key"], "right": False},
+        cookie=cookie,
+    )
+    assert status == 200 and kept["ok"], kept

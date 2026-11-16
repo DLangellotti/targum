@@ -14,6 +14,24 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   B2+, and French's rows as the box has them.
 
 ### Added
+- French gender is practised on the Grammar tab, the first of French's seven hard-spot
+  practices toward Beta (targum-internal#644; design.md §12, "French gender is practised
+  as masculine or feminine", 2026-11-16). "Masculine or feminine?" of a French noun in a
+  line the reader finished, offered after six lines across two texts like every spot.
+  `stages._practices("fr")["gender"]` is now true; the other six are still owed.
+  - `practices.gender_candidates`: a NOUN with `Gender=Masc|Fem`. Easy where the
+    ending the card names (`annotate/endings.py`) agrees, and its rule names the ending;
+    hard where no ending says it or the ending says the other gender (*la plage*), and
+    its rule is the article. The answer carries the ending after a colon, `Fem:tion`.
+  - Not asked: a lemma that is not letters and hyphens (*km/h*, *covid-19*), and a noun
+    said with either article for a man or a woman (`practices.EPICENE`, every *-iste*).
+  - A French text is asked French spots only (`practices._french`): the Hebrew spots no
+    longer read a French verb or adjective. No cache version bump; French texts had no
+    `practice.json` before.
+  - Six new keys in English and Russian (`practice.ask.gender`, `practice.spot.gender`,
+    four `practice.rule.gender-*`), and the Grammar tab's note and empty line no longer
+    say Hebrew alone. Russian cleared by ling-ru.
+  - Nothing spends: read off annotation already built.
 - The daily mail's weekly-portion row follows the reader's calendar, Israel's or the
   diaspora's (targum-internal#409 slice 4, option A, David 2026-11-16). In a week the two
   read different portions, an Israel subscriber is mailed Israel's portion and a diaspora

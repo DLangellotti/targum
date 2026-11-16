@@ -31,6 +31,7 @@
     stress: ["practice.spot.stress", "Stress"],
     vav: ["practice.spot.vav", "The vav-consecutive"],
     suffix: ["practice.spot.suffix", "Pronoun suffixes"],
+    gender: ["practice.spot.gender", "Gender"],
   };
 
   function at(id) {
@@ -130,7 +131,7 @@
     var spots = data.spots || [];
     drawSpots(spots);
     if (!spots.length) {
-      say(t("practice.page.hebrew-only", "Grammar practice is in Hebrew for now."));
+      say(t("practice.page.hebrew-only", "Grammar practice is in Hebrew and French for now."));
     } else {
       say("");
     }
