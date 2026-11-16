@@ -33,6 +33,7 @@
     suffix: ["practice.spot.suffix", "Pronoun suffixes"],
     gender: ["practice.spot.gender", "Gender"],
     register: ["practice.spot.register", "Formal and informal"],
+    role: ["practice.spot.role", "Object pronouns"],
   };
 
   function at(id) {

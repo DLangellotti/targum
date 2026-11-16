@@ -131,6 +131,11 @@ REGISTERED: dict[str, dict[str, Practice]] = {
         "register: ne-drop and on/nous": Practice(
             "register: ne-drop and on/nous", "choice", "practice.ask.register"
         ),
+        # The role alone (targum-internal#264): what the pronoun stands for waits, as the
+        # card's does, for `model_lemma.ANTECEDENT_PRECISION` to be measured.
+        "object clitics, role and antecedent": Practice(
+            "object clitics, role and antecedent", "choice", "practice.ask.role"
+        ),
     },
 }
 
@@ -147,6 +152,7 @@ KEYS: dict[str, str] = {
     "pronoun suffixes": "suffix",
     "gender": "gender",
     "register: ne-drop and on/nous": "register",
+    "object clitics, role and antecedent": "role",
 }
 SPOTS: dict[str, str] = {key: name for name, key in KEYS.items()}
 
@@ -431,9 +437,58 @@ def register_candidates(
             yield made(one.at, "OnOpen", "OnWe", False)
 
 
+#: The French object pronouns by what their form says of their role: *le* is only ever
+#: a direct object and *lui* only an indirect one, *en* and *y* are their own, and *me*,
+#: *te*, *nous*, *vous* are either, so only the verb says which.
+CLITIC_FORMS = {
+    "le": "Obj",
+    "la": "Obj",
+    "les": "Obj",
+    "l'": "Obj",
+    "lui": "Iobj",
+    "leur": "Iobj",
+    "en": "En",
+    "y": "Y",
+    "me": "",
+    "m'": "",
+    "te": "",
+    "t'": "",
+    "nous": "",
+    "vous": "",
+}
+
+#: Each role and the one it is asked against.
+ROLES = {"Obj": "Iobj", "Iobj": "Obj", "En": "Y", "Y": "En"}
+
+
+def role_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidate]:
+    """What a French object pronoun is to its verb, as the card names it (`Role`, model
+    prompt 3, targum-internal#264): the direct object against the indirect, *en* against
+    *y*. A reflexive is not asked: *se* is always one.
+
+    The easy kind is a form that says its role (*le*, *lui*, *en*, *y*); the hard kind is
+    *me*, *te*, *nous*, *vous*, whose role only the verb gives, and its answer carries
+    `:verb` for the rule. A role the form rules out (*le* as an indirect object) is the
+    tagger's slip and is not asked."""
+    role = _feats(token.get("feats")).get("Role", "")
+    if role not in ROLES:
+        return
+    form = str(token.get("surface") or "").lower().replace("’", "'").lstrip("-")
+    if form not in CLITIC_FORMS:
+        return
+    told = CLITIC_FORMS[form]
+    if told and told != role:
+        return
+    if not told and role not in ("Obj", "Iobj"):
+        return
+    start, end = int(token.get("start") or 0), int(token.get("end") or 0)
+    answer = role if told else f"{role}:verb"
+    yield Candidate("role", segment, start, end, answer, ROLES[role], not told)
+
+
 #: Spots whose answers carry the rule's detail after a colon, so two answers are the same
 #: answer when what comes before it is (`_kind`).
-_DETAILED = frozenset({"gender", "register"})
+_DETAILED = frozenset({"gender", "register", "role"})
 
 #: Answers never asked and never counted as a meeting, kept only to show the line where
 #: the other answer is right: an open *on*, whose "we" may be right too.
@@ -597,6 +652,7 @@ def _french(
         stored = tokens.get(segment.id) or ()
         for token in stored:
             found.extend(gender_candidates(token, segment.id))
+            found.extend(role_candidates(token, segment.id))
         found.extend(register_candidates(segment.text, stored, segment.id))
     return TextPractice(by_section=by_section)
 
@@ -845,6 +901,14 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
         return code.partition(":")[2] or code
     if spot == "gender":
         return t("reader.grammar.feminine" if _kind(code) == "Fem" else "reader.grammar.masculine")
+    if spot == "role":
+        return t(
+            {
+                "Obj": "reader.grammar.direct-object",
+                "Iobj": "reader.grammar.indirect-object",
+                "En": "reader.grammar.of-it",
+            }.get(_kind(code), "reader.grammar.there")
+        )
     if spot == "register":
         return t(
             {
@@ -928,6 +992,7 @@ def rule(spot: str, code: str, ui: str) -> str:
         "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
         "gender": _gender_rule(code),
         "register": _REGISTER_RULES.get(_kind(code), "practice.rule.on-open"),
+        "role": _ROLE_RULES.get(code, "practice.rule.role-y"),
     }
     key = keys[spot]
     if spot == "gender" and code.partition(":")[2]:
@@ -944,6 +1009,18 @@ _REGISTER_RULES = {
     "NeKept": "practice.rule.ne-kept",
     "OnWe": "practice.rule.on-we",
     "OnOpen": "practice.rule.on-open",
+}
+
+
+#: The role rule for each answer: the form's own where it says the role, the verb's where
+#: the form is *me*, *te*, *nous* or *vous*.
+_ROLE_RULES = {
+    "Obj": "practice.rule.role-obj",
+    "Iobj": "practice.rule.role-iobj",
+    "En": "practice.rule.role-en",
+    "Y": "practice.rule.role-y",
+    "Obj:verb": "practice.rule.role-obj-verb",
+    "Iobj:verb": "practice.rule.role-iobj-verb",
 }
 
 

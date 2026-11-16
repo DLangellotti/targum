@@ -427,6 +427,25 @@ this spends targum's on David's.
 - **Off unless both are set.** `TARGUM_GROW` names the languages and the cap must be above
   nothing; either unset, a round says what is off and spends nothing.
 
+### French object pronouns are practised by their role, and the antecedent waits — 2026-11-16
+
+ling-fr, 2026-11-16, French's third practice toward Beta, under "A practice for every
+hard spot" (2026-10-13).
+
+- **One question: "What is it to the verb?"** It is asked of an object pronoun the card
+  names a role for. The answers are the card's own words: direct object against indirect
+  object, and *en* ("of it / some") against *y* ("there / to it"). A reflexive is never
+  asked, because *se* is always one.
+- **The form decides the kind.** *Le*, *la*, *les*, *lui*, *leur*, *en* and *y* say their
+  own role, and their rule names the form. *Me*, *te*, *nous* and *vous* can be either,
+  and only the verb tells: that is the hard kind, and its rule says the verb takes its
+  object directly, or with *à*. A role the form rules out (*le* as an indirect object) is
+  the tagger's slip, and it is not asked.
+- **What the pronoun stands for is not asked yet.** The card does not say it until
+  `model_lemma.ANTECEDENT_PRECISION` is measured at 0.9 or better on the hand-written set
+  of 150 (targum-internal#264). The practice says no more than the card. The spot is the
+  role until then, and the antecedent question joins it when the measure does.
+
 ### French register is practised as formal or informal, and who *on* is — 2026-11-16
 
 David, 2026-11-17 (ling-fr's draft, approved as written), French's second practice toward
