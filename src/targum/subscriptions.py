@@ -869,7 +869,7 @@ def get_ready(library: Any, store: Store, *, most: int = ROUND) -> Readied:
             continue
         refused = library.press(job)
         if refused:
-            allowed = library.allowance(paid_plan=plans.paid(person))
+            allowed = library.allowance(paid_plan=plans.paid(person), owner=person.id)
             spent = store.hours_used(person.id, month_from)
             why = (
                 "credits"

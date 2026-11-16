@@ -2880,11 +2880,17 @@ class Library:
                 return self._out_of("account", job.ui)
         return ""
 
-    def allowance(self, *, paid_plan: bool = False) -> float | None:
+    def allowance(self, *, paid_plan: bool = False, owner: int | None = None) -> float | None:
         """The month's allowance for a reader, in seconds: the library's whole one, or
-        Free's hour where plans are on and the reader is not on Plan (`plans`). None
+        Free's hour where plans are on and the reader is not on Plan (`plans`), and on
+        top of either what is left of `owner`'s top-ups (`Store.grant_seconds`). None
         where nobody here is held to a month."""
-        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
+        granted = 0.0
+        if self.upload_seconds is not None and self.store is not None and owner is not None:
+            # An earlier month is counted at the whole month, the most any plan has had,
+            # since the store keeps no history of who was on which plan when.
+            granted = self.store.grant_seconds(owner, self._month_from(), self.upload_seconds)
+        return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan, granted=granted)
 
     def _on_plan(self, owner: int | None) -> bool:
         """Whether this owner is on Plan by their account: plans on, and the operator or a
@@ -2898,7 +2904,7 @@ class Library:
     def _month_for(self, job: Job) -> float | None:
         """The month's allowance for this job's owner: Plan's for the operator's and a
         comped reader's, Free's for everybody else while plans are on."""
-        return self.allowance(paid_plan=self._on_plan(job.owner))
+        return self.allowance(paid_plan=self._on_plan(job.owner), owner=job.owner)
 
     def _held_to_free(self, job: Job) -> bool:
         """Whether this job's owner is held to Free: plans on, not the operator, not a
@@ -2911,7 +2917,7 @@ class Library:
         what the press needs against what is left, where any is left, and what a plan
         gives — in credits; the price is on `/plans` and nowhere else."""
         ui = ui or job.ui
-        allowed = self.allowance() or 0.0
+        allowed = self.allowance(owner=job.owner) or 0.0
         used = (
             self.store.hours_used(job.owner, self._month_from())
             if self.store is not None and job.owner is not None
@@ -5504,7 +5510,7 @@ class Library:
                 owner=owner,
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
-                per_month_length=None if admin else self.allowance(paid_plan=on_plan),
+                per_month_length=None if admin else self.allowance(paid_plan=on_plan, owner=owner),
             )
             if refused == "hours" and not admin and not on_plan and plans.on():
                 need = sum(job.seconds for job in jobs if not self.free_to_read(job))
@@ -13442,7 +13448,7 @@ class Handler(BaseHTTPRequestHandler):
         allowed = (
             None
             if person is not None and person.admin
-            else self.library.allowance(paid_plan=plans.paid(person))
+            else self.library.allowance(paid_plan=plans.paid(person), owner=person_id)
         )
         # `self.store` rather than the chat's: the same store, and this answer is owed
         # whether or not a conversation is configured at all.
@@ -13647,7 +13653,7 @@ class Handler(BaseHTTPRequestHandler):
     def _sub_credits(self, person: Person) -> dict[str, Any]:
         """The month's credits beside a subscription: what is left of the plan's, and
         when they come back. None where the reader is held to no monthly allowance."""
-        allowed = self.library.allowance(paid_plan=plans.paid(person))
+        allowed = self.library.allowance(paid_plan=plans.paid(person), owner=person.id)
         if allowed is None or person.admin:
             return {
                 "credits": {"left": None, "back": self.library._month_ends(self._ui_language())}

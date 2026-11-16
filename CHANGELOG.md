@@ -174,6 +174,26 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
     weekly portion, we keep whether you read Israel's calendar or the diaspora's, so the
     mail names your portion."; `LEGAL_CHANGED` is 16 November 2026.
+- The store for paying for Plan and for top-ups through Paddle (targum-internal#59 phase
+  2, item 6; design.md §12 "Payments are Paddle's, by a hosted checkout", 2026-11-15).
+  Nothing can pay yet: no webhook, checkout or key is here, so nothing writes these rows
+  and every reader is as they were.
+  - Accounts schema 73→74: three new tables, `CREATE TABLE IF NOT EXISTS`, so they land
+    whichever schema number merges first. `plan`, one row per account as Paddle's
+    webhooks last said it: plan, cadence, status, period end, cancel at period end,
+    Paddle's customer and subscription ids, and when a renewal first failed.
+    `credit_grant`, one row per top-up, unique on Paddle's transaction id.
+    `billing_event`, the webhook ids already handled. No card, address or sum of money
+    is kept. `models.SCHEMA_VERSION` is untouched.
+  - `plans.paid` is the operator, a comp that holds today, or a Paddle subscription that
+    holds (`plans.subscribed`): active or trialing, or past due for under
+    `plans.GRACE_DAYS` (7, proposed). A comp still wins until its day.
+  - The month's allowance is the plan's plus what is left of the reader's top-ups, on
+    either plan. What is left is never stored: `Store.grant_seconds` reads it month by
+    month from the job rows, the one ledger, with an earlier month counted at the whole
+    month.
+  - The account's export carries its plan row and top-ups; a purged account takes them.
+    The back office counts a paying reader's month at Plan's size.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain

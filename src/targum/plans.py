@@ -18,6 +18,15 @@ anyone let in from the waitlist while invitations are still going out, is on Pla
 `BETA_UNTIL` (`Person.plan_until`, set by `targum comp-beta` and by `doorway`'s Let in).
 On that day the comp simply ends and the reader is on Free: no mail, nothing automatic,
 because what happens then is not decided yet.
+
+**A plan paid for** (design.md §12, "Payments are Paddle's, by a hosted checkout",
+2026-11-15; targum-internal#59 phase 2). Paddle's webhooks keep the account's `plan` row
+(`Person.billing`), and `subscribed` reads it: Plan while Paddle says the subscription is
+active, and for `GRACE_DAYS` after a renewal fails. A comp still wins until its day.
+
+**Top-ups** are credits that stay until used (`Store.grant_seconds`): the month's
+allowance is the plan's plus what is left of them, read from the job rows like every
+other count of the month.
 """
 
 from __future__ import annotations
@@ -27,7 +36,7 @@ from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .accounts import Person
+    from .accounts import Billing, Person
 
 #: What Free gets in a month, in credits (a credit is a minute of audio or video).
 FREE_CREDITS = 60
@@ -45,6 +54,12 @@ TOP_UP_HOUR = 3
 TOP_UPS = (60, 180, 300)
 #: The first day the beta's comp to Plan no longer holds: Launch (targum-internal#481).
 BETA_UNTIL = "2027-03-04"
+#: How long a plan whose renewal failed stays Plan while Paddle retries the card, in
+#: days (design's D6 on targum-internal#59, proposed to David). Then Free until a payment
+#: goes through; the words are kept, as at 300.
+GRACE_DAYS = 7
+#: The Paddle statuses that are Plan outright.
+LIVE_STATUSES = ("active", "trialing")
 
 
 def on() -> bool:
@@ -89,10 +104,27 @@ def comped(person: Person | None, today: date | None = None) -> bool:
     return until is not None and (today or datetime.now(UTC).date()) < until
 
 
+def subscribed(person: Person | None, at: datetime | None = None) -> bool:
+    """Whether this reader pays for Plan and it holds now: Paddle says the subscription
+    is active (a cancelled one stays active until its period ends, and only then does
+    Paddle say canceled), or a renewal failed fewer than `GRACE_DAYS` ago."""
+    # Read leniently, as `_until` is: a stand-in for a person that says only `admin`.
+    billing: Billing | None = getattr(person, "billing", None)
+    if billing is None:
+        return False
+    if billing.status in LIVE_STATUSES:
+        return True
+    if billing.status == "past_due" and billing.past_due_since is not None:
+        moment = at or datetime.now(UTC)
+        return moment.timestamp() * 1000 < billing.past_due_since + GRACE_DAYS * 86_400_000
+    return False
+
+
 def paid(person: Person | None) -> bool:
-    """Whether this account is on Plan. Nobody can pay yet; the operator stands in for
-    one so the switch can be tried, and a beta reader is comped until `BETA_UNTIL`."""
-    return person is not None and (bool(person.admin) or comped(person))
+    """Whether this account is on Plan: the operator, who stands in for one so the
+    switch can be tried, a beta reader comped until `BETA_UNTIL`, or a reader whose
+    Paddle subscription holds (`subscribed`)."""
+    return person is not None and (bool(person.admin) or comped(person) or subscribed(person))
 
 
 def until_said(until: str, language: str = "en") -> str:
@@ -117,15 +149,19 @@ def builds_by_itself(person: Person | None) -> bool:
     return not on() or paid(person)
 
 
-def month_seconds(full: float | None, *, paid_plan: bool) -> float | None:
+def month_seconds(full: float | None, *, paid_plan: bool, granted: float = 0.0) -> float | None:
     """The month's allowance for one reader, in seconds, given the library's whole one.
 
     `full` is the library's (`Library.upload_seconds`), None where nobody is held to a
     month. Free gets the smaller of it and an hour, so a test library set to thirty
-    seconds is not handed an hour by the switch."""
-    if full is None or not on() or paid_plan:
-        return full
-    return min(full, FREE_CREDITS * 60.0)
+    seconds is not handed an hour by the switch. `granted` is what is left of the
+    reader's top-ups (`Store.grant_seconds`), on top of either plan: a top-up bought on
+    Plan stays the reader's when the plan ends."""
+    if full is None:
+        return None
+    if not on() or paid_plan:
+        return full + granted
+    return min(full, FREE_CREDITS * 60.0) + granted
 
 
 def word_cap(person: Person | None) -> int | None:

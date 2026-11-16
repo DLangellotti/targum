@@ -41,6 +41,7 @@ import threading
 import time
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -495,11 +496,20 @@ REGISTRATIONS_PER_HOUR = 60
 #    other row and on every row before it, which reads as the diaspora's, the calendar
 #    the mail followed until now. One ALTER, which does not depend on the
 #    number.
+# 73→74: plan, credit_grant and billing_event — paying for Plan and for top-ups through
+#    Paddle (targum-internal#59 phase 2, design.md §12 2026-11-15, "Payments are Paddle's,
+#    by a hosted checkout"). Three new tables (`BILLING`), so `CREATE TABLE IF NOT
+#    EXISTS` and nothing in MIGRATIONS: they land whichever schema number merges first.
+#    `plan` is one row per account that has ever started a plan, as Paddle last said it;
+#    `credit_grant` one row per top-up paid for, keyed on Paddle's transaction so a
+#    webhook said twice grants once; `billing_event` the ids of the webhooks already
+#    handled. No card, no address and no amount of money is kept: Paddle is the merchant
+#    of record and keeps those.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 73
+SCHEMA_VERSION = 74
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -695,6 +705,54 @@ CREATE TABLE IF NOT EXISTS event (
 CREATE INDEX IF NOT EXISTS event_person_day ON event (person, day);
 CREATE INDEX IF NOT EXISTS event_segment ON event (document, segment, kind);
 """
+
+BILLING = """
+-- One row per account that has started a plan through Paddle (schema 74), as Paddle's
+-- webhooks last said it. Never the card, the address or a price: Paddle is the merchant
+-- of record and keeps those. `status` is Paddle's word (active, trialing, past_due,
+-- paused, canceled); `period_end` the ISO moment the paid period ends; `cancel_at_end` 1
+-- when the reader has cancelled and the plan runs to that moment; `past_due_since` the
+-- millisecond Paddle first said a renewal failed, for the grace period, NULL otherwise.
+CREATE TABLE IF NOT EXISTS plan (
+  person         INTEGER PRIMARY KEY,
+  plan           TEXT    NOT NULL DEFAULT 'plan',
+  cadence        TEXT    NOT NULL DEFAULT '',
+  status         TEXT    NOT NULL DEFAULT '',
+  period_end     TEXT    NOT NULL DEFAULT '',
+  cancel_at_end  INTEGER NOT NULL DEFAULT 0,
+  customer       TEXT    NOT NULL DEFAULT '',
+  subscription   TEXT    NOT NULL DEFAULT '',
+  past_due_since INTEGER,
+  updated        INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS plan_subscription ON plan (subscription);
+CREATE INDEX IF NOT EXISTS plan_customer ON plan (customer);
+
+-- A top-up paid for (schema 74): credits that stay until used. What is left of them is
+-- never stored; it is read from the job rows (`Store.grant_seconds`), the one ledger.
+-- `txn` is Paddle's transaction id, unique, so a webhook said twice grants once.
+CREATE TABLE IF NOT EXISTS credit_grant (
+  id      INTEGER PRIMARY KEY,
+  person  INTEGER NOT NULL,
+  credits INTEGER NOT NULL,
+  at      INTEGER NOT NULL,
+  txn     TEXT    NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS credit_grant_person ON credit_grant (person, at);
+
+-- The webhooks already handled (schema 74), by Paddle's event id, so one delivered twice
+-- is handled once. Its type and when it arrived, and nothing of its body.
+CREATE TABLE IF NOT EXISTS billing_event (
+  id   TEXT    PRIMARY KEY,
+  type TEXT    NOT NULL,
+  at   INTEGER NOT NULL
+);
+"""
+
+#: Paddle's subscription statuses (schema 74), as the `plan` row keeps them.
+PLAN_STATUSES = ("active", "trialing", "past_due", "paused", "canceled")
+#: How a plan is paid for: every month or every three months.
+CADENCES = ("month", "quarter")
 
 #: What can happen, and what `amount` is for each: seconds for a stretch played, words for
 #: a page or a section, a fraction of the text for where a sitting stopped, nothing else.
@@ -2086,6 +2144,26 @@ class Person:
     #: (schema 72, targum-internal#59). Read from the person's row when they are loaded,
     #: like `admin`; `plans.comped` says whether it holds today.
     plan_until: str = ""
+    #: The plan paid for through Paddle, from the `plan` row (schema 74), or None for an
+    #: account that never started one. `plans.paid` reads it beside the comp.
+    billing: Billing | None = None
+
+
+@dataclass(frozen=True)
+class Billing:
+    """An account's plan as Paddle's webhooks last said it (the `plan` row, schema 74)."""
+
+    plan: str = "plan"
+    cadence: str = ""
+    status: str = ""
+    #: The ISO moment the paid period ends: when a cancelled plan stops, when a renewal
+    #: is due otherwise.
+    period_end: str = ""
+    cancel_at_end: bool = False
+    customer: str = ""
+    subscription: str = ""
+    #: The millisecond Paddle first said a renewal failed, or None.
+    past_due_since: int | None = None
 
 
 @dataclass(frozen=True)
@@ -2323,6 +2401,7 @@ class Store:
         self.db.executescript(EVENTS)
         self.db.executescript(FINDS)
         self.db.executescript(PRESSES)
+        self.db.executescript(BILLING)
         self._migrate()
         self._adopt_reads()
         # The day the word records began here (targum-internal#603): kept once, at the
@@ -4511,8 +4590,8 @@ class Store:
         return True
 
     def _who(self, person_id: Any, email: Any) -> Person:
-        """A person as loaded: whether they are an admin, from `admin`, and the comp to
-        Plan on their row (schema 72)."""
+        """A person as loaded: whether they are an admin, from `admin`, the comp to
+        Plan on their row (schema 72), and the plan paid for, from `plan` (schema 74)."""
         row = self.db.execute(
             "SELECT plan_until FROM person WHERE id = ?", (int(person_id),)
         ).fetchone()
@@ -4521,7 +4600,181 @@ class Store:
             str(email),
             self.is_admin(str(email)),
             str(row[0] or "") if row is not None else "",
+            self.billing(int(person_id)),
         )
+
+    # -- the plan paid for, and top-ups (schema 74, targum-internal#59 phase 2) ---------
+
+    def billing(self, person_id: int) -> Billing | None:
+        """This account's plan as Paddle last said it, or None if it never had one."""
+        row = self.db.execute("SELECT * FROM plan WHERE person = ?", (int(person_id),)).fetchone()
+        if row is None:
+            return None
+        return Billing(
+            plan=str(row["plan"]),
+            cadence=str(row["cadence"]),
+            status=str(row["status"]),
+            period_end=str(row["period_end"]),
+            cancel_at_end=bool(row["cancel_at_end"]),
+            customer=str(row["customer"]),
+            subscription=str(row["subscription"]),
+            past_due_since=(
+                int(row["past_due_since"]) if row["past_due_since"] is not None else None
+            ),
+        )
+
+    def set_billing(
+        self,
+        person_id: int,
+        *,
+        cadence: str,
+        status: str,
+        period_end: str,
+        cancel_at_end: bool,
+        customer: str,
+        subscription: str,
+        said_at: int | None = None,
+    ) -> bool:
+        """Keep what Paddle said of this account's subscription, over whatever it said
+        before. A renewal that fails starts the grace period once (`past_due_since`),
+        and any other status ends it, so a second past_due does not restart the clock.
+
+        `said_at` is when Paddle said it (the event's `occurred_at`, in milliseconds).
+        Paddle does not promise to deliver events in order, so one older than what the
+        row already holds changes nothing, and False says so."""
+        if status not in PLAN_STATUSES:
+            raise ValueError(f"not a plan status: {status!r}")
+        if cadence and cadence not in CADENCES:
+            raise ValueError(f"not a cadence: {cadence!r}")
+        at = now() if said_at is None else int(said_at)
+        with self.write() as db:
+            done = db.execute(
+                "INSERT INTO plan (person, cadence, status, period_end, cancel_at_end,"
+                " customer, subscription, past_due_since, updated)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, CASE WHEN ? = 'past_due' THEN ? END, ?)"
+                " ON CONFLICT(person) DO UPDATE SET"
+                "  cadence = CASE WHEN excluded.cadence != '' THEN excluded.cadence"
+                "            ELSE plan.cadence END,"
+                "  status = excluded.status, period_end = excluded.period_end,"
+                "  cancel_at_end = excluded.cancel_at_end,"
+                "  customer = CASE WHEN excluded.customer != '' THEN excluded.customer"
+                "             ELSE plan.customer END,"
+                "  subscription = excluded.subscription,"
+                "  past_due_since = CASE WHEN excluded.status = 'past_due'"
+                "                   THEN COALESCE(plan.past_due_since, excluded.past_due_since)"
+                "                   END,"
+                "  updated = excluded.updated"
+                " WHERE excluded.updated >= plan.updated",
+                (
+                    int(person_id),
+                    cadence,
+                    status,
+                    period_end,
+                    int(cancel_at_end),
+                    customer,
+                    subscription,
+                    status,
+                    at,
+                    at,
+                ),
+            )
+            return done.rowcount == 1
+
+    def person_by_subscription(self, subscription: str) -> Person | None:
+        """Whose plan a Paddle subscription is, once a webhook has named it."""
+        row = self.db.execute(
+            "SELECT person.id, person.email FROM plan JOIN person ON person.id = plan.person"
+            " WHERE plan.subscription = ?",
+            (subscription,),
+        ).fetchone()
+        return self._who(row[0], row[1]) if row else None
+
+    def person_by_customer(self, customer: str) -> Person | None:
+        """Whose Paddle customer this is, once a webhook has named it."""
+        row = self.db.execute(
+            "SELECT person.id, person.email FROM plan JOIN person ON person.id = plan.person"
+            " WHERE plan.customer = ?",
+            (customer,),
+        ).fetchone()
+        return self._who(row[0], row[1]) if row else None
+
+    def grant_credits(self, person_id: int, credits: int, txn: str) -> bool:
+        """Grant a top-up's credits, once per Paddle transaction. False when this
+        transaction was granted already, which a webhook said twice is."""
+        if credits <= 0 or not txn:
+            raise ValueError("a grant needs credits and a transaction")
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO credit_grant (person, credits, at, txn) VALUES (?, ?, ?, ?)",
+                (int(person_id), int(credits), now(), txn),
+            )
+            return done.rowcount == 1
+
+    def grant_seconds(self, owner: int | None, month_from: int, base: float) -> float:
+        """What is left of this reader's top-ups for this month, in seconds: every grant
+        made, less what earlier months spent past their own allowance.
+
+        Never stored, so there is still one ledger (design.md §12, "Free and Plan, behind
+        a switch": "topped-up credits stay until they are used"). Read month by month from
+        the first grant's: each month's grants join what is left, and whatever that month's
+        job rows spent past `base` comes off it. This month's spending is not taken here;
+        `claim` holds it to the base plus this, as it holds any month.
+
+        `base` is the monthly allowance an earlier month is counted at. The store keeps no
+        history of which plan a reader was on in which month, so the caller says one; the
+        library passes the whole month, which can only leave a reader more than they had,
+        never less."""
+        if owner is None:
+            return 0.0
+        rows = self.db.execute(
+            "SELECT credits, at FROM credit_grant WHERE person = ? ORDER BY at",
+            (int(owner),),
+        ).fetchall()
+        if not rows:
+            return 0.0
+        first = datetime.fromtimestamp(int(rows[0]["at"]) / 1000, UTC)
+        start = datetime(first.year, first.month, 1, tzinfo=UTC)
+        left = 0.0
+        while (begin := int(start.timestamp() * 1000)) < month_from:
+            year, month = (
+                (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
+            )
+            start = datetime(year, month, 1, tzinfo=UTC)
+            end = min(int(start.timestamp() * 1000), month_from)
+            left += 60.0 * sum(int(r["credits"]) for r in rows if begin <= int(r["at"]) < end)
+            used = self.db.execute(
+                "SELECT COALESCE(SUM(length), 0) AS used FROM job "
+                "WHERE length > 0 AND made >= ? AND made < ? AND owner IS ?",
+                (begin, end, owner),
+            ).fetchone()
+            left = max(0.0, left - max(0.0, float(used["used"]) - base))
+        return left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
+
+    def top_ups(self, person_id: int) -> list[dict[str, Any]]:
+        """Every top-up this account paid for, oldest first: credits and when."""
+        return [
+            {"credits": int(row["credits"]), "at": int(row["at"])}
+            for row in self.db.execute(
+                "SELECT credits, at FROM credit_grant WHERE person = ? ORDER BY at",
+                (int(person_id),),
+            )
+        ]
+
+    def billing_seen(self, event_id: str, kind: str) -> bool:
+        """Record a webhook as handled. False when it was handled already, so a
+        delivery Paddle retries does nothing the second time."""
+        with self.write() as db:
+            done = db.execute(
+                "INSERT OR IGNORE INTO billing_event (id, type, at) VALUES (?, ?, ?)",
+                (event_id, kind, now()),
+            )
+            return done.rowcount == 1
+
+    def billing_unseen(self, event_id: str) -> None:
+        """Forget that a webhook was handled, when handling it failed part way, so
+        Paddle's retry is handled rather than skipped."""
+        with self.write() as db:
+            db.execute("DELETE FROM billing_event WHERE id = ?", (event_id,))
 
     # -- the beta comped to Plan (targum-internal#59) ----------------------------------
 
@@ -4924,6 +5177,10 @@ class Store:
                     # page that broke (clause 3.14): theirs, so it goes with them.
                     "told",
                     "fault",
+                    # The plan they paid for and the top-ups they bought (schema 74).
+                    # Paddle keeps its own record of the sale as merchant of record.
+                    "plan",
+                    "credit_grant",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
                 # Conversations too: half of every one is what the person said.
@@ -5305,6 +5562,12 @@ class Store:
         # Which clients they connected, and what they let each one do. The digests stay
         # out, for the reason at the top of this method.
         out["connections"] = self.connections(person.id)
+        # The plan they pay for and the top-ups they bought (schema 74): what targum keeps
+        # of Paddle's word, which is no card and no money. Paddle's own ids are in it,
+        # since they are what the reader quotes to Paddle about a charge.
+        billing = self.billing(person.id)
+        out["plan"] = billing.__dict__ if billing is not None else None
+        out["top_ups"] = self.top_ups(person.id)
         # What they subscribed to, and its cap: their choices, as their playlists are. The
         # stop token stays out — it is a way to change the row, not a fact about it.
         out["subscriptions"] = [
