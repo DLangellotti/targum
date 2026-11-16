@@ -3250,6 +3250,7 @@ class Library:
         # Who is about to go, read before the rows do: the last mail needs the address
         # and the day they asked (design.md §12, "Every mail is the board's", 2026-10-09).
         leaving = self.store.leaving_due()
+        self._cancel_departing_plans(leaving)
         notes = {int(row["id"]): self._note_departure(int(row["id"])) for row in leaving}
         gone = self.store.purge()
         for person_id in gone:
@@ -3260,6 +3261,25 @@ class Library:
         self._finish_departures()
         self._mail_the_departed([row for row in leaving if row["id"] in gone])
         return gone
+
+    def _cancel_departing_plans(self, rows: list[dict[str, Any]]) -> None:
+        """Ask Paddle again to cancel the plan of each account whose grace is up but whose
+        subscription has not ended: the cancel at closing failed, or the plan was paused.
+        The purge waits for Paddle's `canceled` (`Store.live_billing`), so without this an
+        account could wait for ever. Each try is written down; nothing here raises."""
+        if self.store is None or not billing.configured():
+            return
+        for row in rows:
+            person = self.store.person_by_id(int(row["id"]))
+            if person is None or person.billing is None:
+                continue
+            if not self.store.live_billing(person.id):
+                continue
+            try:
+                billing.cancel(person.billing.subscription)
+                print(f"billing: asked Paddle again to cancel {person.billing.subscription}")
+            except billing.PaddleError as error:
+                incidents_module.record(self.incidents, "billing-cancel", error)
 
     def _mail_the_departed(self, rows: list[dict[str, Any]]) -> None:
         """Tell each account that went that it is gone, once, when it is.

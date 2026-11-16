@@ -473,3 +473,33 @@ def test_closing_an_account_cancels_its_paddle_plan(
     assert status < 400
     assert paddle.asked[-1].full_url.endswith("/subscriptions/sub_leaving/cancel")
     assert store.purge(days=0) == [], "the purge waits for Paddle's canceled"
+
+
+def test_the_purge_sweep_asks_again_for_a_plan_that_has_not_ended(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, paddle: Paddle
+) -> None:
+    """qa-claude on #1279: a cancel that failed at closing, or a paused plan, would keep
+    the account waiting for ever. Each sweep asks Paddle again."""
+    configure(monkeypatch)
+    store = Store(tmp_path / "targum.db")
+    library = serve.Library(tmp_path / "out", max_cost=1.0, budget=1.0, store=store)
+    made = store.finish_sign_in(store.start_sign_in("gone@example.com"))
+    assert made is not None
+    me = store.person_by_email("gone@example.com")
+    assert me is not None
+    store.set_billing(
+        me.id,
+        cadence="month",
+        status="paused",
+        period_end="",
+        cancel_at_end=False,
+        customer="ctm_gone",
+        subscription="sub_gone",
+    )
+    store.db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (me.id,))
+    assert library.purge_departed() == []
+    assert paddle.asked[-1].full_url.endswith("/subscriptions/sub_gone/cancel")
+    # A Paddle that does not answer is written down, and the sweep goes on.
+    paddle.answer = urllib.error.URLError("down")
+    assert library.purge_departed() == []
+    assert (tmp_path / "out" / "incidents.jsonl").read_text().count("billing-cancel") == 1
