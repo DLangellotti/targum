@@ -14819,6 +14819,8 @@ class Handler(BaseHTTPRequestHandler):
         if not secret or self.store is None:
             return self._json({"error": "not found"}, 404)
         if length > billing.MOST_BODY_BYTES:
+            # The rest of the body is unread, so the connection closes after this.
+            self.close_connection = True
             return self._json({"error": "too large"}, 413)
         refused = billing.verify(self.headers.get("Paddle-Signature"), raw, secret)
         if refused:

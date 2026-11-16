@@ -61,6 +61,10 @@ MOST_BODY_BYTES = 256 * 1024
 #: The key in `custom_data` that names the account a checkout was made for. Set by our
 #: server when it makes the transaction, and copied by Paddle onto the subscription.
 ACCOUNT_KEY = "targum_account"
+#: And beside it the account's tag (`account_tag`), so a `custom_data` our server did not
+#: write names nobody: Paddle's hosted checkout documents no way to pass it, but nothing
+#: here should rest on that (qa-claude on #1280).
+TAG_KEY = "targum_tag"
 
 
 def _env(name: str) -> str:
@@ -138,13 +142,17 @@ def verify(header: str | None, body: bytes, secret: str, at: float | None = None
             stamp = value
         elif name == "h1" and value:
             given.append(value)
-    if not stamp.isdigit() or not given:
+    # ASCII digits only: `"²".isdigit()` is true and `int("²")` raises, and a header is
+    # whatever the sender wrote (qa-claude on #1280).
+    if not (stamp.isascii() and stamp.isdigit()) or not given:
         return "unsigned"
     moment = time.time() if at is None else at
     if abs(moment - int(stamp)) > TOLERANCE_SECONDS:
         return "stale"
     wanted = hmac.new(secret.encode(), f"{stamp}:".encode() + body, hashlib.sha256).hexdigest()
-    if not any(hmac.compare_digest(wanted, one) for one in given):
+    # Compared as bytes: `compare_digest` raises on a str that is not ASCII.
+    said = [one.encode("utf-8", "replace") for one in given]
+    if not any(hmac.compare_digest(wanted.encode(), one) for one in said):
         return "forged"
     return ""
 
@@ -188,29 +196,45 @@ def _millis(said: Any) -> int | None:
     return int(moment.timestamp() * 1000)
 
 
-def _account(data: dict[str, Any]) -> int | None:
+def account_tag(account: int, made: int, secret: str | None = None) -> str:
+    """What our checkout writes beside the account's id in `custom_data`: an HMAC of the
+    id and the moment the account was made, under the webhook secret. Only our server
+    can make it, and an account made later under the same id would not match it."""
+    key = (webhook_secret() if secret is None else secret).encode()
+    return hmac.new(key, f"{int(account)}:{int(made)}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def _account(store: Store, data: dict[str, Any]) -> Person | None:
+    """The account `custom_data` names, where its tag is the one our checkout wrote."""
     custom = data.get("custom_data")
     if not isinstance(custom, dict):
         return None
-    said = custom.get(ACCOUNT_KEY)
     try:
-        return int(str(said)) if said is not None else None
+        account = int(str(custom.get(ACCOUNT_KEY)))
     except ValueError:
         return None
+    tag = str(custom.get(TAG_KEY) or "")
+    row = store.db.execute("SELECT made FROM person WHERE id = ?", (account,)).fetchone()
+    if row is None or not tag or not webhook_secret():
+        return None
+    wanted = account_tag(account, int(row[0]))
+    if not hmac.compare_digest(wanted.encode(), tag.encode("utf-8", "replace")):
+        return None
+    return store.person_by_id(account)
 
 
 def _whose(store: Store, data: dict[str, Any], subscription: str = "") -> Person | None:
-    """The account an event is about: the one our checkout named in `custom_data`, else
-    the one already holding this subscription, else the one with this Paddle customer."""
-    named = _account(data)
-    if named is not None:
-        person = store.person_by_id(named)
-        if person is not None:
-            return person
+    """The account an event is about: the one already holding this subscription, else
+    the one our checkout named in `custom_data` with its tag, else the one with this
+    Paddle customer. What the store already holds comes first, so `custom_data` never
+    moves a subscription from the account that has it."""
     if subscription:
         person = store.person_by_subscription(subscription)
         if person is not None:
             return person
+    person = _account(store, data)
+    if person is not None:
+        return person
     customer = str(data.get("customer_id") or "")
     return store.person_by_customer(customer) if customer else None
 
@@ -232,14 +256,12 @@ def _price_ids(data: dict[str, Any]) -> list[tuple[str, int]]:
 
 
 def _cadence(data: dict[str, Any]) -> str:
-    """`month` or `quarter`, by the price where it is one of ours, else by the cycle."""
-    by_price = {one: name for name, one in prices().items() if one and name != "top-up"}
+    """`month` or `quarter`, by the price, where it is one of Plan's two; "" where no
+    item is, and such a subscription is not Plan (qa-claude on #1280)."""
+    by_price = {one: name for name, one in prices().items() if one and name in ("month", "quarter")}
     for price_id, _ in _price_ids(data):
         if price_id in by_price:
             return by_price[price_id]
-    cycle = data.get("billing_cycle")
-    if isinstance(cycle, dict) and cycle.get("interval") == "month":
-        return {1: "month", 3: "quarter"}.get(int(cycle.get("frequency") or 0), "")
     return ""
 
 
@@ -253,21 +275,26 @@ def _subscription(store: Store, kind: str, data: dict[str, Any], said_at: int | 
     status = str(data.get("status") or "")
     if status not in PLAN_STATUSES:
         return Outcome("ignored", person.id, f"status {status!r}")
+    cadence = _cadence(data)
+    if not cadence:
+        return Outcome("ignored", person.id, "not Plan's price")
     period = data.get("current_billing_period")
     ends = str(period.get("ends_at") or "") if isinstance(period, dict) else ""
+    starts = str(period.get("starts_at") or "") if isinstance(period, dict) else ""
     scheduled = data.get("scheduled_change")
     cancelling = isinstance(scheduled, dict) and scheduled.get("action") == "cancel"
     applied = store.set_billing(
         person.id,
-        cadence=_cadence(data),
+        cadence=cadence,
         status=status,
         period_end=ends,
         cancel_at_end=cancelling,
         customer=str(data.get("customer_id") or ""),
         subscription=subscription,
         said_at=said_at,
+        period_start=starts,
     )
-    return Outcome("plan" if applied else "ignored", person.id, status if applied else "older")
+    return Outcome("plan" if applied else "ignored", person.id, status if applied else "stale")
 
 
 def _completed(store: Store, data: dict[str, Any]) -> Outcome:

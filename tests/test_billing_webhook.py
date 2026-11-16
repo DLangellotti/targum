@@ -33,11 +33,18 @@ def paddle(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(billing.PRICE_TOP_UP_ENV, "pri_top_up")
 
 
-def fixture(name: str, account: int | None = None) -> dict[str, Any]:
+def fixture(name: str, account: int | None = None, store: Store | None = None) -> dict[str, Any]:
+    """A fixture event, its `custom_data` naming `account` with the tag our checkout
+    writes where `store` holds that account, as `/plans/start` would have made it."""
     raw = (EVENTS / f"{name}.json").read_text()
     if account is not None:
         raw = raw.replace('"ACCOUNT"', f'"{account}"')
     event: dict[str, Any] = json.loads(raw)
+    custom = event["data"].get("custom_data")
+    if isinstance(custom, dict) and account is not None and store is not None:
+        made = store.db.execute("SELECT made FROM person WHERE id = ?", (account,)).fetchone()
+        if made is not None:
+            custom[billing.TAG_KEY] = billing.account_tag(account, int(made[0]))
     return event
 
 
@@ -88,6 +95,17 @@ def test_a_missing_or_broken_signature_is_refused(header: str | None, why: str) 
     assert billing.verify(said, body, SECRET) == why
 
 
+@pytest.mark.parametrize("header", ["ts=\u00b2;h1=abc", "ts=\u0661\u0662;h1=abc"])
+def test_a_timestamp_that_is_not_ascii_digits_is_unsigned(header: str) -> None:
+    """qa-claude on #1280: "²".isdigit() is true and int("²") raises."""
+    assert billing.verify(header, b"{}", SECRET) == "unsigned"
+
+
+def test_a_signature_that_is_not_ascii_is_forged() -> None:
+    header = f"ts={int(time.time())};h1=\u00e9\u00e9\u00e9"
+    assert billing.verify(header, b"{}", SECRET) == "forged"
+
+
 def test_a_body_changed_after_signing_is_forged() -> None:
     at = int(time.time())
     header = billing.sign(b'{"a":1}', SECRET, at)
@@ -121,7 +139,7 @@ def test_subscription_created_puts_the_reader_on_plan(
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
     assert plans.free(me)
-    outcome = billing.handle(store, fixture("subscription_created", me.id))
+    outcome = billing.handle(store, fixture("subscription_created", me.id, store))
     assert outcome.kind == "plan" and outcome.person == me.id
     me = reloaded(store, me)
     assert me.billing is not None
@@ -134,18 +152,82 @@ def test_subscription_created_puts_the_reader_on_plan(
 def test_a_quarter_is_read_from_its_price(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created_quarter", me.id))
+    billing.handle(store, fixture("subscription_created_quarter", me.id, store))
     assert reloaded(store, me).billing.cadence == "quarter"  # type: ignore[union-attr]
 
 
-def test_a_quarter_is_read_from_its_cycle_where_the_price_is_not_ours(
+def test_a_subscription_to_a_price_that_is_not_plans_is_not_plan(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """qa-claude on #1280: only PADDLE_PRICE_MONTH or PADDLE_PRICE_QUARTER is Plan, so a
+    subscription to any other price in the catalogue changes nothing."""
     monkeypatch.setenv(billing.PRICE_QUARTER_ENV, "pri_renamed")
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created_quarter", me.id))
-    assert reloaded(store, me).billing.cadence == "quarter"  # type: ignore[union-attr]
+    outcome = billing.handle(store, fixture("subscription_created_quarter", me.id, store))
+    assert outcome.kind == "ignored" and outcome.detail == "not Plan's price"
+    assert reloaded(store, me).billing is None
+
+
+def test_a_paid_period_is_kept(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    row = store.db.execute("SELECT subscription, starts, ends FROM plan_period").fetchone()
+    assert row[0].startswith("sub_") and row[2] - row[1] == 30 * 86_400_000
+
+
+def test_custom_data_without_our_tag_names_nobody(tmp_path: Path) -> None:
+    """qa-claude on #1280: an id in `custom_data` is only believed with the tag our
+    checkout writes, so a checkout made elsewhere cannot subscribe another reader."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    forged = fixture("subscription_created", me.id)
+    assert billing.handle(store, forged).kind == "unknown-account"
+    forged["data"]["custom_data"][billing.TAG_KEY] = "0" * 32
+    assert billing.handle(store, forged).kind == "unknown-account"
+    assert reloaded(store, me).billing is None
+
+
+def test_a_tag_made_for_an_earlier_account_with_the_same_id_names_nobody(
+    tmp_path: Path,
+) -> None:
+    """qa-claude on #1279: an id given again must not inherit a payment. The tag is made
+    over the id and the moment the account was made, so it names only that account."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    event = fixture("transaction_completed_top_up", me.id, store)
+    store.db.execute("UPDATE person SET made = made + 1 WHERE id = ?", (me.id,))
+    assert billing.handle(store, event).kind == "unknown-account"
+
+
+def test_the_held_subscription_wins_over_custom_data(tmp_path: Path) -> None:
+    """What the store already holds comes first: a subscription keeps its account
+    whatever a later event's `custom_data` names."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    other = signed_up(store, "b@example.com")
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    moved = fixture("subscription_updated_cancel", other.id, store)
+    assert billing.handle(store, moved).person == me.id
+    assert reloaded(store, other).billing is None
+
+
+def test_an_old_subscriptions_cancel_does_not_end_a_new_one(tmp_path: Path) -> None:
+    """qa-claude on #1280: two subscriptions (a Start pressed twice, a plan after a
+    lapsed one). The older one's `canceled` arriving later changes nothing."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    second = fixture("subscription_created_quarter", me.id, store)
+    second["data"]["id"] = "sub_second"
+    second["event_id"] = "evt_second"
+    second["occurred_at"] = "2026-11-17T10:00:00.000Z"
+    assert billing.handle(store, second).kind == "plan"
+    old_cancel = fixture("subscription_canceled", me.id, store)
+    assert billing.handle(store, old_cancel).kind == "ignored"
+    held = reloaded(store, me).billing
+    assert held is not None and held.subscription == "sub_second" and held.status == "active"
 
 
 def test_cancelling_runs_to_the_period_end_and_then_ends(
@@ -154,11 +236,11 @@ def test_cancelling_runs_to_the_period_end_and_then_ends(
     monkeypatch.setenv("TARGUM_PLANS", "1")
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created", me.id))
-    billing.handle(store, fixture("subscription_updated_cancel", me.id))
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    billing.handle(store, fixture("subscription_updated_cancel", me.id, store))
     me = reloaded(store, me)
     assert me.billing is not None and me.billing.cancel_at_end and plans.paid(me)
-    billing.handle(store, fixture("subscription_canceled", me.id))
+    billing.handle(store, fixture("subscription_canceled", me.id, store))
     me = reloaded(store, me)
     assert me.billing is not None and me.billing.status == "canceled"
     assert not plans.paid(me) and plans.free(me)
@@ -167,16 +249,16 @@ def test_cancelling_runs_to_the_period_end_and_then_ends(
 def test_an_event_delivered_late_does_not_undo_a_newer_one(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_canceled", me.id))
-    late = billing.handle(store, fixture("subscription_created", me.id))
-    assert late.kind == "ignored" and late.detail == "older"
+    billing.handle(store, fixture("subscription_canceled", me.id, store))
+    late = billing.handle(store, fixture("subscription_created", me.id, store))
+    assert late.kind == "ignored" and late.detail == "stale"
     assert reloaded(store, me).billing.status == "canceled"  # type: ignore[union-attr]
 
 
 def test_an_event_without_custom_data_finds_the_reader_by_subscription(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created", me.id))
+    billing.handle(store, fixture("subscription_created", me.id, store))
     unnamed = fixture("subscription_past_due")
     unnamed["data"]["custom_data"] = None
     assert billing.handle(store, unnamed).person == me.id
@@ -194,8 +276,8 @@ def test_past_due_is_plan_for_the_grace(tmp_path: Path, monkeypatch: pytest.Monk
     monkeypatch.setenv("TARGUM_PLANS", "1")
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created", me.id))
-    billing.handle(store, fixture("subscription_past_due", me.id))
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    billing.handle(store, fixture("subscription_past_due", me.id, store))
     me = reloaded(store, me)
     assert me.billing is not None and me.billing.status == "past_due"
     assert me.billing.past_due_since is not None and plans.paid(me)
@@ -204,7 +286,7 @@ def test_past_due_is_plan_for_the_grace(tmp_path: Path, monkeypatch: pytest.Monk
 def test_a_failed_renewal_starts_the_grace(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created", me.id))
+    billing.handle(store, fixture("subscription_created", me.id, store))
     outcome = billing.handle(store, fixture("transaction_payment_failed_renewal"))
     assert outcome.kind == "grace" and outcome.person == me.id
     me = reloaded(store, me)
@@ -218,8 +300,8 @@ def test_a_failed_renewal_starts_the_grace(tmp_path: Path) -> None:
 def test_a_card_refused_at_the_checkout_changes_nothing(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    billing.handle(store, fixture("subscription_created", me.id))
-    outcome = billing.handle(store, fixture("transaction_payment_failed_checkout", me.id))
+    billing.handle(store, fixture("subscription_created", me.id, store))
+    outcome = billing.handle(store, fixture("transaction_payment_failed_checkout", me.id, store))
     assert outcome.kind == "ignored"
     assert reloaded(store, me).billing.status == "active"  # type: ignore[union-attr]
 
@@ -227,17 +309,22 @@ def test_a_card_refused_at_the_checkout_changes_nothing(tmp_path: Path) -> None:
 def test_a_top_up_paid_for_grants_its_credits_once(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    outcome = billing.handle(store, fixture("transaction_completed_top_up", me.id))
+    outcome = billing.handle(store, fixture("transaction_completed_top_up", me.id, store))
     assert outcome.kind == "top-up" and outcome.detail == "180"
     assert [one["credits"] for one in store.top_ups(me.id)] == [180]
-    assert billing.handle(store, fixture("transaction_completed_top_up", me.id)).kind == "ignored"
+    assert (
+        billing.handle(store, fixture("transaction_completed_top_up", me.id, store)).kind
+        == "ignored"
+    )
     assert [one["credits"] for one in store.top_ups(me.id)] == [180]
 
 
 def test_a_plans_own_payment_grants_nothing(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    assert billing.handle(store, fixture("transaction_completed_plan", me.id)).kind == "ignored"
+    assert (
+        billing.handle(store, fixture("transaction_completed_plan", me.id, store)).kind == "ignored"
+    )
     assert store.top_ups(me.id) == []
 
 
@@ -254,7 +341,7 @@ def test_no_money_and_no_card_is_kept(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
     for name in ("subscription_created", "transaction_completed_top_up"):
-        billing.handle(store, fixture(name, me.id))
+        billing.handle(store, fixture(name, me.id, store))
     kept = json.dumps(
         [
             [dict(row) for row in store.db.execute(f"SELECT * FROM {table}")]  # noqa: S608
@@ -327,26 +414,26 @@ def signed(event: dict[str, Any]) -> tuple[bytes, str]:
 def test_without_a_secret_the_route_is_not_there(
     box: tuple[int, Path, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    port, _, who = box
+    port, store_path, who = box
     monkeypatch.delenv(billing.WEBHOOK_SECRET_ENV)
-    body, signature = signed(fixture("subscription_created", who))
+    body, signature = signed(fixture("subscription_created", who, Store(store_path)))
     assert deliver(port, body, signature)[0] == 404
 
 
 def test_the_route_takes_a_signed_event_once(box: tuple[int, Path, int]) -> None:
     port, store_path, who = box
-    body, signature = signed(fixture("transaction_completed_top_up", who))
+    body, signature = signed(fixture("transaction_completed_top_up", who, Store(store_path)))
     status, answer = deliver(port, body, signature)
     assert (status, answer) == (200, {"handled": "top-up"})
     # Paddle sends it again, freshly signed: seen, and nothing more is granted.
-    body, signature = signed(fixture("transaction_completed_top_up", who))
+    body, signature = signed(fixture("transaction_completed_top_up", who, Store(store_path)))
     assert deliver(port, body, signature) == (200, {"seen": True})
     assert [one["credits"] for one in Store(store_path).top_ups(who)] == [180]
 
 
 def test_the_route_refuses_what_paddle_did_not_sign(box: tuple[int, Path, int]) -> None:
     port, store_path, who = box
-    event = fixture("subscription_created", who)
+    event = fixture("subscription_created", who, Store(store_path))
     event["event_id"] = "evt_forged"
     body, _ = signed(event)
     assert deliver(port, body, None)[0] == 401
@@ -356,6 +443,28 @@ def test_the_route_refuses_what_paddle_did_not_sign(box: tuple[int, Path, int]) 
     assert Store(store_path).billing(who) is None
     # Refused, so not marked seen: Paddle's real delivery of it is still handled.
     assert deliver(port, body, billing.sign(body, SECRET, int(time.time())))[0] == 200
+
+
+def test_the_route_answers_401_for_a_header_it_cannot_read(box: tuple[int, Path, int]) -> None:
+    port, _, _ = box
+    body = b'{"event_id": "evt_odd"}'
+    assert deliver(port, body, "ts=\u00b2;h1=abc")[0] == 401
+
+
+def test_the_route_refuses_a_body_that_is_too_large_and_closes(box: tuple[int, Path, int]) -> None:
+    port, _, _ = box
+    conn = HTTPConnection("127.0.0.1", port, timeout=10)
+    conn.putrequest("POST", serve.BILLING_HOOK, skip_host=True)
+    conn.putheader("Host", HOST)
+    conn.putheader("Content-Length", str(billing.MOST_BODY_BYTES + 1))
+    conn.endheaders()
+    conn.send(b"x" * (billing.MOST_BODY_BYTES + 1))
+    response = conn.getresponse()
+    response.read()
+    assert response.status == 413
+    # The server closed its end rather than reading on into the body it refused.
+    assert conn.sock is None or conn.sock.recv(1) == b""
+    conn.close()
 
 
 def test_the_route_refuses_a_body_that_is_not_an_event(box: tuple[int, Path, int]) -> None:
@@ -368,7 +477,7 @@ def test_an_event_whose_handling_fails_is_handled_on_the_retry(
     box: tuple[int, Path, int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     port, store_path, who = box
-    event = fixture("subscription_created_quarter", who)
+    event = fixture("subscription_created_quarter", who, Store(store_path))
     event["event_id"] = "evt_fails_once"
     real = billing.handle
     calls: list[str] = []

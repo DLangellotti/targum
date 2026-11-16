@@ -227,21 +227,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - Believed only with Paddle's signature: `Paddle-Signature: ts=…;h1=…`, an
     HMAC-SHA256 of `ts:body` under the destination's secret, any `h1` matching while a
     secret rotates, and `ts` within 30 seconds either way (`billing.TOLERANCE_SECONDS`).
-    Anything else is a 401 and changes nothing.
+    Anything else, a header that is not ASCII included, is a 401 and changes nothing.
+    A body over 256 KB is a 413 and the connection closes.
   - Handled once per event id (`billing_event`). One seen already is a 200 that does
     nothing; one whose handling fails is forgotten again and answered 500, so Paddle's
     retry is handled.
   - `subscription.created`, `.updated`, `.canceled`, `.past_due` (and `.activated`,
-    `.paused`, `.resumed`, `.trialing`) set the `plan` row: status, cadence (by our price
-    id, else by the billing cycle), period end, cancel at period end, and Paddle's ids.
-    An event older than what the row holds changes nothing, since Paddle does not
-    promise order.
+    `.paused`, `.resumed`, `.trialing`) set the `plan` row and its paid period: status,
+    cadence, period, cancel at period end, and Paddle's ids. Only a subscription to
+    `PADDLE_PRICE_MONTH` or `PADDLE_PRICE_QUARTER` is Plan. An event older than what the
+    row holds, or about a subscription the row no longer holds, changes nothing.
   - `transaction.completed` with no subscription and the top-up price on it grants 60
     credits per unit, once per transaction.
   - `transaction.payment_failed` on a renewal starts the grace (`plans.GRACE_DAYS`);
     a card refused at the checkout changes nothing.
-  - The account is found by `custom_data.targum_account`, which our checkout sets, then
-    by the subscription, then by Paddle's customer id.
+  - The account is found by the subscription the store already holds, then by
+    `custom_data.targum_account` where its `targum_tag` is the one our checkout writes (an
+    HMAC of the id and when the account was made), then by Paddle's customer id.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
