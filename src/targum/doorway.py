@@ -17,6 +17,11 @@ failure is the one to choose.
 `waiting_for_a_way_in`: confirmed, not yet invited, oldest first. There is no argument
 for an arbitrary address, because `targum invite` is already that and says so.
 
+**And they are comped to Plan** (targum-internal#59; design.md §12, 2026-11-15): while
+invitations are still going out, anybody let in here — one by one or a few at a time —
+is on Plan until `plans.BETA_UNTIL`, as the accounts of switch day are. `targum invite`
+is not the waitlist, and comps nobody.
+
 **And then their saved link is built** (targum-internal#399; David, 2026-10-01). Somebody
 who tried a link on the front page joined with it, and the door promised it would be
 waiting. `then` is told each address that was let in, after the stamp, and whatever it
@@ -28,6 +33,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -148,6 +154,19 @@ def resend(store: Store, mailer: Mailer | None, address: str, email: str) -> Ope
     return Opened(wanted, language)
 
 
+def _comp(store: Store, email: str, today: date | None = None) -> None:
+    """Comp somebody let in to Plan, while invitations are still going out (design.md
+    §12, "Signup opens before payments, and the beta is comped to Plan", 2026-11-15).
+    Only before the comp's day: an address let in on or after it is not comped to a day
+    already past. On the invitation, so the account they open takes it, and on the
+    account if they already have one. Stored whether plans are on or off; with them off
+    it changes nothing anybody sees."""
+    from . import plans
+
+    if (today or datetime.now(UTC).date()) < date.fromisoformat(plans.BETA_UNTIL):
+        store.comp(email, plans.BETA_UNTIL)
+
+
 def _let(
     store: Store,
     mailer: Mailer,
@@ -159,6 +178,7 @@ def _let(
     """Invite, mail, stamp: the three acts, in the order the module's docstring gives."""
     try:
         store.invite(email)
+        _comp(store, email)
         letter = invitation(address, language)
         mailer.notify(email, letter.subject, letter.text, None, letter.html)
     except Exception as error:  # noqa: BLE001 — one bad address must not stop the rest

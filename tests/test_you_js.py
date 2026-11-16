@@ -652,6 +652,23 @@ def test_on_the_plan_says_its_month_and_offers_top_up() -> None:
     assert drawn["see"] is False, "on the plan, the head's See plans"
 
 
+def test_a_comped_reader_is_named_with_the_day_the_comp_ends() -> None:
+    """The beta comped to Plan (design.md §12, 2026-11-15; targum-internal#59): the plan's
+    row says so and until when, Top up stays greyed, and there is no renewal to switch or
+    plan to cancel."""
+    plan = {"on": True, "plan": "plan", "credits": 480, "planCredits": 480, "words": None}
+    comp = {"comp": "2027-03-04", "compSaid": "March 4, 2027"}
+    page = run(who={**SIGNED_IN, "plan": {**plan, **comp, "listed": 0, "topUps": [60]}})
+    drawn = page["plan"]
+    assert drawn["paidName"] == "Plan \u00b7 free for beta readers until March 4, 2027"
+    assert drawn["switchRow"] is True and drawn["cancelRow"] is True
+    assert drawn["paidSays"] == "480 credits a month, which is 8 hours of audio or video"
+    assert drawn["topUps"] == ["60 credits"]
+    bought = run(who={**SIGNED_IN, "plan": {**plan, "listed": 0, "topUps": []}})["plan"]
+    assert bought["paidName"] == "Monthly plan"
+    assert bought["switchRow"] is False and bought["cancelRow"] is False
+
+
 # -- ways to sign in (targum-internal#502) ---------------------------------------------
 
 WAYS_LINKED = {

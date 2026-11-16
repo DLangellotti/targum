@@ -481,11 +481,17 @@ REGISTRATIONS_PER_HOUR = 60
 #    language itself, bought a tap at a time"). A comma-separated list of learned codes,
 #    "he,ru"; '' is off for every language, which is every account before it. One ALTER,
 #    which does not depend on the number.
+# 71→72: person.plan_until and invited.plan_until — the beta comped to Plan
+#    (targum-internal#59, design.md §12 2026-11-15, "Signup opens before payments, and
+#    the beta is comped to Plan"). An ISO day, "2027-03-04", the first day the comp no
+#    longer holds; '' is no comp, which is every row before it. On `invited` it is a
+#    comp carried by an invitation the waitlist's Let in made, given to the account
+#    when it is opened (`_open_account`). Two ALTERs, neither depending on the number.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 71
+SCHEMA_VERSION = 72
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -1003,6 +1009,10 @@ MIGRATIONS: tuple[str, ...] = (
     # The languages whose meanings are asked for in the language itself (schema 71,
     # targum-internal#538): '' is off everywhere.
     "ALTER TABLE person ADD COLUMN meanings TEXT NOT NULL DEFAULT ''",
+    # The beta comped to Plan (schema 72, targum-internal#59): the first day it no longer
+    # holds, or '' for none, as every account and invitation before it.
+    "ALTER TABLE person ADD COLUMN plan_until TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE invited ADD COLUMN plan_until TEXT NOT NULL DEFAULT ''",
 )
 
 #: The learned languages whose word meanings a reader may ask for in the language itself
@@ -1070,10 +1080,13 @@ def _open_account(db: sqlite3.Connection, address: str, came_from: str = "") -> 
             (address,),
         ).fetchone()
         came_from = str(waited["page"] or "") if waited is not None else ""
+    # A comp the waitlist's Let in carried on the invitation (schema 72, targum-internal
+    # #59) becomes the account's, whichever way in opened it.
+    carried = db.execute("SELECT plan_until FROM invited WHERE email = ?", (address,)).fetchone()
     db.execute(
-        "INSERT INTO person (id, email, made, came_from) VALUES (?, ?, ?, ?)"
+        "INSERT INTO person (id, email, made, came_from, plan_until) VALUES (?, ?, ?, ?, ?)"
         " ON CONFLICT(email) DO NOTHING",
-        (int(row[0]), address, now(), came_from),
+        (int(row[0]), address, now(), came_from, str(carried[0] or "") if carried else ""),
     )
 
 
@@ -2040,6 +2053,10 @@ class Person:
     #: person is loaded, rather than stored on the row: it is a fact about who runs the
     #: box, not about the account.
     admin: bool = False
+    #: The first day a comp to Plan no longer holds, as an ISO day, or "" for none
+    #: (schema 72, targum-internal#59). Read from the person's row when they are loaded,
+    #: like `admin`; `plans.comped` says whether it holds today.
+    plan_until: str = ""
 
 
 @dataclass(frozen=True)
@@ -2393,13 +2410,13 @@ class Store:
     def person_by_id(self, person_id: int) -> Person | None:
         """Who a job belongs to. The thread that ran it has no session to ask."""
         row = self.db.execute("SELECT id, email FROM person WHERE id = ?", (person_id,)).fetchone()
-        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
+        return self._who(row["id"], row["email"]) if row else None
 
     def person_by_email(self, email: str) -> Person | None:
         row = self.db.execute(
             "SELECT id, email FROM person WHERE email = ?", (tidy(email),)
         ).fetchone()
-        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
+        return self._who(row["id"], row["email"]) if row else None
 
     # -- who somebody is ---------------------------------------------------
 
@@ -4429,6 +4446,65 @@ class Store:
             )
         return True
 
+    def _who(self, person_id: Any, email: Any) -> Person:
+        """A person as loaded: whether they are an admin, from `admin`, and the comp to
+        Plan on their row (schema 72)."""
+        row = self.db.execute(
+            "SELECT plan_until FROM person WHERE id = ?", (int(person_id),)
+        ).fetchone()
+        return Person(
+            int(person_id),
+            str(email),
+            self.is_admin(str(email)),
+            str(row[0] or "") if row is not None else "",
+        )
+
+    # -- the beta comped to Plan (targum-internal#59) ----------------------------------
+
+    def comp(self, email: str, until: str) -> bool:
+        """Comp one address to Plan until `until` (an ISO day, the first it no longer
+        holds): on its account, if it has one, and on its invitation, if it has one, so
+        an account opened later takes it (`_open_account`). Never shortens a comp that
+        runs longer. Answers whether anything changed, so running it twice changes
+        nothing the second time."""
+        address = tidy(email)
+        if not address:
+            return False
+        with self.write() as db:
+            changed = 0
+            for table in ("person", "invited"):
+                changed += db.execute(
+                    f"UPDATE {table} SET plan_until = ?"  # noqa: S608 - a fixed name
+                    " WHERE email = ? AND plan_until < ?",
+                    (until, address, until),
+                ).rowcount
+        return changed > 0
+
+    def comp_everyone(self, until: str, *, dry_run: bool = False) -> tuple[list[str], list[str]]:
+        """Comp every account that exists now, and every invitation not yet used, to Plan
+        until `until` (`targum comp-beta`, run once on switch day). Answers the accounts
+        and the invitations it comped, or would comp on a dry run; one already comped as
+        long is in neither, so a second run answers two empty lists."""
+        accounts = [
+            str(row[0])
+            for row in self.db.execute(
+                "SELECT email FROM person WHERE plan_until < ? ORDER BY id", (until,)
+            )
+        ]
+        invited = [
+            str(row[0])
+            for row in self.db.execute(
+                "SELECT email FROM invited WHERE plan_until < ?"
+                " AND email NOT IN (SELECT email FROM person) ORDER BY at",
+                (until,),
+            )
+        ]
+        if not dry_run:
+            with self.write() as db:
+                db.execute("UPDATE person SET plan_until = ? WHERE plan_until < ?", (until, until))
+                db.execute("UPDATE invited SET plan_until = ? WHERE plan_until < ?", (until, until))
+        return accounts, invited
+
     def is_admin(self, email: str) -> bool:
         address = tidy(email)
         if not address:
@@ -4541,7 +4617,7 @@ class Store:
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), row["id"], now(), now()),
             )
-        return Person(int(row["id"]), str(row["email"]), self.is_admin(str(row["email"]))), session
+        return self._who(row["id"], row["email"]), session
 
     def ways_in(self, person_id: int) -> dict[str, Any]:
         """The ways this account signs in besides its address (targum-internal#502):
@@ -4602,7 +4678,7 @@ class Store:
             "AND link.purpose = ? AND person.leaving IS NULL",
             (digest(token), cutoff, SIGN_IN),
         ).fetchone()
-        return Person(row["id"], row["email"], self.is_admin(row["email"])) if row else None
+        return self._who(row["id"], row["email"]) if row else None
 
     def finish_sign_in(self, token: str) -> tuple[Person, str] | None:
         """Spend a link and hand back a session. None if it is spent, stale or wrong."""
@@ -4630,7 +4706,7 @@ class Store:
                 "INSERT INTO session (hash, person, made, seen) VALUES (?, ?, ?, ?)",
                 (digest(session), who["id"], now(), now()),
             )
-        return Person(who["id"], who["email"], self.is_admin(who["email"])), session
+        return self._who(who["id"], who["email"]), session
 
     def whoever(self, session: str | None) -> Person | None:
         """The person holding this session, or nobody.
@@ -4654,7 +4730,7 @@ class Store:
         if now() - row["seen"] > 60_000:
             with self.write() as db:
                 db.execute("UPDATE session SET seen = ? WHERE hash = ?", (now(), digest(session)))
-        return Person(row["id"], row["email"], self.is_admin(row["email"]))
+        return self._who(row["id"], row["email"])
 
     def sign_out(self, session: str | None) -> None:
         if not session:
@@ -7125,7 +7201,7 @@ class Store:
         if now() - row["seen"] > 60_000:
             with self.write() as db:
                 db.execute("UPDATE oauth_token SET seen = ? WHERE hash = ?", (now(), digest(token)))
-        return Person(row["id"], row["email"], self.is_admin(row["email"])), row["scopes"]
+        return self._who(row["id"], row["email"]), row["scopes"]
 
     def rotate_refresh(self, token: str) -> dict[str, Any] | None:
         """Spend a refresh token and say what it was for, so a new pair can be written.
@@ -7302,7 +7378,7 @@ class Store:
                 " linked = excluded.linked",
                 (int(chat_id), who["id"], now()),
             )
-        return Person(int(who["id"]), str(who["email"]), self.is_admin(str(who["email"])))
+        return self._who(who["id"], who["email"])
 
     def telegram_person(self, chat_id: int) -> Person | None:
         """Whose this chat is, or nobody's. Nobody's for an account on its way out."""
@@ -7314,7 +7390,7 @@ class Store:
         ).fetchone()
         if row is None:
             return None
-        return Person(int(row["id"]), str(row["email"]), self.is_admin(row["email"]))
+        return self._who(row["id"], row["email"])
 
     def telegram_chats(self, person_id: int | None) -> list[dict[str, Any]]:
         """The chats bound to this person, newest first."""

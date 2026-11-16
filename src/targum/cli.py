@@ -397,6 +397,61 @@ def open_the_door(
         )
 
 
+@app.command(name="comp-beta")
+def comp_beta(
+    until: Annotated[
+        str,
+        typer.Option("--until", help="The first day the comp no longer holds, as YYYY-MM-DD."),
+    ],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Say who would be comped, and change nothing.")
+    ] = False,
+    store: Annotated[Path | None, typer.Option("--store", help="Which database.")] = None,
+) -> None:
+    """Comp every account that exists now to Plan, until a day (targum-internal#59).
+
+    Run once, on the day `TARGUM_PLANS` goes on (design.md §12, "Signup opens before
+    payments, and the beta is comped to Plan", 2026-11-15): every account, and every
+    invitation not used yet, is on Plan until `--until`, and on that day the comp simply
+    ends. Somebody let in from the waitlist afterwards is comped by Let in itself.
+
+    Safe to run again: an account already comped as long is left alone, so a second run
+    comps nobody. A comp running longer is never shortened. `--dry-run` says who would be
+    comped and changes nothing.
+    """
+    from .accounts import Store
+    from .serve import default_store
+
+    # Only the canonical form, YYYY-MM-DD: the store compares days as text, so
+    # "20270304" (which `fromisoformat` takes) would sort before every real day and
+    # could never be overwritten by a longer comp (qa-claude on targum#1267).
+    try:
+        day = date.fromisoformat(until)
+    except ValueError:
+        day = None
+    if day is None or day.isoformat() != until:
+        fail(TargumError(f"{until} is not a day.", "Try: targum comp-beta --until 2027-03-04"))
+    # A day already here comps nobody, and a typo of the year would say it worked.
+    if day <= datetime.now(UTC).date():
+        fail(
+            TargumError(
+                f"{until} is not after today, so the comp would already have ended.",
+                "Give the first day the comp no longer holds, e.g. --until 2027-03-04",
+            )
+        )
+    keeping = Store(store or default_store())
+    accounts, invited = keeping.comp_everyone(until, dry_run=dry_run)
+    for email in accounts:
+        console.print(f"{email} [dim]account[/dim]")
+    for email in invited:
+        console.print(f"{email} [dim]invited, no account yet[/dim]")
+    verb = "would be comped" if dry_run else "comped"
+    console.print(
+        f"[dim]{len(accounts)} account(s) and {len(invited)} invitation(s) {verb}"
+        f" to Plan until {until}[/dim]"
+    )
+
+
 @app.command(name="catalogue-lemmas")
 def catalogue_lemmas(
     out: Annotated[

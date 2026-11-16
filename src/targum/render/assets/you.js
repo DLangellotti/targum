@@ -1479,6 +1479,17 @@
         document.getElementById("plan-words-row").hidden = false;
       }
     } else {
+      /* A beta reader comped to Plan (design.md §12, "Signup opens before payments, and
+         the beta is comped to Plan", 2026-11-15): named with the day it ends, and no
+         renewal to switch or plan to cancel. */
+      var comp = plan.comp ? plan.compSaid || plan.comp : "";
+      document.getElementById("plan-paid-name").textContent = comp
+        ? t("you.plan.comp", "Plan \u00b7 free for beta readers until {date}", { date: comp })
+        : t("you.page.plan-monthly", "Monthly plan");
+      ["plan-switch-row", "plan-cancel-row"].forEach(function (id) {
+        var row = document.getElementById(id);
+        if (row) row.hidden = !!comp;
+      });
       document.getElementById("plan-paid-says").textContent = t(
         "you.plan.paid-says",
         "{n} credits a month, which is {hours} hours of audio or video",

@@ -150,3 +150,6 @@ body.plans main.plans-main { max-inline-size: calc(65rem + 2.5rem); }
   .plan-cancel-any { margin-inline-start: auto; }
   .plans-lede { font-size: 1.0625rem; }
 }
+
+/* A beta reader comped to Plan (targum-internal#59): the day it ends, under what Plan is. */
+.plan-comp { margin: 0.5rem 0 0; font-size: 0.9375rem; color: var(--ink-soft); }

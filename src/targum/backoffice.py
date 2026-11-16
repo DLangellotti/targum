@@ -577,11 +577,19 @@ def _functions(db: sqlite3.Connection) -> None:
 
 
 def _admins(db: sqlite3.Connection) -> set[str]:
-    """The admins' addresses, as `Store.is_admin` compares them: an admin is on Plan
-    (`plans.paid`), so their month is the plan's."""
+    """The addresses on Plan (`plans.paid`), so their month is the plan's: the admins, as
+    `Store.is_admin` compares them, and the beta readers comped to Plan today (schema 72,
+    targum-internal#59), whose comp ends on its day."""
+    on_plan: set[str] = set()
     with contextlib.suppress(sqlite3.Error):
-        return {str(row[0]).strip().lower() for row in db.execute("SELECT email FROM admin")}
-    return set()
+        on_plan |= {str(row[0]).strip().lower() for row in db.execute("SELECT email FROM admin")}
+    with contextlib.suppress(sqlite3.Error):
+        today = datetime.now(UTC).date().isoformat()
+        on_plan |= {
+            str(row[0]).strip().lower()
+            for row in db.execute("SELECT email FROM person WHERE plan_until > ?", (today,))
+        }
+    return on_plan
 
 
 #: Each job's seconds and kind, as a reader's page counts them: a gift is counted by the

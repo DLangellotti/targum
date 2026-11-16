@@ -135,7 +135,7 @@
       <ul class="rows acct-rows">
         <li class="row">
           <span class="row-main">
-            <b class="acct-name">{{ t("you.page.plan-monthly", "Monthly plan") }}</b>
+            <b class="acct-name" id="plan-paid-name">{{ t("you.page.plan-monthly", "Monthly plan") }}</b>
             <span class="acct-says" id="plan-paid-says"></span>
           </span>
         </li>
@@ -155,14 +155,16 @@
             <button type="button" class="btn soon" disabled aria-describedby="soon-paid">{{ t("you.page.top-up", "Top up") }}</button>
           </span>
         </li>
-        <li class="row">
+        {#- Neither row is drawn for a beta reader comped to Plan (targum-internal#59): a
+            comp has no renewal to switch and nothing to cancel. -#}
+        <li class="row" id="plan-switch-row">
           <span class="row-main">
             <span class="acct-name">{{ t("you.page.plan-quarterly", "Pay every 3 months instead") }}</span>
             <span class="acct-says">{{ t("you.page.plan-quarterly-says", "From your next renewal") }}</span>
           </span>
           <span class="acct-end"><button type="button" class="btn ghost outline" disabled aria-describedby="soon-paid">{{ t("you.page.plan-switch", "Switch") }}</button></span>
         </li>
-        <li class="row">
+        <li class="row" id="plan-cancel-row">
           <span class="row-main">
             <span class="acct-name">{{ t("you.page.plan-cancel", "Cancel your plan") }}</span>
             <span class="acct-says">{{ t("you.page.plan-cancel-says", "You move to Free when the time you've paid for ends. Your channel and podcast subscriptions pause, and you can start them again any time.") }}</span>

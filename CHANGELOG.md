@@ -110,6 +110,36 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     buy that fails is not tried again by a redraw of the same card, only by the next
     card opened. The row is not shown for the language the account reads into, whose
     two options would both be that language.
+- The beta comped to Plan, so plans are ready to switch on (targum-internal#59, design.md
+  §12 "Signup opens before payments, and the beta is comped to Plan", 2026-11-15).
+  **`TARGUM_PLANS` stays off**; it goes on only on David's word after a live test.
+  - `person.plan_until` and `invited.plan_until` (accounts schema 71→72, two ALTERs): the
+    first day a comp no longer holds, or '' for none. `models.SCHEMA_VERSION` is
+    untouched. A comp on an invitation becomes the account's when it is opened.
+  - `targum comp-beta --until 2027-03-04 [--dry-run]` comps every account and every
+    unused invitation, once, on switch day. Running it again comps nobody, and it never
+    shortens a longer comp. It takes only the canonical YYYY-MM-DD and refuses a day
+    that is today or earlier.
+  - Let in from the waitlist (one by one, or `open-the-door`) comps the address until
+    `plans.BETA_UNTIL` while that day is still ahead. `targum invite` comps nobody.
+  - `plans.paid` is the operator or a comp that holds today. With plans on, a comped
+    reader gets Plan (480 credits, any length of word list, channel and podcast
+    subscriptions) and everyone else Free (60 credits, 300 words, no subscriptions).
+    The spend gate sees it too: `Library.claim`, `claim_set`, `claim_turn` (voice) and
+    the quote's `short_of_month` hold a comped reader to Plan's month, not Free's. With
+    plans off nothing changes for anybody. The back office counts a comped reader's
+    month as the plan's.
+  - On the comp's day it simply ends and the reader is on Free. Nothing mails them and
+    nothing else happens, because what happens then is not decided yet.
+  - Your account names a comped reader's plan "Plan · free for beta readers until March
+    4, 2027", with Top up still greyed and no Switch or Cancel rows. `/plans` says "Free
+    for beta readers until March 4, 2027" under Plan and keeps Start the plan greyed with
+    "Payments open soon".
+  - Strings: `you.plan.comp`, `plans.page.comp` in English and Russian. The Russian is a
+    first draft for ling-ru.
+  - The Privacy Notice's clause 3.2 says, in David's words (2026-11-16), "whether the
+    Data Subject's account, or an invitation made to their address, carries a free plan
+    for beta readers, with the day it ends". The legal pages are dated 16 November 2026.
 
 ### Changed
 - A Russian verb's card says what its prefix adds, and only where it adds it

@@ -2860,10 +2860,24 @@ class Library:
         where nobody here is held to a month."""
         return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan)
 
-    @staticmethod
-    def _held_to_free(job: Job) -> bool:
-        """Whether this job's owner is held to Free: plans on, and not the operator."""
-        return plans.on() and not job.admin and not job.gift
+    def _on_plan(self, owner: int | None) -> bool:
+        """Whether this owner is on Plan by their account: plans on, and the operator or a
+        beta reader comped to Plan today (`plans.paid`; targum-internal#59, design.md §12
+        2026-11-15, "A comp is Plan, so it spends on the same rails"). Asks the store
+        only while plans are on: off, every account has the whole month anyway."""
+        if not plans.on() or owner is None or self.store is None:
+            return False
+        return plans.paid(self.store.person_by_id(int(owner)))
+
+    def _month_for(self, job: Job) -> float | None:
+        """The month's allowance for this job's owner: Plan's for the operator's and a
+        comped reader's, Free's for everybody else while plans are on."""
+        return self.allowance(paid_plan=self._on_plan(job.owner))
+
+    def _held_to_free(self, job: Job) -> bool:
+        """Whether this job's owner is held to Free: plans on, not the operator, not a
+        gift, and not on Plan by a comp."""
+        return plans.on() and not job.admin and not job.gift and not self._on_plan(job.owner)
 
     def _plan_refusal(self, job: Job, ui: str = "", need: float | None = None) -> Refusal:
         """A free reader out of credits, offered the plan rather than Top up (design.md
@@ -5316,7 +5330,7 @@ class Library:
                 # costs no clock time, so it is not charged against them. Nor is a
                 # gift: targum pays for it, and their eight hours are theirs (#399).
                 length=job.seconds if job.audio and not job.gift else 0.0,
-                per_month_length=None if admin else self.allowance(),
+                per_month_length=None if admin else self._month_for(job),
                 gift=job.gift,
                 # A recording the reader stopped part way and started again pays only
                 # for what they have not paid for yet (David, 2026-11-13).
@@ -5344,7 +5358,7 @@ class Library:
         """A recording's seconds against its owner's month, as `claim` counts them: what
         it needs once a stopped build's credit is taken off, and what is left."""
         assert self.store is not None and job.owner is not None
-        allowed = self.allowance() or 0.0
+        allowed = self._month_for(job) or 0.0
         used = self.store.hours_used(job.owner, self._month_from())
         credit = (
             self.store.prepaid(job.owner, job.source, job.id) if job.audio and not job.gift else 0.0
@@ -5363,7 +5377,7 @@ class Library:
             or job.admin
             or job.owner is None
             or self.store is None
-            or self.allowance() is None
+            or self._month_for(job) is None
         ):
             return
         need, left = self._month_room(job)
@@ -5403,6 +5417,7 @@ class Library:
             return self._out_of("everyone", ui), 0.0, "everyone"
         owner = next(iter(owners))
         admin = any(job.admin for job in jobs)
+        on_plan = self._on_plan(owner)
         if self.store is not None:
             refused, room = self.store.claim_all(
                 [(job.id, job.estimate, job.seconds if job.audio else 0.0) for job in jobs],
@@ -5411,9 +5426,9 @@ class Library:
                 owner=owner,
                 per_account=None if admin else self.account_budget,
                 month_from=self._month_from(),
-                per_month_length=None if admin else self.allowance(),
+                per_month_length=None if admin else self.allowance(paid_plan=on_plan),
             )
-            if refused == "hours" and not admin and plans.on():
+            if refused == "hours" and not admin and not on_plan and plans.on():
                 need = sum(job.seconds for job in jobs)
                 return self._plan_refusal(jobs[0], ui=ui, need=need), room, refused
             if refused == "hours":
@@ -5542,7 +5557,9 @@ class Library:
             # Chatting stays included on Free (design.md §12, "Free and Plan, behind a
             # switch"): held by the daily rail above, not by the month's 60. Its seconds
             # still land in the one ledger. A voice is audio, and is held like any.
-            per_month_length=None if admin or (kind == "chat" and plans.on()) else self.allowance(),
+            per_month_length=None
+            if admin or (kind == "chat" and plans.on())
+            else self._month_for(job),
             gift=job.gift,
         )
         if not refused:
@@ -13396,7 +13413,9 @@ class Handler(BaseHTTPRequestHandler):
             # a switch", 2026-10-09): `{"on": false}` and nothing else while they are off,
             # so every page draws exactly what it drew before the switch existed.
             "plan": plans.summary(
-                person, listed=self.store.listed_words(person.id) if plans.on() else 0
+                person,
+                listed=self.store.listed_words(person.id) if plans.on() else 0,
+                language=self._ui_language(),
             ),
         }
         # The chats bound to Telegram (targum-internal#328), only where there is a bot:
@@ -13738,8 +13757,9 @@ class Handler(BaseHTTPRequestHandler):
         person = self._person()
         if person is None:
             return self._go("/account/signin")
+        language = self._page_language()
         page = plans_page(
-            plans.summary(person), language=self._page_language(), token=self._key_if_given()
+            plans.summary(person, language=language), language=language, token=self._key_if_given()
         )
         self._send(200, page.encode("utf-8"), HTML)
 
