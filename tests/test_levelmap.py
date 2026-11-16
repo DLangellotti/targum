@@ -108,6 +108,41 @@ def test_the_easy_spec_keeps_its_floors_and_its_length() -> None:
     assert not levelmap.meets_easy(10, 7.0, 0)
 
 
+def test_a1_is_easys_two_ceilings_and_short() -> None:
+    """design.md §12, "A1 is Easy's two ceilings and short" (2026-11-15): placement drops
+    both of the spec's floors and keeps its ceilings and its length."""
+    assert levelmap.places_a1(10, 7.0, 2)
+    assert levelmap.places_a1(2, 7.0, 2), "under the share's floor is still A1"
+    assert levelmap.places_a1(10, 3.0, 2), "under the sentence floor is still A1"
+    assert levelmap.places_a1(1, 1.0, 1), "under both floors is still A1"
+    assert not levelmap.places_a1(16, 7.0, 2), "over the share's ceiling"
+    assert not levelmap.places_a1(10, 9.6, 2), "over the sentence ceiling"
+    assert not levelmap.places_a1(10, 7.0, 4), "too long to finish in a sitting"
+    assert not levelmap.places_a1(10, 7.0, 0)
+    assert not levelmap.places_a1(0, 7.0, 2), "unmeasured"
+
+
+def test_an_under_floor_short_easy_text_is_a1_and_off_the_spec() -> None:
+    """The text `level_for` used to put at A2, above texts harder than it, is A1 on every
+    count, while the weekly's target row, which keeps the floors, still leaves it out."""
+    from targum.coverage import EMPTY
+
+    under = [entry("url:share", difficulty=3), entry("url:sentence", sentence=3.0)]
+    for one in under:
+        assert levelmap.text_level(one, EMPTY) == "A1"
+        assert not levelmap.meets_easy(one.difficulty, one.sentence, one.minutes)
+    shelves = levelmap.tally(
+        [*under, entry("url:spec"), entry("url:long", words=1000)],
+        sentence=lambda e: e.sentence,
+        spoken=nothing,
+        video=nothing,
+    )
+    he = shelves["he"]
+    assert levelmap.cefr_rows(he)["A1"] == (3, 0)
+    assert levelmap.cefr_rows(he)["A2"] == (1, 0)
+    assert he.easy == {"text": 1}, "the Easy spec row is still the spec in full"
+
+
 def test_medium_is_asked_the_way_the_library_asks() -> None:
     assert levelmap.medium("video:abc", spoken=nothing, video=nothing) == "video"
     assert levelmap.medium("recording", spoken=lambda s: True, video=lambda s: True) == "video"
@@ -524,9 +559,11 @@ def test_text_level_and_cefr_rows_count_the_same_text_the_same_way(dialogues: Pa
     )
     rows = levelmap.cefr_rows(shelves["he"])
     said = [levelmap.level_for(one, one.sentence, ruler) for one in shelf_of]
-    assert said == ["A1", "A1", "A2", "B1", "A1", "A2", "B1", "C1", "", ""]
+    # url:a2 is under the share's floor and short: A1 since 2026-11-15, still off the spec.
+    assert said == ["A1", "A1", "A2", "B1", "A1", "A1", "B1", "C1", "", ""]
     for level in levelmap.TEXT_LEVELS:
         assert rows[level][0] == said.count(level), level
     assert rows["B2+"][0] == sum(said.count(level) for level in levelmap.NATIVE_LEVELS)
     assert shelves["he"].cells[(levelmap.UNMEASURED, "text")] == 2
-    assert shelves["he"].easy["text"] == 3
+    assert shelves["he"].a1["text"] == 4
+    assert shelves["he"].easy["text"] == 3, "the spec row keeps its floors"

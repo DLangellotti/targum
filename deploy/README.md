@@ -294,13 +294,13 @@ rails, and it shows in the usage figures.
 ## Speed
 
 After a deploy that touches the public pages (the landing, the signed-out Library and its
-text pages, `/about`, the legal pages), run the read-only speed pass from the laptop and
+text pages, `/about`, `/how`, `/credits`, `/connect`, `/aliyah`, the legal pages), run the read-only speed pass from the laptop and
 put its numbers on the surface's §14 card (design.md §14 line 5: useful in under 1.5 s on
 a phone):
 
 ```
 .venv/bin/python scripts/speed_pass.py --json speed.json
-.venv/bin/python scripts/speed_pass.py --page /library/ruth     # one page instead of eight
+.venv/bin/python scripts/speed_pass.py --page /library/ruth     # one page instead of twelve
 ```
 
 It loads each page cold on a throttled phone (three loads) and an unthrottled desk (two),
@@ -309,8 +309,15 @@ line prints the LCP with a 450 ms margin and says "near" when that one crosses t
 warning that a real first visit might, never the verdict. It exits 1 when a phone page is
 over, or when a page records no LCP at all. Only GETs leave (it aborts anything else and says how many it stopped), nothing
 signs in, and its user agent ends in `targum-speed-pass`, which the visitor count drops.
-It takes about five minutes for the eight pages, and it is a heavy browser run, so it
+It takes about eight minutes for the twelve pages, and it is a heavy browser run, so it
 takes the shared lock like any other.
+
+The weekly run (`deploy/weekly-run.sh`) runs the same pass on the phone once the issue is
+out and writes `targum-out/weekly/speed/<week>.txt` and `.json`, with one line in
+`runs.log`. It never stops the run and never tells the box: a miss there is a number for
+the §14 card, not a reason to hold an issue. A run that has already failed skips it, and
+the pass is cut off after 30 minutes, so a wedged browser cannot keep the run open into
+next Monday. `TARGUM_WEEKLY_SPEED=0` leaves it out.
 
 The signed-in surfaces (home, Subscriptions, the signed-in Library and two readers) are
 measured as the test account, and never as a reader (targum-internal#552; David's word to

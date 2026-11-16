@@ -1176,6 +1176,15 @@ FAULTS_PER_HOUR_FOR_EVERYBODY = 600
 #: Phrases one account may have bought in an hour (targum-internal#734). An answer
 #: already held is free and never counted.
 PHRASES_PER_HOUR = 120
+#: Word meanings one account may have bought in an hour (targum-internal#737). Only a
+#: tap that reaches the model counts: a meaning already held, and one already grounded in
+#: a sentence, is free and never counted. A reader opening a card every twelve seconds for
+#: an hour on words nobody has looked up meets it; a script naming lemmas does sooner.
+GLOSSES_PER_HOUR = 300
+#: The longest lemma `/gloss` takes. The longest in the library on 2026-11-15 was 30
+#: characters (a hyphenated Russian adjective); the longest Hebrew 23, pointed with a
+#: Strong's number, and the longest multi-word Hebrew name 14 (`tanakh.json`).
+MAX_LEMMA = 64
 #: The largest fault report the door reads. A real one is a few hundred bytes.
 FAULT_BODY = 4096
 #: A build as the stamp writes it (`about.build`), and a window's size as a page says it.
@@ -8607,6 +8616,8 @@ class Handler(BaseHTTPRequestHandler):
             else self._public_language()
         )
         if route == "/waitlist/confirm":
+            if signup_is_open():
+                return self._open_now(token)
             waiting = store.peek_waiting(token)
             if waiting is None:
                 return self._waitlist_note(
@@ -8627,6 +8638,39 @@ class Handler(BaseHTTPRequestHandler):
             heading=heading,
             pending={"action": route, "token": token, "button": button},
         )
+
+    def _open_now(self, token: str) -> None:
+        """What an old waitlist mail opens once the door is open (targum-internal#477, C):
+        the sign-in page, headed "targum is open now", with the address it joined with
+        in the field, Send a link, and Google where this install has it.
+
+        Nothing is confirmed onto a list nobody is let in from by turn any more, and the
+        token is left as it was, so a press here spends nothing. The address is filled in
+        only for a token still waiting to be confirmed, which is what the shut door's
+        page already names ("Keep me on the list as …"); a spent or made-up token gets the
+        same page with an empty field.
+
+        The row's language only where the token found that address, and the request's
+        otherwise: a made-up token and one whose row was stopped while pending must
+        draw the same page, and an unknown token must not carry a language the visitor
+        never pressed into the form (qa-claude on targum#1270).
+        """
+        from .strings import text
+
+        store = self.library.store
+        email = (store.peek_waiting(token) if store is not None else None) or ""
+        if email and store is not None:
+            said = asked = store.waiting_language(token)
+        else:
+            said, asked = self._public_language(), self._asked()
+        page = signin_page(
+            language=said,
+            asked=asked,
+            address=self.address,
+            heading=text("open-door.open-now", said),
+            email=email,
+        )
+        return self._send(200, page.encode("utf-8"), HTML)
 
     def _visitor(self) -> str:
         """The address a request came from: Caddy's `X-Forwarded-For` where the
@@ -8715,6 +8759,15 @@ class Handler(BaseHTTPRequestHandler):
         store = self.library.store
         if store is None:
             return self._send(404, b"not found", "text/plain")
+
+        # With the door open nobody waits (targum-internal#477, C): a cached front page or
+        # an old popup still posts here, and it is answered as the open door's own form,
+        # with the sign-in link. A link tried beside it rides in that link to Upload and
+        # is built only on their own press, never as Let in's gift.
+        if route == "/waitlist" and signup_is_open():
+            return self._signup_post(form)
+        if route == "/waitlist/confirm" and signup_is_open():
+            return self._open_now(form.get("t", ""))
 
         if route == "/waitlist":
             address = (form.get("email") or "").strip()
@@ -19342,7 +19395,10 @@ class Handler(BaseHTTPRequestHandler):
         # Which text they were reading, so a judgement made in it can be held to that
         # text's licence when the corpus leaves (targum-internal#164, acceptance 5).
         document = str(payload.get("document", "")).strip()[:200]
-        if not lemma or not source:
+        # A lemma is a word, so it is refused rather than cut when it is longer than any
+        # word: cut, it would still be a purchase of whatever a page put there
+        # (targum-internal#737). The longest in the library is 30 characters.
+        if not lemma or not source or len(lemma) > MAX_LEMMA:
             return self._json({"error": "bad request"}, 400)
 
         from .annotate.gloss import GLOSS_MODEL, AnthropicGlosses, cached_gloss, gloss_one
@@ -19398,6 +19454,35 @@ class Handler(BaseHTTPRequestHandler):
         usable, _ = provider.available()
         if not usable:
             return self._json(self._no_key(), 402)
+        # And a ceiling per account an hour on what is bought (targum-internal#737), as
+        # `/phrase` has. `gloss_one` buys only where nothing is held, or where what is
+        # held was bought bare and a sentence has arrived; everything else is free and
+        # never counted. Past the ceiling a bare meaning already held is still answered,
+        # ungrounded, so the card keeps what it had and only the new purchase waits.
+        held = cached_gloss(lemma, source, target, provider.name)
+        if held is None or (sentence and not held.grounded):
+            person = self._person()
+            who = f"gloss:{person.id}" if person is not None else "gloss:" + digest(self._visitor())
+            if self.store.asking_too_often(who, limit=GLOSSES_PER_HOUR):
+                if held is not None:
+                    return self._json(
+                        {
+                            "lemma": lemma,
+                            "meaning": held.gloss,
+                            "citation": held.citation,
+                            "plural": held.plural,
+                            "grounded": False,
+                        }
+                    )
+                return self._json(
+                    {
+                        "error": self._say(
+                            "serve.gloss.too-often",
+                            "That's a lot of words for one hour. Try again in an hour.",
+                        )
+                    },
+                    429,
+                )
         try:
             sense = gloss_one(
                 lemma,

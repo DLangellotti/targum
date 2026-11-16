@@ -8,6 +8,8 @@ median, and a phone page is held to §14's 1.5 s with the connection setup added
 from __future__ import annotations
 
 import importlib.util
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -194,3 +196,108 @@ def test_the_state_is_owner_only_and_never_in_the_tree(tmp_path: Path) -> None:
     assert keep.stat().st_mode & 0o777 == 0o600
     assert speed.inside_tree(SCRIPT.parent / "state.json")
     assert not speed.inside_tree(tmp_path / "state.json")
+
+
+# -- the weekly loop (targum-internal#484) --------------------------------------------------
+
+
+def test_the_public_pages_include_the_four_drawn_as_public_since_1193() -> None:
+    pages = load_script().PAGES
+    for path in ("/how", "/credits", "/connect", "/aliyah"):
+        assert path in pages.values()
+
+
+def _speed_check(
+    tmp_path: Path, python: str, **env: str
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """`speed_check` from weekly-run.sh, run alone in a tree whose python is `python`,
+    under the script's own `set -uo pipefail` and with an EXIT trap like its own, which
+    would tell the box about any exit that is not 0."""
+    script = (SCRIPT.parent.parent / "deploy" / "weekly-run.sh").read_text(encoding="utf-8")
+    found = re.search(r"^speed_check\(\) \{\n.*?^\}\n", script, re.S | re.M)
+    assert found is not None
+    (tmp_path / ".venv" / "bin").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "scripts").mkdir(exist_ok=True)
+    (tmp_path / "scripts" / "speed_pass.py").write_text("")
+    fake = tmp_path / ".venv" / "bin" / "python"
+    fake.write_text("#!/bin/sh\n" + python)
+    fake.chmod(0o755)
+    run = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -uo pipefail\n"
+            "trap 'c=$?; [ $c -ne 0 ] && echo WOULD-TELL-THE-BOX $c' EXIT\n"
+            'say() { echo "$*"; }; record() { echo "REC $*"; }\n'
+            + found.group(0)
+            + "speed_check; echo returned $?",
+        ],
+        env={"ROOT": str(tmp_path), "WEEK": "2026-w47", "PATH": "/usr/bin:/bin", **env},
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert "WOULD-TELL-THE-BOX" not in run.stdout
+    return run, run.stdout
+
+
+# The fake pass finds its --json path as the argument after --json.
+_WRITE_JSON = 'while [ "$1" != --json ]; do shift; done; echo "{}" > "$2"\n'
+#: A fake pass that says it ran, so a step that should have skipped it is seen.
+_RAN = "echo PASS-RAN\nexit 0\n"
+
+
+def test_the_weekly_speed_check_never_stops_the_run(tmp_path: Path) -> None:
+    """A page over the budget is written down beside the issue and said in runs.log; it
+    never ends the run, never reaches `die`, and never tells the box."""
+    over = _WRITE_JSON + ("echo '§14 line 5, 1500 ms on a phone: 1 over, 0 with no LCP.'\nexit 1\n")
+    run, said = _speed_check(tmp_path, over)
+    assert run.returncode == 0 and "returned 0" in said
+    assert "REC speed: 1 over, 0 with no LCP." in said
+    assert (tmp_path / "targum-out" / "weekly" / "speed" / "2026-w47.txt").exists()
+
+
+def test_a_weekly_pass_that_could_not_run_says_so(tmp_path: Path) -> None:
+    run, said = _speed_check(tmp_path, "echo no browser >&2\nexit 1\n")
+    assert run.returncode == 0 and "returned 0" in said
+    assert "REC speed: the pass could not run (exit 1)" in said
+
+
+def test_a_weekly_pass_that_holds_says_so(tmp_path: Path) -> None:
+    run, said = _speed_check(tmp_path, _WRITE_JSON + "exit 0\n")
+    assert "REC speed: every public page holds" in said
+
+
+def test_a_wedged_weekly_pass_is_cut_off_and_said(tmp_path: Path) -> None:
+    """A headless browser that never returns would hold the run open for good, and
+    launchd skips next Monday's while it is. The limit ends it as a pass that could not
+    run, and the run carries on."""
+    run, said = _speed_check(tmp_path, "sleep 20\n", SPEED_LIMIT="1")
+    assert run.returncode == 0 and "returned 0" in said
+    assert "REC speed: the pass could not run (out of time after 1 s)" in said
+
+
+def test_the_weekly_speed_check_can_be_left_out(tmp_path: Path) -> None:
+    run, said = _speed_check(tmp_path, _RAN, TARGUM_WEEKLY_SPEED="0")
+    assert run.returncode == 0 and "returned 0" in said
+    assert "PASS-RAN" not in said and "REC" not in said
+
+
+def test_a_run_that_already_failed_does_not_wait_for_the_speed_check(tmp_path: Path) -> None:
+    run, said = _speed_check(tmp_path, _RAN, FAILED=" ship")
+    assert run.returncode == 0 and "returned 0" in said
+    assert "PASS-RAN" not in said and "REC" not in said
+
+
+def test_the_weekly_speed_check_comes_after_the_mail_with_a_limit() -> None:
+    script = (SCRIPT.parent.parent / "deploy" / "weekly-run.sh").read_text(encoding="utf-8")
+    code = "\n".join(line for line in script.splitlines() if not line.lstrip().startswith("#"))
+    assert code.index("targum weekly announce") < code.index("\nspeed_check\n")
+    assert code.index("\nspeed_check\n") < code.index('if [ -n "$FAILED" ]')
+    body = code[code.index("speed_check() {") : code.index("\nspeed_check\n")]
+    assert "die" not in body and "tell_the_box" not in body
+    assert "TARGUM_WEEKLY_SPEED" in body
+    # Half an hour, set in the script itself, and by perl's alarm, which macOS has.
+    assert "\nSPEED_LIMIT=1800\n" in code
+    assert "perl -e 'alarm shift; exec @ARGV" in body
+    assert body.index("perl -e") < body.index('"$python" "$pass"')

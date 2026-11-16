@@ -81,7 +81,14 @@ RUSSIAN = {
             "suffixes": ["и"],
             "transparency": "transparent",
             "borrowed": False,
-        }
+        },
+        "понять": {
+            "roots": [{"morph": "ня", "variants": ["ним", "ем"], "sense": "take"}],
+            "prefixes": ["по"],
+            "suffixes": [],
+            "transparency": "opaque",
+            "borrowed": False,
+        },
     },
 }
 
@@ -291,13 +298,46 @@ def test_a_russian_word_shows_its_root_spellings_and_prefix(
     try:
         facts = _facts(page)
         assert "ход · go · also хож, ш" in facts
-        assert facts[facts.index("Prefix") + 1] == "при-"
+        # What the prefix adds, from targum's own list (targum-internal#600).
+        assert facts[facts.index("Prefix") + 1] == "при- · arriving"
         lines = page.evaluate(
             "() => [...document.querySelectorAll('.gloss-card .card-root-met')]"
             ".map((l) => l.textContent)"
         )
         assert lines == ["9 words from ход met, 3 known"], "a morph is not spaced with maqafs"
         _shot(page, f"russian-{width}")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_an_opaque_russian_verb_has_no_prefix_line(
+    browser: Any, lexicons: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
+) -> None:
+    """понять is not "a little" of anything: its по- is listed and never said."""
+    words = [("понять", "VERB", "", "to understand")]
+    page_file = _page(tmp_path, lexicons, monkeypatch, "ru", words)
+    context, page = _card(browser, page_file, "понять", width, family=0)
+    try:
+        facts = _facts(page)
+        assert "Root" in facts and "ня · take · also ним, ем" in facts
+        assert "Prefix" not in facts and not any("по-" in fact for fact in facts), facts
+        _shot(page, f"russian-opaque-{width}")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", [390, 1440])
+def test_the_russian_interface_says_the_prefix_in_russian(
+    browser: Any, lexicons: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, width: int
+) -> None:
+    words = [("приходить", "VERB", "", "приходить")]
+    page_file = _page(tmp_path, lexicons, monkeypatch, "ru", words, interface="ru")
+    context, page = _card(browser, page_file, "приходить", width, family=0)
+    try:
+        facts = _facts(page)
+        assert facts[facts.index("Приставка") + 1] == "при- · прибытие"
+        _shot(page, f"russian-ru-{width}")
     finally:
         context.close()
 

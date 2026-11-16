@@ -1,6 +1,6 @@
 """A read-only speed pass on the live public pages (design.md §14 line 5, targum-internal#551).
 
-    .venv/bin/python scripts/speed_pass.py                     # the eight public pages
+    .venv/bin/python scripts/speed_pass.py                     # the twelve public pages
     .venv/bin/python scripts/speed_pass.py --page /library/ruth --json speed.json
     .venv/bin/python scripts/speed_pass.py --sign-in LINK --state /tmp/state.json --expect ADDRESS
     .venv/bin/python scripts/speed_pass.py --state /tmp/state.json --warm   # signed in
@@ -68,7 +68,8 @@ from pathlib import Path
 from typing import Any
 
 SITE = "https://targum.page"
-#: The signed-out pages a stranger meets, by name (builder-3's list, 2026-10-28).
+#: The signed-out pages a stranger meets, by name (builder-3's list, 2026-10-28), and the
+#: four drawn as public pages since targum#1193 (targum-internal#484, 2026-11-13).
 PAGES = {
     "landing": "/",
     "library": "/library",
@@ -78,6 +79,10 @@ PAGES = {
     "about": "/about",
     "privacy": "/privacy",
     "terms": "/terms",
+    "how": "/how",
+    "credits": "/credits",
+    "connect": "/connect",
+    "aliyah": "/aliyah",
 }
 #: The signed-in surfaces (targum-internal#552). A reader is opened through `/open/`,
 #: which goes to a built copy or to the Library's row and never into a build.
@@ -502,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
         "--page",
         action="append",
         default=[],
-        help="a path to measure instead of the eight public pages (repeatable)",
+        help="a path to measure instead of the twelve public pages (repeatable)",
     )
     parser.add_argument("--phone-runs", type=int, default=3)
     parser.add_argument("--desk-runs", type=int, default=2)

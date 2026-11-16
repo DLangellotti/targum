@@ -5,6 +5,11 @@
 # say is in about.py (UNSAID), and tests/test_about.py holds every line here to it.
 # deploy/built.md is the brief these are written to.
 
+2026-11-15
+Your Progress can keep a daily goal, in words read or minutes listening, and shows the days it was met.
+A word can be marked known by ear, apart from known when read, and only by your own press.
+At a desk, Your Words can send the words you are learning straight into your own Anki.
+
 2026-11-14
 The play button by a line reads it aloud and shows its translation under it, one line at a time.
 On the Saved page, Remove can be undone, and a saved text is brought up to date when opened online.

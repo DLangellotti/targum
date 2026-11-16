@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>ynet - חדשות</title>
+<item><title>ידיעה אחרת לגמרי</title><link>https://www.ynet.co.il/news/article/other1</link>
+<enclosure url="https://ynet-pic1.example/picserver/other1.jpg" length="0"/></item>
+<item><title>ועוד ידיעה</title><link>https://www.ynet.co.il/news/article/other2</link>
+<enclosure url="https://ynet-pic1.example/picserver/other2.jpg" type="image/jpeg"/></item>
+</channel></rss>

@@ -50,6 +50,22 @@ def test_both_sides_count_the_same() -> None:
     assert len(he) == len(en)
 
 
+def test_a_range_that_starts_mid_chapter_keeps_its_verse_numbers() -> None:
+    """`Genesis 1:20-2:3` is twelve verses of chapter 1 and three of chapter 2. Numbered
+    from one, its first verse was called 1:1 (targum-internal#530)."""
+    body = json.loads((FIXTURES / "onkelos-genesis-1-2.arc.json").read_text(encoding="utf-8"))
+    edition = dict(body["versions"][0])
+    edition["text"] = [edition["text"][0][19:], edition["text"][1][:3]]
+    ranged = {**body, "sections": ["1", "20"], "toSections": ["2", "3"]}
+    made = sefaria.document_from_payload(
+        {"edition": edition, "body": ranged}, "Genesis 1:20-2:3", "arc"
+    )
+    refs = [block.ref for block in made.blocks if block.kind is BlockKind.verse]
+    assert refs[0] == "Onkelos Genesis 1:20" and refs[11] == "Onkelos Genesis 1:31"
+    assert refs[12:] == [f"Onkelos Genesis 2:{verse}" for verse in (1, 2, 3)]
+    assert made.blocks[1].text.startswith("וַאֲמַר יְיָ יִרְחֲשׁוּן")
+
+
 def test_chapters_are_numbered_in_the_language_they_are_in() -> None:
     """A Latin digit inside a Hebrew heading is the bidi mess `isolate()` exists for."""
     heads = [b.text for b in document("he").blocks if b.kind is BlockKind.heading]

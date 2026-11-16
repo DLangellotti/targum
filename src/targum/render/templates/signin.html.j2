@@ -119,7 +119,7 @@
   </form>
 
   {% else %}
-  <h1>{% if connecting %}{{ connecting }}{% else %}{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}{% endif %}</h1>
+  <h1>{% if connecting %}{{ connecting }}{% elif heading %}{{ heading }}{% else %}{{ t("signin.page.sign-in-to-targum", "Sign in to targum") }}{% endif %}</h1>
   {#- Somebody who has never been here learns that targum is by invitation before they
       type an address, not from the refusal after it (beta review PUB-05, 2026-11-03).
       Only while the front door takes an address, and never while the door is open
@@ -145,7 +145,7 @@
   <form method="post" action="/account/sign-in" id="ask"{% if asked %} data-asked="{{ asked }}"{% endif %}{% if back %} data-next="{{ back }}"{% endif %}>
     <label for="email">{{ t("signin.page.email", "Email") }}</label>
     <input type="email" id="email" name="email" required autocomplete="email"
-           autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}">
+           autocapitalize="off" spellcheck="false" placeholder="{{ t("signin.page.you-example-com", "you@example.com") }}"{% if email %} value="{{ email }}"{% endif %}>
     <button class="btn filled wide go" type="submit">{{ t("signin.page.send-a-link", "Send a link") }}</button>
   </form>
   {% endif %}

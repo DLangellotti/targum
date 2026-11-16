@@ -2171,12 +2171,23 @@ window.targumReaderRest = function (R) {
         morphs.appendChild(rootValue(piece("bdi", "root", one[0], "ru"), index, m ? "" : one[0], one[2], one[1], redrawCard));
       });
       facts.add(t("reader.card.root-label", "Root"), morphs);
-      var prefixes = morpheme[1] || [];
-      if (prefixes.length) {
-        facts.add(
-          tn("reader.card.prefix", prefixes.length, "Prefix", "Prefixes"),
-          piece("bdi", "", prefixes.join("- \u00b7 ") + "-", "ru")
-        );
+      // The prefix with what it adds, "вы- · out", from targum's own list
+      // (`annotate/ru_prefixes.json`, #600): only on a verb the lexicon grades
+      // transparent and the list names, so never on понять, заниматься or выиграть. A
+      // page built before the senses rode with it shows no Prefix line, rather than a
+      // bare one on an opaque verb.
+      var senses = morpheme[4] || [];
+      if (senses.length) {
+        var said = document.createElement("span");
+        senses.forEach(function (one, n) {
+          if (n) said.appendChild(document.createTextNode(" + "));
+          said.appendChild(piece("bdi", "", one[0] + "-", "ru"));
+          // In Russian under the Russian interface, in English under the English one,
+          // and left off under any other, as the root's meaning is.
+          var sense = uiLanguage === "ru" ? soft(one[2]) : soft(one[1], true);
+          if (sense) said.appendChild(sense);
+        });
+        facts.add(tn("reader.card.prefix", senses.length, "Prefix", "Prefixes"), said);
       }
     }
   }

@@ -6,6 +6,41 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
+  Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
+  1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
+  Onkelos under every verse and the Metsudah English, all three published, so a row
+  builds for nothing. Each row's line names what to look for in that passage: the ־א
+  ending and יָת, the plural ־יָּא, דִּי, the shifts ש→ת, ז→ד and צ→ע on real pairs, and
+  on the last day the hand-off to the week's portion. No Aramaic is written: every
+  Hebrew-letter word a line quotes is in its day's verses, and a test reads each one there.
+  - `scripts/file_onkelos_starter.py` files the seven rows and the `onkelos-starter`
+    swipe set (ordered, behind the Aramaic door) into the private catalogue, dry by
+    default, `--write` to merge. The file is their source: a rerun puts its values over
+    the catalogue's, and the set keeps its place. `targum seed` then builds the rows on the shared shelf.
+  - `tests/test_onkelos_starter.py` checks every verse of every day against a saved copy
+    of both sides (`fixtures/sefaria/onkelos-starter.json`), every pair and sound shift
+    in its verse, and that the forty common words, all from the top 250 of the
+    Aramaic frequency list (targum#936), are each met in a line of the set.
+  - In Russian too: the set is «Первая неделя с Онкелосом», each day «День 1 · Берешит
+    1:1–5» with its line in Russian, and both editions keep their Russian notes. Each
+    Russian line quotes exactly the Hebrew-letter words its English line does, and a test
+    holds them to that.
+- The waitlist once the door is open (targum-internal#477, C). Only while
+  `signup_is_open()`; shut, or asked for without plans, every door is as it was, byte for
+  byte, and a test pins both.
+  - `POST /waitlist`, from a cached front page or an old popup, is the open door's form
+    (`_signup_post`): it mails the sign-in link through the same gates and keeps no
+    waitlist row. A link posted with it rides to Upload for the reader's own press, as
+    `/signup`'s does, and is never saved where Let in would build it as a gift.
+  - `/waitlist/confirm` from an old mail, GET or POST, opens the sign-in page headed
+    "targum is open now", in the language the address joined in, with the address in
+    the field where the token is still waiting, Send a link, and Google where configured.
+    Nothing is confirmed and the token is not spent. `/waitlist/stop` works as before.
+  - The back office keeps the waitlist as it stands under "Signup is open, so nobody new
+    joins this list. Let in still works for anyone still waiting."; Let in and Open the
+    door stay.
+  - `signin_page` takes `heading` and `email`. New string `open-door.open-now` (en, ru).
 - "Ways to sign in" on Your account: link and unlink Google (targum-internal#502,
   design.md §12 "Sign in with Google goes live, and signup opens to anyone", 2026-11-14).
   - The Account card's Email row becomes "Ways to sign in". "Email link" shows the
@@ -104,6 +139,42 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     first draft for ling-ru.
 
 ### Changed
+- A Russian verb's card says what its prefix adds, and only where it adds it
+  (targum-internal#600, design.md §12). The Prefix row was drawn on every prefixed word,
+  opaque ones too, as a bare "по-". It now shows only on a verb the root lexicon grades
+  transparent and ling-ru's list names, with the sense beside it: "вы- · out",
+  "при- · arriving", and in Russian under the Russian interface («вы- · наружу»).
+  `annotate/ru_prefixes.json` holds twenty prefixes with their spellings and one or two
+  senses each, and 105 verbs each read in one sense; 90 of them show on today's lexicon,
+  and the other 15 wait for it to cut or grade them. понять, заниматься, выиграть, a
+  noun, and transparent verbs whose prefix means none of its senses (узнать, показать,
+  сделать) get no Prefix row. The senses ride in the page's `morphemes` table at page-build
+  time: no spend, no cache key moved. A page built before this shows no Prefix row until
+  it is built again.
+- `/gloss` has an hour's ceiling per account, as `/phrase` has (targum-internal#737,
+  raised by qa-claude on #1258). It had none: a signed-in page could name lemma after
+  lemma and targum bought each meaning. An account may now buy 300 meanings an hour
+  (`GLOSSES_PER_HOUR`, on the `asked` table `/phrase` and the sign-in links use), and past
+  it gets a 429, "That's a lot of words for one hour. Try again in an hour." Only a tap
+  that reaches the model counts: a meaning already held, or held grounded, is free and
+  never counted. A bare meaning asked with its sentence past the ceiling is answered as
+  it stands, ungrounded, so the card keeps what it had and only the purchase waits. One
+  new string, in English and Russian. A lemma longer than 64 characters after stripping
+  (`MAX_LEMMA`) is now a 400 before any gate, free or bought: it had no limit, so 300 an
+  hour could each be a page of text. The longest lemma in the library is 30 characters.
+  No spend.
+- A1 is Easy's two ceilings and short (targum-internal#728, design.md §12 "A1 is Easy's
+  two ceilings and short", 2026-11-15). For placement an Easy text is A1 where its share
+  is at most 15, its mean sentence at most 9.5 words, and it runs more than none and at
+  most 3 minutes (`levelmap.places_a1`); both of the spec's floors are dropped, so a text
+  easier than a floor is no longer placed A2, above texts harder than it. The rest of Easy
+  is A2. `level_for`, and so `text_level`, `tally` and `cefr_rows`, read the new rule
+  together.
+  - `meets_easy` keeps its floors: it is still what the weekly is written to and what the
+    Easy-spec target row counts. `Shelf.easy` stays that row; `Shelf.a1` is the new A1
+    count `cefr_rows` reads.
+  - On the laptop's catalogue the modern ladder moves A2 → A1 by 2 texts in Hebrew
+    (201/82 → 203/80), 14 in Russian (130/63 → 144/49) and 34 in French (50/40 → 84/6).
 - The invitation's Sign in button now opens the sign-in page with `?invited=1`
   (targum-internal#723, design.md §12 "The invitation's link leads with signing in",
   2026-11-14). From that link the page leads with signing in and does not show "New here?
@@ -306,6 +377,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
+  `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
+  verse's ref is what the reader, a recording and Onkelos's names are keyed by
+  (`sefaria.first_verse`).
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
   with the time of the ship. A saved copy refetches a file whose size or time changed, so
@@ -313,6 +388,40 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   with `-rLt` now. The other ship scripts and `deploy.sh` already used `-a`; the
   `index.json` sends stay as they are, since nothing saved holds the index.
   `tests/test_ship_as_targum.py` holds every other rsync to the box to `-a` or `-t`.
+- A news article is never a one-hour episode (targum-internal#736). An Israel Hayom
+  opinion piece put in a chat set was quoted as a podcast episode of an hour, 60 credits.
+  Its page has a "listen" button whose `<audio>` is a machine reading of the article, and
+  `episode.find` took that player for an episode. Nothing said how long it ran, so
+  `_prepare_episode` used its one-hour guess.
+  - A page that calls itself an article (Open Graph `article`, or a schema.org Article
+    type), doesn't also call itself an episode, and whose article runs to 200 words has
+    its player checked before it is taken for an episode. The player is kept when it is
+    served from a podcast host (libsyn, megaphone, simplecast, omny, anchor, buzzsprout,
+    transistor, podbean, acast, spreaker, captivate, podtrac and others,
+    `episode.PODCAST_HOSTS`). It is also kept when it runs more than twice as long as the
+    article's words take to say at `SPEECH_WORDS_PER_MINUTE`. Otherwise it is the article
+    read aloud, and the page is read as a text. Israel Hayom's read-aloud runs 258 s for
+    529 words. Streetwise Hebrew's pages on tlv1.fm say Article, have 240–370 words of
+    notes and play from libsyn, so they stay episodes (qa-claude on targum#1265).
+  - Only the article's own feed can still make it an episode, with an item for that exact
+    page that has audio. The site feed's newest item is somebody else's story. The match
+    keeps the query that names a page (WordPress's `?p=`) and drops `utm_` and the like.
+  - `@type` lists are read whole, so a PodcastEpisode anywhere in one counts.
+  - An enclosure is audio only when it is typed `audio/*` or its name is an audio file
+    (new `feeds.Item.enclosure_type`). News feeds hang untyped pictures on their items,
+    some behind an image resizer with no suffix.
+  - A recording found on a page is timed from its first megabyte (`ingest.url.opening`
+    and `probe.timed`, as `describe_source` does for a bare link), so the quote is its
+    own length. The length is kept for ten minutes by address, so the describe, the quote
+    and the ingester pull it once. The hour stays only for a recording nothing could time.
+  - The language was never taken from the title. The job's language column was empty,
+    because the episode path sets none, and "היום" was the end of the title ("… | היום").
+    The article now goes the text path, where the language is detected from its body.
+  - On the box, 6 jobs had `episode` set and exactly 3,600 seconds. 4 were Israel Hayom
+    articles, all quotes nobody confirmed, with nothing claimed. The other 2 were genuine
+    omny recordings.
+  - Tests: `tests/test_article_is_not_an_episode.py`, on saved pages in
+    `tests/fixtures/articles/` (the publishers' shapes with made-up sentences).
 - `/phrase` holds a selection's meaning to the same languages `/gloss` does
   (targum-internal#734, the second door of #732, found by qa-claude). It checked neither
   language: any source into any target was bought, the words' own language too, and the

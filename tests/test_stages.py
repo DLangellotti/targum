@@ -262,10 +262,10 @@ def test_hebrews_hard_spots_are_all_covered() -> None:
 
 
 def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
-    """A1 is the Easy spec in full, A2 the rest of Easy, B1 Simplified; Native is split by
-    the text ruler into B2, C1, C2 and Past C2, and `B2+` is still the four together, the
-    level the floors read (design.md §12, "Your level, v3", 2026-10-29); recordings are
-    audio and video."""
+    """A1 is Easy under both ceilings and short (2026-11-15), A2 the rest of Easy, B1
+    Simplified; Native is split by the text ruler into B2, C1, C2 and Past C2, and `B2+`
+    is still the four together, the level the floors read (design.md §12, "Your level,
+    v3", 2026-10-29); recordings are audio and video."""
     shelf = levelmap.Shelf("xx")
     shelf.cells[("aleph", "text")] = 4
     shelf.cells[("aleph", "audio")] = 6
@@ -276,7 +276,8 @@ def test_the_cefr_mapping_counts_what_the_library_measures() -> None:
     shelf.native[("C1", "text")] = 2
     shelf.native[("past-C2", "text")] = 1
     shelf.native[("B2", "audio")] = 1
-    shelf.easy["audio"] = 5
+    shelf.a1["audio"] = 5
+    shelf.easy["audio"] = 3  # the spec row, floors included, is not what A1 reads
     assert levelmap.cefr_rows(shelf) == {
         "A1": (5, 5),
         "A2": (5, 1),
