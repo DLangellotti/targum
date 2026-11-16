@@ -169,3 +169,44 @@ def test_the_past_is_offered_on_the_grammar_tab(
         assert item["options"][item["answer"]] == item["said"]
         assert item["line"][item["start"] : item["end"]] == item["word"]
         assert item["contrast"] and item["contrast"]["said"] != item["said"]
+
+
+def test_a_participle_after_a_noun_is_an_adjective_not_the_passe_compose() -> None:
+    """qa on #1285: *j'ai les yeux fermés* is having one's eyes shut. Only an adverb, a
+    particle or a pronoun may stand between the auxiliary and its participle."""
+    det, noun = word("les", "le", "UPOS=DET", "DET"), word("yeux", "œil", "UPOS=NOUN", "NOUN")
+    line = "J'ai les yeux fermés."
+    assert asked(line, [aux("ai"), det, noun, part("fermés", "fermer")]) == []
+    line = "Il a la porte ouverte."
+    la, porte = word("la", "le", "UPOS=DET", "DET"), word("porte", "porte", "UPOS=NOUN", "NOUN")
+    assert asked(line, [aux("a"), la, porte, part("ouverte", "ouvrir")]) == []
+    # A negation and an inverted subject are still in reach.
+    line = "Il n'a pas vu."
+    ne, pas = word("n'", "ne", "UPOS=ADV", "ADV"), word("pas", "pas", "UPOS=ADV", "ADV")
+    assert asked(line, [ne, aux("a"), pas, part("vu", "voir")]) == [("PC", "Imp", False, "vu")]
+    line = "A-t-il vu ?"
+    il = word("-t-il", "il", "UPOS=PRON", "PRON")
+    assert asked(line, [aux("A"), il, part("vu", "voir")]) == [("PC", "Imp", False, "vu")]
+
+
+def test_an_imparfait_after_a_hypothetical_si_is_not_asked() -> None:
+    """qa on #1285: *si j'avais le temps* says what is not so, not how things were."""
+    si, je = word("Si", "si", "UPOS=SCONJ", "SCONJ"), word("j'", "je", "UPOS=PRON", "PRON")
+    line = "Si j'avais le temps, je viendrais."
+    assert asked(line, [si, je, imp("avais", "avoir")]) == []
+    s, il = word("S'", "si", "UPOS=SCONJ", "SCONJ"), word("il", "il", "UPOS=PRON", "PRON")
+    line = "S'il pleuvait, je resterais."
+    assert asked(line, [s, il, imp("pleuvait", "pleuvoir")]) == []
+    # The clause after the comma is its own: an imparfait there is asked.
+    line = "Si tu veux, il pleuvait hier."
+    tu = word("tu", "tu", "UPOS=PRON", "PRON")
+    veux = word("veux", "vouloir", "UPOS=VERB|Tense=Pres|VerbForm=Fin|Mood=Ind")
+    assert asked(line, [si, tu, veux, il, imp("pleuvait", "pleuvoir")]) == [
+        ("Imp", "PC", False, "pleuvait")
+    ]
+    # A reflexive s' is not si.
+    line = "Il s'habillait."
+    se = word("s'", "se", "UPOS=PRON|Role=Refl", "PRON")
+    assert asked(
+        line, [word("Il", "il", "UPOS=PRON", "PRON"), se, imp("habillait", "habiller")]
+    ) == [("Imp", "PC", False, "habillait")]

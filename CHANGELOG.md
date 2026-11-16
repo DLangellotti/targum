@@ -49,7 +49,9 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   `stages._practices("fr")["passé composé against imparfait"]` is now true.
   - `practices.past_candidates`: a past participle with *avoir* or *être* in the present
     within the card's reach is `PC`; a finite `Tense=Imp` verb is `Imp`. Not asked: the
-    passive, the pluperfect, and the past subjunctive and conditional. A verb of being,
+    passive, the pluperfect, and the past subjunctive and conditional; a participle
+    with anything but an adverb, a particle or a pronoun between it and the auxiliary
+    (*j'ai les yeux fermés*); an imparfait after a hypothetical *si*. A verb of being,
     having, knowing or wanting is the hard kind.
   - Only on a text whose tenses are apart (`model_lemma.tenses_apart`); `count_text`
     passes the annotation's annotator to `_french`.

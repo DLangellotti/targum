@@ -512,6 +512,12 @@ practice for every hard spot" (2026-10-13). It waits for David.
   passive (*être* with a verb that does not take it), the pluperfect, the past
   subjunctive and the past conditional are not asked. The imparfait is a finite verb the
   card calls imperfect, unless it is the auxiliary of a pluperfect.
+- **Narrower than the card in two places.** Only an adverb, a particle or a pronoun may
+  stand between the auxiliary and the participle, so a participle used as an adjective
+  after a noun (*j'ai les yeux fermés*) is not asked. The card's own reach
+  (`auxiliaryBefore`) still names that one passé composé, which is a follow-up for the
+  card. And an imparfait after a hypothetical *si* (*si j'avais le temps*) is not asked:
+  it says what is not so, and "how things were" would misexplain it.
 - **Only on a text whose tenses are apart** (`model_lemma.tenses_apart`). A text read by
   prompt 2, or one still holding prompt-2 readings, calls the imparfait "past", so it
   offers nothing. Re-reading it would spend, and nothing here does.

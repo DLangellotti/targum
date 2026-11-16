@@ -551,6 +551,10 @@ REFLEXIVE_FORMS = frozenset({"se", "me", "te", "s'", "m'", "t'"})
 #: How far before a participle its auxiliary may stand, as on the card (`auxiliaryBefore`).
 AUXILIARY_REACH = 4
 
+#: What may stand between an auxiliary and its participle: *ne*, *pas*, *jamais*, *bien*,
+#: an inverted subject. Not a noun or its article (*j'ai les yeux fermés*).
+_BETWEEN = frozenset({"ADV", "PART", "PRON"})
+
 #: Verbs of being, having, knowing and wanting, whose imparfait and passé composé English
 #: says with one past: the hard kind.
 STATE_VERBS = frozenset(
@@ -572,7 +576,14 @@ def past_candidates(
     the auxiliary of a participle after it, which is the pluperfect. A verb of being,
     having, knowing or wanting is the hard kind. The caller asks only of a text whose
     tenses are apart (`model_lemma.tenses_apart`): elsewhere an imparfait may be read as a
-    plain past."""
+    plain past.
+
+    Narrower than the card's reach in two places (qa on #1285). Between the auxiliary and
+    the participle only an adverb, a particle or a pronoun may stand (*n'a pas vu*,
+    *a-t-il vu*), so a participle used as an adjective after a noun (*j'ai les yeux
+    fermés*) is not taken for the passé composé. And an imparfait after a hypothetical
+    *si* (*si j'avais le temps*) is not asked: it says what is not so, which "how things
+    were" would misexplain."""
     rows = [
         (
             str(t.get("lemma") or "").lower(),
@@ -580,6 +591,7 @@ def past_candidates(
             int(t.get("start") or 0),
             int(t.get("end") or 0),
             str(t.get("surface") or "").lower().replace("’", "'"),
+            str(t.get("pos") or ""),
         )
         for t in stored
     ]
@@ -593,10 +605,25 @@ def past_candidates(
                 return None
             if rows[k][0] in AUXILIARIES:
                 return k
+            if rows[k][5] not in _BETWEEN:
+                return None
         return None
 
+    def hypothetical(at: int) -> bool:
+        """Whether the verb at `at` stands in a *si* clause: *si* or *s'il* a word or two
+        before it, with nothing that ends the clause between."""
+        for k in range(at - 1, max(-1, at - 4), -1):
+            if stopped(k, k + 1):
+                return False
+            said = rows[k][4]
+            if said == "si" or (
+                said == "s'" and k + 1 < len(rows) and rows[k + 1][4] in ("il", "ils")
+            ):
+                return True
+        return False
+
     leaning: set[int] = set()
-    for at, (lemma, feats, start, end, _) in enumerate(rows):
+    for at, (lemma, feats, start, end, _, _) in enumerate(rows):
         if feats.get("VerbForm") != "Part" or feats.get("Tense") != "Past":
             continue
         k = auxiliary(at)
@@ -612,10 +639,10 @@ def past_candidates(
         if aux == "être" and not reflexive and lemma not in ETRE_VERBS:
             continue
         yield Candidate("past", segment, start, end, "PC", "Imp", lemma in STATE_VERBS)
-    for at, (lemma, feats, start, end, _) in enumerate(rows):
+    for at, (lemma, feats, start, end, _, _) in enumerate(rows):
         if feats.get("Tense") != "Imp" or feats.get("VerbForm", "Fin") != "Fin":
             continue
-        if feats.get("Mood", "Ind") != "Ind" or at in leaning:
+        if feats.get("Mood", "Ind") != "Ind" or at in leaning or hypothetical(at):
             continue
         yield Candidate("past", segment, start, end, "Imp", "PC", lemma in STATE_VERBS)
 
