@@ -885,6 +885,10 @@ SIGNUP_POST = "/signup"
 #: Where Paddle sends its events (targum-internal#59 phase 2). Answered only where the
 #: deployment has Paddle's webhook secret; a 404 everywhere else.
 BILLING_HOOK = "/billing/webhook"
+#: The two pay presses: Start the plan, with its cadence, and Top up, with its size.
+PLANS_START = "/plans/start"
+PLANS_TOP_UP = "/plans/topup"
+PAY_POSTS = frozenset({PLANS_START, PLANS_TOP_UP})
 
 #: The posts that mail a link to whatever address they are given (targum-internal#688).
 #: A form on another site could post to any of them, so each refuses a browser that
@@ -11513,6 +11517,10 @@ class Handler(BaseHTTPRequestHandler):
         # The press on a subscription's confirm page: a plain form, like the build's.
         if route == "/subscribe":
             return self._subscribe_post(self._form())
+        # The pay presses (targum-internal#59 phase 2): plain forms that leave for
+        # Paddle's hosted checkout by a 303 (design.md §12, 2026-11-15).
+        if route in PAY_POSTS:
+            return self._pay(route, self._form())
         # The press on a whole set (#365): a form post too, carrying the ticked items.
         if route.startswith("/set/"):
             return self._set_press(route[len("/set/") :])
@@ -13894,10 +13902,62 @@ class Handler(BaseHTTPRequestHandler):
         if person is None:
             return self._go("/account/signin")
         language = self._page_language()
+        pay = billing.configured()
         page = plans_page(
-            plans.summary(person, language=language), language=language, token=self._key_if_given()
+            plans.summary(person, language=language),
+            language=language,
+            token=self._key_if_given(),
+            pay=pay,
+            failed=parse_qs(urlparse(self.path).query).get("pay", [""])[0] == "failed",
         )
-        self._send(200, page.encode("utf-8"), HTML)
+        # The one policy change payments make (design.md §12, 2026-11-15): this page's
+        # pay press is answered with a redirect to Paddle's checkout, and Chrome checks a
+        # form's redirect against `form-action`, so the page names that origin and only
+        # it. Every other page keeps `form-action 'self'`.
+        forms = billing.checkout_origin() if pay else ""
+        self._send(200, page.encode("utf-8"), HTML, forms=forms)
+
+    def _pay(self, route: str, form: dict[str, str]) -> None:
+        """A pay press: make a Paddle transaction for it and send the reader to Paddle's
+        hosted checkout, which sends them back to `/plans` (design.md §12, "Payments are
+        Paddle's, by a hosted checkout", 2026-11-15).
+
+        No page of ours loads anything of Paddle's: this answers a 303, and the browser
+        leaves. Refused unless plans are on and every Paddle setting is there, so with
+        the keys missing both addresses are a 404 like any that is not there. A form on
+        another site cannot press it for the reader. Start is for a reader with no plan
+        that holds; Top up for a reader on Plan, as "No top-up on Free" says. Anything
+        else, and a Paddle that does not answer, goes back to `/plans`."""
+        if not plans.on() or not billing.configured():
+            return self._not_found()
+        if self._cross_site():
+            self.close_connection = True
+            return self._json({"error": "forbidden"}, 403)
+        person = self._person()
+        if person is None or self.store is None:
+            return self._go("/account/signin")
+        held = person.billing
+        customer = held.customer if held is not None else ""
+        prices = billing.prices()
+        if route == PLANS_START:
+            cadence = form.get("cadence", "")
+            if cadence not in ("month", "quarter") or plans.subscribed(person):
+                return self._go("/plans")
+            price, quantity, back = prices[cadence], 1, "/plans"
+        else:
+            try:
+                size = int(form.get("size", ""))
+            except ValueError:
+                size = 0
+            if size not in plans.TOP_UPS or not plans.paid(person):
+                return self._go("/account")
+            price, quantity, back = prices["top-up"], size // billing.TOP_UP_UNIT, "/account"
+        try:
+            where = billing.checkout(price, account=person.id, quantity=quantity, customer=customer)
+        except billing.PaddleError as error:
+            print(f"billing: checkout not made ({error})")
+            return self._go(f"{back}?pay=failed")
+        self._go(where)
 
     def _subscribe_post(self, form: dict[str, str]) -> None:
         """The press: read the source again, check the plan, write the subscription with

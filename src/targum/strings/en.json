@@ -4333,6 +4333,7 @@
   "plans.page.plan-top-up": "Top up at ${price} an hour if you need more in a month",
   "plans.page.start": "Start the plan",
   "plans.page.cancel-any-time": "Cancel any time",
+  "plans.page.pay-failed": "The checkout didn't open. Try again in a minute.",
   "plans.page.dollars": "Prices are in US dollars.",
   "plans.page.how-far": "How far {n} credits go",
   "plans.page.rate": "One credit is a minute of audio or video. Reading uses none.",
