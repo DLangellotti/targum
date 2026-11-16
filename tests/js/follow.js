@@ -37,7 +37,12 @@ global.fetch = (url, options) => {
     const signedIn = !!payload.account;
     return Promise.resolve({
       ok: signedIn,
-      json: () => Promise.resolve(signedIn ? { signedIn: true, follows: payload.account } : {}),
+      json: () =>
+        Promise.resolve(
+          signedIn
+            ? { signedIn: true, follows: payload.account, schedule: payload.accountSchedule || "" }
+            : {},
+        ),
     });
   }
   return Promise.resolve({ ok: true, json: () => Promise.resolve({ series: payload.series || [] }) });
@@ -54,6 +59,8 @@ require(path.join(assets, "follow.js"));
   const rowOf = (id) => host.children.find((li) => li.attrs["data-series"] === id);
   for (const step of payload.do || []) {
     if (step.type === "follow") rowOf(step.id).querySelector(".series-follow").onclick();
+    // The Library shelf's calendar switch (#409).
+    if (step.type === "schedule") global.window.TargumFollow.setSchedule(step.to);
   }
   const follow = global.window.TargumFollow;
   process.stdout.write(

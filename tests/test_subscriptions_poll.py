@@ -193,6 +193,112 @@ def test_a_series_instalment_is_ready_to_open(
     assert [one["key"] for one in store.new_sub_items(me)] == ["noach"]
 
 
+def test_in_a_split_week_each_reader_is_mailed_the_portion_of_their_calendar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """targum-internal#409 slice 4: the Shabbat after Pesach, when Israel reads Shemini
+    and the diaspora still reads the festival's, the weekly portion's row in the daily
+    mail is the one each reader's own calendar reads. Offline: a corpus written here, on
+    the clock of that week."""
+    from zoneinfo import ZoneInfo
+
+    from targum.parasha import calendar as cal
+    from targum.parasha.models import Index, Portion, Week
+
+    root = tmp_path / "parasha"
+    monkeypatch.setenv("TARGUM_PARASHA_DIR", str(root))
+    index = Index()
+    for slug, number in (("shemini", 26), ("pesach-viii", None)):
+        index.portions[slug] = Portion(
+            slug=slug,
+            name=slug.capitalize(),
+            hebrew=f"he-{slug}",
+            kind=cal.ReadingKind.parasha if number else cal.ReadingKind.festival,
+            numbers=[number] if number else [],
+            summary=f"{slug} 1:1-2:2",
+            folder=slug,
+        )
+        built = root / "read" / slug / "reader"
+        built.mkdir(parents=True)
+        (built / "index.html").write_text("<html></html>", encoding="utf-8")
+    index.weeks = [
+        Week(day="2027-04-24", schedule=cal.Schedule.israel, slug="shemini"),
+        Week(day="2027-04-24", schedule=cal.Schedule.diaspora, slug="pesach-viii"),
+    ]
+    (root / "index.json").write_text(index.model_dump_json(), encoding="utf-8")
+    week = datetime(2027, 4, 21, 12, tzinfo=ZoneInfo(cal.FLIP_ZONE))
+    monkeypatch.setattr(cal, "now_in_flip_zone", lambda moment=None: week)
+
+    store = Store(tmp_path / "targum.db")
+    here = reader(store, "israel@example.com")
+    there = reader(store, "diaspora@example.com")
+    before = reader(store, "before@example.com")
+    assert store.follow_series("israel@example.com", "parasha", schedule="israel")
+    assert store.follow_series("diaspora@example.com", "parasha", schedule="diaspora")
+    # A row written before the column, which says nothing: the diaspora's, as before.
+    store.add_subscription(before, "series", "parasha")
+    subs.poll(store, now_ms=NOW, public=True, only=["series"])
+
+    def mailed(person: int) -> list[str]:
+        return [str(item["key"]) for item in store.new_sub_items(person)]
+
+    assert mailed(here) == ["shemini"]
+    assert mailed(there) == ["pesach-viii"]
+    assert mailed(before) == ["pesach-viii"]
+
+    # Changed on the shelf afterwards, the row follows, and the next look brings Israel's.
+    assert store.set_series_schedule("diaspora@example.com", "israel")
+    subs.poll(store, now_ms=NOW, public=True, only=["series"])
+    assert sorted(mailed(there)) == ["pesach-viii", "shemini"]
+
+
+def test_only_a_known_calendar_is_kept_and_only_on_the_portion(tmp_path: Path) -> None:
+    """Anything a request says that is not Israel's calendar is the diaspora's; a series
+    other than the portion keeps none; a reader with no portion row has nothing changed."""
+    store = Store(tmp_path / "targum.db")
+    me = reader(store)
+    store.follow_series("one@example.com", "parasha", schedule="Jerusalem")
+    assert store.series_schedule("one@example.com") == "diaspora"
+    store.follow_series("one@example.com", "parasha", schedule="israel")
+    assert store.series_schedule("one@example.com") == "israel"
+    # Subscribing again with nothing said keeps what the row had.
+    store.add_subscription(me, "series", "parasha")
+    assert store.series_schedule("one@example.com") == "israel"
+    tehillim = store.add_subscription(me, "series", "tehillim", schedule="israel")
+    assert tehillim["schedule"] == ""
+    reader(store, "two@example.com")
+    assert not store.set_series_schedule("two@example.com", "israel")
+    assert store.series_schedule("two@example.com") == ""
+    exported = store.everything(store.person_by_email("one@example.com"))  # type: ignore[arg-type]
+    kept = {row["key"]: row["schedule"] for row in exported["subscriptions"]}
+    assert kept == {"parasha": "israel", "tehillim": ""}, "the reader's to take away"
+
+
+def test_a_box_from_before_the_calendar_column_gets_it_on_the_diaspora(tmp_path: Path) -> None:
+    """Schema 73 (targum-internal#409): a box's existing rows gain `schedule` empty,
+    which is the diaspora's, the calendar their mail followed; opening twice is once."""
+    import sqlite3
+
+    from targum import accounts
+
+    path = tmp_path / "targum.db"
+    store = Store(path)
+    me = reader(store)
+    store.add_subscription(me, "series", "parasha")
+    store.db.close()
+    raw = sqlite3.connect(path)
+    raw.execute("ALTER TABLE subscription DROP COLUMN schedule")
+    raw.execute("PRAGMA user_version = 71")
+    raw.commit()
+    raw.close()
+    opened = Store(path)
+    row = opened.subscription_for(me, "series", "parasha")
+    assert row is not None and row["schedule"] == ""
+    assert opened.series_schedule("one@example.com") == "diaspora"
+    assert opened.db.execute("PRAGMA user_version").fetchone()[0] == accounts.SCHEMA_VERSION
+    Store(path)
+
+
 def test_one_source_down_is_not_the_run_down(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

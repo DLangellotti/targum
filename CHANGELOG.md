@@ -6,6 +6,25 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- The daily mail's weekly-portion row follows the reader's calendar, Israel's or the
+  diaspora's (targum-internal#409 slice 4, option A, David 2026-11-16). In a week the two
+  read different portions, an Israel subscriber is mailed Israel's portion and a diaspora
+  subscriber the diaspora's; until now everybody got the diaspora's.
+  - `subscription.schedule` (accounts schema 71→73; 72 is targum#1267's), one ALTER in
+    MIGRATIONS. Kept on the `parasha` series row alone: `israel` or `diaspora`, anything
+    else said is the diaspora's, and '' on every other row and every row before it reads
+    as the diaspora's. In the account export. `models.SCHEMA_VERSION` is untouched.
+  - `follow.js` sends the browser's `targum:schedule` when the portion is subscribed, and
+    again when the Library shelf's switch changes it while the portion is followed. A
+    calendar this browser chose that the account does not have yet (chosen before this
+    shipped, or signed out) is sent on the next sync; a browser that never chose sends
+    no calendar, on Subscribe or on sync, and the server keeps the row's, so it cannot
+    undo another browser's choice. `POST /account/follows` with a
+    `schedule` and no `series` updates the row; the answer carries the stored one.
+  - `subscriptions._series_items` asks `series.current` on the row's calendar.
+  - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
+    weekly portion, we keep whether you read Israel's calendar or the diaspora's, so the
+    mail names your portion."; `LEGAL_CHANGED` is 16 November 2026.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain

@@ -117,6 +117,55 @@ def test_following_reaches_the_account_and_the_account_s_list_wins() -> None:
     )
 
 
+def posted(got: dict[str, Any]) -> list[dict[str, Any]]:
+    return [one["body"] for one in got["asked"] if isinstance(one, dict)]
+
+
+def test_the_weekly_portion_is_subscribed_with_the_calendar_this_browser_reads() -> None:
+    """targum-internal#409: the daily mail names the portion the shelf does, so the
+    press that subscribes carries the calendar; no other series does."""
+    got = run(
+        series=[WEEKLY, PARASHA],
+        schedule="israel",
+        do=[{"type": "follow", "id": "parasha"}, {"type": "follow", "id": "weekly"}],
+    )
+    assert posted(got) == [
+        {"series": "parasha", "on": True, "schedule": "israel"},
+        {"series": "weekly", "on": True},
+    ]
+    # A browser that never chose sends no calendar, so the account's stands.
+    never = run(series=[PARASHA], do=[{"type": "follow", "id": "parasha"}])
+    assert posted(never) == [{"series": "parasha", "on": True}]
+
+
+def test_a_calendar_changed_on_the_shelf_reaches_the_portion_s_row() -> None:
+    """Changed later, the stored calendar follows, so the mail does not go stale; a
+    reader who does not follow the portion sends nothing."""
+    got = run(
+        series=[PARASHA],
+        follows={"parasha": 1},
+        account=["parasha"],
+        accountSchedule="diaspora",
+        do=[{"type": "schedule", "to": "israel"}],
+    )
+    assert posted(got) == [{"schedule": "israel"}]
+    alone = run(series=[PARASHA], do=[{"type": "schedule", "to": "israel"}])
+    assert posted(alone) == []
+
+
+def test_a_calendar_chosen_before_the_account_kept_one_is_sent_once_it_is_seen() -> None:
+    """A reader who chose Israel's calendar before #409 shipped has a row on the
+    diaspora's: the sync puts it right. A browser that never chose undoes nothing."""
+    chose = run(
+        series=[PARASHA], schedule="israel", account=["parasha"], accountSchedule="diaspora"
+    )
+    assert posted(chose) == [{"schedule": "israel"}]
+    never = run(series=[PARASHA], account=["parasha"], accountSchedule="israel")
+    assert posted(never) == []
+    agreed = run(series=[PARASHA], schedule="israel", account=["parasha"], accountSchedule="israel")
+    assert posted(agreed) == []
+
+
 def test_what_is_fresh_is_followed_unseen_and_newest_first() -> None:
     got = run(
         series=[WEEKLY, PARASHA, QUIET], follows={"weekly": 1, "parasha": 1, "mishna-yomi": 1}

@@ -50,6 +50,7 @@ from .accounts import (
     CHAT_RESTARTED,
     MOST_PLAYLISTS,
     MOST_PROMPTS,
+    SCHEDULED_SERIES,
     SUB_BUILDS,
     TOLD_PER_HOUR,
     TOLD_STATES,
@@ -8898,6 +8899,12 @@ class Handler(BaseHTTPRequestHandler):
         store = self.store
         if person is None or store is None:
             return self._json({"signedIn": False, "follows": []}, 401)
+        if payload is not None and "series" not in payload and "schedule" in payload:
+            # The Library's shelf changed calendar (targum-internal#409): the weekly
+            # portion's row follows it, so the daily mail names the portion this reader
+            # reads. Nothing is written for a reader who does not follow the portion.
+            store.set_series_schedule(person.email, str(payload.get("schedule") or ""))
+            payload = None
         if payload is not None:
             series = str(payload.get("series") or "").strip()
             if not series or not SERIES_ID.match(series):
@@ -8920,11 +8927,28 @@ class Handler(BaseHTTPRequestHandler):
                 # In the language they are reading targum in as they press, so the mail
                 # and the page it leads to are in it too (targum-internal#289). There is
                 # no account behind a follow row, so this is the only chance to know.
-                store.follow_series(person.email, series, wanted, self._page_language())
+                store.follow_series(
+                    person.email,
+                    series,
+                    wanted,
+                    self._page_language(),
+                    # The calendar this browser reads the portion on, so the mail names
+                    # the same portion its shelf does (targum-internal#409). None said
+                    # keeps the row's: a new row reads as the diaspora's.
+                    schedule=str(payload.get("schedule") or "")
+                    if series == SCHEDULED_SERIES
+                    else "",
+                )
         follows = store.series_followed(person.email)
         if store.following(person.email):
             follows = ["weekly", *follows]
-        return self._json({"signedIn": True, "follows": follows})
+        return self._json(
+            {
+                "signedIn": True,
+                "follows": follows,
+                "schedule": store.series_schedule(person.email),
+            }
+        )
 
     def _series_stop(self, form: dict[str, str] | None) -> None:
         """The one-click door out of a series, from an email: a page with a button, and

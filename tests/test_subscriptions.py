@@ -380,3 +380,35 @@ def test_an_unsubscribed_channel_is_not_resumed_in_one_press(
     status, got = send(port, "POST", f"/subscriptions/{series}", {"action": "resume"}, mine)
     assert status == 200 and got["subscription"]["state"] == "on"
     assert got["subscription"]["again"] == ""
+
+
+def test_the_weekly_portion_keeps_the_calendar_it_was_subscribed_on(
+    box: tuple[int, str, str, Path],
+) -> None:
+    """targum-internal#409: the press carries the browser's calendar and the account keeps
+    it; a change on the shelf afterwards is a post of the calendar alone; anything but
+    Israel's is the diaspora's."""
+    port, mine, _, store_path = box
+    status, answer = send(
+        port, "POST", "/account/follows", {"series": "parasha", "schedule": "israel"}, mine
+    )
+    assert status == 200 and answer["schedule"] == "israel"
+    status, answer = send(port, "POST", "/account/follows", {"schedule": "diaspora"}, mine)
+    assert status == 200 and answer["schedule"] == "diaspora" and "parasha" in answer["follows"]
+    status, answer = send(port, "POST", "/account/follows", {"schedule": "mars"}, mine)
+    assert answer["schedule"] == "diaspora"
+    send(port, "POST", "/account/follows", {"schedule": "israel"}, mine)
+    status, answer = send(port, "GET", "/account/follows", session=mine)
+    assert status == 200 and answer["schedule"] == "israel"
+    db = sqlite3.connect(store_path)
+    (kept,) = db.execute(
+        "SELECT schedule FROM subscription WHERE kind = 'series' AND key = 'parasha'"
+        " AND person = (SELECT id FROM person WHERE email = 'one@example.com')"
+    ).fetchone()
+    db.close()
+    assert kept == "israel"
+    # Subscribing again from a browser that never chose says no calendar: Israel's stays.
+    status, answer = send(port, "POST", "/account/follows", {"series": "parasha"}, mine)
+    assert status == 200 and answer["schedule"] == "israel"
+    status, _ = send(port, "POST", "/account/follows", {"schedule": "israel"})
+    assert status == 401, "signed out, there is no row to keep it on"
