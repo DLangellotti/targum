@@ -243,14 +243,23 @@ def fetch(port: int, path: str, session: str) -> tuple[int, dict[str, str], str]
     return response.status, headers, body
 
 
-def test_unconfigured_manage_is_not_there(
+def test_unconfigured_or_with_plans_off_manage_is_not_there(
     box: tuple[int, dict[str, str]], monkeypatch: pytest.MonkeyPatch, paddle: Paddle
 ) -> None:
     port, sessions = box
+    monkeypatch.setenv("TARGUM_PLANS", "1")
     for name in (billing.API_KEY_ENV, billing.CHECKOUT_URL_ENV):
         monkeypatch.delenv(name, raising=False)
     assert fetch(port, serve.PLANS_MANAGE, sessions["paying"])[0] == 404
+    configure(monkeypatch)
+    monkeypatch.delenv("TARGUM_PLANS")
+    assert fetch(port, serve.PLANS_MANAGE, sessions["paying"])[0] == 404
     assert paddle.asked == []
+
+
+@pytest.fixture(autouse=True)
+def plans_on(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TARGUM_PLANS", "1")
 
 
 def test_manage_sends_a_paying_reader_to_paddles_portal(

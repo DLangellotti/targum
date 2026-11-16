@@ -13983,10 +13983,10 @@ class Handler(BaseHTTPRequestHandler):
         where the card, the receipts and Cancel are. A link rather than a form, so Your
         account keeps `form-action 'self'`: a navigation is not a form's redirect.
 
-        A 404 until Paddle is configured; for a reader who has never paid there is no
-        portal, and they go to `/plans`. A Paddle that does not answer sends them back to
-        Your account."""
-        if not billing.configured():
+        A 404 until plans are on and Paddle is configured, like the pay presses; for a
+        reader who has never paid there is no portal, and they go to `/plans`. A Paddle
+        that does not answer sends them back to Your account."""
+        if not plans.on() or not billing.configured():
             return self._not_found()
         person = self._person()
         if person is None:

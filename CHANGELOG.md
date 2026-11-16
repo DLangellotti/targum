@@ -296,7 +296,7 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `graceSaid`, `manage`) for a Paddle plan that holds; a comp or the operator has none.
   - The greyed Switch and Cancel rows give way to Manage for a Paddle plan. Your account
     keeps `form-action 'self'`: Manage is a link, not a form.
-  - `/plans/manage` is a 404 until Paddle is configured; a reader who never paid goes to
+  - `/plans/manage` is a 404 until plans are on and Paddle is configured; a reader who never paid goes to
     `/plans`; a Paddle that does not answer sends them back to Your account. A portal
     link that is not https on `paddle.com` is refused.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
