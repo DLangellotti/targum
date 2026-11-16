@@ -148,6 +148,22 @@ def test_an_older_word_from_paddle_changes_nothing(tmp_path: Path) -> None:
     assert me.billing is not None and me.billing.status == "canceled"
 
 
+def test_only_the_held_subscription_changes_the_row(tmp_path: Path) -> None:
+    """qa-claude on #1280: a reader with two subscriptions (a Start pressed twice, a new
+    plan after a lapsed one) must not be cancelled by the older one's late `canceled`.
+    A live new one replaces the held one; a stale one's events change nothing."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    subscribe(store, me.id, "canceled", subscription="sub_old")
+    me = subscribe(store, me.id, "active", subscription="sub_new")
+    assert me.billing is not None and me.billing.subscription == "sub_new"
+    me = subscribe(store, me.id, "canceled", subscription="sub_old")
+    assert me.billing is not None and me.billing.subscription == "sub_new"
+    assert me.billing.status == "active" and plans.subscribed(me)
+    me = subscribe(store, me.id, "paused", subscription="sub_old")
+    assert me.billing is not None and me.billing.status == "active"
+
+
 def test_a_status_paddle_does_not_have_is_refused(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
@@ -305,28 +321,50 @@ def _grant_at(store: Store, who: int, credits: int, at: datetime, txn: str) -> N
     store.db.execute("UPDATE credit_grant SET at = ? WHERE txn = ?", (ms(at), txn))
 
 
+FULL = 480 * 60.0
+FREE = 60 * 60.0
+
+
+def _paid(store: Store, who: int, starts: datetime, ends: datetime, sub: str = "sub_1") -> None:
+    """A paid period, as `set_billing` keeps one from a subscription event."""
+    store.set_billing(
+        who,
+        cadence="month",
+        status="active",
+        period_end=ends.isoformat(),
+        cancel_at_end=False,
+        customer="ctm_1",
+        subscription=sub,
+        said_at=ms(starts),
+        period_start=starts.isoformat(),
+    )
+
+
 def test_what_is_left_of_a_top_up_is_read_from_the_job_rows(tmp_path: Path) -> None:
-    """September: 300 credits bought, 200 minutes spent past a month of 480 → 100 left
-    to October. October: 30 minutes past the month → 70 left to November, with a fresh
-    60 bought in November on top. Nothing stores the 70: it is read from the rows."""
+    """On Plan throughout. September: 300 credits bought, 200 minutes spent past a month
+    of 480 → 100 left to October. October: 30 minutes past the month → 70 left to
+    November, with a fresh 60 bought in November on top. Nothing stores the 70: it is
+    read from the rows."""
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
-    base = 480 * 60.0
+    _paid(store, me.id, datetime(2026, 9, 1, tzinfo=UTC), datetime(2027, 1, 1, tzinfo=UTC))
+    full, free = FULL, FREE
+    base = full
     sep = datetime(2026, 9, 3, tzinfo=UTC)
     _grant_at(store, me.id, 300, sep, "txn_sep")
     _job(store, me.id, base + 100 * 60, sep + timedelta(days=1), "s1")
     _job(store, me.id, 100 * 60, sep + timedelta(days=2), "s2")
     oct_first = datetime(2026, 10, 1, tzinfo=UTC)
-    assert store.grant_seconds(me.id, ms(oct_first), base) == 100 * 60
+    assert store.grant_seconds(me.id, ms(oct_first), full, free) == 100 * 60
     _job(store, me.id, base + 30 * 60, oct_first + timedelta(days=4), "o1")
     nov_first = datetime(2026, 11, 1, tzinfo=UTC)
-    assert store.grant_seconds(me.id, ms(nov_first), base) == 70 * 60
+    assert store.grant_seconds(me.id, ms(nov_first), full, free) == 70 * 60
     _grant_at(store, me.id, 60, nov_first + timedelta(days=2), "txn_nov")
-    assert store.grant_seconds(me.id, ms(nov_first), base) == 130 * 60
+    assert store.grant_seconds(me.id, ms(nov_first), full, free) == 130 * 60
     # A month spent inside its allowance takes nothing off.
     dec_first = datetime(2026, 12, 1, tzinfo=UTC)
     _job(store, me.id, 100 * 60, nov_first + timedelta(days=5), "n1")
-    assert store.grant_seconds(me.id, ms(dec_first), base) == 130 * 60
+    assert store.grant_seconds(me.id, ms(dec_first), full, free) == 130 * 60
 
 
 def test_a_top_up_never_goes_below_nothing(tmp_path: Path) -> None:
@@ -335,8 +373,66 @@ def test_a_top_up_never_goes_below_nothing(tmp_path: Path) -> None:
     sep = datetime(2026, 9, 3, tzinfo=UTC)
     _grant_at(store, me.id, 60, sep, "txn_1")
     _job(store, me.id, 1000 * 60, sep + timedelta(days=1), "big")
-    assert store.grant_seconds(me.id, ms(datetime(2026, 10, 1, tzinfo=UTC)), 480 * 60.0) == 0
-    assert store.grant_seconds(None, 0, 0.0) == 0
+    assert store.grant_seconds(me.id, ms(datetime(2026, 10, 1, tzinfo=UTC)), FULL, FREE) == 0
+    assert store.grant_seconds(None, 0, 0.0, 0.0) == 0
+
+
+def test_a_free_month_spends_a_top_up_past_frees_sixty(tmp_path: Path) -> None:
+    """qa-claude's leak on #1279: a top-up bought on Plan, then three months on Free at
+    120 minutes each. Each month spends Free's 60 and 60 of the top-up, so the first
+    month uses it up and nothing is left, rather than 60 for ever."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    oct1 = datetime(2026, 10, 1, tzinfo=UTC)
+    _grant_at(store, me.id, 60, oct1, "txn_1")
+    for i, month in enumerate((10, 11, 12)):
+        _job(store, me.id, 120 * 60, datetime(2026, month, 5, tzinfo=UTC), f"j{i}")
+    assert store.grant_seconds(me.id, ms(datetime(2026, 11, 1, tzinfo=UTC)), FULL, FREE) == 0
+    assert store.grant_seconds(me.id, ms(datetime(2027, 1, 1, tzinfo=UTC)), FULL, FREE) == 0
+
+
+def test_a_month_is_counted_at_the_plan_it_was_on(tmp_path: Path) -> None:
+    """October on Plan (a paid period), November on Free after it lapsed: each month's
+    spend comes off the top-ups past that month's own allowance."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    _grant_at(store, me.id, 300, datetime(2026, 10, 1, tzinfo=UTC), "txn_1")
+    _paid(store, me.id, datetime(2026, 9, 20, tzinfo=UTC), datetime(2026, 10, 20, tzinfo=UTC))
+    _job(store, me.id, FULL + 50 * 60, datetime(2026, 10, 25, tzinfo=UTC), "oct")
+    nov = datetime(2026, 11, 1, tzinfo=UTC)
+    assert store.grant_seconds(me.id, ms(nov), FULL, FREE) == 250 * 60, "Plan's month"
+    _job(store, me.id, FREE + 100 * 60, datetime(2026, 11, 5, tzinfo=UTC), "nov")
+    dec = datetime(2026, 12, 1, tzinfo=UTC)
+    assert store.grant_seconds(me.id, ms(dec), FULL, FREE) == 150 * 60, "Free's month"
+
+
+def test_a_comped_month_is_counted_at_plans(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    store.comp("a@example.com", "2027-03-04")
+    _grant_at(store, me.id, 60, datetime(2026, 12, 1, tzinfo=UTC), "txn_1")
+    _job(store, me.id, FULL + 20 * 60, datetime(2026, 12, 5, tzinfo=UTC), "dec")
+    jan = datetime(2027, 1, 1, tzinfo=UTC)
+    assert store.grant_seconds(me.id, ms(jan), FULL, FREE) == 40 * 60
+
+
+def test_a_failed_renewals_period_holds_only_for_its_grace(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    starts = datetime(2026, 10, 16, tzinfo=UTC)
+    store.set_billing(
+        me.id,
+        cadence="month",
+        status="past_due",
+        period_end=(starts + timedelta(days=30)).isoformat(),
+        cancel_at_end=False,
+        customer="ctm_1",
+        subscription="sub_1",
+        said_at=ms(starts),
+        period_start=starts.isoformat(),
+    )
+    row = store.db.execute("SELECT starts, ends FROM plan_period").fetchone()
+    assert row[1] - row[0] == plans.GRACE_DAYS * 86_400_000
 
 
 def test_plans_off_a_grant_still_adds_and_nothing_else_changes(
@@ -363,12 +459,27 @@ def test_the_export_carries_the_plan_and_top_ups(tmp_path: Path) -> None:
     assert [one["credits"] for one in out["top_ups"]] == [60]
 
 
-def test_a_purged_account_takes_its_plan_rows(tmp_path: Path) -> None:
+def test_a_purge_waits_for_a_plan_paddle_may_still_charge(tmp_path: Path) -> None:
+    """qa-claude on #1279: deleting an account under a live subscription leaves the
+    reader paying for nothing. The purge waits until Paddle says canceled."""
     store = Store(tmp_path / "targum.db")
     me = subscribe(store, signed_up(store, "a@example.com").id)
+    store.db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (me.id,))
+    assert store.purge(days=0) == [] and store.live_billing(me.id)
+    subscribe(store, me.id, "canceled")
+    assert not store.live_billing(me.id)
+    assert store.purge(days=0) == [me.id]
+
+
+def test_a_purged_account_takes_its_plan_rows(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = subscribe(store, signed_up(store, "a@example.com").id, "canceled")
+    _paid(store, me.id, datetime(2026, 9, 1, tzinfo=UTC), datetime(2026, 10, 1, tzinfo=UTC))
+    subscribe(store, me.id, "canceled")
     store.grant_credits(me.id, 60, "txn_1")
     store.db.execute("UPDATE person SET leaving = 1 WHERE id = ?", (me.id,))
     assert store.purge(days=0) == [me.id]
+    assert store.db.execute("SELECT COUNT(*) FROM plan_period").fetchone()[0] == 0
     assert store.db.execute("SELECT COUNT(*) FROM plan").fetchone()[0] == 0
     assert store.db.execute("SELECT COUNT(*) FROM credit_grant").fetchone()[0] == 0
 

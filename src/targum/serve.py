@@ -2887,9 +2887,10 @@ class Library:
         where nobody here is held to a month."""
         granted = 0.0
         if self.upload_seconds is not None and self.store is not None and owner is not None:
-            # An earlier month is counted at the whole month, the most any plan has had,
-            # since the store keeps no history of who was on which plan when.
-            granted = self.store.grant_seconds(owner, self._month_from(), self.upload_seconds)
+            # An earlier month is counted at the allowance it had: Plan's where the reader
+            # was on Plan then, Free's otherwise (`Store.grant_seconds`).
+            free = plans.month_seconds(self.upload_seconds, paid_plan=False) or 0.0
+            granted = self.store.grant_seconds(owner, self._month_from(), self.upload_seconds, free)
         return plans.month_seconds(self.upload_seconds, paid_plan=paid_plan, granted=granted)
 
     def _on_plan(self, owner: int | None) -> bool:

@@ -182,17 +182,23 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     whichever schema number merges first. `plan`, one row per account as Paddle's
     webhooks last said it: plan, cadence, status, period end, cancel at period end,
     Paddle's customer and subscription ids, and when a renewal first failed.
+    `plan_period`, the paid periods a plan held (a failed renewal's only for its
+    grace), so an earlier month is known to have been Plan or Free.
     `credit_grant`, one row per top-up, unique on Paddle's transaction id.
     `billing_event`, the webhook ids already handled. No card, address or sum of money
     is kept. `models.SCHEMA_VERSION` is untouched.
+  - Only the subscription the `plan` row holds may change it: another replaces it only
+    when live, so an old subscription's late `canceled` cannot end a paying reader's
+    plan. An older event about the held one changes nothing.
   - `plans.paid` is the operator, a comp that holds today, or a Paddle subscription that
     holds (`plans.subscribed`): active or trialing, or past due for under
     `plans.GRACE_DAYS` (7, proposed). A comp still wins until its day.
   - The month's allowance is the plan's plus what is left of the reader's top-ups, on
     either plan. What is left is never stored: `Store.grant_seconds` reads it month by
-    month from the job rows, the one ledger, with an earlier month counted at the whole
-    month.
-  - The account's export carries its plan row and top-ups; a purged account takes them.
+    month from the job rows, the one ledger, each earlier month counted at the allowance
+    it had: Plan's where a paid period, a comp or the operator held in it, else Free's.
+  - The account's export carries its plan row, periods and top-ups; a purged account
+    takes them, and a purge waits while Paddle may still charge (`Store.live_billing`).
     The back office counts a paying reader's month at Plan's size.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
