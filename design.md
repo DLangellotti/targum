@@ -550,6 +550,24 @@ tab, a worked example and five items, six lines across two texts, nothing scored
 - The page's note says "the parts of the language", not of Hebrew, and its empty line
   says practice is in Hebrew and French.
 
+### The French subjunctive is practised after que — 2026-11-16
+
+ling-fr, 2026-11-16, French's subjunctive toward Beta, under "A practice for every hard
+spot" (2026-10-13). It waits for David.
+
+- **One question: "Subjunctive, or present?"** It is asked of a finite verb in the
+  present, in a clause opened by the conjunction *que*. The answers are the card's own
+  words. The rule says what each is for: "After que, what is wanted or doubted, not
+  stated, is in the subjunctive", or "After que, what is stated or believed stays in the
+  present."
+- **Only the conjunction.** The *que* must be one the tagger calls `SCONJ`, so the
+  relative *que* (*le livre que je lis*) asks nothing. An auxiliary is never asked,
+  because the card names a compound tense on its participle. Neither is a conditional.
+- **Hard is a form both moods spell alike:** a regular *-er* verb in the singular or the
+  third plural (*qu'il parle*), where only what comes before *que* tells them apart.
+- On the Grammar tab, the spot is listed before gender. That keeps this PR and the past
+  tenses' PR from touching the same lines.
+
 ### A1 is Easy's two ceilings and short — 2026-11-15
 
 David, 2026-11-15 (targum-internal#728), choosing option A′ of design's measurement on

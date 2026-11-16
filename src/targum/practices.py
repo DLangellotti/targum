@@ -125,6 +125,9 @@ REGISTERED: dict[str, dict[str, Practice]] = {
     # for a noun in a French line, as the card says it, with the ending the card names
     # (`annotate/endings.py`) deciding which items are the easy kind.
     "fr": {
+        # Subjunctive or present, for a verb after the conjunction *que* (targum-internal
+        # #644), each as the card names it.
+        "subjunctive": Practice("subjunctive", "choice", "practice.ask.mood"),
         "gender": Practice("gender", "choice", "practice.ask.gender"),
         # Register, not error (D5, 2026-11-05): formal or informal for a negation, and who
         # an *on* is, both as `annotate/french_register.py` reads them for the card.
@@ -154,6 +157,7 @@ KEYS: dict[str, str] = {
     "construct state and definiteness": "construct",
     "stress and pronunciation": "stress",
     "the vav-consecutive": "vav",
+    "subjunctive": "mood",
     "pronoun suffixes": "suffix",
     "gender": "gender",
     "register: ne-drop and on/nous": "register",
@@ -652,6 +656,52 @@ def _kind(code: str) -> str:
     return code.partition(":")[0]
 
 
+#: The persons where a regular *-er* verb's present subjunctive is spelled as its present
+#: indicative (*qu'il parle*, *il parle*): only the *que* clause tells them apart.
+_SHARED_PERSONS = frozenset({("1", "Sing"), ("2", "Sing"), ("3", "Sing"), ("3", "Plur")})
+
+
+def mood_candidates(
+    text: str, stored: Sequence[Mapping[str, Any]], segment: str
+) -> Iterator[Candidate]:
+    """Subjunctive or present, for a finite verb after the conjunction *que*
+    (targum-internal#644), each as the card names it: `Sub` where the card says
+    "subjunctive", `Ind` where it says "present".
+
+    Asked only in a clause opened by a *que* the tagger calls a conjunction (`SCONJ`), so
+    the relative *que* of *le livre que je lis* asks nothing, and never of an auxiliary,
+    whose compound tense the card names on the participle. The hard kind is a regular
+    *-er* verb in a person where both moods are spelled alike (*qu'il parle*)."""
+    from .annotate.french_register import Word, _clause_start, norm
+
+    words = [
+        Word(int(t.get("start") or 0), int(t.get("end") or 0), str(t.get("surface") or ""))
+        for t in stored
+    ]
+    for at, token in enumerate(stored):
+        if str(token.get("pos") or "") != "VERB":
+            continue
+        feats = _feats(token.get("feats"))
+        if feats.get("VerbForm", "Fin") != "Fin" or feats.get("Tense") != "Pres":
+            continue
+        mood = feats.get("Mood", "")
+        if mood not in ("Sub", "Ind"):
+            continue
+        start = _clause_start(text, words, at)
+        if start == 0 or norm(words[start - 1].surface) not in ("que", "qu'"):
+            continue
+        if str(stored[start - 1].get("pos") or "") != "SCONJ":
+            continue
+        lemma = str(token.get("lemma") or "").lower()
+        shared = (
+            lemma.endswith("er")
+            and lemma != "aller"
+            and (feats.get("Person", ""), feats.get("Number", "")) in _SHARED_PERSONS
+        )
+        contrast = "Ind" if mood == "Sub" else "Sub"
+        yield Candidate("mood", segment, words[at].start, words[at].end, mood, contrast, shared)
+
+
 def _biblical(folder: Path) -> bool:
     """Whether a built text is scripture, off its own document.json."""
     from .models import is_biblical
@@ -797,6 +847,7 @@ def _french(
         found = by_section.setdefault(section_of.get(segment.id, 1), [])
         stored = tokens.get(segment.id) or ()
         clauses = clauses_before(segment.text, stored)
+        found.extend(mood_candidates(segment.text, stored, segment.id))
         for token, before in zip(stored, clauses, strict=True):
             found.extend(gender_candidates(token, segment.id))
             found.extend(role_candidates(token, segment.id, before))
@@ -1048,6 +1099,8 @@ def said(spot: str, code: str, ui: str, homographs: Mapping[str, str] | None = N
     if spot == "suffix":
         # The card's words, after the code (`suffix_candidates`).
         return code.partition(":")[2] or code
+    if spot == "mood":
+        return t("reader.grammar.subjunctive" if code == "Sub" else "reader.grammar.present")
     if spot == "gender":
         return t("reader.grammar.feminine" if _kind(code) == "Fem" else "reader.grammar.masculine")
     if spot == "role":
@@ -1141,6 +1194,7 @@ def rule(spot: str, code: str, ui: str) -> str:
         "stress": "practice.rule.stress",
         "vav": "practice.rule.vav-past" if code == "Past" else "practice.rule.vav-future",
         "suffix": _SUFFIX_RULES.get(code.partition(":")[0], "practice.rule.suffix-3ms"),
+        "mood": "practice.rule.mood-sub" if code == "Sub" else "practice.rule.mood-ind",
         "gender": _gender_rule(code),
         "register": _REGISTER_RULES.get(_kind(code), "practice.rule.on-open"),
         "role": _ROLE_RULES.get(code, "practice.rule.role-y"),
