@@ -43,6 +43,18 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - An item can carry a question other than its spot's (`_ASKS`): an *on* is asked
     "Who is on here?".
   - Eleven new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.
+- French past tenses are practised on the Grammar tab (targum-internal#644; design.md
+  §12, "French past tenses are practised as the card names them", 2026-11-16). "Which
+  past is it?", passé composé against imperfect, in the card's words.
+  `stages._practices("fr")["passé composé against imparfait"]` is now true.
+  - `practices.past_candidates`: a past participle with *avoir* or *être* in the present
+    within the card's reach is `PC`; a finite `Tense=Imp` verb is `Imp`. Not asked: the
+    passive, the pluperfect, and the past subjunctive and conditional. A verb of being,
+    having, knowing or wanting is the hard kind.
+  - Only on a text whose tenses are apart (`model_lemma.tenses_apart`); `count_text`
+    passes the annotation's annotator to `_french`.
+  - Four new keys in English and Russian, Russian cleared by ling-ru. Tests in
+    `tests/test_practice_past.py`. Nothing spends.
 - French gender is practised on the Grammar tab, the first of French's seven hard-spot
   practices toward Beta (targum-internal#644; design.md §12, "French gender is practised
   as masculine or feminine", 2026-11-16). "Masculine or feminine?" of a French noun in a

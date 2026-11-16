@@ -497,6 +497,27 @@ to Plan" (2026-11-15).
 What it does not overturn: an upload of the reader's own is never a library text, a gift
 is targum's and unchanged, and with plans off nothing changes for anybody.
 
+### French past tenses are practised as the card names them — 2026-11-16
+
+ling-fr, 2026-11-16, French's passé composé against imparfait toward Beta, under "A
+practice for every hard spot" (2026-10-13). It waits for David.
+
+- **One question: "Which past is it?"** The answers are the card's own names, passé
+  composé and imperfect. The rule is the textbook line for the right one: "The passé
+  composé tells what happened and was done", or "The imperfect tells how things were, or
+  what was going on."
+- **Asked only where the card names it.** The passé composé is a past participle whose
+  auxiliary, *avoir* or *être* in the present, stands within four words before it in its
+  clause, with no stop between. That is the card's own reach (`compoundLine`). The
+  passive (*être* with a verb that does not take it), the pluperfect, the past
+  subjunctive and the past conditional are not asked. The imparfait is a finite verb the
+  card calls imperfect, unless it is the auxiliary of a pluperfect.
+- **Only on a text whose tenses are apart** (`model_lemma.tenses_apart`). A text read by
+  prompt 2, or one still holding prompt-2 readings, calls the imparfait "past", so it
+  offers nothing. Re-reading it would spend, and nothing here does.
+- **Hard is a verb of being, having, knowing or wanting** (*était*, *a su*), where
+  English says both pasts the same way.
+
 ### French gender is practised as masculine or feminine — 2026-11-16
 
 David, 2026-11-16, the first of French's seven practices toward Beta under "A practice

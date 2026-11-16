@@ -34,6 +34,7 @@
     gender: ["practice.spot.gender", "Gender"],
     register: ["practice.spot.register", "Formal and informal"],
     role: ["practice.spot.role", "Object pronouns"],
+    past: ["practice.spot.tense-past", "Passé composé and imperfect"],
   };
 
   function at(id) {
