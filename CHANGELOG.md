@@ -286,6 +286,19 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `PADDLE_CHECKOUT_URL` (https on `paddle.io` only).
   - Top up's own press on Account and the out-of-credits panels stays greyed: where a
     size is chosen is a design decision.
+- Manage, on Your account (targum-internal#59 phase 2, item 9). A reader whose Paddle
+  plan holds is told when it renews ("Your plan renews on December 16, 2026"), when it
+  ends after a cancel, or, after a failed renewal, until when it stays. Manage links
+  `GET /plans/manage`, which makes a Paddle customer-portal session as it is pressed and
+  answers a 303 into it, on the subscription. Cancel and the card are there. The link
+  is never kept.
+  - `plans.summary` carries `billed` (cadence, `renews`/`renewsSaid`, `ending`,
+    `graceSaid`, `manage`) for a Paddle plan that holds; a comp or the operator has none.
+  - The greyed Switch and Cancel rows give way to Manage for a Paddle plan. Your account
+    keeps `form-action 'self'`: Manage is a link, not a form.
+  - `/plans/manage` is a 404 until Paddle is configured; a reader who never paid goes to
+    `/plans`; a Paddle that does not answer sends them back to Your account. A portal
+    link that is not https on `paddle.com` is refused.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain

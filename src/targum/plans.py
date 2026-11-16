@@ -31,6 +31,7 @@ other count of the month.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
@@ -169,7 +170,9 @@ def word_cap(person: Person | None) -> int | None:
     return FREE_WORDS if free(person) else None
 
 
-def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> dict[str, Any]:
+def summary(
+    person: Person | None, *, listed: int = 0, language: str = "en", manage: bool = False
+) -> dict[str, Any]:
     """What a page needs to draw the plan: whether plans are on, which plan this is, the
     month's credits, and the word cap with how many words are on the list now. A comped
     reader's also says until when (`comp`, an ISO day, and `compSaid`, in `language`).
@@ -177,7 +180,13 @@ def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> 
     In the operator's preview (`previewing`) the operator is drawn as the reader they
     would be without being the operator, so Start the plan is offered and a plan paid
     for in the sandbox shows as it will for a reader; `preview` says so. Only the
-    drawing: what the account may spend is `paid`, which still counts the operator."""
+    drawing: what the account may spend is `paid`, which still counts the operator.
+
+    A reader who pays through Paddle also gets `billed`: the cadence, the day the paid
+    period ends (`renews` and `renewsSaid`), whether it ends there because they cancelled
+    (`ending`), the day a failed renewal's grace runs out (`graceSaid`), and whether
+    Paddle's portal can be opened for them (`manage`, from the caller, which knows
+    whether Paddle is configured)."""
     preview = previewing(person)
     if not on() and not preview:
         return {"on": False}
@@ -189,6 +198,9 @@ def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> 
     comp: dict[str, Any] = {}
     if comped(person) and person is not None:
         comp = {"comp": person.plan_until, "compSaid": until_said(person.plan_until, language)}
+    billed = _billed(person, language, manage)
+    if billed:
+        comp["billed"] = billed
     return {
         **comp,
         "on": True,
@@ -200,3 +212,25 @@ def summary(person: Person | None, *, listed: int = 0, language: str = "en") -> 
         "topUps": list(TOP_UPS) if is_paid else [],
         **({"preview": True} if preview else {}),
     }
+
+
+def _billed(person: Person | None, language: str, manage: bool) -> dict[str, Any]:
+    """The Paddle plan as Your account says it, or {} where there is none that holds."""
+    billing: Billing | None = getattr(person, "billing", None)
+    if billing is None or not subscribed(person):
+        return {}
+    said: dict[str, Any] = {
+        "cadence": billing.cadence or "month",
+        "ending": billing.cancel_at_end,
+        "manage": bool(manage and billing.customer),
+    }
+    day = billing.period_end[:10]
+    with contextlib.suppress(ValueError):
+        said["renews"] = date.fromisoformat(day).isoformat()
+        said["renewsSaid"] = until_said(day, language)
+    if billing.status == "past_due" and billing.past_due_since is not None:
+        ends = datetime.fromtimestamp(
+            billing.past_due_since / 1000 + GRACE_DAYS * 86_400, UTC
+        ).date()
+        said["graceSaid"] = until_said(ends.isoformat(), language)
+    return said
