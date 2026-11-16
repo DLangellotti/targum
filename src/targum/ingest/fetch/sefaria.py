@@ -873,6 +873,19 @@ def first_chapter(payload: dict[str, Any]) -> int:
     return 1
 
 
+def first_verse(payload: dict[str, Any]) -> int:
+    """Where the first chapter's verses start: 1, unless the reference began mid-chapter.
+
+    `Genesis 1:20-2:3` arrives as twelve verses of chapter 1 and three of chapter 2, and
+    numbered from one the first of them was called 1:1 (targum-internal#530, the Onkelos
+    starter's passages). Sefaria says where it began in `sections`, chapter then verse.
+    """
+    sections = payload["body"].get("sections") or []
+    if len(sections) > 1 and str(sections[1]).isdigit():
+        return int(sections[1])
+    return 1
+
+
 def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> Document:
     """A Document of verse blocks under chapter headings.
 
@@ -881,6 +894,7 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
     """
     body = payload["body"]
     start = first_chapter(payload)
+    opening = first_verse(payload)
     # Onkelos is titled in English, like the English beside it: the title is what names a
     # rendering on the reader's switch, where "Onkelos Genesis" says which one it is and
     # the Hebrew name would say only that it is not the English. Its chapter headings are
@@ -911,7 +925,7 @@ def document_from_payload(payload: dict[str, Any], ref: str, language: str) -> D
         number = start + offset
         label = hebrew_numeral(number) if language in _HEBREW_SCRIPT else str(number)
         paragraphs.append((BlockKind.heading, 2, f"{headed} {label}".strip()))
-        for count, verse in enumerate(verses, start=1):
+        for count, verse in enumerate(verses, start=opening if offset == 0 else 1):
             # An empty verse still takes a place. Dropping it would shorten one side of a
             # pairing that only works because both sides count the same.
             raw = said_in(verse)

@@ -6,6 +6,22 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 ## [Unreleased]
 
 ### Added
+- "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
+  Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
+  1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
+  Onkelos under every verse and the Metsudah English, all three published, so a row
+  builds for nothing. Each row's line names what to look for in that passage: the ־א
+  ending and יָת, the plural ־יָּא, דִּי, the shifts ש→ת, ז→ד and צ→ע on real pairs, and
+  on the last day the hand-off to the week's portion. No Aramaic is written: every
+  Hebrew-letter word a line quotes is in its day's verses, and a test reads each one there.
+  - `scripts/file_onkelos_starter.py` files the seven rows and the `onkelos-starter`
+    swipe set (ordered, behind the Aramaic door) into the private catalogue, dry by
+    default, `--write` to merge. The file is their source: a rerun puts its values over
+    the catalogue's, and the set keeps its place. `targum seed` then builds the rows on the shared shelf.
+  - `tests/test_onkelos_starter.py` checks every verse of every day against a saved copy
+    of both sides (`fixtures/sefaria/onkelos-starter.json`), every pair and sound shift
+    in its verse, and that the forty common words, all from the top 250 of the
+    Aramaic frequency list (targum#936), are each met in a line of the set.
 - The waitlist once the door is open (targum-internal#477, C). Only while
   `signup_is_open()`; shut, or asked for without plans, every door is as it was, byte for
   byte, and a test pins both.
@@ -318,6 +334,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `progress.count.ear`, `sentences.open-word`); the Russian waits on ling-ru's first
     pass.
 ### Fixed
+- A Sefaria range that starts mid-chapter keeps its verse numbers (targum-internal#530).
+  `Genesis 1:20-2:3` was numbered from one, so its first verse was called 1:1, and a
+  verse's ref is what the reader, a recording and Onkelos's names are keyed by
+  (`sefaria.first_verse`).
 - Ships keep file times, so saved copies don't refetch (#1247 follow-up, qa-claude).
   `deploy/ship-weekly.sh` copied each edition with `rsync -rL`, which stamps every file
   with the time of the ship. A saved copy refetches a file whose size or time changed, so
