@@ -340,6 +340,17 @@ def test_clause_3_6_names_what_a_finished_section_records() -> None:
     ) in notice
 
 
+def test_clause_3_2_names_the_portions_calendar_word_for_word() -> None:
+    """David approved this line word for word on 2026-11-16 (targum-internal#409 slice 4):
+    the weekly portion's row keeps the reader's calendar, `subscription.schedule`. In his
+    second person, beside the clause's third, as he wrote it."""
+    notice = said(legal_page("privacy"))
+    assert (
+        "If you follow the weekly portion, we keep whether you read Israel's calendar or the"
+        " diaspora's, so the mail names your portion."
+    ) in notice
+
+
 def test_clause_3_10_names_the_tag_of_a_link_word_for_word() -> None:
     """targum-internal#676, drafted 2026-11-12 for David's approval: the waitlist and a
     new account keep which page, or which link's tag (`serve.came_from`), brought them,

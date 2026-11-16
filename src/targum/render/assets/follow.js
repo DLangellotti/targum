@@ -70,13 +70,19 @@
     write(FOLLOWS, kept);
     // Signed in, the account keeps the list too: it follows you to another browser,
     // and it is what the server mails. Signed out the browser's own list is all there is.
-    if (typeof fetch === "function") {
-      fetch(keyed("/account/follows"), {
-        method: "POST",
-        headers: keyHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ series: id, on: !!on }),
-      }).catch(function () {});
-    }
+    // The weekly portion goes with the calendar this browser reads it on, so the daily
+    // mail names the same portion the shelf does (targum-internal#409).
+    var body = { series: id, on: !!on };
+    if (id === PORTION) body.schedule = schedule();
+    tell(body);
+  }
+  function tell(body) {
+    if (typeof fetch !== "function") return;
+    fetch(keyed("/account/follows"), {
+      method: "POST",
+      headers: keyHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }).catch(function () {});
   }
 
   // What the account says, over what this browser had: the same row on every browser
@@ -94,6 +100,11 @@
             kept[id] = 1;
           });
           write(FOLLOWS, kept);
+          // A calendar chosen here that the account does not have yet: chosen before the
+          // account kept one, or while signed out. Only a choice this browser made is
+          // sent, so a browser that never chose does not undo another's.
+          var chosen = scheduleChosen();
+          if (answer.schedule && chosen && answer.schedule !== chosen) tell({ schedule: chosen });
         }
         return follows();
       })
@@ -114,8 +125,19 @@
      for a few weeks in some years (targum-internal#411). A fact about this browser, kept
      the way the follows are; the diaspora's until they say, because that is what
      `/parasha` opens on. The Library's Weekly portion shelf sets it, and the week's
-     portion on Learn and in the bell is asked for by it. */
+     portion on Learn and in the bell is asked for by it. Signed in and following the
+     portion, the account keeps it too, for the daily mail (targum-internal#409). */
   var SCHEDULE = "targum:schedule";
+  //: The one series a calendar is kept for on the account.
+  var PORTION = "parasha";
+  function scheduleChosen() {
+    try {
+      var kept = localStorage.getItem(SCHEDULE);
+      return kept === "israel" || kept === "diaspora" ? kept : "";
+    } catch (e) {
+      return "";
+    }
+  }
   function schedule() {
     try {
       return localStorage.getItem(SCHEDULE) === "israel" ? "israel" : "diaspora";
@@ -124,11 +146,15 @@
     }
   }
   function setSchedule(which) {
+    var calendar = which === "israel" ? "israel" : "diaspora";
     try {
-      localStorage.setItem(SCHEDULE, which === "israel" ? "israel" : "diaspora");
+      localStorage.setItem(SCHEDULE, calendar);
     } catch (e) {
       /* nothing to keep it in; the page still answers for this visit */
     }
+    // The account's weekly portion follows the shelf, so the mail does not go on naming
+    // the other calendar's portion (targum-internal#409).
+    if (following(PORTION)) tell({ schedule: calendar });
   }
 
   function list() {

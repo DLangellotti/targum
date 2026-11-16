@@ -487,11 +487,19 @@ REGISTRATIONS_PER_HOUR = 60
 #    longer holds; '' is no comp, which is every row before it. On `invited` it is a
 #    comp carried by an invitation the waitlist's Let in made, given to the account
 #    when it is opened (`_open_account`). Two ALTERs, neither depending on the number.
+# 72→73: subscription.schedule — whether a reader who follows the weekly portion reads
+#    Israel's calendar or the diaspora's, so the daily mail's row names the portion they
+#    read in a week the two part company (targum-internal#409 slice 4, option A, David
+#    2026-11-16; Privacy Notice clause 3.2 as amended 16 November). Written only on the
+#    `parasha` series row, from the browser's own choice (`targum:schedule`); '' on every
+#    other row and on every row before it, which reads as the diaspora's, the calendar
+#    the mail followed until now. One ALTER, which does not depend on the
+#    number.
 #
 # Not to be confused with `models.SCHEMA_VERSION`, which is a cache key: bumping that one
 # invalidates every stage and forces paid re-translation of every text. This one versions
 # the sqlite file behind an account and costs a column.
-SCHEMA_VERSION = 72
+SCHEMA_VERSION = 73
 
 #: What a `link` row may be spent on. A sign-in link signs somebody in and a Telegram
 #: link binds a chat to an account, and neither can do the other's job: the lookups name
@@ -1013,7 +1021,25 @@ MIGRATIONS: tuple[str, ...] = (
     # holds, or '' for none, as every account and invitation before it.
     "ALTER TABLE person ADD COLUMN plan_until TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE invited ADD COLUMN plan_until TEXT NOT NULL DEFAULT ''",
+    # Which calendar the weekly portion is followed on (schema 73, targum-internal#409):
+    # '' is the diaspora's, as every row before it was mailed.
+    "ALTER TABLE subscription ADD COLUMN schedule TEXT NOT NULL DEFAULT ''",
 )
+
+#: The calendars the weekly portion is read on (targum-internal#409): Israel's and the
+#: diaspora's, which part company for a few weeks in some years. Anything else a request
+#: says is the diaspora's, which is what `/parasha` opens on.
+SCHEDULES = ("diaspora", "israel")
+
+#: The one series a calendar is kept for.
+SCHEDULED_SERIES = "parasha"
+
+
+def schedule_of(given: object) -> str:
+    """A calendar a request named, narrowed to one we know: the diaspora's unless it
+    says Israel's."""
+    return "israel" if str(given or "").strip().lower() == "israel" else "diaspora"
+
 
 #: The learned languages whose word meanings a reader may ask for in the language itself
 #: (targum-internal#538, design.md §12, "Meanings in the language itself, bought a tap at
@@ -1888,7 +1914,9 @@ CREATE INDEX IF NOT EXISTS playlist_item_job ON playlist_item (job);
 -- in. `cap` is the month's credits a channel or a podcast may build with (the second
 -- press that lasts, design.md §12); 0 for everything else, which builds nothing. `stop`
 -- is in the clear for the reason `subscriber.stop` is. `sent` and `instalment` are what
--- the per-series mail last sent, carried from `follow`.
+-- the per-series mail last sent, carried from `follow`. `schedule` is the calendar the
+-- weekly portion is followed on, on its row alone: '' (the diaspora's) or 'israel'
+-- (targum-internal#409).
 CREATE TABLE IF NOT EXISTS subscription (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   person     INTEGER NOT NULL,
@@ -1907,6 +1935,7 @@ CREATE TABLE IF NOT EXISTS subscription (
   sent       INTEGER NOT NULL DEFAULT 0,
   instalment TEXT    NOT NULL DEFAULT '',
   said       TEXT    NOT NULL DEFAULT '',
+  schedule   TEXT    NOT NULL DEFAULT '',
   UNIQUE (person, kind, key)
 );
 CREATE INDEX IF NOT EXISTS subscription_stop ON subscription (stop);
@@ -3561,6 +3590,7 @@ class Store:
         source: str = "",
         cap: int = 0,
         said: str = "",
+        schedule: str = "",
     ) -> dict[str, Any]:
         """Subscribe, or subscribe again. Returns the row.
 
@@ -3568,18 +3598,22 @@ class Store:
         is from before, and is listed rather than built (design.md §12). One that is
         paused stays paused — subscribing is not resuming, which is its own press. `cap`
         is written only where one is given; `said` on every press, for the reason
-        `follow_series` gave.
+        `follow_series` gave. `schedule` is kept on the weekly portion's row only, and
+        only where one is given (targum-internal#409).
         """
         if kind not in SUB_KINDS or not key:
             raise ValueError("No such subscription.")
         code = _language_code(said) if said else ""
+        portion = (kind, key) == ("series", SCHEDULED_SERIES)
+        calendar = schedule_of(schedule) if schedule and portion else ""
         stamp = now()
         with self.write() as db:
             db.execute(
                 """
                 INSERT INTO subscription
-                    (person, kind, key, name, language, source, cap, state, stop, since, said)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'on', ?, ?, ?)
+                    (person, kind, key, name, language, source, cap, state, stop, since, said,
+                     schedule)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'on', ?, ?, ?, ?)
                 ON CONFLICT(person, kind, key) DO UPDATE SET
                     since = CASE WHEN state = 'off' THEN excluded.since ELSE since END,
                     ended = CASE WHEN state = 'off' THEN 0 ELSE ended END,
@@ -3590,7 +3624,9 @@ class Store:
                     source = CASE WHEN excluded.source != '' THEN excluded.source
                         ELSE source END,
                     cap = CASE WHEN excluded.cap > 0 THEN excluded.cap ELSE cap END,
-                    said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END
+                    said = CASE WHEN excluded.said != '' THEN excluded.said ELSE said END,
+                    schedule = CASE WHEN excluded.schedule != '' THEN excluded.schedule
+                        ELSE schedule END
                 """,
                 (
                     person_id,
@@ -3603,6 +3639,7 @@ class Store:
                     secrets.token_urlsafe(TOKEN_BYTES),
                     stamp,
                     code,
+                    calendar,
                 ),
             )
             row = db.execute(
@@ -3898,13 +3935,16 @@ class Store:
 
     # -- series (2026-09-11), on the subscription rows since 2026-10-09 --------------
 
-    def follow_series(self, email: str, series: str, on: bool = True, language: str = "") -> bool:
+    def follow_series(
+        self, email: str, series: str, on: bool = True, language: str = "", schedule: str = ""
+    ) -> bool:
         """Subscribe to, or stop, one series, for the account at this address.
 
         `language` is the one the reader was reading in when they pressed, kept so the
         mail and the stop page can be in it (targum-internal#289). Written on every press,
         and never cleared on a stop. An address with no account behind it has nothing to
-        subscribe with since 2026-10-09, and is answered False.
+        subscribe with since 2026-10-09, and is answered False. `schedule` is the calendar
+        the weekly portion is followed on, kept on its row alone (targum-internal#409).
         """
         address = tidy(email)
         if not address or not series:
@@ -3917,8 +3957,32 @@ class Store:
             if found is not None:
                 self.set_subscription_state(person.id, int(found["id"]), "off")
             return False
-        self.add_subscription(person.id, "series", series, language="he", said=language)
+        self.add_subscription(
+            person.id, "series", series, language="he", said=language, schedule=schedule
+        )
         return True
+
+    def series_schedule(self, email: str) -> str:
+        """The calendar this address's account follows the weekly portion on, or '' where
+        it does not follow it (targum-internal#409)."""
+        row = self.db.execute(
+            "SELECT s.schedule FROM subscription s JOIN person p ON p.id = s.person"
+            " WHERE p.email = ? AND s.kind = 'series' AND s.key = ? AND s.state != 'off'",
+            (tidy(email), SCHEDULED_SERIES),
+        ).fetchone()
+        return schedule_of(row["schedule"]) if row is not None else ""
+
+    def set_series_schedule(self, email: str, schedule: str) -> bool:
+        """Keep the weekly portion's row on the calendar the reader chose since they
+        subscribed, so the mail does not go on naming the other one. True where there was
+        a row to keep; nothing is written for a reader who does not follow it."""
+        with self.write() as db:
+            done = db.execute(
+                "UPDATE subscription SET schedule = ? WHERE kind = 'series' AND key = ?"
+                " AND person = (SELECT id FROM person WHERE email = ?)",
+                (schedule_of(schedule), SCHEDULED_SERIES, tidy(email)),
+            )
+        return done.rowcount > 0
 
     def series_followed(self, email: str) -> list[str]:
         """The series this address's account is subscribed to, the weekly left out: it is
@@ -5246,7 +5310,17 @@ class Store:
         out["subscriptions"] = [
             {
                 key: row[key]
-                for key in ("kind", "key", "name", "language", "source", "cap", "state", "since")
+                for key in (
+                    "kind",
+                    "key",
+                    "name",
+                    "language",
+                    "source",
+                    "cap",
+                    "state",
+                    "since",
+                    "schedule",
+                )
             }
             for row in self.subscriptions(person.id, every=True)
         ]

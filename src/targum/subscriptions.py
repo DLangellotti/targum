@@ -502,9 +502,17 @@ def _came(row: Mapping[str, Any], published: int) -> str:
 
 
 def _series_items(row: Mapping[str, Any], public: bool) -> list[dict[str, Any]]:
+    """A series' current instalment as the subscription's item. The weekly portion's is
+    asked for on the calendar its row keeps, Israel's or the diaspora's, so in a week the
+    two read different portions the mail names the reader's (targum-internal#409)."""
     from . import series
+    from .accounts import schedule_of
 
-    found = next((one for one in series.current(public=public) if one["id"] == row["key"]), None)
+    schedule = schedule_of(row["schedule"] if "schedule" in row.keys() else "")
+    found = next(
+        (one for one in series.current(schedule, public=public) if one["id"] == row["key"]),
+        None,
+    )
     current = _instalment_item(found) if found is not None else None
     if current is None or not current["key"]:
         return []
