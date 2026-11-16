@@ -164,6 +164,60 @@ def test_only_the_held_subscription_changes_the_row(tmp_path: Path) -> None:
     assert me.billing is not None and me.billing.status == "active"
 
 
+def _said(store: Store, who: int, status: str, sub: str, when: datetime) -> Person:
+    store.set_billing(
+        who,
+        cadence="month",
+        status=status,
+        period_end="2026-12-16T00:00:00Z",
+        cancel_at_end=False,
+        customer="ctm_1",
+        subscription=sub,
+        said_at=ms(when),
+    )
+    me = store.person_by_id(who)
+    assert me is not None
+    return me
+
+
+def test_a_stale_active_from_an_ended_subscription_never_comes_back(tmp_path: Path) -> None:
+    """qa-claude on #1280: A's `active` delivered after B is held must not take the row,
+    or B's own `canceled` is dropped and the reader keeps Plan for ever."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    t = datetime(2026, 11, 1, tzinfo=UTC)
+    _said(store, me.id, "active", "sub_a", t)
+    _said(store, me.id, "canceled", "sub_a", t + timedelta(hours=1))
+    _said(store, me.id, "active", "sub_b", t + timedelta(hours=2))
+    me = _said(store, me.id, "active", "sub_a", t + timedelta(minutes=30))
+    assert me.billing is not None and me.billing.subscription == "sub_b"
+    me = _said(store, me.id, "active", "sub_a", t + timedelta(hours=3))
+    assert me.billing is not None and me.billing.subscription == "sub_b", "A ended"
+    me = _said(store, me.id, "canceled", "sub_b", t + timedelta(hours=4))
+    assert me.billing is not None and me.billing.status == "canceled"
+    assert not plans.subscribed(me)
+
+
+def test_an_older_active_never_replaces_a_newer_row(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    t = datetime(2026, 11, 1, tzinfo=UTC)
+    _said(store, me.id, "active", "sub_b", t + timedelta(hours=2))
+    me = _said(store, me.id, "active", "sub_a", t)
+    assert me.billing is not None and me.billing.subscription == "sub_b"
+
+
+def test_an_old_subscription_in_dunning_does_not_flip_a_new_active_one(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    t = datetime(2026, 11, 1, tzinfo=UTC)
+    _said(store, me.id, "active", "sub_b", t)
+    for hours in (1, 2, 3):
+        me = _said(store, me.id, "past_due", "sub_a", t + timedelta(hours=hours))
+        assert me.billing is not None and me.billing.subscription == "sub_b"
+        assert me.billing.status == "active" and me.billing.past_due_since is None
+
+
 def test_a_status_paddle_does_not_have_is_refused(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
@@ -397,13 +451,69 @@ def test_a_month_is_counted_at_the_plan_it_was_on(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")
     _grant_at(store, me.id, 300, datetime(2026, 10, 1, tzinfo=UTC), "txn_1")
-    _paid(store, me.id, datetime(2026, 9, 20, tzinfo=UTC), datetime(2026, 10, 20, tzinfo=UTC))
+    _paid(store, me.id, datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 11, 1, tzinfo=UTC))
     _job(store, me.id, FULL + 50 * 60, datetime(2026, 10, 25, tzinfo=UTC), "oct")
     nov = datetime(2026, 11, 1, tzinfo=UTC)
     assert store.grant_seconds(me.id, ms(nov), FULL, FREE) == 250 * 60, "Plan's month"
     _job(store, me.id, FREE + 100 * 60, datetime(2026, 11, 5, tzinfo=UTC), "nov")
     dec = datetime(2026, 12, 1, tzinfo=UTC)
     assert store.grant_seconds(me.id, ms(dec), FULL, FREE) == 150 * 60, "Free's month"
+
+
+def test_a_month_partly_on_plan_is_prorated(tmp_path: Path) -> None:
+    """Plan for the first 10 days of a 30-day month: the month's allowance is Free's 60
+    and a third of the 420 between Free and Plan, so 200."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    _grant_at(store, me.id, 300, datetime(2026, 11, 1, tzinfo=UTC), "txn_1")
+    _paid(store, me.id, datetime(2026, 11, 1, tzinfo=UTC), datetime(2026, 11, 11, tzinfo=UTC))
+    _job(store, me.id, 250 * 60, datetime(2026, 11, 20, tzinfo=UTC), "nov")
+    left = store.grant_seconds(me.id, ms(datetime(2026, 12, 1, tzinfo=UTC)), FULL, FREE)
+    assert round(left / 60, 6) == 250
+
+
+def test_a_plan_cancelled_at_once_counts_only_for_the_time_it_held(tmp_path: Path) -> None:
+    """qa-claude's farm on #1279: on Free, spend 60 of a top-up, subscribe on the 30th
+    and cancel at once (or be refunded and cancelled). The cancel trims the period, so
+    the month stays Free's and the 60 spent stays spent."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    _grant_at(store, me.id, 60, datetime(2026, 10, 1, tzinfo=UTC), "txn_1")
+    _job(store, me.id, 120 * 60, datetime(2026, 10, 5, tzinfo=UTC), "free-spend")
+    said = {"cadence": "month", "cancel_at_end": False, "customer": "ctm_1"}
+    store.set_billing(
+        me.id,
+        status="active",
+        subscription="sub_1",
+        period_start="2026-10-30T00:00:00Z",
+        period_end="2026-11-30T00:00:00Z",
+        said_at=ms(datetime(2026, 10, 30, tzinfo=UTC)),
+        **said,  # type: ignore[arg-type]
+    )
+    store.set_billing(
+        me.id,
+        status="canceled",
+        subscription="sub_1",
+        period_end="",
+        said_at=ms(datetime(2026, 10, 30, 1, tzinfo=UTC)),
+        ended_at="2026-10-30T01:00:00Z",
+        **said,  # type: ignore[arg-type]
+    )
+    left = store.grant_seconds(me.id, ms(datetime(2026, 12, 1, tzinfo=UTC)), FULL, FREE)
+    assert left < 60, "an hour on Plan is an hour's share, never the month"
+    row = store.db.execute("SELECT starts, ends FROM plan_period").fetchone()
+    assert row[1] - row[0] == 3_600_000
+
+
+def test_a_comps_last_month_is_prorated(tmp_path: Path) -> None:
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    store.comp("a@example.com", "2026-12-16")
+    _grant_at(store, me.id, 300, datetime(2026, 12, 1, tzinfo=UTC), "txn_1")
+    _job(store, me.id, 300 * 60, datetime(2026, 12, 20, tzinfo=UTC), "dec")
+    left = store.grant_seconds(me.id, ms(datetime(2027, 1, 1, tzinfo=UTC)), FULL, FREE)
+    base = FREE + (FULL - FREE) * 15 / 31
+    assert abs(left - base) < 1, "what is left is the part of the month Plan's share covered"
 
 
 def test_a_comped_month_is_counted_at_plans(tmp_path: Path) -> None:

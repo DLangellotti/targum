@@ -31,6 +31,7 @@ heard of yet, and the phone puts it back on the next sync.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -609,7 +610,7 @@ WIPE_BY_HAND = ("chat", "playlist", "subscription")
 #: The plan and top-ups (schema 74) are left too: they are Paddle's word about a payment
 #: that is still Paddle's, and a wipe that dropped the `plan` row of a live subscription
 #: would leave Paddle charging for a plan the account no longer knows it has.
-KEPT_BY_A_WIPE = ("told", "plan", "plan_period", "credit_grant")
+KEPT_BY_A_WIPE = ("told", "plan", "plan_period", "plan_ended", "credit_grant")
 
 #: What can be subscribed to (design.md §12, "A subscription is the account's",
 #: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.
@@ -756,6 +757,14 @@ CREATE TABLE IF NOT EXISTS plan_period (
   PRIMARY KEY (subscription, starts)
 );
 CREATE INDEX IF NOT EXISTS plan_period_person ON plan_period (person, starts);
+
+-- The subscriptions Paddle has said are canceled (schema 74), so one that has ended can
+-- never come back by a late event and take the plan row from the one that holds it.
+CREATE TABLE IF NOT EXISTS plan_ended (
+  subscription TEXT    PRIMARY KEY,
+  person       INTEGER NOT NULL,
+  at           INTEGER NOT NULL
+);
 
 -- The webhooks already handled (schema 74), by Paddle's event id, so one delivered twice
 -- is handled once. Its type and when it arrived, and nothing of its body.
@@ -4666,6 +4675,7 @@ class Store:
         subscription: str,
         said_at: int | None = None,
         period_start: str = "",
+        ended_at: str = "",
     ) -> bool:
         """Keep what Paddle said of this account's subscription, over whatever it said
         before, and False where it changed nothing.
@@ -4673,8 +4683,14 @@ class Store:
         **Only the subscription the row holds may change it.** A reader can come to have
         two (a Start pressed twice, a new plan after a lapsed one), and the older one's
         later `canceled` must not end the plan they are paying for. So another
-        subscription replaces the held one only when it is live (active, trialing or past
-        due), and a stale one's events change nothing.
+        subscription replaces the held one only when it is active or trialing (a past
+        due one never takes the row from another), and only when Paddle said it no
+        earlier than what the row holds. A subscription Paddle has said is canceled is
+        kept in `plan_ended` and never comes back, whatever arrives after.
+
+        A `canceled` trims that subscription's paid periods to the moment it ended
+        (`ended_at`, Paddle's `canceled_at`, else `said_at`), so a plan cancelled at once
+        or refunded and cancelled counts as Plan only for the time it really held.
 
         `said_at` is when Paddle said it (the event's `occurred_at`, in milliseconds).
         Paddle does not promise to deliver events in order, so one older than what the
@@ -4691,12 +4707,33 @@ class Store:
         at = now() if said_at is None else int(said_at)
         live = status in ("active", "trialing", "past_due")
         with self.write() as db:
+            if subscription and status == "canceled":
+                stop = _millis(ended_at) or at
+                db.execute(
+                    "INSERT OR IGNORE INTO plan_ended (subscription, person, at) VALUES (?, ?, ?)",
+                    (subscription, int(person_id), stop),
+                )
+                db.execute(
+                    "UPDATE plan_period SET ends = MIN(ends, ?) WHERE subscription = ?",
+                    (stop, subscription),
+                )
+                db.execute(
+                    "DELETE FROM plan_period WHERE subscription = ? AND ends <= starts",
+                    (subscription,),
+                )
+            elif (
+                subscription
+                and db.execute(
+                    "SELECT 1 FROM plan_ended WHERE subscription = ?", (subscription,)
+                ).fetchone()
+            ):
+                return False
             held = db.execute("SELECT * FROM plan WHERE person = ?", (int(person_id),)).fetchone()
             if held is not None and str(held["subscription"]):
                 same = str(held["subscription"]) == subscription
-                if same and at < int(held["updated"]):
+                if at < int(held["updated"]):
                     return False
-                if not same and not live:
+                if not same and status not in ("active", "trialing"):
                     return False
             same_held = held is not None and str(held["subscription"]) == subscription
             since: int | None = None
@@ -4792,9 +4829,9 @@ class Store:
         month's job rows spent past that month's allowance comes off it. This month's
         spending is not taken here; `claim` holds it to the base plus this.
 
-        An earlier month's allowance is `full` where the reader was on Plan at any time in
-        it (`_held_plan`: the operator, a comp still holding then, or a paid period that
-        overlaps it), else `free`."""
+        An earlier month's allowance is prorated by how much of it the reader was on Plan
+        (`_plan_share`): `free`, and the share of the month that a paid period or a comp
+        covered of the difference to `full`. The operator's is `full`."""
         if owner is None:
             return 0.0
         rows = self.db.execute(
@@ -4811,35 +4848,48 @@ class Store:
                 (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
             )
             start = datetime(year, month, 1, tzinfo=UTC)
-            end = min(int(start.timestamp() * 1000), month_from)
+            whole = int(start.timestamp() * 1000)
+            end = min(whole, month_from)
             left += 60.0 * sum(int(r["credits"]) for r in rows if begin <= int(r["at"]) < end)
             used = self.db.execute(
                 "SELECT COALESCE(SUM(length), 0) AS used FROM job "
                 "WHERE length > 0 AND made >= ? AND made < ? AND owner IS ?",
                 (begin, end, owner),
             ).fetchone()
-            base = full if self._held_plan(int(owner), begin, end) else free
+            base = free + (full - free) * self._plan_share(int(owner), begin, whole)
             left = max(0.0, left - max(0.0, float(used["used"]) - base))
         return left + 60.0 * sum(int(r["credits"]) for r in rows if int(r["at"]) >= month_from)
 
-    def _held_plan(self, owner: int, begin: int, end: int) -> bool:
-        """Whether this reader was on Plan at any time between two moments: the
-        operator, a comp whose day had not come yet, or a paid period overlapping them."""
+    def _plan_share(self, owner: int, begin: int, end: int) -> float:
+        """How much of a month, 0 to 1, this reader was on Plan: the operator all of it;
+        anyone else the part their paid periods (`plan_period`, trimmed at a cancel) and
+        their comp (until its day) covered, each moment counted once."""
         row = self.db.execute(
             "SELECT email, plan_until FROM person WHERE id = ?", (owner,)
         ).fetchone()
-        if row is None:
-            return False
+        if row is None or end <= begin:
+            return 0.0
         if self.is_admin(str(row["email"])):
-            return True
-        day = datetime.fromtimestamp(begin / 1000, UTC).date().isoformat()
-        if str(row["plan_until"] or "") > day:
-            return True
-        overlap = self.db.execute(
-            "SELECT 1 FROM plan_period WHERE person = ? AND starts < ? AND ends > ? LIMIT 1",
-            (owner, end, begin),
-        ).fetchone()
-        return overlap is not None
+            return 1.0
+        spans = [
+            (max(begin, int(one["starts"])), min(end, int(one["ends"])))
+            for one in self.db.execute(
+                "SELECT starts, ends FROM plan_period WHERE person = ? AND starts < ? AND ends > ?",
+                (owner, end, begin),
+            )
+        ]
+        until = str(row["plan_until"] or "")
+        with contextlib.suppress(ValueError):
+            if until:
+                day = datetime.fromisoformat(until).replace(tzinfo=UTC)
+                spans.append((begin, min(end, int(day.timestamp() * 1000))))
+        covered, reach = 0, begin
+        for starts, ends in sorted(one for one in spans if one[1] > one[0]):
+            starts = max(starts, reach)
+            if ends > starts:
+                covered += ends - starts
+                reach = ends
+        return covered / (end - begin)
 
     def top_ups(self, person_id: int) -> list[dict[str, Any]]:
         """Every top-up this account paid for, oldest first: credits and when."""
@@ -5283,6 +5333,7 @@ class Store:
                     # Paddle keeps its own record of the sale as merchant of record.
                     "plan",
                     "plan_period",
+                    "plan_ended",
                     "credit_grant",
                 ):
                     db.execute(f"DELETE FROM {table} WHERE person = ?", (person_id,))
