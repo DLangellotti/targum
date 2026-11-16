@@ -143,7 +143,7 @@ def test_a_checkout_makes_a_transaction_for_the_account(
     monkeypatch: pytest.MonkeyPatch, paddle: Paddle
 ) -> None:
     configure(monkeypatch)
-    where = billing.checkout("pri_month", account=7)
+    where = billing.checkout("pri_month", account=7, made=1000)
     assert where == f"{CHECKOUT}?transaction_id=txn_01made"
     request = paddle.asked[0]
     assert request.full_url == "https://sandbox-api.paddle.com/transactions"
@@ -151,7 +151,10 @@ def test_a_checkout_makes_a_transaction_for_the_account(
     assert request.get_header("Authorization") == f"Bearer {KEY}"
     assert paddle.body() == {
         "items": [{"price_id": "pri_month", "quantity": 1}],
-        "custom_data": {"targum_account": "7"},
+        "custom_data": {
+            "targum_account": "7",
+            "targum_tag": billing.account_tag(7, 1000, "pdl_ntfset_01test"),
+        },
         "collection_mode": "automatic",
     }
 
@@ -160,7 +163,7 @@ def test_a_reader_who_paid_before_is_named_by_their_customer(
     monkeypatch: pytest.MonkeyPatch, paddle: Paddle
 ) -> None:
     configure(monkeypatch)
-    billing.checkout("pri_top_up", account=7, quantity=3, customer="ctm_1")
+    billing.checkout("pri_top_up", account=7, made=1000, quantity=3, customer="ctm_1")
     assert paddle.body()["customer_id"] == "ctm_1"
     assert paddle.body()["items"] == [{"price_id": "pri_top_up", "quantity": 3}]
 
@@ -169,7 +172,7 @@ def test_live_calls_paddles_live_api(monkeypatch: pytest.MonkeyPatch, paddle: Pa
     configure(monkeypatch)
     monkeypatch.setenv(billing.ENVIRONMENT_ENV, "live")
     monkeypatch.setenv(billing.API_KEY_ENV, "pdl_live_apikey_01real")
-    billing.checkout("pri_month", account=7)
+    billing.checkout("pri_month", account=7, made=1000)
     assert paddle.asked[0].full_url == "https://api.paddle.com/transactions"
 
 
@@ -188,7 +191,7 @@ def test_a_paddle_that_does_not_answer_is_an_error(
     configure(monkeypatch)
     paddle.answer = answer
     with pytest.raises(billing.PaddleError):
-        billing.checkout("pri_month", account=7)
+        billing.checkout("pri_month", account=7, made=1000)
 
 
 # -- the plans page -------------------------------------------------------------------
@@ -366,7 +369,9 @@ def test_start_sends_a_free_reader_to_paddles_checkout(
     me = Store(store_path).person_by_email("free@example.com")
     assert me is not None
     assert paddle.body()["items"] == [{"price_id": "pri_quarter", "quantity": 1}]
-    assert paddle.body()["custom_data"] == {"targum_account": str(me.id)}
+    made = Store(store_path).db.execute("SELECT made FROM person WHERE id = ?", (me.id,))
+    tag = billing.account_tag(me.id, int(made.fetchone()[0]))
+    assert paddle.body()["custom_data"] == {"targum_account": str(me.id), "targum_tag": tag}
     assert "customer_id" not in paddle.body()
 
 
@@ -429,3 +434,42 @@ def test_a_paddle_that_does_not_answer_goes_back_to_plans(
     assert (status, headers["Location"]) == (303, "/plans?pay=failed")
     _, _, page = fetch(port, "/plans?pay=failed", sessions["free"])
     assert "The checkout didn't open." in page
+
+
+def test_cancel_asks_paddle_to_end_at_the_period_paid_for(
+    monkeypatch: pytest.MonkeyPatch, paddle: Paddle
+) -> None:
+    configure(monkeypatch)
+    billing.cancel("sub_01x")
+    request = paddle.asked[0]
+    assert request.full_url == "https://sandbox-api.paddle.com/subscriptions/sub_01x/cancel"
+    assert paddle.body() == {"effective_from": "next_billing_period"}
+    with pytest.raises(billing.PaddleError):
+        billing.cancel("")
+
+
+@pytest.mark.usefixtures("on")
+def test_closing_an_account_cancels_its_paddle_plan(
+    box: tuple[int, Path, dict[str, str]], paddle: Paddle
+) -> None:
+    """qa-claude on #1279: an account deleted under a live subscription leaves the
+    reader paying. Closing it asks Paddle to cancel; the purge waits for Paddle."""
+    port, store_path, sessions = box
+    store = Store(store_path)
+    made = store.finish_sign_in(store.start_sign_in("leaving@example.com"))
+    assert made is not None
+    me = store.person_by_email("leaving@example.com")
+    assert me is not None
+    store.set_billing(
+        me.id,
+        cadence="month",
+        status="active",
+        period_end="2026-12-16T10:00:00Z",
+        cancel_at_end=False,
+        customer="ctm_leaving",
+        subscription="sub_leaving",
+    )
+    status, _, _ = press(port, "/account/forget", {}, made[1])
+    assert status < 400
+    assert paddle.asked[-1].full_url.endswith("/subscriptions/sub_leaving/cancel")
+    assert store.purge(days=0) == [], "the purge waits for Paddle's canceled"

@@ -254,8 +254,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   setting is there (`billing.configured()`), which nothing here sets.
   - Start takes `cadence`, `month` or `quarter`, for a reader whose Paddle plan does not
     already hold. Top up takes `size`, 60, 180 or 300, for a reader on Plan, as one
-    hour's price times 1, 3 or 5. The account rides in `custom_data` for the webhook,
-    and a reader who paid before is named by their Paddle customer.
+    hour's price times 1, 3 or 5. The account rides in `custom_data` with its tag for
+    the webhook, and a reader who paid before is named by their Paddle customer.
+  - Closing an account asks Paddle to cancel its plan at the end of the period paid
+    for (`billing.cancel`), and the purge waits until Paddle says it is canceled.
   - A press from another site is a 403. A Paddle that does not answer sends the reader
     back with "The checkout didn't open. Try again in a minute."
   - With Paddle configured, `/plans`'s Start the plan is a real form posting the

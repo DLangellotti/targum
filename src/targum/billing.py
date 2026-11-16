@@ -423,26 +423,45 @@ def _call(method: str, path: str, body: dict[str, Any] | None = None) -> dict[st
     return data
 
 
-def checkout(price: str, *, account: int, quantity: int = 1, customer: str = "") -> str:
+def checkout(price: str, *, account: int, made: int, quantity: int = 1, customer: str = "") -> str:
     """Where to send a reader to pay: a transaction made for `price` and this account,
     opened on Paddle's hosted checkout (`checkout_url()?transaction_id=txn_…`).
 
-    The account rides in `custom_data`, which Paddle copies onto the subscription, so
-    the webhook knows whose it is. A reader who has paid before is named by their Paddle
-    customer, so a second subscription or a top-up lands on the same one."""
+    The account rides in `custom_data` with its tag (`account_tag`, over the id and
+    `made`, when the account was made), which Paddle copies onto the subscription, so
+    the webhook knows whose it is and that our server said so. A reader who has paid
+    before is named by their Paddle customer, so a second subscription or a top-up lands
+    on the same one."""
     page = checkout_url()
     if not page or not price:
         raise PaddleError("not configured")
     body: dict[str, Any] = {
         "items": [{"price_id": price, "quantity": int(quantity)}],
-        "custom_data": {ACCOUNT_KEY: str(int(account))},
+        "custom_data": {
+            ACCOUNT_KEY: str(int(account)),
+            TAG_KEY: account_tag(int(account), int(made)),
+        },
         "collection_mode": "automatic",
     }
     if customer:
         body["customer_id"] = customer
-    made = _call("POST", "/transactions", body)
-    transaction = str(made.get("id") or "")
+    answer = _call("POST", "/transactions", body)
+    transaction = str(answer.get("id") or "")
     if not transaction.startswith("txn_"):
         raise PaddleError("no transaction")
     joiner = "&" if urllib.parse.urlsplit(page).query else "?"
     return f"{page}{joiner}{urllib.parse.urlencode({'transaction_id': transaction})}"
+
+
+def cancel(subscription: str) -> None:
+    """Ask Paddle to cancel a subscription at the end of the period already paid for:
+    what closing an account does, so a reader who leaves is not charged again. Paddle
+    says `canceled` by webhook when the period ends, and only then does the purge go
+    ahead (`Store.live_billing`)."""
+    if not subscription.startswith("sub_"):
+        raise PaddleError("no subscription")
+    _call(
+        "POST",
+        f"/subscriptions/{urllib.parse.quote(subscription)}/cancel",
+        {"effective_from": "next_billing_period"},
+    )

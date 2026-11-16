@@ -13952,8 +13952,16 @@ class Handler(BaseHTTPRequestHandler):
             if size not in plans.TOP_UPS or not plans.paid(person):
                 return self._go("/account")
             price, quantity, back = prices["top-up"], size // billing.TOP_UP_UNIT, "/account"
+        made = self.store.db.execute("SELECT made FROM person WHERE id = ?", (person.id,))
+        row = made.fetchone()
         try:
-            where = billing.checkout(price, account=person.id, quantity=quantity, customer=customer)
+            where = billing.checkout(
+                price,
+                account=person.id,
+                made=int(row[0]) if row else 0,
+                quantity=quantity,
+                customer=customer,
+            )
         except billing.PaddleError as error:
             print(f"billing: checkout not made ({error})")
             return self._go(f"{back}?pay=failed")
@@ -16725,6 +16733,16 @@ class Handler(BaseHTTPRequestHandler):
             )
         # The page's language, so the last mail is written in it.
         self.store.forget(person, self._ui_language())
+        # A plan Paddle may still charge is cancelled at the end of what is paid for, so
+        # a reader who leaves is not billed again; the purge waits for Paddle to say so
+        # (`Store.live_billing`). Best effort: an answer that does not come is written
+        # down, and the purge still waits.
+        held = person.billing
+        if held is not None and billing.configured() and self.store.live_billing(person.id):
+            try:
+                billing.cancel(held.subscription)
+            except billing.PaddleError as error:
+                incidents_module.record(self.library.incidents, "billing-cancel", error)
         self._sign_out()
 
     def _due(self, query: dict[str, list[str]]) -> None:
