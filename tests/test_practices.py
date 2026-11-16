@@ -743,6 +743,35 @@ def test_an_object_pronoun_is_asked_its_role_and_its_form_decides_the_kind() -> 
     assert _roles(clitic("me", "En")) == []
 
 
+@pytest.mark.parametrize(
+    "line, form, role",
+    [
+        ("Je me lève tôt.", "me", "Obj"),
+        ("Je me demande pourquoi.", "me", "Iobj"),
+        ("Tu te souviens de lui ?", "te", "Obj"),
+        ("Nous nous voyons demain.", "nous", "Obj"),
+        ("Vous vous parlez souvent.", "vous", "Iobj"),
+        ("Je m'appelle Paul.", "m'", "Obj"),
+    ],
+)
+def test_a_pronoun_of_the_subjects_own_person_is_reflexive_and_not_asked(
+    line: str, form: str, role: str
+) -> None:
+    """qa on #1284: *je me*, *tu te*, *nous nous*, *vous vous* are reflexive whatever role
+    the tagger gave them, and a reflexive is never asked."""
+    from targum.annotate.french_register import words_of
+
+    stored = [
+        {"start": w.start, "end": w.end, "surface": w.surface, "feats": ""} for w in words_of(line)
+    ]
+    at = [n for n, one in enumerate(stored) if one["surface"].lower() == form][-1]
+    stored[at] = {**stored[at], **clitic(form, role), "surface": stored[at]["surface"]}
+    before = practices.clauses_before(line, stored)[at]
+    assert list(practices.role_candidates(stored[at], "s", before)) == []
+    # The same pronoun after another subject is asked: *il me voit*.
+    assert list(practices.role_candidates(stored[at], "s", ("il",)))
+
+
 @pytest.mark.parametrize("ui", ["en", "ru"])
 def test_a_role_is_said_as_the_card_says_it(ui: str) -> None:
     from targum import strings

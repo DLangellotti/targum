@@ -4469,7 +4469,7 @@
   "practice.rule.role-en": "En stands for something with de, or for some of it.",
   "practice.rule.role-y": "Y stands for a place, or for something with à.",
   "practice.rule.role-obj-verb": "Me, te, nous and vous can be either. This verb takes its object directly.",
-  "practice.rule.role-iobj-verb": "Me, te, nous and vous can be either. This verb takes its object with à.",
+  "practice.rule.role-iobj-verb": "Me, te, nous and vous can be either. This verb takes the person with à.",
   "practice.spot.binyan": "Root and binyan",
   "practice.spot.homograph": "Vowels and look-alike words",
   "practice.spot.tense": "Tense and person",

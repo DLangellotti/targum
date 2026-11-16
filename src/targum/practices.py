@@ -461,10 +461,39 @@ CLITIC_FORMS = {
 ROLES = {"Obj": "Iobj", "Iobj": "Obj", "En": "Y", "Y": "En"}
 
 
-def role_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidate]:
+#: The subject that makes *me*, *te*, *nous* or *vous* reflexive in its clause: *je me
+#: lève*, *nous nous voyons*.
+SAME_PERSON = {
+    "me": ("je", "j'"),
+    "m'": ("je", "j'"),
+    "te": ("tu",),
+    "t'": ("tu",),
+    "nous": ("nous",),
+    "vous": ("vous",),
+}
+
+
+def clauses_before(text: str, stored: Sequence[Mapping[str, Any]]) -> list[tuple[str, ...]]:
+    """For each word of a French line, the words before it in its own clause, as the
+    register rules cut and compare them (`annotate/french_register.py`)."""
+    from .annotate.french_register import Word, _clause_start, norm
+
+    words = [
+        Word(int(t.get("start") or 0), int(t.get("end") or 0), str(t.get("surface") or ""))
+        for t in stored
+    ]
+    said = [norm(word.surface) for word in words]
+    return [tuple(said[_clause_start(text, words, at) : at]) for at in range(len(words))]
+
+
+def role_candidates(
+    token: Mapping[str, Any], segment: str, before: Sequence[str] = ()
+) -> Iterator[Candidate]:
     """What a French object pronoun is to its verb, as the card names it (`Role`, model
     prompt 3, targum-internal#264): the direct object against the indirect, *en* against
-    *y*. A reflexive is not asked: *se* is always one.
+    *y*. A reflexive is not asked: *se* is always one, and *me*, *te*, *nous* or *vous*
+    is one wherever its clause's subject is the same person (`before`, the clause's words
+    before it: *je me lève*), whatever role the tagger gave it (qa on #1284).
 
     The easy kind is a form that says its role (*le*, *lui*, *en*, *y*); the hard kind is
     *me*, *te*, *nous*, *vous*, whose role only the verb gives, and its answer carries
@@ -480,6 +509,8 @@ def role_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidat
     if told and told != role:
         return
     if not told and role not in ("Obj", "Iobj"):
+        return
+    if any(word in SAME_PERSON.get(form, ()) for word in before):
         return
     start, end = int(token.get("start") or 0), int(token.get("end") or 0)
     answer = role if told else f"{role}:verb"
@@ -650,9 +681,10 @@ def _french(
     for segment in segmented.segments:
         found = by_section.setdefault(section_of.get(segment.id, 1), [])
         stored = tokens.get(segment.id) or ()
-        for token in stored:
+        clauses = clauses_before(segment.text, stored)
+        for token, before in zip(stored, clauses, strict=True):
             found.extend(gender_candidates(token, segment.id))
-            found.extend(role_candidates(token, segment.id))
+            found.extend(role_candidates(token, segment.id, before))
         found.extend(register_candidates(segment.text, stored, segment.id))
     return TextPractice(by_section=by_section)
 

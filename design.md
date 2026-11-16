@@ -439,8 +439,11 @@ hard spot" (2026-10-13).
 - **The form decides the kind.** *Le*, *la*, *les*, *lui*, *leur*, *en* and *y* say their
   own role, and their rule names the form. *Me*, *te*, *nous* and *vous* can be either,
   and only the verb tells: that is the hard kind, and its rule says the verb takes its
-  object directly, or with *à*. A role the form rules out (*le* as an indirect object) is
-  the tagger's slip, and it is not asked.
+  object directly, or takes the person with *à*. A role the form rules out (*le* as an
+  indirect object) is the tagger's slip, and it is not asked.
+- **A reflexive is never asked, whatever the tagger says.** *Me*, *te*, *nous* or *vous*
+  after a subject of the same person in its clause (*je me lève*, *nous nous voyons*) is
+  reflexive, even where the tagger gave it Obj or Iobj.
 - **What the pronoun stands for is not asked yet.** The card does not say it until
   `model_lemma.ANTECEDENT_PRECISION` is measured at 0.9 or better on the hand-written set
   of 150 (targum-internal#264). The practice says no more than the card. The spot is the
