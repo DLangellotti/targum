@@ -142,14 +142,45 @@ def test_every_hebrew_letter_word_in_a_line_is_in_that_day_s_verses() -> None:
     for day in starter.DAYS:
         refs = starter.verses(day.ref)
         found = set().union(*(words(side(ref, lang)) for ref in refs for lang in ("arc", "he")))
-        for quoted in re.findall(r"[֐-׿]+", day.blurb):
-            if quoted.startswith("־") or len(aramaic.key(quoted)) < 2:
-                continue
-            assert aramaic.key(quoted) in found, f"day {day.number} quotes {quoted}"
+        for line in (day.blurb, day.russian):
+            for quoted in quoted_words(line):
+                assert quoted in found, f"day {day.number} quotes {quoted}"
+
+
+def quoted_words(line: str) -> set[str]:
+    """The words a line quotes in Hebrew letters, keyed as the hand table files them,
+    leaving out a letter alone and an ending, which are spoken of rather than quoted."""
+    return {
+        aramaic.key(quoted)
+        for quoted in re.findall(r"[֐-׿]+", line)
+        if not quoted.startswith("־") and len(aramaic.key(quoted)) >= 2
+    }
+
+
+def test_each_russian_line_quotes_the_words_its_english_line_does() -> None:
+    """The Russian says the same thing about the same words: none dropped, none added, so
+    a reader in either language is shown the same pairs from the same verses."""
+    for day in starter.DAYS:
+        assert re.search(r"[а-яё]", day.russian), f"day {day.number} has no Russian"
+        assert quoted_words(day.russian) == quoted_words(day.blurb), day.number
+
+
+def test_each_row_and_the_set_are_named_in_russian() -> None:
+    for day in starter.DAYS:
+        entry = catalogue._entry(starter.row(day))
+        assert entry.name_in("ru") == f"День {day.number} · Берешит " + day.ref.removeprefix(
+            "Genesis "
+        ).replace("-", "–")
+        assert entry.blurb_in("ru") == day.russian
+        assert all(rendering.note_in("ru") for rendering in entry.translations)
+    group = catalogue._collection(starter.collection())
+    assert group.name_in("ru") == starter.RUSSIAN
+    assert group.blurb_in("ru") == starter.BLURB_RU
 
 
 def test_the_set_s_own_name_and_line_quote_no_aramaic() -> None:
     assert not re.search(r"[֐-׿]", starter.BLURB + starter.ENGLISH)
+    assert not re.search(r"[֐-׿]", starter.BLURB_RU + starter.RUSSIAN)
 
 
 def test_each_sound_shift_is_a_real_pair_in_a_verse_of_the_set() -> None:
@@ -206,6 +237,7 @@ def test_the_set_is_one_of_targum_s_playlists_in_reading_order() -> None:
 
 def test_the_last_day_hands_on_to_the_week_s_portion() -> None:
     assert "this week's portion" in starter.DAYS[-1].blurb
+    assert "недельную главу" in starter.DAYS[-1].russian
 
 
 def test_di_is_met_every_day_from_day_three() -> None:

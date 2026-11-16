@@ -57,6 +57,9 @@ class Day:
     #: The Hebrew citation, which is what the row shows.
     title: str
     blurb: str
+    #: The same line for a reader whose interface is Russian (`Entry.blurbs`), quoting
+    #: the same words and no others.
+    russian: str
     #: The pairs this day's line names, as (verse, Aramaic, Hebrew), each word spelled
     #: as that verse spells it, with its vowels and without its accents.
     pairs: tuple[tuple[str, str, str], ...] = ()
@@ -69,6 +72,13 @@ class Day:
     def english(self) -> str:
         return f"Day {self.number} · {self.ref.replace('-', '–')}"
 
+    @property
+    def russian_name(self) -> str:
+        """The name in Russian, with the book called what the shelf calls it: the `genesis`
+        row is «Берешит (Бытие)», and a citation keeps the Hebrew name alone."""
+        span = self.ref.removeprefix("Genesis ").replace("-", "–")
+        return f"День {self.number} · Берешит {span}"
+
 
 DAYS: tuple[Day, ...] = (
     Day(
@@ -77,6 +87,8 @@ DAYS: tuple[Day, ...] = (
         "בראשית א, א-ה",
         "Most nouns end in ־א, and the ־א mostly means “the”, so אַרְעָא is הָאָרֶץ. "
         "יָת does the work of אֶת.",
+        "Большинство существительных оканчивается на ־א, и обычно это ־א значит то же, "
+        "что ивритское ה־ в начале слова. Поэтому אַרְעָא — это הָאָרֶץ. А יָת работает как אֶת.",
         (
             ("Genesis 1:1", "אַרְעָא", "הָאָרֶץ"),
             ("Genesis 1:1", "שְׁמַיָּא", "הַשָּׁמַיִם"),
@@ -89,6 +101,8 @@ DAYS: tuple[Day, ...] = (
         "בראשית א, ו-יט",
         "A plural noun with “the” ends in ־יָּא, so the stars are כּוֹכְבַיָּא. "
         "Hebrew ש is often ת in Aramaic, and the second day is יוֹם תִּנְיָן.",
+        "Во множественном числе такое окончание выглядит как ־יָּא, поэтому звёзды здесь — כּוֹכְבַיָּא. "
+        "Ивритской ש в арамейском часто соответствует ת, и второй день — יוֹם תִּנְיָן.",
         (
             ("Genesis 1:16", "כּוֹכְבַיָּא", "הַכּוֹכָבִים"),
             ("Genesis 1:8", "תִּנְיָן", "שֵׁנִי"),
@@ -99,6 +113,7 @@ DAYS: tuple[Day, ...] = (
         "Genesis 1:20-2:3",
         "בראשית א, כ - ב, ג",
         "דִּי does the work of אֲשֶׁר. From here on you'll meet it every day.",
+        "דִּי работает как אֲשֶׁר. Дальше это слово будет встречаться вам каждый день.",
         (("Genesis 1:21", "דִּי", "אֲשֶׁר"),),
     ),
     Day(
@@ -107,6 +122,8 @@ DAYS: tuple[Day, ...] = (
         "בראשית ב, ד-יד",
         "The garden of Eden and its four rivers. "
         "Hebrew ז is often ד, so the gold of Havilah is דַּהֲבָא.",
+        "Эдемский сад и четыре его реки. Ивритской ז часто "
+        "соответствует ד, поэтому золото земли Хавила — דַּהֲבָא.",
         (("Genesis 2:11", "דַּהֲבָא", "הַזָּהָב"),),
     ),
     Day(
@@ -114,6 +131,8 @@ DAYS: tuple[Day, ...] = (
         "Genesis 3:1-13",
         "בראשית ג, א-יג",
         "The serpent and the woman talk. לָא is לֹא, and אֲרֵי is כִּי, for “because” and for “that”.",
+        "Змей разговаривает с женщиной. לָא — это לֹא, а אֲרֵי — это כִּי, "
+        "и в значении «потому что», и в значении «что».",
         (
             ("Genesis 3:1", "לָא", "לֹא"),
             ("Genesis 3:5", "אֲרֵי", "כִּי"),
@@ -125,6 +144,8 @@ DAYS: tuple[Day, ...] = (
         "בראשית ו, ט-כב",
         "Noah builds the ark. Here ש is ת again, as in his three sons, תְּלָתָא בְנִין. "
         "And Hebrew צ can be ע, so the ark's wood is אָעִין.",
+        "Ноах строит ковчег. Здесь ש снова становится ת, как в трёх его сыновьях — תְּלָתָא בְנִין. "
+        "А ивритской צ может соответствовать ע, поэтому дерево ковчега — אָעִין.",
         (
             ("Genesis 6:10", "תְּלָתָא", "שְׁלֹשָׁה"),
             ("Genesis 6:14", "אָעִין", "עֲצֵי"),
@@ -136,6 +157,8 @@ DAYS: tuple[Day, ...] = (
         "בראשית לז, א-יא",
         "Joseph's dreams, read whole with the Hebrew beside them. "
         "Next, read this week's portion. Onkelos is under every verse there too.",
+        "Сны Йосефа целиком, рядом с ивритским текстом. Дальше читайте "
+        "недельную главу. Там Онкелос тоже стоит под каждым стихом.",
     ),
 )
 
@@ -168,9 +191,14 @@ FUNCTION_WORDS: tuple[str, ...] = (
 #: The set's name and line.
 TITLE = "שבוע ראשון באונקלוס"
 ENGLISH = "A first week of Onkelos"
+RUSSIAN = "Первая неделя с Онкелосом"
 BLURB = (
     "Read Onkelos under the Hebrew, one short passage a day for a week. "
     "For readers who know Hebrew and no Aramaic."
+)
+BLURB_RU = (
+    "Неделю читайте Онкелос под ивритским текстом, по короткому отрывку в день. "
+    "Для тех, кто знает иврит, но не арамейский."
 )
 
 #: The editions every row carries beside its Hebrew: the `genesis` row's English and
@@ -188,6 +216,8 @@ def row(day: Day) -> dict[str, Any]:
         "language": "he",
         "source": f"sefaria:{day.ref}",
         "blurb": day.blurb,
+        "named": {"ru": day.russian_name},
+        "blurbs": {"ru": day.russian},
         "tags": ["tanakh"],
         "kind": "prose",
         "register": "biblical",
@@ -196,6 +226,7 @@ def row(day: Day) -> dict[str, Any]:
                 "name": METSUDAH,
                 "source": f"sefaria:en:{day.ref}",
                 "note": "A linear translation, made to be read beside the Hebrew.",
+                "notes": {"ru": "Подстрочный перевод, чтобы читать его рядом с ивритом."},
                 "publisher": "Metsudah Publications",
                 "licence": "CC-BY",
             },
@@ -203,6 +234,9 @@ def row(day: Day) -> dict[str, Any]:
                 "name": "Targum Onkelos",
                 "source": f"sefaria:arc:{day.ref}",
                 "note": "The Aramaic translation read beside the Torah, verse for verse.",
+                "notes": {
+                    "ru": "Арамейский перевод, который читают рядом с Торой, стих за стихом."
+                },
                 "publisher": "Sefaria",
                 "licence": "Public Domain",
             },
@@ -220,6 +254,8 @@ def collection() -> dict[str, Any]:
         "title": TITLE,
         "english": ENGLISH,
         "blurb": BLURB,
+        "named": {"ru": RUSSIAN},
+        "blurbs": {"ru": BLURB_RU},
         "members": [day.id for day in DAYS],
         "ordered": True,
         "door": "targum",

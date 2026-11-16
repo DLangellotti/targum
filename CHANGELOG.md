@@ -22,6 +22,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     of both sides (`fixtures/sefaria/onkelos-starter.json`), every pair and sound shift
     in its verse, and that the forty common words, all from the top 250 of the
     Aramaic frequency list (targum#936), are each met in a line of the set.
+  - In Russian too: the set is «Первая неделя с Онкелосом», each day «День 1 · Берешит
+    1:1–5» with its line in Russian, and both editions keep their Russian notes. Each
+    Russian line quotes exactly the Hebrew-letter words its English line does, and a test
+    holds them to that.
 - The waitlist once the door is open (targum-internal#477, C). Only while
   `signup_is_open()`; shut, or asked for without plans, every door is as it was, byte for
   byte, and a test pins both.
