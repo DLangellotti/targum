@@ -5,6 +5,14 @@ Notable changes to targum, newest first. Versions follow the 4-digit
 
 ## [Unreleased]
 
+### Changed
+- The committed shelf snapshot, `evals/shelf.json`, is the box's measure of 2026-11-16
+  (David). Modern Hebrew B1 now clears its floor at 177 texts and 80 recordings, and the
+  only Beta shortfall is A2, at 80 texts of 90. `stages.KEPT["he"]` names that gap and
+  keeps its review date, 2026-12-31; design.md §12, "The floors count modern Hebrew",
+  carries a dated line for it. The snapshot also carries B2, C1, C2 and Past C2 beside
+  B2+, and French's rows as the box has them.
+
 ### Added
 - The daily mail's weekly-portion row follows the reader's calendar, Israel's or the
   diaspora's (targum-internal#409 slice 4, option A, David 2026-11-16). In a week the two

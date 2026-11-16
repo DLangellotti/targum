@@ -4030,6 +4030,11 @@ Tanakh. So Hebrew's Beta is **kept**, in `stages.KEPT` with this entry's name, f
 2026-10-25 and reviewed by 2026-12-31: the test prints what it owes on every run, and the
 entry comes out when the first generated modern B1 tranche lands and B1 clears 90.
 
+**2026-11-16.** The box's measure (`evals/shelf.json`, measured on the box) shows modern
+B1 clear at 177 texts and 80 recordings, and the gap moved to A2, at 80 texts of 90. The
+kept Beta now stands on A2, with the same review date, 2026-12-31, and the entry comes out
+when A2 clears 90.
+
 ### What a first tap does not need waits after the faces — 2026-10-24
 
 David, 2026-10-21, after accepting Ki Tavo's sixth aliyah at 1.74 s (targum-internal#503).
@@ -7156,7 +7161,9 @@ entry makes the three words promises to the reader, in order, and makes a test k
   Hebrew" above). A level's texts are modern texts: Hebrew's Tanakh is a row of its own,
   and revival, rabbinic and medieval Hebrew are counted and reported but held to no floor.
   Hebrew's B1 held 53 such texts against 90, so its Beta is **kept** again from that day,
-  under that entry's name, until the first generated modern B1 tranche lands.
+  under that entry's name, until the first generated modern B1 tranche lands. On
+  2026-11-16 the box's measure showed B1 clear, and the kept Beta stands on A2 instead
+  (that entry's dated line).
 
 What it does not change: the badge's colours and placement above; the five word stages;
 what the chat may spend; the *into* languages' two words on the upload page, which are not

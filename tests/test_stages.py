@@ -72,18 +72,19 @@ def test_the_kept_exception_is_named_dated_and_its_shortfall_is_read() -> None:
         )
 
 
-def test_hebrew_is_kept_at_beta_while_modern_b1_is_under_the_floor() -> None:
+def test_hebrew_is_kept_at_beta_while_modern_a2_is_under_the_floor() -> None:
     """Hebrew earned Beta on 2026-10-14 and the exception came out. On 2026-10-25 the floors
     came to count modern Hebrew alone (David; design.md §12, "The floors count modern
-    Hebrew"), its B1 held 53 texts of 90, and the Beta is kept again with a review date.
-    The kept word owes that and nothing else: the day modern B1 clears 90 this fails, and
-    the entry comes out."""
+    Hebrew"), and the Beta is kept again with a review date. On the box's measure of
+    2026-11-16 modern B1 clears and A2 holds 80 texts of 90. The kept word owes that and
+    nothing else: the day modern A2 clears 90 this fails, and the entry comes out."""
     assert DECLARED["he"] is Stage.beta
     held = KEPT["he"]
     assert held.stage is Stage.beta and held.since == dt.date(2026, 10, 25)
+    assert held.review == dt.date(2026, 12, 31)
     assert "The floors count modern Hebrew" in held.why
     known = stages.facts("he")
-    assert stages.shortfall(known, Stage.beta) == ["shelf at B1: 53 texts of 90"]
+    assert stages.shortfall(known, Stage.beta) == ["shelf at A2: 80 texts of 90"]
     assert stages.earned(known) is Stage.alpha
 
 
@@ -93,11 +94,11 @@ def test_the_floors_count_the_modern_ladder_and_the_registers_beside_it() -> Non
     shelf = stages.read_shelf()["he"]
     registers = stages.read_registers()["he"]
     assert set(registers) == {"biblical", "revival", "rabbinic", "medieval"}
-    assert shelf["B1"] == Floor(53, 51)
-    # Together they are what the one ladder counted before (evals/shelf.json, 2026-10-14).
-    assert shelf["B1"].texts + sum(one["B1"].texts for one in registers.values()) == 155
-    assert shelf["B2+"].texts + sum(one["B2+"].texts for one in registers.values()) == 326
-    # Revival would have carried B1 over its floor; it is reported and held to nothing.
+    # The box's measure, 2026-11-16: modern B1 clears, A2 is short of 90.
+    assert shelf["B1"] == Floor(177, 80)
+    assert shelf["A2"] == Floor(80, 77)
+    # The Tanakh and revival B1 are counted beside the ladder, not on it.
+    assert registers["biblical"]["B1"] == Floor(54, 50)
     assert registers["revival"]["B1"].texts == 48
     assert stages.report("he")["registers"]["revival"]["B1"] == [48, 1]
 
@@ -370,9 +371,9 @@ def test_the_report_row_says_kept_and_review(monkeypatch: pytest.MonkeyPatch) ->
     assert row["declared"] == "beta" and row["kept"] is True and row["review"] == "2026-12-31"
     monkeypatch.delitem(stages.KEPT, "he")
     row = stages.report("he")
-    # Unkept, it owes what modern B1 lacks (David, 2026-10-25).
+    # Unkept, it owes what modern A2 lacks (the box's measure, 2026-11-16).
     assert row["declared"] == "beta" and row["kept"] is False
-    assert row["shortfall"] == ["shelf at B1: 53 texts of 90"]
+    assert row["shortfall"] == ["shelf at A2: 80 texts of 90"]
     row = stages.report("fr")
     assert row["declared"] == "experimental" and row["kept"] is False and row["shortfall"] == []
 
