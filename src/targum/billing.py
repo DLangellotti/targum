@@ -1,0 +1,330 @@
+"""Paying for Plan and for top-ups, through Paddle (targum-internal#59 phase 2; design.md
+§12, "Payments are Paddle's, by a hosted checkout", 2026-11-15).
+
+**Paddle is the merchant of record.** It sells, it keeps the card, it charges the tax and
+it mails the receipt. targum keeps only what Paddle's webhooks say of an account's plan
+(the `plan` row) and of a top-up paid for (`credit_grant`), and nothing of money.
+
+**Everything here is inert without its keys.** Every setting is read from the environment
+each time it is asked for, and `configured()` is false until all of them are there, so a
+machine nobody has set up, and the box until David puts the keys in `box.env.op`, behaves
+exactly as before: `/billing/webhook` answers 404 and every pay button stays greyed.
+
+The webhook (`POST /billing/webhook`) is the only way a plan or a top-up reaches the
+store. It is believed only when it carries Paddle's signature (`verify`): an HMAC-SHA256
+of `ts:body` under the destination's secret, with `ts` no older than `TOLERANCE_SECONDS`.
+Each event is handled once, by its id (`Store.billing_seen`).
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import os
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .accounts import Person, Store
+
+#: The settings, all from the environment and none with a default but the environment.
+API_KEY_ENV = "PADDLE_API_KEY"
+WEBHOOK_SECRET_ENV = "PADDLE_WEBHOOK_SECRET"
+ENVIRONMENT_ENV = "PADDLE_ENVIRONMENT"
+#: Plan, paid every month and every three months: Paddle's price ids (`pri_...`).
+PRICE_MONTH_ENV = "PADDLE_PRICE_MONTH"
+PRICE_QUARTER_ENV = "PADDLE_PRICE_QUARTER"
+#: One hour of top-up, 60 credits: a top-up of 180 is three of it. One price rather than
+#: three, so the three sizes cannot disagree about what an hour costs.
+PRICE_TOP_UP_ENV = "PADDLE_PRICE_TOP_UP"
+#: The hosted checkout's own link (`https://pay.paddle.io/hsc_...`, or `sandbox-pay`),
+#: made once in Paddle's dashboard, where its return address is set to `/plans`.
+CHECKOUT_URL_ENV = "PADDLE_CHECKOUT_URL"
+
+#: The two places Paddle runs. Sandbox unless the deployment says live, so a key put in
+#: by mistake charges nobody.
+ENVIRONMENTS = ("sandbox", "live")
+API_BASE = {"sandbox": "https://sandbox-api.paddle.com", "live": "https://api.paddle.com"}
+
+#: Credits in one unit of the top-up price.
+TOP_UP_UNIT = 60
+
+#: How old a signature may be when it arrives. Paddle's own libraries allow five seconds;
+#: a little more here, for the box's clock and the proxy, and still short enough that a
+#: delivery somebody captured cannot be sent again later.
+TOLERANCE_SECONDS = 30
+#: The most of a webhook body read. Paddle's events are a few kilobytes.
+MOST_BODY_BYTES = 256 * 1024
+
+#: The key in `custom_data` that names the account a checkout was made for. Set by our
+#: server when it makes the transaction, and copied by Paddle onto the subscription.
+ACCOUNT_KEY = "targum_account"
+
+
+def _env(name: str) -> str:
+    return os.environ.get(name, "").strip()
+
+
+def environment() -> str:
+    """`sandbox` or `live`: sandbox unless the deployment says live."""
+    said = _env(ENVIRONMENT_ENV).lower()
+    return said if said in ENVIRONMENTS else "sandbox"
+
+
+def webhook_secret() -> str:
+    return _env(WEBHOOK_SECRET_ENV)
+
+
+def api_key() -> str:
+    """The API key, but only where it is for the environment the deployment names:
+    Paddle's keys say which they are (`pdl_sdbx_...`, `pdl_live_...`), and a live key
+    on a sandbox deployment, or the other way round, is treated as no key."""
+    key = _env(API_KEY_ENV)
+    if not key:
+        return ""
+    marked = {"sdbx": "sandbox", "live": "live"}
+    for mark, place in marked.items():
+        if f"_{mark}_" in key and place != environment():
+            return ""
+    return key
+
+
+def prices() -> dict[str, str]:
+    """The price ids by what they buy: `month`, `quarter` and `top-up`."""
+    return {
+        "month": _env(PRICE_MONTH_ENV),
+        "quarter": _env(PRICE_QUARTER_ENV),
+        "top-up": _env(PRICE_TOP_UP_ENV),
+    }
+
+
+def checkout_url() -> str:
+    return _env(CHECKOUT_URL_ENV)
+
+
+def configured() -> bool:
+    """Whether this install can take money: every setting there. Until then nothing is
+    offered, and the webhook is a 404 like any address that is not there."""
+    return bool(api_key() and webhook_secret() and all(prices().values()) and checkout_url())
+
+
+# -- the signature --------------------------------------------------------------------
+
+
+def sign(body: bytes, secret: str, at: int) -> str:
+    """The `Paddle-Signature` header Paddle would send for `body` at `at`: what the tests
+    sign their fixtures with, and what `verify` checks against."""
+    digest = hmac.new(secret.encode(), f"{at}:".encode() + body, hashlib.sha256).hexdigest()
+    return f"ts={at};h1={digest}"
+
+
+def verify(header: str | None, body: bytes, secret: str, at: float | None = None) -> str:
+    """Why a webhook is not believed, or "" when it is.
+
+    `header` is `Paddle-Signature`: `ts=<seconds>;h1=<hex>`, with more than one `h1`
+    while Paddle rotates a secret, any of which may match. The body is the raw bytes as
+    they arrived, since re-encoding JSON changes what was signed."""
+    if not secret:
+        return "unconfigured"
+    if not header:
+        return "unsigned"
+    stamp = ""
+    given: list[str] = []
+    for part in header.split(";"):
+        name, _, value = part.strip().partition("=")
+        if name == "ts":
+            stamp = value
+        elif name == "h1" and value:
+            given.append(value)
+    if not stamp.isdigit() or not given:
+        return "unsigned"
+    moment = time.time() if at is None else at
+    if abs(moment - int(stamp)) > TOLERANCE_SECONDS:
+        return "stale"
+    wanted = hmac.new(secret.encode(), f"{stamp}:".encode() + body, hashlib.sha256).hexdigest()
+    if not any(hmac.compare_digest(wanted, one) for one in given):
+        return "forged"
+    return ""
+
+
+# -- what an event says ------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Outcome:
+    """What handling one event did, for the log and the tests: `kind` is `plan`,
+    `top-up`, `grace`, `ignored` or `unknown-account`."""
+
+    kind: str
+    person: int | None = None
+    detail: str = ""
+
+
+#: The subscription events that carry the subscription whole, and so set the plan row.
+SUBSCRIPTION_EVENTS = (
+    "subscription.created",
+    "subscription.updated",
+    "subscription.canceled",
+    "subscription.past_due",
+    "subscription.activated",
+    "subscription.paused",
+    "subscription.resumed",
+    "subscription.trialing",
+)
+
+
+def _millis(said: Any) -> int | None:
+    """Paddle's RFC 3339 moment (`2026-11-16T10:00:00.123456Z`) in milliseconds."""
+    if not isinstance(said, str) or not said:
+        return None
+    try:
+        moment = datetime.fromisoformat(said.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return int(moment.timestamp() * 1000)
+
+
+def _account(data: dict[str, Any]) -> int | None:
+    custom = data.get("custom_data")
+    if not isinstance(custom, dict):
+        return None
+    said = custom.get(ACCOUNT_KEY)
+    try:
+        return int(str(said)) if said is not None else None
+    except ValueError:
+        return None
+
+
+def _whose(store: Store, data: dict[str, Any], subscription: str = "") -> Person | None:
+    """The account an event is about: the one our checkout named in `custom_data`, else
+    the one already holding this subscription, else the one with this Paddle customer."""
+    named = _account(data)
+    if named is not None:
+        person = store.person_by_id(named)
+        if person is not None:
+            return person
+    if subscription:
+        person = store.person_by_subscription(subscription)
+        if person is not None:
+            return person
+    customer = str(data.get("customer_id") or "")
+    return store.person_by_customer(customer) if customer else None
+
+
+def _price_ids(data: dict[str, Any]) -> list[tuple[str, int]]:
+    """Each item's price id and quantity."""
+    out: list[tuple[str, int]] = []
+    for item in data.get("items") or []:
+        if not isinstance(item, dict):
+            continue
+        price = item.get("price")
+        price_id = str(price.get("id") if isinstance(price, dict) else item.get("price_id") or "")
+        try:
+            quantity = int(item.get("quantity") or 1)
+        except (TypeError, ValueError):
+            quantity = 1
+        out.append((price_id, quantity))
+    return out
+
+
+def _cadence(data: dict[str, Any]) -> str:
+    """`month` or `quarter`, by the price where it is one of ours, else by the cycle."""
+    by_price = {one: name for name, one in prices().items() if one and name != "top-up"}
+    for price_id, _ in _price_ids(data):
+        if price_id in by_price:
+            return by_price[price_id]
+    cycle = data.get("billing_cycle")
+    if isinstance(cycle, dict) and cycle.get("interval") == "month":
+        return {1: "month", 3: "quarter"}.get(int(cycle.get("frequency") or 0), "")
+    return ""
+
+
+def _subscription(store: Store, kind: str, data: dict[str, Any], said_at: int | None) -> Outcome:
+    from .accounts import PLAN_STATUSES
+
+    subscription = str(data.get("id") or "")
+    person = _whose(store, data, subscription)
+    if person is None:
+        return Outcome("unknown-account", detail=subscription)
+    status = str(data.get("status") or "")
+    if status not in PLAN_STATUSES:
+        return Outcome("ignored", person.id, f"status {status!r}")
+    period = data.get("current_billing_period")
+    ends = str(period.get("ends_at") or "") if isinstance(period, dict) else ""
+    scheduled = data.get("scheduled_change")
+    cancelling = isinstance(scheduled, dict) and scheduled.get("action") == "cancel"
+    applied = store.set_billing(
+        person.id,
+        cadence=_cadence(data),
+        status=status,
+        period_end=ends,
+        cancel_at_end=cancelling,
+        customer=str(data.get("customer_id") or ""),
+        subscription=subscription,
+        said_at=said_at,
+    )
+    return Outcome("plan" if applied else "ignored", person.id, status if applied else "older")
+
+
+def _completed(store: Store, data: dict[str, Any]) -> Outcome:
+    """A transaction paid. A subscription's payments are the subscription events' to
+    say; one with no subscription and our top-up price on it is a top-up."""
+    if data.get("subscription_id"):
+        return Outcome("ignored", detail="a subscription's payment")
+    top_up = prices()["top-up"]
+    units = sum(
+        quantity for price_id, quantity in _price_ids(data) if top_up and price_id == top_up
+    )
+    if units <= 0:
+        return Outcome("ignored", detail="no top-up on it")
+    person = _whose(store, data)
+    if person is None:
+        return Outcome("unknown-account", detail=str(data.get("id") or ""))
+    granted = store.grant_credits(person.id, units * TOP_UP_UNIT, str(data.get("id") or ""))
+    return Outcome("top-up" if granted else "ignored", person.id, f"{units * TOP_UP_UNIT}")
+
+
+def _payment_failed(store: Store, data: dict[str, Any], said_at: int | None) -> Outcome:
+    """A payment that failed. Only a renewal's starts the grace: a card refused at the
+    checkout is the reader trying again on Paddle's page, and changes nothing here."""
+    subscription = str(data.get("subscription_id") or "")
+    if not subscription or data.get("origin") != "subscription_recurring":
+        return Outcome("ignored", detail="not a renewal")
+    person = _whose(store, data, subscription)
+    if person is None or person.billing is None:
+        return Outcome("unknown-account", detail=subscription)
+    held = person.billing
+    if held.status == "past_due":
+        return Outcome("ignored", person.id, "already in grace")
+    store.set_billing(
+        person.id,
+        cadence=held.cadence,
+        status="past_due",
+        period_end=held.period_end,
+        cancel_at_end=held.cancel_at_end,
+        customer=held.customer,
+        subscription=held.subscription or subscription,
+        said_at=said_at,
+    )
+    return Outcome("grace", person.id)
+
+
+def handle(store: Store, event: dict[str, Any]) -> Outcome:
+    """Apply one verified event to the store. Idempotency is the caller's
+    (`Store.billing_seen`); this only says what the event means."""
+    kind = str(event.get("event_type") or "")
+    data = event.get("data")
+    if not isinstance(data, dict):
+        return Outcome("ignored", detail="no data")
+    said_at = _millis(event.get("occurred_at"))
+    if kind in SUBSCRIPTION_EVENTS:
+        return _subscription(store, kind, data, said_at)
+    if kind == "transaction.completed":
+        return _completed(store, data)
+    if kind == "transaction.payment_failed":
+        return _payment_failed(store, data, said_at)
+    return Outcome("ignored", detail=kind)

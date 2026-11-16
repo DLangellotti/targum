@@ -42,9 +42,9 @@ from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
+from . import billing, mcp_http, oauth, plans, voices
 from . import incidents as incidents_module
 from . import level as level_module
-from . import mcp_http, oauth, plans, voices
 from . import telegram as telegram_module
 from .accounts import (
     CHAT_RESTARTED,
@@ -882,6 +882,9 @@ WAITLIST_POSTS = frozenset({"/waitlist", "/waitlist/confirm", "/waitlist/stop"})
 #: The open door's form on the public pages (targum-internal#671): one field that mails
 #: the sign-in link, as /account/signin's does, from a page that works with JavaScript off.
 SIGNUP_POST = "/signup"
+#: Where Paddle sends its events (targum-internal#59 phase 2). Answered only where the
+#: deployment has Paddle's webhook secret; a 404 everywhere else.
+BILLING_HOOK = "/billing/webhook"
 
 #: The posts that mail a link to whatever address they are given (targum-internal#688).
 #: A form on another site could post to any of them, so each refuses a browser that
@@ -11409,6 +11412,10 @@ class Handler(BaseHTTPRequestHandler):
         # authorises it is the secret Telegram was given, never a cookie.
         if route == telegram_module.HOOK:
             return self._telegram_hook()
+        # Paddle's webhook (targum-internal#59 phase 2). Before the account check, like
+        # Telegram's: what authorises it is Paddle's signature, never a cookie.
+        if route == BILLING_HOOK:
+            return self._billing_hook()
         # The back office's one action, a form post from the page an admin is on.
         if route == BACK_OFFICE_ROUTE + "/promote":
             return self._promote(self._form())
@@ -14793,6 +14800,52 @@ class Handler(BaseHTTPRequestHandler):
         if isinstance(update, dict):
             door.accept(update)
         self._json({})
+
+    def _billing_hook(self) -> None:
+        """An event from Paddle: a plan started, changed, cancelled or behind, or a
+        top-up paid for (`billing.handle`; design.md §12, "Payments are Paddle's, by a
+        hosted checkout", 2026-11-15).
+
+        The body is read before anything can turn the request away, as `_telegram_hook`
+        does. Without a secret this is a 404 like any address that is not there. A
+        signature that does not check, or is older than `billing.TOLERANCE_SECONDS`, is a
+        401, and Paddle sends again. Each event is handled once by its id: one seen
+        already is a 200 that changes nothing, and one whose handling fails is forgotten
+        again, so Paddle's retry is handled rather than skipped.
+        """
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(min(length, billing.MOST_BODY_BYTES)) if length > 0 else b""
+        secret = billing.webhook_secret()
+        if not secret or self.store is None:
+            return self._json({"error": "not found"}, 404)
+        if length > billing.MOST_BODY_BYTES:
+            return self._json({"error": "too large"}, 413)
+        refused = billing.verify(self.headers.get("Paddle-Signature"), raw, secret)
+        if refused:
+            return self._json({"error": refused}, 401)
+        try:
+            event = json.loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._json({"error": "bad request"}, 400)
+        if not isinstance(event, dict) or not event.get("event_id"):
+            return self._json({"error": "bad request"}, 400)
+        event_id = str(event["event_id"])
+        kind = str(event.get("event_type") or "")
+        if not self.store.billing_seen(event_id, kind):
+            return self._json({"seen": True})
+        try:
+            outcome = billing.handle(self.store, event)
+        except Exception as error:
+            # Written down as any escaped error is, and answered 500 rather than dropped,
+            # so Paddle knows to send it again.
+            self.store.billing_unseen(event_id)
+            incidents_module.record(self.library.incidents, self.path, error)
+            return self._json({"error": "not handled"}, 500)
+        if outcome.kind == "unknown-account":
+            # Nobody here to give it to. Said in the journal with Paddle's own id, never
+            # an address, so the operator can look it up in Paddle's dashboard.
+            print(f"billing: {kind} {event_id} names no account here ({outcome.detail})")
+        self._json({"handled": outcome.kind})
 
     def _telegram_account(self, payload: dict[str, Any]) -> None:
         """The Telegram row on /account: a fresh one-time link, or a chat unbound."""

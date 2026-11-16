@@ -221,6 +221,27 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   - The account's export carries its plan row, periods and top-ups; a purged account
     takes them, and a purge waits while Paddle may still charge (`Store.live_billing`).
     The back office counts a paying reader's month at Plan's size.
+- Paddle's webhook, `POST /billing/webhook` (targum-internal#59 phase 2, item 8). The
+  one way a plan or a top-up reaches the store. A 404 until `PADDLE_WEBHOOK_SECRET` is
+  set, which nothing here does.
+  - Believed only with Paddle's signature: `Paddle-Signature: ts=…;h1=…`, an
+    HMAC-SHA256 of `ts:body` under the destination's secret, any `h1` matching while a
+    secret rotates, and `ts` within 30 seconds either way (`billing.TOLERANCE_SECONDS`).
+    Anything else is a 401 and changes nothing.
+  - Handled once per event id (`billing_event`). One seen already is a 200 that does
+    nothing; one whose handling fails is forgotten again and answered 500, so Paddle's
+    retry is handled.
+  - `subscription.created`, `.updated`, `.canceled`, `.past_due` (and `.activated`,
+    `.paused`, `.resumed`, `.trialing`) set the `plan` row: status, cadence (by our price
+    id, else by the billing cycle), period end, cancel at period end, and Paddle's ids.
+    An event older than what the row holds changes nothing, since Paddle does not
+    promise order.
+  - `transaction.completed` with no subscription and the top-up price on it grants 60
+    credits per unit, once per transaction.
+  - `transaction.payment_failed` on a renewal starts the grace (`plans.GRACE_DAYS`);
+    a card refused at the checkout changes nothing.
+  - The account is found by `custom_data.targum_account`, which our checkout sets, then
+    by the subscription, then by Paddle's customer id.
 - "A first week of Onkelos", targum's own playlist for a reader with Hebrew and no
   Aramaic (targum-internal#530, part 1). Seven rows, one a day: Genesis 1:1-5, 1:6-19,
   1:20-2:3, 2:4-14, 3:1-13, 6:9-22 and 37:1-11, each the Hebrew with the public-domain
