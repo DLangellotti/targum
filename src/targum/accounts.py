@@ -605,7 +605,10 @@ WIPE_BY_HAND = ("chat", "playlist", "subscription")
 #: through Tell us (#456) is a finding of whoever was testing, addressed to the operator,
 #: and the wipe exists to give the account a fresh first visit, not to lose the findings;
 #: it still goes with the account in `purge`.
-KEPT_BY_A_WIPE = ("told",)
+#: The plan and top-ups (schema 74) are left too: they are Paddle's word about a payment
+#: that is still Paddle's, and a wipe that dropped the `plan` row of a live subscription
+#: would leave Paddle charging for a plan the account no longer knows it has.
+KEPT_BY_A_WIPE = ("told", "plan", "credit_grant")
 
 #: What can be subscribed to (design.md §12, "A subscription is the account's",
 #: 2026-10-09): targum's series, a news topic, one outlet, a YouTube channel, a podcast.

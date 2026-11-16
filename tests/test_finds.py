@@ -758,7 +758,7 @@ def ctx_for(store: Store, marked: dict[str, int]) -> Any:
         person=SimpleNamespace(id=1, email="r@example.com", admin=False),
         person_id=1,
         admin=False,
-        library=SimpleNamespace(allowance=lambda paid_plan=False: None),
+        library=SimpleNamespace(allowance=lambda paid_plan=False, owner=None: None),
     )
 
 
