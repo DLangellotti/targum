@@ -606,6 +606,29 @@ def test_a_negation_is_asked_formal_or_informal() -> None:
     assert _register("Je ne sais pas.") == [("NeKept", "NeDrop", False, "pas")]
     # *Plus* where it could be "more" is no negation, said or dropped.
     assert _register("Il en faut plus.") == []
+    # A dropped *ne* and a kept one in the same line are each asked at their own word.
+    line = "Je ne sais pas, mais je veux pas."
+    found = practices.register_candidates(line, _said(line), "s")
+    assert [
+        (c.answer, c.contrast, c.hard, line[c.start : c.end])
+        for c in sorted(found, key=lambda c: c.start)
+    ] == [
+        ("NeKept", "NeDrop", False, "pas"),
+        ("NeDrop:je ne veux pas", "NeKept", True, "pas"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "C'est le meilleur film que j'aie jamais vu.",
+        "Je doute qu'il ait jamais menti.",
+        "Il ne faut pas que tu aies jamais peur.",
+    ],
+)
+def test_a_jamais_after_que_is_never_asked_as_a_dropped_ne(line: str) -> None:
+    """qa on #1283: after *que*, *jamais* is often "ever", with no negation to drop."""
+    assert not [one for one in _register(line) if one[0].startswith("NeDrop")], _register(line)
 
 
 def test_an_on_is_asked_who_and_never_said_to_be_we_unless_the_line_says_so() -> None:
@@ -659,7 +682,8 @@ def test_french_register_is_offered_with_its_own_question_per_item(
     )
     assert status == 200, said
     spot = {one["key"]: one for one in said["spots"]}["register"]
-    assert spot["encounters"] == 8 and spot["ready"]
+    # An open *on* is never asked and never counted: three lines a text.
+    assert spot["encounters"] == 6 and spot["ready"]
     items = said["round"]["items"]
     assert said["round"]["spot"] == "register" and len(items) == practices.ROUND + 1
     asks = {"formal", "informal"}, {"“we”", "people in general, or “we” in speech"}
@@ -668,4 +692,5 @@ def test_french_register_is_offered_with_its_own_question_per_item(
         assert options in asks, item
         assert item["ask"] == ("Formal or informal?" if options == asks[0] else "Who is on here?")
         assert item["options"][item["answer"]] == item["said"]
+        assert item["said"] != "people in general, or “we” in speech", "an open on is not asked"
         assert item["contrast"] and item["contrast"]["said"] in options - {item["said"]}

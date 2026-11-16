@@ -24,8 +24,10 @@ Notable changes to targum, newest first. Versions follow the 4-digit
   2026-11-16). `stages._practices("fr")["register: ne-drop and on/nous"]` is now true.
   - `practices.register_candidates` reads a line with the card's own rules. A *ne*
     dropped (`NeDrop:<formal clause>`, hard) is set against one kept (`NeKept`, found by
-    the new `french_register.ne_kept`). An *on* is `OnWe` (hard) only where the rule
-    says "we", and `OnOpen` everywhere else.
+    the new `french_register.ne_kept`). A *jamais* in a *que* clause is not asked as a
+    drop. An *on* is asked only where the rule says "we" (`OnWe`). An open *on*
+    (`OnOpen`) is `CONTRAST_ONLY`: never asked and never counted, only shown as the
+    other answer's line.
   - An item can carry a question other than its spot's (`_ASKS`): an *on* is asked
     "Who is on here?".
   - Eleven new keys in English and Russian, Russian cleared by ling-ru. Nothing spends.

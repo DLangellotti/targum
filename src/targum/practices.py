@@ -383,9 +383,15 @@ def register_candidates(
     A negator said without *ne* is informal, `NeDrop:<the formal clause>` where the rule is
     sure of it, and one said with it is formal, `NeKept`: each is the other's contrast,
     and the dropped one is the hard kind, the one a learner reads as a mistake or misses.
-    An *on* the sentence says is "we" is `OnWe`, the hard kind; every other *on* is
-    `OnOpen`, "people in general, or 'we' in speech", which is all the rule claims of it."""
-    from .annotate.french_register import Word, ne_dropped, ne_kept, ons
+    An *on* the sentence says is "we" is `OnWe`, the hard kind, and the one asked. Every
+    other *on* is `OnOpen`, "people in general, or 'we' in speech", which is all the rule
+    claims of it: never asked, because its "we" is a right answer too, and kept only as
+    the line where the other answer is right (`CONTRAST_ONLY`).
+
+    A *jamais* in a clause opened by *que* is not asked as a dropped *ne*: there it is
+    often "ever", with no negation at all (*le meilleur film que j'aie jamais vu*, qa on
+    #1283)."""
+    from .annotate.french_register import Word, _clause_start, ne_dropped, ne_kept, norm, ons
 
     words = [
         Word(
@@ -403,7 +409,17 @@ def register_candidates(
             "register", segment, words[at].start, words[at].end, answer, contrast, hard
         )
 
+    def ever(at: int) -> bool:
+        start = _clause_start(text, words, at)
+        return (
+            norm(words[at].surface) == "jamais"
+            and start > 0
+            and norm(words[start - 1].surface) in ("que", "qu'")
+        )
+
     for dropped in ne_dropped(text, words):
+        if ever(dropped.negator):
+            continue
         said = f"NeDrop:{dropped.formal}" if dropped.formal else "NeDrop"
         yield made(dropped.negator, said, "NeKept", True)
     for at in ne_kept(text, words):
@@ -418,6 +434,15 @@ def register_candidates(
 #: Spots whose answers carry the rule's detail after a colon, so two answers are the same
 #: answer when what comes before it is (`_kind`).
 _DETAILED = frozenset({"gender", "register"})
+
+#: Answers never asked and never counted as a meeting, kept only to show the line where
+#: the other answer is right: an open *on*, whose "we" may be right too.
+CONTRAST_ONLY = frozenset({"OnOpen"})
+
+
+def _asked(one: Met) -> bool:
+    return _kind(one.candidate.answer) not in CONTRAST_ONLY
+
 
 #: An item whose question is not its spot's: who an *on* is, on the register spot.
 _ASKS = {"OnWe": "practice.ask.on", "OnOpen": "practice.ask.on"}
@@ -701,7 +726,8 @@ def ledger(found: Iterable[Met]) -> Ledger:
     """The encounter ledger: once per (spot, line), never twice for the same line."""
     out = Ledger()
     for one in found:
-        out.add(one.candidate.spot, one.document, one.candidate.segment)
+        if _asked(one):
+            out.add(one.candidate.spot, one.document, one.candidate.segment)
     return out
 
 
@@ -1146,7 +1172,7 @@ def page(
         mine = [one for one in found if one.candidate.spot == key]
         mixed = seed if seed is not None else at // 3600
         items: list[dict[str, Any]] = []
-        for one in choose(mine, state, seed=mixed):
+        for one in choose([one for one in mine if _asked(one)], state, seed=mixed):
             item = _item(one, mine, ui, into, example=not items, seed=mixed)
             if item is not None:
                 items.append(item)

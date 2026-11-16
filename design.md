@@ -436,9 +436,12 @@ hard spot" (2026-10-13) and D5's "register, not error" (2026-11-05).
   asked "Who is on here?", with "“we”" against the card's own open line, "people in
   general, or “we” in speech".
 - **Nothing is claimed past the rule** (`annotate/french_register.py`, the card's rules).
-  An *on* is "we" only where the sentence says so. Every other *on* answers with the
-  open line, never "people in general" on its own, because the rule does not know that.
-  The formal clause is given only where the rule is sure of it.
+  An *on* is asked only where the sentence says it is "we". An open *on* is never asked,
+  because "we" may be right of it too (*On va au cinéma ce soir ?*), and it is not counted
+  as a meeting. It is shown only as the line where the other answer is right. The formal
+  clause is given only where the rule is sure of it.
+- **A *jamais* after *que* is not asked as a dropped *ne*.** There it is often "ever",
+  with no negation at all (*le meilleur film que j'aie jamais vu*).
 - **Hard is the spoken kind:** a dropped *ne*, and an *on* the line makes "we".
 - **The rules are read again for the practice, never stored.** A negation said with its
   *ne* is found by the same clause rules (`ne_kept`).
