@@ -198,6 +198,49 @@ def test_a_stale_active_from_an_ended_subscription_never_comes_back(tmp_path: Pa
     assert not plans.subscribed(me)
 
 
+def test_a_live_subscription_said_late_replaces_a_canceled_one(tmp_path: Path) -> None:
+    """qa-claude on #1280: two tabs make A and B. A's `canceled` lands, then B's
+    `created`, which happened earlier, arrives late. The reader pays for B, so B is held."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    t = datetime(2026, 11, 1, 10, tzinfo=UTC)
+    _said(store, me.id, "active", "sub_a", t)
+    _said(store, me.id, "canceled", "sub_a", t + timedelta(hours=1))
+    me = _said(store, me.id, "active", "sub_b", t + timedelta(minutes=5))
+    assert me.billing is not None and me.billing.subscription == "sub_b"
+    assert me.billing.status == "active" and plans.subscribed(me)
+    # A stays ended whatever arrives after.
+    me = _said(store, me.id, "active", "sub_a", t + timedelta(hours=2))
+    assert me.billing is not None and me.billing.subscription == "sub_b"
+
+
+def test_a_quarter_and_a_comp_overlapping_count_once(tmp_path: Path) -> None:
+    """qa-claude's overlap check: a comp to October 20 and a quarter from October 10
+    cover all of October once, and the quarter's months after it."""
+    store = Store(tmp_path / "targum.db")
+    me = signed_up(store, "a@example.com")
+    store.db.execute("UPDATE person SET plan_until = '2026-10-20' WHERE id = ?", (me.id,))
+    store.set_billing(
+        me.id,
+        cadence="quarter",
+        status="active",
+        period_end="2027-01-10T00:00:00Z",
+        cancel_at_end=False,
+        customer="ctm_1",
+        subscription="sub_q",
+        said_at=ms(datetime(2026, 10, 10, tzinfo=UTC)),
+        period_start="2026-10-10T00:00:00Z",
+    )
+
+    def share(y: int, m: int) -> float:
+        begin = datetime(y, m, 1, tzinfo=UTC)
+        end = datetime(y + (m == 12), m % 12 + 1, 1, tzinfo=UTC)
+        return store._plan_share(me.id, ms(begin), ms(end))
+
+    assert share(2026, 10) == 1.0 and share(2026, 11) == 1.0 and share(2026, 12) == 1.0
+    assert round(share(2027, 1), 4) == round(9 / 31, 4)
+
+
 def test_an_older_active_never_replaces_a_newer_row(tmp_path: Path) -> None:
     store = Store(tmp_path / "targum.db")
     me = signed_up(store, "a@example.com")

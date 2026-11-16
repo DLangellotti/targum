@@ -189,7 +189,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     `billing_event`, the webhook ids already handled. No card, address or sum of money
     is kept. `models.SCHEMA_VERSION` is untouched.
   - Only the subscription the `plan` row holds may change it: another replaces it only
-    when active or trialing and said no earlier than the row, so an old subscription's
+    when active or trialing and said no earlier than the row (or the row's has been
+    canceled, which any live one replaces), so an old subscription's
     late `canceled`, or its dunning, cannot change a paying reader's plan. A subscription
     once canceled never comes back. An older event about the held one changes nothing.
   - `plans.paid` is the operator, a comp that holds today, or a Paddle subscription that

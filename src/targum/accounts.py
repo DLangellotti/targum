@@ -4685,7 +4685,8 @@ class Store:
         later `canceled` must not end the plan they are paying for. So another
         subscription replaces the held one only when it is active or trialing (a past
         due one never takes the row from another), and only when Paddle said it no
-        earlier than what the row holds. A subscription Paddle has said is canceled is
+        earlier than what the row holds, unless the held one has been canceled, which
+        any live one replaces. A subscription Paddle has said is canceled is
         kept in `plan_ended` and never comes back, whatever arrives after.
 
         A `canceled` trims that subscription's paid periods to the moment it ended
@@ -4731,9 +4732,14 @@ class Store:
             held = db.execute("SELECT * FROM plan WHERE person = ?", (int(person_id),)).fetchone()
             if held is not None and str(held["subscription"]):
                 same = str(held["subscription"]) == subscription
-                if at < int(held["updated"]):
+                taking = not same and status in ("active", "trialing")
+                # A held subscription that has ended gives way to any live one, whenever
+                # Paddle said it: two tabs can make two, and the paying one's `created`
+                # may arrive after the other's `canceled` (qa-claude on #1280).
+                # `plan_ended` already keeps an ended one from coming back.
+                if at < int(held["updated"]) and not (taking and held["status"] == "canceled"):
                     return False
-                if not same and status not in ("active", "trialing"):
+                if not same and not taking:
                     return False
             same_held = held is not None and str(held["subscription"]) == subscription
             since: int | None = None
