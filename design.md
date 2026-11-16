@@ -389,7 +389,7 @@ fallen behind the entries by half; the dates are the index.)
 
 ### French gender is practised as masculine or feminine — 2026-11-16
 
-ling-fr, 2026-11-16, the first of French's seven practices toward Beta under "A practice
+David, 2026-11-16, the first of French's seven practices toward Beta under "A practice
 for every hard spot" (2026-10-13), which it follows in every other respect: the Grammar
 tab, a worked example and five items, six lines across two texts, nothing scored.
 
@@ -404,6 +404,9 @@ tab, a worked example and five items, six lines across two texts, nothing scored
   the article it is learned with: "Learn this one with its article, la or une." The card
   stays silent on the second kind (targum-internal#263); the practice is where it is
   asked.
+- **Not asked:** a lemma that is not letters and hyphens (*km/h*, *covid-19*), and a noun
+  said with either article for a man or a woman (*le* or *la malade*, every noun in
+  *-iste*), which "learn this one with its article" would get wrong (`practices.EPICENE`).
 - **French lines are asked French spots only.** The Hebrew spots read DICTA's features,
   so a French verb or adjective is never asked its tense or agreement as if it were
   Hebrew.

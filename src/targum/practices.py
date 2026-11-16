@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 import time
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -303,6 +304,28 @@ def suffix_candidates(token: Mapping[str, Any], pointed: str, segment: str) -> I
 #: A French noun's gender, as the card names it, by its code.
 GENDERS = {"Masc": "Fem", "Fem": "Masc"}
 
+#: A lemma the gender practice asks about: letters, with hyphens between them. Not
+#: *km/h*, *m.*, *°c* or *covid-19*, which the tagger calls nouns too (qa on #1278).
+_PLAIN_WORD = re.compile(r"^[^\W\d_]+(?:-[^\W\d_]+)*$")
+
+#: Nouns said with either article for a man or a woman (*le* or *la malade*), which "learn
+#: this one with its article" would get wrong: not asked (qa on #1278, David 2026-11-16).
+#: Nouns in *-iste* are all of this kind and are caught by their ending. A noun whose two
+#: genders are two words (*le livre*, *la livre*) is not here: the line's gender is that
+#: word's, and its article is the one to learn.
+EPICENE = frozenset(
+    {
+        "adulte", "adversaire", "athlète", "bibliothécaire", "camarade", "capitaine",
+        "collègue", "complice", "comptable", "concierge", "élève", "enfant", "gosse",
+        "interprète", "juge", "locataire", "malade", "ministre", "partenaire", "philosophe",
+        "photographe", "pote", "propriétaire", "psychologue", "responsable", "secrétaire",
+        "stagiaire", "fonctionnaire", "libraire", "notaire", "célibataire", "destinataire",
+        "dentiste", "domestique", "esclave", "géographe", "biologiste", "astronaute",
+        "cinéaste", "diplomate", "économiste", "pédiatre", "psychiatre",
+        "sociologue", "spécialiste",
+    }
+)  # fmt: skip
+
 
 def gender_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candidate]:
     """Masculine or feminine, for a French noun the card names a gender for
@@ -322,6 +345,9 @@ def gender_candidates(token: Mapping[str, Any], segment: str) -> Iterator[Candid
     if gender not in GENDERS:
         return
     lemma = str(token.get("lemma") or token.get("surface") or "")
+    plain = lemma.lower()
+    if not _PLAIN_WORD.match(lemma) or plain in EPICENE or plain.endswith("iste"):
+        return
     told, _, ending = ending_of(lemma).partition(":")
     agrees = bool(ending) and told == gender[0].lower()
     start, end = int(token.get("start") or 0), int(token.get("end") or 0)

@@ -23,6 +23,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     ending the card names (`annotate/endings.py`) agrees, and its rule names the ending;
     hard where no ending says it or the ending says the other gender (*la plage*), and
     its rule is the article. The answer carries the ending after a colon, `Fem:tion`.
+  - Not asked: a lemma that is not letters and hyphens (*km/h*, *covid-19*), and a noun
+    said with either article for a man or a woman (`practices.EPICENE`, every *-iste*).
   - A French text is asked French spots only (`practices._french`): the Hebrew spots no
     longer read a French verb or adjective. No cache version bump; French texts had no
     `practice.json` before.

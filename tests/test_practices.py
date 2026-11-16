@@ -471,6 +471,22 @@ def test_a_french_noun_is_asked_its_gender_and_its_ending_decides_the_kind() -> 
     assert asked({**noun("belle", "beau", "Fem"), "pos": "ADJ"}) == []
 
 
+def test_gender_is_not_asked_of_a_symbol_or_a_noun_of_either_gender() -> None:
+    """qa on #1278: *km/h* is no word to learn an article with, and *le* or *la malade*
+    has two, so "learn this one with its article" would be wrong of either."""
+
+    def asked(token: dict[str, Any]) -> bool:
+        return bool(list(practices.gender_candidates({"start": 0, "end": 1, **token}, "s")))
+
+    for lemma in ("km/h", "m.", "°c", "covid-19"):
+        assert not asked(noun(lemma, lemma, "Masc")), lemma
+    for lemma in ("malade", "camarade", "concierge", "journaliste", "Élève"):
+        assert not asked(noun(lemma, lemma, "Fem")), lemma
+    # A hyphenated word is still a word, and a noun of one gender is still asked.
+    assert asked(noun("arc-en-ciel", "arc-en-ciel", "Masc"))
+    assert asked(noun("victime", "victime", "Fem"))
+
+
 @pytest.mark.parametrize("ui", ["en", "ru"])
 def test_a_gender_is_said_and_its_rule_names_the_ending(ui: str) -> None:
     from targum import strings
