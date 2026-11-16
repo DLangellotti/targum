@@ -8933,8 +8933,9 @@ class Handler(BaseHTTPRequestHandler):
                     wanted,
                     self._page_language(),
                     # The calendar this browser reads the portion on, so the mail names
-                    # the same portion its shelf does (targum-internal#409).
-                    schedule=str(payload.get("schedule") or "diaspora")
+                    # the same portion its shelf does (targum-internal#409). None said
+                    # keeps the row's: a new row reads as the diaspora's.
+                    schedule=str(payload.get("schedule") or "")
                     if series == SCHEDULED_SERIES
                     else "",
                 )

@@ -407,5 +407,8 @@ def test_the_weekly_portion_keeps_the_calendar_it_was_subscribed_on(
     ).fetchone()
     db.close()
     assert kept == "israel"
+    # Subscribing again from a browser that never chose says no calendar: Israel's stays.
+    status, answer = send(port, "POST", "/account/follows", {"series": "parasha"}, mine)
+    assert status == 200 and answer["schedule"] == "israel"
     status, _ = send(port, "POST", "/account/follows", {"schedule": "israel"})
     assert status == 401, "signed out, there is no row to keep it on"

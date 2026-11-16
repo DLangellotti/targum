@@ -71,9 +71,11 @@
     // Signed in, the account keeps the list too: it follows you to another browser,
     // and it is what the server mails. Signed out the browser's own list is all there is.
     // The weekly portion goes with the calendar this browser reads it on, so the daily
-    // mail names the same portion the shelf does (targum-internal#409).
+    // mail names the same portion the shelf does (targum-internal#409). Only a calendar
+    // this browser chose: one that never chose leaves the account's as it is.
     var body = { series: id, on: !!on };
-    if (id === PORTION) body.schedule = schedule();
+    var chosen = scheduleChosen();
+    if (id === PORTION && chosen) body.schedule = chosen;
     tell(body);
   }
   function tell(body) {

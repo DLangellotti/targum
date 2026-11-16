@@ -109,10 +109,7 @@ def test_following_reaches_the_account_and_the_account_s_list_wins() -> None:
     """Signed in, a press is posted to the account, and what the account says stands
     over what this browser had: the same row on every browser somebody signs in on."""
     got = run(series=[WEEKLY, PARASHA], do=[{"type": "follow", "id": "parasha"}])
-    assert {
-        "path": "/account/follows",
-        "body": {"series": "parasha", "on": True, "schedule": "diaspora"},
-    } in got["asked"]
+    assert {"path": "/account/follows", "body": {"series": "parasha", "on": True}} in got["asked"]
     theirs = run(series=[WEEKLY, PARASHA], follows={"weekly": 1}, account=["parasha"])
     assert theirs["follows"] == {"parasha": 1}
     assert (
@@ -136,6 +133,9 @@ def test_the_weekly_portion_is_subscribed_with_the_calendar_this_browser_reads()
         {"series": "parasha", "on": True, "schedule": "israel"},
         {"series": "weekly", "on": True},
     ]
+    # A browser that never chose sends no calendar, so the account's stands.
+    never = run(series=[PARASHA], do=[{"type": "follow", "id": "parasha"}])
+    assert posted(never) == [{"series": "parasha", "on": True}]
 
 
 def test_a_calendar_changed_on_the_shelf_reaches_the_portion_s_row() -> None:

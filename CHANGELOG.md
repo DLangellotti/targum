@@ -18,7 +18,8 @@ Notable changes to targum, newest first. Versions follow the 4-digit
     again when the Library shelf's switch changes it while the portion is followed. A
     calendar this browser chose that the account does not have yet (chosen before this
     shipped, or signed out) is sent on the next sync; a browser that never chose sends
-    nothing, so it cannot undo another browser's choice. `POST /account/follows` with a
+    no calendar, on Subscribe or on sync, and the server keeps the row's, so it cannot
+    undo another browser's choice. `POST /account/follows` with a
     `schedule` and no `series` updates the row; the answer carries the stored one.
   - `subscriptions._series_items` asks `series.current` on the row's calendar.
   - Privacy Notice clause 3.2 carries David's line word for word, "If you follow the
